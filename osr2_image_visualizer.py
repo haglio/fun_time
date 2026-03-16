@@ -40,11 +40,19 @@ def scan_files(folder: Path):
     return files
 
 
-def load_photo(path: Path, max_width: int, max_height: int):
+def load_pil(path: Path):
     img = Image.open(path)
     img = ImageOps.exif_transpose(img).convert("RGB")
-    img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
-    return ImageTk.PhotoImage(img)
+    img.load()
+    return img
+
+
+def make_photo(img: Image.Image, max_width: int, max_height: int):
+    max_width = max(1, int(max_width))
+    max_height = max(1, int(max_height))
+    sized = img.copy()
+    sized.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+    return ImageTk.PhotoImage(sized)
 
 
 def serial_reader(port: str, baud: int, state: SharedState, stop_event: threading.Event):
@@ -101,6 +109,7 @@ def main():
     ap.add_argument("--beats-per-loop", type=float, default=1.0)
     ap.add_argument("--reverse", action="store_true")
     ap.add_argument("--preload-batch", type=int, default=2)
+    ap.add_argument("--render-batch", type=int, default=4)
     args = ap.parse_args()
 
     folder = Path(args.folder)
@@ -112,28 +121,185 @@ def main():
 
     root = tk.Tk()
     root.title("OSR2 Image Visualizer")
+    root.geometry(f"{args.width}x{args.height}")
+    root.configure(bg="black")
 
-    image_label = tk.Label(root)
-    image_label.pack(padx=10, pady=10)
+    container = tk.Frame(root, bg="black")
+    container.pack(fill="both", expand=True)
+
+    image_label = tk.Label(container, bg="black", bd=0, highlightthickness=0)
+    image_label.pack(fill="both", expand=True)
 
     status_var = tk.StringVar(value="Starting...")
-    status_label = tk.Label(root, textvariable=status_var, justify="left", font=("Consolas", 10))
-    status_label.pack(padx=10, pady=(0, 10), anchor="w")
+    status_label = tk.Label(
+        container,
+        textvariable=status_var,
+        justify="left",
+        font=("Consolas", 10),
+        bg="#111111",
+        fg="white",
+        bd=1,
+        relief="solid",
+        padx=8,
+        pady=6,
+    )
 
-    photos = [None] * frame_count
-    preload_done = {"value": False}
+    pil_images = [None] * frame_count
+    photo_cache = [None] * frame_count
+    cache_size = {"value": None}
     last_shown = {"value": None}
 
-    initial_index = frame_count - 1 if args.reverse else 0
-    photos[initial_index] = load_photo(files[initial_index], args.width, args.height)
-    image_label.configure(image=photos[initial_index])
-    image_label.image = photos[initial_index]
-    last_shown["value"] = initial_index
+    preload_done = {"value": False}
+    loaded_count = {"value": 0}
 
-    remaining = [i for i in range(frame_count) if i != initial_index]
+    render_queue = []
+    render_scheduled = {"value": False}
+    resize_after_id = {"value": None}
+    hide_status_after_id = {"value": None}
+
+    initial_index = frame_count - 1 if args.reverse else 0
 
     state = SharedState()
     stop_event = threading.Event()
+
+    def current_viewport():
+        w = max(1, container.winfo_width())
+        h = max(1, container.winfo_height())
+        return w, h
+
+    def show_status():
+        status_label.place(x=10, y=10)
+
+    def hide_status():
+        if state.error is None and preload_done["value"]:
+            status_label.place_forget()
+
+    def schedule_hide_status():
+        if hide_status_after_id["value"] is not None:
+            root.after_cancel(hide_status_after_id["value"])
+        hide_status_after_id["value"] = root.after(1200, hide_status)
+
+    def on_mouse_motion(_event=None):
+        if preload_done["value"] and state.error is None:
+            show_status()
+            schedule_hide_status()
+
+    def on_mouse_leave(_event=None):
+        if preload_done["value"] and state.error is None:
+            hide_status()
+
+    def set_display_index(index: int, force=False):
+        if index is None or pil_images[index] is None:
+            return
+
+        viewport = current_viewport()
+
+        if cache_size["value"] != viewport:
+            photo = make_photo(pil_images[index], *viewport)
+            image_label.configure(image=photo)
+            image_label.image = photo
+            last_shown["value"] = index
+            return
+
+        photo = photo_cache[index]
+        if photo is None:
+            photo = make_photo(pil_images[index], *viewport)
+            photo_cache[index] = photo
+
+        if force or last_shown["value"] != index:
+            image_label.configure(image=photo)
+            image_label.image = photo
+            last_shown["value"] = index
+
+    def schedule_render_step():
+        if not render_scheduled["value"]:
+            render_scheduled["value"] = True
+            root.after(1, render_step)
+
+    def render_step():
+        render_scheduled["value"] = False
+
+        if cache_size["value"] is None:
+            return
+
+        count = 0
+        size = cache_size["value"]
+
+        while render_queue and count < args.render_batch:
+            i = render_queue.pop(0)
+            if pil_images[i] is not None:
+                photo_cache[i] = make_photo(pil_images[i], *size)
+                count += 1
+
+        current_index = last_shown["value"]
+        if current_index is not None and photo_cache[current_index] is not None:
+            image_label.configure(image=photo_cache[current_index])
+            image_label.image = photo_cache[current_index]
+
+        if render_queue:
+            schedule_render_step()
+
+    def request_rerender():
+        size = current_viewport()
+        if size[0] < 2 or size[1] < 2:
+            return
+
+        cache_size["value"] = size
+        for i in range(frame_count):
+            photo_cache[i] = None
+
+        render_queue.clear()
+        for i in range(frame_count):
+            if pil_images[i] is not None:
+                render_queue.append(i)
+
+        current_index = last_shown["value"] if last_shown["value"] is not None else initial_index
+        if pil_images[current_index] is not None:
+            photo_cache[current_index] = make_photo(pil_images[current_index], *size)
+            image_label.configure(image=photo_cache[current_index])
+            image_label.image = photo_cache[current_index]
+
+        schedule_render_step()
+
+    def on_resize(_event=None):
+        if resize_after_id["value"] is not None:
+            root.after_cancel(resize_after_id["value"])
+        resize_after_id["value"] = root.after(120, request_rerender)
+
+    def preload_step():
+        count = 0
+        while remaining and count < args.preload_batch:
+            i = remaining.pop(0)
+            pil_images[i] = load_pil(files[i])
+            loaded_count["value"] += 1
+            if cache_size["value"] is not None:
+                render_queue.append(i)
+            count += 1
+
+        if not preload_done["value"]:
+            status_var.set(f"Loading frames... {loaded_count['value']}/{frame_count}")
+            show_status()
+
+        schedule_render_step()
+
+        if remaining:
+            root.after(1, preload_step)
+        else:
+            preload_done["value"] = True
+            status_var.set("Ready")
+            schedule_hide_status()
+
+    pil_images[initial_index] = load_pil(files[initial_index])
+    loaded_count["value"] = 1
+
+    root.update_idletasks()
+    cache_size["value"] = current_viewport()
+    photo_cache[initial_index] = make_photo(pil_images[initial_index], *cache_size["value"])
+    image_label.configure(image=photo_cache[initial_index])
+    image_label.image = photo_cache[initial_index]
+    last_shown["value"] = initial_index
+
+    remaining = [i for i in range(frame_count) if i != initial_index]
 
     t = threading.Thread(
         target=serial_reader,
@@ -141,21 +307,6 @@ def main():
         daemon=True,
     )
     t.start()
-
-    def preload_step():
-        count = 0
-        while remaining and count < args.preload_batch:
-            i = remaining.pop(0)
-            photos[i] = load_photo(files[i], args.width, args.height)
-            count += 1
-
-        loaded = frame_count - len(remaining)
-        status_var.set(f"Loading frames... {loaded}/{frame_count}")
-
-        if remaining:
-            root.after(1, preload_step)
-        else:
-            preload_done["value"] = True
 
     def refresh():
         now = time.monotonic()
@@ -172,6 +323,7 @@ def main():
 
         if error:
             status_var.set(f"Serial error: {error}")
+            show_status()
             root.after(100, refresh)
             return
 
@@ -192,11 +344,7 @@ def main():
                 phase = None
                 display_index = last_shown["value"] if last_shown["value"] is not None else initial_index
 
-            if last_shown["value"] != display_index:
-                photo = photos[display_index]
-                image_label.configure(image=photo)
-                image_label.image = photo
-                last_shown["value"] = display_index
+            set_display_index(display_index)
 
             status_var.set(
                 f"frame={display_index + 1}/{frame_count}  file={files[display_index].name}\n"
@@ -216,6 +364,16 @@ def main():
     def on_close():
         stop_event.set()
         root.destroy()
+
+    root.bind("<Motion>", on_mouse_motion)
+    container.bind("<Motion>", on_mouse_motion)
+    image_label.bind("<Motion>", on_mouse_motion)
+
+    root.bind("<Leave>", on_mouse_leave)
+    container.bind("<Leave>", on_mouse_leave)
+    image_label.bind("<Leave>", on_mouse_leave)
+
+    root.bind("<Configure>", on_resize)
 
     root.protocol("WM_DELETE_WINDOW", on_close)
     root.after(1, preload_step)
