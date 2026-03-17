@@ -172,7 +172,7 @@ def main():
     ap.add_argument("--y", type=int, default=0)
     ap.add_argument("--notify-host", default="127.0.0.1")
     ap.add_argument("--notify-port", type=int, default=50556)
-    ap.add_argument("--command-file", default=r"C:\path\to\suite-root\projects\osr2_reader\robot_hand_cmd.txt")
+    ap.add_argument("--command-file", default=r"C:\path\to\suite-root\projects\fun_time\robot_hand_cmd.txt")
     args = ap.parse_args()
 
     command_file = Path(args.command_file)
