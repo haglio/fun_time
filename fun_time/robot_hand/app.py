@@ -1,208 +1,67 @@
+from __future__ import annotations
+
 import argparse
-import re
+import logging
 import socket
-import subprocess
 import threading
 import time
 from collections import OrderedDict
 from pathlib import Path
+
 import tkinter as tk
-from PIL import Image, ImageTk, ImageOps
-import traceback
-import sys
-import faulthandler
 
-PROJECT_DIR = Path(__file__).resolve().parent
-STATE_DIR = PROJECT_DIR / "state"
-STATE_DIR.mkdir(exist_ok=True)
-
-SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
-
-LOG_FILE = STATE_DIR / "robot_hand_crash.log"
-LOG_FP = LOG_FILE.open("a", encoding="utf-8", buffering=1)
-
-faulthandler.enable(LOG_FP, all_threads=True)
-
-def log_exception(where: str, exc_type, exc, tb):
-    if exc_type is KeyboardInterrupt:
-        return
-    try:
-        with LOG_FILE.open("a", encoding="utf-8") as f:
-            f.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} [{where}] ---\n")
-            traceback.print_exception(exc_type, exc, tb, file=f)
-    except Exception:
-        pass
-
-def _sys_excepthook(exc_type, exc, tb):
-    log_exception("sys.excepthook", exc_type, exc, tb)
-
-def _thread_excepthook(args):
-    log_exception(f"thread:{getattr(args.thread, 'name', 'unknown')}", args.exc_type, args.exc_value, args.exc_traceback)
-
-sys.excepthook = _sys_excepthook
-threading.excepthook = _thread_excepthook
-
-def natural_key(path: Path):
-    parts = re.split(r"(\d+)", path.name.lower())
-    return [int(p) if p.isdigit() else p for p in parts]
+from ..config import load_config
+from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
+from .state import SharedState, udp_reader
+from .video import decode_video_to_pil_frames, make_photo, scan_clips
 
 
-def scan_clips(folder: Path):
-    files = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_VIDEO_EXTS]
-    files.sort(key=natural_key)
-    if not files:
-        raise RuntimeError(f"No video clips found in: {folder}")
-    return files
+def _preparse_config(argv: list[str] | None) -> str | None:
+    ap = argparse.ArgumentParser(add_help=False)
+    ap.add_argument("--config")
+    known, _ = ap.parse_known_args(argv)
+    return known.config
 
 
-def ffprobe_size(path: Path):
-    cmd = [
-        "ffprobe",
-        "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=width,height",
-        "-of", "csv=p=0:s=x",
-        str(path),
-    ]
-    out = subprocess.check_output(cmd, text=True).strip()
-    w, h = out.split("x", 1)
-    return int(w), int(h)
-
-
-def decode_video_to_pil_frames(path: Path):
-    width, height = ffprobe_size(path)
-    frame_size = width * height * 3
-
-    cmd = [
-        "ffmpeg",
-        "-v", "error",
-        "-i", str(path),
-        "-map", "0:v:0",
-        "-an",
-        "-sn",
-        "-vsync", "0",
-        "-f", "rawvideo",
-        "-pix_fmt", "rgb24",
-        "pipe:1",
-    ]
-
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    frames = []
-
-    try:
-        while True:
-            buf = proc.stdout.read(frame_size)
-            if not buf:
-                break
-            if len(buf) != frame_size:
-                break
-            frames.append(Image.frombytes("RGB", (width, height), buf))
-    finally:
-        if proc.stdout:
-            proc.stdout.close()
-        stderr = proc.stderr.read().decode("utf-8", errors="replace") if proc.stderr else ""
-        rc = proc.wait()
-        if rc != 0:
-            raise RuntimeError(stderr.strip() or f"ffmpeg failed for {path}")
-
-    if not frames:
-        raise RuntimeError(f"No frames decoded from: {path}")
-
-    return frames
-
-
-def make_photo(img: Image.Image, max_width: int, max_height: int):
-    sized = ImageOps.contain(img, (max(1, int(max_width)), max(1, int(max_height))), Image.Resampling.LANCZOS)
-    return ImageTk.PhotoImage(sized)
-
-
-class SharedState:
-    def __init__(self):
-        self.lock = threading.Lock()
-        self.auto_active = False
-        self.visible = False
-        self.raw_bpm = None
-        self.beats = None
-        self.stroke_name = ""
-        self.pattern_duration = None
-        self.sync_pulse_id = 0
-        self.last_msg = ""
-        self.error = None
-
-
-def udp_reader(host: str, port: int, state: SharedState, stop_event: threading.Event):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((host, port))
-    sock.settimeout(0.2)
-
-    try:
-        while not stop_event.is_set():
-            try:
-                data, _addr = sock.recvfrom(4096)
-            except socket.timeout:
-                continue
-
-            line = data.decode("utf-8", errors="replace").strip()
-            parts = line.split(" ", 1)
-            cmd = parts[0].upper()
-            arg = parts[1] if len(parts) > 1 else ""
-
-            with state.lock:
-                state.last_msg = line
-
-                if cmd == "SHOW":
-                    state.visible = True
-                elif cmd == "HIDE":
-                    state.visible = False
-                elif cmd == "AUTO":
-                    state.auto_active = (arg.strip() == "1")
-                elif cmd == "BPM":
-                    try:
-                        state.raw_bpm = float(arg.strip())
-                    except ValueError:
-                        pass
-                elif cmd == "BEATS":
-                    try:
-                        state.beats = int(arg.strip())
-                    except ValueError:
-                        pass
-                elif cmd == "STROKE":
-                    state.stroke_name = arg.strip()
-                elif cmd == "PATTERN":
-                    try:
-                        state.pattern_duration = float(arg.strip())
-                    except ValueError:
-                        pass
-                elif cmd == "SYNC":
-                    state.sync_pulse_id += 1
-    except Exception as e:
-        log_exception("udp_reader", type(e), e, e.__traceback__)
-        with state.lock:
-            state.error = str(e)
-    finally:
-        sock.close()
-
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--clips-folder", default="clips")
+def build_parser(config) -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description="Robot Hand clip player.")
+    ap.add_argument("--config", help="Path to a JSON config file.")
+    ap.add_argument("--clips-folder", default=str(config.paths.clips_dir))
     ap.add_argument("--width", type=int, default=1200)
     ap.add_argument("--height", type=int, default=900)
-    ap.add_argument("--beats-per-loop", type=float, default=1.0)
-    ap.add_argument("--reverse", action="store_true")
-    ap.add_argument("--clip-cache-size", type=int, default=2)
-    ap.add_argument("--render-batch", type=int, default=6)
-    ap.add_argument("--bpm-smoothing", type=float, default=0.14)
-    ap.add_argument("--sync-strength", type=float, default=0.35)
-    ap.add_argument("--udp-host", default="127.0.0.1")
-    ap.add_argument("--udp-port", type=int, default=50555)
+    ap.add_argument("--beats-per-loop", type=float, default=config.robot_hand.beats_per_loop)
+    ap.add_argument("--reverse", action="store_true", default=config.robot_hand.reverse)
+    ap.add_argument("--clip-cache-size", type=int, default=config.robot_hand.clip_cache_size)
+    ap.add_argument("--render-batch", type=int, default=config.robot_hand.render_batch)
+    ap.add_argument("--bpm-smoothing", type=float, default=config.robot_hand.bpm_smoothing)
+    ap.add_argument("--sync-strength", type=float, default=config.robot_hand.sync_strength)
+    ap.add_argument("--udp-host", default=config.robot_hand.udp_host)
+    ap.add_argument("--udp-port", type=int, default=config.robot_hand.udp_port)
     ap.add_argument("--x", type=int, default=0)
     ap.add_argument("--y", type=int, default=0)
-    ap.add_argument("--notify-host", default="127.0.0.1")
-    ap.add_argument("--notify-port", type=int, default=50556)
-    ap.add_argument("--command-file", default=str(STATE_DIR / "robot_hand_cmd.txt"))
-    args = ap.parse_args()
+    ap.add_argument("--notify-host", default=config.robot_hand.notify_host)
+    ap.add_argument("--notify-port", type=int, default=config.robot_hand.notify_port)
+    ap.add_argument("--command-file", default=str(config.robot_hand_cmd_file))
+    return ap
 
+
+def main(argv: list[str] | None = None) -> int:
+    config = load_config(_preparse_config(argv))
+    logger = configure_logging("fun_time.robot_hand", config.log_file("robot_hand_listener"))
+    install_exception_logging(logger)
+    fault_fp = enable_faulthandler(config.log_file("robot_hand_crash"))
+    args = build_parser(config).parse_args(argv)
+
+    try:
+        return run_listener(args, config, logger)
+    finally:
+        try:
+            fault_fp.close()
+        except Exception:
+            pass
+
+
+def run_listener(args, config, logger: logging.Logger) -> int:
     command_file = Path(args.command_file)
 
     def consume_command_file():
@@ -215,6 +74,7 @@ def main():
             command_file.write_text("", encoding="utf-8")
             return text
         except Exception:
+            logger.exception("Failed to consume command file %s", command_file)
             return None
 
     clips_folder = Path(args.clips_folder)
@@ -227,12 +87,12 @@ def main():
     root = tk.Tk()
 
     def tk_callback_exception(exc_type, exc, tb):
-        log_exception("tk_callback", exc_type, exc, tb)
+        logger.critical("Tk callback failed", exc_info=(exc_type, exc, tb))
         try:
-            status_var.set(f"Error: {exc}\nSee {LOG_FILE.name}")
+            status_var.set(f"Error: {exc}\nSee {config.log_file('robot_hand_listener').name}")
             show_status()
         except Exception:
-            pass
+            logger.exception("Failed to update status after Tk exception")
 
     root.report_callback_exception = tk_callback_exception
 
@@ -265,20 +125,20 @@ def main():
 
     udp_thread = threading.Thread(
         target=udp_reader,
-        args=(args.udp_host, args.udp_port, state, stop_event),
+        args=(args.udp_host, args.udp_port, state, stop_event, logger),
         daemon=True,
+        name="robot-hand-udp",
     )
     udp_thread.start()
 
-    clip_cache = OrderedDict()
+    clip_cache: OrderedDict[Path, dict] = OrderedDict()
     current_clip_path = {"value": None}
     current_frame_index = {"value": None}
 
-    render_queue = []
+    render_queue: list[int] = []
     render_scheduled = {"value": False}
     resize_after_id = {"value": None}
     hide_status_after_id = {"value": None}
-
     window_visible = {"value": False}
 
     engine = {
@@ -298,18 +158,17 @@ def main():
     }
 
     notify_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    last_visible_sent = {"value": None}
 
     def notify_clip(path: Path):
         notify_sock.sendto(f"CLIP {path.stem}".encode("utf-8"), (args.notify_host, args.notify_port))
-
-    last_visible_sent = {"value": None}
 
     def notify_visible(is_visible: bool):
         val = 1 if is_visible else 0
         if last_visible_sent["value"] != val:
             notify_sock.sendto(f"VISIBLE {val}".encode("utf-8"), (args.notify_host, args.notify_port))
             last_visible_sent["value"] = val
-            
+
     def current_viewport():
         return max(1, container.winfo_width()), max(1, container.winfo_height())
 
@@ -323,7 +182,7 @@ def main():
     def schedule_hide_status():
         if hide_status_after_id["value"] is not None:
             root.after_cancel(hide_status_after_id["value"])
-        hide_status_after_id["value"] = root.after(1200, hide_status)
+        hide_status_after_id["value"] = root.after(config.robot_hand.status_hide_ms, hide_status)
 
     def on_mouse_motion(_event=None):
         show_status()
@@ -351,10 +210,11 @@ def main():
             load_state["loaded_frames"] = frames
             load_state["load_error"] = None
             load_state["request_id_done"] = request_id
-        except Exception as e:
+        except Exception as exc:
+            logger.exception("Failed to decode clip %s", path)
             load_state["loaded_clip_path"] = path
             load_state["loaded_frames"] = None
-            load_state["load_error"] = str(e)
+            load_state["load_error"] = str(exc)
             load_state["request_id_done"] = request_id
 
     def request_clip_load(path: Path):
@@ -372,8 +232,8 @@ def main():
         status_var.set(f"Loading clip...\n{path.name}")
         show_status()
 
-        t = threading.Thread(target=loader_thread_fn, args=(path, request_id), daemon=True)
-        t.start()
+        thread = threading.Thread(target=loader_thread_fn, args=(path, request_id), daemon=True, name="robot-hand-loader")
+        thread.start()
 
     def adopt_loaded_clip_if_ready():
         request_id_done = load_state.get("request_id_done")
@@ -433,8 +293,8 @@ def main():
         entry["photo_frames"] = [None] * len(entry["pil_frames"])
         render_queue.clear()
 
-        for i in range(len(entry["pil_frames"])):
-            render_queue.append(i)
+        for idx in range(len(entry["pil_frames"])):
+            render_queue.append(idx)
 
         if entry["pil_frames"]:
             first_idx = 0
@@ -465,9 +325,9 @@ def main():
 
             count = 0
             while render_queue and count < args.render_batch:
-                i = render_queue.pop(0)
-                if entry["photo_frames"][i] is None:
-                    entry["photo_frames"][i] = make_photo(entry["pil_frames"][i], *size)
+                idx = render_queue.pop(0)
+                if entry["photo_frames"][idx] is None:
+                    entry["photo_frames"][idx] = make_photo(entry["pil_frames"][idx], *size)
                 count += 1
 
             idx = current_frame_index["value"]
@@ -477,8 +337,8 @@ def main():
 
             if render_queue:
                 schedule_render_step()
-        except Exception as e:
-            log_exception("render_step", e)
+        except Exception:
+            logger.exception("render_step failed")
 
     def ensure_current_frame_photo(index: int):
         path = current_clip_path["value"]
@@ -500,7 +360,7 @@ def main():
     def on_resize(_event=None):
         if resize_after_id["value"] is not None:
             root.after_cancel(resize_after_id["value"])
-        resize_after_id["value"] = root.after(120, prepare_active_clip_for_current_size)
+        resize_after_id["value"] = root.after(config.robot_hand.resize_debounce_ms, prepare_active_clip_for_current_size)
 
     def step_clip(delta: int):
         clip_index["value"] = (clip_index["value"] + delta) % len(clips)
@@ -581,7 +441,7 @@ def main():
                 step_clip(1)
             elif cmd == "NUDGE25":
                 engine["phase"] = (engine["phase"] + 0.25) % 1.0
-                    
+
             path = current_clip_path["value"]
             active_entry = clip_cache.get(path) if path in clip_cache else None
             clip_name = path.name if path else "(none)"
@@ -631,20 +491,16 @@ def main():
                 show_status()
 
             root.after(16, refresh)
-        except Exception as e:
-            log_exception("refresh", e)
-            status_var.set(f"Error: {e}\nSee {LOG_FILE.name}")
+        except Exception as exc:
+            logger.exception("refresh failed")
+            status_var.set(f"Error: {exc}\nSee {config.log_file('robot_hand_listener').name}")
             show_status()
             root.after(250, refresh)
-    
+
     def on_close():
         stop_event.set()
         notify_visible(False)
         notify_sock.close()
-        try:
-            LOG_FP.close()
-        except Exception:
-            pass
         root.destroy()
 
     root.bind("<Motion>", on_mouse_motion)
@@ -655,11 +511,13 @@ def main():
 
     root.protocol("WM_DELETE_WINDOW", on_close)
 
+    logger.info("Loaded %s clips from %s", len(clips), clips_folder)
     set_current_clip(clips[0])
     root.withdraw()
     root.after(16, refresh)
     root.mainloop()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -20,12 +20,11 @@ It is designed so that:
 
 Core files:
 
-- `main.sh` — main launcher/orchestrator
+- `main.sh` — compatibility wrapper that forwards to `orchestrator.py`
 - `launch.vbs` — hidden Windows launcher used by the shortcut/taskbar item
+- `fun_time_config.json` — central config for paths, ports, and layout values
 - `controller.ahk` — AutoHotkey controller and hotkeys
-- `broker.py` — serial broker between MFP and the real OSR2
-- `robot_hand_listener.py` — Robot Hand UI / clip player
-- `robot_hand_audio_companion.py` — Robot Hand audio player
+- `fun_time/` — shared Python package for config, logging, orchestration, and Robot Hand modules
 - `icon.ico` — Fun Time / Robot Hand icon
 
 Asset folders:
@@ -37,6 +36,7 @@ Runtime state:
 
 - `state/robot_hand_mode.txt`
 - `state/robot_hand_cmd.txt`
+- `state/*.log`
 
 Local runtime data:
 
@@ -52,6 +52,28 @@ Recommended:
 - `C:\path\to\suite-root\projects\fun_time\favs.csv`
 
 It should be ignored by Git.
+
+## Configuration
+
+Runtime configuration is centralized in `fun_time_config.json`.
+
+This file now controls:
+
+- executable paths
+- media/library paths
+- serial and UDP ports
+- Robot Hand playback defaults
+- monitor/layout ratios used by `controller.ahk`
+
+Useful sections:
+
+- `paths`
+- `controller.layout`
+- `broker`
+- `robot_hand`
+- `audio_companion`
+
+The layout values that used to be hard-coded in AutoHotkey now live under `controller.layout`.
 
 ## High-level architecture
 
@@ -108,7 +130,6 @@ So the clip and audio files should have the same base name.
 - VLC
 - MultiFunPlayer
 - AutoHotkey v2
-- Git Bash
 - `com0com`
 
 ### Python / tools
@@ -135,17 +156,31 @@ python -m pip install pyserial pygame pillow
 Use the `Fun Time` shortcut / taskbar launcher, which calls:
 
 - `launch.vbs`
-- which runs `main.sh`
+- which runs `python -m fun_time.orchestrator`
 
-### Direct test run
+### Validation run
 
-From Git Bash:
+Validation only:
 
-```bash
-cd "/c/path/to/suite-root/projects/fun_time" && bash -x ./main.sh
+```powershell
+python -m fun_time.orchestrator --check
 ```
 
-This is the best way to debug startup failures.
+### Direct full launch
+
+From PowerShell:
+
+```powershell
+python -m fun_time.orchestrator
+```
+
+Alternative compatibility launch:
+
+```bash
+cd "/c/path/to/suite-root/projects/fun_time" && bash ./main.sh
+```
+
+The `--check` mode is the fastest way to validate config and path wiring before a full launch.
 
 ## MFP setup
 
@@ -234,6 +269,19 @@ Values:
 
 `robot_hand_listener.py` consumes and clears this file.
 
+### Log files
+
+The Python entry points now write rotating logs in `state/`.
+
+Common log files:
+
+- `state/orchestrator.log`
+- `state/controller.log`
+- `state/broker.log`
+- `state/robot_hand_listener.log`
+- `state/robot_hand_audio.log`
+- `state/robot_hand_crash.log`
+
 ## Notes on design
 
 ### Why the broker exists
@@ -301,13 +349,30 @@ ffmpeg -y -i "Bella_half_middle.mp4" -an -vf "scale=480:-2" -c:v libx264 -crf 20
 
 ### Nothing happens from the taskbar launcher
 
-Run manually in Git Bash:
+First run a config check:
+
+```powershell
+python -m fun_time.orchestrator --check
+```
+
+If that passes, run manually from PowerShell:
+
+```powershell
+python -m fun_time.orchestrator
+```
+
+Alternative compatibility run via `main.sh`:
 
 ```bash
-cd "/c/path/to/suite-root/projects/fun_time" && bash -x ./main.sh
+cd "/c/path/to/suite-root/projects/fun_time" && bash ./main.sh
 ```
 
 Also verify the shortcut’s **Start in** points to the project folder.
+
+If startup still fails, inspect:
+
+- `state/orchestrator.log`
+- `state/controller.log`
 
 ### MFP does not control the OSR2
 
@@ -325,6 +390,8 @@ Check:
 - broker is running
 - OSR2 is actually entering auto/free mode
 - `state/robot_hand_mode.txt` changes to `1`
+- `state/broker.log` for serial parsing / mode transitions
+- `state/robot_hand_listener.log` for UI/runtime errors
 
 ### `[` and `]` do not switch Robot Hand clips
 
@@ -333,6 +400,8 @@ Check:
 - `state/robot_hand_mode.txt` is `1`
 - `state/robot_hand_cmd.txt` is being written
 - clip files exist in `clips/`
+- `state/controller.log` shows the hotkey write
+- `state/robot_hand_listener.log` shows command-file consumption errors
 
 ### A clip stutters badly
 
@@ -353,19 +422,24 @@ Depending on your workflow, you may also eventually want to ignore `clips/` and 
 
 These are the files that define the working system:
 
+- `fun_time_config.json`
 - `main.sh`
 - `launch.vbs`
 - `controller.ahk`
-- `broker.py`
-- `robot_hand_listener.py`
-- `robot_hand_audio_companion.py`
+- `fun_time/config.py`
+- `fun_time/orchestrator.py`
+- `fun_time/broker_app.py`
+- `fun_time/audio_companion_app.py`
+- `fun_time/robot_hand/app.py`
+- `fun_time/robot_hand/state.py`
+- `fun_time/robot_hand/video.py`
 
-## Future cleanup ideas
+## Refactors completed
 
-Potential future refactors:
+Completed from the earlier cleanup list:
 
-- replace `main.sh` with a Python orchestrator
-- centralize config into one file
-- split `robot_hand_listener.py` into smaller modules
-- make window/layout constants configurable
-- improve logging and diagnostics
+- orchestration now lives in `fun_time/orchestrator.py`, with `main.sh` kept as a thin wrapper
+- config is centralized in `fun_time_config.json`
+- Robot Hand is modularized under `fun_time/robot_hand/`
+- window/layout constants are configurable through `controller.layout`
+- runtime logging and diagnostics are written to `state/*.log`
