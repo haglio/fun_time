@@ -3,37 +3,27 @@ Set shell = CreateObject("WScript.Shell")
 
 scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
 
-Function ToBashPath(winPath)
-  Dim drive, rest
-  drive = LCase(Left(winPath, 1))
-  rest = Mid(winPath, 3)
-  rest = Replace(rest, "\", "/")
-  ToBashPath = "/" & drive & rest
-End Function
-
-Function FindBashExe()
+Function FindPythonCommand()
   Dim candidates, i
   candidates = Array( _
-    "C:\Program Files\Git\bin\bash.exe", _
-    "C:\Program Files\Git\usr\bin\bash.exe", _
-    "C:\Program Files (x86)\Git\bin\bash.exe" _
+    "python", _
+    "py -3" _
   )
   For i = 0 To UBound(candidates)
-    If fso.FileExists(candidates(i)) Then
-      FindBashExe = candidates(i)
+    If shell.Run("cmd /c where " & Split(candidates(i), " ")(0) & " >nul 2>nul", 0, True) = 0 Then
+      FindPythonCommand = candidates(i)
       Exit Function
     End If
   Next
-  FindBashExe = ""
+  FindPythonCommand = ""
 End Function
 
-bashExe = FindBashExe()
-If bashExe = "" Then
-  MsgBox "Could not find bash.exe", vbCritical, "Fun Time"
+pythonCmd = FindPythonCommand()
+If pythonCmd = "" Then
+  MsgBox "Could not find python or py launcher.", vbCritical, "Fun Time"
   WScript.Quit 1
 End If
 
-bashDir = ToBashPath(scriptDir)
-cmd = """" & bashExe & """" & " -lc " & Chr(34) & "cd '" & bashDir & "' && bash ./main.sh" & Chr(34)
+cmd = "cmd /c cd /d """ & scriptDir & """ && " & pythonCmd & " -m fun_time.orchestrator"
 
 shell.Run cmd, 0, False

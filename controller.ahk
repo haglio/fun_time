@@ -8,9 +8,11 @@ SetTitleMatchMode 2
 ; Args:
 ; 1 VLC_EXE, 2 MFP_EXE, 3 WINSTON_DIR, 4 PORTRAIT_DIR, 5 LANDSCAPE_DIR,
 ; 6 WEIRD_DIR, 7 FAVS_FILE, 8 VLC2_PORT, 9 VLC3_PORT, 10 VLC_PASS,
-; 11 ROBOT_HAND_PY, 12 ROBOT_HAND_SCRIPT, 13 BROKER_SCRIPT, 14 ROBOT_HAND_CLIPS,
-; 15 ROBOT_HAND_AUDIO_SCRIPT, 16 ROBOT_HAND_AUDIO, 17 ROBOT_HAND_MODE_FILE, 18 ROBOT_HAND_CMD_FILE
-if (A_Args.Length < 18) {
+; 11 ROBOT_HAND_PY, 12 ROBOT_HAND_MODULE, 13 BROKER_MODULE, 14 ROBOT_HAND_CLIPS,
+; 15 ROBOT_HAND_AUDIO_MODULE, 16 ROBOT_HAND_AUDIO, 17 ROBOT_HAND_MODE_FILE, 18 ROBOT_HAND_CMD_FILE,
+; 19 PRIMARY_MONITOR, 20 SECONDARY_MONITOR, 21 PRIMARY_TOP_RATIO, 22 LANDSCAPE_WIDTH_RATIO,
+; 23 MFP_WIDTH_RATIO, 24 MFP_HEIGHT_RATIO, 25 CONTROLLER_LOG_FILE, 26 CONFIG_PATH
+if (A_Args.Length < 26) {
     MsgBox("Not enough arguments passed to controller. Got " . A_Args.Length, "fun_time", "Iconx")
     ExitApp 2
 }
@@ -26,13 +28,26 @@ VLC2_PORT             := A_Args[8]
 VLC3_PORT             := A_Args[9]
 VLC_PASS              := A_Args[10]
 ROBOT_HAND_PY         := A_Args[11]
-ROBOT_HAND_SCRIPT     := A_Args[12]
-BROKER_SCRIPT         := A_Args[13]
+ROBOT_HAND_MODULE     := A_Args[12]
+BROKER_MODULE         := A_Args[13]
 ROBOT_HAND_CLIPS      := A_Args[14]
-ROBOT_HAND_AUDIO_SCRIPT := A_Args[15]
+ROBOT_HAND_AUDIO_MODULE := A_Args[15]
 ROBOT_HAND_AUDIO      := A_Args[16]
 ROBOT_HAND_MODE_FILE       := A_Args[17]
 ROBOT_HAND_CMD_FILE   := A_Args[18]
+PRIMARY_MONITOR       := A_Args[19]
+SECONDARY_MONITOR     := A_Args[20]
+PRIMARY_TOP_RATIO     := A_Args[21]
+LANDSCAPE_WIDTH_RATIO := A_Args[22]
+MFP_WIDTH_RATIO       := A_Args[23]
+MFP_HEIGHT_RATIO      := A_Args[24]
+CONTROLLER_LOG_FILE   := A_Args[25]
+CONFIG_PATH           := A_Args[26]
+
+PROJECT_DIR := ""
+SplitPath(CONFIG_PATH, , &PROJECT_DIR)
+if (PROJECT_DIR = "")
+    PROJECT_DIR := A_ScriptDir
 
 ; IMPORTANT: VLC web interface commonly uses BLANK username + password.
 VLC_USER := ""
@@ -53,11 +68,28 @@ Join(a, b, c := "", d := "", e := "") {
     return out
 }
 
+Clamp01(value) {
+    numeric := value + 0
+    if (numeric < 0)
+        return 0.0
+    if (numeric > 1)
+        return 1.0
+    return numeric
+}
+
+Log(msg) {
+    global CONTROLLER_LOG_FILE
+    try {
+        FileAppend(FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n", CONTROLLER_LOG_FILE, "UTF-8")
+    }
+}
+
 RunApp(exe, args) {
+    global PROJECT_DIR
     cmd := Q(exe)
     if (args != "")
         cmd .= " " . args
-    Run(cmd, , , &pid)
+    Run(cmd, PROJECT_DIR, , &pid)
     return pid
 }
 
@@ -68,11 +100,11 @@ RunVLC(args, mediaPath) {
 }
 
 GetRobotHandRect(&x, &y, &w, &h) {
-    ; Match pid1 placement exactly: bottom section of monitor 1
-    MonitorGetWorkArea(1, &sL, &sT, &sR, &sB)
+    global PRIMARY_MONITOR, PRIMARY_TOP_RATIO
+    MonitorGetWorkArea(PRIMARY_MONITOR, &sL, &sT, &sR, &sB)
     sW := sR - sL
     sH := sB - sT
-    hTop := Floor(sH * 8 / 11)
+    hTop := Floor(sH * Clamp01(PRIMARY_TOP_RATIO))
     hBot := sH - hTop
 
     x := sL
@@ -108,12 +140,14 @@ SyncRobotHandState() {
 
     if (modeOn && !robotHandMode) {
         robotHandMode := true
+        Log("Entering Robot Hand mode")
         try ControlSend("{Space}", , "ahk_pid " pid1)   ; pause pid1
         try WinSetAlwaysOnTop(false, "ahk_pid " pid1)
         try WinSetAlwaysOnTop(true, "Robot Hand")
         try WinActivate("Robot Hand")
     } else if (!modeOn && robotHandMode) {
         robotHandMode := false
+        Log("Leaving Robot Hand mode")
         try WinSetAlwaysOnTop(false, "Robot Hand")
         try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
         if (modeState = "0") {
@@ -123,6 +157,8 @@ SyncRobotHandState() {
 }
 
 ; -------------------- LAUNCH --------------------
+
+Log("Controller starting")
 
 pid1 := RunVLC("--no-one-instance --random --repeat", WINSTON_DIR)
 Sleep 900
@@ -163,13 +199,15 @@ SetTopMost(pid1, pid2, pid3)
 
 Sleep 1200
 
-pidB := RunApp(ROBOT_HAND_PY, Q(BROKER_SCRIPT))
+pidB := RunApp(ROBOT_HAND_PY, "-m " . BROKER_MODULE . " --config " . Q(CONFIG_PATH))
+Log("Started broker pid=" . pidB)
 
 rx := 0, ry := 0, rw := 0, rh := 0
 GetRobotHandRect(&rx, &ry, &rw, &rh)
 
 pidR := RunApp(ROBOT_HAND_PY
-    , Q(ROBOT_HAND_SCRIPT)
+    , "-m " . ROBOT_HAND_MODULE
+    . " --config " . Q(CONFIG_PATH)
     . " --clips-folder " . Q(ROBOT_HAND_CLIPS)
     . " --reverse"
     . " --x " . rx
@@ -177,11 +215,14 @@ pidR := RunApp(ROBOT_HAND_PY
     . " --width " . rw
     . " --height " . rh
 )
+Log("Started Robot Hand listener pid=" . pidR)
 
 pidA := RunApp(ROBOT_HAND_PY
-    , Q(ROBOT_HAND_AUDIO_SCRIPT)
+    , "-m " . ROBOT_HAND_AUDIO_MODULE
+    . " --config " . Q(CONFIG_PATH)
     . " --audio-folder " . Q(ROBOT_HAND_AUDIO)
 )
+Log("Started Robot Hand audio pid=" . pidA)
 
 SetTimer(SyncRobotHandState, 200)
 
@@ -243,6 +284,7 @@ s::ToggleLock(3)
 ; =====================================================================
 
 ShutdownAll(pid1, pid2, pid3, pidM, pidB := 0, pidR := 0, pidA := 0) {
+    Log("Shutdown requested")
     for pid in [pid1, pid2, pid3, pidM, pidB, pidR, pidA] {
         if (pid) {
             try WinClose("ahk_pid " pid)
@@ -258,24 +300,25 @@ ShutdownAll(pid1, pid2, pid3, pidM, pidB := 0, pidR := 0, pidA := 0) {
 }
 
 PositionAll(pid1, pid2, pid3, pidM) {
-    MonitorGetWorkArea(2, &pL, &pT, &pR, &pB)
-    MonitorGetWorkArea(1, &sL, &sT, &sR, &sB)
+    global PRIMARY_MONITOR, SECONDARY_MONITOR, PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
+    MonitorGetWorkArea(SECONDARY_MONITOR, &pL, &pT, &pR, &pB)
+    MonitorGetWorkArea(PRIMARY_MONITOR, &sL, &sT, &sR, &sB)
 
     pW := pR - pL, pH := pB - pT
     sW := sR - sL, sH := sB - sT
 
-    hTop := Floor(sH * 8 / 11)
+    hTop := Floor(sH * Clamp01(PRIMARY_TOP_RATIO))
     hBot := sH - hTop
 
     MovePidWindow(pid2, sL, sT,       sW, hTop)
     MovePidWindow(pid1, sL, sT+hTop,  sW, hBot)
-    w3 := Floor(pW * 2 / 3)
+    w3 := Floor(pW * Clamp01(LANDSCAPE_WIDTH_RATIO))
     x3 := pL + (pW - w3)   ; right-aligned 2/3
     MovePidWindow(pid3, x3, pT, w3, pH)
 
     leftW := pW - w3          ; width of the unused left region (≈ 1/3)
-    mW := Floor(leftW * 0.90) ; make it ~90% of that region width
-    mH := Floor(pH * 0.60)    ; and ~60% of screen height
+    mW := Floor(leftW * Clamp01(MFP_WIDTH_RATIO))
+    mH := Floor(pH * Clamp01(MFP_HEIGHT_RATIO))
     mX := pL + Floor((leftW - mW) / 2)
     mY := pT + Floor((pH - mH) / 2)
     MovePidWindow(pidM, mX, mY, mW, mH)
@@ -340,6 +383,7 @@ WaitForHttp(port, timeoutMs := 5000) {
             break
         Sleep 200
     }
+    Log("VLC HTTP interface failed to come up on port " . port)
     MsgBox("VLC HTTP interface did not come up on port " . port . "`nControls for that player will not work until this is resolved.", "fun_time", "Icon!")
     return false
 }
@@ -590,6 +634,8 @@ Discard(which) {
     port := (which = 2) ? VLC2_PORT : VLC3_PORT
     src := GetCurrentFilePath(port)
 
+    Log("Discarding from player " . which . ": " . src)
+
     if (which = 2 && locked2) {
         SetRepeatMode(port, "all")
         locked2 := false
@@ -614,20 +660,24 @@ ToggleLock(which) {
             SetRepeatMode(port, "one")
             EnsureInFavs(GetCurrentFilePath(port))
             locked2 := true
+            Log("Locked portrait VLC")
         } else {
             SetRepeatMode(port, "all")
             VlcHttpCmd(port, "pl_next")
             locked2 := false
+            Log("Unlocked portrait VLC")
         }
     } else {
         if (!locked3) {
             SetRepeatMode(port, "one")
             EnsureInFavs(GetCurrentFilePath(port))
             locked3 := true
+            Log("Locked landscape VLC")
         } else {
             SetRepeatMode(port, "all")
             VlcHttpCmd(port, "pl_next")
             locked3 := false
+            Log("Unlocked landscape VLC")
         }
     }
 }

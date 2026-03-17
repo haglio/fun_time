@@ -4,3 +4,8 @@ audio/
 state/
 
 favs.csv
+
+.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
