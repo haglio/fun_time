@@ -30,7 +30,6 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--width", type=int, default=1200)
     ap.add_argument("--height", type=int, default=900)
     ap.add_argument("--beats-per-loop", type=float, default=config.robot_hand.beats_per_loop)
-    ap.add_argument("--reverse", action="store_true", default=config.robot_hand.reverse)
     ap.add_argument("--clip-cache-size", type=int, default=config.robot_hand.clip_cache_size)
     ap.add_argument("--render-batch", type=int, default=config.robot_hand.render_batch)
     ap.add_argument("--bpm-smoothing", type=float, default=config.robot_hand.bpm_smoothing)
@@ -452,7 +451,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 if logical_index >= frame_count:
                     logical_index = frame_count - 1
 
-                display_index = (frame_count - 1) - logical_index if args.reverse else logical_index
+                display_index = (frame_count - 1) - logical_index
 
                 if not auto_active and current_frame_index["value"] is not None:
                     display_index = current_frame_index["value"]

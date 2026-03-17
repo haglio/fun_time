@@ -46,7 +46,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "robot_hand": {
         "beats_per_loop": 1.0,
-        "reverse": True,
         "clip_cache_size": 2,
         "render_batch": 6,
         "bpm_smoothing": 0.14,
@@ -128,7 +127,6 @@ class BrokerConfig:
 @dataclass(frozen=True)
 class RobotHandConfig:
     beats_per_loop: float
-    reverse: bool
     clip_cache_size: int
     render_batch: int
     bpm_smoothing: float
@@ -232,7 +230,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
 
     robot_hand = RobotHandConfig(
         beats_per_loop=float(robot_raw["beats_per_loop"]),
-        reverse=bool(robot_raw["reverse"]),
         clip_cache_size=int(robot_raw["clip_cache_size"]),
         render_batch=int(robot_raw["render_batch"]),
         bpm_smoothing=float(robot_raw["bpm_smoothing"]),

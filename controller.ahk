@@ -209,7 +209,6 @@ pidR := RunApp(ROBOT_HAND_PY
     , "-m " . ROBOT_HAND_MODULE
     . " --config " . Q(CONFIG_PATH)
     . " --clips-folder " . Q(ROBOT_HAND_CLIPS)
-    . " --reverse"
     . " --x " . rx
     . " --y " . ry
     . " --width " . rw
