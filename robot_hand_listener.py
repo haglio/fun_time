@@ -7,16 +7,26 @@ import time
 from collections import OrderedDict
 from pathlib import Path
 import tkinter as tk
-
 from PIL import Image, ImageTk, ImageOps
-from sympy import root
-from sympy import root
+import traceback
 
 PROJECT_DIR = Path(__file__).resolve().parent
 STATE_DIR = PROJECT_DIR / "state"
 STATE_DIR.mkdir(exist_ok=True)
 
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
+
+LOG_FILE = STATE_DIR / "robot_hand_crash.log"
+
+
+def log_exception(where: str, exc: Exception):
+    try:
+        with LOG_FILE.open("a", encoding="utf-8") as f:
+            f.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} [{where}] ---\n")
+            f.write(f"{type(exc).__name__}: {exc}\n")
+            traceback.print_exc(file=f)
+    except Exception:
+        pass
 
 
 def natural_key(path: Path):
@@ -414,31 +424,34 @@ def main():
             root.after(1, render_step)
 
     def render_step():
-        render_scheduled["value"] = False
+        try:
+            render_scheduled["value"] = False
 
-        path = current_clip_path["value"]
-        if path is None or path not in clip_cache:
-            return
+            path = current_clip_path["value"]
+            if path is None or path not in clip_cache:
+                return
 
-        entry = clip_entry_for(path)
-        size = current_viewport()
-        if entry["photo_size"] != size:
-            return
+            entry = clip_entry_for(path)
+            size = current_viewport()
+            if entry["photo_size"] != size:
+                return
 
-        count = 0
-        while render_queue and count < args.render_batch:
-            i = render_queue.pop(0)
-            if entry["photo_frames"][i] is None:
-                entry["photo_frames"][i] = make_photo(entry["pil_frames"][i], *size)
-            count += 1
+            count = 0
+            while render_queue and count < args.render_batch:
+                i = render_queue.pop(0)
+                if entry["photo_frames"][i] is None:
+                    entry["photo_frames"][i] = make_photo(entry["pil_frames"][i], *size)
+                count += 1
 
-        idx = current_frame_index["value"]
-        if idx is not None and 0 <= idx < len(entry["photo_frames"]) and entry["photo_frames"][idx] is not None:
-            image_label.configure(image=entry["photo_frames"][idx])
-            image_label.image = entry["photo_frames"][idx]
+            idx = current_frame_index["value"]
+            if idx is not None and 0 <= idx < len(entry["photo_frames"]) and entry["photo_frames"][idx] is not None:
+                image_label.configure(image=entry["photo_frames"][idx])
+                image_label.image = entry["photo_frames"][idx]
 
-        if render_queue:
-            schedule_render_step()
+            if render_queue:
+                schedule_render_step()
+        except Exception as e:
+            log_exception("render_step", e)
 
     def ensure_current_frame_photo(index: int):
         path = current_clip_path["value"]
@@ -499,96 +512,106 @@ def main():
         return loop_duration
 
     def refresh():
-        now = time.monotonic()
-        adopt_loaded_clip_if_ready()
+        try:
+            now = time.monotonic()
+            adopt_loaded_clip_if_ready()
 
-        with state.lock:
-            auto_active = state.auto_active
-            visible = state.visible
-            raw_bpm = state.raw_bpm
-            beats = state.beats
-            stroke_name = state.stroke_name
-            pattern_duration = state.pattern_duration
-            sync_pulse_id = state.sync_pulse_id
-            last_msg = state.last_msg
-            error = state.error
+            with state.lock:
+                auto_active = state.auto_active
+                visible = state.visible
+                raw_bpm = state.raw_bpm
+                beats = state.beats
+                stroke_name = state.stroke_name
+                pattern_duration = state.pattern_duration
+                sync_pulse_id = state.sync_pulse_id
+                last_msg = state.last_msg
+                error = state.error
 
-        if visible:
-            notify_visible(True)
-            if root.state() == "withdrawn":
-                root.deiconify()
-            root.attributes("-topmost", True)
-            root.lift()
-        else:
-            notify_visible(False)
-            root.attributes("-topmost", False)
-            if root.state() != "withdrawn":
-                root.withdraw()
+            if visible:
+                if last_visible_sent["value"] != 1 and current_clip_path["value"] is not None:
+                    notify_clip(current_clip_path["value"])
+                notify_visible(True)
+                if root.state() == "withdrawn":
+                    root.deiconify()
+                root.attributes("-topmost", True)
+                root.lift()
+            else:
+                notify_visible(False)
+                root.attributes("-topmost", False)
+                if root.state() != "withdrawn":
+                    root.withdraw()
 
-        if error:
-            status_var.set(f"Error:\n{error}")
-            show_status()
-            root.after(100, refresh)
-            return
+            if error:
+                status_var.set(f"Error:\n{error}")
+                show_status()
+                root.after(100, refresh)
+                return
 
-        loop_duration = update_engine(now, auto_active, raw_bpm, sync_pulse_id)
-
-        path = current_clip_path["value"]
-        active_entry = clip_cache.get(path) if path in clip_cache else None
-        clip_name = path.name if path else "(none)"
-
-        if active_entry and active_entry["pil_frames"]:
-            frame_count = len(active_entry["pil_frames"])
-            logical_index = int(engine["phase"] * frame_count)
-            if logical_index >= frame_count:
-                logical_index = frame_count - 1
-
-            display_index = (frame_count - 1) - logical_index if args.reverse else logical_index
-
-            if not auto_active and current_frame_index["value"] is not None:
-                display_index = current_frame_index["value"]
-
-            photo = ensure_current_frame_photo(display_index)
-            if photo is not None and current_frame_index["value"] != display_index:
-                image_label.configure(image=photo)
-                image_label.image = photo
-                current_frame_index["value"] = display_index
+            loop_duration = update_engine(now, auto_active, raw_bpm, sync_pulse_id)
 
             cmd = consume_command_file()
             if cmd == "PREV":
                 step_clip(-1)
             elif cmd == "NEXT":
                 step_clip(1)
+            elif cmd == "NUDGE25":
+                engine["phase"] = (engine["phase"] + 0.25) % 1.0
+                    
+            path = current_clip_path["value"]
+            active_entry = clip_cache.get(path) if path in clip_cache else None
+            clip_name = path.name if path else "(none)"
 
-            est_bpm_text = f"{engine['estimated_bpm']:.2f}" if engine["estimated_bpm"] is not None else "n/a"
-            status_var.set(
-                f"clip={clip_name}\n"
-                f"clip_index={clip_index['value'] + 1}/{len(clips)}\n"
-                f"frame={display_index + 1}/{frame_count}\n"
-                f"visible={visible}\n"
-                f"state={'auto-on' if auto_active else 'auto-off'}\n"
-                f"phase={engine['phase']:.3f}\n"
-                f"raw_bpm={raw_bpm}\n"
-                f"est_bpm={est_bpm_text}\n"
-                f"beats={beats}\n"
-                f"loop_duration={loop_duration}\n"
-                f"stroke={stroke_name}\n"
-                f"pattern_duration={pattern_duration}\n"
-                f"loading={load_state['loading']}\n"
-                f"last_msg={last_msg}\n"
-                f"keys=[ and ] switch clips"
-            )
-        else:
-            status_var.set(
-                f"clip={clip_name}\n"
-                f"clip_index={clip_index['value'] + 1}/{len(clips)}\n"
-                f"loading={load_state['loading']}\n"
-                f"keys=[ and ] switch clips"
-            )
+            if active_entry and active_entry["pil_frames"]:
+                frame_count = len(active_entry["pil_frames"])
+                logical_index = int(engine["phase"] * frame_count)
+                if logical_index >= frame_count:
+                    logical_index = frame_count - 1
+
+                display_index = (frame_count - 1) - logical_index if args.reverse else logical_index
+
+                if not auto_active and current_frame_index["value"] is not None:
+                    display_index = current_frame_index["value"]
+
+                photo = ensure_current_frame_photo(display_index)
+                if photo is not None and current_frame_index["value"] != display_index:
+                    image_label.configure(image=photo)
+                    image_label.image = photo
+                    current_frame_index["value"] = display_index
+
+                est_bpm_text = f"{engine['estimated_bpm']:.2f}" if engine["estimated_bpm"] is not None else "n/a"
+                status_var.set(
+                    f"clip={clip_name}\n"
+                    f"clip_index={clip_index['value'] + 1}/{len(clips)}\n"
+                    f"frame={display_index + 1}/{frame_count}\n"
+                    f"visible={visible}\n"
+                    f"state={'auto-on' if auto_active else 'auto-off'}\n"
+                    f"phase={engine['phase']:.3f}\n"
+                    f"raw_bpm={raw_bpm}\n"
+                    f"est_bpm={est_bpm_text}\n"
+                    f"beats={beats}\n"
+                    f"loop_duration={loop_duration}\n"
+                    f"stroke={stroke_name}\n"
+                    f"pattern_duration={pattern_duration}\n"
+                    f"loading={load_state['loading']}\n"
+                    f"last_msg={last_msg}\n"
+                    f"keys=[ and ] switch clips"
+                )
+            else:
+                status_var.set(
+                    f"clip={clip_name}\n"
+                    f"clip_index={clip_index['value'] + 1}/{len(clips)}\n"
+                    f"loading={load_state['loading']}\n"
+                    f"keys=[ and ] switch clips"
+                )
+                show_status()
+
+            root.after(16, refresh)
+        except Exception as e:
+            log_exception("refresh", e)
+            status_var.set(f"Error: {e}\nSee {LOG_FILE.name}")
             show_status()
-
-        root.after(16, refresh)
-
+            root.after(250, refresh)
+    
     def on_close():
         stop_event.set()
         notify_visible(False)

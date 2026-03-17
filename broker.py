@@ -22,25 +22,35 @@ UDP_PORT = 50555
 RE_BPM = re.compile(r"\bbpm\s+(\d+),\s+beats\s+(\d+)", re.IGNORECASE)
 RE_STROKE = re.compile(r"StrokeName:\s*([^,]+),\s*PatternDuration:\s*([0-9.]+)", re.IGNORECASE)
 
+AUTO_STALE_TIMEOUT = 4.5
+
+last_real_rx_time = 0.0
 stop_flag = False
 auto_active = False
 lock = threading.Lock()
+
+
+def write_mode(value: str):
+    try:
+        STATE_FILE.write_text(value, encoding="utf-8")
+    except Exception:
+        pass
 
 
 def udp_send(sock, msg: str):
     sock.sendto(msg.encode("utf-8"), (UDP_HOST, UDP_PORT))
 
 
-def set_auto(sock, value: bool):
+def set_auto(sock, value: bool, mode_value: str | None = None):
     global auto_active
     with lock:
         changed = (auto_active != value)
         auto_active = value
 
-    try:
-        STATE_FILE.write_text("1" if value else "0", encoding="utf-8")
-    except Exception:
-        pass
+    if mode_value is None:
+        mode_value = "1" if value else "0"
+
+    write_mode(mode_value)
 
     udp_send(sock, f"AUTO {1 if value else 0}")
     if value:
@@ -91,6 +101,9 @@ def forward_real_to_virtual(real, virt, udp_sock):
             if not data:
                 continue
 
+            global last_real_rx_time
+            last_real_rx_time = time.monotonic()
+
             virt.write(data)
 
             buf.extend(data)
@@ -128,7 +141,7 @@ def forward_virtual_to_real(virt, real):
 def main():
     global stop_flag
 
-    STATE_FILE.write_text("0", encoding="utf-8")
+    write_mode("0")
 
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -148,6 +161,8 @@ def main():
         try:
             while True:
                 time.sleep(0.2)
+                if get_auto() and last_real_rx_time and (time.monotonic() - last_real_rx_time > AUTO_STALE_TIMEOUT):
+                    set_auto(udp_sock, False, mode_value="2")
         except KeyboardInterrupt:
             stop_flag = True
         finally:

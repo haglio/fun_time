@@ -40,7 +40,7 @@ VLC_USER := ""
 locked2 := false
 locked3 := false
 
-robotMode := false
+robotHandMode := false
 
 Q(s) => Format('"{1}"', s)
 
@@ -89,29 +89,31 @@ SendToTitle(title, keys) {
     try ControlSend(keys, , title)
 }
 
-RobotModeOn() {
-    global ROBOT_HAND_MODE_FILE
+RobotHandModeState() {
+    global ROBOT_HAND_MODE_FILE  ; if your variable is still ROBOT_MODE_HAND_FILE, use that name instead
     try {
         if !FileExist(ROBOT_HAND_MODE_FILE)
-            return false
-        v := Trim(FileRead(ROBOT_HAND_MODE_FILE, "UTF-8"))
-        return (v = "1")
+            return "0"
+        return Trim(FileRead(ROBOT_HAND_MODE_FILE, "UTF-8"))
     } catch {
-        return false
+        return "0"
     }
 }
 
 SyncRobotHandState() {
-    global robotMode, pid1
+    global robotHandMode, pid1
 
-    modeOn := RobotModeOn()
+    modeState := RobotHandModeState()
+    modeOn := (modeState = "1")
 
-    if (modeOn && !robotMode) {
-        robotMode := true
+    if (modeOn && !robotHandMode) {
+        robotHandMode := true
         try ControlSend("{Space}", , "ahk_pid " pid1)   ; pause pid1
-    } else if (!modeOn && robotMode) {
-        robotMode := false
-        try ControlSend("{Space}", , "ahk_pid " pid1)   ; resume pid1
+    } else if (!modeOn && robotHandMode) {
+        robotHandMode := false
+        if (modeState = "0") {
+            try ControlSend("{Space}", , "ahk_pid " pid1)   ; only resume on a normal exit from Robot Hand mode
+        }
     }
 
     if modeOn {
@@ -194,7 +196,7 @@ Esc::ShutdownAll(pid1, pid2, pid3, pidM, pidB, pidR, pidA)
 Space::SendToPid(pid1, "{Space}")
 
 [::{
-    if RobotModeOn() {
+    if (RobotHandModeState() = "1") {
         try FileDelete(ROBOT_HAND_CMD_FILE)
         FileAppend("PREV", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
     } else {
@@ -203,11 +205,18 @@ Space::SendToPid(pid1, "{Space}")
 }
 
 ]::{
-    if RobotModeOn() {
+    if (RobotHandModeState() = "1") {
         try FileDelete(ROBOT_HAND_CMD_FILE)
         FileAppend("NEXT", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
     } else {
         try ControlSend("n", , "ahk_pid " pid1)
+    }
+}
+
+\::{
+    if (RobotHandModeState() = "1") {
+        try FileDelete(ROBOT_HAND_CMD_FILE)
+        FileAppend("NUDGE25", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
     }
 }
 
