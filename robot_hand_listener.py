@@ -9,6 +9,8 @@ from pathlib import Path
 import tkinter as tk
 from PIL import Image, ImageTk, ImageOps
 import traceback
+import sys
+import faulthandler
 
 PROJECT_DIR = Path(__file__).resolve().parent
 STATE_DIR = PROJECT_DIR / "state"
@@ -17,17 +19,28 @@ STATE_DIR.mkdir(exist_ok=True)
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
 
 LOG_FILE = STATE_DIR / "robot_hand_crash.log"
+LOG_FP = LOG_FILE.open("a", encoding="utf-8", buffering=1)
 
+faulthandler.enable(LOG_FP, all_threads=True)
 
-def log_exception(where: str, exc: Exception):
+def log_exception(where: str, exc_type, exc, tb):
+    if exc_type is KeyboardInterrupt:
+        return
     try:
         with LOG_FILE.open("a", encoding="utf-8") as f:
             f.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} [{where}] ---\n")
-            f.write(f"{type(exc).__name__}: {exc}\n")
-            traceback.print_exc(file=f)
+            traceback.print_exception(exc_type, exc, tb, file=f)
     except Exception:
         pass
 
+def _sys_excepthook(exc_type, exc, tb):
+    log_exception("sys.excepthook", exc_type, exc, tb)
+
+def _thread_excepthook(args):
+    log_exception(f"thread:{getattr(args.thread, 'name', 'unknown')}", args.exc_type, args.exc_value, args.exc_traceback)
+
+sys.excepthook = _sys_excepthook
+threading.excepthook = _thread_excepthook
 
 def natural_key(path: Path):
     parts = re.split(r"(\d+)", path.name.lower())
@@ -163,6 +176,7 @@ def udp_reader(host: str, port: int, state: SharedState, stop_event: threading.E
                 elif cmd == "SYNC":
                     state.sync_pulse_id += 1
     except Exception as e:
+        log_exception("udp_reader", type(e), e, e.__traceback__)
         with state.lock:
             state.error = str(e)
     finally:
@@ -211,6 +225,17 @@ def main():
     clip_index = {"value": 0}
 
     root = tk.Tk()
+
+    def tk_callback_exception(exc_type, exc, tb):
+        log_exception("tk_callback", exc_type, exc, tb)
+        try:
+            status_var.set(f"Error: {exc}\nSee {LOG_FILE.name}")
+            show_status()
+        except Exception:
+            pass
+
+    root.report_callback_exception = tk_callback_exception
+
     root.title("Robot Hand")
     root.geometry(f"{args.width}x{args.height}+{args.x}+{args.y}")
     root.configure(bg="black")
@@ -253,6 +278,8 @@ def main():
     render_scheduled = {"value": False}
     resize_after_id = {"value": None}
     hide_status_after_id = {"value": None}
+
+    window_visible = {"value": False}
 
     engine = {
         "phase": 0.0,
@@ -527,19 +554,17 @@ def main():
                 last_msg = state.last_msg
                 error = state.error
 
-            if visible:
-                if last_visible_sent["value"] != 1 and current_clip_path["value"] is not None:
-                    notify_clip(current_clip_path["value"])
-                notify_visible(True)
-                if root.state() == "withdrawn":
+            if visible != window_visible["value"]:
+                if visible:
+                    if last_visible_sent["value"] != 1 and current_clip_path["value"] is not None:
+                        notify_clip(current_clip_path["value"])
+                    notify_visible(True)
                     root.deiconify()
-                root.attributes("-topmost", True)
-                root.lift()
-            else:
-                notify_visible(False)
-                root.attributes("-topmost", False)
-                if root.state() != "withdrawn":
+                else:
+                    notify_visible(False)
                     root.withdraw()
+
+                window_visible["value"] = visible
 
             if error:
                 status_var.set(f"Error:\n{error}")
@@ -616,6 +641,10 @@ def main():
         stop_event.set()
         notify_visible(False)
         notify_sock.close()
+        try:
+            LOG_FP.close()
+        except Exception:
+            pass
         root.destroy()
 
     root.bind("<Motion>", on_mouse_motion)
