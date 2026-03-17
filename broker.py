@@ -22,7 +22,7 @@ UDP_PORT = 50555
 RE_BPM = re.compile(r"\bbpm\s+(\d+),\s+beats\s+(\d+)", re.IGNORECASE)
 RE_STROKE = re.compile(r"StrokeName:\s*([^,]+),\s*PatternDuration:\s*([0-9.]+)", re.IGNORECASE)
 
-AUTO_STALE_TIMEOUT = 4.5
+AUTO_STALE_TIMEOUT = 8.0
 
 last_real_rx_time = 0.0
 stop_flag = False
