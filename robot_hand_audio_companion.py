@@ -34,14 +34,16 @@ def find_audio(stem: str):
     return None
 
 def apply_state():
-    global current_path, paused
+    global paused
 
     if visible and current_path is not None:
-        if paused:
-            pygame.mixer.music.unpause()
-            paused = False
-        elif not pygame.mixer.music.get_busy():
+        if pygame.mixer.music.get_busy():
+            if paused:
+                pygame.mixer.music.unpause()
+                paused = False
+        else:
             pygame.mixer.music.play(-1)
+            paused = False
     else:
         if pygame.mixer.music.get_busy() and not paused:
             pygame.mixer.music.pause()
@@ -56,13 +58,12 @@ while True:
         path = find_audio(stem)
         current_stem = stem
         current_path = path
+
         if path is not None:
             pygame.mixer.music.load(str(path))
+            paused = False
             if visible:
                 pygame.mixer.music.play(-1)
-                paused = False
-            else:
-                paused = True
         else:
             pygame.mixer.music.stop()
             paused = False
