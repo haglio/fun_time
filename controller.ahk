@@ -109,20 +109,16 @@ SyncRobotHandState() {
     if (modeOn && !robotHandMode) {
         robotHandMode := true
         try ControlSend("{Space}", , "ahk_pid " pid1)   ; pause pid1
-    } else if (!modeOn && robotHandMode) {
-        robotHandMode := false
-        if (modeState = "0") {
-            try ControlSend("{Space}", , "ahk_pid " pid1)   ; only resume on a normal exit from Robot Hand mode
-        }
-    }
-
-    if modeOn {
         try WinSetAlwaysOnTop(false, "ahk_pid " pid1)
         try WinSetAlwaysOnTop(true, "Robot Hand")
         try WinActivate("Robot Hand")
-    } else {
+    } else if (!modeOn && robotHandMode) {
+        robotHandMode := false
         try WinSetAlwaysOnTop(false, "Robot Hand")
         try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
+        if (modeState = "0") {
+            try ControlSend("{Space}", , "ahk_pid " pid1)   ; only resume on normal exit
+        }
     }
 }
 
