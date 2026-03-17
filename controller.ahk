@@ -9,9 +9,9 @@ SetTitleMatchMode 2
 ; 1 VLC_EXE, 2 MFP_EXE, 3 WINSTON_DIR, 4 PORTRAIT_DIR, 5 LANDSCAPE_DIR,
 ; 6 WEIRD_DIR, 7 FAVS_FILE, 8 VLC2_PORT, 9 VLC3_PORT, 10 VLC_PASS,
 ; 11 ROBOT_HAND_PY, 12 ROBOT_HAND_SCRIPT, 13 BROKER_SCRIPT, 14 ROBOT_HAND_CLIPS,
-; 15 ROBOT_HAND_AUDIO_SCRIPT, 16 ROBOT_HAND_AUDIO, 17 ROBOT_MODE_HAND_FILE, 18 ROBOT_HAND_CMD_FILE
+; 15 ROBOT_HAND_AUDIO_SCRIPT, 16 ROBOT_HAND_AUDIO, 17 ROBOT_HAND_MODE_FILE, 18 ROBOT_HAND_CMD_FILE
 if (A_Args.Length < 18) {
-    MsgBox("Not enough arguments passed to controller. Got " . A_Args.Length, "vlc_wall", "Iconx")
+    MsgBox("Not enough arguments passed to controller. Got " . A_Args.Length, "fun_time", "Iconx")
     ExitApp 2
 }
 
@@ -31,7 +31,7 @@ BROKER_SCRIPT         := A_Args[13]
 ROBOT_HAND_CLIPS      := A_Args[14]
 ROBOT_HAND_AUDIO_SCRIPT := A_Args[15]
 ROBOT_HAND_AUDIO      := A_Args[16]
-ROBOT_MODE_HAND_FILE       := A_Args[17]
+ROBOT_HAND_MODE_FILE       := A_Args[17]
 ROBOT_HAND_CMD_FILE   := A_Args[18]
 
 ; IMPORTANT: VLC web interface commonly uses BLANK username + password.
@@ -90,11 +90,11 @@ SendToTitle(title, keys) {
 }
 
 RobotModeOn() {
-    global ROBOT_MODE_HAND_FILE
+    global ROBOT_HAND_MODE_FILE
     try {
-        if !FileExist(ROBOT_MODE_HAND_FILE)
+        if !FileExist(ROBOT_HAND_MODE_FILE)
             return false
-        v := Trim(FileRead(ROBOT_MODE_HAND_FILE, "UTF-8"))
+        v := Trim(FileRead(ROBOT_HAND_MODE_FILE, "UTF-8"))
         return (v = "1")
     } catch {
         return false
@@ -335,7 +335,7 @@ WaitForHttp(port, timeoutMs := 5000) {
             break
         Sleep 200
     }
-    MsgBox("VLC HTTP interface did not come up on port " . port . "`nControls for that player will not work until this is resolved.", "vlc_wall", "Icon!")
+    MsgBox("VLC HTTP interface did not come up on port " . port . "`nControls for that player will not work until this is resolved.", "fun_time", "Icon!")
     return false
 }
 

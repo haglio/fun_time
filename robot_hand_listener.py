@@ -12,6 +12,10 @@ from PIL import Image, ImageTk, ImageOps
 from sympy import root
 from sympy import root
 
+PROJECT_DIR = Path(__file__).resolve().parent
+STATE_DIR = PROJECT_DIR / "state"
+STATE_DIR.mkdir(exist_ok=True)
+
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
 
 
@@ -172,7 +176,7 @@ def main():
     ap.add_argument("--y", type=int, default=0)
     ap.add_argument("--notify-host", default="127.0.0.1")
     ap.add_argument("--notify-port", type=int, default=50556)
-    ap.add_argument("--command-file", default=r"C:\path\to\suite-root\projects\fun_time\robot_hand_cmd.txt")
+    ap.add_argument("--command-file", default=str(STATE_DIR / "robot_hand_cmd.txt"))
     args = ap.parse_args()
 
     command_file = Path(args.command_file)

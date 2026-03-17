@@ -7,7 +7,10 @@ import serial
 
 from pathlib import Path
 
-STATE_FILE = Path(r"C:\path\to\suite-root\projects\fun_time\robot_hand_mode.txt")
+PROJECT_DIR = Path(__file__).resolve().parent
+STATE_DIR = PROJECT_DIR / "state"
+STATE_DIR.mkdir(exist_ok=True)
+STATE_FILE = STATE_DIR / "robot_hand_mode.txt"
 
 VIRTUAL_PORT = "COM15"   # broker side of com0com pair
 REAL_PORT = "COM4"       # actual OSR2
