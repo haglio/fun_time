@@ -162,6 +162,13 @@ Use the `Fun Time` shortcut / taskbar launcher, which calls:
 - `launch.vbs`
 - which runs `python -m fun_time.orchestrator`
 
+### Clipper way
+
+Use the `Clipper` shortcut at `fun_time/robot_hand/clipper/Clipper.lnk`.
+
+- It follows the same launcher chain as Fun Time: `cmd.exe` -> `wscript.exe` -> `fun_time/robot_hand/clipper/launch_clipper.vbs`
+- The VBS runs `python -m fun_time.robot_hand.clipper` from project root
+
 ### Validation run
 
 Validation only:
