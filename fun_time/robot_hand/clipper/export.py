@@ -94,10 +94,17 @@ def export_raw_clip(state: VideoState, out_path: Path, job: ExportJob) -> tuple[
     if not ffmpeg:
         return False, "ffmpeg not found on PATH"
     clip_duration = max(1.0 / state.fps, (state.active_end - state.active_start + 1) / state.fps)
-    vf = f"select=between(n\\,{state.active_start}\\,{state.active_end}),setpts=N/FRAME_RATE/TB"
+    start_sec = state.active_start / state.fps
+    end_sec = (state.active_end + 1) / state.fps
+    # Seek near the target so ffmpeg jumps to a nearby keyframe. Then trim using
+    # timestamps relative to the seeked input segment.
+    seek_sec = max(0.0, start_sec - 5.0)
+    trim_start_rel = max(0.0, start_sec - seek_sec)
+    trim_end_rel = trim_start_rel + max(1.0 / state.fps, end_sec - start_sec)
+    vf = f"trim=start={trim_start_rel:.6f}:end={trim_end_rel:.6f},setpts=PTS-STARTPTS"
     cmd = [
         ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-progress", "pipe:1", "-nostats", "-stats_period", "0.1",
-        "-i", state.path, "-map", "0:v:0", "-vf", vf, "-r", f"{state.fps:.12g}", "-an",
+        "-ss", f"{seek_sec:.6f}", "-i", state.path, "-map", "0:v:0", "-vf", vf, "-r", f"{state.fps:.12g}", "-an",
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out_path),
     ]
     job.stage = "Exporting raw silent clip"
@@ -105,6 +112,7 @@ def export_raw_clip(state: VideoState, out_path: Path, job: ExportJob) -> tuple[
     ok, detail = _run_ffmpeg_with_progress(cmd, clip_duration, lambda p: setattr(job, "clip_progress", p), job)
     if not ok:
         return False, detail
+    job.clip_status = "Finalizing..."
     ok2, detail2 = validate_video_file(out_path)
     if not ok2:
         return False, detail2

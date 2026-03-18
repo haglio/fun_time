@@ -338,11 +338,17 @@ def draw_progress_bar(
     h: int,
     p: float,
     color: Color = (110, 210, 110),
+    label: str = "",
 ) -> None:
     cv2.rectangle(img, (x, y), (x + w, y + h), (215, 215, 215), 1)
     fill = max(0, min(w, int(round(w * max(0.0, min(1.0, p))))))
     if fill > 0:
         cv2.rectangle(img, (x + 1, y + 1), (x + fill - 1, y + h - 1), color, -1)
+    if label:
+        tw, th = text_wh(label, 0.5, 1)
+        tx = x + (w - tw) // 2
+        ty = y + (h + th) // 2
+        put_text(img, label, tx, ty, 0.5, (240, 240, 240), 1)
 
 
 def draw_export_overlay(canvas: np.ndarray, state: VideoState) -> None:
@@ -350,8 +356,8 @@ def draw_export_overlay(canvas: np.ndarray, state: VideoState) -> None:
     if not job:
         return
     h, w = canvas.shape[:2]
-    ox, oy = 90, 70
-    ow, oh = w - 180, h - 140
+    ow, oh = w - 180, 630
+    ox, oy = 90, (h - oh) // 2
     shade = canvas.copy()
     cv2.rectangle(shade, (0, 0), (w, h), (0, 0, 0), -1)
     canvas[:] = cv2.addWeighted(canvas, 0.35, shade, 0.65, 0)
@@ -362,18 +368,18 @@ def draw_export_overlay(canvas: np.ndarray, state: VideoState) -> None:
     title = "Export complete" if job.done and not job.failed else "Export failed" if job.failed else "Exporting"
     title_color = (120, 240, 120) if job.done and not job.failed else (60, 60, 255) if job.failed else (240, 240, 240)
     put_text(canvas, title, ox + 60, oy + 44, 1.2, title_color, 2)
-    put_text(canvas, f"Stage: {job.stage}", ox + 26, oy + 88, 0.7)
 
     sections = [
         ("1. Raw MP4 export", job.clip_status, job.clip_progress),
-        (f"2. {LOOP_FIX_SCRIPT.name}", job.fix_status, job.fix_progress),
-        ("3. Full-audio MP3 export", job.audio_status, job.audio_progress),
+        ("2. Smooth loop and reduce size if necessary", job.fix_status, job.fix_progress),
+        ("3. Extract audio", job.audio_status, job.audio_progress),
     ]
     y = oy + 140
     for label, status, prog in sections:
         put_text(canvas, label, ox + 26, y, 0.9, (240, 240, 240), 2)
         put_text(canvas, status, ox + 26, y + 34, 0.65)
-        draw_progress_bar(canvas, ox + 26, y + 52, ow - 52, 28, prog)
+        bar_label = f"{int(round(prog * 100))}%" if 0.0 < prog < 1.0 else ""
+        draw_progress_bar(canvas, ox + 26, y + 52, ow - 52, 28, prog, label=bar_label)
         y += 120
 
     foot_y = oy + oh - 86
