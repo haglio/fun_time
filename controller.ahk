@@ -200,7 +200,7 @@ Sleep 150
 VlcHttpCmd(VLC3_PORT, "pl_next")
 
 PositionAll(pid1, pid2, pid3, pidM)
-SetTopMost(pid1, pid2, pid3)
+SetTopMost(pid1, pid2, pid3, pidM)
 
 Sleep 1200
 
@@ -333,8 +333,8 @@ MovePidWindow(pid, x, y, w, h) {
     WinMove(x, y, w, h, "ahk_id " hwnd)
 }
 
-SetTopMost(pid1, pid2, pid3) {
-    for pid in [pid1, pid2, pid3] {
+SetTopMost(pid1, pid2, pid3, pidM) {
+    for pid in [pid1, pid2, pid3, pidM] {
         try {
             hwnd := WinExist("ahk_pid " pid)
             if (hwnd) {
@@ -713,7 +713,7 @@ OmniPauseToggle() {
 }
 
 EnterOmniPause() {
-    global omniPaused, robotHandMode, pid1, pid2, pid3
+    global omniPaused, robotHandMode, pid1, pid2, pid3, pidM
     global VLC2_PORT, VLC3_PORT, ROBOT_HAND_CMD_FILE, AUDIO_CMD_FILE
 
     omniPaused := true
@@ -733,8 +733,8 @@ EnterOmniPause() {
         VlcHttpCmd(VLC3_PORT, "pl_pause")
     }
 
-    ; Remove always-on-top from all VLC windows so they stop blocking other windows
-    for pid in [pid1, pid2, pid3] {
+    ; Remove always-on-top from all VLC windows and MFP so they stop blocking other windows
+    for pid in [pid1, pid2, pid3, pidM] {
         try WinSetAlwaysOnTop(false, "ahk_pid " pid)
     }
 
@@ -742,7 +742,7 @@ EnterOmniPause() {
 }
 
 LeaveOmniPause() {
-    global omniPaused, robotHandMode, pid1, pid2, pid3
+    global omniPaused, robotHandMode, pid1, pid2, pid3, pidM
     global VLC2_PORT, VLC3_PORT, ROBOT_HAND_CMD_FILE, AUDIO_CMD_FILE
 
     Log("OmniPause: leaving")
@@ -762,9 +762,10 @@ LeaveOmniPause() {
         try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
     }
 
-    ; Restore always-on-top for the two secondary VLC windows
+    ; Restore always-on-top for the two secondary VLC windows and MFP
     try WinSetAlwaysOnTop(true, "ahk_pid " pid2)
     try WinSetAlwaysOnTop(true, "ahk_pid " pid3)
+    try WinSetAlwaysOnTop(true, "ahk_pid " pidM)
 
     ; Allow SyncRobotHandState to run again and handle any mode transitions that
     ; occurred while paused (e.g. OSR2 exited freemode after receiving neutral pos)
