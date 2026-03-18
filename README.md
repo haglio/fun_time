@@ -64,6 +64,8 @@ It should be ignored by Git.
 
 Runtime configuration is centralized in `fun_time_config.json`.
 
+`fun_time/config.py` no longer supplies fallback defaults; this JSON file is the single source of truth and should include the full config.
+
 This file now controls:
 
 - executable paths
