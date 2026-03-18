@@ -494,11 +494,13 @@ def launcher_dialog() -> dict[str, Any]:
         p = dialog.askopenfilename(filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
         if p:
             session_json.set(p)
+            mode.set("load")
 
     def browse_video() -> None:
         p = dialog.askopenfilename(filetypes=[("Video files", "*.mp4 *.mkv *.mov *.avi *.webm"), ("All files", "*.*")])
         if p:
             video_file.set(p)
+            mode.set("new")
 
     def open_it(event: Any = None) -> None:
         try:
@@ -561,6 +563,12 @@ def launcher_dialog() -> dict[str, Any]:
     tk.Label(frame2, text="Seconds", font=("Segoe UI", 10)).grid(row=4, column=0, sticky="w", padx=(28, 8), pady=6)
     tk.Entry(frame2, textvariable=seconds, width=10).grid(row=4, column=1, sticky="w", pady=6)
     frame2.grid_columnconfigure(1, weight=1)
+
+    session_json.trace_add("write", lambda *_: mode.set("load"))
+    session_name.trace_add("write", lambda *_: mode.set("new"))
+    video_file.trace_add("write", lambda *_: mode.set("new"))
+    timestamp.trace_add("write", lambda *_: mode.set("new"))
+    seconds.trace_add("write", lambda *_: mode.set("new"))
 
     bottom = tk.Frame(root)
     bottom.pack(side="bottom", fill="x", padx=padx, pady=18)
