@@ -131,6 +131,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     udp_thread.start()
 
     clip_cache: OrderedDict[Path, dict] = OrderedDict()
+    decoded_frame_cache: OrderedDict[Path, list] = OrderedDict()
     current_clip_path = {"value": None}
     current_frame_index = {"value": None}
 
@@ -156,6 +157,15 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         "loaded_clip_path": None,
         "loaded_frames": None,
         "load_error": None,
+    }
+
+    prefetch_state = {
+        "request_id": 0,
+        "loading": False,
+        "loaded_clip_path": None,
+        "loaded_frames": None,
+        "load_error": None,
+        "request_id_done": None,
     }
 
     notify_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -204,6 +214,25 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         clip_cache.move_to_end(path)
         return entry
 
+    def _cache_decoded_frames(path: Path, frames: list):
+        decoded_frame_cache[path] = frames
+        decoded_frame_cache.move_to_end(path)
+
+    def _adopt_decoded_frames(path: Path):
+        frames = decoded_frame_cache.get(path)
+        if frames is None:
+            return False
+
+        decoded_frame_cache.move_to_end(path)
+        clip_cache[path] = {
+            "pil_frames": frames,
+            "photo_frames": [None] * len(frames),
+            "photo_size": None,
+        }
+        clip_cache.move_to_end(path)
+        trim_cache()
+        return True
+
     def loader_thread_fn(path: Path, request_id: int):
         try:
             frames = decode_video_to_pil_frames(path)
@@ -218,8 +247,25 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             load_state["load_error"] = str(exc)
             load_state["request_id_done"] = request_id
 
+    def prefetch_thread_fn(path: Path, request_id: int):
+        try:
+            frames = decode_video_to_pil_frames(path)
+            prefetch_state["loaded_clip_path"] = path
+            prefetch_state["loaded_frames"] = frames
+            prefetch_state["load_error"] = None
+            prefetch_state["request_id_done"] = request_id
+        except Exception as exc:
+            logger.warning("Prefetch decode failed for %s: %s", path, exc)
+            prefetch_state["loaded_clip_path"] = path
+            prefetch_state["loaded_frames"] = None
+            prefetch_state["load_error"] = str(exc)
+            prefetch_state["request_id_done"] = request_id
+
     def request_clip_load(path: Path):
         if path in clip_cache:
+            return
+
+        if _adopt_decoded_frames(path):
             return
 
         load_state["request_id"] += 1
@@ -234,6 +280,28 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         show_status()
 
         thread = threading.Thread(target=loader_thread_fn, args=(path, request_id), daemon=True, name="robot-hand-loader")
+        thread.start()
+
+    def request_prefetch(path: Path):
+        if path in clip_cache or path in decoded_frame_cache:
+            return
+        if load_state["loading"] or prefetch_state["loading"]:
+            return
+
+        prefetch_state["request_id"] += 1
+        request_id = prefetch_state["request_id"]
+        prefetch_state["loading"] = True
+        prefetch_state["loaded_clip_path"] = None
+        prefetch_state["loaded_frames"] = None
+        prefetch_state["load_error"] = None
+        prefetch_state["request_id_done"] = None
+
+        thread = threading.Thread(
+            target=prefetch_thread_fn,
+            args=(path, request_id),
+            daemon=True,
+            name="robot-hand-prefetch",
+        )
         thread.start()
 
     def adopt_loaded_clip_if_ready():
@@ -260,17 +328,49 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 state.error = err
             return
 
-        clip_cache[path] = {
-            "pil_frames": frames,
-            "photo_frames": [None] * len(frames),
-            "photo_size": None,
-        }
-        clip_cache.move_to_end(path)
-        trim_cache()
+        _cache_decoded_frames(path, frames)
+        _adopt_decoded_frames(path)
 
         if current_clip_path["value"] == path:
             prepare_active_clip_for_current_size()
             schedule_hide_status()
+
+    def adopt_prefetch_if_ready():
+        request_id_done = prefetch_state.get("request_id_done")
+        if request_id_done is None:
+            return
+
+        if request_id_done != prefetch_state["request_id"]:
+            prefetch_state["request_id_done"] = None
+            prefetch_state["loaded_clip_path"] = None
+            prefetch_state["loaded_frames"] = None
+            prefetch_state["load_error"] = None
+            return
+
+        path = prefetch_state["loaded_clip_path"]
+        err = prefetch_state["load_error"]
+        frames = prefetch_state["loaded_frames"]
+
+        prefetch_state["request_id_done"] = None
+        prefetch_state["loading"] = False
+
+        if err:
+            return
+
+        _cache_decoded_frames(path, frames)
+
+    def request_nearby_prefetch():
+        if len(clips) <= 1:
+            return
+        if load_state["loading"] or prefetch_state["loading"]:
+            return
+
+        current_index = clip_index["value"]
+        for delta in (1, -1):
+            candidate = clips[(current_index + delta) % len(clips)]
+            if candidate not in clip_cache and candidate not in decoded_frame_cache:
+                request_prefetch(candidate)
+                return
 
     def set_current_clip(path: Path):
         current_clip_path["value"] = path
@@ -282,6 +382,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             schedule_hide_status()
         else:
             request_clip_load(path)
+            if path in clip_cache:
+                prepare_active_clip_for_current_size()
+                schedule_hide_status()
 
     def prepare_active_clip_for_current_size():
         path = current_clip_path["value"]
@@ -403,6 +506,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         try:
             now = time.monotonic()
             adopt_loaded_clip_if_ready()
+            adopt_prefetch_if_ready()
 
             with state.lock:
                 auto_active = state.auto_active
@@ -494,6 +598,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                     f"keys=[ and ] switch clips"
                 )
                 show_status()
+
+            request_nearby_prefetch()
 
             root.after(16, refresh)
         except Exception as exc:
