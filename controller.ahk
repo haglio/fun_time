@@ -260,6 +260,9 @@ Esc::OmniPauseToggle()
     }
 }
 
+-::try ControlSend("!{Left}", , "ahk_pid " pid1)
+=::try ControlSend("!{Right}", , "ahk_pid " pid1)
+
 Left::{
     CancelLock(2)
     VlcHttpCmd(VLC2_PORT, "pl_previous")
