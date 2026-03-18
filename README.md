@@ -38,6 +38,10 @@ Runtime state:
 - `state/robot_hand_cmd.txt`
 - `state/*.log`
 
+Tooling:
+
+- `fun_time/robot_hand/clipper/` — CLI helper module for preparing files into `clips/` and `audio/`
+
 Local runtime data:
 
 - `favs.csv` — favorites CSV written when a satellite VLC is locked
