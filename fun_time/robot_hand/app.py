@@ -80,7 +80,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     if not clips_folder.exists():
         raise RuntimeError(f"Clips folder does not exist: {clips_folder}")
 
-    clips = scan_clips(clips_folder)
+    clips = scan_clips(clips_folder, shuffle_on_load=config.robot_hand.shuffle_on_load)
     clip_index = {"value": 0}
 
     root = tk.Tk()

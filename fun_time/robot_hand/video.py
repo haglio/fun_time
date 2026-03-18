@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+import random
 import subprocess
 from pathlib import Path
 
@@ -9,16 +9,12 @@ from PIL import Image, ImageOps, ImageTk
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
 
 
-def natural_key(path: Path):
-    parts = re.split(r"(\d+)", path.name.lower())
-    return [int(part) if part.isdigit() else part for part in parts]
-
-
-def scan_clips(folder: Path) -> list[Path]:
+def scan_clips(folder: Path, *, shuffle_on_load: bool = True) -> list[Path]:
     files = [path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in SUPPORTED_VIDEO_EXTS]
-    files.sort(key=natural_key)
     if not files:
         raise RuntimeError(f"No video clips found in: {folder}")
+    if shuffle_on_load:
+        random.shuffle(files)
     return files
 
 

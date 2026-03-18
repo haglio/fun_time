@@ -77,6 +77,18 @@ Useful sections:
 - `robot_hand`
 - `audio_companion`
 
+`robot_hand.shuffle_on_load` defaults to `true`, which randomizes clip order once at load time.
+
+To disable shuffle and use filesystem order:
+
+```json
+{
+  "robot_hand": {
+    "shuffle_on_load": false
+  }
+}
+```
+
 The layout values that used to be hard-coded in AutoHotkey now live under `controller.layout`.
 
 ## High-level architecture
@@ -223,6 +235,7 @@ Behavior:
 
 - in control mode, `[` / `]` control the primary VLC
 - in Robot Hand mode, `[` / `]` cycle Robot Hand clips
+- when clip order is shuffled on load (default), `]` then `[` returns to the prior clip within that same loaded order
 
 Robot Hand clip switching wraps around cyclically:
 - `]` at the end goes back to the beginning

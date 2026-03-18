@@ -45,6 +45,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "auto_stale_timeout": 8.0,
     },
     "robot_hand": {
+        "shuffle_on_load": True,
         "beats_per_loop": 1.0,
         "clip_cache_size": 2,
         "render_batch": 6,
@@ -126,6 +127,7 @@ class BrokerConfig:
 
 @dataclass(frozen=True)
 class RobotHandConfig:
+    shuffle_on_load: bool
     beats_per_loop: float
     clip_cache_size: int
     render_batch: int
@@ -237,6 +239,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     )
 
     robot_hand = RobotHandConfig(
+        shuffle_on_load=bool(robot_raw["shuffle_on_load"]),
         beats_per_loop=float(robot_raw["beats_per_loop"]),
         clip_cache_size=int(robot_raw["clip_cache_size"]),
         render_batch=int(robot_raw["render_batch"]),
