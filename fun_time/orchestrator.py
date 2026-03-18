@@ -71,6 +71,8 @@ def build_controller_args(config, vlc_http_pass: str) -> list[str]:
         str(config.paths.audio_dir),
         str(config.robot_hand_mode_file),
         str(config.robot_hand_cmd_file),
+        str(config.broker_cmd_file),
+        str(config.audio_cmd_file),
         str(layout.primary_monitor),
         str(layout.secondary_monitor),
         str(layout.primary_top_ratio),

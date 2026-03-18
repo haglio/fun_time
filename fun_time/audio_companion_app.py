@@ -25,6 +25,7 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--audio-folder", default=str(config.paths.audio_dir))
     ap.add_argument("--host", default=config.audio_companion.host)
     ap.add_argument("--port", type=int, default=config.audio_companion.port)
+    ap.add_argument("--cmd-file", default=str(config.audio_cmd_file))
     return ap
 
 
@@ -34,6 +35,19 @@ def find_audio(audio_folder: Path, stem: str) -> Path | None:
         if path.exists():
             return path
     return None
+
+
+def consume_command_file(path: Path) -> str | None:
+    try:
+        if not path.exists():
+            return None
+        text = path.read_text(encoding="utf-8").replace("\ufeff", "").strip().upper()
+        if not text:
+            return None
+        path.write_text("", encoding="utf-8")
+        return text
+    except Exception:
+        return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -46,11 +60,14 @@ def main(argv: list[str] | None = None) -> int:
     if not audio_folder.exists():
         raise RuntimeError(f"Audio folder does not exist: {audio_folder}")
 
+    cmd_file = Path(args.cmd_file)
+
     pygame.mixer.init()
     logger.info("Audio companion listening on %s:%s", args.host, args.port)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((args.host, args.port))
+    sock.settimeout(0.15)
 
     current_path: Path | None = None
     visible = False
@@ -74,8 +91,27 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         while True:
-            data, _addr = sock.recvfrom(4096)
-            line = data.decode("utf-8", errors="replace").strip()
+            line = ""
+            try:
+                data, _addr = sock.recvfrom(4096)
+                line = data.decode("utf-8", errors="replace").strip()
+            except socket.timeout:
+                pass
+
+            cmd = consume_command_file(cmd_file)
+            if cmd == "PAUSE":
+                if not paused:
+                    pygame.mixer.music.pause()
+                    paused = True
+                    logger.info("Audio paused")
+            elif cmd == "RESUME":
+                if paused:
+                    pygame.mixer.music.unpause()
+                    paused = False
+                    logger.info("Audio resumed")
+
+            if not line:
+                continue
 
             if line.startswith("CLIP "):
                 stem = line[5:].strip()

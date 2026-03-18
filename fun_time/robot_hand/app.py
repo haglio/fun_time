@@ -148,6 +148,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         "seen_sync_pulse_id": 0,
     }
 
+    rh_paused = {"value": False}
+
     load_state = {
         "request_id": 0,
         "loading": False,
@@ -382,7 +384,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             alpha = max(0.0, min(1.0, args.bpm_smoothing))
             engine["estimated_bpm"] = engine["estimated_bpm"] + (engine["target_bpm"] - engine["estimated_bpm"]) * alpha
 
-        if auto_active and engine["estimated_bpm"] and engine["estimated_bpm"] > 0:
+        if auto_active and engine["estimated_bpm"] and engine["estimated_bpm"] > 0 and not rh_paused["value"]:
             loop_duration = (60.0 / engine["estimated_bpm"]) * args.beats_per_loop
             engine["phase"] = (engine["phase"] + (dt / loop_duration)) % 1.0
         else:
@@ -440,6 +442,10 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 step_clip(1)
             elif cmd == "NUDGE25":
                 engine["phase"] = (engine["phase"] + 0.25) % 1.0
+            elif cmd == "PAUSE":
+                rh_paused["value"] = True
+            elif cmd == "RESUME":
+                rh_paused["value"] = False
 
             path = current_clip_path["value"]
             active_entry = clip_cache.get(path) if path in clip_cache else None

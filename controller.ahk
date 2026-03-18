@@ -10,9 +10,9 @@ SetTitleMatchMode 2
 ; 6 WEIRD_DIR, 7 FAVS_FILE, 8 VLC2_PORT, 9 VLC3_PORT, 10 VLC_PASS,
 ; 11 ROBOT_HAND_PY, 12 ROBOT_HAND_MODULE, 13 BROKER_MODULE, 14 ROBOT_HAND_CLIPS,
 ; 15 ROBOT_HAND_AUDIO_MODULE, 16 ROBOT_HAND_AUDIO, 17 ROBOT_HAND_MODE_FILE, 18 ROBOT_HAND_CMD_FILE,
-; 19 PRIMARY_MONITOR, 20 SECONDARY_MONITOR, 21 PRIMARY_TOP_RATIO, 22 LANDSCAPE_WIDTH_RATIO,
-; 23 MFP_WIDTH_RATIO, 24 MFP_HEIGHT_RATIO, 25 CONTROLLER_LOG_FILE, 26 CONFIG_PATH
-if (A_Args.Length < 26) {
+; 19 BROKER_CMD_FILE, 20 AUDIO_CMD_FILE, 21 PRIMARY_MONITOR, 22 SECONDARY_MONITOR, 23 PRIMARY_TOP_RATIO,
+; 24 LANDSCAPE_WIDTH_RATIO, 25 MFP_WIDTH_RATIO, 26 MFP_HEIGHT_RATIO, 27 CONTROLLER_LOG_FILE, 28 CONFIG_PATH
+if (A_Args.Length < 28) {
     MsgBox("Not enough arguments passed to controller. Got " . A_Args.Length, "fun_time", "Iconx")
     ExitApp 2
 }
@@ -35,14 +35,16 @@ ROBOT_HAND_AUDIO_MODULE := A_Args[15]
 ROBOT_HAND_AUDIO      := A_Args[16]
 ROBOT_HAND_MODE_FILE       := A_Args[17]
 ROBOT_HAND_CMD_FILE   := A_Args[18]
-PRIMARY_MONITOR       := A_Args[19]
-SECONDARY_MONITOR     := A_Args[20]
-PRIMARY_TOP_RATIO     := A_Args[21]
-LANDSCAPE_WIDTH_RATIO := A_Args[22]
-MFP_WIDTH_RATIO       := A_Args[23]
-MFP_HEIGHT_RATIO      := A_Args[24]
-CONTROLLER_LOG_FILE   := A_Args[25]
-CONFIG_PATH           := A_Args[26]
+BROKER_CMD_FILE       := A_Args[19]
+AUDIO_CMD_FILE        := A_Args[20]
+PRIMARY_MONITOR       := A_Args[21]
+SECONDARY_MONITOR     := A_Args[22]
+PRIMARY_TOP_RATIO     := A_Args[23]
+LANDSCAPE_WIDTH_RATIO := A_Args[24]
+MFP_WIDTH_RATIO       := A_Args[25]
+MFP_HEIGHT_RATIO      := A_Args[26]
+CONTROLLER_LOG_FILE   := A_Args[27]
+CONFIG_PATH           := A_Args[28]
 
 PROJECT_DIR := ""
 SplitPath(CONFIG_PATH, , &PROJECT_DIR)
@@ -56,6 +58,7 @@ locked2 := false
 locked3 := false
 
 robotHandMode := false
+omniPaused := false
 
 Q(s) => Format('"{1}"', s)
 
@@ -133,7 +136,10 @@ RobotHandModeState() {
 }
 
 SyncRobotHandState() {
-    global robotHandMode, pid1
+    global robotHandMode, pid1, omniPaused
+
+    if (omniPaused)
+        return
 
     modeState := RobotHandModeState()
     modeOn := (modeState = "1")
@@ -220,6 +226,7 @@ pidA := RunApp(ROBOT_HAND_PY
     , "-m " . ROBOT_HAND_AUDIO_MODULE
     . " --config " . Q(CONFIG_PATH)
     . " --audio-folder " . Q(ROBOT_HAND_AUDIO)
+    . " --cmd-file " . Q(AUDIO_CMD_FILE)
 )
 Log("Started Robot Hand audio pid=" . pidA)
 
@@ -227,9 +234,10 @@ SetTimer(SyncRobotHandState, 200)
 
 ; -------------------- HOTKEYS --------------------
 
-Esc::ShutdownAll(pid1, pid2, pid3, pidM, pidB, pidR, pidA)
-
-Space::SendToPid(pid1, "{Space}")
+#SuspendExempt true
+q::ShutdownAll(pid1, pid2, pid3, pidM, pidB, pidR, pidA)
+Esc::OmniPauseToggle()
+#SuspendExempt false
 
 [::{
     if (RobotHandModeState() = "1") {
@@ -678,5 +686,98 @@ ToggleLock(which) {
             locked3 := false
             Log("Unlocked landscape VLC")
         }
+    }
+}
+
+; -------------------- OmniPause --------------------
+
+WriteCmd(file, cmd) {
+    try FileDelete(file)
+    FileAppend(cmd, file, "UTF-8-RAW")
+}
+
+IsOurWindow() {
+    global pid1, pid2, pid3, pidM, pidR
+    for pid in [pid1, pid2, pid3, pidM, pidR] {
+        if WinActive("ahk_pid " pid)
+            return true
+    }
+    if WinActive("Robot Hand")
+        return true
+    return false
+}
+
+OmniPauseToggle() {
+    global omniPaused
+    if (!omniPaused) {
+        EnterOmniPause()
+    } else if (IsOurWindow()) {
+        LeaveOmniPause()
+    }
+}
+
+EnterOmniPause() {
+    global omniPaused, robotHandMode, pid1, pid2, pid3
+    global VLC2_PORT, VLC3_PORT, ROBOT_HAND_CMD_FILE, AUDIO_CMD_FILE
+
+    omniPaused := true
+    Log("OmniPause: entering")
+
+    if (robotHandMode) {
+        ; Auto mode: VLC1 is already paused by Robot Hand mode; pause VLC2+3, freeze Robot Hand, and pause audio
+        VlcHttpCmd(VLC2_PORT, "pl_pause")
+        VlcHttpCmd(VLC3_PORT, "pl_pause")
+        WriteCmd(ROBOT_HAND_CMD_FILE, "PAUSE")
+        WriteCmd(AUDIO_CMD_FILE, "PAUSE")
+        try WinSetAlwaysOnTop(false, "Robot Hand")
+    } else {
+        ; Controlled mode: pause all 3 VLCs
+        try ControlSend("{Space}", , "ahk_pid " pid1)
+        VlcHttpCmd(VLC2_PORT, "pl_pause")
+        VlcHttpCmd(VLC3_PORT, "pl_pause")
+    }
+
+    ; Remove always-on-top from all VLC windows so they stop blocking other windows
+    for pid in [pid1, pid2, pid3] {
+        try WinSetAlwaysOnTop(false, "ahk_pid " pid)
+    }
+
+    Suspend true
+}
+
+LeaveOmniPause() {
+    global omniPaused, robotHandMode, pid1, pid2, pid3
+    global VLC2_PORT, VLC3_PORT, ROBOT_HAND_CMD_FILE, AUDIO_CMD_FILE
+
+    Log("OmniPause: leaving")
+    Suspend false
+
+    if (robotHandMode) {
+        ; Auto mode: resume Robot Hand animation, resume audio, and resume VLC2+3
+        WriteCmd(ROBOT_HAND_CMD_FILE, "RESUME")
+        WriteCmd(AUDIO_CMD_FILE, "RESUME")
+        VlcHttpCmd(VLC2_PORT, "pl_pause")  ; toggle back to playing
+        VlcHttpCmd(VLC3_PORT, "pl_pause")
+    } else {
+        ; Controlled mode: resume all 3 VLCs and restore VLC1 always-on-top
+        try ControlSend("{Space}", , "ahk_pid " pid1)
+        VlcHttpCmd(VLC2_PORT, "pl_pause")  ; toggle back to playing
+        VlcHttpCmd(VLC3_PORT, "pl_pause")
+        try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
+    }
+
+    ; Restore always-on-top for the two secondary VLC windows
+    try WinSetAlwaysOnTop(true, "ahk_pid " pid2)
+    try WinSetAlwaysOnTop(true, "ahk_pid " pid3)
+
+    ; Allow SyncRobotHandState to run again and handle any mode transitions that
+    ; occurred while paused (e.g. OSR2 exited freemode after receiving neutral pos)
+    omniPaused := false
+    SyncRobotHandState()
+
+    ; If still in auto mode after the sync check, restore Robot Hand always-on-top
+    if (robotHandMode) {
+        try WinSetAlwaysOnTop(true, "Robot Hand")
+        try WinActivate("Robot Hand")
     }
 }
