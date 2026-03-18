@@ -31,7 +31,8 @@ catch {
 
     $startupVbs = Join-Path $startupDir 'FunTime Robot Hand Broker.vbs'
     $runCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$runnerPath"""
-    $vbsRun = 'shell.Run "' + $runCmd + '", 0, False'
+    $vbsCmd = $runCmd -replace '"', '""'
+    $vbsRun = 'shell.Run "' + $vbsCmd + '", 0, False'
     $vbs = @(
         'Set shell = CreateObject("WScript.Shell")'
         $vbsRun
