@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import math
 import socket
+import time
 from pathlib import Path
 
 import pygame
@@ -72,22 +74,127 @@ def main(argv: list[str] | None = None) -> int:
     current_path: Path | None = None
     visible = False
     paused = False
+    manual_paused = False
+    playback_running = False
+    play_started_at = 0.0
+    play_start_position = 0.0
+    clip_positions: dict[Path, float] = {}
+    clip_lengths: dict[Path, float | None] = {}
+
+    def get_clip_length(path: Path) -> float | None:
+        if path in clip_lengths:
+            return clip_lengths[path]
+
+        try:
+            length = float(pygame.mixer.Sound(str(path)).get_length())
+            if not math.isfinite(length) or length <= 0:
+                length = None
+        except Exception:
+            length = None
+
+        clip_lengths[path] = length
+        return length
+
+    def normalize_position(path: Path, value: float) -> float:
+        if value < 0:
+            return 0.0
+
+        length = get_clip_length(path)
+        if length is None:
+            return value
+
+        if length <= 0:
+            return 0.0
+
+        return value % length
+
+    def current_position_for_active_clip() -> float:
+        if current_path is None:
+            return 0.0
+
+        if playback_running:
+            elapsed = max(0.0, time.monotonic() - play_started_at)
+            return normalize_position(current_path, play_start_position + elapsed)
+
+        return normalize_position(current_path, play_start_position)
+
+    def save_active_clip_position() -> None:
+        nonlocal play_start_position
+
+        if current_path is None:
+            return
+
+        position = current_position_for_active_clip()
+        clip_positions[current_path] = position
+        play_start_position = position
+
+    def play_current_clip_from_saved_position() -> None:
+        nonlocal paused, playback_running, play_started_at, play_start_position
+
+        if current_path is None:
+            return
+
+        start_position = normalize_position(current_path, clip_positions.get(current_path, 0.0))
+        try:
+            pygame.mixer.music.play(-1, start=start_position)
+        except TypeError:
+            pygame.mixer.music.play(-1)
+            if start_position > 0:
+                try:
+                    pygame.mixer.music.set_pos(start_position)
+                except Exception:
+                    start_position = 0.0
+        except Exception:
+            pygame.mixer.music.play(-1)
+            start_position = 0.0
+
+        play_start_position = start_position
+        play_started_at = time.monotonic()
+        playback_running = True
+        paused = False
 
     def apply_state() -> None:
-        nonlocal paused
+        nonlocal paused, playback_running, play_started_at
 
-        if visible and current_path is not None:
+        should_play = visible and current_path is not None and not manual_paused
+
+        if should_play:
             if pygame.mixer.music.get_busy():
                 if paused:
                     pygame.mixer.music.unpause()
+                    play_started_at = time.monotonic()
+                    playback_running = True
                     paused = False
             else:
-                pygame.mixer.music.play(-1)
-                paused = False
+                play_current_clip_from_saved_position()
         else:
             if pygame.mixer.music.get_busy() and not paused:
+                save_active_clip_position()
                 pygame.mixer.music.pause()
+                playback_running = False
                 paused = True
+
+    def switch_clip(path: Path | None) -> None:
+        nonlocal current_path, paused, playback_running, play_start_position
+
+        if current_path is not None:
+            save_active_clip_position()
+
+        current_path = path
+
+        if current_path is None:
+            pygame.mixer.music.stop()
+            paused = False
+            playback_running = False
+            play_start_position = 0.0
+            return
+
+        pygame.mixer.music.load(str(current_path))
+        play_start_position = normalize_position(current_path, clip_positions.get(current_path, 0.0))
+        playback_running = False
+        paused = False
+
+        apply_state()
 
     try:
         while True:
@@ -100,33 +207,27 @@ def main(argv: list[str] | None = None) -> int:
 
             cmd = consume_command_file(cmd_file)
             if cmd == "PAUSE":
-                if not paused:
-                    pygame.mixer.music.pause()
-                    paused = True
-                    logger.info("Audio paused")
+                manual_paused = True
+                apply_state()
+                logger.info("Audio paused")
             elif cmd == "RESUME":
-                if paused:
-                    pygame.mixer.music.unpause()
-                    paused = False
-                    logger.info("Audio resumed")
+                manual_paused = False
+                apply_state()
+                logger.info("Audio resumed")
 
             if not line:
                 continue
 
             if line.startswith("CLIP "):
                 stem = line[5:].strip()
-                current_path = find_audio(audio_folder, stem)
+                path = find_audio(audio_folder, stem)
 
-                if current_path is not None:
-                    logger.info("Switching audio clip to %s", current_path.name)
-                    pygame.mixer.music.load(str(current_path))
-                    paused = False
-                    if visible:
-                        pygame.mixer.music.play(-1)
+                if path is not None:
+                    logger.info("Switching audio clip to %s", path.name)
+                    switch_clip(path)
                 else:
                     logger.warning("No audio file found for stem %s", stem)
-                    pygame.mixer.music.stop()
-                    paused = False
+                    switch_clip(None)
 
             elif line == "VISIBLE 1":
                 visible = True
