@@ -15,7 +15,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "mfp_exe": "C:/Program Files/MultiFunPlayer-1.33.9-patreon/MultiFunPlayer.exe",
         "ahk_exe": "C:/Program Files/AutoHotkey/v2/AutoHotkey64.exe",
         "python_exe": "C:/Users/Example/miniconda3/pythonw.exe",
-        "winston_dir": "C:/path/to/suite-root/videos/videos/2D/winston/3_good_to_go",
+        "primary_vlc_dirs": ["C:/path/to/suite-root/videos/videos/2D/winston/3_good_to_go"],
         "portrait_dir": "C:/path/to/suite-root/videos/videos/2D/AI/2_outbox/upscaled_by_orientation/portrait",
         "landscape_dir": "C:/path/to/suite-root/videos/videos/2D/AI/2_outbox/upscaled_by_orientation/landscape",
         "weird_dir": "C:/path/to/suite-root/videos/videos/2D/AI/2_outbox/kinda_weird",
@@ -88,7 +88,7 @@ class PathsConfig:
     mfp_exe: Path
     ahk_exe: Path
     python_exe: Path
-    winston_dir: Path
+    primary_vlc_dirs: tuple[Path, ...]
     portrait_dir: Path
     landscape_dir: Path
     weird_dir: Path
@@ -96,6 +96,10 @@ class PathsConfig:
     audio_dir: Path
     favs_file: Path
     state_dir: Path
+
+    @property
+    def primary_vlc_dir(self) -> Path:
+        return self.primary_vlc_dirs[0]
 
 
 @dataclass(frozen=True)
@@ -200,13 +204,19 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     broker_raw = raw["broker"]
     robot_raw = raw["robot_hand"]
     audio_raw = raw["audio_companion"]
+    primary_vlc_dirs_raw = paths_raw.get("primary_vlc_dirs")
+    if not isinstance(primary_vlc_dirs_raw, list):
+        raise TypeError("paths.primary_vlc_dirs must be a list of folder paths")
+    if not primary_vlc_dirs_raw:
+        raise ValueError("paths.primary_vlc_dirs must include at least one folder path")
+    primary_vlc_dirs = tuple(_resolve_path(PROJECT_DIR, str(path)) for path in primary_vlc_dirs_raw)
 
     paths = PathsConfig(
         vlc_exe=_resolve_path(PROJECT_DIR, paths_raw["vlc_exe"]),
         mfp_exe=_resolve_path(PROJECT_DIR, paths_raw["mfp_exe"]),
         ahk_exe=_resolve_path(PROJECT_DIR, paths_raw["ahk_exe"]),
         python_exe=_resolve_path(PROJECT_DIR, paths_raw["python_exe"]),
-        winston_dir=_resolve_path(PROJECT_DIR, paths_raw["winston_dir"]),
+        primary_vlc_dirs=primary_vlc_dirs,
         portrait_dir=_resolve_path(PROJECT_DIR, paths_raw["portrait_dir"]),
         landscape_dir=_resolve_path(PROJECT_DIR, paths_raw["landscape_dir"]),
         weird_dir=_resolve_path(PROJECT_DIR, paths_raw["weird_dir"]),
