@@ -6,7 +6,7 @@ DetectHiddenWindows False
 SetTitleMatchMode 2
 
 ; Args:
-; 1 VLC_EXE, 2 MFP_EXE, 3 WINSTON_DIR, 4 PORTRAIT_DIR, 5 LANDSCAPE_DIR,
+; 1 VLC_EXE, 2 MFP_EXE, 3 PRIMARY_VLC_SOURCES, 4 PORTRAIT_DIR, 5 LANDSCAPE_DIR,
 ; 6 WEIRD_DIR, 7 FAVS_FILE, 8 VLC2_PORT, 9 VLC3_PORT, 10 VLC_PASS,
 ; 11 ROBOT_HAND_PY, 12 ROBOT_HAND_MODULE, 13 ROBOT_HAND_CLIPS,
 ; 14 ROBOT_HAND_AUDIO_MODULE, 15 ROBOT_HAND_AUDIO, 16 ROBOT_HAND_MODE_FILE, 17 ROBOT_HAND_CMD_FILE,
@@ -19,7 +19,7 @@ if (A_Args.Length < 27) {
 
 VLC_EXE               := A_Args[1]
 MFP_EXE               := A_Args[2]
-WINSTON_DIR           := A_Args[3]
+PRIMARY_VLC_SOURCES   := A_Args[3]
 PORTRAIT_DIR          := A_Args[4]
 LANDSCAPE_DIR         := A_Args[5]
 WEIRD_DIR             := A_Args[6]
@@ -96,7 +96,13 @@ RunApp(exe, args) {
 }
 
 RunVLC(args, mediaPath) {
-    cmd := Q(VLC_EXE) . " " . args . " " . Q(mediaPath)
+    mediaArgs := ""
+    for pathPart in StrSplit(mediaPath, "|") {
+        pathTrimmed := Trim(pathPart)
+        if (pathTrimmed != "")
+            mediaArgs .= " " . Q(pathTrimmed)
+    }
+    cmd := Q(VLC_EXE) . " " . args . mediaArgs
     Run(cmd, , , &pid)
     return pid
 }
@@ -165,7 +171,7 @@ SyncRobotHandState() {
 
 Log("Controller starting")
 
-pid1 := RunVLC("--no-one-instance --random --repeat", WINSTON_DIR)
+pid1 := RunVLC("--no-one-instance --random --repeat", PRIMARY_VLC_SOURCES)
 Sleep 900
 SendToPid(pid1, "n")
 

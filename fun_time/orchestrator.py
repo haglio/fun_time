@@ -39,7 +39,8 @@ def validate_config(config) -> None:
     require_file(config.paths.mfp_exe)
     require_file(config.paths.ahk_exe)
     require_file(config.paths.python_exe)
-    require_dir(config.paths.winston_dir)
+    for primary_vlc_dir in config.paths.primary_vlc_dirs:
+        require_dir(primary_vlc_dir)
     require_dir(config.paths.portrait_dir)
     require_dir(config.paths.landscape_dir)
     require_dir(config.paths.clips_dir)
@@ -52,10 +53,11 @@ def validate_config(config) -> None:
 
 def build_controller_args(config, vlc_http_pass: str) -> list[str]:
     layout = config.controller.layout
+    primary_vlc_dirs_arg = "|".join(str(path) for path in config.paths.primary_vlc_dirs)
     return [
         str(config.paths.vlc_exe),
         str(config.paths.mfp_exe),
-        str(config.paths.winston_dir),
+        primary_vlc_dirs_arg,
         str(config.paths.portrait_dir),
         str(config.paths.landscape_dir),
         str(config.paths.weird_dir),

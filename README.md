@@ -80,6 +80,23 @@ Useful sections:
 - `robot_hand`
 - `audio_companion`
 
+Primary VLC source folders are configured with:
+
+- preferred: `paths.primary_vlc_dirs` (list of one or more folders)
+
+Example:
+
+```json
+{
+  "paths": {
+    "primary_vlc_dirs": [
+      "C:/videos/set_a",
+      "C:/videos/set_b"
+    ]
+  }
+}
+```
+
 `robot_hand.shuffle_on_load` defaults to `true`, which randomizes clip order once at load time.
 
 To disable shuffle and use filesystem order:
