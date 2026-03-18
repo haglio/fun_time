@@ -5,10 +5,11 @@ Fun Time is a Windows desktop setup that launches and coordinates:
 - a primary VLC instance
 - two secondary VLC instances
 - MultiFunPlayer (MFP)
-- a serial broker for the OSR2
 - Robot Hand (a clip-based visualizer for OSR2 auto mode)
 - a Robot Hand audio companion
 - an AutoHotkey controller for window placement and hotkeys
+
+It uses a serial broker for the OSR2 that is intended to run continuously in the background.
 
 It is designed so that:
 
@@ -25,6 +26,8 @@ Core files:
 - `fun_time_config.json` — central config for paths, ports, and layout values
 - `controller.ahk` — AutoHotkey controller and hotkeys
 - `fun_time/` — shared Python package for config, logging, orchestration, and Robot Hand modules
+- `scripts/run_broker_service.ps1` — broker runner for scheduled-task usage
+- `scripts/install_broker_startup_task.ps1` — installs the Windows startup scheduled task for broker
 - `icon.ico` — Fun Time / Robot Hand icon
 
 Asset folders:
@@ -167,12 +170,38 @@ python -m pip install pyserial pygame pillow
 
 ## Launching
 
+### Broker startup task (one-time setup)
+
+Install the scheduled task:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install_broker_startup_task.ps1
+```
+
+If Scheduled Task creation is denied by Windows permissions, the installer automatically falls back to a per-user Startup launcher.
+
+Start it immediately (optional):
+
+```powershell
+Start-ScheduledTask -TaskName "FunTime Robot Hand Broker"
+```
+
+After setup, broker starts automatically when you sign in to Windows.
+
+Remove broker autostart (Scheduled Task and Startup fallback):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\uninstall_broker_startup.ps1
+```
+
 ### Normal way
 
 Use the `Fun Time` shortcut / taskbar launcher, which calls:
 
 - `launch.vbs`
 - which runs `python -m fun_time.orchestrator`
+
+`fun_time.orchestrator` no longer launches the broker process.
 
 ### Clipper way
 
@@ -406,6 +435,7 @@ Check:
 - broker is running
 - `com0com` pair exists (`COM14` / `COM15`)
 - OSR2 is still on `COM4`
+- scheduled task `FunTime Robot Hand Broker` is present and running (`Get-ScheduledTask -TaskName "FunTime Robot Hand Broker"`)
 
 ### Robot Hand never appears
 

@@ -8,11 +8,11 @@ SetTitleMatchMode 2
 ; Args:
 ; 1 VLC_EXE, 2 MFP_EXE, 3 WINSTON_DIR, 4 PORTRAIT_DIR, 5 LANDSCAPE_DIR,
 ; 6 WEIRD_DIR, 7 FAVS_FILE, 8 VLC2_PORT, 9 VLC3_PORT, 10 VLC_PASS,
-; 11 ROBOT_HAND_PY, 12 ROBOT_HAND_MODULE, 13 BROKER_MODULE, 14 ROBOT_HAND_CLIPS,
-; 15 ROBOT_HAND_AUDIO_MODULE, 16 ROBOT_HAND_AUDIO, 17 ROBOT_HAND_MODE_FILE, 18 ROBOT_HAND_CMD_FILE,
-; 19 BROKER_CMD_FILE, 20 AUDIO_CMD_FILE, 21 PRIMARY_MONITOR, 22 SECONDARY_MONITOR, 23 PRIMARY_TOP_RATIO,
-; 24 LANDSCAPE_WIDTH_RATIO, 25 MFP_WIDTH_RATIO, 26 MFP_HEIGHT_RATIO, 27 CONTROLLER_LOG_FILE, 28 CONFIG_PATH
-if (A_Args.Length < 28) {
+; 11 ROBOT_HAND_PY, 12 ROBOT_HAND_MODULE, 13 ROBOT_HAND_CLIPS,
+; 14 ROBOT_HAND_AUDIO_MODULE, 15 ROBOT_HAND_AUDIO, 16 ROBOT_HAND_MODE_FILE, 17 ROBOT_HAND_CMD_FILE,
+; 18 BROKER_CMD_FILE, 19 AUDIO_CMD_FILE, 20 PRIMARY_MONITOR, 21 SECONDARY_MONITOR, 22 PRIMARY_TOP_RATIO,
+; 23 LANDSCAPE_WIDTH_RATIO, 24 MFP_WIDTH_RATIO, 25 MFP_HEIGHT_RATIO, 26 CONTROLLER_LOG_FILE, 27 CONFIG_PATH
+if (A_Args.Length < 27) {
     MsgBox("Not enough arguments passed to controller. Got " . A_Args.Length, "fun_time", "Iconx")
     ExitApp 2
 }
@@ -29,22 +29,21 @@ VLC3_PORT             := A_Args[9]
 VLC_PASS              := A_Args[10]
 ROBOT_HAND_PY         := A_Args[11]
 ROBOT_HAND_MODULE     := A_Args[12]
-BROKER_MODULE         := A_Args[13]
-ROBOT_HAND_CLIPS      := A_Args[14]
-ROBOT_HAND_AUDIO_MODULE := A_Args[15]
-ROBOT_HAND_AUDIO      := A_Args[16]
-ROBOT_HAND_MODE_FILE       := A_Args[17]
-ROBOT_HAND_CMD_FILE   := A_Args[18]
-BROKER_CMD_FILE       := A_Args[19]
-AUDIO_CMD_FILE        := A_Args[20]
-PRIMARY_MONITOR       := A_Args[21]
-SECONDARY_MONITOR     := A_Args[22]
-PRIMARY_TOP_RATIO     := A_Args[23]
-LANDSCAPE_WIDTH_RATIO := A_Args[24]
-MFP_WIDTH_RATIO       := A_Args[25]
-MFP_HEIGHT_RATIO      := A_Args[26]
-CONTROLLER_LOG_FILE   := A_Args[27]
-CONFIG_PATH           := A_Args[28]
+ROBOT_HAND_CLIPS      := A_Args[13]
+ROBOT_HAND_AUDIO_MODULE := A_Args[14]
+ROBOT_HAND_AUDIO      := A_Args[15]
+ROBOT_HAND_MODE_FILE       := A_Args[16]
+ROBOT_HAND_CMD_FILE   := A_Args[17]
+BROKER_CMD_FILE       := A_Args[18]
+AUDIO_CMD_FILE        := A_Args[19]
+PRIMARY_MONITOR       := A_Args[20]
+SECONDARY_MONITOR     := A_Args[21]
+PRIMARY_TOP_RATIO     := A_Args[22]
+LANDSCAPE_WIDTH_RATIO := A_Args[23]
+MFP_WIDTH_RATIO       := A_Args[24]
+MFP_HEIGHT_RATIO      := A_Args[25]
+CONTROLLER_LOG_FILE   := A_Args[26]
+CONFIG_PATH           := A_Args[27]
 
 PROJECT_DIR := ""
 SplitPath(CONFIG_PATH, , &PROJECT_DIR)
@@ -205,9 +204,6 @@ SetTopMost(pid1, pid2, pid3)
 
 Sleep 1200
 
-pidB := RunApp(ROBOT_HAND_PY, "-m " . BROKER_MODULE . " --config " . Q(CONFIG_PATH))
-Log("Started broker pid=" . pidB)
-
 rx := 0, ry := 0, rw := 0, rh := 0
 GetRobotHandRect(&rx, &ry, &rw, &rh)
 
@@ -235,7 +231,7 @@ SetTimer(SyncRobotHandState, 200)
 ; -------------------- HOTKEYS --------------------
 
 #SuspendExempt true
-q::ShutdownAll(pid1, pid2, pid3, pidM, pidB, pidR, pidA)
+q::ShutdownAll(pid1, pid2, pid3, pidM, pidR, pidA)
 Esc::OmniPauseToggle()
 #SuspendExempt false
 
@@ -290,15 +286,15 @@ s::ToggleLock(3)
 ; ========================= IMPLEMENTATION ============================
 ; =====================================================================
 
-ShutdownAll(pid1, pid2, pid3, pidM, pidB := 0, pidR := 0, pidA := 0) {
+ShutdownAll(pid1, pid2, pid3, pidM, pidR := 0, pidA := 0) {
     Log("Shutdown requested")
-    for pid in [pid1, pid2, pid3, pidM, pidB, pidR, pidA] {
+    for pid in [pid1, pid2, pid3, pidM, pidR, pidA] {
         if (pid) {
             try WinClose("ahk_pid " pid)
         }
     }
     Sleep 400
-    for pid in [pid1, pid2, pid3, pidM, pidB, pidR, pidA] {
+    for pid in [pid1, pid2, pid3, pidM, pidR, pidA] {
         if (pid) {
             try ProcessClose(pid)
         }

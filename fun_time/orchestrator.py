@@ -65,7 +65,6 @@ def build_controller_args(config, vlc_http_pass: str) -> list[str]:
         vlc_http_pass,
         str(config.paths.python_exe),
         "fun_time.robot_hand.app",
-        "fun_time.broker_app",
         str(config.paths.clips_dir),
         "fun_time.audio_companion_app",
         str(config.paths.audio_dir),
