@@ -34,6 +34,7 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--udp-port", type=int, default=config.broker.udp_port)
     ap.add_argument("--auto-stale-timeout", type=float, default=config.broker.auto_stale_timeout)
     ap.add_argument("--state-file", default=str(config.robot_hand_mode_file))
+    ap.add_argument("--broker-cmd-file", default=str(config.broker_cmd_file))
     return ap
 
 
@@ -43,6 +44,19 @@ def write_mode(path: Path, value: str, logger: logging.Logger) -> None:
         path.write_text(value, encoding="utf-8")
     except Exception:
         logger.exception("Failed to write mode file %s", path)
+
+
+def consume_broker_cmd(path: Path) -> str | None:
+    try:
+        if not path.exists():
+            return None
+        text = path.read_text(encoding="utf-8").replace("\ufeff", "").strip().upper()
+        if not text:
+            return None
+        path.write_text("", encoding="utf-8")
+        return text
+    except Exception:
+        return None
 
 
 def udp_send(sock: socket.socket, host: str, port: int, msg: str) -> None:
@@ -56,12 +70,14 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser(config).parse_args(argv)
 
     state_file = Path(args.state_file)
+    broker_cmd_file = Path(args.broker_cmd_file)
     state = {
         "last_real_rx_time": 0.0,
         "auto_active": False,
     }
     lock = threading.Lock()
     stop_event = threading.Event()
+    broker_paused = threading.Event()
 
     def set_auto(sock: socket.socket, value: bool, mode_value: str | None = None) -> None:
         with lock:
@@ -158,8 +174,15 @@ def main(argv: list[str] | None = None) -> int:
 
             while not stop_event.is_set():
                 time.sleep(0.2)
+                cmd = consume_broker_cmd(broker_cmd_file)
+                if cmd == "PAUSE":
+                    broker_paused.set()
+                    logger.info("OmniPause: broker paused")
+                elif cmd == "RESUME":
+                    broker_paused.clear()
+                    logger.info("OmniPause: broker resumed")
                 last_rx = float(state["last_real_rx_time"])
-                if get_auto() and last_rx and (time.monotonic() - last_rx > args.auto_stale_timeout):
+                if get_auto() and not broker_paused.is_set() and last_rx and (time.monotonic() - last_rx > args.auto_stale_timeout):
                     logger.warning("AUTO stale timeout reached after %.2fs", args.auto_stale_timeout)
                     set_auto(udp_sock, False, mode_value="2")
     except KeyboardInterrupt:
