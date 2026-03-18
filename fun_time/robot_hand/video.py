@@ -2,11 +2,24 @@ from __future__ import annotations
 
 import random
 import subprocess
+import sys
 from pathlib import Path
 
 from PIL import Image, ImageOps, ImageTk
 
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
+
+
+def _subprocess_kwargs() -> dict:
+    if sys.platform != "win32":
+        return {}
+
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    return {
+        "startupinfo": startupinfo,
+        "creationflags": subprocess.CREATE_NO_WINDOW,
+    }
 
 
 def scan_clips(folder: Path, *, shuffle_on_load: bool = True) -> list[Path]:
@@ -31,7 +44,7 @@ def ffprobe_size(path: Path) -> tuple[int, int]:
         "csv=p=0:s=x",
         str(path),
     ]
-    out = subprocess.check_output(cmd, text=True).strip()
+    out = subprocess.check_output(cmd, text=True, **_subprocess_kwargs()).strip()
     width, height = out.split("x", 1)
     return int(width), int(height)
 
@@ -59,7 +72,7 @@ def decode_video_to_pil_frames(path: Path) -> list[Image.Image]:
         "pipe:1",
     ]
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **_subprocess_kwargs())
     frames: list[Image.Image] = []
 
     try:
