@@ -16,6 +16,30 @@ from .state import SharedState, udp_reader
 from .video import decode_video_to_pil_frames, make_photo, scan_clips
 
 
+QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
+LEGACY_QUARTER_CYCLE_OFFSET_COMMAND = "NUDGE25"
+
+
+def apply_runtime_command(command, *, engine, rh_paused, step_clip) -> bool:
+    if not command:
+        return False
+
+    normalized = command.strip().upper()
+    if normalized == "PREV":
+        step_clip(-1)
+    elif normalized == "NEXT":
+        step_clip(1)
+    elif normalized in {QUARTER_CYCLE_OFFSET_COMMAND, LEGACY_QUARTER_CYCLE_OFFSET_COMMAND}:
+        engine["phase"] = (engine["phase"] + 0.25) % 1.0
+    elif normalized == "PAUSE":
+        rh_paused["value"] = True
+    elif normalized == "RESUME":
+        rh_paused["value"] = False
+    else:
+        return False
+    return True
+
+
 def _preparse_config(argv: list[str] | None) -> str | None:
     ap = argparse.ArgumentParser(add_help=False)
     ap.add_argument("--config")
@@ -539,17 +563,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
             loop_duration = update_engine(now, auto_active, raw_bpm, sync_pulse_id)
 
-            cmd = consume_command_file()
-            if cmd == "PREV":
-                step_clip(-1)
-            elif cmd == "NEXT":
-                step_clip(1)
-            elif cmd == "NUDGE25":
-                engine["phase"] = (engine["phase"] + 0.25) % 1.0
-            elif cmd == "PAUSE":
-                rh_paused["value"] = True
-            elif cmd == "RESUME":
-                rh_paused["value"] = False
+            apply_runtime_command(cmd := consume_command_file(), engine=engine, rh_paused=rh_paused, step_clip=step_clip)
 
             path = current_clip_path["value"]
             active_entry = clip_cache.get(path) if path in clip_cache else None

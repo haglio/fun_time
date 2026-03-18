@@ -273,16 +273,22 @@ Primary controls:
 
 - `Esc` — close everything
 - `Space` — pause/play the primary VLC
+- `-` / `=` — nudge the primary VLC backward / forward by the configured VLC seek amount
 
 Mode-dependent keys:
 
 - `[`
 - `]`
+- `\`
 
 Behavior:
 
 - in control mode, `[` / `]` control the primary VLC
+- in control mode, `\` opens the primary VLC open-file dialog
 - in Robot Hand mode, `[` / `]` cycle Robot Hand clips
+- in Robot Hand mode, `\` offsets Robot Hand playback by a quarter cycle
+
+In control mode, the `\\` action temporarily enters OmniPause while the file dialog is open, then automatically leaves OmniPause when the dialog closes without toggling primary VLC playback state.
 - when clip order is shuffled on load (default), `]` then `[` returns to the prior clip within that same loaded order
 
 Robot Hand clip switching wraps around cyclically:
@@ -332,12 +338,15 @@ AutoHotkey uses this file as the source of truth for whether Robot Hand mode is 
 
 ### `robot_hand_cmd.txt`
 
-Written by AutoHotkey when `[` or `]` are pressed during Robot Hand mode.
+Written by AutoHotkey when Robot Hand control hotkeys are pressed during Robot Hand mode.
 
 Values:
 
 - `PREV`
 - `NEXT`
+- `OFFSET_QUARTER_CYCLE`
+
+`OFFSET_QUARTER_CYCLE` advances Robot Hand playback by one quarter of the current loop.
 
 `robot_hand_listener.py` consumes and clears this file.
 

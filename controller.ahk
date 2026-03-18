@@ -129,6 +129,43 @@ SendToTitle(title, keys) {
     try ControlSend(keys, , title)
 }
 
+OpenPrimaryVlcFileDialog() {
+    global pid1
+    try {
+        WinActivate("ahk_pid " pid1)
+        WinWaitActive("ahk_pid " pid1, , 0.5)
+        Sleep 50
+        SendEvent("^o")
+    }
+}
+
+OpenPrimaryVlcFileDialogWithManagedOmniPause() {
+    global pid1, omniPaused
+
+    shouldLeaveOmniPause := !omniPaused
+    if (shouldLeaveOmniPause)
+        EnterOmniPause()
+
+    try {
+        OpenPrimaryVlcFileDialog()
+
+        if (shouldLeaveOmniPause) {
+            dialogSpec := "ahk_class #32770 ahk_pid " pid1
+            if WinWait(dialogSpec, , 1.0)
+                WinWaitClose(dialogSpec)
+        }
+    } finally {
+        if (shouldLeaveOmniPause)
+            LeaveOmniPause(true)
+    }
+}
+
+QueueRobotHandOffsetQuarterCycle() {
+    global ROBOT_HAND_CMD_FILE
+    try FileDelete(ROBOT_HAND_CMD_FILE)
+    FileAppend("OFFSET_QUARTER_CYCLE", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
+}
+
 RobotHandModeState() {
     global ROBOT_HAND_MODE_FILE  ; if your variable is still ROBOT_MODE_HAND_FILE, use that name instead
     try {
@@ -261,8 +298,11 @@ Esc::OmniPauseToggle()
 
 \::{
     if (RobotHandModeState() = "1") {
-        try FileDelete(ROBOT_HAND_CMD_FILE)
-        FileAppend("NUDGE25", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
+        QueueRobotHandOffsetQuarterCycle()
+    } else {
+        ; Managed file-open flow: pause globally while browsing, then resume without
+        ; toggling primary VLC playback so newly selected media keeps playing.
+        OpenPrimaryVlcFileDialogWithManagedOmniPause()
     }
 }
 
@@ -750,7 +790,7 @@ EnterOmniPause() {
     Suspend true
 }
 
-LeaveOmniPause() {
+LeaveOmniPause(skipPrimaryVlcPlaybackToggleOnResume := false) {
     global omniPaused, robotHandMode, pid1, pid2, pid3, pidM
     global VLC2_PORT, VLC3_PORT, ROBOT_HAND_CMD_FILE, AUDIO_CMD_FILE
 
@@ -765,7 +805,8 @@ LeaveOmniPause() {
         VlcHttpCmd(VLC3_PORT, "pl_pause")
     } else {
         ; Controlled mode: resume all 3 VLCs and restore VLC1 always-on-top
-        try ControlSend("{Space}", , "ahk_pid " pid1)
+        if (!skipPrimaryVlcPlaybackToggleOnResume)
+            try ControlSend("{Space}", , "ahk_pid " pid1)
         VlcHttpCmd(VLC2_PORT, "pl_pause")  ; toggle back to playing
         VlcHttpCmd(VLC3_PORT, "pl_pause")
         try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
