@@ -519,3 +519,49 @@ Completed from the earlier cleanup list:
 - Robot Hand is modularized under `fun_time/robot_hand/`
 - window/layout constants are configurable through `controller.layout`
 - runtime logging and diagnostics are written to `state/*.log`
+
+## Developing
+
+### Running the tests
+
+Tests live in `tests/` and use [pytest](https://docs.pytest.org/).
+
+Install pytest into the project venv if it isn't there yet:
+
+```bash
+.venv/Scripts/pip.exe install pytest
+```
+
+Run everything:
+
+```bash
+bash test.sh
+```
+
+Stop on the first failure and show a short traceback:
+
+```bash
+bash test.sh -x --tb=short
+```
+
+Run only tests whose name matches a keyword (e.g. just the clipper tests):
+
+```bash
+bash test.sh -k clipper
+```
+
+`test.sh` is a thin wrapper around `.venv/Scripts/python.exe -m pytest`. Any extra arguments are forwarded to pytest directly.
+
+### Test layout
+
+| File | What it covers |
+|---|---|
+| `tests/test_config.py` | `fun_time.config` — loading, validation, derived properties |
+| `tests/test_logging_utils.py` | `fun_time.logging_utils` — handler setup, exception hooks |
+| `tests/test_orchestrator.py` | `fun_time.orchestrator` — arg parsing, path checks, controller arg building |
+| `tests/test_robot_hand_state.py` | `fun_time.robot_hand.state` — `SharedState` defaults, UDP message parsing |
+| `tests/test_robot_hand_video.py` | `fun_time.robot_hand.video` — `scan_clips`, supported extensions |
+| `tests/test_clipper_utils.py` | `fun_time.robot_hand.clipper.utils` — timestamp parsing, name sanitization, atomic JSON write |
+| `tests/test_clipper_state.py` | `fun_time.robot_hand.clipper.state` — `VideoState` properties, mark-in/out, timeline mapping |
+| `tests/test_clipper_paths.py` | `fun_time.robot_hand.clipper.paths` — path constants, key bindings, `ensure_runtime_dirs` |
+| `tests/test_clipper_export.py` | `fun_time.robot_hand.clipper.export` — ffmpeg clock parsing, output validation, progress tracking |
