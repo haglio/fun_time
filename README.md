@@ -29,8 +29,8 @@ Core files:
 
 Asset folders:
 
-- `clips/` — Robot Hand video clips
-- `audio/` — Robot Hand audio files
+- `fun_time/robot_hand/clips/` — Robot Hand video clips
+- `fun_time/robot_hand/audio/` — Robot Hand audio files
 
 Runtime state:
 
@@ -104,22 +104,22 @@ Robot Hand:
 - listens for broker-fed state
 - shows itself only in Robot Hand mode
 - hides itself otherwise
-- plays clips from `clips/`
-- switches audio from `audio/`
+- plays clips from `fun_time/robot_hand/clips/`
+- switches audio from `fun_time/robot_hand/audio/`
 
 ## Clip and audio naming
 
-`clips/` and `audio/` are matched by filename stem.
+`fun_time/robot_hand/clips/` and `fun_time/robot_hand/audio/` are matched by filename stem.
 
 Example:
 
-- `clips/Daisy.mp4`
-- `audio/Daisy.mp3`
+- `fun_time/robot_hand/clips/Daisy.mp4`
+- `fun_time/robot_hand/audio/Daisy.mp3`
 
 and
 
-- `clips/Bella_quarter_middle.mp4`
-- `audio/Bella_quarter_middle.mp3`
+- `fun_time/robot_hand/clips/Bella_quarter_middle.mp4`
+- `fun_time/robot_hand/audio/Bella_quarter_middle.mp3`
 
 So the clip and audio files should have the same base name.
 
@@ -310,14 +310,14 @@ coordinate mode and clip-switch commands without depending on focused windows.
 
 ## Adding a new Robot Hand clip
 
-1. Put the clip video in `clips/`
-2. Put the matching audio file in `audio/`
+1. Put the clip video in `fun_time/robot_hand/clips/`
+2. Put the matching audio file in `fun_time/robot_hand/audio/`
 3. Make sure both have the same stem
 
 Example:
 
-- `clips/NewClip.mp4`
-- `audio/NewClip.mp3`
+- `fun_time/robot_hand/clips/NewClip.mp4`
+- `fun_time/robot_hand/audio/NewClip.mp3`
 
 No config file is needed for this.
 
@@ -326,7 +326,7 @@ No config file is needed for this.
 Example:
 
 ```bash
-ffmpeg -y -i "source_video.mp4" -vn -c:a libmp3lame -q:a 2 "audio/NewClip.mp3"
+ffmpeg -y -i "source_video.mp4" -vn -c:a libmp3lame -q:a 2 "fun_time/robot_hand/audio/NewClip.mp3"
 ```
 
 ## Resizing a clip if Robot Hand struggles with it
@@ -399,7 +399,7 @@ Check:
 
 - `state/robot_hand_mode.txt` is `1`
 - `state/robot_hand_cmd.txt` is being written
-- clip files exist in `clips/`
+- clip files exist in `fun_time/robot_hand/clips/`
 - `state/controller.log` shows the hotkey write
 - `state/robot_hand_listener.log` shows command-file consumption errors
 
@@ -416,7 +416,10 @@ These should generally be ignored:
 - `*.lnk`
 - `favs.csv`
 
-Depending on your workflow, you may also eventually want to ignore `clips/` and `audio/` if they are large local assets rather than source.
+The Robot Hand asset folders are intentionally ignored because they are large local assets rather than source:
+
+- `fun_time/robot_hand/clips/`
+- `fun_time/robot_hand/audio/`
 
 ## Current source of truth
 
