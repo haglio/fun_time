@@ -41,8 +41,8 @@ class PathsConfig:
     ahk_exe: Path
     python_exe: Path
     primary_vlc_dirs: tuple[Path, ...]
-    portrait_dir: Path
-    landscape_dir: Path
+    portrait_dirs: tuple[Path, ...]
+    landscape_dirs: tuple[Path, ...]
     weird_dir: Path
     clips_dir: Path
     audio_dir: Path
@@ -52,6 +52,14 @@ class PathsConfig:
     @property
     def primary_vlc_dir(self) -> Path:
         return self.primary_vlc_dirs[0]
+
+    @property
+    def portrait_dir(self) -> Path:
+        return self.portrait_dirs[0]
+
+    @property
+    def landscape_dir(self) -> Path:
+        return self.landscape_dirs[0]
 
 
 @dataclass(frozen=True)
@@ -158,6 +166,8 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     if not primary_vlc_dirs_raw:
         raise ValueError("paths.primary_vlc_dirs must include at least one folder path")
     primary_vlc_dirs = tuple(_resolve_path(PROJECT_DIR, str(path)) for path in primary_vlc_dirs_raw)
+    portrait_dirs = _load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", path)
+    landscape_dirs = _load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", path)
 
     paths = PathsConfig(
         vlc_exe=_resolve_path(PROJECT_DIR, _require_value(paths_raw, "vlc_exe", path, "config.paths")),
@@ -165,8 +175,8 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         ahk_exe=_resolve_path(PROJECT_DIR, _require_value(paths_raw, "ahk_exe", path, "config.paths")),
         python_exe=_resolve_path(PROJECT_DIR, _require_value(paths_raw, "python_exe", path, "config.paths")),
         primary_vlc_dirs=primary_vlc_dirs,
-        portrait_dir=_resolve_path(PROJECT_DIR, _require_value(paths_raw, "portrait_dir", path, "config.paths")),
-        landscape_dir=_resolve_path(PROJECT_DIR, _require_value(paths_raw, "landscape_dir", path, "config.paths")),
+        portrait_dirs=portrait_dirs,
+        landscape_dirs=landscape_dirs,
         weird_dir=_resolve_path(PROJECT_DIR, _require_value(paths_raw, "weird_dir", path, "config.paths")),
         clips_dir=_resolve_path(PROJECT_DIR, _require_value(paths_raw, "clips_dir", path, "config.paths")),
         audio_dir=_resolve_path(PROJECT_DIR, _require_value(paths_raw, "audio_dir", path, "config.paths")),
@@ -225,3 +235,14 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         robot_hand=robot_hand,
         audio_companion=audio_companion,
     )
+
+
+def _load_dir_list(paths_raw: dict[str, Any], list_key: str, single_key: str, source_path: Path) -> tuple[Path, ...]:
+    values = paths_raw.get(list_key)
+    if values is None:
+        return (_resolve_path(PROJECT_DIR, str(_require_value(paths_raw, single_key, source_path, "config.paths"))),)
+    if not isinstance(values, list):
+        raise TypeError(f"paths.{list_key} must be a list of folder paths")
+    if not values:
+        raise ValueError(f"paths.{list_key} must include at least one folder path")
+    return tuple(_resolve_path(PROJECT_DIR, str(value)) for value in values)

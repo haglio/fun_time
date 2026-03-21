@@ -82,6 +82,13 @@ Useful sections:
 - `robot_hand`
 - `audio_companion`
 
+For the satellite AI libraries, Fun Time can now read either a single folder or multiple folders:
+
+- `paths.portrait_dir` or `paths.portrait_dirs`
+- `paths.landscape_dir` or `paths.landscape_dirs`
+
+If the list form is used, the portrait or landscape VLC gets all listed folders joined into one rotating source set.
+
 Primary VLC source folders are configured with:
 
 - preferred: `paths.primary_vlc_dirs` (list of one or more folders)
