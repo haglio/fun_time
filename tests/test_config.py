@@ -150,6 +150,21 @@ class TestLoadConfig:
         cfg = load_config(path)
         assert len(cfg.paths.primary_vlc_dirs) == 2
 
+    def test_multiple_portrait_and_landscape_dirs(self, tmp_path: Path, cfg_factory):
+        portrait_extra = tmp_path / "portrait_extra"
+        landscape_extra = tmp_path / "landscape_extra"
+        portrait_extra.mkdir()
+        landscape_extra.mkdir()
+        path = cfg_factory({"paths": {
+            "portrait_dirs": [str(tmp_path / "portrait"), str(portrait_extra)],
+            "landscape_dirs": [str(tmp_path / "landscape"), str(landscape_extra)],
+        }})
+        cfg = load_config(path)
+        assert len(cfg.paths.portrait_dirs) == 2
+        assert len(cfg.paths.landscape_dirs) == 2
+        assert cfg.paths.portrait_dir == (tmp_path / "portrait").resolve()
+        assert cfg.paths.landscape_dir == (tmp_path / "landscape").resolve()
+
 
 # ---------------------------------------------------------------------------
 # ProjectConfig derived properties

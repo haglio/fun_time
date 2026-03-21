@@ -112,6 +112,24 @@ class TestBuildControllerArgs:
         assert str(tmp_path / "vlc_primary") in pipe_joined[0]
         assert str(extra) in pipe_joined[0]
 
+    def test_portrait_and_landscape_dirs_joined_with_pipe(self, tmp_path: Path, cfg_factory):
+        portrait_extra = tmp_path / "portrait_extra"
+        landscape_extra = tmp_path / "landscape_extra"
+        portrait_extra.mkdir()
+        landscape_extra.mkdir()
+        path = cfg_factory({"paths": {
+            "portrait_dirs": [str(tmp_path / "portrait"), str(portrait_extra)],
+            "landscape_dirs": [str(tmp_path / "landscape"), str(landscape_extra)],
+        }})
+        cfg = load_config(path)
+        args = build_controller_args(cfg, "pw")
+        assert str(tmp_path / "portrait") in args[3]
+        assert str(portrait_extra) in args[3]
+        assert "|" in args[3]
+        assert str(tmp_path / "landscape") in args[4]
+        assert str(landscape_extra) in args[4]
+        assert "|" in args[4]
+
     def test_robot_hand_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_controller_args(cfg, "pw")
