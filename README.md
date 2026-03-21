@@ -272,7 +272,7 @@ The broker sits between them using `COM15`.
 Primary controls:
 
 - `Ctrl+Alt+Q` — close everything
-- `Esc` — toggle OmniPause
+- `Esc` — toggle OmniPause when a Fun Time window is focused
 - `Space` — pause/play the primary VLC
 - `-` / `=` — nudge the primary VLC backward / forward by the configured VLC seek amount
 
@@ -288,6 +288,7 @@ Behavior:
 - in control mode, `\` opens the primary VLC open-file dialog
 - in Robot Hand mode, `[` / `]` cycle Robot Hand clips
 - in Robot Hand mode, `\` offsets Robot Hand playback by a quarter cycle
+- these bare hotkeys only apply while a Fun Time window is active
 
 In control mode, the `\\` action temporarily enters OmniPause while the file dialog is open, then automatically leaves OmniPause when the dialog closes without toggling primary VLC playback state.
 - when clip order is shuffled on load (default), `]` then `[` returns to the prior clip within that same loaded order

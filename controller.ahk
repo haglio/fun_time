@@ -1,6 +1,5 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
-#NoTrayIcon
 Persistent
 DetectHiddenWindows False
 SetTitleMatchMode 2
@@ -166,6 +165,11 @@ QueueRobotHandOffsetQuarterCycle() {
     FileAppend("OFFSET_QUARTER_CYCLE", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
 }
 
+ShowControllerLog(*) {
+    global CONTROLLER_LOG_FILE
+    Run('notepad.exe "' . CONTROLLER_LOG_FILE . '"')
+}
+
 RobotHandModeState() {
     global ROBOT_HAND_MODE_FILE  ; if your variable is still ROBOT_MODE_HAND_FILE, use that name instead
     try {
@@ -271,12 +275,21 @@ Log("Started Robot Hand audio pid=" . pidA)
 
 SetTimer(SyncRobotHandState, 200)
 
+A_IconTip := "Fun Time Controller"
+A_TrayMenu.Delete()
+A_TrayMenu.Add("Open Controller Log", ShowControllerLog)
+A_TrayMenu.Add()
+A_TrayMenu.Add("Exit Fun Time", (*) => ShutdownAll(pid1, pid2, pid3, pidM, pidR, pidA))
+A_TrayMenu.AddStandard()
+
 ; -------------------- HOTKEYS --------------------
 
 #SuspendExempt true
 ^!q::ShutdownAll(pid1, pid2, pid3, pidM, pidR, pidA)
-Esc::OmniPauseToggle()
 #SuspendExempt false
+
+#HotIf IsOurWindow()
+Esc::OmniPauseToggle()
 
 [::{
     if (RobotHandModeState() = "1") {
@@ -330,6 +343,7 @@ d::{
 }
 w::Discard(3)
 s::ToggleLock(3)
+#HotIf
 
 ; =====================================================================
 ; ========================= IMPLEMENTATION ============================
