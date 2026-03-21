@@ -190,6 +190,26 @@ QueueRobotHandOffsetQuarterCycle() {
     FileAppend("OFFSET_QUARTER_CYCLE", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
 }
 
+HandlePrevAction() {
+    global ROBOT_HAND_CMD_FILE, pid1
+    if (RobotHandModeState() = "1") {
+        try FileDelete(ROBOT_HAND_CMD_FILE)
+        FileAppend("PREV", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
+    } else {
+        SendToPid(pid1, "p")
+    }
+}
+
+HandleNextAction() {
+    global ROBOT_HAND_CMD_FILE, pid1
+    if (RobotHandModeState() = "1") {
+        try FileDelete(ROBOT_HAND_CMD_FILE)
+        FileAppend("NEXT", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
+    } else {
+        SendToPid(pid1, "n")
+    }
+}
+
 ShowControllerLog(*) {
     global CONTROLLER_LOG_FILE
     Run('notepad.exe "' . CONTROLLER_LOG_FILE . '"')
@@ -325,23 +345,11 @@ Esc::OmniPauseToggle()
 #SuspendExempt false
 
 #HotIf IsOurWindow()
-[::{
-    if (RobotHandModeState() = "1") {
-        try FileDelete(ROBOT_HAND_CMD_FILE)
-        FileAppend("PREV", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
-    } else {
-        try ControlSend("p", , "ahk_pid " pid1)
-    }
-}
+[::HandlePrevAction()
+SC01A::HandlePrevAction()
 
-]::{
-    if (RobotHandModeState() = "1") {
-        try FileDelete(ROBOT_HAND_CMD_FILE)
-        FileAppend("NEXT", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
-    } else {
-        try ControlSend("n", , "ahk_pid " pid1)
-    }
-}
+]::HandleNextAction()
+SC01B::HandleNextAction()
 
 \::{
     if (RobotHandModeState() = "1") {

@@ -288,6 +288,7 @@ Behavior:
 - in control mode, `\` opens the primary VLC open-file dialog
 - in Robot Hand mode, `[` / `]` cycle Robot Hand clips
 - in Robot Hand mode, `\` offsets Robot Hand playback by a quarter cycle
+- on non-US keyboard layouts, the physical bracket-key positions are also bound
 - these bare hotkeys only apply while a Fun Time window is active
 
 In control mode, the `\\` action temporarily enters OmniPause while the file dialog is open, then automatically leaves OmniPause when the dialog closes without toggling primary VLC playback state.
