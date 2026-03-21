@@ -1,5 +1,5 @@
 #Requires AutoHotkey v2.0
-#SingleInstance Ignore
+#SingleInstance Force
 Persistent
 DetectHiddenWindows False
 SetTitleMatchMode 2
@@ -123,6 +123,12 @@ TryKillPid(pid) {
     if (!pid)
         return
     try ProcessClose(pid)
+}
+
+ForceKillPid(pid) {
+    if (!pid)
+        return
+    try RunWait(A_ComSpec . " /c taskkill /PID " . pid . " /T /F", , "Hide")
 }
 
 GetRobotHandRect(&x, &y, &w, &h) {
@@ -391,6 +397,11 @@ ShutdownAll() {
 
     for pid in [pid1, pid2, pid3, pidM, pidR, pidA]
         TryKillPid(pid)
+
+    Sleep 300
+
+    for pid in [pid1, pid2, pid3, pidM, pidR, pidA]
+        ForceKillPid(pid)
 
     ExitApp
 }
