@@ -1,5 +1,5 @@
 #Requires AutoHotkey v2.0
-#SingleInstance Force
+#SingleInstance Ignore
 Persistent
 DetectHiddenWindows False
 SetTitleMatchMode 2
