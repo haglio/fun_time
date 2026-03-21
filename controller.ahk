@@ -57,6 +57,13 @@ locked3 := false
 
 robotHandMode := false
 omniPaused := false
+isShuttingDown := false
+pid1 := 0
+pid2 := 0
+pid3 := 0
+pidM := 0
+pidR := 0
+pidA := 0
 
 Q(s) => Format('"{1}"', s)
 
@@ -104,6 +111,18 @@ RunVLC(args, mediaPath) {
     cmd := Q(VLC_EXE) . " " . args . mediaArgs
     Run(cmd, , , &pid)
     return pid
+}
+
+TryClosePid(pid) {
+    if (!pid)
+        return
+    try WinClose("ahk_pid " pid)
+}
+
+TryKillPid(pid) {
+    if (!pid)
+        return
+    try ProcessClose(pid)
 }
 
 GetRobotHandRect(&x, &y, &w, &h) {
@@ -170,6 +189,14 @@ ShowControllerLog(*) {
     Run('notepad.exe "' . CONTROLLER_LOG_FILE . '"')
 }
 
+HandleControllerExit(exitReason, exitCode) {
+    global isShuttingDown
+    if (isShuttingDown)
+        return
+    Log("Controller exiting unexpectedly reason=" . exitReason . " code=" . exitCode)
+    ShutdownAll()
+}
+
 RobotHandModeState() {
     global ROBOT_HAND_MODE_FILE  ; if your variable is still ROBOT_MODE_HAND_FILE, use that name instead
     try {
@@ -211,6 +238,8 @@ SyncRobotHandState() {
 ; -------------------- LAUNCH --------------------
 
 Log("Controller starting")
+
+OnExit(HandleControllerExit)
 
 pid1 := RunVLC("--no-one-instance --random --repeat", PRIMARY_VLC_SOURCES)
 Sleep 900
@@ -279,18 +308,17 @@ A_IconTip := "Fun Time Controller"
 A_TrayMenu.Delete()
 A_TrayMenu.Add("Open Controller Log", ShowControllerLog)
 A_TrayMenu.Add()
-A_TrayMenu.Add("Exit Fun Time", (*) => ShutdownAll(pid1, pid2, pid3, pidM, pidR, pidA))
+A_TrayMenu.Add("Exit Fun Time", (*) => ShutdownAll())
 A_TrayMenu.AddStandard()
 
 ; -------------------- HOTKEYS --------------------
 
 #SuspendExempt true
-^!q::ShutdownAll(pid1, pid2, pid3, pidM, pidR, pidA)
+^!q::ShutdownAll()
+Esc::OmniPauseToggle()
 #SuspendExempt false
 
 #HotIf IsOurWindow()
-Esc::OmniPauseToggle()
-
 [::{
     if (RobotHandModeState() = "1") {
         try FileDelete(ROBOT_HAND_CMD_FILE)
@@ -349,19 +377,21 @@ s::ToggleLock(3)
 ; ========================= IMPLEMENTATION ============================
 ; =====================================================================
 
-ShutdownAll(pid1, pid2, pid3, pidM, pidR := 0, pidA := 0) {
+ShutdownAll() {
+    global isShuttingDown, pid1, pid2, pid3, pidM, pidR, pidA
+    if (isShuttingDown)
+        return
+    isShuttingDown := true
     Log("Shutdown requested")
-    for pid in [pid1, pid2, pid3, pidM, pidR, pidA] {
-        if (pid) {
-            try WinClose("ahk_pid " pid)
-        }
-    }
-    Sleep 400
-    for pid in [pid1, pid2, pid3, pidM, pidR, pidA] {
-        if (pid) {
-            try ProcessClose(pid)
-        }
-    }
+
+    for pid in [pid1, pid2, pid3, pidM, pidR, pidA]
+        TryClosePid(pid)
+
+    Sleep 700
+
+    for pid in [pid1, pid2, pid3, pidM, pidR, pidA]
+        TryKillPid(pid)
+
     ExitApp
 }
 
