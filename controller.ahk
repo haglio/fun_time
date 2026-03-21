@@ -274,7 +274,7 @@ SetTimer(SyncRobotHandState, 200)
 ; -------------------- HOTKEYS --------------------
 
 #SuspendExempt true
-q::ShutdownAll(pid1, pid2, pid3, pidM, pidR, pidA)
+^!q::ShutdownAll(pid1, pid2, pid3, pidM, pidR, pidA)
 Esc::OmniPauseToggle()
 #SuspendExempt false
 

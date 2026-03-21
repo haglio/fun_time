@@ -271,7 +271,8 @@ The broker sits between them using `COM15`.
 
 Primary controls:
 
-- `Esc` — close everything
+- `Ctrl+Alt+Q` — close everything
+- `Esc` — toggle OmniPause
 - `Space` — pause/play the primary VLC
 - `-` / `=` — nudge the primary VLC backward / forward by the configured VLC seek amount
 
