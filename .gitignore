@@ -11,3 +11,7 @@ favs.csv
 __pycache__/
 **/__pycache__/
 *.py[cod]
+.pytest_cache/
+.tmp-pytest-cache/
+.tmp-pytest-local/
+pytest-cache-files-*/
