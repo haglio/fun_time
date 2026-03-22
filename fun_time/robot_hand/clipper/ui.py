@@ -640,6 +640,17 @@ def run_ui(state: VideoState) -> None:
         state.exit_prompt_action = ""
         return True
 
+    def try_exit() -> bool:
+        if not state.dirty:
+            return True
+        if not state.should_prompt_on_exit:
+            state.autosave_session()
+            return True
+        state.exit_prompt_visible = True
+        state.exit_prompt_action = ""
+        state.render_rev += 1
+        return False
+
     ensure_window()
     last_loop_idx = -1
     last_present = 0.0
@@ -666,12 +677,9 @@ def run_ui(state: VideoState) -> None:
                     ensure_window()
                     state.render_rev += 1
                     continue
-                if not state.dirty:
+                if try_exit():
                     break
-                state.exit_prompt_visible = True
-                state.exit_prompt_action = ""
                 ensure_window()
-                state.render_rev += 1
                 continue
 
             key = cv2.waitKeyEx(20)
@@ -681,12 +689,9 @@ def run_ui(state: VideoState) -> None:
                     ensure_window()
                     state.render_rev += 1
                     continue
-                if not state.dirty:
+                if try_exit():
                     break
-                state.exit_prompt_visible = True
-                state.exit_prompt_action = ""
                 ensure_window()
-                state.render_rev += 1
                 continue
 
             if key == -1:
@@ -706,19 +711,13 @@ def run_ui(state: VideoState) -> None:
                     state.export_job.dismissed = True
                     state.render_rev += 1
                     continue
-                if not state.dirty:
+                if try_exit():
                     break
-                state.exit_prompt_visible = True
-                state.exit_prompt_action = ""
-                state.render_rev += 1
                 continue
 
             if key in QUIT_KEYS:
-                if not state.dirty:
+                if try_exit():
                     break
-                state.exit_prompt_visible = True
-                state.exit_prompt_action = ""
-                state.render_rev += 1
                 continue
 
             handle_key(state, key)

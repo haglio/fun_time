@@ -57,6 +57,7 @@ class VideoState:
     export_job: ExportJob | None = None
     session_warning: str = ""
     dirty: bool = False
+    protect_existing_save_data: bool = False
     last_saved_payload: dict[str, Any] | None = None
     hover_text: str = ""
     buttons: dict[str, tuple[int, int, int, int]] = field(default_factory=dict)
@@ -74,6 +75,10 @@ class VideoState:
     @property
     def loaded_count(self) -> int:
         return self.loaded_end - self.loaded_start + 1
+
+    @property
+    def should_prompt_on_exit(self) -> bool:
+        return self.dirty and self.protect_existing_save_data
 
     def clamp_current(self) -> None:
         low = self.loaded_start if self.wrap_mode == "blue" else self.active_start

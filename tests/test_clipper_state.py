@@ -123,6 +123,20 @@ class TestVideoStateProperties:
         s = _make_state(active_start=5, active_end=5)
         assert s.active_count == 1
 
+    def test_should_prompt_on_exit_only_for_existing_saved_data(self):
+        s = _make_state()
+        s.dirty = True
+        assert s.should_prompt_on_exit is False
+
+        s.protect_existing_save_data = True
+        assert s.should_prompt_on_exit is True
+
+    def test_should_not_prompt_when_clean_even_for_loaded_sessions(self):
+        s = _make_state()
+        s.protect_existing_save_data = True
+        s.dirty = False
+        assert s.should_prompt_on_exit is False
+
 
 # ---------------------------------------------------------------------------
 # clamp_current

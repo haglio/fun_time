@@ -52,6 +52,7 @@ def launch_state() -> VideoState:
         )
         state.session_path = str(Path(info["session_json"]))
         state.original_session_payload = dict(payload)
+        state.protect_existing_save_data = True
         LAST_SESSION_FILE.write_text(state.session_path, encoding="utf-8")
         return state
     state = make_video_state(info["video_file"], info["session_name"], parse_timestamp(info["timestamp"]), info["seconds"])
