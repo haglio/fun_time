@@ -20,6 +20,13 @@ if (-not [System.IO.Path]::IsPathRooted($pythonExe)) {
     $pythonExe = (Join-Path $projectRoot $pythonExe)
 }
 
+if ([System.IO.Path]::GetFileName($pythonExe).ToLowerInvariant() -eq 'pythonw.exe') {
+    $pythonConsoleExe = Join-Path ([System.IO.Path]::GetDirectoryName($pythonExe)) 'python.exe'
+    if (Test-Path $pythonConsoleExe) {
+        $pythonExe = $pythonConsoleExe
+    }
+}
+
 $launcherLog = Join-Path $projectRoot 'state\broker_service_launcher.log'
 New-Item -ItemType Directory -Path (Join-Path $projectRoot 'state') -Force | Out-Null
 
@@ -31,4 +38,7 @@ if (-not (Test-Path $pythonExe)) {
 
 "$(Get-Date -Format s) INFO Starting broker with $pythonExe" | Add-Content -Path $launcherLog -Encoding UTF8
 & $pythonExe -m fun_time.broker_app --config $configPath 1>> $launcherLog 2>&1
-exit $LASTEXITCODE
+if (Get-Variable LASTEXITCODE -Scope Global -ErrorAction SilentlyContinue) {
+    exit $global:LASTEXITCODE
+}
+exit 0
