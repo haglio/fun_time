@@ -15,10 +15,13 @@ from fun_time.robot_hand.clipper.state import (
     change_speed,
     contract_left,
     contract_right,
+    cycle_loop_mode,
     current_loop_frame_index,
     extend_left,
     extend_right,
     index_for_timeline_x,
+    loop_preview_indices,
+    make_video_state,
     set_mark_in,
     set_mark_out,
     timeline_x_for_index,
@@ -43,6 +46,7 @@ def _make_state(
     fps: float = 30.0,
     speed: float = 1.0,
     wrap_mode: str = "blue",
+    loop_mode: str = "base-tip-base",
     session_name: str = "test_session",
     initial_active_start: int | None = None,
     initial_active_end: int | None = None,
@@ -72,6 +76,7 @@ def _make_state(
         session_name=session_name,
         session_path="/fake/sessions/test_session.json",
         original_session_payload={},
+        loop_mode=loop_mode,
         speed=speed,
         wrap_mode=wrap_mode,
         initial_active_start=active_start if initial_active_start is None else initial_active_start,
@@ -183,7 +188,7 @@ class TestCurrentPayload:
         payload = s.current_payload()
         for key in ("version", "session_name", "video_path", "fps", "total_frames",
                     "loaded_start", "loaded_end", "active_start", "active_end",
-                    "current", "seconds_per_step", "wrap_mode", "speed"):
+                    "current", "seconds_per_step", "loop_mode", "wrap_mode", "speed"):
             assert key in payload, f"Missing key: {key}"
 
     def test_version_is_1(self):
@@ -201,6 +206,32 @@ class TestCurrentPayload:
     def test_wrap_mode_preserved(self):
         s = _make_state(wrap_mode="red")
         assert s.current_payload()["wrap_mode"] == "red"
+
+    def test_loop_mode_preserved(self):
+        s = _make_state(loop_mode="tip-base")
+        assert s.current_payload()["loop_mode"] == "tip-base"
+
+
+class TestCycleLoopMode:
+    def test_cycles_to_next_mode(self):
+        s = _make_state(loop_mode="base-tip-base")
+        with patch.object(s, "mark_dirty"):
+            cycle_loop_mode(s)
+        assert s.loop_mode == "tip-base-tip"
+
+
+class TestMakeVideoState:
+    def test_new_session_keeps_requested_loop_mode(self):
+        cap = MagicMock()
+        cap.isOpened.return_value = True
+        cap.get.side_effect = [30.0, 120.0]
+        frames = {i: np.zeros((2, 2, 3), dtype=np.uint8) for i in range(30)}
+
+        with patch("fun_time.robot_hand.clipper.state.cv2.VideoCapture", return_value=cap):
+            with patch("fun_time.robot_hand.clipper.state.load_range", return_value=frames):
+                state = make_video_state("/fake/video.mp4", "demo", 0.0, 1.0, loop_mode="tip-base")
+
+        assert state.loop_mode == "tip-base"
 
 
 class TestLoopPause:
@@ -224,6 +255,20 @@ class TestLoopPause:
             resumed = current_loop_frame_index(s)
         assert s.loop_paused is False
         assert resumed == 16
+
+
+class TestLoopPreviewIndices:
+    def test_base_tip_preview_mirrors_back(self):
+        s = _make_state(active_start=10, active_end=12, loop_mode="base-tip")
+        assert loop_preview_indices(s) == [10, 11, 12, 11, 10]
+
+    def test_tip_base_preview_prepends_reversed_half(self):
+        s = _make_state(active_start=10, active_end=12, loop_mode="tip-base")
+        assert loop_preview_indices(s) == [12, 11, 10, 11, 12]
+
+    def test_tip_base_tip_preview_rotates_halfway(self):
+        s = _make_state(active_start=10, active_end=15, loop_mode="tip-base-tip")
+        assert loop_preview_indices(s) == [13, 14, 15, 10, 11, 12]
 
 
 class TestChangeSpeed:
@@ -412,6 +457,61 @@ class TestLoopSuggestions:
         update_loop_suggestions(s)
 
         assert (s.suggested_in, s.suggested_out) == first_pair
+
+    def test_base_tip_mode_uses_turning_point_for_suggested_out(self):
+        s = _make_state(
+            total_frames=80,
+            loaded_start=0,
+            loaded_end=79,
+            active_start=10,
+            active_end=60,
+            initial_active_start=0,
+            initial_active_end=60,
+            loop_mode="base-tip",
+        )
+        with patch("fun_time.robot_hand.clipper.state._best_turning_point_index", return_value=37) as turning:
+            with patch("fun_time.robot_hand.clipper.state._best_duplicate_match_index", return_value=49) as duplicate:
+                update_loop_suggestions(s)
+        assert s.suggested_out == 37
+        turning.assert_called_once()
+        duplicate.assert_not_called()
+
+    def test_tip_base_mode_uses_turning_point_for_suggested_in(self):
+        s = _make_state(
+            total_frames=80,
+            loaded_start=0,
+            loaded_end=79,
+            active_start=10,
+            active_end=60,
+            initial_active_start=10,
+            initial_active_end=79,
+            loop_mode="tip-base",
+        )
+        with patch("fun_time.robot_hand.clipper.state._best_turning_point_index", return_value=33) as turning:
+            with patch("fun_time.robot_hand.clipper.state._pair_transition_score", return_value=999.0) as pair_score:
+                update_loop_suggestions(s)
+        assert s.suggested_in == 33
+        turning.assert_called_once()
+        pair_score.assert_not_called()
+
+    def test_half_loop_modes_skip_pair_refinement_when_both_marks_changed(self):
+        s = _make_state(
+            total_frames=80,
+            loaded_start=0,
+            loaded_end=79,
+            active_start=10,
+            active_end=60,
+            initial_active_start=0,
+            initial_active_end=79,
+            loop_mode="base-tip",
+        )
+        with patch("fun_time.robot_hand.clipper.state._best_turning_point_index", side_effect=[35, 24]) as turning:
+            with patch("fun_time.robot_hand.clipper.state._pair_transition_score", return_value=999.0) as pair_score:
+                update_loop_suggestions(s)
+        assert s.suggested_out == 35
+        assert s.suggested_in == 24
+        assert turning.call_count == 2
+        pair_score.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

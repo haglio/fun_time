@@ -24,6 +24,7 @@ from .paths import (
     ENTER_KEYS,
     ESC_KEYS,
     LAST_SESSION_FILE,
+    LOOP_MODE_CYCLE_KEYS,
     LOOP_FIX_SCRIPT,
     MARK_IN_KEYS,
     MARK_OUT_KEYS,
@@ -42,11 +43,13 @@ from .state import (
     accept_suggested_out,
     change_speed,
     contract_left,
+    cycle_loop_mode,
     contract_right,
     current_loop_frame_index,
     extend_left,
     extend_right,
     index_for_timeline_x,
+    loop_preview_indices,
     move_current_left,
     move_current_right,
     restore_original_session,
@@ -63,6 +66,12 @@ from .vlc_prefill import detect_vlc_session_prefill
 Rect = tuple[int, int, int, int]
 Color = tuple[int, int, int]
 APP_DISPLAY_NAME = "Clipper"
+LOOP_MODE_LABELS = {
+    "base-tip-base": "Base-Tip-Base",
+    "tip-base-tip": "Tip-Base-Tip",
+    "base-tip": "Base-Tip",
+    "tip-base": "Tip-Base",
+}
 
 
 def _clipper_icon_path() -> Path:
@@ -235,7 +244,7 @@ def build_ui(state: VideoState) -> np.ndarray:
     pane_w = 720
     pane_h = 500
     canvas_w = 1520
-    canvas_h = 1000
+    canvas_h = 1040
     margin = 18
     canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
     canvas[:] = (24, 24, 24)
@@ -254,12 +263,13 @@ def build_ui(state: VideoState) -> np.ndarray:
     pane_bottom = pane_y + pane_h
     info1_y = pane_bottom + 28
     info2_y = pane_bottom + 58
-    timeline_y = 796
+    timeline_y = 788
     timeline_h = 22
-    wrap_y = timeline_y + 54
-    range_info_y = wrap_y + 42
-    reminder_y = range_info_y + 28
-    legend_y = 960
+    wrap_y = timeline_y + 62
+    mode_y = wrap_y + 54
+    range_info_y = mode_y + 48
+    legend_y1 = range_info_y + 42
+    legend_y2 = legend_y1 + 30
 
     put_text_centered(canvas, state.session_name, session_cx, session_y, 0.92, (240, 240, 240), 2)
     meta_text = f"File: {os.path.basename(state.path)}     FPS: {state.fps:.3f}"
@@ -284,7 +294,9 @@ def build_ui(state: VideoState) -> np.ndarray:
 
     rel_cur = state.current - state.loaded_start
     put_text(canvas, f"Cursor: {rel_cur} @ {format_seconds(state.current / state.fps)}", left_x, info1_y, 0.58, (235, 235, 235), 1)
-    put_text(canvas, f"Loop frame: {loop_idx - state.loaded_start} @ {format_seconds(loop_idx / state.fps)}", right_x, info1_y, 0.58, (235, 235, 235), 1)
+    preview_sequence = loop_preview_indices(state)
+    preview_pos = state.paused_loop_pos if state.paused_loop_pos is not None else (preview_sequence.index(loop_idx) if loop_idx in preview_sequence else 0)
+    put_text(canvas, f"Loop frame: {preview_pos} @ {format_seconds(loop_idx / state.fps)}", right_x, info1_y, 0.58, (235, 235, 235), 1)
     playback_status = "Paused" if state.loop_paused else "Playing"
     put_text(canvas, f"Speed: {state.speed:.2f}x ({playback_status})", right_x, info2_y, 0.58, (235, 235, 235), 1)
 
@@ -379,17 +391,22 @@ def build_ui(state: VideoState) -> np.ndarray:
         active_fill_color=active_color if state.wrap_mode == "yellow" else loaded_color,
     )
 
+    loop_mode_w = 250
+    state.buttons["loop_mode"] = (session_cx - loop_mode_w // 2, mode_y - 18, session_cx + loop_mode_w // 2, mode_y + 16)
+    draw_button(canvas, state.buttons["loop_mode"], LOOP_MODE_LABELS.get(state.loop_mode, state.loop_mode))
+
     rel_in = state.active_start - state.loaded_start
     rel_out = state.active_end - state.loaded_start
     wrap_label = "Wrap: Loaded" if state.wrap_mode == "blue" else "Wrap: In-Out"
     range_text = f"In-Out: {rel_in}-{rel_out}     Loaded: 0-{state.loaded_count - 1}     {wrap_label}"
     put_text_centered(canvas, range_text, session_cx, range_info_y, 0.58, (230, 230, 230), 1)
-    put_text_centered(canvas, "Reminder: base-tip-base.", session_cx, reminder_y, 0.56, (230, 230, 230), 1)
 
-    legend = "Left/Right: Move cursor   Space: Play/Pause preview   i or [: Mark In   o or ]: Mark Out   9: Accept In suggestion   0: Accept Out suggestion"
-    put_text_centered(canvas, legend, session_cx, legend_y, 0.56, (230, 230, 230), 1)
+    legend1 = "Left/Right: Move cursor   Space: Play/Pause preview   i or [: Mark In   o or ]: Mark Out"
+    legend2 = "9: Accept In suggestion   0: Accept Out suggestion   L: Cycle loop mode"
+    put_text_centered(canvas, legend1, session_cx, legend_y1, 0.56, (230, 230, 230), 1)
+    put_text_centered(canvas, legend2, session_cx, legend_y2, 0.56, (230, 230, 230), 1)
     if state.session_warning:
-        put_text_centered(canvas, state.session_warning, session_cx, legend_y - 26, 0.52, (120, 200, 255), 1)
+        put_text_centered(canvas, state.session_warning, session_cx, legend_y1 - 28, 0.52, (120, 200, 255), 1)
 
     if state.export_job and not state.export_job.dismissed:
         draw_export_overlay(canvas, state)
@@ -534,6 +551,8 @@ def on_mouse(event: int, x: int, y: int, flags: int, userdata: Any | None) -> No
                     set_mark_out(state)
                 elif name == "wrap":
                     toggle_wrap_mode(state)
+                elif name == "loop_mode":
+                    cycle_loop_mode(state)
                 elif name == "overlay_close" and state.export_job:
                     state.export_job.dismissed = True
                 elif name == "timeline":
@@ -566,6 +585,7 @@ def launcher_dialog() -> dict[str, Any]:
     video_file = tk.StringVar(value=vlc_prefill.video_file if vlc_prefill else "")
     timestamp = tk.StringVar(value=vlc_prefill.timestamp if vlc_prefill else "00:00:00")
     seconds = tk.StringVar(value="5")
+    loop_mode = tk.StringVar(value="base-tip-base")
     prefill_note = tk.StringVar(
         value=vlc_prefill.note if vlc_prefill else "If VLC is open, Clippeer will try to prefill this section."
     )
@@ -609,6 +629,7 @@ def launcher_dialog() -> dict[str, Any]:
                         "video_file": str(vf),
                         "timestamp": timestamp.get().strip(),
                         "seconds": sec,
+                        "loop_mode": loop_mode.get(),
                     }
                 )
             root.destroy()
@@ -643,8 +664,10 @@ def launcher_dialog() -> dict[str, Any]:
     tk.Entry(frame2, textvariable=timestamp, width=20).grid(row=3, column=1, sticky="w", pady=6)
     tk.Label(frame2, text="Seconds", font=("Segoe UI", 10)).grid(row=4, column=0, sticky="w", padx=(28, 8), pady=6)
     tk.Entry(frame2, textvariable=seconds, width=10).grid(row=4, column=1, sticky="w", pady=6)
+    tk.Label(frame2, text="Loop mode", font=("Segoe UI", 10)).grid(row=5, column=0, sticky="w", padx=(28, 8), pady=6)
+    tk.OptionMenu(frame2, loop_mode, *LOOP_MODE_LABELS.keys()).grid(row=5, column=1, sticky="w", pady=6)
     tk.Label(frame2, textvariable=prefill_note, font=("Segoe UI", 9), fg="#4a6580", anchor="w").grid(
-        row=5, column=0, columnspan=3, sticky="w", padx=(28, 0), pady=(8, 0)
+        row=6, column=0, columnspan=3, sticky="w", padx=(28, 0), pady=(8, 0)
     )
     frame2.grid_columnconfigure(1, weight=1)
 
@@ -689,6 +712,8 @@ def handle_key(state: VideoState, key: int) -> None:
         accept_suggested_out(state)
     elif key in WRAP_TOGGLE_KEYS:
         toggle_wrap_mode(state)
+    elif key in LOOP_MODE_CYCLE_KEYS:
+        cycle_loop_mode(state)
     elif key in PLAY_PAUSE_KEYS:
         toggle_loop_pause(state)
     elif key in SPEED_DOWN_KEYS:

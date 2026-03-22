@@ -10,6 +10,17 @@ from fractions import Fraction
 import cv2
 import numpy as np
 
+LOOP_MODE_BASE_TIP_BASE = "base-tip-base"
+LOOP_MODE_TIP_BASE_TIP = "tip-base-tip"
+LOOP_MODE_BASE_TIP = "base-tip"
+LOOP_MODE_TIP_BASE = "tip-base"
+LOOP_MODES = (
+    LOOP_MODE_BASE_TIP_BASE,
+    LOOP_MODE_TIP_BASE_TIP,
+    LOOP_MODE_BASE_TIP,
+    LOOP_MODE_TIP_BASE,
+)
+
 
 def run(cmd):
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
@@ -214,10 +225,31 @@ def resize_frames(frames, scale):
     return [cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA) for frame in frames]
 
 
+def shift_frames_halfway(frames):
+    if len(frames) < 2:
+        return list(frames)
+    shift = max(1, len(frames) // 2)
+    return list(frames[shift:]) + list(frames[:shift])
+
+
+def normalize_loop_mode(frames, loop_mode):
+    if loop_mode == LOOP_MODE_BASE_TIP_BASE:
+        return [f.copy() for f in frames]
+    if loop_mode == LOOP_MODE_TIP_BASE_TIP:
+        return [f.copy() for f in shift_frames_halfway(frames)]
+    if loop_mode == LOOP_MODE_BASE_TIP:
+        return [f.copy() for f in frames] + [f.copy() for f in frames[-2::-1]]
+    if loop_mode == LOOP_MODE_TIP_BASE:
+        reversed_frames = list(reversed(frames))
+        return [f.copy() for f in reversed_frames[:-1]] + [f.copy() for f in frames]
+    raise RuntimeError(f"Unsupported loop mode: {loop_mode}")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Make a clip loop more smoothly by bridging the end to the beginning.")
     ap.add_argument("input", help="Input video path")
     ap.add_argument("-o", "--output", required=True, help="Output video path")
+    ap.add_argument("--loop-mode", choices=LOOP_MODES, default=LOOP_MODE_BASE_TIP_BASE, help="How to interpret the source clip before loop fixing")
     ap.add_argument("--bridge-ms", type=float, default=80.0, help="Bridge length in milliseconds (default: 80)")
     ap.add_argument("--bridge-frames", type=int, default=None, help="Bridge length in frames (overrides --bridge-ms)")
     ap.add_argument("--mode", choices=["flow", "blend"], default="flow", help="Bridge generation mode (default: flow)")
@@ -246,17 +278,16 @@ def main():
     if n < 3:
         raise RuntimeError("Clip is too short.")
 
+    work_frames = normalize_loop_mode(frames, args.loop_mode)
+    normalized_n = len(work_frames)
     bridge_frames = args.bridge_frames
     if bridge_frames is None:
         bridge_frames = max(1, int(round(fps * (args.bridge_ms / 1000.0))))
-
-    max_bridge = max(1, n // 3)
+    max_bridge = max(1, normalized_n // 3)
     bridge_frames = max(1, min(bridge_frames, max_bridge))
 
-    work_frames = [f.copy() for f in frames]
-
     if args.symmetric_blend > 0:
-        seam_frames = min(args.symmetric_blend, max(1, n // 4))
+        seam_frames = min(args.symmetric_blend, max(1, normalized_n // 4))
         work_frames = build_symmetric_blend(work_frames, seam_frames)
 
     bridge = build_bridge(work_frames[-1], work_frames[0], bridge_frames, args.mode)
@@ -297,6 +328,8 @@ def main():
 
     print(f"Input FPS: {fps:.6f}")
     print(f"Input frames: {n}")
+    print(f"Loop mode: {args.loop_mode}")
+    print(f"Normalized frames: {normalized_n}")
     print(f"Bridge frames: {bridge_frames}")
     print(f"Output frames: {len(out_frames)}")
     print(f"Encode attempts: {attempt}")

@@ -13,6 +13,17 @@ import numpy as np
 from .paths import LAST_SESSION_FILE, SESSIONS_DIR
 from .utils import safe_atomic_write_json, sanitize_name
 
+LOOP_MODE_BASE_TIP_BASE = "base-tip-base"
+LOOP_MODE_TIP_BASE_TIP = "tip-base-tip"
+LOOP_MODE_BASE_TIP = "base-tip"
+LOOP_MODE_TIP_BASE = "tip-base"
+LOOP_MODES = (
+    LOOP_MODE_BASE_TIP_BASE,
+    LOOP_MODE_TIP_BASE_TIP,
+    LOOP_MODE_BASE_TIP,
+    LOOP_MODE_TIP_BASE,
+)
+
 
 @dataclass
 class ExportJob:
@@ -52,6 +63,7 @@ class VideoState:
     session_name: str
     session_path: str
     original_session_payload: dict[str, Any]
+    loop_mode: str = LOOP_MODE_BASE_TIP_BASE
     wrap_mode: str = "blue"
     speed: float = 1.0
     export_job: ExportJob | None = None
@@ -66,6 +78,7 @@ class VideoState:
     render_rev: int = 0
     loop_paused: bool = False
     paused_loop_idx: int | None = None
+    paused_loop_pos: int | None = None
     exit_prompt_visible: bool = False
     exit_prompt_action: str = ""
     initial_active_start: int | None = None
@@ -114,6 +127,7 @@ class VideoState:
             "active_end": self.active_end,
             "current": self.current,
             "seconds_per_step": self.base_step / self.fps,
+            "loop_mode": self.loop_mode,
             "wrap_mode": self.wrap_mode,
             "speed": self.speed,
         }
@@ -255,7 +269,7 @@ def _smooth_1d(values: np.ndarray, radius: int) -> np.ndarray:
     return np.convolve(padded, kernel, mode="valid")
 
 
-def _best_duplicate_match_index(state: VideoState, ref_idx: int, *, direction: int) -> int | None:
+def _candidate_similarity_curve(state: VideoState, ref_idx: int, *, direction: int) -> tuple[list[int], np.ndarray] | None:
     min_gap = 10
     if direction > 0:
         candidates = list(range(ref_idx + min_gap, state.loaded_end + 1))
@@ -274,6 +288,14 @@ def _best_duplicate_match_index(state: VideoState, ref_idx: int, *, direction: i
 
     smooth_radius = max(1, int(round(state.fps * 0.03)))
     smoothed = _smooth_1d(scores, smooth_radius)
+    return candidates, smoothed
+
+
+def _find_similarity_dip(state: VideoState, ref_idx: int, *, direction: int) -> tuple[list[int], np.ndarray, int, float, np.ndarray, int] | None:
+    curve = _candidate_similarity_curve(state, ref_idx, direction=direction)
+    if curve is None:
+        return None
+    candidates, smoothed = curve
     skip = min(len(smoothed) - 1, max(1, int(round(state.fps * 0.12))))
     baseline_end = min(len(smoothed), max(skip + 1, int(round(state.fps * 0.18))))
     baseline = float(np.max(smoothed[:baseline_end]))
@@ -292,6 +314,14 @@ def _best_duplicate_match_index(state: VideoState, ref_idx: int, *, direction: i
 
     if dip_idx is None:
         return None
+    return candidates, smoothed, dip_idx, baseline, slope, run
+
+
+def _best_duplicate_match_index(state: VideoState, ref_idx: int, *, direction: int) -> int | None:
+    dip = _find_similarity_dip(state, ref_idx, direction=direction)
+    if dip is None:
+        return None
+    candidates, smoothed, dip_idx, baseline, slope, run = dip
 
     peak_idx: int | None = None
     min_rebound = max(0.004, (baseline - smoothed[dip_idx]) * 0.10)
@@ -312,8 +342,21 @@ def _best_duplicate_match_index(state: VideoState, ref_idx: int, *, direction: i
     if len(viable) == 0:
         return None
     lo = dip_idx + 1 + int(viable[0])
-    refined = lo + int(np.argmax(scores[lo:]))
+    ref_signature = signature_for_index(state, ref_idx)
+    raw_scores = np.asarray(
+        [structural_similarity_score(ref_signature, signature_for_index(state, idx)) for idx in candidates],
+        dtype=np.float64,
+    )
+    refined = lo + int(np.argmax(raw_scores[lo:]))
     return candidates[refined]
+
+
+def _best_turning_point_index(state: VideoState, ref_idx: int, *, direction: int) -> int | None:
+    dip = _find_similarity_dip(state, ref_idx, direction=direction)
+    if dip is None:
+        return None
+    candidates, _smoothed, dip_idx, _baseline, _slope, _run = dip
+    return candidates[dip_idx]
 
 
 def _pair_transition_score(state: VideoState, active_start: int, active_end: int) -> float:
@@ -342,25 +385,36 @@ def update_loop_suggestions(state: VideoState) -> None:
     initial_end = state.initial_active_end if state.initial_active_end is not None else state.active_end
     start_changed = state.active_start != initial_start
     end_changed = state.active_end != initial_end
+    use_turning_point = state.loop_mode in {LOOP_MODE_BASE_TIP, LOOP_MODE_TIP_BASE}
 
     suggested_in: int | None = None
     suggested_out: int | None = None
 
     if start_changed:
-        match_idx = _best_duplicate_match_index(state, state.active_start, direction=+1)
-        if match_idx is not None:
-            candidate = match_idx - 1
-            if state.active_start < candidate <= state.loaded_end:
+        if use_turning_point:
+            candidate = _best_turning_point_index(state, state.active_start, direction=+1)
+            if candidate is not None and state.active_start < candidate <= state.loaded_end:
                 suggested_out = candidate
+        else:
+            match_idx = _best_duplicate_match_index(state, state.active_start, direction=+1)
+            if match_idx is not None:
+                candidate = match_idx - 1
+                if state.active_start < candidate <= state.loaded_end:
+                    suggested_out = candidate
 
     if end_changed:
-        match_idx = _best_duplicate_match_index(state, state.active_end, direction=-1)
-        if match_idx is not None:
-            candidate = match_idx + 1
-            if state.loaded_start <= candidate < state.active_end:
+        if use_turning_point:
+            candidate = _best_turning_point_index(state, state.active_end, direction=-1)
+            if candidate is not None and state.loaded_start <= candidate < state.active_end:
                 suggested_in = candidate
+        else:
+            match_idx = _best_duplicate_match_index(state, state.active_end, direction=-1)
+            if match_idx is not None:
+                candidate = match_idx + 1
+                if state.loaded_start <= candidate < state.active_end:
+                    suggested_in = candidate
 
-    if start_changed and end_changed:
+    if start_changed and end_changed and not use_turning_point:
         anchor_in = state.suggestion_anchor_in if state.suggestion_anchor_in is not None else state.active_start
         anchor_out = state.suggestion_anchor_out if state.suggestion_anchor_out is not None else state.active_end
         best_pair = (state.active_start, state.active_end)
@@ -388,18 +442,42 @@ def update_loop_suggestions(state: VideoState) -> None:
 
 
 def current_loop_frame_index(state: VideoState) -> int:
-    count = max(1, state.active_count)
+    sequence = loop_preview_indices(state)
+    count = len(sequence)
     if count == 1:
-        state.paused_loop_idx = state.active_start
-        return state.active_start
+        state.paused_loop_pos = 0
+        state.paused_loop_idx = sequence[0]
+        return sequence[0]
     if state.loop_paused:
-        paused = state.paused_loop_idx if state.paused_loop_idx is not None else state.active_start
-        return max(state.active_start, min(state.active_end, paused))
+        paused_pos = state.paused_loop_pos
+        if paused_pos is None:
+            paused_frame = state.paused_loop_idx if state.paused_loop_idx is not None else sequence[0]
+            paused_pos = sequence.index(paused_frame) if paused_frame in sequence else 0
+        paused_pos = max(0, min(count - 1, paused_pos))
+        state.paused_loop_pos = paused_pos
+        state.paused_loop_idx = sequence[paused_pos]
+        return sequence[paused_pos]
     elapsed = time.monotonic() - state.loop_anchor
     offset = int(elapsed * state.fps * state.speed) % count
-    idx = state.active_start + offset
+    idx = sequence[offset]
+    state.paused_loop_pos = offset
     state.paused_loop_idx = idx
     return idx
+
+
+def loop_preview_indices(state: VideoState) -> list[int]:
+    forward = list(range(state.active_start, state.active_end + 1))
+    if not forward:
+        return [state.active_start]
+    if state.loop_mode == LOOP_MODE_TIP_BASE_TIP:
+        shift = max(1, len(forward) // 2)
+        return forward[shift:] + forward[:shift]
+    if state.loop_mode == LOOP_MODE_BASE_TIP:
+        return forward + forward[-2::-1]
+    if state.loop_mode == LOOP_MODE_TIP_BASE:
+        backward = list(reversed(forward))
+        return backward[:-1] + forward
+    return forward
 
 
 def timeline_x_for_index(state: VideoState, x1: int, x2: int, idx: int) -> int:
@@ -460,6 +538,12 @@ def toggle_wrap_mode(state: VideoState) -> None:
     state.mark_dirty()
 
 
+def cycle_loop_mode(state: VideoState, step: int = 1) -> None:
+    current_idx = LOOP_MODES.index(state.loop_mode) if state.loop_mode in LOOP_MODES else 0
+    state.loop_mode = LOOP_MODES[(current_idx + step) % len(LOOP_MODES)]
+    state.mark_dirty()
+
+
 def move_current_left(state: VideoState) -> None:
     low = state.loaded_start if state.wrap_mode == "blue" else state.active_start
     high = state.loaded_end if state.wrap_mode == "blue" else state.active_end
@@ -482,28 +566,31 @@ def move_current_right(state: VideoState) -> None:
 
 def change_speed(state: VideoState, delta: float) -> None:
     old_speed = state.speed
-    current_idx = current_loop_frame_index(state)
+    _ = current_loop_frame_index(state)
     new_speed = max(0.25, min(2.0, round((state.speed + delta) * 4) / 4))
     if new_speed == old_speed:
         return
-    offset = max(0, current_idx - state.active_start)
+    offset = state.paused_loop_pos if state.paused_loop_pos is not None else 0
     state.speed = new_speed
     state.loop_anchor = time.monotonic() - (offset / max(1e-9, state.fps * state.speed))
     if not state.loop_paused:
         state.paused_loop_idx = None
+        state.paused_loop_pos = None
     state.render_rev += 1
 
 
 def toggle_loop_pause(state: VideoState) -> None:
     current_idx = current_loop_frame_index(state)
+    current_pos = state.paused_loop_pos if state.paused_loop_pos is not None else 0
     if state.loop_paused:
-        offset = max(0, current_idx - state.active_start)
         state.loop_paused = False
         state.paused_loop_idx = None
-        state.loop_anchor = time.monotonic() - (offset / max(1e-9, state.fps * state.speed))
+        state.paused_loop_pos = None
+        state.loop_anchor = time.monotonic() - (current_pos / max(1e-9, state.fps * state.speed))
     else:
         state.loop_paused = True
         state.paused_loop_idx = current_idx
+        state.paused_loop_pos = current_pos
     state.render_rev += 1
 
 
@@ -512,6 +599,7 @@ def make_video_state(
     session_name: str,
     start_time_s: float,
     seconds: float,
+    loop_mode: str = LOOP_MODE_BASE_TIP_BASE,
     payload_override: dict[str, Any] | None = None,
 ) -> VideoState:
     cap = cv2.VideoCapture(video_path)
@@ -526,6 +614,8 @@ def make_video_state(
     base_step = max(1, int(round(fps)))
 
     if payload_override is None:
+        if loop_mode not in LOOP_MODES:
+            loop_mode = LOOP_MODE_BASE_TIP_BASE
         start_idx = max(0, min(total_frames - 1, int(round(start_time_s * fps))))
         duration_frames = max(1, int(round(seconds * fps)))
         end_idx = min(total_frames - 1, start_idx + duration_frames - 1)
@@ -548,6 +638,7 @@ def make_video_state(
             "active_end": active_end,
             "current": current,
             "seconds_per_step": base_step / fps,
+            "loop_mode": loop_mode,
             "wrap_mode": wrap_mode,
             "speed": speed,
         }
@@ -558,6 +649,9 @@ def make_video_state(
         active_start = int(payload_override["active_start"])
         active_end = int(payload_override["active_end"])
         current = int(payload_override.get("current", active_start))
+        loop_mode = str(payload_override.get("loop_mode", LOOP_MODE_BASE_TIP_BASE))
+        if loop_mode not in LOOP_MODES:
+            loop_mode = LOOP_MODE_BASE_TIP_BASE
         wrap_mode = payload_override.get("wrap_mode", "blue")
         speed = float(payload_override.get("speed", 1.0))
         speed = max(0.25, min(2.0, round(speed * 4) / 4))
@@ -583,6 +677,7 @@ def make_video_state(
         session_name=session_name,
         session_path=str(SESSIONS_DIR / f"{sanitize_name(session_name)}.json"),
         original_session_payload=original_payload,
+        loop_mode=loop_mode,
         wrap_mode=wrap_mode,
         speed=speed,
         initial_active_start=active_start,

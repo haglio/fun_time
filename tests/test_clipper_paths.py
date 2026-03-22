@@ -14,6 +14,7 @@ from fun_time.robot_hand.clipper.paths import (
     ENTER_KEYS,
     ESC_KEYS,
     LAST_SESSION_FILE,
+    LOOP_MODE_CYCLE_KEYS,
     LOOP_FIX_SCRIPT,
     MARK_IN_KEYS,
     MARK_OUT_KEYS,
@@ -86,6 +87,10 @@ class TestKeyBindings:
         assert ord("m") in WRAP_TOGGLE_KEYS
         assert ord("M") in WRAP_TOGGLE_KEYS
 
+    def test_loop_mode_cycle_contains_l(self):
+        assert ord("l") in LOOP_MODE_CYCLE_KEYS
+        assert ord("L") in LOOP_MODE_CYCLE_KEYS
+
     def test_accept_suggested_in_contains_9(self):
         assert ord("9") in ACCEPT_SUGGESTED_IN_KEYS
 
@@ -112,7 +117,7 @@ class TestKeyBindings:
 
     def test_all_key_sets_are_sets(self):
         for ks in (WIN_LEFT_KEYS, WIN_RIGHT_KEYS, ESC_KEYS, QUIT_KEYS,
-                   MARK_IN_KEYS, MARK_OUT_KEYS, WRAP_TOGGLE_KEYS,
+                   MARK_IN_KEYS, MARK_OUT_KEYS, WRAP_TOGGLE_KEYS, LOOP_MODE_CYCLE_KEYS,
                    ACCEPT_SUGGESTED_IN_KEYS, ACCEPT_SUGGESTED_OUT_KEYS,
                    PLAY_PAUSE_KEYS, SPEED_DOWN_KEYS, SPEED_UP_KEYS, ENTER_KEYS):
             assert isinstance(ks, set)
