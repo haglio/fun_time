@@ -11,6 +11,7 @@ import pytest
 from fun_time.robot_hand.clipper.state import (
     ExportJob,
     VideoState,
+    accept_suggested_out,
     change_speed,
     contract_left,
     contract_right,
@@ -22,6 +23,7 @@ from fun_time.robot_hand.clipper.state import (
     set_mark_out,
     timeline_x_for_index,
     toggle_loop_pause,
+    update_loop_suggestions,
 )
 
 
@@ -42,6 +44,8 @@ def _make_state(
     speed: float = 1.0,
     wrap_mode: str = "blue",
     session_name: str = "test_session",
+    initial_active_start: int | None = None,
+    initial_active_end: int | None = None,
 ) -> VideoState:
     if loaded_end is None:
         loaded_end = total_frames - 1
@@ -70,7 +74,14 @@ def _make_state(
         original_session_payload={},
         speed=speed,
         wrap_mode=wrap_mode,
+        initial_active_start=active_start if initial_active_start is None else initial_active_start,
+        initial_active_end=active_end if initial_active_end is None else initial_active_end,
     )
+
+
+def _pattern_frame(seed: int) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    return rng.integers(0, 256, size=(40, 40, 3), dtype=np.uint8)
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +325,93 @@ class TestSetMarkOut:
         with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
             set_mark_out(s)
         assert s.active_end == original
+
+
+class TestLoopSuggestions:
+    def test_no_suggestions_for_untouched_initial_selection(self):
+        s = _make_state(active_start=10, active_end=40, initial_active_start=10, initial_active_end=40)
+        update_loop_suggestions(s)
+        assert s.suggested_in is None
+        assert s.suggested_out is None
+
+    def test_marked_in_suggests_neighbor_before_matching_return_frame(self):
+        s = _make_state(
+            total_frames=80,
+            loaded_start=0,
+            loaded_end=79,
+            active_start=10,
+            active_end=60,
+            current=10,
+            initial_active_start=0,
+            initial_active_end=60,
+        )
+        frames = {i: _pattern_frame(1000 + i) for i in range(80)}
+        frames[10] = _pattern_frame(42)
+        frames[12] = frames[10].copy()
+        frames[50] = frames[10].copy()
+        s.frames = frames
+
+        update_loop_suggestions(s)
+
+        assert s.suggested_in is None
+        assert s.suggested_out == 49
+
+    def test_when_both_marks_are_set_pair_can_nudge_to_better_neighboring_loop(self):
+        s = _make_state(
+            total_frames=80,
+            loaded_start=0,
+            loaded_end=79,
+            active_start=10,
+            active_end=20,
+            current=10,
+            initial_active_start=0,
+            initial_active_end=79,
+        )
+        frames = {i: _pattern_frame(2000 + i) for i in range(80)}
+        frames[10] = _pattern_frame(11)
+        frames[11] = _pattern_frame(12)
+        frames[21] = frames[10].copy()
+        frames[22] = frames[11].copy()
+        s.frames = frames
+
+        update_loop_suggestions(s)
+
+        assert s.suggested_in == 11
+        assert s.suggested_out == 21
+
+    def test_refinement_stays_anchored_after_accepting_suggested_out(self):
+        s = _make_state(
+            total_frames=80,
+            loaded_start=0,
+            loaded_end=79,
+            active_start=10,
+            active_end=20,
+            current=10,
+            initial_active_start=0,
+            initial_active_end=79,
+        )
+        frames = {i: _pattern_frame(3000 + i) for i in range(80)}
+        frames[10] = _pattern_frame(21)
+        frames[11] = _pattern_frame(22)
+        frames[12] = _pattern_frame(23)
+        frames[21] = frames[10].copy()
+        frames[22] = frames[11].copy()
+        frames[23] = frames[12].copy()
+        s.frames = frames
+        s.suggested_out = 20
+        s.suggestion_anchor_in = 10
+        s.suggestion_anchor_out = 20
+
+        accept_suggested_out(s)
+        update_loop_suggestions(s)
+
+        first_pair = (s.suggested_in, s.suggested_out)
+
+        s.active_start = first_pair[0]
+        s.active_end = first_pair[1]
+        update_loop_suggestions(s)
+
+        assert (s.suggested_in, s.suggested_out) == first_pair
 
 
 # ---------------------------------------------------------------------------

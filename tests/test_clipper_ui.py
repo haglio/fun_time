@@ -17,6 +17,18 @@ class TestHandleKey:
         handle_key(state, 32)
         assert state.loop_paused is False
 
+    def test_zero_accepts_suggested_out(self):
+        state = _make_state(active_start=10, active_end=30, initial_active_start=0, initial_active_end=30)
+        state.suggested_out = 24
+        handle_key(state, ord("0"))
+        assert state.active_end == 24
+
+    def test_nine_accepts_suggested_in(self):
+        state = _make_state(active_start=10, active_end=30, initial_active_start=10, initial_active_end=79)
+        state.suggested_in = 14
+        handle_key(state, ord("9"))
+        assert state.active_start == 14
+
 
 class TestMouseControls:
     def test_clicking_play_pause_button_toggles_loop_pause(self):
