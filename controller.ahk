@@ -344,7 +344,6 @@ A_TrayMenu.AddStandard()
 Esc::OmniPauseToggle()
 #SuspendExempt false
 
-#HotIf IsOurWindow()
 [::HandlePrevAction()
 SC01A::HandlePrevAction()
 
@@ -363,7 +362,6 @@ SC01B::HandleNextAction()
 
 -::try ControlSend("!{Left}", , "ahk_pid " pid1)
 =::try ControlSend("!{Right}", , "ahk_pid " pid1)
-
 Left::{
     CancelLock(2)
     VlcHttpCmd(VLC2_PORT, "pl_previous")
@@ -385,7 +383,6 @@ d::{
 }
 w::Discard(3)
 s::ToggleLock(3)
-#HotIf
 
 ; =====================================================================
 ; ========================= IMPLEMENTATION ============================
@@ -804,22 +801,11 @@ WriteCmd(file, cmd) {
     FileAppend(cmd, file, "UTF-8-RAW")
 }
 
-IsOurWindow() {
-    global pid1, pid2, pid3, pidM, pidR
-    for pid in [pid1, pid2, pid3, pidM, pidR] {
-        if WinActive("ahk_pid " pid)
-            return true
-    }
-    if WinActive("Robot Hand")
-        return true
-    return false
-}
-
 OmniPauseToggle() {
     global omniPaused
     if (!omniPaused) {
         EnterOmniPause()
-    } else if (IsOurWindow()) {
+    } else {
         LeaveOmniPause()
     }
 }
