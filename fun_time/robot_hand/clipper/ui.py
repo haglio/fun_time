@@ -19,6 +19,8 @@ except Exception:
 
 from .export import start_export_job, terminate_export_subprocesses
 from .paths import (
+    ACCEPT_SUGGESTED_IN_KEYS,
+    ACCEPT_SUGGESTED_OUT_KEYS,
     ENTER_KEYS,
     ESC_KEYS,
     LAST_SESSION_FILE,
@@ -36,6 +38,8 @@ from .paths import (
 )
 from .state import (
     VideoState,
+    accept_suggested_in,
+    accept_suggested_out,
     change_speed,
     contract_left,
     contract_right,
@@ -204,6 +208,24 @@ def point_in_rect(x: int, y: int, rect: Rect) -> bool:
     return x1 <= x <= x2 and y1 <= y <= y2
 
 
+def draw_dotted_vertical_line(
+    img: np.ndarray,
+    x: int,
+    y1: int,
+    y2: int,
+    color: Color,
+    *,
+    segment: int = 6,
+    gap: int = 4,
+    thickness: int = 1,
+) -> None:
+    y = y1
+    while y <= y2:
+        seg_end = min(y2, y + segment)
+        cv2.line(img, (x, y), (x, seg_end), color, thickness)
+        y = seg_end + gap
+
+
 def build_ui(state: VideoState) -> np.ndarray:
     state.buttons = {}
     current_frame = safe_frame(state, state.current)
@@ -306,6 +328,12 @@ def build_ui(state: VideoState) -> np.ndarray:
     cv2.rectangle(canvas, (in_x, timeline_y), (out_x, timeline_y + timeline_h), active_color, -1)
     cur_x = timeline_x_for_index(state, tl_x1, tl_x2, state.current)
     loop_x_t = timeline_x_for_index(state, tl_x1, tl_x2, loop_idx)
+    if state.suggested_in is not None:
+        sugg_in_x = timeline_x_for_index(state, tl_x1, tl_x2, state.suggested_in)
+        draw_dotted_vertical_line(canvas, sugg_in_x, timeline_y - 12, timeline_y + timeline_h + 12, (90, 220, 255), thickness=2)
+    if state.suggested_out is not None:
+        sugg_out_x = timeline_x_for_index(state, tl_x1, tl_x2, state.suggested_out)
+        draw_dotted_vertical_line(canvas, sugg_out_x, timeline_y - 12, timeline_y + timeline_h + 12, (255, 210, 90), thickness=2)
     cv2.rectangle(canvas, (cur_x - 1, timeline_y - 4), (cur_x + 1, timeline_y + timeline_h + 4), (255, 255, 255), -1)
     cv2.rectangle(canvas, (loop_x_t - 1, timeline_y - 4), (loop_x_t + 1, timeline_y + timeline_h + 4), (50, 50, 255), -1)
     cv2.rectangle(canvas, (tl_x1, timeline_y), (tl_x2, timeline_y + timeline_h), (220, 220, 220), 1)
@@ -358,7 +386,7 @@ def build_ui(state: VideoState) -> np.ndarray:
     put_text_centered(canvas, range_text, session_cx, range_info_y, 0.58, (230, 230, 230), 1)
     put_text_centered(canvas, "Reminder: base-tip-base.", session_cx, reminder_y, 0.56, (230, 230, 230), 1)
 
-    legend = "Left/Right: Move cursor   Space: Play/Pause preview   i or [: Mark In   o or ]: Mark Out   m: Toggle wrap mode   -/+: Adjust speed   Enter: Export"
+    legend = "Left/Right: Move cursor   Space: Play/Pause preview   i or [: Mark In   o or ]: Mark Out   9: Accept In suggestion   0: Accept Out suggestion"
     put_text_centered(canvas, legend, session_cx, legend_y, 0.56, (230, 230, 230), 1)
     if state.session_warning:
         put_text_centered(canvas, state.session_warning, session_cx, legend_y - 26, 0.52, (120, 200, 255), 1)
@@ -655,6 +683,10 @@ def handle_key(state: VideoState, key: int) -> None:
         set_mark_in(state)
     elif key in MARK_OUT_KEYS:
         set_mark_out(state)
+    elif key in ACCEPT_SUGGESTED_IN_KEYS:
+        accept_suggested_in(state)
+    elif key in ACCEPT_SUGGESTED_OUT_KEYS:
+        accept_suggested_out(state)
     elif key in WRAP_TOGGLE_KEYS:
         toggle_wrap_mode(state)
     elif key in PLAY_PAUSE_KEYS:

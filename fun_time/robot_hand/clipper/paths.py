@@ -8,6 +8,8 @@ ESC_KEYS = {27}
 QUIT_KEYS = {ord("q"), ord("Q")}
 MARK_IN_KEYS = {ord("i"), ord("I"), ord("["), 91}
 MARK_OUT_KEYS = {ord("o"), ord("O"), ord("]"), 93}
+ACCEPT_SUGGESTED_IN_KEYS = {ord("9")}
+ACCEPT_SUGGESTED_OUT_KEYS = {ord("0")}
 WRAP_TOGGLE_KEYS = {ord("m"), ord("M")}
 PLAY_PAUSE_KEYS = {32}
 SPEED_DOWN_KEYS = {ord("-"), ord("_")}
@@ -31,6 +33,8 @@ def ensure_runtime_dirs() -> None:
 
 __all__ = [
     "AUDIO_DIR",
+    "ACCEPT_SUGGESTED_IN_KEYS",
+    "ACCEPT_SUGGESTED_OUT_KEYS",
     "CLIPS_DIR",
     "ENTER_KEYS",
     "ESC_KEYS",

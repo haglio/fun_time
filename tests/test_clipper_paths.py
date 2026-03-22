@@ -7,6 +7,8 @@ from unittest.mock import patch
 import pytest
 
 from fun_time.robot_hand.clipper.paths import (
+    ACCEPT_SUGGESTED_IN_KEYS,
+    ACCEPT_SUGGESTED_OUT_KEYS,
     AUDIO_DIR,
     CLIPS_DIR,
     ENTER_KEYS,
@@ -84,6 +86,12 @@ class TestKeyBindings:
         assert ord("m") in WRAP_TOGGLE_KEYS
         assert ord("M") in WRAP_TOGGLE_KEYS
 
+    def test_accept_suggested_in_contains_9(self):
+        assert ord("9") in ACCEPT_SUGGESTED_IN_KEYS
+
+    def test_accept_suggested_out_contains_0(self):
+        assert ord("0") in ACCEPT_SUGGESTED_OUT_KEYS
+
     def test_speed_down_contains_minus(self):
         assert ord("-") in SPEED_DOWN_KEYS
 
@@ -105,6 +113,7 @@ class TestKeyBindings:
     def test_all_key_sets_are_sets(self):
         for ks in (WIN_LEFT_KEYS, WIN_RIGHT_KEYS, ESC_KEYS, QUIT_KEYS,
                    MARK_IN_KEYS, MARK_OUT_KEYS, WRAP_TOGGLE_KEYS,
+                   ACCEPT_SUGGESTED_IN_KEYS, ACCEPT_SUGGESTED_OUT_KEYS,
                    PLAY_PAUSE_KEYS, SPEED_DOWN_KEYS, SPEED_UP_KEYS, ENTER_KEYS):
             assert isinstance(ks, set)
 
