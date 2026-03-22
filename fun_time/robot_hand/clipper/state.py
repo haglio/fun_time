@@ -64,6 +64,7 @@ class VideoState:
     mouse_x: int = 0
     mouse_y: int = 0
     render_rev: int = 0
+    loop_paused: bool = False
     paused_loop_idx: int | None = None
     exit_prompt_visible: bool = False
     exit_prompt_action: str = ""
@@ -201,7 +202,7 @@ def current_loop_frame_index(state: VideoState) -> int:
     if count == 1:
         state.paused_loop_idx = state.active_start
         return state.active_start
-    if state.speed <= 0.0:
+    if state.loop_paused:
         paused = state.paused_loop_idx if state.paused_loop_idx is not None else state.active_start
         return max(state.active_start, min(state.active_end, paused))
     elapsed = time.monotonic() - state.loop_anchor
@@ -268,17 +269,27 @@ def move_current_right(state: VideoState) -> None:
 def change_speed(state: VideoState, delta: float) -> None:
     old_speed = state.speed
     current_idx = current_loop_frame_index(state)
-    new_speed = max(0.0, min(2.0, round((state.speed + delta) * 4) / 4))
+    new_speed = max(0.25, min(2.0, round((state.speed + delta) * 4) / 4))
     if new_speed == old_speed:
         return
-    if new_speed <= 0.0:
-        state.paused_loop_idx = current_idx
-        state.speed = 0.0
-    else:
-        offset = max(0, current_idx - state.active_start)
-        state.speed = new_speed
-        state.loop_anchor = time.monotonic() - (offset / max(1e-9, state.fps * state.speed))
+    offset = max(0, current_idx - state.active_start)
+    state.speed = new_speed
+    state.loop_anchor = time.monotonic() - (offset / max(1e-9, state.fps * state.speed))
+    if not state.loop_paused:
         state.paused_loop_idx = None
+    state.render_rev += 1
+
+
+def toggle_loop_pause(state: VideoState) -> None:
+    current_idx = current_loop_frame_index(state)
+    if state.loop_paused:
+        offset = max(0, current_idx - state.active_start)
+        state.loop_paused = False
+        state.paused_loop_idx = None
+        state.loop_anchor = time.monotonic() - (offset / max(1e-9, state.fps * state.speed))
+    else:
+        state.loop_paused = True
+        state.paused_loop_idx = current_idx
     state.render_rev += 1
 
 
@@ -335,6 +346,7 @@ def make_video_state(
         current = int(payload_override.get("current", active_start))
         wrap_mode = payload_override.get("wrap_mode", "blue")
         speed = float(payload_override.get("speed", 1.0))
+        speed = max(0.25, min(2.0, round(speed * 4) / 4))
         session_name = payload_override.get("session_name", session_name)
         video_path = payload_override["video_path"]
 

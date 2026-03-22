@@ -9,6 +9,7 @@ QUIT_KEYS = {ord("q"), ord("Q")}
 MARK_IN_KEYS = {ord("i"), ord("I"), ord("["), 91}
 MARK_OUT_KEYS = {ord("o"), ord("O"), ord("]"), 93}
 WRAP_TOGGLE_KEYS = {ord("m"), ord("M")}
+PLAY_PAUSE_KEYS = {32}
 SPEED_DOWN_KEYS = {ord("-"), ord("_")}
 SPEED_UP_KEYS = {ord("+"), ord("="), ord("=")}
 ENTER_KEYS = {13, 10}
@@ -38,6 +39,7 @@ __all__ = [
     "MARK_IN_KEYS",
     "MARK_OUT_KEYS",
     "MODULE_DIR",
+    "PLAY_PAUSE_KEYS",
     "QUIT_KEYS",
     "RAW_CLIPS_DIR",
     "ROBOT_HAND_DIR",

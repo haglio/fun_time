@@ -16,6 +16,7 @@ from fun_time.robot_hand.clipper.paths import (
     MARK_IN_KEYS,
     MARK_OUT_KEYS,
     MODULE_DIR,
+    PLAY_PAUSE_KEYS,
     QUIT_KEYS,
     RAW_CLIPS_DIR,
     ROBOT_HAND_DIR,
@@ -89,6 +90,9 @@ class TestKeyBindings:
     def test_speed_up_contains_plus(self):
         assert ord("+") in SPEED_UP_KEYS
 
+    def test_play_pause_contains_space(self):
+        assert 32 in PLAY_PAUSE_KEYS
+
     def test_enter_keys_contains_13(self):
         assert 13 in ENTER_KEYS
 
@@ -101,7 +105,7 @@ class TestKeyBindings:
     def test_all_key_sets_are_sets(self):
         for ks in (WIN_LEFT_KEYS, WIN_RIGHT_KEYS, ESC_KEYS, QUIT_KEYS,
                    MARK_IN_KEYS, MARK_OUT_KEYS, WRAP_TOGGLE_KEYS,
-                   SPEED_DOWN_KEYS, SPEED_UP_KEYS, ENTER_KEYS):
+                   PLAY_PAUSE_KEYS, SPEED_DOWN_KEYS, SPEED_UP_KEYS, ENTER_KEYS):
             assert isinstance(ks, set)
 
 
