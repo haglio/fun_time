@@ -76,7 +76,7 @@ def main() -> int:
             root = tk.Tk()
             root.withdraw()
             try:
-                messagebox.showerror("Frame Loop Trimmer", f"ERROR: {exc}")
+                messagebox.showerror("Clipper", f"ERROR: {exc}")
             finally:
                 root.destroy()
         else:

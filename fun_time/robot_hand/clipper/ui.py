@@ -55,6 +55,7 @@ from .utils import format_seconds, parse_timestamp, sanitize_name
 
 Rect = tuple[int, int, int, int]
 Color = tuple[int, int, int]
+APP_DISPLAY_NAME = "Clipper"
 
 
 def _clipper_icon_path() -> Path:
@@ -483,7 +484,7 @@ def launcher_dialog() -> dict[str, Any]:
     msgbox = cast(Any, messagebox)
     root = tk.Tk()
     _set_tk_window_icon(root)
-    root.title("Frame Loop Trimmer Launcher")
+    root.title(f"{APP_DISPLAY_NAME} Launcher")
     root.geometry("1040x560")
     root.resizable(False, False)
 
@@ -538,7 +539,7 @@ def launcher_dialog() -> dict[str, Any]:
                 )
             root.destroy()
         except Exception as exc:
-            msgbox.showerror("Frame Loop Trimmer", f"ERROR: {exc}")
+            msgbox.showerror(APP_DISPLAY_NAME, f"ERROR: {exc}")
 
     def cancel(event: Any = None) -> None:
         root.destroy()
@@ -618,7 +619,7 @@ def handle_key(state: VideoState, key: int) -> None:
 
 
 def run_ui(state: VideoState) -> None:
-    window_name = "Frame Loop Trimmer"
+    window_name = APP_DISPLAY_NAME
 
     def ensure_window() -> None:
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
