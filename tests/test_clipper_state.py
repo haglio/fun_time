@@ -24,6 +24,7 @@ from fun_time.robot_hand.clipper.state import (
     make_video_state,
     set_mark_in,
     set_mark_out,
+    shift_active_range,
     timeline_x_for_index,
     toggle_loop_pause,
     update_loop_suggestions,
@@ -370,6 +371,79 @@ class TestSetMarkOut:
         with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
             set_mark_out(s)
         assert s.active_end == original
+
+
+class TestShiftActiveRange:
+    def test_shift_right_reuses_old_out_as_new_in(self):
+        s = _make_state(active_start=10, active_end=20, current=14)
+        with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
+            shift_active_range(s, 1)
+        assert s.active_start == 20
+        assert s.active_end == 30
+        assert s.current == 24
+
+    def test_shift_left_reuses_old_in_as_new_out(self):
+        s = _make_state(active_start=20, active_end=30, current=26)
+        with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
+            shift_active_range(s, -1)
+        assert s.active_start == 10
+        assert s.active_end == 20
+        assert s.current == 16
+
+    def test_shift_right_expands_loaded_bounds_when_needed(self):
+        s = _make_state(loaded_start=0, loaded_end=24, active_start=10, active_end=20, current=12, total_frames=40)
+
+        def fake_ensure_loaded(state: VideoState, want_start: int, want_end: int) -> None:
+            state.loaded_start = min(state.loaded_start, want_start)
+            state.loaded_end = max(state.loaded_end, want_end)
+
+        with patch("fun_time.robot_hand.clipper.state.ensure_loaded", side_effect=fake_ensure_loaded):
+            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions"):
+                with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
+                    shift_active_range(s, 1)
+        assert s.loaded_end == 35
+        assert s.active_start == 20
+        assert s.active_end == 30
+
+    def test_shift_left_expands_loaded_bounds_when_needed(self):
+        s = _make_state(loaded_start=12, loaded_end=40, active_start=20, active_end=30, current=25, total_frames=60)
+
+        def fake_ensure_loaded(state: VideoState, want_start: int, want_end: int) -> None:
+            state.loaded_start = min(state.loaded_start, want_start)
+            state.loaded_end = max(state.loaded_end, want_end)
+
+        with patch("fun_time.robot_hand.clipper.state.ensure_loaded", side_effect=fake_ensure_loaded):
+            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions"):
+                with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
+                    shift_active_range(s, -1)
+        assert s.loaded_start == 5
+        assert s.active_start == 10
+        assert s.active_end == 20
+
+    def test_shift_right_preserves_existing_loaded_end_when_buffer_already_exists(self):
+        s = _make_state(loaded_start=0, loaded_end=40, active_start=10, active_end=20, current=14, base_step=5)
+        with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions"):
+            with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
+                shift_active_range(s, 1)
+        assert s.loaded_end == 40
+        assert s.active_end == 30
+
+    def test_shift_left_preserves_existing_loaded_start_when_buffer_already_exists(self):
+        s = _make_state(loaded_start=0, loaded_end=40, active_start=20, active_end=30, current=24, base_step=5)
+        with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions"):
+            with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
+                shift_active_range(s, -1)
+        assert s.loaded_start == 0
+        assert s.active_start == 10
+
+    def test_shift_does_nothing_if_it_would_leave_video_bounds(self):
+        s = _make_state(active_start=2, active_end=12, current=5)
+        original = (s.active_start, s.active_end, s.current)
+        with patch.object(s, "mark_dirty") as mark_dirty, patch.object(s, "reset_loop_anchor") as reset_anchor:
+            shift_active_range(s, -1)
+        assert (s.active_start, s.active_end, s.current) == original
+        mark_dirty.assert_not_called()
+        reset_anchor.assert_not_called()
 
 
 class TestLoopSuggestions:

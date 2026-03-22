@@ -10,6 +10,10 @@ from fun_time.robot_hand.clipper.paths import (
     ACCEPT_SUGGESTED_IN_KEYS,
     ACCEPT_SUGGESTED_OUT_KEYS,
     AUDIO_DIR,
+    BOUNDS_CONTRACT_LEFT_KEYS,
+    BOUNDS_CONTRACT_RIGHT_KEYS,
+    BOUNDS_EXTEND_LEFT_KEYS,
+    BOUNDS_EXTEND_RIGHT_KEYS,
     CLIPS_DIR,
     ENTER_KEYS,
     ESC_KEYS,
@@ -24,6 +28,8 @@ from fun_time.robot_hand.clipper.paths import (
     RAW_CLIPS_DIR,
     ROBOT_HAND_DIR,
     SESSIONS_DIR,
+    SHIFT_RANGE_LEFT_KEYS,
+    SHIFT_RANGE_RIGHT_KEYS,
     SPEED_DOWN_KEYS,
     SPEED_UP_KEYS,
     WIN_LEFT_KEYS,
@@ -83,6 +89,22 @@ class TestKeyBindings:
         assert ord("o") in MARK_OUT_KEYS
         assert ord("O") in MARK_OUT_KEYS
 
+    def test_bounds_extend_left_contains_a(self):
+        assert ord("a") in BOUNDS_EXTEND_LEFT_KEYS
+        assert ord("A") in BOUNDS_EXTEND_LEFT_KEYS
+
+    def test_bounds_contract_left_contains_s(self):
+        assert ord("s") in BOUNDS_CONTRACT_LEFT_KEYS
+        assert ord("S") in BOUNDS_CONTRACT_LEFT_KEYS
+
+    def test_bounds_contract_right_contains_d(self):
+        assert ord("d") in BOUNDS_CONTRACT_RIGHT_KEYS
+        assert ord("D") in BOUNDS_CONTRACT_RIGHT_KEYS
+
+    def test_bounds_extend_right_contains_f(self):
+        assert ord("f") in BOUNDS_EXTEND_RIGHT_KEYS
+        assert ord("F") in BOUNDS_EXTEND_RIGHT_KEYS
+
     def test_wrap_toggle_contains_m(self):
         assert ord("m") in WRAP_TOGGLE_KEYS
         assert ord("M") in WRAP_TOGGLE_KEYS
@@ -96,6 +118,12 @@ class TestKeyBindings:
 
     def test_accept_suggested_out_contains_0(self):
         assert ord("0") in ACCEPT_SUGGESTED_OUT_KEYS
+
+    def test_shift_range_left_contains_comma(self):
+        assert ord(",") in SHIFT_RANGE_LEFT_KEYS
+
+    def test_shift_range_right_contains_period(self):
+        assert ord(".") in SHIFT_RANGE_RIGHT_KEYS
 
     def test_speed_down_contains_minus(self):
         assert ord("-") in SPEED_DOWN_KEYS
@@ -117,8 +145,10 @@ class TestKeyBindings:
 
     def test_all_key_sets_are_sets(self):
         for ks in (WIN_LEFT_KEYS, WIN_RIGHT_KEYS, ESC_KEYS, QUIT_KEYS,
+                   BOUNDS_EXTEND_LEFT_KEYS, BOUNDS_CONTRACT_LEFT_KEYS, BOUNDS_CONTRACT_RIGHT_KEYS, BOUNDS_EXTEND_RIGHT_KEYS,
                    MARK_IN_KEYS, MARK_OUT_KEYS, WRAP_TOGGLE_KEYS, LOOP_MODE_CYCLE_KEYS,
                    ACCEPT_SUGGESTED_IN_KEYS, ACCEPT_SUGGESTED_OUT_KEYS,
+                   SHIFT_RANGE_LEFT_KEYS, SHIFT_RANGE_RIGHT_KEYS,
                    PLAY_PAUSE_KEYS, SPEED_DOWN_KEYS, SPEED_UP_KEYS, ENTER_KEYS):
             assert isinstance(ks, set)
 

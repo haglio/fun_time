@@ -531,6 +531,37 @@ def accept_suggested_out(state: VideoState) -> None:
     state.mark_dirty()
 
 
+def shift_active_range(state: VideoState, direction: int) -> None:
+    if direction == 0:
+        return
+    shift = (state.active_end - state.active_start) * (1 if direction > 0 else -1)
+    if shift == 0:
+        return
+
+    new_start = state.active_start + shift
+    new_end = state.active_end + shift
+    if new_start < 0 or new_end >= state.total_frames:
+        return
+
+    want_start = new_start
+    want_end = new_end
+    if direction > 0:
+        want_end = min(state.total_frames - 1, new_end + state.base_step)
+    else:
+        want_start = max(0, new_start - state.base_step)
+
+    ensure_loaded(state, want_start, want_end)
+    state.active_start = new_start
+    state.active_end = new_end
+    state.suggestion_anchor_in = state.active_start
+    state.suggestion_anchor_out = state.active_end
+    state.current += shift
+    state.clamp_current()
+    state.reset_loop_anchor()
+    update_loop_suggestions(state)
+    state.mark_dirty()
+
+
 def toggle_wrap_mode(state: VideoState) -> None:
     state.wrap_mode = "yellow" if state.wrap_mode == "blue" else "blue"
     if state.wrap_mode == "yellow":
