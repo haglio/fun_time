@@ -296,7 +296,7 @@ Behavior:
 - in Robot Hand mode, `[` / `]` cycle Robot Hand clips
 - in Robot Hand mode, `\` offsets Robot Hand playback by a quarter cycle
 - on non-US keyboard layouts, the physical bracket-key positions are also bound
-- these bare hotkeys only apply while a Fun Time window is active
+- while Fun Time is running and not OmniPaused, these hotkeys are global and do not depend on which window is active
 
 In control mode, the `\\` action temporarily enters OmniPause while the file dialog is open, then automatically leaves OmniPause when the dialog closes without toggling primary VLC playback state.
 - when clip order is shuffled on load (default), `]` then `[` returns to the prior clip within that same loaded order
