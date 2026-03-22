@@ -15,9 +15,11 @@ import pytest
 from fun_time.robot_hand.clipper.export import (
     _parse_ffmpeg_clock,
     _run_ffmpeg_with_progress,
+    run_loop_fix,
     validate_video_file,
 )
 from fun_time.robot_hand.clipper.state import ExportJob
+from tests.test_clipper_state import _make_state
 
 
 # ---------------------------------------------------------------------------
@@ -210,3 +212,27 @@ class TestRunFfmpegWithProgress:
             _run_ffmpeg_with_progress(["ffmpeg"], 1.0, recorded.append)
 
         assert all(v <= 1.0 for v in recorded)
+
+
+class TestRunLoopFix:
+    def test_passes_loop_mode_to_script(self, tmp_path: Path):
+        job = ExportJob()
+        state = _make_state(loop_mode="tip-base")
+        raw_path = tmp_path / "raw.mp4"
+        out_path = tmp_path / "out.mp4"
+
+        proc = MagicMock()
+        proc.stdout = io.StringIO("done\n")
+        proc.poll.side_effect = [0]
+        proc.wait.return_value = 0
+
+        with patch("fun_time.robot_hand.clipper.export.LOOP_FIX_SCRIPT", tmp_path / "loop_fix.py"):
+            (tmp_path / "loop_fix.py").write_text("# test\n", encoding="utf-8")
+            with patch("subprocess.Popen", return_value=proc) as popen:
+                ok, detail = run_loop_fix(state, raw_path, out_path, job)
+
+        assert ok is True
+        assert detail == str(out_path)
+        cmd = popen.call_args.args[0]
+        assert "--loop-mode" in cmd
+        assert "tip-base" in cmd

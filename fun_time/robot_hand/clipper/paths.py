@@ -11,6 +11,7 @@ MARK_OUT_KEYS = {ord("o"), ord("O"), ord("]"), 93}
 ACCEPT_SUGGESTED_IN_KEYS = {ord("9")}
 ACCEPT_SUGGESTED_OUT_KEYS = {ord("0")}
 WRAP_TOGGLE_KEYS = {ord("m"), ord("M")}
+LOOP_MODE_CYCLE_KEYS = {ord("l"), ord("L")}
 PLAY_PAUSE_KEYS = {32}
 SPEED_DOWN_KEYS = {ord("-"), ord("_")}
 SPEED_UP_KEYS = {ord("+"), ord("="), ord("=")}
@@ -39,6 +40,7 @@ __all__ = [
     "ENTER_KEYS",
     "ESC_KEYS",
     "LAST_SESSION_FILE",
+    "LOOP_MODE_CYCLE_KEYS",
     "LOOP_FIX_SCRIPT",
     "MARK_IN_KEYS",
     "MARK_OUT_KEYS",

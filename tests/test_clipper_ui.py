@@ -29,6 +29,11 @@ class TestHandleKey:
         handle_key(state, ord("9"))
         assert state.active_start == 14
 
+    def test_l_cycles_loop_mode(self):
+        state = _make_state(loop_mode="base-tip-base")
+        handle_key(state, ord("l"))
+        assert state.loop_mode == "tip-base-tip"
+
 
 class TestMouseControls:
     def test_clicking_play_pause_button_toggles_loop_pause(self):
@@ -51,6 +56,13 @@ class TestMouseControls:
             build_ui(state)
 
         assert "play" in icons
+
+    def test_clicking_loop_mode_button_cycles_mode(self):
+        state = _make_state(loop_mode="base-tip-base")
+        build_ui(state)
+        x1, y1, x2, y2 = state.buttons["loop_mode"]
+        on_mouse(cv2.EVENT_LBUTTONDOWN, (x1 + x2) // 2, (y1 + y2) // 2, 0, state)
+        assert state.loop_mode == "tip-base-tip"
 
 
 class TestLayout:

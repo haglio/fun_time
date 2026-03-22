@@ -121,11 +121,11 @@ def export_raw_clip(state: VideoState, out_path: Path, job: ExportJob) -> tuple[
     return True, str(out_path)
 
 
-def run_loop_fix(raw_path: Path, out_path: Path, job: ExportJob) -> tuple[bool, str]:
+def run_loop_fix(state: VideoState, raw_path: Path, out_path: Path, job: ExportJob) -> tuple[bool, str]:
     job.stage = f"Running {LOOP_FIX_SCRIPT.name}"
     if not LOOP_FIX_SCRIPT.exists():
         return False, f"{LOOP_FIX_SCRIPT.name} not found at {LOOP_FIX_SCRIPT}"
-    cmd = [sys.executable, str(LOOP_FIX_SCRIPT), str(raw_path), "-o", str(out_path)]
+    cmd = [sys.executable, str(LOOP_FIX_SCRIPT), str(raw_path), "-o", str(out_path), "--loop-mode", state.loop_mode]
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, **subprocess_window_kwargs())
         job.procs.append(proc)
@@ -200,7 +200,7 @@ def start_export_job(state: VideoState) -> None:
             job.active = False
             job.done = True
             return
-        ok, detail = run_loop_fix(raw_path, clip_path, job)
+        ok, detail = run_loop_fix(state, raw_path, clip_path, job)
         if not ok:
             job.failed = True
             job.error_message = detail
