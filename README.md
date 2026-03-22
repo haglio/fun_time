@@ -126,8 +126,10 @@ Serial / mode control:
 
 - OSR2 real device is on `COM4`
 - `com0com` virtual pair is used:
-  - MFP connects to `COM14`
-  - broker connects to `COM15`
+  - historically this was `COM14` / `COM15`
+  - on this machine it may be recreated by Windows / `com0com` under different COM numbers later
+  - MFP should use the `CNCA*` side of the pair
+  - broker should use the matching `CNCB*` side of the pair
 - `broker.py` is the only process that talks to the real OSR2
 
 The broker:
@@ -142,6 +144,7 @@ The broker:
   - `StrokeName: ...`
   - `bpm ...`
 - sends lightweight localhost messages to Robot Hand
+- if the configured virtual COM port is missing, it now tries to recover by detecting the current `com0com` broker-side port automatically
 
 Robot Hand:
 
@@ -262,9 +265,36 @@ The `--check` mode is the fastest way to validate config and path wiring before 
 
 ## MFP setup
 
+### One-time `com0com` concept
+
+Fun Time expects a virtual serial pair created by `com0com`.
+
+That pair has two ends:
+
+- `CNCA*` side: this is the side MFP should connect to
+- `CNCB*` side: this is the side the broker should connect to
+
+Historically this project used:
+
+- MFP = `COM14` (`CNCA2`)
+- broker = `COM15` (`CNCB2`)
+
+But that is **not guaranteed forever**. If the pair is removed and recreated, Windows may assign different COM numbers and even a different `CNCA` / `CNCB` index, for example:
+
+- MFP = `COM7` (`CNCA1`)
+- broker = `COM8` (`CNCB1`)
+
+What matters is the pairing, not the exact COM numbers:
+
+- MFP must use the `CNCA*` side
+- broker must use the matching `CNCB*` side
+- broker still talks to the real OSR2 on `COM4`
+
+### Normal expected setup
+
 MFP should use:
 
-- `COM14`
+- the `CNCA*` side of the current `com0com` pair
 
 not `COM4`.
 
@@ -272,7 +302,42 @@ The real OSR2 remains on:
 
 - `COM4`
 
-The broker sits between them using `COM15`.
+The broker sits between them using the matching `CNCB*` side.
+
+### Where MFP stores its serial choice
+
+MultiFunPlayer stores its selected serial device in:
+
+- `C:\Program Files\MultiFunPlayer-1.33.9-patreon\MultiFunPlayer.config.json`
+
+Look for:
+
+- `"SelectedSerialPort": "COM0COM\\PORT\\CNCA..."`
+
+If the old `CNCA` port disappears and `com0com` comes back with a different pair, MFP may still point at the dead one until you update it or reselect the port in MFP.
+
+### If the old pair disappears
+
+Symptoms:
+
+- broker log shows it cannot open the old configured virtual COM port
+- MFP no longer controls the OSR2
+- Windows shows a different `com0com` pair than the one in old notes
+
+Recovery steps:
+
+1. List current serial ports and identify the `com0com` pair.
+2. Point MFP at the `CNCA*` side.
+3. Point broker config at the matching `CNCB*` side, or rely on the broker's new auto-detection fallback.
+4. Keep `COM4` reserved for the real OSR2 only.
+
+Current broker behavior:
+
+- broker config may still say `COM15`
+- if `COM15` is missing, broker now detects the current `CNCB*` port and uses that automatically
+- launching Fun Time now also starts the broker if the broker is not already running
+
+This means broker startup is more resilient now, but MFP still needs its saved `CNCA*` selection to be correct.
 
 ## Hotkeys
 
@@ -469,11 +534,13 @@ If startup still fails, inspect:
 
 Check:
 
-- MFP is on `COM14`
+- MFP is on the current `CNCA*` side of the `com0com` pair
 - broker is running
-- `com0com` pair exists (`COM14` / `COM15`)
+- `com0com` pair exists
+- broker log shows which broker-side port it chose
 - OSR2 is still on `COM4`
 - scheduled task `FunTime Robot Hand Broker` is present and running (`Get-ScheduledTask -TaskName "FunTime Robot Hand Broker"`)
+- `C:\Program Files\MultiFunPlayer-1.33.9-patreon\MultiFunPlayer.config.json` does not still point at an old dead `CNCA*` device
 
 ### Robot Hand never appears
 
@@ -484,6 +551,22 @@ Check:
 - `state/robot_hand_mode.txt` changes to `1`
 - `state/broker.log` for serial parsing / mode transitions
 - `state/robot_hand_listener.log` for UI/runtime errors
+
+### Broker will not start
+
+Check:
+
+- `state/broker.log`
+- `state/broker_service_launcher.log`
+- current serial ports still include the real OSR2 on `COM4`
+- current serial ports still include a `com0com` pair
+
+If `fun_time_config.json` still points at an old broker-side port such as `COM15`, broker now tries to recover automatically by selecting the current `CNCB*` port.
+
+If it still cannot recover, confirm that:
+
+- MFP is on the matching `CNCA*` side
+- the `com0com` pair actually exists in Windows Device Manager / serial-port enumeration
 
 ### `[` and `]` do not switch Robot Hand clips
 
