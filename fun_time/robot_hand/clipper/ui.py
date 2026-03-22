@@ -52,6 +52,7 @@ from .state import (
     toggle_wrap_mode,
 )
 from .utils import format_seconds, parse_timestamp, sanitize_name
+from .vlc_prefill import detect_vlc_session_prefill
 
 Rect = tuple[int, int, int, int]
 Color = tuple[int, int, int]
@@ -490,13 +491,17 @@ def launcher_dialog() -> dict[str, Any]:
     root.geometry("1040x560")
     root.resizable(False, False)
 
-    mode = tk.StringVar(value="load" if LAST_SESSION_FILE.exists() else "new")
+    vlc_prefill = detect_vlc_session_prefill()
+    mode = tk.StringVar(value="new" if vlc_prefill or not LAST_SESSION_FILE.exists() else "load")
     last_session = LAST_SESSION_FILE.read_text(encoding="utf-8").strip() if LAST_SESSION_FILE.exists() else ""
     session_json = tk.StringVar(value=last_session)
-    session_name = tk.StringVar(value="")
-    video_file = tk.StringVar(value="")
-    timestamp = tk.StringVar(value="00:00:00")
+    session_name = tk.StringVar(value=vlc_prefill.session_name if vlc_prefill else "")
+    video_file = tk.StringVar(value=vlc_prefill.video_file if vlc_prefill else "")
+    timestamp = tk.StringVar(value=vlc_prefill.timestamp if vlc_prefill else "00:00:00")
     seconds = tk.StringVar(value="5")
+    prefill_note = tk.StringVar(
+        value=vlc_prefill.note if vlc_prefill else "If VLC is open, Clippeer will try to prefill this section."
+    )
     result: dict[str, Any] = {"ok": False}
 
     def browse_json() -> None:
@@ -571,6 +576,9 @@ def launcher_dialog() -> dict[str, Any]:
     tk.Entry(frame2, textvariable=timestamp, width=20).grid(row=3, column=1, sticky="w", pady=6)
     tk.Label(frame2, text="Seconds", font=("Segoe UI", 10)).grid(row=4, column=0, sticky="w", padx=(28, 8), pady=6)
     tk.Entry(frame2, textvariable=seconds, width=10).grid(row=4, column=1, sticky="w", pady=6)
+    tk.Label(frame2, textvariable=prefill_note, font=("Segoe UI", 9), fg="#4a6580", anchor="w").grid(
+        row=5, column=0, columnspan=3, sticky="w", padx=(28, 0), pady=(8, 0)
+    )
     frame2.grid_columnconfigure(1, weight=1)
 
     session_json.trace_add("write", lambda *_: mode.set("load"))
