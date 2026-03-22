@@ -35,6 +35,7 @@ def ensure_runtime_files(config) -> None:
     config.paths.weird_dir.mkdir(parents=True, exist_ok=True)
     config.paths.favs_file.parent.mkdir(parents=True, exist_ok=True)
     config.paths.favs_file.touch(exist_ok=True)
+    config.chrome_overlay_manifest_file.touch(exist_ok=True)
 
 
 def validate_config(config) -> None:
@@ -42,6 +43,8 @@ def validate_config(config) -> None:
     require_file(config.paths.mfp_exe)
     require_file(config.paths.ahk_exe)
     require_file(config.paths.python_exe)
+    if config.chrome_overlay.enabled:
+        require_file(config.chrome_overlay.shortcut_path)
     for primary_vlc_dir in config.paths.primary_vlc_dirs:
         require_dir(primary_vlc_dir)
     for portrait_dir in config.paths.portrait_dirs:
@@ -156,6 +159,8 @@ def build_controller_args(config, vlc_http_pass: str) -> list[str]:
         str(layout.mfp_width_ratio),
         str(layout.mfp_height_ratio),
         str(config.log_file("controller")),
+        str(config.chrome_overlay.shortcut_path),
+        str(config.chrome_overlay_manifest_file),
         str(config.config_path),
     ]
 
