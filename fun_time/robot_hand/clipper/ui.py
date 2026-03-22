@@ -202,6 +202,7 @@ def build_ui(state: VideoState) -> np.ndarray:
     timeline_h = 22
     wrap_y = timeline_y + 54
     range_info_y = wrap_y + 42
+    reminder_y = range_info_y + 28
     legend_y = 960
 
     put_text_centered(canvas, state.session_name, session_cx, session_y, 0.92, (240, 240, 240), 2)
@@ -317,6 +318,7 @@ def build_ui(state: VideoState) -> np.ndarray:
     wrap_label = "Wrap: Loaded" if state.wrap_mode == "blue" else "Wrap: In-Out"
     range_text = f"In-Out: {rel_in}-{rel_out}     Loaded: 0-{state.loaded_count - 1}     {wrap_label}"
     put_text_centered(canvas, range_text, session_cx, range_info_y, 0.58, (230, 230, 230), 1)
+    put_text_centered(canvas, "Reminder: base-tip-base.", session_cx, reminder_y, 0.56, (230, 230, 230), 1)
 
     legend = "Left/Right: Move cursor   i or [: Mark In   o or ]: Mark Out   m: Toggle wrap mode   -/+: Adjust speed   Enter: Export"
     put_text_centered(canvas, legend, session_cx, legend_y, 0.56, (230, 230, 230), 1)
