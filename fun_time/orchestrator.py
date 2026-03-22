@@ -4,10 +4,13 @@ import argparse
 import secrets
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from .config import load_config
 from .logging_utils import configure_logging, install_exception_logging
+
+BROKER_PROCESS_PATTERN = "fun_time\\.broker_app"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,9 +51,77 @@ def validate_config(config) -> None:
     require_dir(config.paths.clips_dir)
     require_dir(config.paths.audio_dir)
     require_file(config.project_dir / "controller.ahk")
+    require_file(config.project_dir / "scripts" / "run_broker_service.ps1")
     require_file(config.project_dir / "fun_time" / "broker_app.py")
     require_file(config.project_dir / "fun_time" / "robot_hand" / "app.py")
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
+
+
+def _subprocess_window_kwargs() -> dict:
+    kwargs: dict = {}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
+        kwargs["startupinfo"] = startupinfo
+    return kwargs
+
+
+def is_broker_running() -> bool:
+    if sys.platform != "win32":
+        return False
+
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        (
+            "$proc = Get-CimInstance Win32_Process | Where-Object { "
+            "$_.Name -match '^pythonw?\\.exe$|^py\\.exe$' -and "
+            "$_.CommandLine -match '" + BROKER_PROCESS_PATTERN + "' "
+            "} | Select-Object -First 1; "
+            "if ($null -ne $proc) { 'RUNNING' }"
+        ),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=False, **_subprocess_window_kwargs())
+    return result.returncode == 0 and "RUNNING" in result.stdout
+
+
+def start_broker(config, logger) -> subprocess.Popen | None:
+    if sys.platform != "win32":
+        logger.warning("Broker auto-start is only implemented on Windows")
+        return None
+
+    runner_script = config.project_dir / "scripts" / "run_broker_service.ps1"
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-WindowStyle",
+        "Hidden",
+        "-File",
+        str(runner_script),
+    ]
+    logger.warning("Broker was not running; starting %s", runner_script)
+    return subprocess.Popen(command, cwd=config.project_dir, **_subprocess_window_kwargs())
+
+
+def ensure_broker_running(config, logger, *, attempts: int = 20, delay_seconds: float = 0.25) -> bool:
+    if is_broker_running():
+        return True
+
+    start_broker(config, logger)
+
+    for _ in range(max(1, attempts)):
+        time.sleep(delay_seconds)
+        if is_broker_running():
+            logger.info("Broker is now running")
+            return True
+
+    logger.warning("Broker did not appear to start successfully")
+    return False
 
 
 def build_controller_args(config, vlc_http_pass: str) -> list[str]:
@@ -115,6 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Config validation succeeded")
         return 0
 
+    ensure_broker_running(config, logger)
     return run_controller(config, logger)
 
 

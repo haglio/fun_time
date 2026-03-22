@@ -9,8 +9,11 @@ import pytest
 from fun_time.orchestrator import (
     build_controller_args,
     build_parser,
+    ensure_broker_running,
+    is_broker_running,
     require_dir,
     require_file,
+    start_broker,
     validate_config,
 )
 from fun_time.config import load_config
@@ -170,3 +173,71 @@ class TestValidateConfig:
         # Do NOT create vlc_exe stub
         with pytest.raises(FileNotFoundError):
             validate_config(cfg)
+
+
+class TestBrokerHelpers:
+    def test_is_broker_running_false_when_probe_finds_nothing(self):
+        completed = subprocess_result(stdout="", returncode=0)
+        with patch("fun_time.orchestrator.sys.platform", "win32"), \
+             patch("fun_time.orchestrator.subprocess.run", return_value=completed):
+            assert is_broker_running() is False
+
+    def test_is_broker_running_true_when_probe_finds_process(self):
+        completed = subprocess_result(stdout="RUNNING\r\n", returncode=0)
+        with patch("fun_time.orchestrator.sys.platform", "win32"), \
+             patch("fun_time.orchestrator.subprocess.run", return_value=completed):
+            assert is_broker_running() is True
+
+    def test_start_broker_launches_runner_script(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+
+        with patch("fun_time.orchestrator.sys.platform", "win32"), \
+             patch("fun_time.orchestrator.subprocess.Popen") as popen:
+            start_broker(cfg, logger)
+
+        popen.assert_called_once()
+        command = popen.call_args.args[0]
+        assert command[:6] == [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-WindowStyle",
+            "Hidden",
+        ]
+        assert command[6] == "-File"
+        assert command[7].endswith("scripts\\run_broker_service.ps1")
+
+    def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+
+        with patch("fun_time.orchestrator.is_broker_running", side_effect=[False, False, True]) as probe, \
+             patch("fun_time.orchestrator.start_broker") as starter, \
+             patch("fun_time.orchestrator.time.sleep") as sleeper:
+            result = ensure_broker_running(cfg, logger, attempts=3, delay_seconds=0.01)
+
+        assert result is True
+        assert probe.call_count == 3
+        starter.assert_called_once_with(cfg, logger)
+        sleeper.assert_called()
+
+    def test_ensure_broker_running_skips_start_when_present(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+
+        with patch("fun_time.orchestrator.is_broker_running", return_value=True) as probe, \
+             patch("fun_time.orchestrator.start_broker") as starter:
+            result = ensure_broker_running(cfg, logger)
+
+        assert result is True
+        probe.assert_called_once_with()
+        starter.assert_not_called()
+
+
+def subprocess_result(*, stdout: str, returncode: int):
+    mock = MagicMock()
+    mock.stdout = stdout
+    mock.returncode = returncode
+    return mock
