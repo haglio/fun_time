@@ -32,6 +32,7 @@ from fun_time.robot_hand.clipper.paths import (
     SHIFT_RANGE_RIGHT_KEYS,
     SPEED_DOWN_KEYS,
     SPEED_UP_KEYS,
+    TAB_KEYS,
     WIN_LEFT_KEYS,
     WIN_RIGHT_KEYS,
     WRAP_TOGGLE_KEYS,
@@ -137,6 +138,9 @@ class TestKeyBindings:
     def test_enter_keys_contains_13(self):
         assert 13 in ENTER_KEYS
 
+    def test_tab_keys_contains_9(self):
+        assert 9 in TAB_KEYS
+
     def test_win_left_keys_nonempty(self):
         assert len(WIN_LEFT_KEYS) > 0
 
@@ -149,7 +153,7 @@ class TestKeyBindings:
                    MARK_IN_KEYS, MARK_OUT_KEYS, WRAP_TOGGLE_KEYS, LOOP_MODE_CYCLE_KEYS,
                    ACCEPT_SUGGESTED_IN_KEYS, ACCEPT_SUGGESTED_OUT_KEYS,
                    SHIFT_RANGE_LEFT_KEYS, SHIFT_RANGE_RIGHT_KEYS,
-                   PLAY_PAUSE_KEYS, SPEED_DOWN_KEYS, SPEED_UP_KEYS, ENTER_KEYS):
+                   PLAY_PAUSE_KEYS, SPEED_DOWN_KEYS, SPEED_UP_KEYS, ENTER_KEYS, TAB_KEYS):
             assert isinstance(ks, set)
 
 

@@ -39,6 +39,7 @@ from .paths import (
     SHIFT_RANGE_RIGHT_KEYS,
     SPEED_DOWN_KEYS,
     SPEED_UP_KEYS,
+    TAB_KEYS,
     WIN_LEFT_KEYS,
     WIN_RIGHT_KEYS,
     WRAP_TOGGLE_KEYS,
@@ -78,6 +79,12 @@ LOOP_MODE_LABELS = {
     "tip-base-tip": "Tip-Base-Tip",
     "base-tip": "Base-Tip",
     "tip-base": "Tip-Base",
+}
+EXIT_PROMPT_CHOICES = ("save", "discard", "cancel")
+EXIT_PROMPT_BUTTON_NAMES = {
+    "save": "exit_save",
+    "discard": "exit_discard",
+    "cancel": "exit_cancel",
 }
 
 
@@ -171,6 +178,9 @@ def draw_button(
     fill_color: Color | None = None,
     active_fill_color: Color | None = None,
     icon: str | None = None,
+    focused: bool = False,
+    focus_border_color: Color = (110, 220, 255),
+    focus_border_thickness: int = 3,
 ) -> None:
     x1, y1, x2, y2 = map(int, rect)
     fill = fill_color if fill_color is not None else ((62, 62, 62) if enabled else (40, 40, 40))
@@ -182,6 +192,8 @@ def draw_button(
     color = (240, 240, 240) if enabled else (120, 120, 120)
     cv2.rectangle(img, (x1, y1), (x2, y2), fill, -1)
     cv2.rectangle(img, (x1, y1), (x2, y2), border, 1)
+    if focused and enabled:
+        cv2.rectangle(img, (x1 - 2, y1 - 2), (x2 + 2, y2 + 2), focus_border_color, focus_border_thickness)
     if icon == "play":
         width = x2 - x1
         height = y2 - y1
@@ -516,13 +528,38 @@ def draw_exit_overlay(canvas: np.ndarray, state: VideoState) -> None:
     gap = 14
     total = bw * 3 + gap * 2
     bx = ox + (ow - total) // 2
-    state.buttons["exit_save"] = (bx, by, bx + bw, by + bh)
-    state.buttons["exit_discard"] = (bx + bw + gap, by, bx + 2 * bw + gap, by + bh)
-    state.buttons["exit_cancel"] = (bx + 2 * (bw + gap), by, bx + 3 * bw + 2 * gap, by + bh)
-    draw_button(canvas, state.buttons["exit_save"], "Save and exit", active=True)
-    draw_button(canvas, state.buttons["exit_discard"], "Exit w/o save")
-    draw_button(canvas, state.buttons["exit_cancel"], "Cancel exit")
-    put_text(canvas, "Enter: Save and exit    Esc: Cancel exit", ox + 28, by - 18, 0.56, (215, 215, 215), 1)
+    state.buttons[EXIT_PROMPT_BUTTON_NAMES["save"]] = (bx, by, bx + bw, by + bh)
+    state.buttons[EXIT_PROMPT_BUTTON_NAMES["discard"]] = (bx + bw + gap, by, bx + 2 * bw + gap, by + bh)
+    state.buttons[EXIT_PROMPT_BUTTON_NAMES["cancel"]] = (bx + 2 * (bw + gap), by, bx + 3 * bw + 2 * gap, by + bh)
+    focus = state.exit_prompt_focus if state.exit_prompt_focus in EXIT_PROMPT_CHOICES else "save"
+    draw_button(canvas, state.buttons[EXIT_PROMPT_BUTTON_NAMES["save"]], "Save and exit", focused=focus == "save")
+    draw_button(canvas, state.buttons[EXIT_PROMPT_BUTTON_NAMES["discard"]], "Exit w/o save", focused=focus == "discard")
+    draw_button(canvas, state.buttons[EXIT_PROMPT_BUTTON_NAMES["cancel"]], "Cancel exit", focused=focus == "cancel")
+    put_text(canvas, "Tab: Change selection    Enter: Confirm    Esc: Cancel exit", ox + 28, by - 18, 0.56, (215, 215, 215), 1)
+
+
+def cycle_exit_prompt_focus(state: VideoState) -> None:
+    current = state.exit_prompt_focus if state.exit_prompt_focus in EXIT_PROMPT_CHOICES else "save"
+    next_index = (EXIT_PROMPT_CHOICES.index(current) + 1) % len(EXIT_PROMPT_CHOICES)
+    state.exit_prompt_focus = EXIT_PROMPT_CHOICES[next_index]
+    state.render_rev += 1
+
+
+def queue_exit_prompt_action(state: VideoState, choice: str | None = None) -> None:
+    selected = choice if choice in EXIT_PROMPT_CHOICES else state.exit_prompt_focus
+    if selected not in EXIT_PROMPT_CHOICES:
+        selected = "save"
+    state.exit_prompt_focus = selected
+    state.exit_prompt_action = selected
+    state.render_rev += 1
+
+
+def show_exit_prompt(state: VideoState) -> None:
+    if state.exit_prompt_focus not in EXIT_PROMPT_CHOICES:
+        state.exit_prompt_focus = "save"
+    state.exit_prompt_visible = True
+    state.exit_prompt_action = ""
+    state.render_rev += 1
 
 
 def on_mouse(event: int, x: int, y: int, flags: int, userdata: Any | None) -> None:
@@ -533,15 +570,10 @@ def on_mouse(event: int, x: int, y: int, flags: int, userdata: Any | None) -> No
     state.mouse_y = y
     if event == cv2.EVENT_LBUTTONDOWN:
         if state.exit_prompt_visible:
-            for name in ("exit_save", "exit_discard", "exit_cancel"):
-                rect = state.buttons.get(name)
+            for choice in EXIT_PROMPT_CHOICES:
+                rect = state.buttons.get(EXIT_PROMPT_BUTTON_NAMES[choice])
                 if rect and point_in_rect(x, y, rect):
-                    state.exit_prompt_action = {
-                        "exit_save": "save",
-                        "exit_discard": "discard",
-                        "exit_cancel": "cancel",
-                    }[name]
-                    state.render_rev += 1
+                    queue_exit_prompt_action(state, choice)
                     return
             return
         for name, rect in list(state.buttons.items()):
@@ -771,6 +803,7 @@ def run_ui(state: VideoState) -> None:
     def finish_exit(choice: str) -> bool:
         if choice == "cancel":
             state.exit_prompt_visible = False
+            state.exit_prompt_focus = "save"
             state.exit_prompt_action = ""
             state.render_rev += 1
             return False
@@ -779,6 +812,7 @@ def run_ui(state: VideoState) -> None:
         else:
             state.autosave_session()
         state.exit_prompt_visible = False
+        state.exit_prompt_focus = "save"
         state.exit_prompt_action = ""
         return True
 
@@ -788,9 +822,7 @@ def run_ui(state: VideoState) -> None:
         if not state.should_prompt_on_exit:
             state.autosave_session()
             return True
-        state.exit_prompt_visible = True
-        state.exit_prompt_action = ""
-        state.render_rev += 1
+        show_exit_prompt(state)
         return False
 
     ensure_window()
@@ -840,12 +872,14 @@ def run_ui(state: VideoState) -> None:
                 continue
 
             if state.exit_prompt_visible:
-                if key in ENTER_KEYS:
-                    state.exit_prompt_action = "save"
+                if key in TAB_KEYS:
+                    cycle_exit_prompt_focus(state)
+                elif key in ENTER_KEYS:
+                    queue_exit_prompt_action(state)
                 elif key in ESC_KEYS:
-                    state.exit_prompt_action = "cancel"
+                    queue_exit_prompt_action(state, "cancel")
                 elif key in QUIT_KEYS:
-                    state.exit_prompt_action = "cancel"
+                    queue_exit_prompt_action(state, "cancel")
                 continue
 
             if key in ESC_KEYS:
