@@ -21,6 +21,10 @@ from .export import start_export_job, terminate_export_subprocesses
 from .paths import (
     ACCEPT_SUGGESTED_IN_KEYS,
     ACCEPT_SUGGESTED_OUT_KEYS,
+    BOUNDS_CONTRACT_LEFT_KEYS,
+    BOUNDS_CONTRACT_RIGHT_KEYS,
+    BOUNDS_EXTEND_LEFT_KEYS,
+    BOUNDS_EXTEND_RIGHT_KEYS,
     ENTER_KEYS,
     ESC_KEYS,
     LAST_SESSION_FILE,
@@ -31,6 +35,8 @@ from .paths import (
     PLAY_PAUSE_KEYS,
     MODULE_DIR,
     QUIT_KEYS,
+    SHIFT_RANGE_LEFT_KEYS,
+    SHIFT_RANGE_RIGHT_KEYS,
     SPEED_DOWN_KEYS,
     SPEED_UP_KEYS,
     WIN_LEFT_KEYS,
@@ -56,6 +62,7 @@ from .state import (
     safe_frame,
     set_mark_in,
     set_mark_out,
+    shift_active_range,
     timeline_x_for_index,
     toggle_loop_pause,
     toggle_wrap_mode,
@@ -263,10 +270,12 @@ def build_ui(state: VideoState) -> np.ndarray:
     pane_bottom = pane_y + pane_h
     info1_y = pane_bottom + 28
     info2_y = pane_bottom + 58
-    timeline_y = 788
+    timeline_y = 772
     timeline_h = 22
-    wrap_y = timeline_y + 62
-    mode_y = wrap_y + 54
+    shift_y = timeline_y - 48
+    mark_y = timeline_y + timeline_h + 18
+    wrap_y = mark_y + 54
+    mode_y = wrap_y + 44
     range_info_y = mode_y + 48
     legend_y1 = range_info_y + 42
     legend_y2 = legend_y1 + 30
@@ -351,10 +360,18 @@ def build_ui(state: VideoState) -> np.ndarray:
     cv2.rectangle(canvas, (tl_x1, timeline_y), (tl_x2, timeline_y + timeline_h), (220, 220, 220), 1)
     state.buttons["timeline"] = (tl_x1, timeline_y - 8, tl_x2, timeline_y + timeline_h + 8)
 
+    shift_gap = 8
+    shift_left_enabled = state.active_start - (state.active_end - state.active_start) >= 0
+    shift_right_enabled = state.active_end + (state.active_end - state.active_start) < state.total_frames
+    shift_center = (in_x + out_x) // 2
+    state.buttons["shift_left"] = (shift_center - shift_gap // 2 - btn_w, shift_y, shift_center - shift_gap // 2, shift_y + btn_h)
+    state.buttons["shift_right"] = (shift_center + shift_gap // 2, shift_y, shift_center + shift_gap // 2 + btn_w, shift_y + btn_h)
+    draw_button(canvas, state.buttons["shift_left"], "<", enabled=shift_left_enabled)
+    draw_button(canvas, state.buttons["shift_right"], ">", enabled=shift_right_enabled)
+
     enable_in = state.current < state.active_end
     enable_out = state.current > state.active_start
     cursor_x = cur_x
-    mark_y = timeline_y - 48
     mbw = 36
     mgap = 8
     if state.current < state.active_start:
@@ -401,8 +418,8 @@ def build_ui(state: VideoState) -> np.ndarray:
     range_text = f"In-Out: {rel_in}-{rel_out}     Loaded: 0-{state.loaded_count - 1}     {wrap_label}"
     put_text_centered(canvas, range_text, session_cx, range_info_y, 0.58, (230, 230, 230), 1)
 
-    legend1 = "Left/Right: Move cursor   Space: Play/Pause preview   i or [: Mark In   o or ]: Mark Out"
-    legend2 = "9: Accept In suggestion   0: Accept Out suggestion   L: Cycle loop mode"
+    legend1 = "Left/Right: Move cursor   A/S/D/F: Loaded bounds   Space: Play/Pause preview   Enter: Export"
+    legend2 = "i or [: Mark In   o or ]: Mark Out   < or >: Shift In-Out   (: Accept In suggestion   ): Accept Out suggestion   M: Wrap   L: Loop mode   -/+: Speed"
     put_text_centered(canvas, legend1, session_cx, legend_y1, 0.56, (230, 230, 230), 1)
     put_text_centered(canvas, legend2, session_cx, legend_y2, 0.56, (230, 230, 230), 1)
     if state.session_warning:
@@ -545,6 +562,10 @@ def on_mouse(event: int, x: int, y: int, flags: int, userdata: Any | None) -> No
                     contract_right(state)
                 elif name == "extend_right" and state.loaded_end < state.total_frames - 1:
                     extend_right(state)
+                elif name == "shift_left":
+                    shift_active_range(state, -1)
+                elif name == "shift_right":
+                    shift_active_range(state, 1)
                 elif name == "mark_in" and state.current < state.active_end:
                     set_mark_in(state)
                 elif name == "mark_out" and state.current > state.active_start:
@@ -702,6 +723,14 @@ def handle_key(state: VideoState, key: int) -> None:
         move_current_left(state)
     elif key in WIN_RIGHT_KEYS:
         move_current_right(state)
+    elif key in BOUNDS_EXTEND_LEFT_KEYS:
+        extend_left(state)
+    elif key in BOUNDS_CONTRACT_LEFT_KEYS:
+        contract_left(state)
+    elif key in BOUNDS_CONTRACT_RIGHT_KEYS:
+        contract_right(state)
+    elif key in BOUNDS_EXTEND_RIGHT_KEYS:
+        extend_right(state)
     elif key in MARK_IN_KEYS:
         set_mark_in(state)
     elif key in MARK_OUT_KEYS:
@@ -710,6 +739,10 @@ def handle_key(state: VideoState, key: int) -> None:
         accept_suggested_in(state)
     elif key in ACCEPT_SUGGESTED_OUT_KEYS:
         accept_suggested_out(state)
+    elif key in SHIFT_RANGE_LEFT_KEYS:
+        shift_active_range(state, -1)
+    elif key in SHIFT_RANGE_RIGHT_KEYS:
+        shift_active_range(state, 1)
     elif key in WRAP_TOGGLE_KEYS:
         toggle_wrap_mode(state)
     elif key in LOOP_MODE_CYCLE_KEYS:
