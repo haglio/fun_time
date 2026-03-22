@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -112,6 +113,16 @@ class AudioCompanionConfig:
 
 
 @dataclass(frozen=True)
+class ChromeOverlayConfig:
+    enabled: bool
+    shortcut_path: Path
+    user_data_dir: Path
+    profile_name: str
+    bookmarks_folder_name: str
+    open_count: int
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     project_dir: Path
     config_path: Path
@@ -120,6 +131,7 @@ class ProjectConfig:
     broker: BrokerConfig
     robot_hand: RobotHandConfig
     audio_companion: AudioCompanionConfig
+    chrome_overlay: ChromeOverlayConfig
 
     @property
     def robot_hand_mode_file(self) -> Path:
@@ -136,6 +148,10 @@ class ProjectConfig:
     @property
     def audio_cmd_file(self) -> Path:
         return self.paths.state_dir / "audio_cmd.txt"
+
+    @property
+    def chrome_overlay_manifest_file(self) -> Path:
+        return self.paths.state_dir / "chrome_overlay_urls.txt"
 
     @property
     def logs_dir(self) -> Path:
@@ -160,6 +176,9 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     broker_raw = _require_dict(raw, "broker", path)
     robot_raw = _require_dict(raw, "robot_hand", path)
     audio_raw = _require_dict(raw, "audio_companion", path)
+    chrome_raw = raw.get("chrome_overlay")
+    if chrome_raw is not None and not isinstance(chrome_raw, dict):
+        raise TypeError(f"Expected object for config section: chrome_overlay (in {path})")
     primary_vlc_dirs_raw = _require_value(paths_raw, "primary_vlc_dirs", path, "config.paths")
     if not isinstance(primary_vlc_dirs_raw, list):
         raise TypeError("paths.primary_vlc_dirs must be a list of folder paths")
@@ -226,6 +245,22 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         port=int(_require_value(audio_raw, "port", path, "config.audio_companion")),
     )
 
+    default_user_data_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
+    chrome_overlay = ChromeOverlayConfig(
+        enabled=bool((chrome_raw or {}).get("enabled", False)),
+        shortcut_path=_resolve_path(
+            PROJECT_DIR,
+            str((chrome_raw or {}).get("shortcut_path", "Blair Chrome.lnk")),
+        ),
+        user_data_dir=_resolve_path(
+            PROJECT_DIR,
+            str((chrome_raw or {}).get("user_data_dir", default_user_data_dir)),
+        ),
+        profile_name=str((chrome_raw or {}).get("profile_name", "Blair")),
+        bookmarks_folder_name=str((chrome_raw or {}).get("bookmarks_folder_name", "Fun Time Favs")),
+        open_count=int((chrome_raw or {}).get("open_count", 10)),
+    )
+
     return ProjectConfig(
         project_dir=PROJECT_DIR,
         config_path=path,
@@ -234,6 +269,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         broker=broker,
         robot_hand=robot_hand,
         audio_companion=audio_companion,
+        chrome_overlay=chrome_overlay,
     )
 
 

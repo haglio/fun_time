@@ -143,6 +143,13 @@ class TestBuildControllerArgs:
         result = build_controller_args(cfg, "pw")
         assert "fun_time.audio_companion_app" in result
 
+    def test_chrome_overlay_args_included_before_config(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        result = build_controller_args(cfg, "pw")
+        assert result[-3] == str(cfg.chrome_overlay.shortcut_path)
+        assert result[-2] == str(cfg.chrome_overlay_manifest_file)
+        assert result[-1] == str(cfg.config_path)
+
 
 # ---------------------------------------------------------------------------
 # validate_config – only tests logic that doesn't require real binaries
@@ -171,6 +178,20 @@ class TestValidateConfig:
     def test_raises_when_vlc_exe_missing(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         # Do NOT create vlc_exe stub
+        with pytest.raises(FileNotFoundError):
+            validate_config(cfg)
+
+    def test_raises_when_chrome_shortcut_missing_if_overlay_enabled(self, cfg_factory: Path):
+        cfg = load_config(
+            cfg_factory(
+                {
+                    "chrome_overlay": {
+                        "enabled": True,
+                        "shortcut_path": "missing_chrome.lnk",
+                    }
+                }
+            )
+        )
         with pytest.raises(FileNotFoundError):
             validate_config(cfg)
 

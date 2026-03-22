@@ -136,6 +136,35 @@ class TestLoadConfig:
         assert cfg.audio_companion.host == "127.0.0.1"
         assert cfg.audio_companion.port == 50556
 
+    def test_missing_chrome_overlay_section_defaults_disabled(self, cfg_factory):
+        path = cfg_factory()
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw.pop("chrome_overlay", None)
+        path.write_text(json.dumps(raw), encoding="utf-8")
+
+        cfg = load_config(path)
+        assert cfg.chrome_overlay.enabled is False
+        assert cfg.chrome_overlay.profile_name == "Blair"
+
+    def test_loads_chrome_overlay_settings(self, cfg_factory):
+        path = cfg_factory(
+            {
+                "chrome_overlay": {
+                    "enabled": True,
+                    "shortcut_path": "chrome.exe",
+                    "user_data_dir": "chrome_data",
+                    "profile_name": "Blair",
+                    "bookmarks_folder_name": "Fun Time Favs",
+                    "open_count": 7,
+                }
+            }
+        )
+        cfg = load_config(path)
+        assert cfg.chrome_overlay.enabled is True
+        assert cfg.chrome_overlay.shortcut_path.name == "chrome.exe"
+        assert cfg.chrome_overlay.user_data_dir.name == "chrome_data"
+        assert cfg.chrome_overlay.open_count == 7
+
     def test_primary_vlc_dir_property(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.paths.primary_vlc_dir == (tmp_path / "vlc_primary").resolve()
@@ -194,3 +223,7 @@ class TestProjectConfigProperties:
     def test_logs_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.logs_dir == (tmp_path / "state").resolve()
+
+    def test_chrome_overlay_manifest_file(self, cfg_path: Path, tmp_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.chrome_overlay_manifest_file == (tmp_path / "state" / "chrome_overlay_urls.txt").resolve()

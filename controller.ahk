@@ -10,8 +10,9 @@ SetTitleMatchMode 2
 ; 11 ROBOT_HAND_PY, 12 ROBOT_HAND_MODULE, 13 ROBOT_HAND_CLIPS,
 ; 14 ROBOT_HAND_AUDIO_MODULE, 15 ROBOT_HAND_AUDIO, 16 ROBOT_HAND_MODE_FILE, 17 ROBOT_HAND_CMD_FILE,
 ; 18 BROKER_CMD_FILE, 19 AUDIO_CMD_FILE, 20 PRIMARY_MONITOR, 21 SECONDARY_MONITOR, 22 PRIMARY_TOP_RATIO,
-; 23 LANDSCAPE_WIDTH_RATIO, 24 MFP_WIDTH_RATIO, 25 MFP_HEIGHT_RATIO, 26 CONTROLLER_LOG_FILE, 27 CONFIG_PATH
-if (A_Args.Length < 27) {
+; 23 LANDSCAPE_WIDTH_RATIO, 24 MFP_WIDTH_RATIO, 25 MFP_HEIGHT_RATIO, 26 CONTROLLER_LOG_FILE,
+; 27 CHROME_SHORTCUT_PATH, 28 CHROME_MANIFEST_FILE, 29 CONFIG_PATH
+if (A_Args.Length < 29) {
     MsgBox("Not enough arguments passed to controller. Got " . A_Args.Length, "fun_time", "Iconx")
     ExitApp 2
 }
@@ -42,7 +43,9 @@ LANDSCAPE_WIDTH_RATIO := A_Args[23]
 MFP_WIDTH_RATIO       := A_Args[24]
 MFP_HEIGHT_RATIO      := A_Args[25]
 CONTROLLER_LOG_FILE   := A_Args[26]
-CONFIG_PATH           := A_Args[27]
+CHROME_SHORTCUT_PATH  := A_Args[27]
+CHROME_MANIFEST_FILE  := A_Args[28]
+CONFIG_PATH           := A_Args[29]
 
 PROJECT_DIR := ""
 SplitPath(CONFIG_PATH, , &PROJECT_DIR)
@@ -110,6 +113,11 @@ RunVLC(args, mediaPath) {
     }
     cmd := Q(VLC_EXE) . " " . args . mediaArgs
     Run(cmd, , , &pid)
+    return pid
+}
+
+RunDetached(cmdLine) {
+    Run(cmdLine, , , &pid)
     return pid
 }
 
@@ -301,8 +309,11 @@ VlcHttpCmd(VLC2_PORT, "pl_next")
 Sleep 150
 VlcHttpCmd(VLC3_PORT, "pl_next")
 
+PrepareChromeOverlayManifest()
+
 PositionAll(pid1, pid2, pid3, pidM)
 SetTopMost(pid1, pid2, pid3, pidM)
+MaybeLaunchChromeOverlay(pidM)
 
 Sleep 1200
 
@@ -428,12 +439,33 @@ PositionAll(pid1, pid2, pid3, pidM) {
     x3 := pL + (pW - w3)   ; right-aligned 2/3
     MovePidWindow(pid3, x3, pT, w3, pH)
 
-    leftW := pW - w3          ; width of the unused left region (≈ 1/3)
-    mW := Floor(leftW * Clamp01(MFP_WIDTH_RATIO))
-    mH := Floor(pH * Clamp01(MFP_HEIGHT_RATIO))
-    mX := pL + Floor((leftW - mW) / 2)
-    mY := pT + Floor((pH - mH) / 2)
+    GetMfpRect(&mX, &mY, &mW, &mH)
     MovePidWindow(pidM, mX, mY, mW, mH)
+}
+
+GetMfpRect(&x, &y, &w, &h) {
+    global SECONDARY_MONITOR, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
+    MonitorGetWorkArea(SECONDARY_MONITOR, &pL, &pT, &pR, &pB)
+    pW := pR - pL
+    pH := pB - pT
+    w3 := Floor(pW * Clamp01(LANDSCAPE_WIDTH_RATIO))
+    leftW := pW - w3
+    w := Floor(leftW * Clamp01(MFP_WIDTH_RATIO))
+    h := Floor(pH * Clamp01(MFP_HEIGHT_RATIO))
+    x := pL + Floor((leftW - w) / 2)
+    y := pT + Floor((pH - h) / 2)
+}
+
+GetChromeOverlayRect(&x, &y, &w, &h) {
+    global SECONDARY_MONITOR, LANDSCAPE_WIDTH_RATIO
+    MonitorGetWorkArea(SECONDARY_MONITOR, &pL, &pT, &pR, &pB)
+    pW := pR - pL
+    pH := pB - pT
+    w3 := Floor(pW * Clamp01(LANDSCAPE_WIDTH_RATIO))
+    w := pW - w3
+    h := pH
+    x := pL
+    y := pT
 }
 
 MovePidWindow(pid, x, y, w, h) {
@@ -452,6 +484,131 @@ SetTopMost(pid1, pid2, pid3, pidM) {
             }
         }
     }
+}
+
+PrepareChromeOverlayManifest() {
+    global ROBOT_HAND_PY, CHROME_MANIFEST_FILE, CONFIG_PATH
+    try FileDelete(CHROME_MANIFEST_FILE)
+    cmd := Q(ROBOT_HAND_PY)
+        . " -m fun_time.chrome_overlay"
+        . " --config " . Q(CONFIG_PATH)
+        . " --output " . Q(CHROME_MANIFEST_FILE)
+    try RunWait(cmd, PROJECT_DIR, "Hide")
+}
+
+MaybeLaunchChromeOverlay(pidM) {
+    global CHROME_MANIFEST_FILE, CHROME_SHORTCUT_PATH
+
+    manifest := ReadChromeOverlayManifest(CHROME_MANIFEST_FILE)
+    if (manifest.profileDir = "" || manifest.urls.Length = 0)
+        return
+
+    existing := GetVisibleChromeWindowHandles()
+    cmd := Q(CHROME_SHORTCUT_PATH)
+    try RunDetached(cmd)
+
+    newHwnd := WaitForNewChromeWindow(existing, 8000)
+    if (!newHwnd) {
+        Log("Chrome overlay skipped because the Blair Chrome shortcut did not produce a new visible window")
+        return
+    }
+
+    GetChromeOverlayRect(&x, &y, &w, &h)
+    try {
+        WinRestore("ahk_id " newHwnd)
+        WinMove(x, y, w, h, "ahk_id " newHwnd)
+        WinSetAlwaysOnTop(false, "ahk_id " newHwnd)
+    }
+    OpenUrlsInChromeWindow(newHwnd, manifest.urls)
+    try {
+        WinSetAlwaysOnTop(true, "ahk_pid " pidM)
+        WinActivate("ahk_pid " pidM)
+    }
+    Log("Chrome overlay positioned using shortcut for profile " . manifest.profileDir)
+}
+
+ReadChromeOverlayManifest(path) {
+    result := {profileDir: "", urls: []}
+    if !FileExist(path)
+        return result
+    content := ""
+    try content := FileRead(path, "UTF-8")
+    if (content = "")
+        return result
+    lines := StrSplit(content, "`n", "`r")
+    if (lines.Length >= 1)
+        result.profileDir := Trim(lines[1])
+    Loop lines.Length - 1 {
+        url := Trim(lines[A_Index + 1])
+        if (url != "")
+            result.urls.Push(url)
+    }
+    return result
+}
+
+GetVisibleChromeWindowHandles() {
+    handles := []
+    winList := WinGetList("ahk_exe chrome.exe")
+    for hwnd in winList {
+        title := ""
+        try title := WinGetTitle("ahk_id " hwnd)
+        if (Trim(title) = "")
+            continue
+        handles.Push(hwnd)
+    }
+    return handles
+}
+
+WaitForNewChromeWindow(existingHandles, timeoutMs := 8000) {
+    started := A_TickCount
+    loop {
+        current := GetVisibleChromeWindowHandles()
+        for hwnd in current {
+            if !HandleInList(hwnd, existingHandles)
+                return hwnd
+        }
+        if (A_TickCount - started > timeoutMs)
+            break
+        Sleep 200
+    }
+    return 0
+}
+
+OpenUrlsInChromeWindow(hwnd, urls) {
+    if (!hwnd || urls.Length = 0)
+        return
+
+    savedClipboard := ClipboardAll()
+    try {
+        WinActivate("ahk_id " hwnd)
+        WinWaitActive("ahk_id " hwnd, , 2.0)
+        Sleep 250
+
+        first := true
+        for url in urls {
+            if (!first) {
+                SendEvent("^t")
+                Sleep 120
+            }
+            first := false
+            A_Clipboard := url
+            ClipWait(0.5)
+            SendEvent("^l")
+            Sleep 80
+            SendEvent("^v{Enter}")
+            Sleep 180
+        }
+    } finally {
+        A_Clipboard := savedClipboard
+    }
+}
+
+HandleInList(hwnd, handles) {
+    for existing in handles {
+        if (existing = hwnd)
+            return true
+    }
+    return false
 }
 
 ; -------------------- HTTP --------------------
