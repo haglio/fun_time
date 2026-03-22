@@ -25,6 +25,7 @@ from .paths import (
     LOOP_FIX_SCRIPT,
     MARK_IN_KEYS,
     MARK_OUT_KEYS,
+    PLAY_PAUSE_KEYS,
     MODULE_DIR,
     QUIT_KEYS,
     SPEED_DOWN_KEYS,
@@ -49,6 +50,7 @@ from .state import (
     set_mark_in,
     set_mark_out,
     timeline_x_for_index,
+    toggle_loop_pause,
     toggle_wrap_mode,
 )
 from .utils import format_seconds, parse_timestamp, sanitize_name
@@ -148,6 +150,7 @@ def draw_button(
     active: bool = False,
     fill_color: Color | None = None,
     active_fill_color: Color | None = None,
+    icon: str | None = None,
 ) -> None:
     x1, y1, x2, y2 = map(int, rect)
     fill = fill_color if fill_color is not None else ((62, 62, 62) if enabled else (40, 40, 40))
@@ -156,13 +159,43 @@ def draw_button(
     if not enabled and fill_color is not None:
         fill = tuple(max(20, int(c * 0.55)) for c in fill_color)
     border = (210, 210, 210) if enabled else (95, 95, 95)
+    color = (240, 240, 240) if enabled else (120, 120, 120)
     cv2.rectangle(img, (x1, y1), (x2, y2), fill, -1)
     cv2.rectangle(img, (x1, y1), (x2, y2), border, 1)
+    if icon == "play":
+        width = x2 - x1
+        height = y2 - y1
+        tri_h = max(12, int(round(height * 0.5)))
+        tri_w = max(10, int(round(tri_h * 0.7)))
+        cx = (x1 + x2) // 2
+        cy = (y1 + y2) // 2
+        left_x = cx - tri_w // 2
+        top_y = cy - tri_h // 2
+        bottom_y = cy + tri_h // 2
+        pts = np.array(
+            [
+                (left_x, top_y),
+                (left_x, bottom_y),
+                (left_x + tri_w, cy),
+            ],
+            dtype=np.int32,
+        )
+        cv2.fillConvexPoly(img, pts, color)
+        return
+    if icon == "pause":
+        bar_w = max(5, (x2 - x1) // 8)
+        bar_h_margin = max(6, (y2 - y1) // 5)
+        gap = max(6, bar_w)
+        center_x = (x1 + x2) // 2
+        left_x1 = center_x - gap // 2 - bar_w
+        right_x1 = center_x + gap // 2
+        cv2.rectangle(img, (left_x1, y1 + bar_h_margin), (left_x1 + bar_w, y2 - bar_h_margin), color, -1)
+        cv2.rectangle(img, (right_x1, y1 + bar_h_margin), (right_x1 + bar_w, y2 - bar_h_margin), color, -1)
+        return
     ts = 0.7
     (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, ts, 2)
     tx = x1 + max(0, (x2 - x1 - tw) // 2)
     ty = y1 + max(th + 2, (y2 - y1 + th) // 2)
-    color = (240, 240, 240) if enabled else (120, 120, 120)
     put_text(img, text, tx, ty, ts, color, 2)
 
 
@@ -230,21 +263,25 @@ def build_ui(state: VideoState) -> np.ndarray:
     rel_cur = state.current - state.loaded_start
     put_text(canvas, f"Cursor: {rel_cur} @ {format_seconds(state.current / state.fps)}", left_x, info1_y, 0.58, (235, 235, 235), 1)
     put_text(canvas, f"Loop frame: {loop_idx - state.loaded_start} @ {format_seconds(loop_idx / state.fps)}", right_x, info1_y, 0.58, (235, 235, 235), 1)
-    put_text(canvas, f"Speed: {state.speed:.2f}x", right_x, info2_y, 0.58, (235, 235, 235), 1)
+    playback_status = "Paused" if state.loop_paused else "Playing"
+    put_text(canvas, f"Speed: {state.speed:.2f}x ({playback_status})", right_x, info2_y, 0.58, (235, 235, 235), 1)
 
     b_h = 34
-    speed_w = 60
+    control_w = b_h
     export_w = 120
-    gap = 8
+    gap = 10
     yb = info1_y - 22
     bx3 = right_x + pane_w - export_w
-    bx2 = bx3 - 12 - speed_w
-    bx1 = bx2 - gap - speed_w
-    state.buttons["speed_down"] = (bx1, yb, bx1 + speed_w, yb + b_h)
-    state.buttons["speed_up"] = (bx2, yb, bx2 + speed_w, yb + b_h)
+    bxp = bx3 - gap - control_w
+    bx2 = bxp - gap - control_w
+    bx1 = bx2 - gap - control_w
+    state.buttons["speed_down"] = (bx1, yb, bx1 + control_w, yb + b_h)
+    state.buttons["speed_up"] = (bx2, yb, bx2 + control_w, yb + b_h)
+    state.buttons["play_pause"] = (bxp, yb, bxp + control_w, yb + b_h)
     state.buttons["export"] = (bx3, yb, bx3 + export_w, yb + b_h)
     draw_button(canvas, state.buttons["speed_down"], "-")
     draw_button(canvas, state.buttons["speed_up"], "+")
+    draw_button(canvas, state.buttons["play_pause"], "", icon="play" if state.loop_paused else "pause")
     draw_button(canvas, state.buttons["export"], "Export")
 
     btn_w = 44
@@ -321,7 +358,7 @@ def build_ui(state: VideoState) -> np.ndarray:
     put_text_centered(canvas, range_text, session_cx, range_info_y, 0.58, (230, 230, 230), 1)
     put_text_centered(canvas, "Reminder: base-tip-base.", session_cx, reminder_y, 0.56, (230, 230, 230), 1)
 
-    legend = "Left/Right: Move cursor   i or [: Mark In   o or ]: Mark Out   m: Toggle wrap mode   -/+: Adjust speed   Enter: Export"
+    legend = "Left/Right: Move cursor   Space: Play/Pause preview   i or [: Mark In   o or ]: Mark Out   m: Toggle wrap mode   -/+: Adjust speed   Enter: Export"
     put_text_centered(canvas, legend, session_cx, legend_y, 0.56, (230, 230, 230), 1)
     if state.session_warning:
         put_text_centered(canvas, state.session_warning, session_cx, legend_y - 26, 0.52, (120, 200, 255), 1)
@@ -451,6 +488,8 @@ def on_mouse(event: int, x: int, y: int, flags: int, userdata: Any | None) -> No
                     change_speed(state, -0.25)
                 elif name == "speed_up":
                     change_speed(state, +0.25)
+                elif name == "play_pause":
+                    toggle_loop_pause(state)
                 elif name == "export":
                     start_export_job(state)
                 elif name == "extend_left" and state.loaded_start > 0:
@@ -618,6 +657,8 @@ def handle_key(state: VideoState, key: int) -> None:
         set_mark_out(state)
     elif key in WRAP_TOGGLE_KEYS:
         toggle_wrap_mode(state)
+    elif key in PLAY_PAUSE_KEYS:
+        toggle_loop_pause(state)
     elif key in SPEED_DOWN_KEYS:
         change_speed(state, -0.25)
     elif key in SPEED_UP_KEYS:
