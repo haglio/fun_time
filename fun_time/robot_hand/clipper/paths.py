@@ -22,6 +22,7 @@ PLAY_PAUSE_KEYS = {32}
 SPEED_DOWN_KEYS = {ord("-"), ord("_")}
 SPEED_UP_KEYS = {ord("+"), ord("="), ord("=")}
 ENTER_KEYS = {13, 10}
+TAB_KEYS = {9}
 
 MODULE_DIR = Path(__file__).resolve().parent
 ROBOT_HAND_DIR = MODULE_DIR.parent
@@ -64,6 +65,7 @@ __all__ = [
     "SHIFT_RANGE_RIGHT_KEYS",
     "SPEED_DOWN_KEYS",
     "SPEED_UP_KEYS",
+    "TAB_KEYS",
     "WIN_LEFT_KEYS",
     "WIN_RIGHT_KEYS",
     "WRAP_TOGGLE_KEYS",

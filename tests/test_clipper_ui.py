@@ -4,7 +4,14 @@ from unittest.mock import patch
 
 import cv2
 
-from fun_time.robot_hand.clipper.ui import build_ui, handle_key, on_mouse
+from fun_time.robot_hand.clipper.ui import (
+    build_ui,
+    cycle_exit_prompt_focus,
+    handle_key,
+    on_mouse,
+    queue_exit_prompt_action,
+    show_exit_prompt,
+)
 
 from tests.test_clipper_state import _make_state
 
@@ -71,6 +78,46 @@ class TestHandleKey:
         assert state.loaded_end == 35
 
 
+class TestExitPromptControls:
+    def test_show_exit_prompt_defaults_focus_to_save(self):
+        state = _make_state()
+        state.exit_prompt_focus = "wat"
+
+        show_exit_prompt(state)
+
+        assert state.exit_prompt_visible is True
+        assert state.exit_prompt_focus == "save"
+        assert state.exit_prompt_action == ""
+
+    def test_cycle_exit_prompt_focus_uses_tab_order(self):
+        state = _make_state()
+        show_exit_prompt(state)
+
+        cycle_exit_prompt_focus(state)
+        assert state.exit_prompt_focus == "discard"
+        cycle_exit_prompt_focus(state)
+        assert state.exit_prompt_focus == "cancel"
+        cycle_exit_prompt_focus(state)
+        assert state.exit_prompt_focus == "save"
+
+    def test_queue_exit_prompt_action_uses_current_focus_for_enter(self):
+        state = _make_state()
+        state.exit_prompt_focus = "discard"
+
+        queue_exit_prompt_action(state)
+
+        assert state.exit_prompt_action == "discard"
+
+    def test_queue_exit_prompt_action_can_force_cancel(self):
+        state = _make_state()
+        state.exit_prompt_focus = "discard"
+
+        queue_exit_prompt_action(state, "cancel")
+
+        assert state.exit_prompt_focus == "cancel"
+        assert state.exit_prompt_action == "cancel"
+
+
 class TestMouseControls:
     def test_clicking_play_pause_button_toggles_loop_pause(self):
         state = _make_state()
@@ -107,6 +154,17 @@ class TestMouseControls:
         on_mouse(cv2.EVENT_LBUTTONDOWN, (x1 + x2) // 2, (y1 + y2) // 2, 0, state)
         assert state.active_start == 20
         assert state.active_end == 30
+
+    def test_clicking_exit_choice_sets_that_action(self):
+        state = _make_state()
+        state.exit_prompt_visible = True
+        build_ui(state)
+        x1, y1, x2, y2 = state.buttons["exit_cancel"]
+
+        on_mouse(cv2.EVENT_LBUTTONDOWN, (x1 + x2) // 2, (y1 + y2) // 2, 0, state)
+
+        assert state.exit_prompt_focus == "cancel"
+        assert state.exit_prompt_action == "cancel"
 
 
 class TestLayout:
@@ -165,3 +223,21 @@ class TestLayout:
         assert mark_in[1] >= timeline[3]
         assert mark_out[1] >= timeline[3]
         assert wrap[1] > mark_in[3]
+
+    def test_exit_overlay_uses_focus_border_instead_of_active_fill(self):
+        state = _make_state()
+        state.exit_prompt_visible = True
+        state.exit_prompt_focus = "discard"
+        captured: dict[str, dict[str, object]] = {}
+
+        def capture_button(_img, _rect, text, **kwargs):
+            captured[text] = kwargs
+
+        with patch("fun_time.robot_hand.clipper.ui.draw_button", side_effect=capture_button):
+            build_ui(state)
+
+        assert captured["Save and exit"].get("active", False) is False
+        assert captured["Save and exit"].get("focused", False) is False
+        assert captured["Exit w/o save"].get("active", False) is False
+        assert captured["Exit w/o save"].get("focused", False) is True
+        assert captured["Cancel exit"].get("active", False) is False

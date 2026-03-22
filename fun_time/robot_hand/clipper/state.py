@@ -80,6 +80,7 @@ class VideoState:
     paused_loop_idx: int | None = None
     paused_loop_pos: int | None = None
     exit_prompt_visible: bool = False
+    exit_prompt_focus: str = "save"
     exit_prompt_action: str = ""
     initial_active_start: int | None = None
     initial_active_end: int | None = None
