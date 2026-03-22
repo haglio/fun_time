@@ -239,6 +239,13 @@ Use the `Clipper` shortcut at `fun_time/robot_hand/clipper/Clipper.lnk`.
 - It follows the same launcher chain as Fun Time: `cmd.exe` -> `wscript.exe` -> `fun_time/robot_hand/clipper/launch_clipper.vbs`
 - The VBS runs `python -m fun_time.robot_hand.clipper` from project root
 
+Clipper exit prompt behavior:
+
+- `Tab` cycles the pending exit action
+- `Enter` confirms the currently outlined exit action
+- `Esc` always cancels the exit prompt
+- the selected action is shown with a highlighted border instead of a filled button
+
 ### Validation run
 
 Validation only:
