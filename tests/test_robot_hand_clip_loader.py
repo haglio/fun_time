@@ -9,10 +9,10 @@ from fun_time.robot_hand.clip_runtime import ClipCacheStore, DecodeRequestState
 
 class JobStarter:
     def __init__(self):
-        self.calls: list[tuple[object, Path, int, str]] = []
+        self.calls: list[tuple[object, tuple[Path, int], str]] = []
 
-    def __call__(self, target, path: Path, request_id: int, name: str) -> None:
-        self.calls.append((target, path, request_id, name))
+    def __call__(self, *, target, args: tuple[Path, int], name: str) -> None:
+        self.calls.append((target, args, name))
 
 
 def _make_loader(*, current_clip_path: Path | None = None):
@@ -31,7 +31,7 @@ def _make_loader(*, current_clip_path: Path | None = None):
         prefetch_state=prefetch_state,
         current_clip_path_getter=lambda: current_clip_path,
         decode_clip=lambda _path: ["f0", "f1"],
-        start_background_job=starter,
+        start_thread=starter,
         logger=logger,
         on_loading_requested=loading_requested.append,
         on_active_clip_loaded=lambda: active_loaded.append("ready"),
@@ -60,7 +60,7 @@ def test_request_clip_load_starts_background_job_and_reports_loading():
 
     assert load_state.loading is True
     assert loading_requested == [path]
-    assert [(call[1], call[2], call[3]) for call in starter.calls] == [(path, 1, "robot-hand-loader")]
+    assert [(call[1], call[2]) for call in starter.calls] == [((path, 1), "robot-hand-loader")]
 
 
 def test_adopt_loaded_clip_if_ready_promotes_frames_and_notifies_current_clip():
@@ -104,7 +104,7 @@ def test_request_prefetch_starts_background_job_for_uncached_path():
     controller.request_prefetch(path)
 
     assert prefetch_state.loading is True
-    assert [(call[1], call[2], call[3]) for call in starter.calls] == [(path, 1, "robot-hand-prefetch")]
+    assert [(call[1], call[2]) for call in starter.calls] == [((path, 1), "robot-hand-prefetch")]
 
 
 def test_adopt_prefetch_if_ready_caches_frames_without_active_notification():
