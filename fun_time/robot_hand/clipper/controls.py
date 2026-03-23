@@ -4,6 +4,14 @@ from typing import Any
 
 import cv2
 
+from .editing import (
+    accept_suggested_in,
+    accept_suggested_out,
+    cycle_loop_mode,
+    set_mark_in,
+    set_mark_out,
+    shift_active_range,
+)
 from .exit_prompt import EXIT_PROMPT_BUTTON_NAMES, EXIT_PROMPT_CHOICES, queue_exit_prompt_action
 from .export import start_export_job
 from .navigation import (
@@ -36,16 +44,10 @@ from .paths import (
 from .playback import change_speed, toggle_loop_pause
 from .state import (
     VideoState,
-    accept_suggested_in,
-    accept_suggested_out,
     contract_left,
     contract_right,
-    cycle_loop_mode,
     extend_left,
     extend_right,
-    set_mark_in,
-    set_mark_out,
-    shift_active_range,
 )
 
 Rect = tuple[int, int, int, int]
