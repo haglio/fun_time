@@ -12,12 +12,9 @@ from fun_time.robot_hand.clipper.exit_prompt import (
     request_exit,
     show_exit_prompt,
 )
+from fun_time.robot_hand.clipper.controls import handle_key, on_mouse
 from fun_time.robot_hand.clipper import render as clipper_render
-from fun_time.robot_hand.clipper.ui import (
-    build_ui,
-    handle_key,
-    on_mouse,
-)
+from fun_time.robot_hand.clipper.ui import build_ui
 
 from tests.test_clipper_state import _make_state
 
