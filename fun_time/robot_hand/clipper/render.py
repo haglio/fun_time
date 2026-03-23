@@ -6,13 +6,11 @@ import cv2
 import numpy as np
 
 from .exit_prompt import EXIT_PROMPT_BUTTON_NAMES, EXIT_PROMPT_CHOICES
+from .frame_store import safe_frame
 from .loop_modes import LOOP_MODE_LABELS
 from .navigation import timeline_x_for_index
 from .playback import current_loop_frame_index, loop_preview_indices
-from .state import (
-    VideoState,
-    safe_frame,
-)
+from .state import VideoState
 from .utils import format_seconds
 
 Rect = tuple[int, int, int, int]
