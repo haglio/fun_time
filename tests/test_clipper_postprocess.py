@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from fun_time.robot_hand.clipper.loop_fixer_and_sizer import normalize_loop_mode, shift_frames_halfway
+from fun_time.robot_hand.clipper.clip_postprocess import normalize_loop_mode, shift_frames_halfway
 
 
 def _frames(values: list[int]) -> list[np.ndarray]:

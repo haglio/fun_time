@@ -29,7 +29,6 @@ from .paths import (
     ESC_KEYS,
     LAST_SESSION_FILE,
     LOOP_MODE_CYCLE_KEYS,
-    LOOP_FIX_SCRIPT,
     MARK_IN_KEYS,
     MARK_OUT_KEYS,
     PLAY_PAUSE_KEYS,
@@ -486,7 +485,7 @@ def draw_export_overlay(canvas: np.ndarray, state: VideoState) -> None:
 
     sections = [
         ("1. Raw MP4 export", job.clip_status, job.clip_progress),
-        ("2. Smooth loop and reduce size if necessary", job.fix_status, job.fix_progress),
+        ("2. Normalize loop shape, smooth seam, and resize if needed", job.fix_status, job.fix_progress),
         ("3. Extract audio", job.audio_status, job.audio_progress),
     ]
     y = oy + 140

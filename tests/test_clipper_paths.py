@@ -14,6 +14,7 @@ from fun_time.robot_hand.clipper.paths import (
     BOUNDS_CONTRACT_RIGHT_KEYS,
     BOUNDS_EXTEND_LEFT_KEYS,
     BOUNDS_EXTEND_RIGHT_KEYS,
+    CLIP_POSTPROCESS_SCRIPT,
     CLIPS_DIR,
     ENTER_KEYS,
     ESC_KEYS,
@@ -60,11 +61,14 @@ class TestPathConstants:
     def test_last_session_file_under_sessions_dir(self):
         assert LAST_SESSION_FILE.parent == SESSIONS_DIR
 
-    def test_loop_fix_script_under_module_dir(self):
-        assert LOOP_FIX_SCRIPT.parent == MODULE_DIR
+    def test_clip_postprocess_script_under_module_dir(self):
+        assert CLIP_POSTPROCESS_SCRIPT.parent == MODULE_DIR
 
-    def test_loop_fix_script_is_python_file(self):
-        assert LOOP_FIX_SCRIPT.suffix == ".py"
+    def test_clip_postprocess_script_is_python_file(self):
+        assert CLIP_POSTPROCESS_SCRIPT.suffix == ".py"
+
+    def test_legacy_loop_fix_script_alias_matches_canonical_path(self):
+        assert LOOP_FIX_SCRIPT == CLIP_POSTPROCESS_SCRIPT
 
     def test_robot_hand_dir_is_module_parent(self):
         assert ROBOT_HAND_DIR == MODULE_DIR.parent
