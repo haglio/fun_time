@@ -304,6 +304,18 @@ class TestContractLeft:
             contract_left(s)
         assert s.loaded_start == 15
 
+    def test_prunes_frames_and_signatures_before_new_loaded_start(self):
+        s = _make_state(loaded_start=10, active_start=20, base_step=5)
+        s.frames = {i: np.zeros((2, 2, 3), dtype=np.uint8) for i in range(10, 31)}
+        s.frame_signatures = {i: np.zeros((2, 2), dtype=np.float32) for i in range(10, 31)}
+
+        with patch.object(s, "mark_dirty"):
+            contract_left(s)
+
+        assert s.loaded_start == 15
+        assert all(idx >= 15 for idx in s.frames)
+        assert all(idx >= 15 for idx in s.frame_signatures)
+
     def test_does_nothing_when_gap_too_small(self):
         s = _make_state(loaded_start=0, active_start=3, base_step=5)
         s.frames = {i: np.zeros((2, 2, 3), dtype=np.uint8) for i in range(0, 100)}
@@ -329,6 +341,18 @@ class TestContractRight:
         with patch.object(s, "mark_dirty"):
             contract_right(s)
         assert s.loaded_end == 94
+
+    def test_prunes_frames_and_signatures_after_new_loaded_end(self):
+        s = _make_state(loaded_start=0, loaded_end=30, active_end=20, base_step=5)
+        s.frames = {i: np.zeros((2, 2, 3), dtype=np.uint8) for i in range(0, 31)}
+        s.frame_signatures = {i: np.zeros((2, 2), dtype=np.float32) for i in range(0, 31)}
+
+        with patch.object(s, "mark_dirty"):
+            contract_right(s)
+
+        assert s.loaded_end == 25
+        assert all(idx <= 25 for idx in s.frames)
+        assert all(idx <= 25 for idx in s.frame_signatures)
 
     def test_does_nothing_when_gap_too_small(self):
         s = _make_state(loaded_end=99, active_end=97, base_step=5)

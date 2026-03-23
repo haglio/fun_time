@@ -179,9 +179,17 @@ def ensure_loaded(state: VideoState, want_start: int, want_end: int) -> None:
         state.render_rev += 1
 
 
+def _prune_loaded_caches(state: VideoState) -> None:
+    for cache in (state.frames, state.frame_signatures):
+        for idx in list(cache):
+            if idx < state.loaded_start or idx > state.loaded_end:
+                del cache[idx]
+
+
 def contract_left(state: VideoState) -> None:
     if state.active_start - state.loaded_start >= state.base_step:
         state.loaded_start += state.base_step
+        _prune_loaded_caches(state)
         state.current = max(state.current, state.loaded_start)
         update_loop_suggestions(state)
         state.mark_dirty()
@@ -199,6 +207,7 @@ def extend_left(state: VideoState) -> None:
 def contract_right(state: VideoState) -> None:
     if state.loaded_end - state.active_end >= state.base_step:
         state.loaded_end -= state.base_step
+        _prune_loaded_caches(state)
         state.current = min(state.current, state.loaded_end)
         update_loop_suggestions(state)
         state.mark_dirty()
