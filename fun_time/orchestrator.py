@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .config import load_config
 from .logging_utils import configure_logging, install_exception_logging
+from .runtime_support import hidden_subprocess_kwargs
 
 BROKER_PROCESS_PATTERN = "fun_time\\.broker_app"
 
@@ -61,14 +62,9 @@ def validate_config(config) -> None:
 
 
 def _subprocess_window_kwargs() -> dict:
-    kwargs: dict = {}
-    if sys.platform == "win32":
-        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
-        kwargs["startupinfo"] = startupinfo
-    return kwargs
+    if sys.platform != "win32":
+        return {}
+    return hidden_subprocess_kwargs()
 
 
 def is_broker_running() -> bool:

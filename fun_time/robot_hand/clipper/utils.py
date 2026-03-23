@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
 from pathlib import Path
 from typing import Any
+
+from ...runtime_support import hidden_subprocess_kwargs
 
 
 def parse_timestamp(ts: str) -> float:
@@ -38,14 +39,7 @@ def find_tool(name: str) -> str | None:
 
 
 def subprocess_window_kwargs() -> dict[str, Any]:
-    if os.name != "nt":
-        return {}
-    kwargs = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
-    startupinfo = subprocess.STARTUPINFO()
-    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
-    kwargs["startupinfo"] = startupinfo
-    return kwargs
+    return hidden_subprocess_kwargs()
 
 
 def safe_atomic_write_json(path: Path, payload: dict[str, Any]) -> tuple[bool, str]:

@@ -10,15 +10,14 @@ import pygame
 
 from .config import load_config
 from .logging_utils import configure_logging, install_exception_logging
+from .runtime_support import consume_command_file as _consume_command_file
+from .runtime_support import preparse_config_path
 
 SUPPORTED_EXTS = [".mp3", ".wav", ".ogg", ".flac", ".m4a"]
 
 
 def _preparse_config(argv: list[str] | None) -> str | None:
-    ap = argparse.ArgumentParser(add_help=False)
-    ap.add_argument("--config")
-    known, _ = ap.parse_known_args(argv)
-    return known.config
+    return preparse_config_path(argv)
 
 
 def build_parser(config) -> argparse.ArgumentParser:
@@ -40,16 +39,7 @@ def find_audio(audio_folder: Path, stem: str) -> Path | None:
 
 
 def consume_command_file(path: Path) -> str | None:
-    try:
-        if not path.exists():
-            return None
-        text = path.read_text(encoding="utf-8").replace("\ufeff", "").strip().upper()
-        if not text:
-            return None
-        path.write_text("", encoding="utf-8")
-        return text
-    except Exception:
-        return None
+    return _consume_command_file(path)
 
 
 def main(argv: list[str] | None = None) -> int:
