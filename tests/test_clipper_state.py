@@ -8,25 +8,27 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from fun_time.robot_hand.clipper.playback import (
+    change_speed,
+    current_loop_frame_index,
+    loop_preview_indices,
+    toggle_loop_pause,
+)
 from fun_time.robot_hand.clipper.state import (
     ExportJob,
     VideoState,
     accept_suggested_out,
-    change_speed,
     contract_left,
     contract_right,
     cycle_loop_mode,
-    current_loop_frame_index,
     extend_left,
     extend_right,
     index_for_timeline_x,
-    loop_preview_indices,
     make_video_state,
     set_mark_in,
     set_mark_out,
     shift_active_range,
     timeline_x_for_index,
-    toggle_loop_pause,
     update_loop_suggestions,
 )
 
@@ -239,7 +241,7 @@ class TestLoopPause:
     def test_current_loop_frame_stays_fixed_while_paused(self):
         s = _make_state(active_start=10, active_end=19, fps=10.0, speed=1.0)
         s.loop_anchor = 100.0
-        with patch("fun_time.robot_hand.clipper.state.time.monotonic", side_effect=[100.45, 100.8]):
+        with patch("fun_time.robot_hand.clipper.playback.time.monotonic", side_effect=[100.45, 100.8]):
             toggle_loop_pause(s)
             first = current_loop_frame_index(s)
             second = current_loop_frame_index(s)
@@ -250,7 +252,7 @@ class TestLoopPause:
     def test_toggle_pause_resume_keeps_same_frame_continuity(self):
         s = _make_state(active_start=10, active_end=19, fps=10.0, speed=1.0)
         s.loop_anchor = 100.0
-        with patch("fun_time.robot_hand.clipper.state.time.monotonic", side_effect=[100.45, 100.45, 100.65]):
+        with patch("fun_time.robot_hand.clipper.playback.time.monotonic", side_effect=[100.45, 100.45, 100.65]):
             toggle_loop_pause(s)
             toggle_loop_pause(s)
             resumed = current_loop_frame_index(s)
@@ -275,7 +277,7 @@ class TestLoopPreviewIndices:
 class TestChangeSpeed:
     def test_speed_does_not_drop_below_quarter_x(self):
         s = _make_state(speed=0.25)
-        with patch("fun_time.robot_hand.clipper.state.time.monotonic", return_value=100.0):
+        with patch("fun_time.robot_hand.clipper.playback.time.monotonic", return_value=100.0):
             change_speed(s, -0.25)
         assert s.speed == pytest.approx(0.25)
 
@@ -283,7 +285,7 @@ class TestChangeSpeed:
         s = _make_state(active_start=10, active_end=19, fps=10.0, speed=1.0)
         s.loop_paused = True
         s.paused_loop_idx = 14
-        with patch("fun_time.robot_hand.clipper.state.time.monotonic", return_value=100.0):
+        with patch("fun_time.robot_hand.clipper.playback.time.monotonic", return_value=100.0):
             change_speed(s, 0.25)
         assert s.loop_paused is True
         assert s.paused_loop_idx == 14
