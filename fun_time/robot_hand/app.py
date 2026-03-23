@@ -17,6 +17,7 @@ from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
 from ..runtime_support import consume_command_file, preparse_config_path
 from .engine import PlaybackEngine, update_engine
+from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .state import SharedState, udp_reader
 from .status_overlay import StatusOverlayController
 from .status_text import (
@@ -270,27 +271,18 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             loader.adopt_loaded_clip_if_ready()
             loader.adopt_prefetch_if_ready()
 
-            with state.lock:
-                auto_active = state.auto_active
-                visible = state.visible
-                raw_bpm = state.raw_bpm
-                beats = state.beats
-                stroke_name = state.stroke_name
-                pattern_duration = state.pattern_duration
-                sync_pulse_id = state.sync_pulse_id
-                last_msg = state.last_msg
-                error = state.error
+            shared = read_shared_state_snapshot(state)
 
             window_visible["value"] = notifier.sync_window_visibility(
-                desired_visible=visible,
+                desired_visible=shared.visible,
                 window_visible=window_visible["value"],
                 current_clip_path=renderer.current_clip_path,
                 show_window=root.deiconify,
                 hide_window=root.withdraw,
             )
 
-            if error:
-                status_var.set(listener_error_status_text(error))
+            if shared.error:
+                status_var.set(listener_error_status_text(shared.error))
                 status_overlay.show()
                 root.after(100, refresh)
                 return
@@ -298,9 +290,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             loop_duration = update_engine(
                 engine,
                 now=now,
-                auto_active=auto_active,
-                raw_bpm=raw_bpm,
-                sync_pulse_id=sync_pulse_id,
+                auto_active=shared.auto_active,
+                raw_bpm=shared.raw_bpm,
+                sync_pulse_id=shared.sync_pulse_id,
                 beats_per_loop=args.beats_per_loop,
                 bpm_smoothing=args.bpm_smoothing,
                 sync_strength=args.sync_strength,
@@ -320,14 +312,12 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
             if active_entry and active_entry["pil_frames"]:
                 frame_count = len(active_entry["pil_frames"])
-                logical_index = int(engine.phase * frame_count)
-                if logical_index >= frame_count:
-                    logical_index = frame_count - 1
-
-                display_index = (frame_count - 1) - logical_index
-
-                if not auto_active and renderer.current_frame_index is not None:
-                    display_index = renderer.current_frame_index
+                display_index = display_index_for_phase(
+                    phase=engine.phase,
+                    frame_count=frame_count,
+                    auto_active=shared.auto_active,
+                    current_frame_index=renderer.current_frame_index,
+                )
 
                 renderer.display_frame(display_index)
 
@@ -338,17 +328,17 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                         clip_count=clip_sequence.count,
                         frame_index=display_index + 1,
                         frame_count=frame_count,
-                        visible=visible,
-                        auto_active=auto_active,
+                        visible=shared.visible,
+                        auto_active=shared.auto_active,
                         phase=engine.phase,
-                        raw_bpm=raw_bpm,
+                        raw_bpm=shared.raw_bpm,
                         estimated_bpm=_get_engine_estimated_bpm(engine),
-                        beats=beats,
+                        beats=shared.beats,
                         loop_duration=loop_duration,
-                        stroke_name=stroke_name,
-                        pattern_duration=pattern_duration,
+                        stroke_name=shared.stroke_name,
+                        pattern_duration=shared.pattern_duration,
                         loading=load_state.loading,
-                        last_msg=last_msg,
+                        last_msg=shared.last_msg,
                     )
                 )
             else:
