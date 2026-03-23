@@ -7,19 +7,15 @@ from pathlib import Path
 
 from PIL import Image, ImageOps, ImageTk
 
+from ..runtime_support import hidden_subprocess_kwargs
+
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
 
 
 def _subprocess_kwargs() -> dict:
     if sys.platform != "win32":
         return {}
-
-    startupinfo = subprocess.STARTUPINFO()
-    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    return {
-        "startupinfo": startupinfo,
-        "creationflags": subprocess.CREATE_NO_WINDOW,
-    }
+    return hidden_subprocess_kwargs()
 
 
 def scan_clips(folder: Path, *, shuffle_on_load: bool = True) -> list[Path]:

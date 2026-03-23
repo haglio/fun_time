@@ -12,6 +12,7 @@ import tkinter as tk
 
 from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
+from ..runtime_support import consume_command_file, preparse_config_path
 from .state import SharedState, udp_reader
 from .video import decode_video_to_pil_frames, make_photo, scan_clips
 
@@ -41,10 +42,7 @@ def apply_runtime_command(command, *, engine, rh_paused, step_clip) -> bool:
 
 
 def _preparse_config(argv: list[str] | None) -> str | None:
-    ap = argparse.ArgumentParser(add_help=False)
-    ap.add_argument("--config")
-    known, _ = ap.parse_known_args(argv)
-    return known.config
+    return preparse_config_path(argv)
 
 
 def build_parser(config) -> argparse.ArgumentParser:
@@ -86,19 +84,6 @@ def main(argv: list[str] | None = None) -> int:
 
 def run_listener(args, config, logger: logging.Logger) -> int:
     command_file = Path(args.command_file)
-
-    def consume_command_file():
-        try:
-            if not command_file.exists():
-                return None
-            text = command_file.read_text(encoding="utf-8").replace("\ufeff", "").strip().upper()
-            if not text:
-                return None
-            command_file.write_text("", encoding="utf-8")
-            return text
-        except Exception:
-            logger.exception("Failed to consume command file %s", command_file)
-            return None
 
     clips_folder = Path(args.clips_folder)
     if not clips_folder.exists():
@@ -563,7 +548,12 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
             loop_duration = update_engine(now, auto_active, raw_bpm, sync_pulse_id)
 
-            apply_runtime_command(cmd := consume_command_file(), engine=engine, rh_paused=rh_paused, step_clip=step_clip)
+            apply_runtime_command(
+                cmd := consume_command_file(command_file, logger=logger),
+                engine=engine,
+                rh_paused=rh_paused,
+                step_clip=step_clip,
+            )
 
             path = current_clip_path["value"]
             active_entry = clip_cache.get(path) if path in clip_cache else None

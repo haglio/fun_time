@@ -12,6 +12,8 @@ import serial
 
 from .config import load_config
 from .logging_utils import configure_logging, install_exception_logging
+from .runtime_support import consume_command_file as _consume_command_file
+from .runtime_support import preparse_config_path
 
 RE_BPM = re.compile(r"\bbpm\s+(\d+),\s+beats\s+(\d+)", re.IGNORECASE)
 RE_STROKE = re.compile(r"StrokeName:\s*([^,]+),\s*PatternDuration:\s*([0-9.]+)", re.IGNORECASE)
@@ -20,10 +22,7 @@ RE_COM0COM_PORT = re.compile(r"COM0COM\\PORT\\(CNC[AB])(\d+)", re.IGNORECASE)
 
 
 def _preparse_config(argv: list[str] | None) -> str | None:
-    ap = argparse.ArgumentParser(add_help=False)
-    ap.add_argument("--config")
-    known, _ = ap.parse_known_args(argv)
-    return known.config
+    return preparse_config_path(argv)
 
 
 def build_parser(config) -> argparse.ArgumentParser:
@@ -50,16 +49,7 @@ def write_mode(path: Path, value: str, logger: logging.Logger) -> None:
 
 
 def consume_broker_cmd(path: Path) -> str | None:
-    try:
-        if not path.exists():
-            return None
-        text = path.read_text(encoding="utf-8").replace("\ufeff", "").strip().upper()
-        if not text:
-            return None
-        path.write_text("", encoding="utf-8")
-        return text
-    except Exception:
-        return None
+    return _consume_command_file(path)
 
 
 def udp_send(sock: socket.socket, host: str, port: int, msg: str) -> None:
