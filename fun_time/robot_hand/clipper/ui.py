@@ -10,9 +10,7 @@ from .exit_prompt import (
     finish_exit_prompt_action,
     queue_exit_prompt_action,
     request_exit,
-    show_exit_prompt,
 )
-from .export import terminate_export_subprocesses
 from .paths import (
     ENTER_KEYS,
     ESC_KEYS,
@@ -24,27 +22,14 @@ from .state import (
     VideoState,
     current_loop_frame_index,
 )
-from .window_icons import set_cv2_window_icon
+from .window_runtime import cleanup_window, ensure_window, window_closed
 
 APP_DISPLAY_NAME = "Clipper"
-
-def _window_closed(window_name: str) -> bool:
-    try:
-        return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1
-    except cv2.error:
-        return True
 
 
 def run_ui(state: VideoState) -> None:
     window_name = APP_DISPLAY_NAME
-
-    def ensure_window() -> None:
-        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(window_name, 1520, 960)
-        set_cv2_window_icon(window_name)
-        cv2.setMouseCallback(window_name, on_mouse, state)
-
-    ensure_window()
+    ensure_window(window_name, state, mouse_callback=on_mouse)
     last_loop_idx = -1
     last_present = 0.0
 
@@ -65,26 +50,26 @@ def run_ui(state: VideoState) -> None:
                 ui = build_ui(state)
                 cv2.imshow(window_name, ui)
 
-            if _window_closed(window_name):
+            if window_closed(window_name):
                 if state.exit_prompt_visible:
-                    ensure_window()
+                    ensure_window(window_name, state, mouse_callback=on_mouse)
                     state.render_rev += 1
                     continue
                 if request_exit(state):
                     break
-                ensure_window()
+                ensure_window(window_name, state, mouse_callback=on_mouse)
                 continue
 
             key = cv2.waitKeyEx(20)
 
-            if _window_closed(window_name):
+            if window_closed(window_name):
                 if state.exit_prompt_visible:
-                    ensure_window()
+                    ensure_window(window_name, state, mouse_callback=on_mouse)
                     state.render_rev += 1
                     continue
                 if request_exit(state):
                     break
-                ensure_window()
+                ensure_window(window_name, state, mouse_callback=on_mouse)
                 continue
 
             if key == -1:
@@ -117,23 +102,4 @@ def run_ui(state: VideoState) -> None:
 
             handle_key(state, key)
     finally:
-        terminate_export_subprocesses(state)
-        state.cap.release()
-        try:
-            cv2.setMouseCallback(window_name, lambda *args: None)
-        except Exception:
-            pass
-        try:
-            cv2.destroyWindow(window_name)
-        except cv2.error:
-            pass
-        try:
-            cv2.destroyAllWindows()
-        except cv2.error:
-            pass
-        for _ in range(6):
-            try:
-                cv2.waitKey(1)
-            except cv2.error:
-                break
-            time.sleep(0.01)
+        cleanup_window(window_name, state, sleep=time.sleep)
