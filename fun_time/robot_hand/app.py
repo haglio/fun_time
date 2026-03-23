@@ -14,20 +14,14 @@ from .clip_runtime import ClipCacheStore, DecodeRequestState
 from .clip_selection import ClipSelectionController
 from .clip_sequence import ClipSequenceController
 from .notifier import RobotHandNotifier
-from .runtime_commands import apply_runtime_command, get_engine_estimated_bpm
+from .refresh_controller import RobotHandRefreshController
 from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
-from ..runtime_support import consume_command_file, preparse_config_path
-from .engine import PlaybackEngine, update_engine
-from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
+from ..runtime_support import preparse_config_path
+from .engine import PlaybackEngine
 from .state import SharedState, udp_reader
 from .status_overlay import StatusOverlayController
-from .status_text import (
-    active_clip_status_text,
-    exception_status_text,
-    listener_error_status_text,
-    loading_status_text,
-)
+from .status_text import exception_status_text
 from .video import decode_video_to_pil_frames, make_photo, scan_clips
 
 
@@ -131,7 +125,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     clip_store = ClipCacheStore(limit=args.clip_cache_size)
     resize_after_id = {"value": None}
-    window_visible = {"value": False}
 
     engine = PlaybackEngine(last_tick=time.monotonic())
 
@@ -201,104 +194,26 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             root.after_cancel(resize_after_id["value"])
         resize_after_id["value"] = root.after(config.robot_hand.resize_debounce_ms, renderer.prepare_active_clip_for_current_size)
 
-    def step_clip(delta: int):
-        selection.step(delta)
-
-    def refresh():
-        try:
-            now = time.monotonic()
-            loader.adopt_loaded_clip_if_ready()
-            loader.adopt_prefetch_if_ready()
-
-            shared = read_shared_state_snapshot(state)
-
-            window_visible["value"] = notifier.sync_window_visibility(
-                desired_visible=shared.visible,
-                window_visible=window_visible["value"],
-                current_clip_path=renderer.current_clip_path,
-                show_window=root.deiconify,
-                hide_window=root.withdraw,
-            )
-
-            if shared.error:
-                status_var.set(listener_error_status_text(shared.error))
-                status_overlay.show()
-                root.after(100, refresh)
-                return
-
-            loop_duration = update_engine(
-                engine,
-                now=now,
-                auto_active=shared.auto_active,
-                raw_bpm=shared.raw_bpm,
-                sync_pulse_id=shared.sync_pulse_id,
-                beats_per_loop=args.beats_per_loop,
-                bpm_smoothing=args.bpm_smoothing,
-                sync_strength=args.sync_strength,
-                paused=rh_paused["value"],
-            )
-
-            apply_runtime_command(
-                cmd := consume_command_file(command_file, logger=logger),
-                engine=engine,
-                rh_paused=rh_paused,
-                step_clip=step_clip,
-            )
-
-            path = renderer.current_clip_path
-            active_entry = renderer.current_clip_entry()
-            clip_name = path.name if path else "(none)"
-
-            if active_entry and active_entry["pil_frames"]:
-                frame_count = len(active_entry["pil_frames"])
-                display_index = display_index_for_phase(
-                    phase=engine.phase,
-                    frame_count=frame_count,
-                    auto_active=shared.auto_active,
-                    current_frame_index=renderer.current_frame_index,
-                )
-
-                renderer.display_frame(display_index)
-
-                status_var.set(
-                    active_clip_status_text(
-                        clip_name=clip_name,
-                        clip_index=selection.current_number,
-                        clip_count=selection.count,
-                        frame_index=display_index + 1,
-                        frame_count=frame_count,
-                        visible=shared.visible,
-                        auto_active=shared.auto_active,
-                        phase=engine.phase,
-                        raw_bpm=shared.raw_bpm,
-                        estimated_bpm=get_engine_estimated_bpm(engine),
-                        beats=shared.beats,
-                        loop_duration=loop_duration,
-                        stroke_name=shared.stroke_name,
-                        pattern_duration=shared.pattern_duration,
-                        loading=load_state.loading,
-                        last_msg=shared.last_msg,
-                    )
-                )
-            else:
-                status_var.set(
-                    loading_status_text(
-                        clip_name=clip_name,
-                        clip_index=selection.current_number,
-                        clip_count=selection.count,
-                        loading=load_state.loading,
-                    )
-                )
-                status_overlay.show()
-
-            selection.request_nearby_prefetch()
-
-            root.after(16, refresh)
-        except Exception as exc:
-            logger.exception("refresh failed")
-            status_var.set(exception_status_text(str(exc), log_name=config.log_file("robot_hand_listener").name))
-            status_overlay.show()
-            root.after(250, refresh)
+    refresh_controller = RobotHandRefreshController(
+        state=state,
+        loader=loader,
+        notifier=notifier,
+        renderer=renderer,
+        selection=selection,
+        engine=engine,
+        rh_paused=rh_paused,
+        command_file=command_file,
+        beats_per_loop=args.beats_per_loop,
+        bpm_smoothing=args.bpm_smoothing,
+        sync_strength=args.sync_strength,
+        schedule_after=root.after,
+        show_window=root.deiconify,
+        hide_window=root.withdraw,
+        set_status_text=status_var.set,
+        show_status=status_overlay.show,
+        logger=logger,
+        log_name=config.log_file("robot_hand_listener").name,
+    )
 
     def on_close():
         stop_event.set()
@@ -309,15 +224,15 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     root.bind("<Motion>", status_overlay.on_mouse_motion)
     root.bind("<Leave>", status_overlay.on_mouse_leave)
     root.bind("<Configure>", on_resize)
-    root.bind("[", lambda _e: step_clip(-1))
-    root.bind("]", lambda _e: step_clip(1))
+    root.bind("[", lambda _e: selection.step(-1))
+    root.bind("]", lambda _e: selection.step(1))
 
     root.protocol("WM_DELETE_WINDOW", on_close)
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
     selection.set_current_clip(selection.current_path)
     root.withdraw()
-    root.after(16, refresh)
+    root.after(16, refresh_controller.refresh)
     root.mainloop()
     return 0
 
