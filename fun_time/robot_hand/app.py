@@ -11,6 +11,7 @@ from .clip_renderer import ClipRenderController
 from .clip_runtime import ClipCacheStore, DecodeRequestState
 from .clip_selection import ClipSelectionController
 from .clip_sequence import ClipSequenceController
+from .lifecycle import RobotHandLifecycleController
 from .notifier import RobotHandNotifier
 from .refresh_controller import RobotHandRefreshController
 from .view import create_robot_hand_view, install_tk_exception_handler
@@ -92,7 +93,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     )
 
     clip_store = ClipCacheStore(limit=args.clip_cache_size)
-    resize_after_id = {"value": None}
 
     engine = PlaybackEngine(last_tick=time.monotonic())
 
@@ -155,14 +155,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         schedule_status_hide=status_overlay.schedule_hide,
     )
 
-    def on_resize(_event=None):
-        if resize_after_id["value"] is not None:
-            view.root.after_cancel(resize_after_id["value"])
-        resize_after_id["value"] = view.root.after(
-            config.robot_hand.resize_debounce_ms,
-            renderer.prepare_active_clip_for_current_size,
-        )
-
     refresh_controller = RobotHandRefreshController(
         state=state,
         loader=loader,
@@ -183,20 +175,16 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         logger=logger,
         log_name=config.log_file("robot_hand_listener").name,
     )
-
-    def on_close():
-        stop_event.set()
-        notifier.notify_visible(False)
-        notifier.close()
-        view.root.destroy()
-
-    view.root.bind("<Motion>", status_overlay.on_mouse_motion)
-    view.root.bind("<Leave>", status_overlay.on_mouse_leave)
-    view.root.bind("<Configure>", on_resize)
-    view.root.bind("[", lambda _e: selection.step(-1))
-    view.root.bind("]", lambda _e: selection.step(1))
-
-    view.root.protocol("WM_DELETE_WINDOW", on_close)
+    lifecycle = RobotHandLifecycleController(
+        root=view.root,
+        renderer=renderer,
+        selection=selection,
+        status_overlay=status_overlay,
+        stop_event=stop_event,
+        notifier=notifier,
+        resize_delay_ms=config.robot_hand.resize_debounce_ms,
+    )
+    lifecycle.bind_root_events()
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
     selection.set_current_clip(selection.current_path)
