@@ -17,6 +17,12 @@ from ..logging_utils import configure_logging, enable_faulthandler, install_exce
 from ..runtime_support import consume_command_file, preparse_config_path
 from .engine import PlaybackEngine, update_engine
 from .state import SharedState, udp_reader
+from .status_text import (
+    active_clip_status_text,
+    exception_status_text,
+    listener_error_status_text,
+    loading_status_text,
+)
 from .video import decode_video_to_pil_frames, make_photo, scan_clips
 
 
@@ -121,7 +127,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     def tk_callback_exception(exc_type, exc, tb):
         logger.critical("Tk callback failed", exc_info=(exc_type, exc, tb))
         try:
-            status_var.set(f"Error: {exc}\nSee {config.log_file('robot_hand_listener').name}")
+            status_var.set(exception_status_text(str(exc), log_name=config.log_file("robot_hand_listener").name))
             show_status()
         except Exception:
             logger.exception("Failed to update status after Tk exception")
@@ -447,7 +453,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 window_visible["value"] = visible
 
             if error:
-                status_var.set(f"Error:\n{error}")
+                status_var.set(listener_error_status_text(error))
                 show_status()
                 root.after(100, refresh)
                 return
@@ -492,31 +498,34 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                     image_label.image = photo
                     current_frame_index["value"] = display_index
 
-                est_bpm = _get_engine_estimated_bpm(engine)
-                est_bpm_text = f"{est_bpm:.2f}" if est_bpm is not None else "n/a"
                 status_var.set(
-                    f"clip={clip_name}\n"
-                    f"clip_index={clip_index['value'] + 1}/{len(clips)}\n"
-                    f"frame={display_index + 1}/{frame_count}\n"
-                    f"visible={visible}\n"
-                    f"state={'auto-on' if auto_active else 'auto-off'}\n"
-                    f"phase={engine.phase:.3f}\n"
-                    f"raw_bpm={raw_bpm}\n"
-                    f"est_bpm={est_bpm_text}\n"
-                    f"beats={beats}\n"
-                    f"loop_duration={loop_duration}\n"
-                    f"stroke={stroke_name}\n"
-                    f"pattern_duration={pattern_duration}\n"
-                    f"loading={load_state.loading}\n"
-                    f"last_msg={last_msg}\n"
-                    f"keys=[ and ] switch clips"
+                    active_clip_status_text(
+                        clip_name=clip_name,
+                        clip_index=clip_index["value"] + 1,
+                        clip_count=len(clips),
+                        frame_index=display_index + 1,
+                        frame_count=frame_count,
+                        visible=visible,
+                        auto_active=auto_active,
+                        phase=engine.phase,
+                        raw_bpm=raw_bpm,
+                        estimated_bpm=_get_engine_estimated_bpm(engine),
+                        beats=beats,
+                        loop_duration=loop_duration,
+                        stroke_name=stroke_name,
+                        pattern_duration=pattern_duration,
+                        loading=load_state.loading,
+                        last_msg=last_msg,
+                    )
                 )
             else:
                 status_var.set(
-                    f"clip={clip_name}\n"
-                    f"clip_index={clip_index['value'] + 1}/{len(clips)}\n"
-                    f"loading={load_state.loading}\n"
-                    f"keys=[ and ] switch clips"
+                    loading_status_text(
+                        clip_name=clip_name,
+                        clip_index=clip_index["value"] + 1,
+                        clip_count=len(clips),
+                        loading=load_state.loading,
+                    )
                 )
                 show_status()
 
@@ -525,7 +534,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             root.after(16, refresh)
         except Exception as exc:
             logger.exception("refresh failed")
-            status_var.set(f"Error: {exc}\nSee {config.log_file('robot_hand_listener').name}")
+            status_var.set(exception_status_text(str(exc), log_name=config.log_file("robot_hand_listener").name))
             show_status()
             root.after(250, refresh)
 
