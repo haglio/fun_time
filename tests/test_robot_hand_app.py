@@ -8,6 +8,7 @@ from fun_time.robot_hand.app import (
     QUARTER_CYCLE_OFFSET_COMMAND,
     apply_runtime_command,
 )
+from fun_time.robot_hand.engine import PlaybackEngine
 
 
 class TestApplyRuntimeCommand:
@@ -127,3 +128,17 @@ class TestApplyRuntimeCommand:
         assert engine["phase"] == 0.4
         assert rh_paused["value"] is False
         assert steps == []
+
+    def test_offset_quarter_cycle_supports_engine_object(self):
+        engine = PlaybackEngine(phase=0.9, last_tick=0.0)
+        rh_paused = {"value": False}
+
+        handled = apply_runtime_command(
+            QUARTER_CYCLE_OFFSET_COMMAND,
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+        )
+
+        assert handled is True
+        assert engine.phase == pytest.approx(0.15)

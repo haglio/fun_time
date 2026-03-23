@@ -13,12 +13,34 @@ import tkinter as tk
 from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
 from ..runtime_support import consume_command_file, preparse_config_path
+from .engine import PlaybackEngine, update_engine
 from .state import SharedState, udp_reader
 from .video import decode_video_to_pil_frames, make_photo, scan_clips
 
 
 QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
 LEGACY_QUARTER_CYCLE_OFFSET_COMMAND = "NUDGE25"
+
+
+def _get_engine_phase(engine) -> float:
+    if isinstance(engine, dict):
+        return float(engine["phase"])
+    return float(engine.phase)
+
+
+def _set_engine_phase(engine, value: float) -> None:
+    if isinstance(engine, dict):
+        engine["phase"] = value
+    else:
+        engine.phase = value
+
+
+def _get_engine_estimated_bpm(engine) -> float | None:
+    if isinstance(engine, dict):
+        value = engine.get("estimated_bpm")
+    else:
+        value = engine.estimated_bpm
+    return None if value is None else float(value)
 
 
 def apply_runtime_command(command, *, engine, rh_paused, step_clip) -> bool:
@@ -31,7 +53,7 @@ def apply_runtime_command(command, *, engine, rh_paused, step_clip) -> bool:
     elif normalized == "NEXT":
         step_clip(1)
     elif normalized in {QUARTER_CYCLE_OFFSET_COMMAND, LEGACY_QUARTER_CYCLE_OFFSET_COMMAND}:
-        engine["phase"] = (engine["phase"] + 0.25) % 1.0
+        _set_engine_phase(engine, (_get_engine_phase(engine) + 0.25) % 1.0)
     elif normalized == "PAUSE":
         rh_paused["value"] = True
     elif normalized == "RESUME":
@@ -150,13 +172,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     hide_status_after_id = {"value": None}
     window_visible = {"value": False}
 
-    engine = {
-        "phase": 0.0,
-        "estimated_bpm": None,
-        "target_bpm": None,
-        "last_tick": time.monotonic(),
-        "seen_sync_pulse_id": 0,
-    }
+    engine = PlaybackEngine(last_tick=time.monotonic())
 
     rh_paused = {"value": False}
 
@@ -482,35 +498,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         show_status()
         schedule_hide_status()
 
-    def update_engine(now, auto_active, raw_bpm, sync_pulse_id):
-        dt = now - engine["last_tick"]
-        engine["last_tick"] = now
-        dt = max(0.0, min(dt, 0.1))
-
-        if raw_bpm is not None:
-            engine["target_bpm"] = float(raw_bpm)
-            if engine["estimated_bpm"] is None:
-                engine["estimated_bpm"] = float(raw_bpm)
-
-        if engine["estimated_bpm"] is not None and engine["target_bpm"] is not None:
-            alpha = max(0.0, min(1.0, args.bpm_smoothing))
-            engine["estimated_bpm"] = engine["estimated_bpm"] + (engine["target_bpm"] - engine["estimated_bpm"]) * alpha
-
-        if auto_active and engine["estimated_bpm"] and engine["estimated_bpm"] > 0 and not rh_paused["value"]:
-            loop_duration = (60.0 / engine["estimated_bpm"]) * args.beats_per_loop
-            engine["phase"] = (engine["phase"] + (dt / loop_duration)) % 1.0
-        else:
-            loop_duration = None
-
-        if sync_pulse_id != engine["seen_sync_pulse_id"]:
-            engine["seen_sync_pulse_id"] = sync_pulse_id
-            phase = engine["phase"]
-            error = -phase if phase <= 0.5 else (1.0 - phase)
-            strength = max(0.0, min(1.0, args.sync_strength))
-            engine["phase"] = (engine["phase"] + error * strength) % 1.0
-
-        return loop_duration
-
     def refresh():
         try:
             now = time.monotonic()
@@ -546,7 +533,17 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 root.after(100, refresh)
                 return
 
-            loop_duration = update_engine(now, auto_active, raw_bpm, sync_pulse_id)
+            loop_duration = update_engine(
+                engine,
+                now=now,
+                auto_active=auto_active,
+                raw_bpm=raw_bpm,
+                sync_pulse_id=sync_pulse_id,
+                beats_per_loop=args.beats_per_loop,
+                bpm_smoothing=args.bpm_smoothing,
+                sync_strength=args.sync_strength,
+                paused=rh_paused["value"],
+            )
 
             apply_runtime_command(
                 cmd := consume_command_file(command_file, logger=logger),
@@ -561,7 +558,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
             if active_entry and active_entry["pil_frames"]:
                 frame_count = len(active_entry["pil_frames"])
-                logical_index = int(engine["phase"] * frame_count)
+                logical_index = int(engine.phase * frame_count)
                 if logical_index >= frame_count:
                     logical_index = frame_count - 1
 
@@ -576,14 +573,15 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                     image_label.image = photo
                     current_frame_index["value"] = display_index
 
-                est_bpm_text = f"{engine['estimated_bpm']:.2f}" if engine["estimated_bpm"] is not None else "n/a"
+                est_bpm = _get_engine_estimated_bpm(engine)
+                est_bpm_text = f"{est_bpm:.2f}" if est_bpm is not None else "n/a"
                 status_var.set(
                     f"clip={clip_name}\n"
                     f"clip_index={clip_index['value'] + 1}/{len(clips)}\n"
                     f"frame={display_index + 1}/{frame_count}\n"
                     f"visible={visible}\n"
                     f"state={'auto-on' if auto_active else 'auto-off'}\n"
-                    f"phase={engine['phase']:.3f}\n"
+                    f"phase={engine.phase:.3f}\n"
                     f"raw_bpm={raw_bpm}\n"
                     f"est_bpm={est_bpm_text}\n"
                     f"beats={beats}\n"
