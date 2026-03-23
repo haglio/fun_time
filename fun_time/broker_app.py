@@ -14,6 +14,7 @@ from .config import load_config
 from .logging_utils import configure_logging, install_exception_logging
 from .runtime_support import consume_command_file as _consume_command_file
 from .runtime_support import preparse_config_path
+from .threading_utils import start_daemon_thread
 
 RE_BPM = re.compile(r"\bbpm\s+(\d+),\s+beats\s+(\d+)", re.IGNORECASE)
 RE_STROKE = re.compile(r"StrokeName:\s*([^,]+),\s*PatternDuration:\s*([0-9.]+)", re.IGNORECASE)
@@ -271,10 +272,16 @@ def main(argv: list[str] | None = None) -> int:
                 timeout=0.02,
             ) as real:
                 state["last_real_rx_time"] = 0.0
-                thread_real = threading.Thread(target=forward_real_to_virtual, args=(real, virt), daemon=True, name="broker-real")
-                thread_virtual = threading.Thread(target=forward_virtual_to_real, args=(virt, real), daemon=True, name="broker-virtual")
-                thread_real.start()
-                thread_virtual.start()
+                thread_real = start_daemon_thread(
+                    target=forward_real_to_virtual,
+                    args=(real, virt),
+                    name="broker-real",
+                )
+                thread_virtual = start_daemon_thread(
+                    target=forward_virtual_to_real,
+                    args=(virt, real),
+                    name="broker-virtual",
+                )
 
                 while not stop_event.is_set() and not session_stop.is_set():
                     time.sleep(0.2)
