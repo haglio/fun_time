@@ -12,7 +12,7 @@ import numpy as np
 
 import pytest
 
-from fun_time.robot_hand.clipper.export import (
+from fun_time.robot_hand.clipper.export_steps import (
     _parse_ffmpeg_clock,
     _run_ffmpeg_with_progress,
     run_clip_postprocess,
@@ -78,7 +78,7 @@ class TestValidateVideoFile:
         mock_cap.isOpened.return_value = False
         mock_cap.read.return_value = (False, None)
 
-        with patch("fun_time.robot_hand.clipper.export.cv2.VideoCapture", return_value=mock_cap):
+        with patch("fun_time.robot_hand.clipper.export_steps.cv2.VideoCapture", return_value=mock_cap):
             ok, msg = validate_video_file(fake)
 
         assert ok is False
@@ -92,7 +92,7 @@ class TestValidateVideoFile:
         mock_cap.isOpened.return_value = True
         mock_cap.read.return_value = (False, None)
 
-        with patch("fun_time.robot_hand.clipper.export.cv2.VideoCapture", return_value=mock_cap):
+        with patch("fun_time.robot_hand.clipper.export_steps.cv2.VideoCapture", return_value=mock_cap):
             ok, msg = validate_video_file(fake)
 
         assert ok is False
@@ -107,7 +107,7 @@ class TestValidateVideoFile:
         frame = np.zeros((360, 640, 3), dtype=np.uint8)
         mock_cap.read.return_value = (True, frame)
 
-        with patch("fun_time.robot_hand.clipper.export.cv2.VideoCapture", return_value=mock_cap):
+        with patch("fun_time.robot_hand.clipper.export_steps.cv2.VideoCapture", return_value=mock_cap):
             ok, msg = validate_video_file(fake)
 
         assert ok is True
@@ -121,7 +121,7 @@ class TestValidateVideoFile:
         mock_cap.isOpened.return_value = True
         mock_cap.read.return_value = (True, np.zeros((2, 2, 3), dtype=np.uint8))
 
-        with patch("fun_time.robot_hand.clipper.export.cv2.VideoCapture", return_value=mock_cap):
+        with patch("fun_time.robot_hand.clipper.export_steps.cv2.VideoCapture", return_value=mock_cap):
             validate_video_file(fake)
 
         mock_cap.release.assert_called_once()
@@ -133,7 +133,7 @@ class TestValidateVideoFile:
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = False
 
-        with patch("fun_time.robot_hand.clipper.export.cv2.VideoCapture", return_value=mock_cap):
+        with patch("fun_time.robot_hand.clipper.export_steps.cv2.VideoCapture", return_value=mock_cap):
             validate_video_file(fake)
 
         mock_cap.release.assert_called_once()
@@ -226,7 +226,7 @@ class TestRunClipPostprocess:
         proc.poll.side_effect = [0]
         proc.wait.return_value = 0
 
-        with patch("fun_time.robot_hand.clipper.export.CLIP_POSTPROCESS_SCRIPT", tmp_path / "clip_postprocess.py"):
+        with patch("fun_time.robot_hand.clipper.export_steps.CLIP_POSTPROCESS_SCRIPT", tmp_path / "clip_postprocess.py"):
             (tmp_path / "clip_postprocess.py").write_text("# test\n", encoding="utf-8")
             with patch("subprocess.Popen", return_value=proc) as popen:
                 ok, detail = run_clip_postprocess(state, raw_path, out_path, job)
