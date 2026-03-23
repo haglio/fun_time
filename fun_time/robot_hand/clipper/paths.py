@@ -31,7 +31,8 @@ RAW_CLIPS_DIR = MODULE_DIR / "raw_clips"
 CLIPS_DIR = ROBOT_HAND_DIR / "clips"
 AUDIO_DIR = ROBOT_HAND_DIR / "audio"
 LAST_SESSION_FILE = SESSIONS_DIR / ".last_session.txt"
-LOOP_FIX_SCRIPT = MODULE_DIR / "loop_fixer_and_sizer.py"
+CLIP_POSTPROCESS_SCRIPT = MODULE_DIR / "clip_postprocess.py"
+LOOP_FIX_SCRIPT = CLIP_POSTPROCESS_SCRIPT
 
 
 def ensure_runtime_dirs() -> None:
@@ -48,6 +49,7 @@ __all__ = [
     "BOUNDS_EXTEND_LEFT_KEYS",
     "BOUNDS_EXTEND_RIGHT_KEYS",
     "CLIPS_DIR",
+    "CLIP_POSTPROCESS_SCRIPT",
     "ENTER_KEYS",
     "ESC_KEYS",
     "LAST_SESSION_FILE",
