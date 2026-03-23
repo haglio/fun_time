@@ -128,13 +128,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         logger=logger,
     )
 
-    def start_background_job(target, path: Path, request_id: int, name: str):
-        return start_daemon_thread(
-            target=target,
-            args=(path, request_id),
-            name=name,
-        )
-
     def record_listener_error(message: str):
         with state.lock:
             state.error = message
@@ -145,7 +138,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         prefetch_state=prefetch_state,
         current_clip_path_getter=lambda: renderer.current_clip_path,
         decode_clip=decode_video_to_pil_frames,
-        start_background_job=start_background_job,
+        start_thread=start_daemon_thread,
         logger=logger,
         on_loading_requested=lambda path: (view.status_var.set(f"Loading clip...\n{path.name}"), status_overlay.show()),
         on_active_clip_loaded=lambda: (renderer.prepare_active_clip_for_current_size(), status_overlay.schedule_hide()),

@@ -12,7 +12,7 @@ class ClipLoadController:
         prefetch_state,
         current_clip_path_getter,
         decode_clip,
-        start_background_job,
+        start_thread,
         logger,
         on_loading_requested,
         on_active_clip_loaded,
@@ -23,7 +23,7 @@ class ClipLoadController:
         self.prefetch_state = prefetch_state
         self.current_clip_path_getter = current_clip_path_getter
         self.decode_clip = decode_clip
-        self.start_background_job = start_background_job
+        self.start_thread = start_thread
         self.logger = logger
         self.on_loading_requested = on_loading_requested
         self.on_active_clip_loaded = on_active_clip_loaded
@@ -42,7 +42,11 @@ class ClipLoadController:
 
         request_id = self.load_state.begin()
         self.on_loading_requested(path)
-        self.start_background_job(self._loader_thread_fn, path, request_id, "robot-hand-loader")
+        self.start_thread(
+            target=self._loader_thread_fn,
+            args=(path, request_id),
+            name="robot-hand-loader",
+        )
 
     def request_prefetch(self, path: Path) -> None:
         if path in self.clip_store.clip_cache or path in self.clip_store.decoded_frame_cache:
@@ -51,7 +55,11 @@ class ClipLoadController:
             return
 
         request_id = self.prefetch_state.begin()
-        self.start_background_job(self._prefetch_thread_fn, path, request_id, "robot-hand-prefetch")
+        self.start_thread(
+            target=self._prefetch_thread_fn,
+            args=(path, request_id),
+            name="robot-hand-prefetch",
+        )
 
     def adopt_loaded_clip_if_ready(self) -> None:
         result = self.load_state.take_completed_result()
