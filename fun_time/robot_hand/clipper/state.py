@@ -3,7 +3,6 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 import subprocess
 
@@ -17,7 +16,12 @@ from .loop_modes import (
     LOOP_MODE_TIP_BASE_TIP,
     LOOP_MODES,
 )
-from .paths import LAST_SESSION_FILE, SESSIONS_DIR
+from .paths import SESSIONS_DIR
+from .session_persistence import (
+    autosave_session as persist_session_state,
+    current_payload as build_current_payload,
+    restore_original_session as restore_original_session_payload,
+)
 from .suggestion_search import (
     best_duplicate_match_index,
     best_turning_point_index,
@@ -25,7 +29,7 @@ from .suggestion_search import (
     find_similarity_dip,
     pair_transition_score,
 )
-from .utils import safe_atomic_write_json, sanitize_name
+from .utils import sanitize_name
 
 
 @dataclass
@@ -119,35 +123,10 @@ class VideoState:
         self.autosave_session()
 
     def current_payload(self) -> dict[str, Any]:
-        return {
-            "version": 1,
-            "session_name": self.session_name,
-            "video_path": self.path,
-            "fps": self.fps,
-            "total_frames": self.total_frames,
-            "loaded_start": self.loaded_start,
-            "loaded_end": self.loaded_end,
-            "active_start": self.active_start,
-            "active_end": self.active_end,
-            "current": self.current,
-            "seconds_per_step": self.base_step / self.fps,
-            "loop_mode": self.loop_mode,
-            "wrap_mode": self.wrap_mode,
-            "speed": self.speed,
-        }
+        return build_current_payload(self)
 
     def autosave_session(self) -> None:
-        payload = self.current_payload()
-        ok, detail = safe_atomic_write_json(Path(self.session_path), payload)
-        if ok:
-            self.session_warning = ""
-            self.last_saved_payload = payload
-            try:
-                LAST_SESSION_FILE.write_text(self.session_path, encoding="utf-8")
-            except Exception:
-                pass
-        else:
-            self.session_warning = f"Autosave failed: {detail}"
+        persist_session_state(self)
 
 
 def load_range(cap: cv2.VideoCapture, start_idx: int, end_idx: int) -> dict[int, np.ndarray]:
@@ -666,4 +645,4 @@ def make_video_state(
 
 
 def restore_original_session(state: VideoState) -> None:
-    safe_atomic_write_json(Path(state.session_path), state.original_session_payload)
+    restore_original_session_payload(state)
