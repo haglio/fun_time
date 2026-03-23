@@ -11,6 +11,7 @@ import tkinter as tk
 from .clip_loader import ClipLoadController
 from .clip_renderer import ClipRenderController
 from .clip_runtime import ClipCacheStore, DecodeRequestState
+from .clip_sequence import ClipSequenceController
 from .notifier import RobotHandNotifier
 from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
@@ -121,7 +122,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         raise RuntimeError(f"Clips folder does not exist: {clips_folder}")
 
     clips = scan_clips(clips_folder, shuffle_on_load=config.robot_hand.shuffle_on_load)
-    clip_index = {"value": 0}
+    clip_sequence = ClipSequenceController(clips)
 
     root = tk.Tk()
 
@@ -228,14 +229,12 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     )
 
     def request_nearby_prefetch():
-        if len(clips) <= 1:
+        if clip_sequence.count <= 1:
             return
         if loader.is_busy:
             return
 
-        current_index = clip_index["value"]
-        for delta in (1, -1):
-            candidate = clips[(current_index + delta) % len(clips)]
+        for candidate in clip_sequence.nearby_candidates():
             if candidate not in clip_store.clip_cache and candidate not in clip_store.decoded_frame_cache:
                 loader.request_prefetch(candidate)
                 return
@@ -259,9 +258,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         resize_after_id["value"] = root.after(config.robot_hand.resize_debounce_ms, renderer.prepare_active_clip_for_current_size)
 
     def step_clip(delta: int):
-        clip_index["value"] = (clip_index["value"] + delta) % len(clips)
-        set_current_clip(clips[clip_index["value"]])
-        status_var.set(f"Selected clip: {clips[clip_index['value']].name}")
+        path = clip_sequence.step(delta)
+        set_current_clip(path)
+        status_var.set(f"Selected clip: {path.name}")
         status_overlay.show()
         status_overlay.schedule_hide()
 
@@ -335,8 +334,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 status_var.set(
                     active_clip_status_text(
                         clip_name=clip_name,
-                        clip_index=clip_index["value"] + 1,
-                        clip_count=len(clips),
+                        clip_index=clip_sequence.current_number,
+                        clip_count=clip_sequence.count,
                         frame_index=display_index + 1,
                         frame_count=frame_count,
                         visible=visible,
@@ -356,8 +355,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 status_var.set(
                     loading_status_text(
                         clip_name=clip_name,
-                        clip_index=clip_index["value"] + 1,
-                        clip_count=len(clips),
+                        clip_index=clip_sequence.current_number,
+                        clip_count=clip_sequence.count,
                         loading=load_state.loading,
                     )
                 )
@@ -386,8 +385,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     root.protocol("WM_DELETE_WINDOW", on_close)
 
-    logger.info("Loaded %s clips from %s", len(clips), clips_folder)
-    set_current_clip(clips[0])
+    logger.info("Loaded %s clips from %s", clip_sequence.count, clips_folder)
+    set_current_clip(clip_sequence.current_path)
     root.withdraw()
     root.after(16, refresh)
     root.mainloop()
