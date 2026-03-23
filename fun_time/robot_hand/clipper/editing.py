@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .frame_store import ensure_loaded
+from .loop_suggestions import update_loop_suggestions
 from .loop_modes import LOOP_MODES
-from .state import update_loop_suggestions
 
 if TYPE_CHECKING:
     from .state import VideoState

@@ -6,9 +6,10 @@ from typing import Any
 import cv2
 
 from .frame_store import load_range
+from .loop_suggestions import update_loop_suggestions
 from .loop_modes import LOOP_MODE_BASE_TIP_BASE, LOOP_MODES
 from .paths import SESSIONS_DIR
-from .state import VideoState, update_loop_suggestions
+from .state import VideoState
 from .utils import sanitize_name
 
 

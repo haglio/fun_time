@@ -22,6 +22,7 @@ from fun_time.robot_hand.clipper.loaded_bounds import (
     extend_left,
     extend_right,
 )
+from fun_time.robot_hand.clipper.loop_suggestions import update_loop_suggestions
 from fun_time.robot_hand.clipper.navigation import (
     index_for_timeline_x,
     move_current_left,
@@ -39,7 +40,6 @@ from fun_time.robot_hand.clipper.state_factory import make_video_state
 from fun_time.robot_hand.clipper.state import (
     ExportJob,
     VideoState,
-    update_loop_suggestions,
 )
 
 
@@ -671,8 +671,8 @@ class TestLoopSuggestions:
             initial_active_end=60,
             loop_mode="base-tip",
         )
-        with patch("fun_time.robot_hand.clipper.state._best_turning_point_index", return_value=37) as turning:
-            with patch("fun_time.robot_hand.clipper.state._best_duplicate_match_index", return_value=49) as duplicate:
+        with patch("fun_time.robot_hand.clipper.loop_suggestions._best_turning_point_index", return_value=37) as turning:
+            with patch("fun_time.robot_hand.clipper.loop_suggestions._best_duplicate_match_index", return_value=49) as duplicate:
                 update_loop_suggestions(s)
         assert s.suggested_out == 37
         turning.assert_called_once()
@@ -689,8 +689,8 @@ class TestLoopSuggestions:
             initial_active_end=79,
             loop_mode="tip-base",
         )
-        with patch("fun_time.robot_hand.clipper.state._best_turning_point_index", return_value=33) as turning:
-            with patch("fun_time.robot_hand.clipper.state._pair_transition_score", return_value=999.0) as pair_score:
+        with patch("fun_time.robot_hand.clipper.loop_suggestions._best_turning_point_index", return_value=33) as turning:
+            with patch("fun_time.robot_hand.clipper.loop_suggestions._pair_transition_score", return_value=999.0) as pair_score:
                 update_loop_suggestions(s)
         assert s.suggested_in == 33
         turning.assert_called_once()
@@ -707,8 +707,8 @@ class TestLoopSuggestions:
             initial_active_end=79,
             loop_mode="base-tip",
         )
-        with patch("fun_time.robot_hand.clipper.state._best_turning_point_index", side_effect=[35, 24]) as turning:
-            with patch("fun_time.robot_hand.clipper.state._pair_transition_score", return_value=999.0) as pair_score:
+        with patch("fun_time.robot_hand.clipper.loop_suggestions._best_turning_point_index", side_effect=[35, 24]) as turning:
+            with patch("fun_time.robot_hand.clipper.loop_suggestions._pair_transition_score", return_value=999.0) as pair_score:
                 update_loop_suggestions(s)
         assert s.suggested_out == 35
         assert s.suggested_in == 24
