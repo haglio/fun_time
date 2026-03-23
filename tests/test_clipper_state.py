@@ -25,10 +25,13 @@ from fun_time.robot_hand.clipper.state import (
     extend_right,
     index_for_timeline_x,
     make_video_state,
+    move_current_left,
+    move_current_right,
     set_mark_in,
     set_mark_out,
     shift_active_range,
     timeline_x_for_index,
+    toggle_wrap_mode,
     update_loop_suggestions,
 )
 
@@ -221,6 +224,50 @@ class TestCycleLoopMode:
         with patch.object(s, "mark_dirty"):
             cycle_loop_mode(s)
         assert s.loop_mode == "tip-base-tip"
+
+
+class TestToggleWrapMode:
+    def test_switching_to_yellow_clamps_current_into_active_range(self):
+        s = _make_state(wrap_mode="blue", active_start=10, active_end=20, current=25)
+        with patch.object(s, "mark_dirty") as mark_dirty:
+            toggle_wrap_mode(s)
+        assert s.wrap_mode == "yellow"
+        assert s.current == 20
+        mark_dirty.assert_called_once()
+
+    def test_switching_back_to_blue_preserves_current(self):
+        s = _make_state(wrap_mode="yellow", active_start=10, active_end=20, current=15)
+        with patch.object(s, "mark_dirty") as mark_dirty:
+            toggle_wrap_mode(s)
+        assert s.wrap_mode == "blue"
+        assert s.current == 15
+        mark_dirty.assert_called_once()
+
+
+class TestMoveCurrent:
+    def test_move_left_wraps_within_loaded_range_in_blue_mode(self):
+        s = _make_state(loaded_start=10, loaded_end=20, current=10, wrap_mode="blue")
+        move_current_left(s)
+        assert s.current == 20
+        assert s.render_rev == 1
+
+    def test_move_left_wraps_within_active_range_in_yellow_mode(self):
+        s = _make_state(loaded_start=0, loaded_end=30, active_start=10, active_end=20, current=10, wrap_mode="yellow")
+        move_current_left(s)
+        assert s.current == 20
+        assert s.render_rev == 1
+
+    def test_move_right_wraps_within_loaded_range_in_blue_mode(self):
+        s = _make_state(loaded_start=10, loaded_end=20, current=20, wrap_mode="blue")
+        move_current_right(s)
+        assert s.current == 10
+        assert s.render_rev == 1
+
+    def test_move_right_wraps_within_active_range_in_yellow_mode(self):
+        s = _make_state(loaded_start=0, loaded_end=30, active_start=10, active_end=20, current=20, wrap_mode="yellow")
+        move_current_right(s)
+        assert s.current == 10
+        assert s.render_rev == 1
 
 
 class TestMakeVideoState:
