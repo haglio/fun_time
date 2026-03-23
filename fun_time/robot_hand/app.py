@@ -5,11 +5,12 @@ import logging
 import socket
 import threading
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from pathlib import Path
 
 import tkinter as tk
 
+from .cache_utils import render_queue_for_frame_count, trim_path_lru_cache
 from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
 from ..runtime_support import consume_command_file, preparse_config_path
@@ -166,7 +167,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     current_clip_path = {"value": None}
     current_frame_index = {"value": None}
 
-    render_queue: list[int] = []
+    render_queue: deque[int] = deque()
     render_scheduled = {"value": False}
     resize_after_id = {"value": None}
     hide_status_after_id = {"value": None}
@@ -228,11 +229,18 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         hide_status()
 
     def trim_cache():
-        while len(clip_cache) > args.clip_cache_size:
-            oldest_key = next(iter(clip_cache))
-            if oldest_key == current_clip_path["value"]:
-                break
-            clip_cache.popitem(last=False)
+        trim_path_lru_cache(
+            clip_cache,
+            limit=args.clip_cache_size,
+            protected_paths={current_clip_path["value"]},
+        )
+
+    def trim_decoded_cache():
+        trim_path_lru_cache(
+            decoded_frame_cache,
+            limit=args.clip_cache_size,
+            protected_paths={current_clip_path["value"]},
+        )
 
     def clip_entry_for(path: Path):
         entry = clip_cache[path]
@@ -242,6 +250,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     def _cache_decoded_frames(path: Path, frames: list):
         decoded_frame_cache[path] = frames
         decoded_frame_cache.move_to_end(path)
+        trim_decoded_cache()
 
     def _adopt_decoded_frames(path: Path):
         frames = decoded_frame_cache.get(path)
@@ -421,9 +430,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         entry["photo_size"] = size
         entry["photo_frames"] = [None] * len(entry["pil_frames"])
         render_queue.clear()
-
-        for idx in range(len(entry["pil_frames"])):
-            render_queue.append(idx)
+        render_queue.extend(render_queue_for_frame_count(len(entry["pil_frames"])))
 
         if entry["pil_frames"]:
             first_idx = 0
@@ -454,7 +461,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
             count = 0
             while render_queue and count < args.render_batch:
-                idx = render_queue.pop(0)
+                idx = render_queue.popleft()
                 if entry["photo_frames"][idx] is None:
                     entry["photo_frames"][idx] = make_photo(entry["pil_frames"][idx], *size)
                 count += 1
