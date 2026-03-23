@@ -12,17 +12,13 @@ from fractions import Fraction
 import cv2
 import numpy as np
 
-LOOP_MODE_BASE_TIP_BASE = "base-tip-base"
-LOOP_MODE_TIP_BASE_TIP = "tip-base-tip"
-LOOP_MODE_BASE_TIP = "base-tip"
-LOOP_MODE_TIP_BASE = "tip-base"
-LOOP_MODES = (
-    LOOP_MODE_BASE_TIP_BASE,
-    LOOP_MODE_TIP_BASE_TIP,
+from .loop_modes import (
     LOOP_MODE_BASE_TIP,
+    LOOP_MODE_BASE_TIP_BASE,
     LOOP_MODE_TIP_BASE,
+    LOOP_MODE_TIP_BASE_TIP,
+    LOOP_MODES,
 )
-
 
 def run(cmd):
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)

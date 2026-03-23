@@ -18,6 +18,7 @@ except Exception:
     messagebox = None
 
 from .export import start_export_job, terminate_export_subprocesses
+from .loop_modes import LOOP_MODE_LABELS
 from .paths import (
     ACCEPT_SUGGESTED_IN_KEYS,
     ACCEPT_SUGGESTED_OUT_KEYS,
@@ -73,12 +74,6 @@ from .vlc_prefill import detect_vlc_session_prefill
 Rect = tuple[int, int, int, int]
 Color = tuple[int, int, int]
 APP_DISPLAY_NAME = "Clipper"
-LOOP_MODE_LABELS = {
-    "base-tip-base": "Base-Tip-Base",
-    "tip-base-tip": "Tip-Base-Tip",
-    "base-tip": "Base-Tip",
-    "tip-base": "Tip-Base",
-}
 EXIT_PROMPT_CHOICES = ("save", "discard", "cancel")
 EXIT_PROMPT_BUTTON_NAMES = {
     "save": "exit_save",
