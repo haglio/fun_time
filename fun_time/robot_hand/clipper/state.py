@@ -10,19 +10,15 @@ import subprocess
 import cv2
 import numpy as np
 
+from .loop_modes import (
+    LOOP_MODE_BASE_TIP,
+    LOOP_MODE_BASE_TIP_BASE,
+    LOOP_MODE_TIP_BASE,
+    LOOP_MODE_TIP_BASE_TIP,
+    LOOP_MODES,
+)
 from .paths import LAST_SESSION_FILE, SESSIONS_DIR
 from .utils import safe_atomic_write_json, sanitize_name
-
-LOOP_MODE_BASE_TIP_BASE = "base-tip-base"
-LOOP_MODE_TIP_BASE_TIP = "tip-base-tip"
-LOOP_MODE_BASE_TIP = "base-tip"
-LOOP_MODE_TIP_BASE = "tip-base"
-LOOP_MODES = (
-    LOOP_MODE_BASE_TIP_BASE,
-    LOOP_MODE_TIP_BASE_TIP,
-    LOOP_MODE_BASE_TIP,
-    LOOP_MODE_TIP_BASE,
-)
 
 
 @dataclass
