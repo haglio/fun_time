@@ -8,6 +8,7 @@ from pathlib import Path
 
 import tkinter as tk
 
+from .clip_loader import ClipLoadController
 from .clip_renderer import ClipRenderController
 from .clip_runtime import ClipCacheStore, DecodeRequestState
 from .notifier import RobotHandNotifier
@@ -200,108 +201,43 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         logger=logger,
     )
 
-    def _cache_decoded_frames(path: Path, frames: list):
-        clip_store.cache_decoded_frames(
-            path,
-            frames,
-            protected_paths={renderer.current_clip_path},
-        )
-
-    def _adopt_decoded_frames(path: Path):
-        return clip_store.adopt_decoded_frames(
-            path,
-            protected_paths={renderer.current_clip_path},
-        )
-
-    def loader_thread_fn(path: Path, request_id: int):
-        try:
-            frames = decode_video_to_pil_frames(path)
-            load_state.record_success(path, frames, request_id)
-        except Exception as exc:
-            logger.exception("Failed to decode clip %s", path)
-            load_state.record_error(path, str(exc), request_id)
-
-    def prefetch_thread_fn(path: Path, request_id: int):
-        try:
-            frames = decode_video_to_pil_frames(path)
-            prefetch_state.record_success(path, frames, request_id)
-        except Exception as exc:
-            logger.warning("Prefetch decode failed for %s: %s", path, exc)
-            prefetch_state.record_error(path, str(exc), request_id)
-
-    def request_clip_load(path: Path):
-        if path in clip_store.clip_cache:
-            return
-
-        if _adopt_decoded_frames(path):
-            return
-
-        request_id = load_state.begin()
-
-        status_var.set(f"Loading clip...\n{path.name}")
-        status_overlay.show()
-
-        thread = threading.Thread(target=loader_thread_fn, args=(path, request_id), daemon=True, name="robot-hand-loader")
-        thread.start()
-
-    def request_prefetch(path: Path):
-        if path in clip_store.clip_cache or path in clip_store.decoded_frame_cache:
-            return
-        if load_state.loading or prefetch_state.loading:
-            return
-
-        request_id = prefetch_state.begin()
-
+    def start_background_job(target, path: Path, request_id: int, name: str):
         thread = threading.Thread(
-            target=prefetch_thread_fn,
+            target=target,
             args=(path, request_id),
             daemon=True,
-            name="robot-hand-prefetch",
+            name=name,
         )
         thread.start()
 
-    def adopt_loaded_clip_if_ready():
-        result = load_state.take_completed_result()
-        if result is None:
-            return
+    def record_listener_error(message: str):
+        with state.lock:
+            state.error = message
 
-        path, frames, err = result
-
-        if err:
-            with state.lock:
-                state.error = err
-            return
-
-        _cache_decoded_frames(path, frames)
-        _adopt_decoded_frames(path)
-
-        if renderer.current_clip_path == path:
-            renderer.prepare_active_clip_for_current_size()
-            status_overlay.schedule_hide()
-
-    def adopt_prefetch_if_ready():
-        result = prefetch_state.take_completed_result()
-        if result is None:
-            return
-
-        path, frames, err = result
-
-        if err:
-            return
-
-        _cache_decoded_frames(path, frames)
+    loader = ClipLoadController(
+        clip_store=clip_store,
+        load_state=load_state,
+        prefetch_state=prefetch_state,
+        current_clip_path_getter=lambda: renderer.current_clip_path,
+        decode_clip=decode_video_to_pil_frames,
+        start_background_job=start_background_job,
+        logger=logger,
+        on_loading_requested=lambda path: (status_var.set(f"Loading clip...\n{path.name}"), status_overlay.show()),
+        on_active_clip_loaded=lambda: (renderer.prepare_active_clip_for_current_size(), status_overlay.schedule_hide()),
+        on_error=record_listener_error,
+    )
 
     def request_nearby_prefetch():
         if len(clips) <= 1:
             return
-        if load_state.loading or prefetch_state.loading:
+        if loader.is_busy:
             return
 
         current_index = clip_index["value"]
         for delta in (1, -1):
             candidate = clips[(current_index + delta) % len(clips)]
             if candidate not in clip_store.clip_cache and candidate not in clip_store.decoded_frame_cache:
-                request_prefetch(candidate)
+                loader.request_prefetch(candidate)
                 return
 
     def set_current_clip(path: Path):
@@ -312,7 +248,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             renderer.prepare_active_clip_for_current_size()
             status_overlay.schedule_hide()
         else:
-            request_clip_load(path)
+            loader.request_clip_load(path)
             if path in clip_store.clip_cache:
                 renderer.prepare_active_clip_for_current_size()
                 status_overlay.schedule_hide()
@@ -332,8 +268,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     def refresh():
         try:
             now = time.monotonic()
-            adopt_loaded_clip_if_ready()
-            adopt_prefetch_if_ready()
+            loader.adopt_loaded_clip_if_ready()
+            loader.adopt_prefetch_if_ready()
 
             with state.lock:
                 auto_active = state.auto_active
