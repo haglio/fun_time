@@ -11,6 +11,7 @@ import tkinter as tk
 from .clip_loader import ClipLoadController
 from .clip_renderer import ClipRenderController
 from .clip_runtime import ClipCacheStore, DecodeRequestState
+from .clip_selection import ClipSelectionController
 from .clip_sequence import ClipSequenceController
 from .notifier import RobotHandNotifier
 from ..config import load_config
@@ -228,30 +229,16 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         on_active_clip_loaded=lambda: (renderer.prepare_active_clip_for_current_size(), status_overlay.schedule_hide()),
         on_error=record_listener_error,
     )
-
-    def request_nearby_prefetch():
-        if clip_sequence.count <= 1:
-            return
-        if loader.is_busy:
-            return
-
-        for candidate in clip_sequence.nearby_candidates():
-            if candidate not in clip_store.clip_cache and candidate not in clip_store.decoded_frame_cache:
-                loader.request_prefetch(candidate)
-                return
-
-    def set_current_clip(path: Path):
-        renderer.set_current_clip_path(path)
-        notifier.notify_clip(path)
-
-        if path in clip_store.clip_cache:
-            renderer.prepare_active_clip_for_current_size()
-            status_overlay.schedule_hide()
-        else:
-            loader.request_clip_load(path)
-            if path in clip_store.clip_cache:
-                renderer.prepare_active_clip_for_current_size()
-                status_overlay.schedule_hide()
+    selection = ClipSelectionController(
+        sequence=clip_sequence,
+        clip_store=clip_store,
+        loader=loader,
+        renderer=renderer,
+        notifier=notifier,
+        set_status_text=status_var.set,
+        show_status=status_overlay.show,
+        schedule_status_hide=status_overlay.schedule_hide,
+    )
 
     def on_resize(_event=None):
         if resize_after_id["value"] is not None:
@@ -259,11 +246,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         resize_after_id["value"] = root.after(config.robot_hand.resize_debounce_ms, renderer.prepare_active_clip_for_current_size)
 
     def step_clip(delta: int):
-        path = clip_sequence.step(delta)
-        set_current_clip(path)
-        status_var.set(f"Selected clip: {path.name}")
-        status_overlay.show()
-        status_overlay.schedule_hide()
+        selection.step(delta)
 
     def refresh():
         try:
@@ -324,8 +307,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 status_var.set(
                     active_clip_status_text(
                         clip_name=clip_name,
-                        clip_index=clip_sequence.current_number,
-                        clip_count=clip_sequence.count,
+                        clip_index=selection.current_number,
+                        clip_count=selection.count,
                         frame_index=display_index + 1,
                         frame_count=frame_count,
                         visible=shared.visible,
@@ -345,14 +328,14 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 status_var.set(
                     loading_status_text(
                         clip_name=clip_name,
-                        clip_index=clip_sequence.current_number,
-                        clip_count=clip_sequence.count,
+                        clip_index=selection.current_number,
+                        clip_count=selection.count,
                         loading=load_state.loading,
                     )
                 )
                 status_overlay.show()
 
-            request_nearby_prefetch()
+            selection.request_nearby_prefetch()
 
             root.after(16, refresh)
         except Exception as exc:
@@ -375,8 +358,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     root.protocol("WM_DELETE_WINDOW", on_close)
 
-    logger.info("Loaded %s clips from %s", clip_sequence.count, clips_folder)
-    set_current_clip(clip_sequence.current_path)
+    logger.info("Loaded %s clips from %s", selection.count, clips_folder)
+    selection.set_current_clip(selection.current_path)
     root.withdraw()
     root.after(16, refresh)
     root.mainloop()
