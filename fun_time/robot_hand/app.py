@@ -17,6 +17,7 @@ from .view import create_robot_hand_view, install_tk_exception_handler
 from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
 from ..runtime_support import preparse_config_path
+from ..threading_utils import start_daemon_thread
 from .engine import PlaybackEngine
 from .state import SharedState, udp_reader
 from .status_overlay import StatusOverlayController
@@ -84,13 +85,11 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     state = SharedState()
     stop_event = threading.Event()
 
-    udp_thread = threading.Thread(
+    start_daemon_thread(
         target=udp_reader,
         args=(args.udp_host, args.udp_port, state, stop_event, logger),
-        daemon=True,
         name="robot-hand-udp",
     )
-    udp_thread.start()
 
     clip_store = ClipCacheStore(limit=args.clip_cache_size)
     resize_after_id = {"value": None}
@@ -130,13 +129,11 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     )
 
     def start_background_job(target, path: Path, request_id: int, name: str):
-        thread = threading.Thread(
+        return start_daemon_thread(
             target=target,
             args=(path, request_id),
-            daemon=True,
             name=name,
         )
-        thread.start()
 
     def record_listener_error(message: str):
         with state.lock:

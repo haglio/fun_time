@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 from collections.abc import Callable, Sequence
@@ -12,6 +11,7 @@ import cv2
 from .paths import AUDIO_DIR, CLIPS_DIR, CLIP_POSTPROCESS_SCRIPT, RAW_CLIPS_DIR
 from .state import ExportJob, VideoState
 from .utils import find_tool, sanitize_name, subprocess_window_kwargs
+from ...threading_utils import start_daemon_thread
 
 
 def _parse_ffmpeg_clock(s: str) -> float:
@@ -223,9 +223,8 @@ def start_export_job(state: VideoState) -> None:
         job.done = True
         job.active = False
 
-    worker_thread = threading.Thread(target=worker, daemon=True)
+    worker_thread = start_daemon_thread(target=worker)
     job.worker = worker_thread
-    worker_thread.start()
 
 
 def terminate_export_subprocesses(state: VideoState) -> None:
