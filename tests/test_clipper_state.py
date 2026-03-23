@@ -16,6 +16,12 @@ from fun_time.robot_hand.clipper.editing import (
     set_mark_out,
     shift_active_range,
 )
+from fun_time.robot_hand.clipper.loaded_bounds import (
+    contract_left,
+    contract_right,
+    extend_left,
+    extend_right,
+)
 from fun_time.robot_hand.clipper.navigation import (
     index_for_timeline_x,
     move_current_left,
@@ -33,10 +39,6 @@ from fun_time.robot_hand.clipper.state_factory import make_video_state
 from fun_time.robot_hand.clipper.state import (
     ExportJob,
     VideoState,
-    contract_left,
-    contract_right,
-    extend_left,
-    extend_right,
     update_loop_suggestions,
 )
 

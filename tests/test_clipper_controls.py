@@ -58,7 +58,7 @@ class TestHandleKey:
 
     def test_a_extends_loaded_left(self):
         state = _make_state(loaded_start=10, active_start=20, base_step=5)
-        with patch("fun_time.robot_hand.clipper.state.ensure_loaded") as ensure_loaded:
+        with patch("fun_time.robot_hand.clipper.loaded_bounds.ensure_loaded") as ensure_loaded:
             ensure_loaded.side_effect = lambda s, want_start, _want_end: setattr(s, "loaded_start", want_start)
             handle_key(state, ord("a"))
         assert state.loaded_start == 5
@@ -75,7 +75,7 @@ class TestHandleKey:
 
     def test_f_extends_loaded_right(self):
         state = _make_state(loaded_end=30, active_end=20, total_frames=50, base_step=5)
-        with patch("fun_time.robot_hand.clipper.state.ensure_loaded") as ensure_loaded:
+        with patch("fun_time.robot_hand.clipper.loaded_bounds.ensure_loaded") as ensure_loaded:
             ensure_loaded.side_effect = lambda s, _want_start, want_end: setattr(s, "loaded_end", want_end)
             handle_key(state, ord("f"))
         assert state.loaded_end == 35
