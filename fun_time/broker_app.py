@@ -10,14 +10,13 @@ from pathlib import Path
 
 import serial
 
+from .broker_protocol import BrokerAutoController, parse_auto_transition
 from .config import load_config
 from .logging_utils import configure_logging, install_exception_logging
 from .runtime_support import consume_command_file as _consume_command_file
 from .runtime_support import preparse_config_path
 from .threading_utils import start_daemon_thread
 
-RE_BPM = re.compile(r"\bbpm\s+(\d+),\s+beats\s+(\d+)", re.IGNORECASE)
-RE_STROKE = re.compile(r"StrokeName:\s*([^,]+),\s*PatternDuration:\s*([0-9.]+)", re.IGNORECASE)
 SERIAL_RETRY_DELAY_SECONDS = 1.0
 RE_COM0COM_PORT = re.compile(r"COM0COM\\PORT\\(CNC[AB])(\d+)", re.IGNORECASE)
 
@@ -55,18 +54,6 @@ def consume_broker_cmd(path: Path) -> str | None:
 
 def udp_send(sock: socket.socket, host: str, port: int, msg: str) -> None:
     sock.sendto(msg.encode("utf-8"), (host, port))
-
-
-def parse_auto_transition(line: str) -> bool | None:
-    compact = " ".join(line.lower().replace("!", " ").split())
-    mentions_auto_mode = any(token in compact for token in ("freemode", "free mode", "auto mode"))
-    if not mentions_auto_mode:
-        return None
-    if "tcode task started" in compact or "is on" in compact:
-        return True
-    if "tcode task is stopped" in compact or "is off" in compact:
-        return False
-    return None
 
 
 def _iter_serial_ports():
@@ -174,52 +161,17 @@ def main(argv: list[str] | None = None) -> int:
     broker_cmd_file = Path(args.broker_cmd_file)
     state = {
         "last_real_rx_time": 0.0,
-        "auto_active": False,
     }
-    lock = threading.Lock()
     stop_event = threading.Event()
     broker_paused = threading.Event()
-
-    def set_auto(sock: socket.socket, value: bool, mode_value: str | None = None) -> None:
-        with lock:
-            changed = state["auto_active"] != value
-            state["auto_active"] = value
-
-        mode_text = mode_value if mode_value is not None else ("1" if value else "0")
-        write_mode(state_file, mode_text, logger)
-        udp_send(sock, args.udp_host, args.udp_port, f"AUTO {1 if value else 0}")
-        udp_send(sock, args.udp_host, args.udp_port, "SHOW" if value else "HIDE")
-
-        if changed:
-            logger.info("AUTO %s", "ON" if value else "OFF")
-
-    def get_auto() -> bool:
-        with lock:
-            return bool(state["auto_active"])
-
-    def handle_line(sock: socket.socket, line: str) -> None:
-        low = line.lower()
-        auto_transition = parse_auto_transition(line)
-
-        if auto_transition is True:
-            set_auto(sock, True)
-
-        if auto_transition is False:
-            set_auto(sock, False)
-
-        stroke_match = RE_STROKE.search(line)
-        if stroke_match:
-            udp_send(sock, args.udp_host, args.udp_port, f"STROKE {stroke_match.group(1).strip()}")
-            udp_send(sock, args.udp_host, args.udp_port, f"PATTERN {stroke_match.group(2)}")
-            udp_send(sock, args.udp_host, args.udp_port, "SYNC")
-
-        bpm_match = RE_BPM.search(line)
-        if bpm_match:
-            udp_send(sock, args.udp_host, args.udp_port, f"BPM {bpm_match.group(1)}")
-            udp_send(sock, args.udp_host, args.udp_port, f"BEATS {bpm_match.group(2)}")
-
-        if "continue strokename:" in low or "start transition" in low:
-            udp_send(sock, args.udp_host, args.udp_port, "SYNC")
+    auto_mode = BrokerAutoController(
+        state_file=state_file,
+        udp_host=args.udp_host,
+        udp_port=args.udp_port,
+        logger=logger,
+        write_mode=write_mode,
+        udp_send=udp_send,
+    )
 
     def run_serial_session(udp_sock: socket.socket) -> bool:
         session_stop = threading.Event()
@@ -242,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
                         buf[:] = rest
                         line = raw_line.rstrip(b"\r").decode("utf-8", errors="replace").strip()
                         if line:
-                            handle_line(udp_sock, line)
+                            auto_mode.handle_line(udp_sock, line)
                 except Exception as exc:
                     logger.exception("REAL->VIRT error")
                     retry_session["value"] = is_retryable_serial_error(exc)
@@ -255,7 +207,7 @@ def main(argv: list[str] | None = None) -> int:
                     data = virt.read(virt.in_waiting or 1)
                     if not data:
                         continue
-                    if not get_auto():
+                    if not auto_mode.is_active:
                         real.write(data)
                 except Exception as exc:
                     logger.exception("VIRT->REAL error")
@@ -293,9 +245,9 @@ def main(argv: list[str] | None = None) -> int:
                         broker_paused.clear()
                         logger.info("OmniPause: broker resumed")
                     last_rx = float(state["last_real_rx_time"])
-                    if get_auto() and not broker_paused.is_set() and last_rx and (time.monotonic() - last_rx > args.auto_stale_timeout):
+                    if auto_mode.is_active and not broker_paused.is_set() and last_rx and (time.monotonic() - last_rx > args.auto_stale_timeout):
                         logger.warning("AUTO stale timeout reached after %.2fs", args.auto_stale_timeout)
-                        set_auto(udp_sock, False, mode_value="2")
+                        auto_mode.set_auto(udp_sock, False, mode_value="2")
         except KeyboardInterrupt:
             raise
         except Exception as exc:
