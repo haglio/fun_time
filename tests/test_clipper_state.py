@@ -24,6 +24,7 @@ from fun_time.robot_hand.clipper.playback import (
 from fun_time.robot_hand.clipper.state import (
     ExportJob,
     VideoState,
+    accept_suggested_in,
     accept_suggested_out,
     contract_left,
     contract_right,
@@ -446,6 +447,54 @@ class TestSetMarkOut:
         with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
             set_mark_out(s)
         assert s.active_end == original
+
+
+class TestAcceptSuggestedMarks:
+    def test_accept_suggested_in_updates_active_start(self):
+        s = _make_state(active_start=10, active_end=30)
+        s.suggested_in = 12
+        with patch.object(s, "mark_dirty") as mark_dirty, patch.object(s, "reset_loop_anchor") as reset_anchor:
+            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions") as refresh_suggestions:
+                accept_suggested_in(s)
+        assert s.active_start == 12
+        assert s.suggestion_anchor_in == 12
+        reset_anchor.assert_called_once()
+        refresh_suggestions.assert_called_once_with(s)
+        mark_dirty.assert_called_once()
+
+    def test_accept_suggested_out_updates_active_end(self):
+        s = _make_state(active_start=10, active_end=30)
+        s.suggested_out = 28
+        with patch.object(s, "mark_dirty") as mark_dirty, patch.object(s, "reset_loop_anchor") as reset_anchor:
+            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions") as refresh_suggestions:
+                accept_suggested_out(s)
+        assert s.active_end == 28
+        assert s.suggestion_anchor_out == 28
+        reset_anchor.assert_called_once()
+        refresh_suggestions.assert_called_once_with(s)
+        mark_dirty.assert_called_once()
+
+    def test_accept_suggested_in_ignores_invalid_candidate(self):
+        s = _make_state(active_start=10, active_end=30)
+        s.suggested_in = 30
+        with patch.object(s, "mark_dirty") as mark_dirty, patch.object(s, "reset_loop_anchor") as reset_anchor:
+            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions") as refresh_suggestions:
+                accept_suggested_in(s)
+        assert s.active_start == 10
+        reset_anchor.assert_not_called()
+        refresh_suggestions.assert_not_called()
+        mark_dirty.assert_not_called()
+
+    def test_accept_suggested_out_ignores_invalid_candidate(self):
+        s = _make_state(active_start=10, active_end=30)
+        s.suggested_out = 10
+        with patch.object(s, "mark_dirty") as mark_dirty, patch.object(s, "reset_loop_anchor") as reset_anchor:
+            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions") as refresh_suggestions:
+                accept_suggested_out(s)
+        assert s.active_end == 30
+        reset_anchor.assert_not_called()
+        refresh_suggestions.assert_not_called()
+        mark_dirty.assert_not_called()
 
 
 class TestShiftActiveRange:
