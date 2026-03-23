@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+class ClipLoadController:
+    def __init__(
+        self,
+        *,
+        clip_store,
+        load_state,
+        prefetch_state,
+        current_clip_path_getter,
+        decode_clip,
+        start_background_job,
+        logger,
+        on_loading_requested,
+        on_active_clip_loaded,
+        on_error,
+    ):
+        self.clip_store = clip_store
+        self.load_state = load_state
+        self.prefetch_state = prefetch_state
+        self.current_clip_path_getter = current_clip_path_getter
+        self.decode_clip = decode_clip
+        self.start_background_job = start_background_job
+        self.logger = logger
+        self.on_loading_requested = on_loading_requested
+        self.on_active_clip_loaded = on_active_clip_loaded
+        self.on_error = on_error
+
+    @property
+    def is_busy(self) -> bool:
+        return self.load_state.loading or self.prefetch_state.loading
+
+    def request_clip_load(self, path: Path) -> None:
+        if path in self.clip_store.clip_cache:
+            return
+
+        if self._adopt_decoded_frames(path):
+            return
+
+        request_id = self.load_state.begin()
+        self.on_loading_requested(path)
+        self.start_background_job(self._loader_thread_fn, path, request_id, "robot-hand-loader")
+
+    def request_prefetch(self, path: Path) -> None:
+        if path in self.clip_store.clip_cache or path in self.clip_store.decoded_frame_cache:
+            return
+        if self.is_busy:
+            return
+
+        request_id = self.prefetch_state.begin()
+        self.start_background_job(self._prefetch_thread_fn, path, request_id, "robot-hand-prefetch")
+
+    def adopt_loaded_clip_if_ready(self) -> None:
+        result = self.load_state.take_completed_result()
+        if result is None:
+            return
+
+        path, frames, err = result
+        if err:
+            self.on_error(err)
+            return
+
+        self._cache_decoded_frames(path, frames)
+        self._adopt_decoded_frames(path)
+
+        if self.current_clip_path_getter() == path:
+            self.on_active_clip_loaded()
+
+    def adopt_prefetch_if_ready(self) -> None:
+        result = self.prefetch_state.take_completed_result()
+        if result is None:
+            return
+
+        path, frames, err = result
+        if err:
+            return
+
+        self._cache_decoded_frames(path, frames)
+
+    def _cache_decoded_frames(self, path: Path, frames: list) -> None:
+        self.clip_store.cache_decoded_frames(
+            path,
+            frames,
+            protected_paths={self.current_clip_path_getter()},
+        )
+
+    def _adopt_decoded_frames(self, path: Path) -> bool:
+        return self.clip_store.adopt_decoded_frames(
+            path,
+            protected_paths={self.current_clip_path_getter()},
+        )
+
+    def _loader_thread_fn(self, path: Path, request_id: int) -> None:
+        try:
+            frames = self.decode_clip(path)
+            self.load_state.record_success(path, frames, request_id)
+        except Exception as exc:
+            self.logger.exception("Failed to decode clip %s", path)
+            self.load_state.record_error(path, str(exc), request_id)
+
+    def _prefetch_thread_fn(self, path: Path, request_id: int) -> None:
+        try:
+            frames = self.decode_clip(path)
+            self.prefetch_state.record_success(path, frames, request_id)
+        except Exception as exc:
+            self.logger.warning("Prefetch decode failed for %s: %s", path, exc)
+            self.prefetch_state.record_error(path, str(exc), request_id)
