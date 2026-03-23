@@ -4,12 +4,11 @@ import argparse
 import logging
 import threading
 import time
-from collections import deque
 from pathlib import Path
 
 import tkinter as tk
 
-from .cache_utils import render_queue_for_frame_count
+from .clip_renderer import ClipRenderController
 from .clip_runtime import ClipCacheStore, DecodeRequestState
 from .notifier import RobotHandNotifier
 from ..config import load_config
@@ -171,11 +170,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     udp_thread.start()
 
     clip_store = ClipCacheStore(limit=args.clip_cache_size)
-    current_clip_path = {"value": None}
-    current_frame_index = {"value": None}
-
-    render_queue: deque[int] = deque()
-    render_scheduled = {"value": False}
     resize_after_id = {"value": None}
     window_visible = {"value": False}
 
@@ -196,17 +190,27 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     def current_viewport():
         return max(1, container.winfo_width()), max(1, container.winfo_height())
 
+    renderer = ClipRenderController(
+        clip_store=clip_store,
+        image_label=image_label,
+        make_photo=make_photo,
+        viewport_getter=current_viewport,
+        schedule_after=root.after,
+        render_batch=args.render_batch,
+        logger=logger,
+    )
+
     def _cache_decoded_frames(path: Path, frames: list):
         clip_store.cache_decoded_frames(
             path,
             frames,
-            protected_paths={current_clip_path["value"]},
+            protected_paths={renderer.current_clip_path},
         )
 
     def _adopt_decoded_frames(path: Path):
         return clip_store.adopt_decoded_frames(
             path,
-            protected_paths={current_clip_path["value"]},
+            protected_paths={renderer.current_clip_path},
         )
 
     def loader_thread_fn(path: Path, request_id: int):
@@ -271,8 +275,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         _cache_decoded_frames(path, frames)
         _adopt_decoded_frames(path)
 
-        if current_clip_path["value"] == path:
-            prepare_active_clip_for_current_size()
+        if renderer.current_clip_path == path:
+            renderer.prepare_active_clip_for_current_size()
             status_overlay.schedule_hide()
 
     def adopt_prefetch_if_ready():
@@ -301,96 +305,22 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 return
 
     def set_current_clip(path: Path):
-        current_clip_path["value"] = path
-        current_frame_index["value"] = None
+        renderer.set_current_clip_path(path)
         notifier.notify_clip(path)
 
         if path in clip_store.clip_cache:
-            prepare_active_clip_for_current_size()
+            renderer.prepare_active_clip_for_current_size()
             status_overlay.schedule_hide()
         else:
             request_clip_load(path)
             if path in clip_store.clip_cache:
-                prepare_active_clip_for_current_size()
+                renderer.prepare_active_clip_for_current_size()
                 status_overlay.schedule_hide()
-
-    def prepare_active_clip_for_current_size():
-        path = current_clip_path["value"]
-        if path is None or path not in clip_store.clip_cache:
-            return
-
-        entry = clip_store.clip_entry_for(path)
-        size = current_viewport()
-        entry["photo_size"] = size
-        entry["photo_frames"] = [None] * len(entry["pil_frames"])
-        render_queue.clear()
-        render_queue.extend(render_queue_for_frame_count(len(entry["pil_frames"])))
-
-        if entry["pil_frames"]:
-            first_idx = 0
-            entry["photo_frames"][first_idx] = make_photo(entry["pil_frames"][first_idx], *size)
-            image_label.configure(image=entry["photo_frames"][first_idx])
-            image_label.image = entry["photo_frames"][first_idx]
-            current_frame_index["value"] = first_idx
-
-        schedule_render_step()
-
-    def schedule_render_step():
-        if not render_scheduled["value"]:
-            render_scheduled["value"] = True
-            root.after(1, render_step)
-
-    def render_step():
-        try:
-            render_scheduled["value"] = False
-
-            path = current_clip_path["value"]
-            if path is None or path not in clip_store.clip_cache:
-                return
-
-            entry = clip_store.clip_entry_for(path)
-            size = current_viewport()
-            if entry["photo_size"] != size:
-                return
-
-            count = 0
-            while render_queue and count < args.render_batch:
-                idx = render_queue.popleft()
-                if entry["photo_frames"][idx] is None:
-                    entry["photo_frames"][idx] = make_photo(entry["pil_frames"][idx], *size)
-                count += 1
-
-            idx = current_frame_index["value"]
-            if idx is not None and 0 <= idx < len(entry["photo_frames"]) and entry["photo_frames"][idx] is not None:
-                image_label.configure(image=entry["photo_frames"][idx])
-                image_label.image = entry["photo_frames"][idx]
-
-            if render_queue:
-                schedule_render_step()
-        except Exception:
-            logger.exception("render_step failed")
-
-    def ensure_current_frame_photo(index: int):
-        path = current_clip_path["value"]
-        if path is None or path not in clip_store.clip_cache:
-            return None
-
-        entry = clip_store.clip_entry_for(path)
-        size = current_viewport()
-
-        if entry["photo_size"] != size:
-            prepare_active_clip_for_current_size()
-            entry = clip_store.clip_entry_for(path)
-
-        if entry["photo_frames"][index] is None:
-            entry["photo_frames"][index] = make_photo(entry["pil_frames"][index], *size)
-
-        return entry["photo_frames"][index]
 
     def on_resize(_event=None):
         if resize_after_id["value"] is not None:
             root.after_cancel(resize_after_id["value"])
-        resize_after_id["value"] = root.after(config.robot_hand.resize_debounce_ms, prepare_active_clip_for_current_size)
+        resize_after_id["value"] = root.after(config.robot_hand.resize_debounce_ms, renderer.prepare_active_clip_for_current_size)
 
     def step_clip(delta: int):
         clip_index["value"] = (clip_index["value"] + delta) % len(clips)
@@ -419,7 +349,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             window_visible["value"] = notifier.sync_window_visibility(
                 desired_visible=visible,
                 window_visible=window_visible["value"],
-                current_clip_path=current_clip_path["value"],
+                current_clip_path=renderer.current_clip_path,
                 show_window=root.deiconify,
                 hide_window=root.withdraw,
             )
@@ -449,8 +379,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 step_clip=step_clip,
             )
 
-            path = current_clip_path["value"]
-            active_entry = clip_store.clip_cache.get(path) if path in clip_store.clip_cache else None
+            path = renderer.current_clip_path
+            active_entry = renderer.current_clip_entry()
             clip_name = path.name if path else "(none)"
 
             if active_entry and active_entry["pil_frames"]:
@@ -461,14 +391,10 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
                 display_index = (frame_count - 1) - logical_index
 
-                if not auto_active and current_frame_index["value"] is not None:
-                    display_index = current_frame_index["value"]
+                if not auto_active and renderer.current_frame_index is not None:
+                    display_index = renderer.current_frame_index
 
-                photo = ensure_current_frame_photo(display_index)
-                if photo is not None and current_frame_index["value"] != display_index:
-                    image_label.configure(image=photo)
-                    image_label.image = photo
-                    current_frame_index["value"] = display_index
+                renderer.display_frame(display_index)
 
                 status_var.set(
                     active_clip_status_text(
