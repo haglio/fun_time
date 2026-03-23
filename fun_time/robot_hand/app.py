@@ -6,8 +6,6 @@ import threading
 import time
 from pathlib import Path
 
-import tkinter as tk
-
 from .clip_loader import ClipLoadController
 from .clip_renderer import ClipRenderController
 from .clip_runtime import ClipCacheStore, DecodeRequestState
@@ -15,13 +13,13 @@ from .clip_selection import ClipSelectionController
 from .clip_sequence import ClipSequenceController
 from .notifier import RobotHandNotifier
 from .refresh_controller import RobotHandRefreshController
+from .view import create_robot_hand_view, install_tk_exception_handler
 from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
 from ..runtime_support import preparse_config_path
 from .engine import PlaybackEngine
 from .state import SharedState, udp_reader
 from .status_overlay import StatusOverlayController
-from .status_text import exception_status_text
 from .video import decode_video_to_pil_frames, make_photo, scan_clips
 
 
@@ -76,40 +74,11 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     clips = scan_clips(clips_folder, shuffle_on_load=config.robot_hand.shuffle_on_load)
     clip_sequence = ClipSequenceController(clips)
 
-    root = tk.Tk()
-
-    def tk_callback_exception(exc_type, exc, tb):
-        logger.critical("Tk callback failed", exc_info=(exc_type, exc, tb))
-        try:
-            status_var.set(exception_status_text(str(exc), log_name=config.log_file("robot_hand_listener").name))
-            status_overlay.show()
-        except Exception:
-            logger.exception("Failed to update status after Tk exception")
-
-    root.report_callback_exception = tk_callback_exception
-
-    root.title("Robot Hand")
-    root.geometry(f"{args.width}x{args.height}+{args.x}+{args.y}")
-    root.configure(bg="black")
-
-    container = tk.Frame(root, bg="black")
-    container.pack(fill="both", expand=True)
-
-    image_label = tk.Label(container, bg="black", bd=0, highlightthickness=0)
-    image_label.pack(fill="both", expand=True)
-
-    status_var = tk.StringVar(value="Starting...")
-    status_label = tk.Label(
-        container,
-        textvariable=status_var,
-        justify="left",
-        font=("Consolas", 10),
-        bg="#111111",
-        fg="white",
-        bd=1,
-        relief="solid",
-        padx=8,
-        pady=6,
+    view = create_robot_hand_view(
+        width=args.width,
+        height=args.height,
+        x=args.x,
+        y=args.y,
     )
 
     state = SharedState()
@@ -134,21 +103,28 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     prefetch_state = DecodeRequestState()
     notifier = RobotHandNotifier(args.notify_host, args.notify_port)
     status_overlay = StatusOverlayController(
-        root=root,
-        label=status_label,
+        root=view.root,
+        label=view.status_label,
         hide_delay_ms=config.robot_hand.status_hide_ms,
         can_hide=lambda: state.error is None and not load_state.loading,
     )
+    install_tk_exception_handler(
+        root=view.root,
+        logger=logger,
+        status_setter=view.status_var.set,
+        show_status=status_overlay.show,
+        log_name=config.log_file("robot_hand_listener").name,
+    )
 
     def current_viewport():
-        return max(1, container.winfo_width()), max(1, container.winfo_height())
+        return max(1, view.container.winfo_width()), max(1, view.container.winfo_height())
 
     renderer = ClipRenderController(
         clip_store=clip_store,
-        image_label=image_label,
+        image_label=view.image_label,
         make_photo=make_photo,
         viewport_getter=current_viewport,
-        schedule_after=root.after,
+        schedule_after=view.root.after,
         render_batch=args.render_batch,
         logger=logger,
     )
@@ -174,7 +150,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         decode_clip=decode_video_to_pil_frames,
         start_background_job=start_background_job,
         logger=logger,
-        on_loading_requested=lambda path: (status_var.set(f"Loading clip...\n{path.name}"), status_overlay.show()),
+        on_loading_requested=lambda path: (view.status_var.set(f"Loading clip...\n{path.name}"), status_overlay.show()),
         on_active_clip_loaded=lambda: (renderer.prepare_active_clip_for_current_size(), status_overlay.schedule_hide()),
         on_error=record_listener_error,
     )
@@ -184,15 +160,18 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         loader=loader,
         renderer=renderer,
         notifier=notifier,
-        set_status_text=status_var.set,
+        set_status_text=view.status_var.set,
         show_status=status_overlay.show,
         schedule_status_hide=status_overlay.schedule_hide,
     )
 
     def on_resize(_event=None):
         if resize_after_id["value"] is not None:
-            root.after_cancel(resize_after_id["value"])
-        resize_after_id["value"] = root.after(config.robot_hand.resize_debounce_ms, renderer.prepare_active_clip_for_current_size)
+            view.root.after_cancel(resize_after_id["value"])
+        resize_after_id["value"] = view.root.after(
+            config.robot_hand.resize_debounce_ms,
+            renderer.prepare_active_clip_for_current_size,
+        )
 
     refresh_controller = RobotHandRefreshController(
         state=state,
@@ -206,10 +185,10 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         beats_per_loop=args.beats_per_loop,
         bpm_smoothing=args.bpm_smoothing,
         sync_strength=args.sync_strength,
-        schedule_after=root.after,
-        show_window=root.deiconify,
-        hide_window=root.withdraw,
-        set_status_text=status_var.set,
+        schedule_after=view.root.after,
+        show_window=view.root.deiconify,
+        hide_window=view.root.withdraw,
+        set_status_text=view.status_var.set,
         show_status=status_overlay.show,
         logger=logger,
         log_name=config.log_file("robot_hand_listener").name,
@@ -219,21 +198,21 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         stop_event.set()
         notifier.notify_visible(False)
         notifier.close()
-        root.destroy()
+        view.root.destroy()
 
-    root.bind("<Motion>", status_overlay.on_mouse_motion)
-    root.bind("<Leave>", status_overlay.on_mouse_leave)
-    root.bind("<Configure>", on_resize)
-    root.bind("[", lambda _e: selection.step(-1))
-    root.bind("]", lambda _e: selection.step(1))
+    view.root.bind("<Motion>", status_overlay.on_mouse_motion)
+    view.root.bind("<Leave>", status_overlay.on_mouse_leave)
+    view.root.bind("<Configure>", on_resize)
+    view.root.bind("[", lambda _e: selection.step(-1))
+    view.root.bind("]", lambda _e: selection.step(1))
 
-    root.protocol("WM_DELETE_WINDOW", on_close)
+    view.root.protocol("WM_DELETE_WINDOW", on_close)
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
     selection.set_current_clip(selection.current_path)
-    root.withdraw()
-    root.after(16, refresh_controller.refresh)
-    root.mainloop()
+    view.root.withdraw()
+    view.root.after(16, refresh_controller.refresh)
+    view.root.mainloop()
     return 0
 
 
