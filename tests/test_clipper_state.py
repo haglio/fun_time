@@ -8,6 +8,13 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from fun_time.robot_hand.clipper.navigation import (
+    index_for_timeline_x,
+    move_current_left,
+    move_current_right,
+    timeline_x_for_index,
+    toggle_wrap_mode,
+)
 from fun_time.robot_hand.clipper.playback import (
     change_speed,
     current_loop_frame_index,
@@ -23,15 +30,10 @@ from fun_time.robot_hand.clipper.state import (
     cycle_loop_mode,
     extend_left,
     extend_right,
-    index_for_timeline_x,
     make_video_state,
-    move_current_left,
-    move_current_right,
     set_mark_in,
     set_mark_out,
     shift_active_range,
-    timeline_x_for_index,
-    toggle_wrap_mode,
     update_loop_suggestions,
 )
 
