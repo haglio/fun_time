@@ -29,6 +29,7 @@ from fun_time.robot_hand.clipper.playback import (
     loop_preview_indices,
     toggle_loop_pause,
 )
+from fun_time.robot_hand.clipper.state_factory import make_video_state
 from fun_time.robot_hand.clipper.state import (
     ExportJob,
     VideoState,
@@ -36,7 +37,6 @@ from fun_time.robot_hand.clipper.state import (
     contract_right,
     extend_left,
     extend_right,
-    make_video_state,
     update_loop_suggestions,
 )
 
@@ -282,8 +282,8 @@ class TestMakeVideoState:
         cap.get.side_effect = [30.0, 120.0]
         frames = {i: np.zeros((2, 2, 3), dtype=np.uint8) for i in range(30)}
 
-        with patch("fun_time.robot_hand.clipper.state.cv2.VideoCapture", return_value=cap):
-            with patch("fun_time.robot_hand.clipper.state.load_range", return_value=frames):
+        with patch("fun_time.robot_hand.clipper.state_factory.cv2.VideoCapture", return_value=cap):
+            with patch("fun_time.robot_hand.clipper.state_factory.load_range", return_value=frames):
                 state = make_video_state("/fake/video.mp4", "demo", 0.0, 1.0, loop_mode="tip-base")
 
         assert state.loop_mode == "tip-base"

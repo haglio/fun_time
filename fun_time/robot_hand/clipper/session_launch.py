@@ -4,7 +4,8 @@ from pathlib import Path
 
 from .launcher import launcher_dialog
 from .paths import LAST_SESSION_FILE, ensure_runtime_dirs
-from .state import VideoState, make_video_state
+from .state import VideoState
+from .state_factory import make_video_state
 from .utils import parse_timestamp, read_json
 
 
