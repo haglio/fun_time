@@ -6,11 +6,9 @@ import cv2
 
 from .controls import handle_key, on_mouse
 from .exit_prompt import finish_exit_prompt_action
+from .playback import current_loop_frame_index
 from .render import build_ui
-from .state import (
-    VideoState,
-    current_loop_frame_index,
-)
+from .state import VideoState
 from .ui_flow import handle_ui_key, handle_window_close, should_redraw
 from .window_runtime import cleanup_window, ensure_window, window_closed
 

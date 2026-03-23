@@ -27,11 +27,11 @@ from .paths import (
     WIN_RIGHT_KEYS,
     WRAP_TOGGLE_KEYS,
 )
+from .playback import change_speed, toggle_loop_pause
 from .state import (
     VideoState,
     accept_suggested_in,
     accept_suggested_out,
-    change_speed,
     contract_left,
     contract_right,
     cycle_loop_mode,
@@ -43,7 +43,6 @@ from .state import (
     set_mark_in,
     set_mark_out,
     shift_active_range,
-    toggle_loop_pause,
     toggle_wrap_mode,
 )
 

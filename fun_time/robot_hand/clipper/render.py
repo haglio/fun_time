@@ -7,10 +7,9 @@ import numpy as np
 
 from .exit_prompt import EXIT_PROMPT_BUTTON_NAMES, EXIT_PROMPT_CHOICES
 from .loop_modes import LOOP_MODE_LABELS
+from .playback import current_loop_frame_index, loop_preview_indices
 from .state import (
     VideoState,
-    current_loop_frame_index,
-    loop_preview_indices,
     safe_frame,
     timeline_x_for_index,
 )
