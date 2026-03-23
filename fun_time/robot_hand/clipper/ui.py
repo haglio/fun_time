@@ -7,6 +7,15 @@ from typing import Any
 import cv2
 import numpy as np
 
+from .exit_prompt import (
+    EXIT_PROMPT_BUTTON_NAMES,
+    EXIT_PROMPT_CHOICES,
+    cycle_exit_prompt_focus,
+    finish_exit_prompt_action,
+    queue_exit_prompt_action,
+    request_exit,
+    show_exit_prompt,
+)
 from .export import start_export_job, terminate_export_subprocesses
 from .loop_modes import LOOP_MODE_LABELS
 from .paths import (
@@ -47,7 +56,6 @@ from .state import (
     loop_preview_indices,
     move_current_left,
     move_current_right,
-    restore_original_session,
     safe_frame,
     set_mark_in,
     set_mark_out,
@@ -62,12 +70,6 @@ from .window_icons import set_cv2_window_icon
 Rect = tuple[int, int, int, int]
 Color = tuple[int, int, int]
 APP_DISPLAY_NAME = "Clipper"
-EXIT_PROMPT_CHOICES = ("save", "discard", "cancel")
-EXIT_PROMPT_BUTTON_NAMES = {
-    "save": "exit_save",
-    "discard": "exit_discard",
-    "cancel": "exit_cancel",
-}
 
 def scale_to_fit(img: np.ndarray, max_w: int, max_h: int) -> np.ndarray:
     h, w = img.shape[:2]
@@ -477,31 +479,6 @@ def draw_exit_overlay(canvas: np.ndarray, state: VideoState) -> None:
     draw_button(canvas, state.buttons[EXIT_PROMPT_BUTTON_NAMES["cancel"]], "Cancel exit", focused=focus == "cancel")
     put_text(canvas, "Tab: Change selection    Enter: Confirm    Esc: Cancel exit", ox + 28, by - 18, 0.56, (215, 215, 215), 1)
 
-
-def cycle_exit_prompt_focus(state: VideoState) -> None:
-    current = state.exit_prompt_focus if state.exit_prompt_focus in EXIT_PROMPT_CHOICES else "save"
-    next_index = (EXIT_PROMPT_CHOICES.index(current) + 1) % len(EXIT_PROMPT_CHOICES)
-    state.exit_prompt_focus = EXIT_PROMPT_CHOICES[next_index]
-    state.render_rev += 1
-
-
-def queue_exit_prompt_action(state: VideoState, choice: str | None = None) -> None:
-    selected = choice if choice in EXIT_PROMPT_CHOICES else state.exit_prompt_focus
-    if selected not in EXIT_PROMPT_CHOICES:
-        selected = "save"
-    state.exit_prompt_focus = selected
-    state.exit_prompt_action = selected
-    state.render_rev += 1
-
-
-def show_exit_prompt(state: VideoState) -> None:
-    if state.exit_prompt_focus not in EXIT_PROMPT_CHOICES:
-        state.exit_prompt_focus = "save"
-    state.exit_prompt_visible = True
-    state.exit_prompt_action = ""
-    state.render_rev += 1
-
-
 def on_mouse(event: int, x: int, y: int, flags: int, userdata: Any | None) -> None:
     if not isinstance(userdata, VideoState):
         return
@@ -615,31 +592,6 @@ def run_ui(state: VideoState) -> None:
         set_cv2_window_icon(window_name)
         cv2.setMouseCallback(window_name, on_mouse, state)
 
-    def finish_exit(choice: str) -> bool:
-        if choice == "cancel":
-            state.exit_prompt_visible = False
-            state.exit_prompt_focus = "save"
-            state.exit_prompt_action = ""
-            state.render_rev += 1
-            return False
-        if choice == "discard":
-            restore_original_session(state)
-        else:
-            state.autosave_session()
-        state.exit_prompt_visible = False
-        state.exit_prompt_focus = "save"
-        state.exit_prompt_action = ""
-        return True
-
-    def try_exit() -> bool:
-        if not state.dirty:
-            return True
-        if not state.should_prompt_on_exit:
-            state.autosave_session()
-            return True
-        show_exit_prompt(state)
-        return False
-
     ensure_window()
     last_loop_idx = -1
     last_present = 0.0
@@ -647,7 +599,7 @@ def run_ui(state: VideoState) -> None:
     try:
         while True:
             if state.exit_prompt_action:
-                if finish_exit(state.exit_prompt_action):
+                if finish_exit_prompt_action(state, state.exit_prompt_action):
                     break
                 continue
 
@@ -666,7 +618,7 @@ def run_ui(state: VideoState) -> None:
                     ensure_window()
                     state.render_rev += 1
                     continue
-                if try_exit():
+                if request_exit(state):
                     break
                 ensure_window()
                 continue
@@ -678,7 +630,7 @@ def run_ui(state: VideoState) -> None:
                     ensure_window()
                     state.render_rev += 1
                     continue
-                if try_exit():
+                if request_exit(state):
                     break
                 ensure_window()
                 continue
@@ -702,12 +654,12 @@ def run_ui(state: VideoState) -> None:
                     state.export_job.dismissed = True
                     state.render_rev += 1
                     continue
-                if try_exit():
+                if request_exit(state):
                     break
                 continue
 
             if key in QUIT_KEYS:
-                if try_exit():
+                if request_exit(state):
                     break
                 continue
 
