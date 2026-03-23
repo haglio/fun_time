@@ -14,6 +14,7 @@ from .editing import (
 )
 from .exit_prompt import EXIT_PROMPT_BUTTON_NAMES, EXIT_PROMPT_CHOICES, queue_exit_prompt_action
 from .export import start_export_job
+from .loaded_bounds import contract_left, contract_right, extend_left, extend_right
 from .navigation import (
     index_for_timeline_x,
     move_current_left,
@@ -44,10 +45,6 @@ from .paths import (
 from .playback import change_speed, toggle_loop_pause
 from .state import (
     VideoState,
-    contract_left,
-    contract_right,
-    extend_left,
-    extend_right,
 )
 
 Rect = tuple[int, int, int, int]

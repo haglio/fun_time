@@ -10,8 +10,6 @@ import cv2
 import numpy as np
 
 from .frame_store import (
-    ensure_loaded,
-    prune_loaded_caches,
     signature_for_index,
     structural_similarity_score,
 )
@@ -130,43 +128,6 @@ class VideoState:
 
     def autosave_session(self) -> None:
         persist_session_state(self)
-
-
-def contract_left(state: VideoState) -> None:
-    if state.active_start - state.loaded_start >= state.base_step:
-        state.loaded_start += state.base_step
-        prune_loaded_caches(state)
-        state.current = max(state.current, state.loaded_start)
-        update_loop_suggestions(state)
-        state.mark_dirty()
-
-
-def extend_left(state: VideoState) -> None:
-    new_start = max(0, state.loaded_start - state.base_step)
-    ensure_loaded(state, new_start, state.loaded_end)
-    if new_start != state.loaded_start:
-        state.loaded_start = new_start
-    update_loop_suggestions(state)
-    state.mark_dirty()
-
-
-def contract_right(state: VideoState) -> None:
-    if state.loaded_end - state.active_end >= state.base_step:
-        state.loaded_end -= state.base_step
-        prune_loaded_caches(state)
-        state.current = min(state.current, state.loaded_end)
-        update_loop_suggestions(state)
-        state.mark_dirty()
-
-
-def extend_right(state: VideoState) -> None:
-    new_end = min(state.total_frames - 1, state.loaded_end + state.base_step)
-    ensure_loaded(state, state.loaded_start, new_end)
-    if new_end != state.loaded_end:
-        state.loaded_end = new_end
-    update_loop_suggestions(state)
-    state.mark_dirty()
-
 
 def _candidate_similarity_curve(state: VideoState, ref_idx: int, *, direction: int) -> tuple[list[int], np.ndarray] | None:
     return candidate_similarity_curve(
