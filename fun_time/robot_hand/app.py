@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import socket
 import threading
 import time
 from collections import deque
@@ -12,6 +11,7 @@ import tkinter as tk
 
 from .cache_utils import render_queue_for_frame_count
 from .clip_runtime import ClipCacheStore, DecodeRequestState
+from .notifier import RobotHandNotifier
 from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
 from ..runtime_support import consume_command_file, preparse_config_path
@@ -185,18 +185,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     load_state = DecodeRequestState()
     prefetch_state = DecodeRequestState()
-
-    notify_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    last_visible_sent = {"value": None}
-
-    def notify_clip(path: Path):
-        notify_sock.sendto(f"CLIP {path.stem}".encode("utf-8"), (args.notify_host, args.notify_port))
-
-    def notify_visible(is_visible: bool):
-        val = 1 if is_visible else 0
-        if last_visible_sent["value"] != val:
-            notify_sock.sendto(f"VISIBLE {val}".encode("utf-8"), (args.notify_host, args.notify_port))
-            last_visible_sent["value"] = val
+    notifier = RobotHandNotifier(args.notify_host, args.notify_port)
 
     def current_viewport():
         return max(1, container.winfo_width()), max(1, container.winfo_height())
@@ -327,7 +316,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     def set_current_clip(path: Path):
         current_clip_path["value"] = path
         current_frame_index["value"] = None
-        notify_clip(path)
+        notifier.notify_clip(path)
 
         if path in clip_store.clip_cache:
             prepare_active_clip_for_current_size()
@@ -440,17 +429,13 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                 last_msg = state.last_msg
                 error = state.error
 
-            if visible != window_visible["value"]:
-                if visible:
-                    if last_visible_sent["value"] != 1 and current_clip_path["value"] is not None:
-                        notify_clip(current_clip_path["value"])
-                    notify_visible(True)
-                    root.deiconify()
-                else:
-                    notify_visible(False)
-                    root.withdraw()
-
-                window_visible["value"] = visible
+            window_visible["value"] = notifier.sync_window_visibility(
+                desired_visible=visible,
+                window_visible=window_visible["value"],
+                current_clip_path=current_clip_path["value"],
+                show_window=root.deiconify,
+                hide_window=root.withdraw,
+            )
 
             if error:
                 status_var.set(listener_error_status_text(error))
@@ -540,8 +525,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     def on_close():
         stop_event.set()
-        notify_visible(False)
-        notify_sock.close()
+        notifier.notify_visible(False)
+        notifier.close()
         root.destroy()
 
     root.bind("<Motion>", on_mouse_motion)
