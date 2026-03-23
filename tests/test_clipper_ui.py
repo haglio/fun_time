@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import cv2
 
+from fun_time.robot_hand.clipper.exit_prompt import (
+    cycle_exit_prompt_focus,
+    finish_exit_prompt_action,
+    queue_exit_prompt_action,
+    request_exit,
+    show_exit_prompt,
+)
 from fun_time.robot_hand.clipper.ui import (
     build_ui,
-    cycle_exit_prompt_focus,
     handle_key,
     on_mouse,
-    queue_exit_prompt_action,
-    show_exit_prompt,
 )
 
 from tests.test_clipper_state import _make_state
@@ -116,6 +121,56 @@ class TestExitPromptControls:
 
         assert state.exit_prompt_focus == "cancel"
         assert state.exit_prompt_action == "cancel"
+
+    def test_finish_exit_prompt_action_cancels_without_exiting(self):
+        state = _make_state()
+        state.exit_prompt_visible = True
+        state.exit_prompt_focus = "discard"
+        state.exit_prompt_action = "discard"
+        state.render_rev = 0
+
+        result = finish_exit_prompt_action(state, "cancel")
+
+        assert result is False
+        assert state.exit_prompt_visible is False
+        assert state.exit_prompt_focus == "save"
+        assert state.exit_prompt_action == ""
+        assert state.render_rev == 1
+
+    def test_finish_exit_prompt_action_restores_original_session_for_discard(self):
+        state = _make_state()
+        state.exit_prompt_visible = True
+
+        with patch("fun_time.robot_hand.clipper.exit_prompt.restore_original_session") as restore:
+            result = finish_exit_prompt_action(state, "discard")
+
+        assert result is True
+        restore.assert_called_once_with(state)
+        assert state.exit_prompt_visible is False
+        assert state.exit_prompt_focus == "save"
+        assert state.exit_prompt_action == ""
+
+    def test_request_exit_autosaves_for_dirty_new_session(self):
+        state = _make_state()
+        state.dirty = True
+        state.autosave_session = MagicMock()
+
+        result = request_exit(state)
+
+        assert result is True
+        state.autosave_session.assert_called_once_with()
+
+    def test_request_exit_shows_prompt_for_dirty_existing_session(self):
+        state = _make_state()
+        state.dirty = True
+        state.protect_existing_save_data = True
+        state.autosave_session = MagicMock()
+
+        result = request_exit(state)
+
+        assert result is False
+        assert state.exit_prompt_visible is True
+        state.autosave_session.assert_not_called()
 
 
 class TestMouseControls:
