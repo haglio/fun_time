@@ -6,9 +6,10 @@ from pathlib import Path
 
 from ...config import PROJECT_DIR
 from ...logging_utils import configure_logging, install_exception_logging
+from .launcher import launcher_dialog, messagebox, tk
 from .paths import LAST_SESSION_FILE, ensure_runtime_dirs
 from .state import VideoState, make_video_state
-from .ui import launcher_dialog, messagebox, run_ui, tk
+from .ui import run_ui
 from .utils import parse_timestamp, read_json
 
 CLIPPER_APP_USER_MODEL_ID = "FunTime.Clipper"
