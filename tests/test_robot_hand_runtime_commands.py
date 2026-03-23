@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from fun_time.robot_hand.app import (
+from fun_time.robot_hand.runtime_commands import (
     LEGACY_QUARTER_CYCLE_OFFSET_COMMAND,
     QUARTER_CYCLE_OFFSET_COMMAND,
     apply_runtime_command,

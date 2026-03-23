@@ -14,6 +14,7 @@ from .clip_runtime import ClipCacheStore, DecodeRequestState
 from .clip_selection import ClipSelectionController
 from .clip_sequence import ClipSequenceController
 from .notifier import RobotHandNotifier
+from .runtime_commands import apply_runtime_command, get_engine_estimated_bpm
 from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
 from ..runtime_support import consume_command_file, preparse_config_path
@@ -28,51 +29,6 @@ from .status_text import (
     loading_status_text,
 )
 from .video import decode_video_to_pil_frames, make_photo, scan_clips
-
-
-QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
-LEGACY_QUARTER_CYCLE_OFFSET_COMMAND = "NUDGE25"
-
-
-def _get_engine_phase(engine) -> float:
-    if isinstance(engine, dict):
-        return float(engine["phase"])
-    return float(engine.phase)
-
-
-def _set_engine_phase(engine, value: float) -> None:
-    if isinstance(engine, dict):
-        engine["phase"] = value
-    else:
-        engine.phase = value
-
-
-def _get_engine_estimated_bpm(engine) -> float | None:
-    if isinstance(engine, dict):
-        value = engine.get("estimated_bpm")
-    else:
-        value = engine.estimated_bpm
-    return None if value is None else float(value)
-
-
-def apply_runtime_command(command, *, engine, rh_paused, step_clip) -> bool:
-    if not command:
-        return False
-
-    normalized = command.strip().upper()
-    if normalized == "PREV":
-        step_clip(-1)
-    elif normalized == "NEXT":
-        step_clip(1)
-    elif normalized in {QUARTER_CYCLE_OFFSET_COMMAND, LEGACY_QUARTER_CYCLE_OFFSET_COMMAND}:
-        _set_engine_phase(engine, (_get_engine_phase(engine) + 0.25) % 1.0)
-    elif normalized == "PAUSE":
-        rh_paused["value"] = True
-    elif normalized == "RESUME":
-        rh_paused["value"] = False
-    else:
-        return False
-    return True
 
 
 def _preparse_config(argv: list[str] | None) -> str | None:
@@ -315,7 +271,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                         auto_active=shared.auto_active,
                         phase=engine.phase,
                         raw_bpm=shared.raw_bpm,
-                        estimated_bpm=_get_engine_estimated_bpm(engine),
+                        estimated_bpm=get_engine_estimated_bpm(engine),
                         beats=shared.beats,
                         loop_duration=loop_duration,
                         stroke_name=shared.stroke_name,
