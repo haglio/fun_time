@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 import socket
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pygame
@@ -42,6 +44,153 @@ def consume_command_file(path: Path) -> str | None:
     return _consume_command_file(path)
 
 
+@dataclass
+class AudioPlaybackController:
+    audio_folder: Path
+    logger: logging.Logger
+    current_path: Path | None = None
+    visible: bool = False
+    paused: bool = False
+    manual_paused: bool = False
+    playback_running: bool = False
+    play_started_at: float = 0.0
+    play_start_position: float = 0.0
+    clip_positions: dict[Path, float] = field(default_factory=dict)
+    clip_lengths: dict[Path, float | None] = field(default_factory=dict)
+
+    def get_clip_length(self, path: Path) -> float | None:
+        if path in self.clip_lengths:
+            return self.clip_lengths[path]
+
+        try:
+            length = float(pygame.mixer.Sound(str(path)).get_length())
+            if not math.isfinite(length) or length <= 0:
+                length = None
+        except Exception:
+            length = None
+
+        self.clip_lengths[path] = length
+        return length
+
+    def normalize_position(self, path: Path, value: float) -> float:
+        if value < 0:
+            return 0.0
+
+        length = self.get_clip_length(path)
+        if length is None:
+            return value
+
+        if length <= 0:
+            return 0.0
+
+        return value % length
+
+    def current_position_for_active_clip(self) -> float:
+        if self.current_path is None:
+            return 0.0
+
+        if self.playback_running:
+            elapsed = max(0.0, time.monotonic() - self.play_started_at)
+            return self.normalize_position(self.current_path, self.play_start_position + elapsed)
+
+        return self.normalize_position(self.current_path, self.play_start_position)
+
+    def save_active_clip_position(self) -> None:
+        if self.current_path is None:
+            return
+
+        position = self.current_position_for_active_clip()
+        self.clip_positions[self.current_path] = position
+        self.play_start_position = position
+
+    def play_current_clip_from_saved_position(self) -> None:
+        if self.current_path is None:
+            return
+
+        start_position = self.normalize_position(self.current_path, self.clip_positions.get(self.current_path, 0.0))
+        try:
+            pygame.mixer.music.play(-1, start=start_position)
+        except TypeError:
+            pygame.mixer.music.play(-1)
+            if start_position > 0:
+                try:
+                    pygame.mixer.music.set_pos(start_position)
+                except Exception:
+                    start_position = 0.0
+        except Exception:
+            pygame.mixer.music.play(-1)
+            start_position = 0.0
+
+        self.play_start_position = start_position
+        self.play_started_at = time.monotonic()
+        self.playback_running = True
+        self.paused = False
+
+    def apply_state(self) -> None:
+        should_play = self.visible and self.current_path is not None and not self.manual_paused
+
+        if should_play:
+            if pygame.mixer.music.get_busy():
+                if self.paused:
+                    pygame.mixer.music.unpause()
+                    self.play_started_at = time.monotonic()
+                    self.playback_running = True
+                    self.paused = False
+            else:
+                self.play_current_clip_from_saved_position()
+        else:
+            if pygame.mixer.music.get_busy() and not self.paused:
+                self.save_active_clip_position()
+                pygame.mixer.music.pause()
+                self.playback_running = False
+                self.paused = True
+
+    def switch_clip(self, path: Path | None) -> None:
+        if self.current_path is not None:
+            self.save_active_clip_position()
+
+        self.current_path = path
+
+        if self.current_path is None:
+            pygame.mixer.music.stop()
+            self.paused = False
+            self.playback_running = False
+            self.play_start_position = 0.0
+            return
+
+        pygame.mixer.music.load(str(self.current_path))
+        self.play_start_position = self.normalize_position(self.current_path, self.clip_positions.get(self.current_path, 0.0))
+        self.playback_running = False
+        self.paused = False
+
+        self.apply_state()
+
+    def set_manual_paused(self, paused: bool) -> None:
+        self.manual_paused = paused
+        self.apply_state()
+        self.logger.info("Audio %s", "paused" if paused else "resumed")
+
+    def handle_udp_line(self, line: str) -> None:
+        if line.startswith("CLIP "):
+            stem = line[5:].strip()
+            path = find_audio(self.audio_folder, stem)
+
+            if path is not None:
+                self.logger.info("Switching audio clip to %s", path.name)
+                self.switch_clip(path)
+            else:
+                self.logger.warning("No audio file found for stem %s", stem)
+                self.switch_clip(None)
+
+        elif line == "VISIBLE 1":
+            self.visible = True
+            self.apply_state()
+
+        elif line == "VISIBLE 0":
+            self.visible = False
+            self.apply_state()
+
+
 def main(argv: list[str] | None = None) -> int:
     config = load_config(_preparse_config(argv))
     logger = configure_logging("fun_time.robot_hand_audio", config.log_file("robot_hand_audio"))
@@ -61,130 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     sock.bind((args.host, args.port))
     sock.settimeout(0.15)
 
-    current_path: Path | None = None
-    visible = False
-    paused = False
-    manual_paused = False
-    playback_running = False
-    play_started_at = 0.0
-    play_start_position = 0.0
-    clip_positions: dict[Path, float] = {}
-    clip_lengths: dict[Path, float | None] = {}
-
-    def get_clip_length(path: Path) -> float | None:
-        if path in clip_lengths:
-            return clip_lengths[path]
-
-        try:
-            length = float(pygame.mixer.Sound(str(path)).get_length())
-            if not math.isfinite(length) or length <= 0:
-                length = None
-        except Exception:
-            length = None
-
-        clip_lengths[path] = length
-        return length
-
-    def normalize_position(path: Path, value: float) -> float:
-        if value < 0:
-            return 0.0
-
-        length = get_clip_length(path)
-        if length is None:
-            return value
-
-        if length <= 0:
-            return 0.0
-
-        return value % length
-
-    def current_position_for_active_clip() -> float:
-        if current_path is None:
-            return 0.0
-
-        if playback_running:
-            elapsed = max(0.0, time.monotonic() - play_started_at)
-            return normalize_position(current_path, play_start_position + elapsed)
-
-        return normalize_position(current_path, play_start_position)
-
-    def save_active_clip_position() -> None:
-        nonlocal play_start_position
-
-        if current_path is None:
-            return
-
-        position = current_position_for_active_clip()
-        clip_positions[current_path] = position
-        play_start_position = position
-
-    def play_current_clip_from_saved_position() -> None:
-        nonlocal paused, playback_running, play_started_at, play_start_position
-
-        if current_path is None:
-            return
-
-        start_position = normalize_position(current_path, clip_positions.get(current_path, 0.0))
-        try:
-            pygame.mixer.music.play(-1, start=start_position)
-        except TypeError:
-            pygame.mixer.music.play(-1)
-            if start_position > 0:
-                try:
-                    pygame.mixer.music.set_pos(start_position)
-                except Exception:
-                    start_position = 0.0
-        except Exception:
-            pygame.mixer.music.play(-1)
-            start_position = 0.0
-
-        play_start_position = start_position
-        play_started_at = time.monotonic()
-        playback_running = True
-        paused = False
-
-    def apply_state() -> None:
-        nonlocal paused, playback_running, play_started_at
-
-        should_play = visible and current_path is not None and not manual_paused
-
-        if should_play:
-            if pygame.mixer.music.get_busy():
-                if paused:
-                    pygame.mixer.music.unpause()
-                    play_started_at = time.monotonic()
-                    playback_running = True
-                    paused = False
-            else:
-                play_current_clip_from_saved_position()
-        else:
-            if pygame.mixer.music.get_busy() and not paused:
-                save_active_clip_position()
-                pygame.mixer.music.pause()
-                playback_running = False
-                paused = True
-
-    def switch_clip(path: Path | None) -> None:
-        nonlocal current_path, paused, playback_running, play_start_position
-
-        if current_path is not None:
-            save_active_clip_position()
-
-        current_path = path
-
-        if current_path is None:
-            pygame.mixer.music.stop()
-            paused = False
-            playback_running = False
-            play_start_position = 0.0
-            return
-
-        pygame.mixer.music.load(str(current_path))
-        play_start_position = normalize_position(current_path, clip_positions.get(current_path, 0.0))
-        playback_running = False
-        paused = False
-
-        apply_state()
+    controller = AudioPlaybackController(audio_folder=audio_folder, logger=logger)
 
     try:
         while True:
@@ -197,35 +223,14 @@ def main(argv: list[str] | None = None) -> int:
 
             cmd = consume_command_file(cmd_file)
             if cmd == "PAUSE":
-                manual_paused = True
-                apply_state()
-                logger.info("Audio paused")
+                controller.set_manual_paused(True)
             elif cmd == "RESUME":
-                manual_paused = False
-                apply_state()
-                logger.info("Audio resumed")
+                controller.set_manual_paused(False)
 
             if not line:
                 continue
 
-            if line.startswith("CLIP "):
-                stem = line[5:].strip()
-                path = find_audio(audio_folder, stem)
-
-                if path is not None:
-                    logger.info("Switching audio clip to %s", path.name)
-                    switch_clip(path)
-                else:
-                    logger.warning("No audio file found for stem %s", stem)
-                    switch_clip(None)
-
-            elif line == "VISIBLE 1":
-                visible = True
-                apply_state()
-
-            elif line == "VISIBLE 0":
-                visible = False
-                apply_state()
+            controller.handle_udp_line(line)
     finally:
         sock.close()
 
