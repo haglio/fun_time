@@ -6,6 +6,12 @@ import cv2
 
 from .exit_prompt import EXIT_PROMPT_BUTTON_NAMES, EXIT_PROMPT_CHOICES, queue_exit_prompt_action
 from .export import start_export_job
+from .navigation import (
+    index_for_timeline_x,
+    move_current_left,
+    move_current_right,
+    toggle_wrap_mode,
+)
 from .paths import (
     ACCEPT_SUGGESTED_IN_KEYS,
     ACCEPT_SUGGESTED_OUT_KEYS,
@@ -37,13 +43,9 @@ from .state import (
     cycle_loop_mode,
     extend_left,
     extend_right,
-    index_for_timeline_x,
-    move_current_left,
-    move_current_right,
     set_mark_in,
     set_mark_out,
     shift_active_range,
-    toggle_wrap_mode,
 )
 
 Rect = tuple[int, int, int, int]
