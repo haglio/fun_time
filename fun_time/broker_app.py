@@ -11,6 +11,7 @@ from pathlib import Path
 import serial
 
 from .broker_protocol import BrokerAutoController, parse_auto_transition
+from .broker_session import BrokerSerialSession
 from .config import load_config
 from .logging_utils import configure_logging, install_exception_logging
 from .runtime_support import consume_command_file as _consume_command_file
@@ -159,9 +160,6 @@ def main(argv: list[str] | None = None) -> int:
 
     state_file = Path(args.state_file)
     broker_cmd_file = Path(args.broker_cmd_file)
-    state = {
-        "last_real_rx_time": 0.0,
-    }
     stop_event = threading.Event()
     broker_paused = threading.Event()
     auto_mode = BrokerAutoController(
@@ -172,95 +170,23 @@ def main(argv: list[str] | None = None) -> int:
         write_mode=write_mode,
         udp_send=udp_send,
     )
-
-    def run_serial_session(udp_sock: socket.socket) -> bool:
-        session_stop = threading.Event()
-        retry_session = {"value": False}
-
-        def forward_real_to_virtual(real, virt) -> None:
-            buf = bytearray()
-            while not stop_event.is_set() and not session_stop.is_set():
-                try:
-                    data = real.read(real.in_waiting or 1)
-                    if not data:
-                        continue
-
-                    state["last_real_rx_time"] = time.monotonic()
-                    virt.write(data)
-
-                    buf.extend(data)
-                    while b"\n" in buf:
-                        raw_line, _, rest = buf.partition(b"\n")
-                        buf[:] = rest
-                        line = raw_line.rstrip(b"\r").decode("utf-8", errors="replace").strip()
-                        if line:
-                            auto_mode.handle_line(udp_sock, line)
-                except Exception as exc:
-                    logger.exception("REAL->VIRT error")
-                    retry_session["value"] = is_retryable_serial_error(exc)
-                    session_stop.set()
-                    return
-
-        def forward_virtual_to_real(virt, real) -> None:
-            while not stop_event.is_set() and not session_stop.is_set():
-                try:
-                    data = virt.read(virt.in_waiting or 1)
-                    if not data:
-                        continue
-                    if not auto_mode.is_active:
-                        real.write(data)
-                except Exception as exc:
-                    logger.exception("VIRT->REAL error")
-                    retry_session["value"] = is_retryable_serial_error(exc)
-                    session_stop.set()
-                    return
-
-        thread_real: threading.Thread | None = None
-        thread_virtual: threading.Thread | None = None
-        try:
-            with serial.Serial(args.virtual_port, args.baud, timeout=0.02) as virt, serial.Serial(
-                args.real_port,
-                args.baud,
-                timeout=0.02,
-            ) as real:
-                state["last_real_rx_time"] = 0.0
-                thread_real = start_daemon_thread(
-                    target=forward_real_to_virtual,
-                    args=(real, virt),
-                    name="broker-real",
-                )
-                thread_virtual = start_daemon_thread(
-                    target=forward_virtual_to_real,
-                    args=(virt, real),
-                    name="broker-virtual",
-                )
-
-                while not stop_event.is_set() and not session_stop.is_set():
-                    time.sleep(0.2)
-                    cmd = consume_broker_cmd(broker_cmd_file)
-                    if cmd == "PAUSE":
-                        broker_paused.set()
-                        logger.info("OmniPause: broker paused")
-                    elif cmd == "RESUME":
-                        broker_paused.clear()
-                        logger.info("OmniPause: broker resumed")
-                    last_rx = float(state["last_real_rx_time"])
-                    if auto_mode.is_active and not broker_paused.is_set() and last_rx and (time.monotonic() - last_rx > args.auto_stale_timeout):
-                        logger.warning("AUTO stale timeout reached after %.2fs", args.auto_stale_timeout)
-                        auto_mode.set_auto(udp_sock, False, mode_value="2")
-        except KeyboardInterrupt:
-            raise
-        except Exception as exc:
-            logger.exception("Failed to open or run serial session")
-            retry_session["value"] = is_retryable_serial_error(exc)
-        finally:
-            session_stop.set()
-            if thread_real is not None:
-                thread_real.join(timeout=1.0)
-            if thread_virtual is not None:
-                thread_virtual.join(timeout=1.0)
-
-        return retry_session["value"]
+    session = BrokerSerialSession(
+        serial_factory=serial.Serial,
+        virtual_port=args.virtual_port,
+        real_port=args.real_port,
+        baud=args.baud,
+        broker_cmd_file=broker_cmd_file,
+        auto_stale_timeout=args.auto_stale_timeout,
+        stop_event=stop_event,
+        broker_paused=broker_paused,
+        auto_mode=auto_mode,
+        logger=logger,
+        start_thread=start_daemon_thread,
+        consume_command=consume_broker_cmd,
+        monotonic=time.monotonic,
+        sleep=time.sleep,
+        is_retryable_error=is_retryable_serial_error,
+    )
 
     write_mode(state_file, "0", logger)
 
@@ -270,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         while not stop_event.is_set():
-            should_retry = run_serial_session(udp_sock)
+            should_retry = session.run(udp_sock)
             if not should_retry or stop_event.is_set():
                 break
             logger.warning("Retrying serial session in %.2fs", args.serial_retry_delay)
