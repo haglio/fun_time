@@ -5,52 +5,43 @@ DetectHiddenWindows False
 SetTitleMatchMode 2
 
 ; Args:
-; 1 VLC_EXE, 2 MFP_EXE, 3 PRIMARY_VLC_SOURCES, 4 PORTRAIT_DIR, 5 LANDSCAPE_DIR,
-; 6 WEIRD_DIR, 7 FAVS_FILE, 8 VLC2_PORT, 9 VLC3_PORT, 10 VLC_PASS,
-; 11 ROBOT_HAND_PY, 12 ROBOT_HAND_MODULE, 13 ROBOT_HAND_CLIPS,
-; 14 ROBOT_HAND_AUDIO_MODULE, 15 ROBOT_HAND_AUDIO, 16 ROBOT_HAND_MODE_FILE, 17 ROBOT_HAND_CMD_FILE,
-; 18 BROKER_CMD_FILE, 19 AUDIO_CMD_FILE, 20 PRIMARY_MONITOR, 21 SECONDARY_MONITOR, 22 PRIMARY_TOP_RATIO,
-; 23 LANDSCAPE_WIDTH_RATIO, 24 MFP_WIDTH_RATIO, 25 MFP_HEIGHT_RATIO, 26 CONTROLLER_LOG_FILE,
-; 27 CHROME_SHORTCUT_PATH, 28 CHROME_MANIFEST_FILE, 29 CONFIG_PATH
-if (A_Args.Length < 29) {
+; 1 CONTROLLER_MANIFEST_PATH
+if (A_Args.Length < 1) {
     MsgBox("Not enough arguments passed to controller. Got " . A_Args.Length, "fun_time", "Iconx")
     ExitApp 2
 }
 
-VLC_EXE               := A_Args[1]
-MFP_EXE               := A_Args[2]
-PRIMARY_VLC_SOURCES   := A_Args[3]
-PORTRAIT_DIR          := A_Args[4]
-LANDSCAPE_DIR         := A_Args[5]
-WEIRD_DIR             := A_Args[6]
-FAVS_FILE             := A_Args[7]
-VLC2_PORT             := A_Args[8]
-VLC3_PORT             := A_Args[9]
-VLC_PASS              := A_Args[10]
-ROBOT_HAND_PY         := A_Args[11]
-ROBOT_HAND_MODULE     := A_Args[12]
-ROBOT_HAND_CLIPS      := A_Args[13]
-ROBOT_HAND_AUDIO_MODULE := A_Args[14]
-ROBOT_HAND_AUDIO      := A_Args[15]
-ROBOT_HAND_MODE_FILE       := A_Args[16]
-ROBOT_HAND_CMD_FILE   := A_Args[17]
-BROKER_CMD_FILE       := A_Args[18]
-AUDIO_CMD_FILE        := A_Args[19]
-PRIMARY_MONITOR       := A_Args[20]
-SECONDARY_MONITOR     := A_Args[21]
-PRIMARY_TOP_RATIO     := A_Args[22]
-LANDSCAPE_WIDTH_RATIO := A_Args[23]
-MFP_WIDTH_RATIO       := A_Args[24]
-MFP_HEIGHT_RATIO      := A_Args[25]
-CONTROLLER_LOG_FILE   := A_Args[26]
-CHROME_SHORTCUT_PATH  := A_Args[27]
-CHROME_MANIFEST_FILE  := A_Args[28]
-CONFIG_PATH           := A_Args[29]
-
-PROJECT_DIR := ""
-SplitPath(CONFIG_PATH, , &PROJECT_DIR)
-if (PROJECT_DIR = "")
-    PROJECT_DIR := A_ScriptDir
+CONTROLLER_MANIFEST_PATH := A_Args[1]
+VLC_EXE := RequireManifestValue("executables", "vlc_exe")
+MFP_EXE := RequireManifestValue("executables", "mfp_exe")
+PRIMARY_VLC_SOURCES := RequireManifestValue("media", "primary_vlc_sources")
+PORTRAIT_DIR := RequireManifestValue("media", "portrait_dirs")
+LANDSCAPE_DIR := RequireManifestValue("media", "landscape_dirs")
+WEIRD_DIR := RequireManifestValue("media", "weird_dir")
+FAVS_FILE := RequireManifestValue("media", "favs_file")
+VLC2_PORT := RequireManifestValue("controller", "vlc2_port")
+VLC3_PORT := RequireManifestValue("controller", "vlc3_port")
+VLC_PASS := RequireManifestValue("controller", "vlc_pass")
+ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")
+ROBOT_HAND_MODULE := RequireManifestValue("modules", "robot_hand_module")
+ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
+ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
+ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
+ROBOT_HAND_MODE_FILE := RequireManifestValue("commands", "robot_hand_mode_file")
+ROBOT_HAND_CMD_FILE := RequireManifestValue("commands", "robot_hand_cmd_file")
+BROKER_CMD_FILE := RequireManifestValue("commands", "broker_cmd_file")
+AUDIO_CMD_FILE := RequireManifestValue("commands", "audio_cmd_file")
+PRIMARY_MONITOR := RequireManifestValue("layout", "primary_monitor")
+SECONDARY_MONITOR := RequireManifestValue("layout", "secondary_monitor")
+PRIMARY_TOP_RATIO := RequireManifestValue("layout", "primary_top_ratio")
+LANDSCAPE_WIDTH_RATIO := RequireManifestValue("layout", "landscape_width_ratio")
+MFP_WIDTH_RATIO := RequireManifestValue("layout", "mfp_width_ratio")
+MFP_HEIGHT_RATIO := RequireManifestValue("layout", "mfp_height_ratio")
+CONTROLLER_LOG_FILE := RequireManifestValue("runtime", "controller_log_file")
+CHROME_SHORTCUT_PATH := RequireManifestValue("chrome_overlay", "shortcut_path")
+CHROME_MANIFEST_FILE := RequireManifestValue("chrome_overlay", "manifest_file")
+CONFIG_PATH := RequireManifestValue("runtime", "config_path")
+PROJECT_DIR := RequireManifestValue("runtime", "project_dir")
 
 ; IMPORTANT: VLC web interface commonly uses BLANK username + password.
 VLC_USER := ""
@@ -93,6 +84,17 @@ Log(msg) {
     try {
         FileAppend(FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n", CONTROLLER_LOG_FILE, "UTF-8")
     }
+}
+
+RequireManifestValue(section, key) {
+    global CONTROLLER_MANIFEST_PATH
+    missing := "__missing__"
+    value := IniRead(CONTROLLER_MANIFEST_PATH, section, key, missing)
+    if (value = missing) {
+        MsgBox("Missing controller manifest value [" . section . "] " . key, "fun_time", "Iconx")
+        ExitApp 2
+    }
+    return value
 }
 
 RunApp(exe, args) {

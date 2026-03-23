@@ -1,18 +1,24 @@
 """Tests for fun_time.orchestrator."""
 from __future__ import annotations
 
+import configparser
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from fun_time.controller_manifest import (
+    CONTROLLER_MANIFEST_FILENAME,
+    build_controller_manifest,
+    write_controller_manifest,
+)
 from fun_time.orchestrator import (
-    build_controller_args,
     build_parser,
     ensure_broker_running,
     is_broker_running,
     require_dir,
     require_file,
+    run_controller,
     start_broker,
     validate_config,
 )
@@ -76,30 +82,30 @@ class TestRequireDir:
 
 
 # ---------------------------------------------------------------------------
-# build_controller_args
+# controller manifest
 # ---------------------------------------------------------------------------
 
-class TestBuildControllerArgs:
-    def test_returns_list(self, cfg_path: Path):
+class TestControllerManifest:
+    def test_returns_sections(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_args(cfg, "testpass")
-        assert isinstance(result, list)
+        result = build_controller_manifest(cfg, "testpass")
+        assert isinstance(result, dict)
 
     def test_vlc_pass_is_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_args(cfg, "mysecret")
-        assert "mysecret" in result
+        result = build_controller_manifest(cfg, "mysecret")
+        assert result["controller"]["vlc_pass"] == "mysecret"
 
     def test_vlc_ports_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_args(cfg, "pw")
-        assert "8091" in result
-        assert "8092" in result
+        result = build_controller_manifest(cfg, "pw")
+        assert result["controller"]["vlc2_port"] == "8091"
+        assert result["controller"]["vlc3_port"] == "8092"
 
-    def test_config_path_at_end(self, cfg_path: Path):
+    def test_runtime_section_includes_config_path(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_args(cfg, "pw")
-        assert result[-1] == str(cfg.config_path)
+        result = build_controller_manifest(cfg, "pw")
+        assert result["runtime"]["config_path"] == str(cfg.config_path)
 
     def test_primary_vlc_dirs_joined_with_pipe(self, tmp_path: Path, cfg_factory):
         extra = tmp_path / "extra_vlc"
@@ -109,11 +115,11 @@ class TestBuildControllerArgs:
             str(extra),
         ]}})
         cfg = load_config(path)
-        args = build_controller_args(cfg, "pw")
-        pipe_joined = [a for a in args if "|" in a]
-        assert len(pipe_joined) == 1
-        assert str(tmp_path / "vlc_primary") in pipe_joined[0]
-        assert str(extra) in pipe_joined[0]
+        manifest = build_controller_manifest(cfg, "pw")
+        joined = manifest["media"]["primary_vlc_sources"]
+        assert str(tmp_path / "vlc_primary") in joined
+        assert str(extra) in joined
+        assert "|" in joined
 
     def test_portrait_and_landscape_dirs_joined_with_pipe(self, tmp_path: Path, cfg_factory):
         portrait_extra = tmp_path / "portrait_extra"
@@ -125,30 +131,43 @@ class TestBuildControllerArgs:
             "landscape_dirs": [str(tmp_path / "landscape"), str(landscape_extra)],
         }})
         cfg = load_config(path)
-        args = build_controller_args(cfg, "pw")
-        assert str(tmp_path / "portrait") in args[3]
-        assert str(portrait_extra) in args[3]
-        assert "|" in args[3]
-        assert str(tmp_path / "landscape") in args[4]
-        assert str(landscape_extra) in args[4]
-        assert "|" in args[4]
+        manifest = build_controller_manifest(cfg, "pw")
+        assert str(tmp_path / "portrait") in manifest["media"]["portrait_dirs"]
+        assert str(portrait_extra) in manifest["media"]["portrait_dirs"]
+        assert "|" in manifest["media"]["portrait_dirs"]
+        assert str(tmp_path / "landscape") in manifest["media"]["landscape_dirs"]
+        assert str(landscape_extra) in manifest["media"]["landscape_dirs"]
+        assert "|" in manifest["media"]["landscape_dirs"]
 
     def test_robot_hand_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_args(cfg, "pw")
-        assert "fun_time.robot_hand.app" in result
+        result = build_controller_manifest(cfg, "pw")
+        assert result["modules"]["robot_hand_module"] == "fun_time.robot_hand.app"
 
     def test_audio_companion_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_args(cfg, "pw")
-        assert "fun_time.audio_companion_app" in result
+        result = build_controller_manifest(cfg, "pw")
+        assert result["modules"]["audio_module"] == "fun_time.audio_companion_app"
 
-    def test_chrome_overlay_args_included_before_config(self, cfg_path: Path):
+    def test_chrome_overlay_paths_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_args(cfg, "pw")
-        assert result[-3] == str(cfg.chrome_overlay.shortcut_path)
-        assert result[-2] == str(cfg.chrome_overlay_manifest_file)
-        assert result[-1] == str(cfg.config_path)
+        result = build_controller_manifest(cfg, "pw")
+        assert result["chrome_overlay"]["shortcut_path"] == str(cfg.chrome_overlay.shortcut_path)
+        assert result["chrome_overlay"]["manifest_file"] == str(cfg.chrome_overlay_manifest_file)
+
+    def test_write_controller_manifest_writes_expected_ini(self, cfg_path: Path, tmp_path: Path):
+        cfg = load_config(cfg_path)
+        manifest_path = write_controller_manifest(cfg, "pw", tmp_path / CONTROLLER_MANIFEST_FILENAME)
+
+        parser = configparser.ConfigParser()
+        parser.optionxform = str
+        parser.read(manifest_path, encoding="utf-8")
+
+        assert manifest_path.name == CONTROLLER_MANIFEST_FILENAME
+        assert parser["runtime"]["project_dir"] == str(cfg.project_dir)
+        assert parser["controller"]["vlc_pass"] == "pw"
+        assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
+        assert parser["chrome_overlay"]["manifest_file"] == str(cfg.chrome_overlay_manifest_file)
 
 
 # ---------------------------------------------------------------------------
@@ -255,6 +274,27 @@ class TestBrokerHelpers:
         assert result is True
         probe.assert_called_once_with()
         starter.assert_not_called()
+
+
+class TestRunController:
+    def test_uses_manifest_path_for_controller_launch(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+
+        with patch("fun_time.orchestrator.secrets.token_hex", return_value="abc123"), \
+             patch("fun_time.orchestrator.write_controller_manifest", return_value=cfg.paths.state_dir / CONTROLLER_MANIFEST_FILENAME) as writer, \
+             patch("fun_time.orchestrator.subprocess.run") as run:
+            run.return_value.returncode = 0
+            result = run_controller(cfg, logger)
+
+        assert result == 0
+        writer.assert_called_once_with(cfg, "fun_time_abc123")
+        command = run.call_args.args[0]
+        assert command == [
+            str(cfg.paths.ahk_exe),
+            str(cfg.project_dir / "controller.ahk"),
+            str(cfg.paths.state_dir / CONTROLLER_MANIFEST_FILENAME),
+        ]
 
 
 def subprocess_result(*, stdout: str, returncode: int):

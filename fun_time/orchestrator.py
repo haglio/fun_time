@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from .config import load_config
+from .controller_manifest import write_controller_manifest
 from .logging_utils import configure_logging, install_exception_logging
 from .runtime_support import hidden_subprocess_kwargs
 
@@ -123,48 +124,11 @@ def ensure_broker_running(config, logger, *, attempts: int = 20, delay_seconds: 
     return False
 
 
-def build_controller_args(config, vlc_http_pass: str) -> list[str]:
-    layout = config.controller.layout
-    primary_vlc_dirs_arg = "|".join(str(path) for path in config.paths.primary_vlc_dirs)
-    portrait_dirs_arg = "|".join(str(path) for path in config.paths.portrait_dirs)
-    landscape_dirs_arg = "|".join(str(path) for path in config.paths.landscape_dirs)
-    return [
-        str(config.paths.vlc_exe),
-        str(config.paths.mfp_exe),
-        primary_vlc_dirs_arg,
-        portrait_dirs_arg,
-        landscape_dirs_arg,
-        str(config.paths.weird_dir),
-        str(config.paths.favs_file),
-        str(config.controller.vlc2_http_port),
-        str(config.controller.vlc3_http_port),
-        vlc_http_pass,
-        str(config.paths.python_exe),
-        "fun_time.robot_hand.app",
-        str(config.paths.clips_dir),
-        "fun_time.audio_companion_app",
-        str(config.paths.audio_dir),
-        str(config.robot_hand_mode_file),
-        str(config.robot_hand_cmd_file),
-        str(config.broker_cmd_file),
-        str(config.audio_cmd_file),
-        str(layout.primary_monitor),
-        str(layout.secondary_monitor),
-        str(layout.primary_top_ratio),
-        str(layout.landscape_width_ratio),
-        str(layout.mfp_width_ratio),
-        str(layout.mfp_height_ratio),
-        str(config.log_file("controller")),
-        str(config.chrome_overlay.shortcut_path),
-        str(config.chrome_overlay_manifest_file),
-        str(config.config_path),
-    ]
-
-
 def run_controller(config, logger) -> int:
     ahk_script = config.project_dir / "controller.ahk"
     vlc_http_pass = f"fun_time_{secrets.token_hex(6)}"
-    command = [str(config.paths.ahk_exe), str(ahk_script), *build_controller_args(config, vlc_http_pass)]
+    manifest_path = write_controller_manifest(config, vlc_http_pass)
+    command = [str(config.paths.ahk_exe), str(ahk_script), str(manifest_path)]
     logger.info("Launching AutoHotkey controller using config %s", config.config_path)
     logger.info("VLC HTTP ports: portrait=%s landscape=%s", config.controller.vlc2_http_port, config.controller.vlc3_http_port)
 
