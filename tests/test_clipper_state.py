@@ -8,6 +8,14 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from fun_time.robot_hand.clipper.editing import (
+    accept_suggested_in,
+    accept_suggested_out,
+    cycle_loop_mode,
+    set_mark_in,
+    set_mark_out,
+    shift_active_range,
+)
 from fun_time.robot_hand.clipper.navigation import (
     index_for_timeline_x,
     move_current_left,
@@ -24,17 +32,11 @@ from fun_time.robot_hand.clipper.playback import (
 from fun_time.robot_hand.clipper.state import (
     ExportJob,
     VideoState,
-    accept_suggested_in,
-    accept_suggested_out,
     contract_left,
     contract_right,
-    cycle_loop_mode,
     extend_left,
     extend_right,
     make_video_state,
-    set_mark_in,
-    set_mark_out,
-    shift_active_range,
     update_loop_suggestions,
 )
 
@@ -454,7 +456,7 @@ class TestAcceptSuggestedMarks:
         s = _make_state(active_start=10, active_end=30)
         s.suggested_in = 12
         with patch.object(s, "mark_dirty") as mark_dirty, patch.object(s, "reset_loop_anchor") as reset_anchor:
-            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions") as refresh_suggestions:
+            with patch("fun_time.robot_hand.clipper.editing.update_loop_suggestions") as refresh_suggestions:
                 accept_suggested_in(s)
         assert s.active_start == 12
         assert s.suggestion_anchor_in == 12
@@ -466,7 +468,7 @@ class TestAcceptSuggestedMarks:
         s = _make_state(active_start=10, active_end=30)
         s.suggested_out = 28
         with patch.object(s, "mark_dirty") as mark_dirty, patch.object(s, "reset_loop_anchor") as reset_anchor:
-            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions") as refresh_suggestions:
+            with patch("fun_time.robot_hand.clipper.editing.update_loop_suggestions") as refresh_suggestions:
                 accept_suggested_out(s)
         assert s.active_end == 28
         assert s.suggestion_anchor_out == 28
@@ -478,7 +480,7 @@ class TestAcceptSuggestedMarks:
         s = _make_state(active_start=10, active_end=30)
         s.suggested_in = 30
         with patch.object(s, "mark_dirty") as mark_dirty, patch.object(s, "reset_loop_anchor") as reset_anchor:
-            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions") as refresh_suggestions:
+            with patch("fun_time.robot_hand.clipper.editing.update_loop_suggestions") as refresh_suggestions:
                 accept_suggested_in(s)
         assert s.active_start == 10
         reset_anchor.assert_not_called()
@@ -489,7 +491,7 @@ class TestAcceptSuggestedMarks:
         s = _make_state(active_start=10, active_end=30)
         s.suggested_out = 10
         with patch.object(s, "mark_dirty") as mark_dirty, patch.object(s, "reset_loop_anchor") as reset_anchor:
-            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions") as refresh_suggestions:
+            with patch("fun_time.robot_hand.clipper.editing.update_loop_suggestions") as refresh_suggestions:
                 accept_suggested_out(s)
         assert s.active_end == 30
         reset_anchor.assert_not_called()
@@ -521,8 +523,8 @@ class TestShiftActiveRange:
             state.loaded_start = min(state.loaded_start, want_start)
             state.loaded_end = max(state.loaded_end, want_end)
 
-        with patch("fun_time.robot_hand.clipper.state.ensure_loaded", side_effect=fake_ensure_loaded):
-            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions"):
+        with patch("fun_time.robot_hand.clipper.editing.ensure_loaded", side_effect=fake_ensure_loaded):
+            with patch("fun_time.robot_hand.clipper.editing.update_loop_suggestions"):
                 with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
                     shift_active_range(s, 1)
         assert s.loaded_end == 35
@@ -536,8 +538,8 @@ class TestShiftActiveRange:
             state.loaded_start = min(state.loaded_start, want_start)
             state.loaded_end = max(state.loaded_end, want_end)
 
-        with patch("fun_time.robot_hand.clipper.state.ensure_loaded", side_effect=fake_ensure_loaded):
-            with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions"):
+        with patch("fun_time.robot_hand.clipper.editing.ensure_loaded", side_effect=fake_ensure_loaded):
+            with patch("fun_time.robot_hand.clipper.editing.update_loop_suggestions"):
                 with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
                     shift_active_range(s, -1)
         assert s.loaded_start == 5
@@ -546,7 +548,7 @@ class TestShiftActiveRange:
 
     def test_shift_right_preserves_existing_loaded_end_when_buffer_already_exists(self):
         s = _make_state(loaded_start=0, loaded_end=40, active_start=10, active_end=20, current=14, base_step=5)
-        with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions"):
+        with patch("fun_time.robot_hand.clipper.editing.update_loop_suggestions"):
             with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
                 shift_active_range(s, 1)
         assert s.loaded_end == 40
@@ -554,7 +556,7 @@ class TestShiftActiveRange:
 
     def test_shift_left_preserves_existing_loaded_start_when_buffer_already_exists(self):
         s = _make_state(loaded_start=0, loaded_end=40, active_start=20, active_end=30, current=24, base_step=5)
-        with patch("fun_time.robot_hand.clipper.state.update_loop_suggestions"):
+        with patch("fun_time.robot_hand.clipper.editing.update_loop_suggestions"):
             with patch.object(s, "mark_dirty"), patch.object(s, "reset_loop_anchor"):
                 shift_active_range(s, -1)
         assert s.loaded_start == 0
