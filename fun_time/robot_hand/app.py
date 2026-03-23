@@ -17,6 +17,7 @@ from ..logging_utils import configure_logging, enable_faulthandler, install_exce
 from ..runtime_support import consume_command_file, preparse_config_path
 from .engine import PlaybackEngine, update_engine
 from .state import SharedState, udp_reader
+from .status_overlay import StatusOverlayController
 from .status_text import (
     active_clip_status_text,
     exception_status_text,
@@ -128,7 +129,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         logger.critical("Tk callback failed", exc_info=(exc_type, exc, tb))
         try:
             status_var.set(exception_status_text(str(exc), log_name=config.log_file("robot_hand_listener").name))
-            show_status()
+            status_overlay.show()
         except Exception:
             logger.exception("Failed to update status after Tk exception")
 
@@ -176,7 +177,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     render_queue: deque[int] = deque()
     render_scheduled = {"value": False}
     resize_after_id = {"value": None}
-    hide_status_after_id = {"value": None}
     window_visible = {"value": False}
 
     engine = PlaybackEngine(last_tick=time.monotonic())
@@ -186,28 +186,15 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     load_state = DecodeRequestState()
     prefetch_state = DecodeRequestState()
     notifier = RobotHandNotifier(args.notify_host, args.notify_port)
+    status_overlay = StatusOverlayController(
+        root=root,
+        label=status_label,
+        hide_delay_ms=config.robot_hand.status_hide_ms,
+        can_hide=lambda: state.error is None and not load_state.loading,
+    )
 
     def current_viewport():
         return max(1, container.winfo_width()), max(1, container.winfo_height())
-
-    def show_status():
-        status_label.place(x=10, y=10)
-
-    def hide_status():
-        if state.error is None and not load_state.loading:
-            status_label.place_forget()
-
-    def schedule_hide_status():
-        if hide_status_after_id["value"] is not None:
-            root.after_cancel(hide_status_after_id["value"])
-        hide_status_after_id["value"] = root.after(config.robot_hand.status_hide_ms, hide_status)
-
-    def on_mouse_motion(_event=None):
-        show_status()
-        schedule_hide_status()
-
-    def on_mouse_leave(_event=None):
-        hide_status()
 
     def _cache_decoded_frames(path: Path, frames: list):
         clip_store.cache_decoded_frames(
@@ -248,7 +235,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         request_id = load_state.begin()
 
         status_var.set(f"Loading clip...\n{path.name}")
-        show_status()
+        status_overlay.show()
 
         thread = threading.Thread(target=loader_thread_fn, args=(path, request_id), daemon=True, name="robot-hand-loader")
         thread.start()
@@ -286,7 +273,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
         if current_clip_path["value"] == path:
             prepare_active_clip_for_current_size()
-            schedule_hide_status()
+            status_overlay.schedule_hide()
 
     def adopt_prefetch_if_ready():
         result = prefetch_state.take_completed_result()
@@ -320,12 +307,12 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
         if path in clip_store.clip_cache:
             prepare_active_clip_for_current_size()
-            schedule_hide_status()
+            status_overlay.schedule_hide()
         else:
             request_clip_load(path)
             if path in clip_store.clip_cache:
                 prepare_active_clip_for_current_size()
-                schedule_hide_status()
+                status_overlay.schedule_hide()
 
     def prepare_active_clip_for_current_size():
         path = current_clip_path["value"]
@@ -409,8 +396,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         clip_index["value"] = (clip_index["value"] + delta) % len(clips)
         set_current_clip(clips[clip_index["value"]])
         status_var.set(f"Selected clip: {clips[clip_index['value']].name}")
-        show_status()
-        schedule_hide_status()
+        status_overlay.show()
+        status_overlay.schedule_hide()
 
     def refresh():
         try:
@@ -439,7 +426,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
             if error:
                 status_var.set(listener_error_status_text(error))
-                show_status()
+                status_overlay.show()
                 root.after(100, refresh)
                 return
 
@@ -512,7 +499,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
                         loading=load_state.loading,
                     )
                 )
-                show_status()
+                status_overlay.show()
 
             request_nearby_prefetch()
 
@@ -520,7 +507,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         except Exception as exc:
             logger.exception("refresh failed")
             status_var.set(exception_status_text(str(exc), log_name=config.log_file("robot_hand_listener").name))
-            show_status()
+            status_overlay.show()
             root.after(250, refresh)
 
     def on_close():
@@ -529,8 +516,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         notifier.close()
         root.destroy()
 
-    root.bind("<Motion>", on_mouse_motion)
-    root.bind("<Leave>", on_mouse_leave)
+    root.bind("<Motion>", status_overlay.on_mouse_motion)
+    root.bind("<Leave>", status_overlay.on_mouse_leave)
     root.bind("<Configure>", on_resize)
     root.bind("[", lambda _e: step_clip(-1))
     root.bind("]", lambda _e: step_clip(1))
