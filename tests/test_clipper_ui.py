@@ -12,6 +12,7 @@ from fun_time.robot_hand.clipper.exit_prompt import (
     request_exit,
     show_exit_prompt,
 )
+from fun_time.robot_hand.clipper import render as clipper_render
 from fun_time.robot_hand.clipper.ui import (
     build_ui,
     handle_key,
@@ -190,7 +191,7 @@ class TestMouseControls:
             if text == "":
                 icons.append(kwargs.get("icon"))
 
-        with patch("fun_time.robot_hand.clipper.ui.draw_button", side_effect=capture_button):
+        with patch.object(clipper_render, "draw_button", side_effect=capture_button):
             build_ui(state)
 
         assert "play" in icons
@@ -251,7 +252,7 @@ class TestLayout:
         def capture_centered(_img, text, *_args, **_kwargs):
             labels.append(text)
 
-        with patch("fun_time.robot_hand.clipper.ui.put_text_centered", side_effect=capture_centered):
+        with patch.object(clipper_render, "put_text_centered", side_effect=capture_centered):
             build_ui(state)
 
         assert any("< or >: Shift In-Out" in text for text in labels)
@@ -288,7 +289,7 @@ class TestLayout:
         def capture_button(_img, _rect, text, **kwargs):
             captured[text] = kwargs
 
-        with patch("fun_time.robot_hand.clipper.ui.draw_button", side_effect=capture_button):
+        with patch.object(clipper_render, "draw_button", side_effect=capture_button):
             build_ui(state)
 
         assert captured["Save and exit"].get("active", False) is False
