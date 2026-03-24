@@ -38,6 +38,23 @@ If `bash test.sh` fails in PowerShell because Git Bash cannot create its signal 
    Update `docs/refactor-log.md` when the architectural shape or working norms change, and update README/other docs when runtime contracts, workflows, or operator expectations change.
 7. Leave a clean handoff.
    Before finishing, make sure the worktree is clean, the tests are green, temporary exploration artifacts are removed, and the repo is in a good state for the next feature or fix.
+
+## Architecture Escalation
+
+When preparing a refactor plan or implementing substantial feature work, explicitly assess whether any executable script or entrypoint has accumulated multiple responsibilities.
+
+Examples of concentration risk:
+- hotkeys plus business logic
+- UI rendering plus external app orchestration
+- file mutation plus state management
+- launch/bootstrap code plus product behavior
+
+If an executable script has become a concentration point:
+1. Call it out explicitly as an architectural risk.
+2. Prefer extracting business logic and UI/state logic into testable Python modules before adding substantial new features.
+3. Do not treat the existing entrypoint as the default home for new product logic just because it already launches the workflow.
+4. If the file name no longer matches its real responsibility, note the naming mismatch and propose a clearer post-extraction name.
+5. In refactor plans, include at least one step that reduces the executable script's responsibility instead of only reorganizing code around it.
 8. Treat executable script syntax as a separate validation concern.
    When changing `controller.ahk`, `.ps1`, `.vbs`, shell wrappers, or other directly executed script files, do not rely only on text-based Python tests. Reuse an existing in-repo quoting/style pattern when possible, add a regression test for the intended contract, and run at least one syntax/startup-focused validation step before handoff so the script still opens cleanly.
 9. Escalate when executable-script scope starts expanding into product/UI work.
