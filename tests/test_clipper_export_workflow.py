@@ -45,7 +45,7 @@ def test_start_export_job_completes_successful_pipeline(tmp_path: Path):
     assert state.export_job.done is True
     assert state.export_job.active is False
     assert state.export_job.failed is False
-    assert state.export_job.stage == "Export complete"
+    assert state.export_job.stage == "export complete"
     export_raw.assert_called_once()
     postprocess.assert_called_once()
     export_audio.assert_called_once()
@@ -66,7 +66,7 @@ def test_start_export_job_marks_raw_clip_failure(tmp_path: Path):
     assert state.export_job is not None
     assert state.export_job.failed is True
     assert state.export_job.error_message == "raw failed"
-    assert state.export_job.clip_status == "Failed"
+    assert state.export_job.clip_status == "failed"
     assert state.export_job.done is True
     assert state.export_job.active is False
     export_raw.assert_called_once()
@@ -89,7 +89,7 @@ def test_start_export_job_marks_postprocess_failure(tmp_path: Path):
     assert state.export_job is not None
     assert state.export_job.failed is True
     assert state.export_job.error_message == "post failed"
-    assert state.export_job.fix_status == "Failed"
+    assert state.export_job.fix_status == "failed"
     assert state.export_job.done is True
     assert state.export_job.active is False
     export_raw.assert_called_once()
@@ -112,7 +112,7 @@ def test_start_export_job_marks_audio_failure(tmp_path: Path):
     assert state.export_job is not None
     assert state.export_job.failed is True
     assert state.export_job.error_message == "audio failed"
-    assert state.export_job.audio_status == "Failed"
+    assert state.export_job.audio_status == "failed"
     assert state.export_job.done is True
     assert state.export_job.active is False
     export_raw.assert_called_once()

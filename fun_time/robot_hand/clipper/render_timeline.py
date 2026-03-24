@@ -67,6 +67,10 @@ def draw_timeline_section(
     draw_button(canvas, state.buttons["extend_right"], ">", enabled=state.loaded_end < state.total_frames - 1)
 
     cv2.rectangle(canvas, (tl_x1, timeline_y), (tl_x2, timeline_y + timeline_h), loaded_color, -1)
+    for idx in range(state.loaded_start, state.loaded_end + 1):
+        tick_x = timeline_x_for_index(state, tl_x1, tl_x2, idx)
+        cv2.circle(canvas, (tick_x, timeline_y - 4), 1, (210, 210, 210), -1)
+        cv2.circle(canvas, (tick_x, timeline_y + timeline_h + 4), 1, (210, 210, 210), -1)
     in_x = timeline_x_for_index(state, tl_x1, tl_x2, state.active_start)
     out_x = timeline_x_for_index(state, tl_x1, tl_x2, state.active_end)
     cv2.rectangle(canvas, (in_x, timeline_y), (out_x, timeline_y + timeline_h), active_color, -1)
@@ -134,7 +138,7 @@ def draw_timeline_section(
     draw_button(
         canvas,
         state.buttons["wrap"],
-        "Wrap",
+        "wrap",
         active=True,
         fill_color=loaded_color,
         active_fill_color=active_color if state.wrap_mode == "yellow" else loaded_color,

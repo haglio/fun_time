@@ -106,22 +106,22 @@ def export_raw_clip(state: VideoState, out_path: Path, job: ExportJob) -> tuple[
         "-ss", f"{seek_sec:.6f}", "-i", state.path, "-map", "0:v:0", "-vf", vf, "-r", f"{state.fps:.12g}", "-an",
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out_path),
     ]
-    job.stage = "Exporting raw silent clip"
-    job.clip_status = "Encoding"
+    job.stage = "exporting raw silent clip"
+    job.clip_status = "encoding"
     ok, detail = _run_ffmpeg_with_progress(cmd, clip_duration, lambda p: setattr(job, "clip_progress", p), job)
     if not ok:
         return False, detail
-    job.clip_status = "Finalizing..."
+    job.clip_status = "finalizing..."
     ok2, detail2 = validate_video_file(out_path)
     if not ok2:
         return False, detail2
-    job.clip_status = "Done"
+    job.clip_status = "done"
     job.raw_clip_output = str(out_path)
     return True, str(out_path)
 
 
 def run_clip_postprocess(state: VideoState, raw_path: Path, out_path: Path, job: ExportJob) -> tuple[bool, str]:
-    job.stage = f"Running {CLIP_POSTPROCESS_SCRIPT.name}"
+    job.stage = f"running {CLIP_POSTPROCESS_SCRIPT.name}"
     if not CLIP_POSTPROCESS_SCRIPT.exists():
         return False, f"{CLIP_POSTPROCESS_SCRIPT.name} not found at {CLIP_POSTPROCESS_SCRIPT}"
     cmd = [sys.executable, str(CLIP_POSTPROCESS_SCRIPT), str(raw_path), "-o", str(out_path), "--loop-mode", state.loop_mode]
@@ -138,7 +138,7 @@ def run_clip_postprocess(state: VideoState, raw_path: Path, out_path: Path, job:
         if proc.poll() is not None:
             break
         job.fix_progress = min(0.95, job.fix_progress + 0.01)
-        job.fix_status = "Working"
+        job.fix_status = "working"
         time.sleep(0.1)
     if proc.stdout:
         rest = proc.stdout.read()
@@ -154,7 +154,7 @@ def run_clip_postprocess(state: VideoState, raw_path: Path, out_path: Path, job:
     if rc != 0:
         return False, f"{CLIP_POSTPROCESS_SCRIPT.name} failed:\n" + "\n".join(lines[-20:])
     job.fix_progress = 1.0
-    job.fix_status = "Done"
+    job.fix_status = "done"
     job.clip_output = str(out_path)
     return True, str(out_path)
 
@@ -171,13 +171,13 @@ def export_full_audio_mp3(state: VideoState, out_path: Path, job: ExportJob) -> 
         ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-progress", "pipe:1", "-nostats", "-stats_period", "0.1",
         "-i", state.path, "-vn", "-map", "0:a:0?", "-c:a", "libmp3lame", "-q:a", "2", str(out_path),
     ]
-    job.stage = "Extracting full audio to MP3"
-    job.audio_status = "Encoding"
+    job.stage = "extracting full audio to mp3"
+    job.audio_status = "encoding"
     ok, detail = _run_ffmpeg_with_progress(cmd, full_duration, lambda p: setattr(job, "audio_progress", p), job)
     if not ok:
         return False, detail
     if not out_path.exists() or out_path.stat().st_size == 0:
         return False, "No MP3 output created"
-    job.audio_status = "Done"
+    job.audio_status = "done"
     job.audio_output = str(out_path)
     return True, str(out_path)

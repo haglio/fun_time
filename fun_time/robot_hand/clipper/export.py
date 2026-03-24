@@ -13,7 +13,7 @@ from ...threading_utils import start_daemon_thread
 def _mark_export_failure(job: ExportJob, detail: str, status_attr: str) -> None:
     job.failed = True
     job.error_message = detail
-    setattr(job, status_attr, "Failed")
+    setattr(job, status_attr, "failed")
     job.active = False
     job.done = True
 
@@ -35,7 +35,7 @@ def _run_export_pipeline(state: VideoState, job: ExportJob) -> None:
     if not ok:
         _mark_export_failure(job, detail, "audio_status")
         return
-    job.stage = "Export complete"
+    job.stage = "export complete"
     job.done = True
     job.active = False
 
@@ -43,7 +43,7 @@ def _run_export_pipeline(state: VideoState, job: ExportJob) -> None:
 def start_export_job(state: VideoState) -> None:
     if state.export_job and state.export_job.active:
         return
-    job = ExportJob(active=True, stage="Preparing export")
+    job = ExportJob(active=True, stage="preparing export")
     state.export_job = job
 
     def worker() -> None:
