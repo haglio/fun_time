@@ -39,6 +39,13 @@ function Restart-BrokerProcess {
     Start-BrokerProcess
 }
 
+function Stop-BrokerProcess {
+    $proc = Get-BrokerProcess
+    if ($proc) {
+        Stop-Process -Id $proc.ProcessId -Force
+    }
+}
+
 function Get-ModeText {
     if (-not (Test-Path $modeFile)) {
         return 'unknown'
@@ -86,6 +93,8 @@ function Update-NotifyIcon {
     } else {
         'Start the broker service process'
     }
+    $script:pauseItem.Enabled = $status.IsRunning
+    $script:pauseItem.Text = 'Pause broker'
 }
 
 [System.Windows.Forms.Application]::EnableVisualStyles()
@@ -111,6 +120,13 @@ $actionItem.add_Click({
     Update-NotifyIcon
 })
 
+$pauseItem = $menu.Items.Add('Pause broker')
+$pauseItem.add_Click({
+    Stop-BrokerProcess
+    Start-Sleep -Milliseconds 300
+    Update-NotifyIcon
+})
+
 $logItem = $menu.Items.Add('Open broker log')
 $logItem.add_Click({
     if (-not (Test-Path $brokerLog)) {
@@ -121,8 +137,9 @@ $logItem.add_Click({
 
 $menu.Items.Add('-') | Out-Null
 
-$exitItem = $menu.Items.Add('Close tray icon')
-$exitItem.add_Click({
+$quitItem = $menu.Items.Add('Quit')
+$quitItem.add_Click({
+    Stop-BrokerProcess
     $script:timer.Stop()
     $script:notifyIcon.Visible = $false
     $script:notifyIcon.Dispose()
@@ -145,6 +162,7 @@ $script:notifyIcon = $notifyIcon
 $script:timer = $timer
 $script:statusItem = $statusItem
 $script:actionItem = $actionItem
+$script:pauseItem = $pauseItem
 
 Start-BrokerProcess
 Update-NotifyIcon
