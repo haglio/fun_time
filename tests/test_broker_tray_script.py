@@ -34,7 +34,20 @@ def test_broker_tray_uses_fun_time_icon_when_available():
     text = _read("scripts/broker_tray.ps1")
 
     assert "$trayIconPath = Join-Path $projectRoot 'icon.ico'" in text
-    assert "$notifyIcon.Icon = New-Object System.Drawing.Icon($trayIconPath)" in text
+    assert "$trayIcon = New-Object System.Drawing.Icon($trayIconPath)" in text
+    assert "$notifyIcon.Icon = $trayIcon" in text
+    assert "$script:trayIcon = $trayIcon" in text
+
+
+def test_broker_tray_keeps_custom_icon_during_status_updates():
+    text = _read("scripts/broker_tray.ps1")
+
+    update_start = text.index("function Update-NotifyIcon {")
+    enable_styles = text.index("[System.Windows.Forms.Application]::EnableVisualStyles()", update_start)
+    update_block = text[update_start:enable_styles]
+
+    assert "if ($script:trayIcon -ne $null)" in update_block
+    assert "$script:notifyIcon.Icon = $script:trayIcon" in update_block
 
 
 def test_broker_tray_quit_stops_broker_and_tray():
