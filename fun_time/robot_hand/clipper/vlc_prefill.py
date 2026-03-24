@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import ctypes
 import os
-import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -13,15 +12,17 @@ from functools import lru_cache
 from pathlib import Path
 
 from ...config import load_config
-from .paths import MODULE_DIR
 from .utils import format_seconds, sanitize_name
-
-_VLC_TITLE_SUFFIXES = (
-    " - VLC media player",
-    " - VLC media player (Direct3D11 output)",
+from .vlc_prefill_paths import (
+    _looks_like_vlc_title as _path_looks_like_vlc_title,
+    _resolve_media_path_from_title as _path_resolve_media_path_from_title,
+    _search_roots as _path_search_roots,
+    _strip_vlc_title_suffix as _path_strip_vlc_title_suffix,
+    _timestamp_seconds_from_title as _path_timestamp_seconds_from_title,
 )
+
 _VIDEO_EXTENSIONS = (".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v")
-_TIMESTAMP_RE = re.compile(r"\b\d{1,2}:\d{2}:\d{2}(?:\.\d{1,3})?\b")
+
 
 
 @dataclass(frozen=True)
@@ -165,27 +166,15 @@ def _ordered_vlc_window_titles() -> list[str]:
 
 
 def _looks_like_vlc_title(title: str) -> bool:
-    lower = title.lower()
-    return any(suffix.lower() in lower for suffix in _VLC_TITLE_SUFFIXES)
+    return _path_looks_like_vlc_title(title)
 
 
 def _timestamp_seconds_from_title(title: str) -> float | None:
-    match = _TIMESTAMP_RE.search(title)
-    if match is None:
-        return None
-    parts = match.group(0).split(":")
-    hours = int(parts[0])
-    minutes = int(parts[1])
-    seconds = float(parts[2])
-    return hours * 3600 + minutes * 60 + seconds
+    return _path_timestamp_seconds_from_title(title)
 
 
 def _resolve_media_path_from_title(title: str) -> Path | None:
-    cleaned = _strip_vlc_title_suffix(title)
-    if not cleaned:
-        return None
-    cleaned = _TIMESTAMP_RE.sub("", cleaned).strip(" -\u2013")
-    return _resolve_media_path(cleaned)
+    return _path_resolve_media_path_from_title(title)
 
 
 def _resolve_media_path(raw: str | None) -> Path | None:
@@ -207,36 +196,12 @@ def _resolve_media_path(raw: str | None) -> Path | None:
 
 
 def _strip_vlc_title_suffix(title: str) -> str:
-    result = title.strip()
-    for suffix in _VLC_TITLE_SUFFIXES:
-        if result.endswith(suffix):
-            return result[: -len(suffix)].strip()
-    return result
+    return _path_strip_vlc_title_suffix(title)
 
 
 @lru_cache(maxsize=1)
 def _search_roots() -> tuple[Path, ...]:
-    roots: list[Path] = [MODULE_DIR / "raw_clips"]
-    try:
-        config = load_config()
-    except Exception:
-        config = None
-    if config is not None:
-        roots.extend(config.paths.primary_vlc_dirs)
-        roots.extend(config.paths.portrait_dirs)
-        roots.extend(config.paths.landscape_dirs)
-        roots.append(config.paths.weird_dir)
-    deduped: list[Path] = []
-    seen: set[Path] = set()
-    for root in roots:
-        if not root.exists():
-            continue
-        resolved = root.resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        deduped.append(resolved)
-    return tuple(deduped)
+    return _path_search_roots()
 
 
 def _search_roots_for_filename(filename: str) -> Path | None:
