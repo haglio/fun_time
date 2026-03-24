@@ -87,6 +87,13 @@ def test_controller_reads_dashboard_bridge_paths_from_manifest():
     assert 'DASHBOARD_CMD_FILE := RequireManifestValue("commands", "dashboard_cmd_file")' in text
 
 
+def test_controller_reads_media_actions_module_from_manifest():
+    text = _controller_text()
+
+    assert 'MEDIA_ACTIONS_MODULE := RequireManifestValue("modules", "media_actions_module")' in text
+    assert 'ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")' in text
+
+
 def test_controller_uses_main_monitor_for_landscape_and_mfp_layout():
     text = _controller_text()
 

@@ -160,6 +160,11 @@ class TestControllerManifest:
         result = build_controller_manifest(cfg, "pw")
         assert result["modules"]["dashboard_module"] == "fun_time.dashboard_app"
 
+    def test_media_actions_module_name_included(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        result = build_controller_manifest(cfg, "pw")
+        assert result["modules"]["media_actions_module"] == "fun_time.media_actions_app"
+
     def test_chrome_overlay_paths_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_controller_manifest(cfg, "pw")
@@ -179,6 +184,7 @@ class TestControllerManifest:
         assert parser["controller"]["vlc_pass"] == "pw"
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
+        assert parser["modules"]["media_actions_module"] == "fun_time.media_actions_app"
         assert parser["commands"]["robot_hand_enabled_file"] == str(cfg.robot_hand_enabled_file)
         assert parser["commands"]["robot_hand_paused_file"] == str(cfg.robot_hand_paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
@@ -209,6 +215,8 @@ class TestValidateConfig:
         rh_py.touch()
         ac_py = cfg.project_dir / "fun_time" / "audio_companion_app.py"
         ac_py.touch()
+        media_actions_py = cfg.project_dir / "fun_time" / "media_actions_app.py"
+        media_actions_py.touch()
         return cfg
 
     def test_raises_when_vlc_exe_missing(self, cfg_path: Path, tmp_path: Path):

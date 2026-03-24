@@ -204,6 +204,16 @@ def test_dashboard_preview_mfp_box_uses_tall_portraitish_ratio():
     assert 'mfpW := Min(mfpMaxW, Round(mfpH * mfpPreviewAspect))' in text
 
 
+def test_controller_delegates_favorites_and_weird_file_mutation_to_python_media_actions():
+    text = _controller_text()
+
+    assert 'RunMediaAction("ensure-in-favs", fullPath)' in text
+    assert 'RunMediaAction("remove-from-favs", fullPath)' in text
+    assert 'RunMediaAction("move-to-weird", srcPath)' in text
+    assert 'FileAppend("local_file,web_url`r`n", FAVS_FILE, "UTF-8")' not in text
+    assert 'FileMove(srcPath, dest, false)' not in text
+
+
 def test_real_mfp_window_is_centered_in_left_partition():
     text = _controller_text()
 
