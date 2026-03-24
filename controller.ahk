@@ -576,29 +576,42 @@ WaitForNewChromeWindow(existingHandles, timeoutMs := 8000) {
     return 0
 }
 
+FocusChromeWindow(hwnd, timeoutSeconds := 2.0) {
+    if (!hwnd)
+        return false
+    try WinActivate("ahk_id " hwnd)
+    return WinWaitActive("ahk_id " hwnd, , timeoutSeconds)
+}
+
+SendChromeKeys(hwnd, keys, waitMs := 0) {
+    if (!FocusChromeWindow(hwnd))
+        return false
+    try ControlSend(keys, , "ahk_id " hwnd)
+    if (waitMs > 0)
+        Sleep waitMs
+    return true
+}
+
 OpenUrlsInChromeWindow(hwnd, urls) {
     if (!hwnd || urls.Length = 0)
         return
 
     savedClipboard := ClipboardAll()
     try {
-        WinActivate("ahk_id " hwnd)
-        WinWaitActive("ahk_id " hwnd, , 2.0)
+        if (!FocusChromeWindow(hwnd))
+            return
         Sleep 250
 
         first := true
         for url in urls {
             if (!first) {
-                SendEvent("^t")
-                Sleep 120
+                SendChromeKeys(hwnd, "^t", 250)
             }
             first := false
             A_Clipboard := url
-            ClipWait(0.5)
-            SendEvent("^l")
-            Sleep 80
-            SendEvent("^v{Enter}")
-            Sleep 180
+            ClipWait(1.0)
+            SendChromeKeys(hwnd, "^l", 150)
+            SendChromeKeys(hwnd, "^v{Enter}", 450)
         }
     } finally {
         A_Clipboard := savedClipboard
