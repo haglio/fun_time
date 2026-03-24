@@ -11,10 +11,7 @@ from .config import load_config
 from .broker_ports import ensure_mfp_serial_port
 from .controller_manifest import write_controller_manifest
 from .logging_utils import configure_logging, install_exception_logging
-from .runtime_support import hidden_subprocess_kwargs
-
-BROKER_PROCESS_PATTERN = "fun_time\\.broker_app"
-BROKER_TRAY_PATTERN = "broker_tray\\.ps1|launch_broker_tray\\.vbs"
+from . import orchestrator_broker
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,12 +61,6 @@ def validate_config(config) -> None:
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
 
 
-def _subprocess_window_kwargs() -> dict:
-    if sys.platform != "win32":
-        return {}
-    return hidden_subprocess_kwargs()
-
-
 def is_broker_running() -> bool:
     if sys.platform != "win32":
         return False
@@ -81,12 +72,18 @@ def is_broker_running() -> bool:
         (
             "$proc = Get-CimInstance Win32_Process | Where-Object { "
             "$_.Name -match '^pythonw?\\.exe$|^py\\.exe$' -and "
-            "$_.CommandLine -match '" + BROKER_PROCESS_PATTERN + "' "
+            "$_.CommandLine -match '" + orchestrator_broker.BROKER_PROCESS_PATTERN + "' "
             "} | Select-Object -First 1; "
             "if ($null -ne $proc) { 'RUNNING' }"
         ),
     ]
-    result = subprocess.run(command, capture_output=True, text=True, check=False, **_subprocess_window_kwargs())
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+        **orchestrator_broker.subprocess_window_kwargs(),
+    )
     return result.returncode == 0 and "RUNNING" in result.stdout
 
 
@@ -101,12 +98,18 @@ def is_broker_tray_running() -> bool:
         (
             "$proc = Get-CimInstance Win32_Process | Where-Object { "
             "$_.Name -match '^powershell\\.exe$|^pwsh\\.exe$|^wscript\\.exe$' -and "
-            "$_.CommandLine -match '" + BROKER_TRAY_PATTERN + "' "
+            "$_.CommandLine -match '" + orchestrator_broker.BROKER_TRAY_PATTERN + "' "
             "} | Select-Object -First 1; "
             "if ($null -ne $proc) { 'RUNNING' }"
         ),
     ]
-    result = subprocess.run(command, capture_output=True, text=True, check=False, **_subprocess_window_kwargs())
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+        **orchestrator_broker.subprocess_window_kwargs(),
+    )
     return result.returncode == 0 and "RUNNING" in result.stdout
 
 
@@ -118,7 +121,11 @@ def start_broker(config, logger) -> subprocess.Popen | None:
     tray_launcher = config.project_dir / "launch_broker_tray.vbs"
     command = ["wscript.exe", str(tray_launcher)]
     logger.warning("Broker was not running; starting %s", tray_launcher)
-    return subprocess.Popen(command, cwd=config.project_dir, **_subprocess_window_kwargs())
+    return subprocess.Popen(
+        command,
+        cwd=config.project_dir,
+        **orchestrator_broker.subprocess_window_kwargs(),
+    )
 
 
 def ensure_broker_running(config, logger, *, attempts: int = 20, delay_seconds: float = 0.25) -> bool:
