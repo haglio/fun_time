@@ -22,6 +22,7 @@ def test_all_fun_time_action_hotkeys_are_global():
         "]::HandleNextAction()",
         "SC01B::HandleNextAction()",
         "r::ToggleRobotHandEnabled()",
+        "$f::ToggleFMode()",
         "\\::{",
         "-::try ControlSend(\"!{Left}\", , \"ahk_pid \" pid1)",
         "=::try ControlSend(\"!{Right}\", , \"ahk_pid \" pid1)",
@@ -51,6 +52,7 @@ def test_only_escape_and_shutdown_are_suspend_exempt():
         "[::HandlePrevAction()",
         "]::HandleNextAction()",
         "r::ToggleRobotHandEnabled()",
+        "$f::ToggleFMode()",
         "\\::{",
         "Down::ToggleLock(2)",
         "s::ToggleLock(3)",
@@ -68,3 +70,17 @@ def test_omnipause_toggle_no_longer_depends_on_active_window():
     assert "} else {" in toggle_block
     assert "LeaveOmniPause()" in toggle_block
     assert "IsOurWindow()" not in toggle_block
+
+
+def test_status_indicator_shows_robot_hand_and_f_mode_state():
+    text = _controller_text()
+
+    assert 'robotHandStatusText.Text := "Robot Hand: Enabled`nF-Mode: " . (fModeEnabled ? "On" : "Off")' in text
+    assert 'robotHandStatusText.Text := "Robot Hand: Disabled`nF-Mode: " . (fModeEnabled ? "On" : "Off")' in text
+
+
+def test_primary_f_mode_uses_mirrored_funscript_tree():
+    text = _controller_text()
+
+    assert 'StrReplace(sourceRootNorm, "\\videos\\videos\\", "\\videos\\scripts\\scripts\\")' in text
+    assert 'RegExReplace(relativePath, "\\.[^.\\\\\\/]+$", ".funscript")' in text

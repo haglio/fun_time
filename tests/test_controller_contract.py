@@ -40,3 +40,21 @@ def test_controller_uses_explicit_primary_vlc_playback_state_helpers():
     assert "SetRobotHandEnabled(true)" in text
     assert "broker_tray\\.ps1|launch_broker_tray\\.vbs" in text
     assert 'ControlSend("{Space}", , "ahk_pid " pid1)' not in text
+
+
+def test_controller_waits_for_primary_vlc_before_launching_mfp_and_satellites():
+    text = _controller_text()
+
+    primary_launch = text.index("pid1 := RunVLC(")
+    primary_wait = text.index("WaitForHttp(PRIMARY_VLC_PORT, 7000)", primary_launch)
+    mfp_launch = text.index("pidM := RunApp(MFP_EXE, \"\")", primary_wait)
+    satellite_launch = text.index("pid2 := RunVLC(", mfp_launch)
+
+    assert primary_launch < primary_wait < mfp_launch < satellite_launch
+
+
+def test_controller_reloads_f_mode_via_generated_playlist_files():
+    text = _controller_text()
+
+    assert 'WritePlaylistFile(playlistPath, paths)' in text
+    assert 'SendVlcInputCommand(port, "in_play", playlistPath)' in text
