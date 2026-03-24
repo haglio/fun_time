@@ -93,18 +93,9 @@ def start_broker(config, logger) -> subprocess.Popen | None:
         logger.warning("Broker auto-start is only implemented on Windows")
         return None
 
-    runner_script = config.project_dir / "scripts" / "run_broker_service.ps1"
-    command = [
-        "powershell.exe",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-WindowStyle",
-        "Hidden",
-        "-File",
-        str(runner_script),
-    ]
-    logger.warning("Broker was not running; starting %s", runner_script)
+    tray_launcher = config.project_dir / "launch_broker_tray.vbs"
+    command = ["wscript.exe", str(tray_launcher)]
+    logger.warning("Broker was not running; starting %s", tray_launcher)
     return subprocess.Popen(command, cwd=config.project_dir, **_subprocess_window_kwargs())
 
 

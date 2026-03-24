@@ -228,7 +228,7 @@ class TestBrokerHelpers:
              patch("fun_time.orchestrator.subprocess.run", return_value=completed):
             assert is_broker_running() is True
 
-    def test_start_broker_launches_runner_script(self, cfg_path: Path):
+    def test_start_broker_launches_tray_launcher(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
@@ -238,16 +238,10 @@ class TestBrokerHelpers:
 
         popen.assert_called_once()
         command = popen.call_args.args[0]
-        assert command[:6] == [
-            "powershell.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-WindowStyle",
-            "Hidden",
+        assert command == [
+            "wscript.exe",
+            str(cfg.project_dir / "launch_broker_tray.vbs"),
         ]
-        assert command[6] == "-File"
-        assert command[7].endswith("scripts\\run_broker_service.ps1")
 
     def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path):
         cfg = load_config(cfg_path)

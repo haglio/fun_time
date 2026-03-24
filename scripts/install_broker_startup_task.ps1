@@ -2,17 +2,17 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$runnerPath = Join-Path $PSScriptRoot 'run_broker_service.ps1'
+$trayLauncherPath = Join-Path $projectRoot 'launch_broker_tray.vbs'
 $taskName = 'FunTime Robot Hand Broker'
 
-if (-not (Test-Path $runnerPath)) {
-    throw "Runner script not found: $runnerPath"
+if (-not (Test-Path $trayLauncherPath)) {
+    throw "Tray launcher not found: $trayLauncherPath"
 }
 
-$pwsh = Join-Path $PSHOME 'powershell.exe'
-$actionArgs = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$runnerPath`""
+$wscript = Join-Path $env:SystemRoot 'System32\wscript.exe'
+$actionArgs = "`"$trayLauncherPath`""
 
-$action = New-ScheduledTaskAction -Execute $pwsh -Argument $actionArgs -WorkingDirectory $projectRoot
+$action = New-ScheduledTaskAction -Execute $wscript -Argument $actionArgs -WorkingDirectory $projectRoot
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Days 3650) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
 $userId = "$env:USERDOMAIN\$env:USERNAME"
@@ -30,15 +30,7 @@ catch {
     New-Item -ItemType Directory -Path $startupDir -Force | Out-Null
 
     $startupVbs = Join-Path $startupDir 'FunTime Robot Hand Broker.vbs'
-    $runCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$runnerPath"""
-    $vbsCmd = $runCmd -replace '"', '""'
-    $vbsRun = 'shell.Run "' + $vbsCmd + '", 0, False'
-    $vbs = @(
-        'Set shell = CreateObject("WScript.Shell")'
-        $vbsRun
-    ) -join "`r`n"
-
-    Set-Content -Path $startupVbs -Value $vbs -Encoding ASCII
+    Copy-Item -Path $trayLauncherPath -Destination $startupVbs -Force
 
     Write-Warning "Scheduled Task installation failed (likely permissions)."
     Write-Host "Installed Startup-folder launcher instead: $startupVbs"
