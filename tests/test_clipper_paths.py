@@ -110,9 +110,9 @@ class TestKeyBindings:
         assert ord("f") in BOUNDS_EXTEND_RIGHT_KEYS
         assert ord("F") in BOUNDS_EXTEND_RIGHT_KEYS
 
-    def test_wrap_toggle_contains_m(self):
-        assert ord("m") in WRAP_TOGGLE_KEYS
-        assert ord("M") in WRAP_TOGGLE_KEYS
+    def test_wrap_toggle_contains_w(self):
+        assert ord("w") in WRAP_TOGGLE_KEYS
+        assert ord("W") in WRAP_TOGGLE_KEYS
 
     def test_loop_mode_cycle_contains_l(self):
         assert ord("l") in LOOP_MODE_CYCLE_KEYS

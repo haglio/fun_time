@@ -14,6 +14,7 @@ from fun_time.robot_hand.clipper.exit_prompt import (
 )
 from fun_time.robot_hand.clipper.controls import handle_key, on_mouse
 from fun_time.robot_hand.clipper import render as clipper_render
+from fun_time.robot_hand.clipper.render_canvas import HOTKEY_LEGEND_ROWS, _format_cursor_counter, _format_loop_frame_counter
 from fun_time.robot_hand.clipper.ui import build_ui
 
 from tests.test_clipper_state import _make_state
@@ -242,24 +243,44 @@ class TestLayout:
         assert width(play_pause) == height(play_pause)
         assert gap(speed_down, speed_up) == gap(speed_up, play_pause)
 
-    def test_legend_mentions_shift_accept_wrap_and_loop_mode_hotkeys(self):
-        state = _make_state()
-        labels: list[str] = []
+    def test_hotkey_legend_rows_match_ui_order_and_wording_rules(self):
+        assert HOTKEY_LEGEND_ROWS == (
+            (
+                (("-", "+"), " or ", "speed"),
+                (("space",), "", "play or pause preview"),
+                (("enter",), "", "export"),
+            ),
+            (
+                (("a", "s"), " or ", "adjust left bound"),
+                (("<", ">"), " or ", "shift in-out"),
+                (("left", "right"), " or ", "move cursor"),
+                (("i", "["), "/", "mark in"),
+                (("o", "]"), "/", "mark out"),
+                (("d", "f"), " or ", "adjust right bound"),
+            ),
+            (
+                (("(", ")"), " or ", "accept in or out suggestion"),
+                (("w",), "", "toggle cursor wrap mode"),
+                (("l",), "", "cycle loop type"),
+            ),
+        )
 
-        def capture_centered(_img, text, *_args, **_kwargs):
-            labels.append(text)
+    def test_timeline_draws_frame_ticks_for_loaded_range(self):
+        state = _make_state(total_frames=20, loaded_start=10, loaded_end=14, active_start=11, active_end=13, current=12)
 
-        with patch.object(clipper_render, "put_text_centered", side_effect=capture_centered):
+        with patch("fun_time.robot_hand.clipper.render_timeline.cv2.circle") as circle:
             build_ui(state)
 
-        assert any("< or >: Shift In-Out" in text for text in labels)
-        assert any("A/S/D/F: Loaded bounds" in text for text in labels)
-        assert any("(: Accept In suggestion" in text for text in labels)
-        assert any("): Accept Out suggestion" in text for text in labels)
-        assert any("M: Wrap" in text for text in labels)
-        assert any("L: Loop mode" in text for text in labels)
-        assert any("-/+: Speed" in text for text in labels)
-        assert any("Enter: Export" in text for text in labels)
+        tick_calls = [call for call in circle.call_args_list if call.args[2] == 1]
+        assert len(tick_calls) == state.loaded_count * 2
+
+    def test_loop_frame_counter_zero_pads_current_position_and_includes_total(self):
+        assert _format_loop_frame_counter(9, 15) == "09/15"
+        assert _format_loop_frame_counter(99, 100) == "099/100"
+
+    def test_cursor_counter_zero_pads_current_position_and_loaded_max(self):
+        assert _format_cursor_counter(20, 103) == "020/103"
+        assert _format_cursor_counter(4, 9) == "04/09"
 
     def test_shift_buttons_render_above_timeline_and_mark_wrap_controls_render_below(self):
         state = _make_state(active_start=10, active_end=30, current=20)
@@ -289,8 +310,8 @@ class TestLayout:
         with patch.object(clipper_render, "draw_button", side_effect=capture_button):
             build_ui(state)
 
-        assert captured["Save and exit"].get("active", False) is False
-        assert captured["Save and exit"].get("focused", False) is False
-        assert captured["Exit w/o save"].get("active", False) is False
-        assert captured["Exit w/o save"].get("focused", False) is True
-        assert captured["Cancel exit"].get("active", False) is False
+        assert captured["save and exit"].get("active", False) is False
+        assert captured["save and exit"].get("focused", False) is False
+        assert captured["exit w/o save"].get("active", False) is False
+        assert captured["exit w/o save"].get("focused", False) is True
+        assert captured["cancel exit"].get("active", False) is False

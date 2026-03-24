@@ -1,10 +1,69 @@
 from __future__ import annotations
 
+from functools import lru_cache
+from pathlib import Path
+
 import cv2
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 Rect = tuple[int, int, int, int]
 Color = tuple[int, int, int]
+FONT_CANDIDATES = (
+    Path(r"C:\Windows\Fonts\CascadiaMono.ttf"),
+    Path(r"C:\Windows\Fonts\consola.ttf"),
+    Path(r"C:\Windows\Fonts\segoeui.ttf"),
+)
+DEFAULT_FONT_PATH = next((path for path in FONT_CANDIDATES if path.exists()), None)
+FALLBACK_TEXT_FONT = cv2.FONT_HERSHEY_DUPLEX
+
+
+def _font_px(scale: float) -> int:
+    return max(10, int(round(scale * 28)))
+
+
+@lru_cache(maxsize=32)
+def _get_font(size_px: int) -> ImageFont.FreeTypeFont | None:
+    if DEFAULT_FONT_PATH is None:
+        return None
+    return ImageFont.truetype(str(DEFAULT_FONT_PATH), size_px)
+
+
+@lru_cache(maxsize=512)
+def _text_bbox(text: str, size_px: int) -> tuple[int, int, int, int] | None:
+    font = _get_font(size_px)
+    if font is None:
+        return None
+    left, top, right, bottom = font.getbbox(text, anchor="ls")
+    return int(left), int(top), int(right), int(bottom)
+
+
+def _draw_text_fallback_cv(
+    img: np.ndarray,
+    text: str,
+    x: int,
+    y: int,
+    scale: float,
+    color: Color,
+    thickness: int,
+) -> None:
+    cv2.putText(img, text, (int(x), int(y)), FALLBACK_TEXT_FONT, scale, color, thickness, cv2.LINE_AA)
+
+
+@lru_cache(maxsize=512)
+def _render_text_patch(text: str, scale: float, color: Color) -> tuple[np.ndarray, tuple[int, int, int, int]] | None:
+    size_px = _font_px(scale)
+    font = _get_font(size_px)
+    if font is None:
+        return None
+    bbox = _text_bbox(text, size_px)
+    assert bbox is not None
+    width = max(1, int(bbox[2] - bbox[0]))
+    height = max(1, int(bbox[3] - bbox[1]))
+    patch = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(patch)
+    draw.text((-bbox[0], -bbox[1]), text, font=font, anchor="ls", fill=(color[2], color[1], color[0], 255))
+    return np.asarray(patch, dtype=np.uint8), bbox
 
 
 def scale_to_fit(img: np.ndarray, max_w: int, max_h: int) -> np.ndarray:
@@ -17,6 +76,14 @@ def scale_to_fit(img: np.ndarray, max_w: int, max_h: int) -> np.ndarray:
     return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
 
+def text_bbox(text: str, scale: float = 0.6, thickness: int = 1) -> tuple[int, int, int, int]:
+    bbox = _text_bbox(text, _font_px(scale))
+    if bbox is not None:
+        return bbox
+    (width, height), baseline = cv2.getTextSize(text, FALLBACK_TEXT_FONT, scale, thickness)
+    return 0, -int(height), int(width), int(baseline)
+
+
 def put_text(
     img: np.ndarray,
     text: str,
@@ -26,12 +93,32 @@ def put_text(
     color: Color = (230, 230, 230),
     thickness: int = 1,
 ) -> None:
-    cv2.putText(img, text, (int(x), int(y)), cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness, cv2.LINE_AA)
+    rendered = _render_text_patch(text, scale, color)
+    if rendered is None:
+        _draw_text_fallback_cv(img, text, x, y, scale, color, thickness)
+        return
+    patch, bbox = rendered
+    text_h = patch.shape[0]
+    x1 = int(x + bbox[0])
+    y1 = int(y + bbox[1])
+    x2 = min(img.shape[1], x1 + patch.shape[1])
+    y2 = min(img.shape[0], y1 + patch.shape[0])
+    src_x1 = max(0, -x1)
+    src_y1 = max(0, -y1)
+    x1 = max(0, x1)
+    y1 = max(0, y1)
+    if x1 >= x2 or y1 >= y2:
+        return
+    src = patch[src_y1:src_y1 + (y2 - y1), src_x1:src_x1 + (x2 - x1)]
+    alpha = src[:, :, 3:4].astype(np.float32) / 255.0
+    dst = img[y1:y2, x1:x2].astype(np.float32)
+    src_bgr = src[:, :, :3].astype(np.float32)
+    img[y1:y2, x1:x2] = np.clip(src_bgr * alpha + dst * (1.0 - alpha), 0, 255).astype(np.uint8)
 
 
 def text_wh(text: str, scale: float = 0.6, thickness: int = 1) -> tuple[int, int]:
-    size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)[0]
-    return int(size[0]), int(size[1])
+    left, top, right, bottom = text_bbox(text, scale, thickness)
+    return int(right - left), int(bottom - top)
 
 
 def put_text_centered(
@@ -103,9 +190,11 @@ def draw_button(
         cv2.rectangle(img, (right_x1, y1 + bar_h_margin), (right_x1 + bar_w, y2 - bar_h_margin), color, -1)
         return
     ts = 0.7
-    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, ts, 2)
-    tx = x1 + max(0, (x2 - x1 - tw) // 2)
-    ty = y1 + max(th + 2, (y2 - y1 + th) // 2)
+    left, top, right, bottom = text_bbox(text, ts, 2)
+    tw = right - left
+    th = bottom - top
+    tx = x1 + max(0, (x2 - x1 - tw) // 2) - left
+    ty = y1 + max(0, (y2 - y1 - th) // 2) - top
     put_text(img, text, tx, ty, ts, color, 2)
 
 
@@ -142,7 +231,9 @@ def draw_progress_bar(
     if fill > 0:
         cv2.rectangle(img, (x + 1, y + 1), (x + fill - 1, y + h - 1), color, -1)
     if label:
-        tw, th = text_wh(label, 0.5, 1)
-        tx = x + (w - tw) // 2
-        ty = y + (h + th) // 2
+        left, top, right, bottom = text_bbox(label, 0.5, 1)
+        tw = right - left
+        th = bottom - top
+        tx = x + (w - tw) // 2 - left
+        ty = y + (h - th) // 2 - top
         put_text(img, label, tx, ty, 0.5, (240, 240, 240), 1)

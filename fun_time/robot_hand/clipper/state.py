@@ -27,9 +27,9 @@ class ExportJob:
     clip_progress: float = 0.0
     fix_progress: float = 0.0
     audio_progress: float = 0.0
-    clip_status: str = "Waiting"
-    fix_status: str = "Waiting"
-    audio_status: str = "Waiting"
+    clip_status: str = "waiting"
+    fix_status: str = "waiting"
+    audio_status: str = "waiting"
     error_message: str = ""
     raw_clip_output: str = ""
     clip_output: str = ""
