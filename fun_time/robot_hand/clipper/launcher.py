@@ -25,6 +25,15 @@ def default_launcher_mode(*, has_vlc_prefill: bool, has_last_session: bool) -> s
     return "new" if has_vlc_prefill or not has_last_session else "load"
 
 
+def default_launcher_mode_for_session(*, vlc_session_name: str | None, last_session_json: str) -> str:
+    if not vlc_session_name:
+        return "load" if last_session_json.strip() else "new"
+    last_session_name = Path(last_session_json.strip()).stem if last_session_json.strip() else ""
+    if last_session_name == vlc_session_name:
+        return "load"
+    return "new"
+
+
 def prefill_note_text(note: str | None) -> str:
     return note or LAUNCHER_PREFILL_FALLBACK_NOTE
 
@@ -41,13 +50,14 @@ def launcher_dialog() -> dict[str, Any]:
     root.resizable(False, False)
 
     vlc_prefill = detect_vlc_session_prefill()
+    last_session = LAST_SESSION_FILE.read_text(encoding="utf-8").strip() if LAST_SESSION_FILE.exists() else ""
     mode = tk.StringVar(
-        value=default_launcher_mode(
-            has_vlc_prefill=vlc_prefill is not None,
-            has_last_session=LAST_SESSION_FILE.exists(),
+        value=(
+            default_launcher_mode_for_session(vlc_session_name=vlc_prefill.session_name, last_session_json=last_session)
+            if vlc_prefill is not None
+            else default_launcher_mode(has_vlc_prefill=False, has_last_session=bool(last_session))
         )
     )
-    last_session = LAST_SESSION_FILE.read_text(encoding="utf-8").strip() if LAST_SESSION_FILE.exists() else ""
     session_json = tk.StringVar(value=last_session)
     session_name = tk.StringVar(value=vlc_prefill.session_name if vlc_prefill else "")
     video_file = tk.StringVar(value=vlc_prefill.video_file if vlc_prefill else "")
