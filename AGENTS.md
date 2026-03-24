@@ -24,12 +24,20 @@ If `bash test.sh` fails in PowerShell because Git Bash cannot create its signal 
 
 ## Change Workflow
 
-1. Add or update tests first when fixing behavior regressions.
-2. Make the smallest targeted code change that gets the tests green.
-3. Run the full suite again:
+1. Start with tests.
+   When fixing regressions or changing behavior, add or update characterization coverage first so the failure is visible in the suite before changing production code.
+2. Use a red-green-refactor loop.
+   Make the test fail for the right reason, implement the smallest targeted fix to get green, then refactor against the green suite to keep the codebase cleaner than you found it.
+3. Aim for solid regression coverage, not minimal box-checking.
+   Prefer tests that lock down the user-visible contract or module seam that actually broke, especially around launch paths, controller flows, and automation-sensitive behavior.
+4. Run the full suite after substantive changes:
    `.\.venv\Scripts\python.exe -m pytest`
-4. Keep commits small and single-purpose.
-5. Update `docs/refactor-log.md` when the architectural shape or working norms change.
+5. Keep commits small and single-purpose.
+   Independent fixes or refactors should land as separate commits so they are easy to review, reason about, and revert.
+6. Document for future agentic work.
+   Update `docs/refactor-log.md` when the architectural shape or working norms change, and update README/other docs when runtime contracts, workflows, or operator expectations change.
+7. Leave a clean handoff.
+   Before finishing, make sure the worktree is clean, the tests are green, temporary exploration artifacts are removed, and the repo is in a good state for the next feature or fix.
 
 ## Current Repo-Specific Gotchas
 
