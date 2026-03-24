@@ -9,6 +9,7 @@ $stateDir = Join-Path $projectRoot 'state'
 $brokerLog = Join-Path $stateDir 'broker.log'
 $modeFile = Join-Path $stateDir 'robot_hand_mode.txt'
 $runnerScript = Join-Path $PSScriptRoot 'run_broker_service.ps1'
+$trayIconPath = Join-Path $projectRoot 'icon.ico'
 
 function Get-BrokerProcess {
     Get-CimInstance Win32_Process | Where-Object {
@@ -102,6 +103,9 @@ function Update-NotifyIcon {
 $notifyIcon = New-Object System.Windows.Forms.NotifyIcon
 $notifyIcon.Visible = $true
 $notifyIcon.Text = 'Fun Time Broker'
+if (Test-Path $trayIconPath) {
+    $notifyIcon.Icon = New-Object System.Drawing.Icon($trayIconPath)
+}
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 
