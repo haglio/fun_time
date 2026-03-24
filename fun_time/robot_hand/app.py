@@ -47,7 +47,19 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--notify-host", default=config.robot_hand.notify_host)
     ap.add_argument("--notify-port", type=int, default=config.robot_hand.notify_port)
     ap.add_argument("--command-file", default=str(config.robot_hand_cmd_file))
+    ap.add_argument("--paused-file", default=str(config.robot_hand_paused_file))
     return ap
+
+
+def read_paused_state(path: Path, *, logger: logging.Logger | None = None) -> bool:
+    try:
+        if not path.exists():
+            return False
+        return path.read_text(encoding="utf-8").replace("\ufeff", "").strip() == "1"
+    except Exception:
+        if logger is not None:
+            logger.exception("Failed to read Robot Hand paused state file %s", path)
+        return False
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -68,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def run_listener(args, config, logger: logging.Logger) -> int:
     command_file = Path(args.command_file)
+    paused_file = Path(args.paused_file)
 
     clips_folder = Path(args.clips_folder)
     if not clips_folder.exists():
@@ -81,6 +94,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         height=args.height,
         x=args.x,
         y=args.y,
+        icon_path=config.project_dir / "icon.ico",
     )
 
     state = SharedState()
@@ -164,6 +178,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         engine=engine,
         rh_paused=rh_paused,
         command_file=command_file,
+        paused_file=paused_file,
         beats_per_loop=args.beats_per_loop,
         bpm_smoothing=args.bpm_smoothing,
         sync_strength=args.sync_strength,
@@ -174,6 +189,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         show_status=status_overlay.show,
         logger=logger,
         log_name=config.log_file("robot_hand_listener").name,
+        read_paused_state=read_paused_state,
     )
     lifecycle = RobotHandLifecycleController(
         root=view.root,

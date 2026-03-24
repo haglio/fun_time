@@ -118,8 +118,11 @@ class TestLoadConfig:
 
     def test_loads_controller_ports(self, cfg_path: Path):
         cfg = load_config(cfg_path)
+        assert cfg.controller.primary_vlc_http_port == 8090
         assert cfg.controller.vlc2_http_port == 8091
         assert cfg.controller.vlc3_http_port == 8092
+        assert cfg.controller.layout.main_monitor == 1
+        assert cfg.controller.layout.secondary_monitor == 2
 
     def test_loads_broker_settings(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -212,13 +215,25 @@ class TestProjectConfigProperties:
         cfg = load_config(cfg_path)
         assert cfg.robot_hand_cmd_file == (tmp_path / "state" / "robot_hand_cmd.txt").resolve()
 
+    def test_robot_hand_paused_file(self, cfg_path: Path, tmp_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.robot_hand_paused_file == (tmp_path / "state" / "robot_hand_paused.txt").resolve()
+
     def test_broker_cmd_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.broker_cmd_file == (tmp_path / "state" / "broker_cmd.txt").resolve()
 
+    def test_robot_hand_enabled_file(self, cfg_path: Path, tmp_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.robot_hand_enabled_file == (tmp_path / "state" / "robot_hand_enabled.txt").resolve()
+
     def test_audio_cmd_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.audio_cmd_file == (tmp_path / "state" / "audio_cmd.txt").resolve()
+
+    def test_audio_paused_file(self, cfg_path: Path, tmp_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.audio_paused_file == (tmp_path / "state" / "audio_paused.txt").resolve()
 
     def test_logs_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)

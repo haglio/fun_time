@@ -17,4 +17,26 @@ def test_controller_uses_manifest_argument_instead_of_positional_protocol():
     assert "if (A_Args.Length < 1)" in text
     assert 'CONTROLLER_MANIFEST_PATH := A_Args[1]' in text
     assert 'RequireManifestValue("executables", "vlc_exe")' in text
+    assert 'RequireManifestValue("commands", "robot_hand_enabled_file")' in text
+    assert 'RequireManifestValue("controller", "primary_vlc_port")' in text
+    assert 'RequireManifestValue("layout", "main_monitor")' in text
+    assert 'RequireManifestValue("layout", "secondary_monitor")' in text
     assert "A_Args[29]" not in text
+
+
+def test_controller_defines_robot_hand_status_indicator():
+    text = _controller_text()
+
+    assert "CreateRobotHandStatusGui()" in text
+    assert "UpdateRobotHandStatusIndicator()" in text
+    assert "TraySetIcon(ICON_PATH)" in text
+
+
+def test_controller_uses_explicit_primary_vlc_playback_state_helpers():
+    text = _controller_text()
+
+    assert "EnsurePrimaryVlcPlayback(true)" in text
+    assert "EnsurePrimaryVlcPlayback(false)" in text
+    assert "SetRobotHandEnabled(true)" in text
+    assert "broker_tray\\.ps1|launch_broker_tray\\.vbs" in text
+    assert 'ControlSend("{Space}", , "ahk_pid " pid1)' not in text

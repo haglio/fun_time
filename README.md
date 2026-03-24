@@ -39,7 +39,10 @@ Asset folders:
 Runtime state:
 
 - `state/robot_hand_mode.txt`
+- `state/robot_hand_enabled.txt`
+- `state/robot_hand_paused.txt`
 - `state/robot_hand_cmd.txt`
+- `state/audio_paused.txt`
 - `state/*.log`
 
 Tooling:
@@ -121,6 +124,11 @@ To disable shuffle and use filesystem order:
 
 The layout values that used to be hard-coded in AutoHotkey now live under `controller.layout`.
 
+Monitor naming under `controller.layout` now uses:
+
+- `main_monitor` — the monitor that shows portrait VLC, the primary VLC, and Robot Hand
+- `secondary_monitor` — the monitor that shows landscape VLC, MFP, and the Chrome overlay
+
 ## High-level architecture
 
 Serial / mode control:
@@ -155,6 +163,7 @@ Robot Hand:
 - hides itself otherwise
 - plays clips from `fun_time/robot_hand/clips/`
 - switches audio from `fun_time/robot_hand/audio/`
+- follows durable pause-state files for visual/audio ownership, while one-shot command files are reserved for clip actions like `NEXT`, `PREV`, and offset nudges
 
 ## Clip and audio naming
 
@@ -360,14 +369,19 @@ Mode-dependent keys:
 
 - `[`
 - `]`
+- `r`
 - `\`
 
 Behavior:
 
 - in control mode, `[` / `]` control the primary VLC
+- `r` toggles whether Robot Hand is allowed to take over during OSR2 auto/free mode
 - in control mode, `\` opens the primary VLC open-file dialog
 - in Robot Hand mode, `[` / `]` cycle Robot Hand clips
 - in Robot Hand mode, `\` offsets Robot Hand playback by a quarter cycle
+- if `r` disables Robot Hand while it is already visible, Fun Time swaps back to the primary VLC the same way it does on a normal auto-mode exit
+- while Robot Hand is disabled with `r`, its audio companion stays suppressed too, even if OSR2 remains in auto/free mode
+- a small Fun Time status indicator above MFP shows whether Robot Hand takeover is currently enabled
 - on non-US keyboard layouts, the physical bracket-key positions are also bound
 - while Fun Time is running and not OmniPaused, these hotkeys are global and do not depend on which window is active
 
@@ -417,7 +431,18 @@ Values:
 - `0` = control mode
 - `1` = Robot Hand mode
 
-AutoHotkey uses this file as the source of truth for whether Robot Hand mode is active.
+AutoHotkey and the audio companion both use this file as the authoritative source of whether Robot Hand takeover is actually active.
+
+### `robot_hand_enabled.txt`
+
+Written by AutoHotkey when `r` toggles Robot Hand takeover.
+
+Values:
+
+- `0` = keep Robot Hand disabled even if OSR2 enters auto/free mode
+- `1` = allow normal Robot Hand takeover during auto/free mode
+
+The broker reads this file continuously and folds it into the mode/visibility messages it publishes.
 
 ### `robot_hand_cmd.txt`
 

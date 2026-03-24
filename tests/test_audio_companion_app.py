@@ -32,13 +32,13 @@ class TestFindAudio:
         assert audio_companion_module.find_audio(tmp_path, "missing") is None
 
 
-class TestConsumeCommandFile:
-    def test_uppercases_and_clears_command(self, audio_companion_module, tmp_path: Path):
-        path = tmp_path / "cmd.txt"
-        path.write_text(" pause ", encoding="utf-8")
-
-        assert audio_companion_module.consume_command_file(path) == "PAUSE"
-        assert path.read_text(encoding="utf-8") == ""
+class TestReadPausedState:
+    def test_treats_only_1_as_paused(self, audio_companion_module, tmp_path: Path):
+        path = tmp_path / "paused.txt"
+        path.write_text("1", encoding="utf-8")
+        assert audio_companion_module.read_paused_state(path) is True
+        path.write_text("0", encoding="utf-8")
+        assert audio_companion_module.read_paused_state(path) is False
 
 
 class TestAudioPlaybackController:
@@ -55,6 +55,17 @@ class TestAudioPlaybackController:
         assert controller.manual_paused is True
         apply_state.assert_called_once_with()
         info.assert_called_once()
+
+    def test_set_manual_paused_is_noop_when_state_is_unchanged(self, audio_companion_module, tmp_path: Path):
+        controller = self._make_controller(audio_companion_module, tmp_path)
+        controller.manual_paused = True
+
+        with patch.object(controller, "apply_state") as apply_state, \
+             patch.object(controller.logger, "info") as info:
+            controller.set_manual_paused(True)
+
+        apply_state.assert_not_called()
+        info.assert_not_called()
 
     def test_switch_clip_none_stops_and_clears_flags(self, audio_companion_module, tmp_path: Path):
         controller = self._make_controller(audio_companion_module, tmp_path)
@@ -93,6 +104,7 @@ class TestAudioPlaybackController:
         controller = self._make_controller(audio_companion_module, tmp_path)
         controller.current_path = tmp_path / "demo.mp3"
         controller.visible = True
+        controller.mode_active = True
         controller.manual_paused = False
         music = MagicMock()
         music.get_busy.return_value = False
@@ -102,6 +114,27 @@ class TestAudioPlaybackController:
             controller.apply_state()
 
         play_current.assert_called_once_with()
+
+    def test_apply_state_does_not_play_when_mode_file_says_robot_hand_is_inactive(self, audio_companion_module, tmp_path: Path):
+        controller = self._make_controller(audio_companion_module, tmp_path)
+        controller.current_path = tmp_path / "demo.mp3"
+        controller.visible = True
+        controller.mode_active = False
+        music = MagicMock()
+        music.get_busy.return_value = False
+
+        with patch.object(audio_companion_module.pygame.mixer, "music", music), \
+             patch.object(controller, "play_current_clip_from_saved_position") as play_current:
+            controller.apply_state()
+
+        play_current.assert_not_called()
+
+    def test_read_mode_active_treats_only_1_as_enabled(self, audio_companion_module, tmp_path: Path):
+        path = tmp_path / "robot_hand_mode.txt"
+        path.write_text("1", encoding="utf-8")
+        assert audio_companion_module.read_mode_active(path) is True
+        path.write_text("0", encoding="utf-8")
+        assert audio_companion_module.read_mode_active(path) is False
 
     def test_handle_udp_line_switches_to_existing_clip(self, audio_companion_module, tmp_path: Path):
         clip = tmp_path / "Demo.mp3"

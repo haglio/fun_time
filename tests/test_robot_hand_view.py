@@ -10,6 +10,7 @@ class FakeRoot:
         self.title_text = None
         self.geometry_text = None
         self.configure_calls: list[dict] = []
+        self.iconbitmap_calls: list[str] = []
         self.report_callback_exception = None
 
     def title(self, value: str) -> None:
@@ -20,6 +21,9 @@ class FakeRoot:
 
     def configure(self, **kwargs) -> None:
         self.configure_calls.append(kwargs)
+
+    def iconbitmap(self, value: str) -> None:
+        self.iconbitmap_calls.append(value)
 
 
 class FakeFrame:
@@ -82,6 +86,17 @@ def test_create_robot_hand_view_builds_window_widgets():
     assert view.status_var.value == "Starting..."
     assert view.status_label.kwargs["textvariable"] is view.status_var
     assert view.status_label.kwargs["font"] == ("Consolas", 10)
+    assert fake_tk.root.iconbitmap_calls == []
+
+
+def test_create_robot_hand_view_sets_icon_when_present(tmp_path):
+    fake_tk = FakeTkModule()
+    icon_path = tmp_path / "icon.ico"
+    icon_path.write_bytes(b"ico")
+
+    create_robot_hand_view(width=1200, height=900, x=10, y=20, icon_path=icon_path, tk_module=fake_tk)
+
+    assert fake_tk.root.iconbitmap_calls == [str(icon_path)]
 
 
 def test_install_tk_exception_handler_updates_status_and_shows_overlay():

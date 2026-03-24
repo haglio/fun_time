@@ -12,6 +12,7 @@ class FakeAutoMode:
         self.active = active
         self.handle_line_calls: list[str] = []
         self.set_auto_calls: list[tuple[object, bool, str | None]] = []
+        self.set_enabled_calls: list[tuple[object, bool]] = []
 
     @property
     def is_active(self) -> bool:
@@ -24,6 +25,9 @@ class FakeAutoMode:
         self.set_auto_calls.append((sock, value, mode_value))
         self.active = value
 
+    def set_enabled(self, sock, value: bool) -> None:
+        self.set_enabled_calls.append((sock, value))
+
 
 def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0):
     auto_mode = FakeAutoMode(active=auto_active)
@@ -34,6 +38,7 @@ def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0):
         real_port="COM4",
         baud=115200,
         broker_cmd_file=Path("broker.cmd"),
+        robot_hand_enabled_file=Path("robot_hand_enabled.txt"),
         auto_stale_timeout=2.0,
         stop_event=threading.Event(),
         broker_paused=threading.Event(),
@@ -41,6 +46,7 @@ def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0):
         logger=logger,
         start_thread=MagicMock(),
         consume_command=lambda _path: None,
+        read_robot_hand_enabled=lambda _path: True,
         monotonic=monotonic,
     )
     return session, auto_mode, logger
@@ -49,14 +55,35 @@ def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0):
 def test_handle_broker_command_sets_pause_and_resume():
     session, _auto_mode, logger = _build_session()
 
-    session.handle_broker_command("PAUSE")
+    session.handle_broker_command("PAUSE", object())
     assert session.broker_paused.is_set()
     logger.info.assert_called_once_with("OmniPause: broker paused")
 
     logger.reset_mock()
-    session.handle_broker_command("RESUME")
+    session.handle_broker_command("RESUME", object())
     assert not session.broker_paused.is_set()
     logger.info.assert_called_once_with("OmniPause: broker resumed")
+
+
+def test_handle_broker_command_toggles_robot_hand_enablement():
+    session, auto_mode, logger = _build_session()
+    sock = object()
+
+    session.handle_broker_command("ROBOT_HAND_DISABLE", sock)
+    session.handle_broker_command("ROBOT_HAND_ENABLE", sock)
+
+    assert auto_mode.set_enabled_calls == [(sock, False), (sock, True)]
+    logger.info.assert_not_called()
+
+
+def test_sync_robot_hand_enabled_reads_shared_file_state():
+    session, auto_mode, _logger = _build_session()
+    session.read_robot_hand_enabled = lambda _path: False
+    sock = object()
+
+    session.sync_robot_hand_enabled(sock)
+
+    assert auto_mode.set_enabled_calls == [(sock, False)]
 
 
 def test_maybe_disable_stale_auto_turns_off_auto_when_stale():
@@ -66,7 +93,7 @@ def test_maybe_disable_stale_auto_turns_off_auto_when_stale():
 
     session.maybe_disable_stale_auto(sock)
 
-    assert auto_mode.set_auto_calls == [(sock, False, "2")]
+    assert auto_mode.set_auto_calls == [(sock, False, None)]
     logger.warning.assert_called_once_with("AUTO stale timeout reached after %.2fs", 2.0)
 
 

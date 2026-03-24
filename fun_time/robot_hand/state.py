@@ -49,7 +49,6 @@ def udp_reader(host: str, port: int, state: SharedState, stop_event: threading.E
                     logger.info("Received HIDE")
                 elif cmd == "AUTO":
                     state.auto_active = arg.strip() == "1"
-                    state.visible = state.auto_active
                     logger.info("Received AUTO %s", 1 if state.auto_active else 0)
                 elif cmd == "BPM":
                     try:

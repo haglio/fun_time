@@ -36,6 +36,7 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--auto-stale-timeout", type=float, default=config.broker.auto_stale_timeout)
     ap.add_argument("--serial-retry-delay", type=float, default=SERIAL_RETRY_DELAY_SECONDS, help=argparse.SUPPRESS)
     ap.add_argument("--state-file", default=str(config.robot_hand_mode_file))
+    ap.add_argument("--robot-hand-enabled-file", default=str(config.robot_hand_enabled_file))
     ap.add_argument("--broker-cmd-file", default=str(config.broker_cmd_file))
     return ap
 
@@ -50,6 +51,24 @@ def write_mode(path: Path, value: str, logger: logging.Logger) -> None:
 
 def consume_broker_cmd(path: Path) -> str | None:
     return _consume_command_file(path)
+
+
+def read_robot_hand_enabled(path: Path) -> bool:
+    try:
+        if not path.exists():
+            return True
+        return path.read_text(encoding="utf-8").replace("\ufeff", "").strip() != "0"
+    except Exception:
+        return True
+
+
+def ensure_robot_hand_enabled_file(path: Path, logger: logging.Logger) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists() or not path.read_text(encoding="utf-8").replace("\ufeff", "").strip():
+            path.write_text("1", encoding="utf-8")
+    except Exception:
+        logger.exception("Failed to initialize Robot Hand enabled file %s", path)
 
 
 def udp_send(sock: socket.socket, host: str, port: int, msg: str) -> None:
@@ -68,7 +87,10 @@ def main(argv: list[str] | None = None) -> int:
     args.virtual_port = resolve_virtual_port(config, args.virtual_port, logger)
 
     state_file = Path(args.state_file)
+    robot_hand_enabled_file = Path(args.robot_hand_enabled_file)
     broker_cmd_file = Path(args.broker_cmd_file)
+    ensure_robot_hand_enabled_file(robot_hand_enabled_file, logger)
+    robot_hand_enabled = read_robot_hand_enabled(robot_hand_enabled_file)
     stop_event = threading.Event()
     broker_paused = threading.Event()
     auto_mode = BrokerAutoController(
@@ -78,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         logger=logger,
         write_mode=write_mode,
         udp_send=udp_send,
+        enabled=robot_hand_enabled,
     )
     session = BrokerSerialSession(
         serial_factory=serial.Serial,
@@ -85,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         real_port=args.real_port,
         baud=args.baud,
         broker_cmd_file=broker_cmd_file,
+        robot_hand_enabled_file=robot_hand_enabled_file,
         auto_stale_timeout=args.auto_stale_timeout,
         stop_event=stop_event,
         broker_paused=broker_paused,
@@ -92,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         logger=logger,
         start_thread=start_daemon_thread,
         consume_command=consume_broker_cmd,
+        read_robot_hand_enabled=read_robot_hand_enabled,
         monotonic=time.monotonic,
         sleep=time.sleep,
         is_retryable_error=is_retryable_serial_error,

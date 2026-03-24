@@ -67,6 +67,7 @@ def _build_controller(
     entry=None,
     current_frame_index: int | None = None,
     command: str | None = None,
+    paused_state: bool = False,
 ):
     schedule_calls: list[tuple[int, object]] = []
     status_messages: list[str] = []
@@ -93,6 +94,7 @@ def _build_controller(
         engine=engine,
         rh_paused={"value": False},
         command_file=Path("command.txt"),
+        paused_file=Path("paused.txt"),
         beats_per_loop=4.0,
         bpm_smoothing=0.5,
         sync_strength=0.5,
@@ -105,6 +107,7 @@ def _build_controller(
         log_name="robot_hand_listener.log",
         now_source=lambda: 5.0,
         consume_command=lambda _path, logger=None: command,
+        read_paused_state=lambda _path, logger=None: paused_state,
     )
     return {
         "controller": controller,
@@ -178,6 +181,15 @@ def test_refresh_applies_runtime_commands_through_selection_step():
 
     assert built["selection"].step_calls == [1]
     assert built["schedule_calls"] == [(16, built["controller"].refresh)]
+
+
+def test_refresh_reads_paused_state_file_each_tick():
+    entry = {"pil_frames": [object() for _ in range(4)]}
+    built = _build_controller(entry=entry, paused_state=True)
+
+    built["controller"].refresh()
+
+    assert built["controller"].rh_paused["value"] is True
 
 
 def test_refresh_reports_exceptions_and_schedules_retry():

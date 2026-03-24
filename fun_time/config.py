@@ -65,7 +65,7 @@ class PathsConfig:
 
 @dataclass(frozen=True)
 class LayoutConfig:
-    primary_monitor: int
+    main_monitor: int
     secondary_monitor: int
     primary_top_ratio: float
     landscape_width_ratio: float
@@ -75,6 +75,7 @@ class LayoutConfig:
 
 @dataclass(frozen=True)
 class ControllerConfig:
+    primary_vlc_http_port: int
     vlc2_http_port: int
     vlc3_http_port: int
     layout: LayoutConfig
@@ -142,12 +143,24 @@ class ProjectConfig:
         return self.paths.state_dir / "robot_hand_cmd.txt"
 
     @property
+    def robot_hand_enabled_file(self) -> Path:
+        return self.paths.state_dir / "robot_hand_enabled.txt"
+
+    @property
+    def robot_hand_paused_file(self) -> Path:
+        return self.paths.state_dir / "robot_hand_paused.txt"
+
+    @property
     def broker_cmd_file(self) -> Path:
         return self.paths.state_dir / "broker_cmd.txt"
 
     @property
     def audio_cmd_file(self) -> Path:
         return self.paths.state_dir / "audio_cmd.txt"
+
+    @property
+    def audio_paused_file(self) -> Path:
+        return self.paths.state_dir / "audio_paused.txt"
 
     @property
     def chrome_overlay_manifest_file(self) -> Path:
@@ -215,9 +228,15 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path) -> PathsCon
 
 
 def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> LayoutConfig:
+    main_monitor = layout_raw.get("main_monitor")
+    secondary_monitor = layout_raw.get("secondary_monitor")
+    if main_monitor is None:
+        raise ValueError(f"Missing required config value: config.controller.layout.main_monitor (in {source_path})")
+    if secondary_monitor is None:
+        raise ValueError(f"Missing required config value: config.controller.layout.secondary_monitor (in {source_path})")
     return LayoutConfig(
-        primary_monitor=_require_typed_value(layout_raw, "primary_monitor", source_path, "config.controller.layout", int),
-        secondary_monitor=_require_typed_value(layout_raw, "secondary_monitor", source_path, "config.controller.layout", int),
+        main_monitor=int(main_monitor),
+        secondary_monitor=int(secondary_monitor),
         primary_top_ratio=_require_typed_value(layout_raw, "primary_top_ratio", source_path, "config.controller.layout", float),
         landscape_width_ratio=_require_typed_value(layout_raw, "landscape_width_ratio", source_path, "config.controller.layout", float),
         mfp_width_ratio=_require_typed_value(layout_raw, "mfp_width_ratio", source_path, "config.controller.layout", float),
@@ -228,6 +247,7 @@ def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> Layout
 def _load_controller_config(controller_raw: dict[str, Any], source_path: Path) -> ControllerConfig:
     layout_raw = _require_dict(controller_raw, "layout", source_path, "config.controller")
     return ControllerConfig(
+        primary_vlc_http_port=_require_typed_value(controller_raw, "primary_vlc_http_port", source_path, "config.controller", int),
         vlc2_http_port=_require_typed_value(controller_raw, "vlc2_http_port", source_path, "config.controller", int),
         vlc3_http_port=_require_typed_value(controller_raw, "vlc3_http_port", source_path, "config.controller", int),
         layout=_load_layout_config(layout_raw, source_path),

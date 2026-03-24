@@ -20,6 +20,7 @@ class BrokerSerialSession:
         real_port: str,
         baud: int,
         broker_cmd_file: Path,
+        robot_hand_enabled_file: Path,
         auto_stale_timeout: float,
         stop_event,
         broker_paused,
@@ -27,6 +28,7 @@ class BrokerSerialSession:
         logger,
         start_thread,
         consume_command,
+        read_robot_hand_enabled,
         monotonic=time.monotonic,
         sleep=time.sleep,
         is_retryable_error=None,
@@ -36,6 +38,7 @@ class BrokerSerialSession:
         self.real_port = real_port
         self.baud = baud
         self.broker_cmd_file = broker_cmd_file
+        self.robot_hand_enabled_file = robot_hand_enabled_file
         self.auto_stale_timeout = auto_stale_timeout
         self.stop_event = stop_event
         self.broker_paused = broker_paused
@@ -43,10 +46,12 @@ class BrokerSerialSession:
         self.logger = logger
         self.start_thread = start_thread
         self.consume_command = consume_command
+        self.read_robot_hand_enabled = read_robot_hand_enabled
         self.monotonic = monotonic
         self.sleep = sleep
         self.is_retryable_error = is_retryable_error or (lambda _exc: False)
         self.last_real_rx_time = 0.0
+        self.poll_interval_seconds = 0.05
 
     def run(self, udp_sock) -> bool:
         session_stop = threading.Event()
@@ -73,7 +78,7 @@ class BrokerSerialSession:
                 )
 
                 while not self.stop_event.is_set() and not session_stop.is_set():
-                    self.sleep(0.2)
+                    self.sleep(self.poll_interval_seconds)
                     self.tick_command_and_stale_timeout(udp_sock)
         except KeyboardInterrupt:
             raise
@@ -129,16 +134,25 @@ class BrokerSerialSession:
 
     def tick_command_and_stale_timeout(self, udp_sock) -> None:
         cmd = self.consume_command(self.broker_cmd_file)
-        self.handle_broker_command(cmd)
+        self.handle_broker_command(cmd, udp_sock)
+        self.sync_robot_hand_enabled(udp_sock)
         self.maybe_disable_stale_auto(udp_sock)
 
-    def handle_broker_command(self, cmd: str | None) -> None:
+    def handle_broker_command(self, cmd: str | None, udp_sock) -> None:
         if cmd == "PAUSE":
             self.broker_paused.set()
             self.logger.info("OmniPause: broker paused")
         elif cmd == "RESUME":
             self.broker_paused.clear()
             self.logger.info("OmniPause: broker resumed")
+        elif cmd == "ROBOT_HAND_DISABLE":
+            self.auto_mode.set_enabled(udp_sock, False)
+        elif cmd == "ROBOT_HAND_ENABLE":
+            self.auto_mode.set_enabled(udp_sock, True)
+
+    def sync_robot_hand_enabled(self, udp_sock) -> None:
+        enabled = self.read_robot_hand_enabled(self.robot_hand_enabled_file)
+        self.auto_mode.set_enabled(udp_sock, enabled)
 
     def maybe_disable_stale_auto(self, udp_sock) -> None:
         if not self.auto_mode.is_active:
@@ -150,4 +164,4 @@ class BrokerSerialSession:
         if self.monotonic() - self.last_real_rx_time <= self.auto_stale_timeout:
             return
         self.logger.warning("AUTO stale timeout reached after %.2fs", self.auto_stale_timeout)
-        self.auto_mode.set_auto(udp_sock, False, mode_value="2")
+        self.auto_mode.set_auto(udp_sock, False)

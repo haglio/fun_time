@@ -50,10 +50,11 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "state_dir": str(tmp_path / "state"),
         },
         "controller": {
+            "primary_vlc_http_port": 8090,
             "vlc2_http_port": 8091,
             "vlc3_http_port": 8092,
             "layout": {
-                "primary_monitor": 1,
+                "main_monitor": 1,
                 "secondary_monitor": 2,
                 "primary_top_ratio": 0.727,
                 "landscape_width_ratio": 0.666,

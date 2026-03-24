@@ -19,6 +19,7 @@ PORTRAIT_DIR := RequireManifestValue("media", "portrait_dirs")
 LANDSCAPE_DIR := RequireManifestValue("media", "landscape_dirs")
 WEIRD_DIR := RequireManifestValue("media", "weird_dir")
 FAVS_FILE := RequireManifestValue("media", "favs_file")
+PRIMARY_VLC_PORT := RequireManifestValue("controller", "primary_vlc_port")
 VLC2_PORT := RequireManifestValue("controller", "vlc2_port")
 VLC3_PORT := RequireManifestValue("controller", "vlc3_port")
 VLC_PASS := RequireManifestValue("controller", "vlc_pass")
@@ -29,9 +30,12 @@ ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
 ROBOT_HAND_MODE_FILE := RequireManifestValue("commands", "robot_hand_mode_file")
 ROBOT_HAND_CMD_FILE := RequireManifestValue("commands", "robot_hand_cmd_file")
+ROBOT_HAND_ENABLED_FILE := RequireManifestValue("commands", "robot_hand_enabled_file")
+ROBOT_HAND_PAUSED_FILE := RequireManifestValue("commands", "robot_hand_paused_file")
 BROKER_CMD_FILE := RequireManifestValue("commands", "broker_cmd_file")
 AUDIO_CMD_FILE := RequireManifestValue("commands", "audio_cmd_file")
-PRIMARY_MONITOR := RequireManifestValue("layout", "primary_monitor")
+AUDIO_PAUSED_FILE := RequireManifestValue("commands", "audio_paused_file")
+MAIN_MONITOR := RequireManifestValue("layout", "main_monitor")
 SECONDARY_MONITOR := RequireManifestValue("layout", "secondary_monitor")
 PRIMARY_TOP_RATIO := RequireManifestValue("layout", "primary_top_ratio")
 LANDSCAPE_WIDTH_RATIO := RequireManifestValue("layout", "landscape_width_ratio")
@@ -42,6 +46,7 @@ CHROME_SHORTCUT_PATH := RequireManifestValue("chrome_overlay", "shortcut_path")
 CHROME_MANIFEST_FILE := RequireManifestValue("chrome_overlay", "manifest_file")
 CONFIG_PATH := RequireManifestValue("runtime", "config_path")
 PROJECT_DIR := RequireManifestValue("runtime", "project_dir")
+ICON_PATH := PROJECT_DIR . "\icon.ico"
 
 ; IMPORTANT: VLC web interface commonly uses BLANK username + password.
 VLC_USER := ""
@@ -58,6 +63,8 @@ pid3 := 0
 pidM := 0
 pidR := 0
 pidA := 0
+robotHandStatusGui := ""
+robotHandStatusText := ""
 
 Q(s) => Format('"{1}"', s)
 
@@ -84,6 +91,33 @@ Log(msg) {
     try {
         FileAppend(FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n", CONTROLLER_LOG_FILE, "UTF-8")
     }
+}
+
+WriteRawStateFile(path, text) {
+    SplitPath(path, , &dirPath)
+    if (dirPath != "")
+        DirCreate(dirPath)
+
+    tries := 0
+    while (tries < 8) {
+        file := ""
+        try {
+            file := FileOpen(path, "w", "UTF-8-RAW")
+            if (!file)
+                throw Error("Failed to open state file: " . path)
+            file.Write(text)
+            file.Close()
+            return
+        } catch {
+            try {
+                if (IsObject(file))
+                    file.Close()
+            }
+            Sleep 30
+            tries += 1
+        }
+    }
+    throw Error("Failed to write state file after retries: " . path)
 }
 
 RequireManifestValue(section, key) {
@@ -142,8 +176,8 @@ ForceKillPid(pid) {
 }
 
 GetRobotHandRect(&x, &y, &w, &h) {
-    global PRIMARY_MONITOR, PRIMARY_TOP_RATIO
-    MonitorGetWorkArea(PRIMARY_MONITOR, &sL, &sT, &sR, &sB)
+    global MAIN_MONITOR, PRIMARY_TOP_RATIO
+    MonitorGetWorkArea(MAIN_MONITOR, &sL, &sT, &sR, &sB)
     sW := sR - sL
     sH := sB - sT
     hTop := Floor(sH * Clamp01(PRIMARY_TOP_RATIO))
@@ -196,15 +230,13 @@ OpenPrimaryVlcFileDialogWithManagedOmniPause() {
 
 QueueRobotHandOffsetQuarterCycle() {
     global ROBOT_HAND_CMD_FILE
-    try FileDelete(ROBOT_HAND_CMD_FILE)
-    FileAppend("OFFSET_QUARTER_CYCLE", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
+    WriteRawStateFile(ROBOT_HAND_CMD_FILE, "OFFSET_QUARTER_CYCLE")
 }
 
 HandlePrevAction() {
     global ROBOT_HAND_CMD_FILE, pid1
-    if (RobotHandModeState() = "1") {
-        try FileDelete(ROBOT_HAND_CMD_FILE)
-        FileAppend("PREV", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
+    if (EffectiveRobotHandModeState() = "1") {
+        WriteRawStateFile(ROBOT_HAND_CMD_FILE, "PREV")
     } else {
         SendToPid(pid1, "p")
     }
@@ -212,9 +244,8 @@ HandlePrevAction() {
 
 HandleNextAction() {
     global ROBOT_HAND_CMD_FILE, pid1
-    if (RobotHandModeState() = "1") {
-        try FileDelete(ROBOT_HAND_CMD_FILE)
-        FileAppend("NEXT", ROBOT_HAND_CMD_FILE, "UTF-8-RAW")
+    if (EffectiveRobotHandModeState() = "1") {
+        WriteRawStateFile(ROBOT_HAND_CMD_FILE, "NEXT")
     } else {
         SendToPid(pid1, "n")
     }
@@ -244,40 +275,159 @@ RobotHandModeState() {
     }
 }
 
+RobotHandEnabled() {
+    global ROBOT_HAND_ENABLED_FILE
+    try {
+        if !FileExist(ROBOT_HAND_ENABLED_FILE)
+            return true
+        return Trim(FileRead(ROBOT_HAND_ENABLED_FILE, "UTF-8")) != "0"
+    } catch {
+        return true
+    }
+}
+
+SetRobotHandEnabled(enabled) {
+    global ROBOT_HAND_ENABLED_FILE
+    WriteRawStateFile(ROBOT_HAND_ENABLED_FILE, enabled ? "1" : "0")
+}
+
+SetRobotHandPaused(paused) {
+    global ROBOT_HAND_PAUSED_FILE
+    WriteRawStateFile(ROBOT_HAND_PAUSED_FILE, paused ? "1" : "0")
+}
+
+SetRobotHandAudioPaused(paused) {
+    global AUDIO_PAUSED_FILE
+    WriteRawStateFile(AUDIO_PAUSED_FILE, paused ? "1" : "0")
+}
+
+GetRobotHandStatusRect(&x, &y, &w, &h) {
+    GetMfpRect(&mX, &mY, &mW, &mH)
+    margin := 14
+    x := mX
+    y := Max(0, mY - 52)
+    w := Max(220, mW)
+    h := 40
+}
+
+CreateRobotHandStatusGui() {
+    global robotHandStatusGui, robotHandStatusText
+    guiObj := Gui("+AlwaysOnTop -Caption +ToolWindow", "Fun Time Status")
+    guiObj.BackColor := "20262C"
+    guiObj.SetFont("s10 Bold", "Segoe UI")
+    textCtrl := guiObj.AddText("Center cFFFFFF w260 h24", "")
+    robotHandStatusGui := guiObj
+    robotHandStatusText := textCtrl
+    GetRobotHandStatusRect(&x, &y, &w, &h)
+    textCtrl.Move(, , w - 20, 24)
+    guiObj.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
+    UpdateRobotHandStatusIndicator()
+}
+
+UpdateRobotHandStatusIndicator() {
+    global robotHandStatusGui, robotHandStatusText
+    if (!IsObject(robotHandStatusGui) || !IsObject(robotHandStatusText))
+        return
+
+    if (RobotHandEnabled()) {
+        robotHandStatusGui.BackColor := "1F4D2E"
+        robotHandStatusText.Opt("+cFFFFFF")
+        robotHandStatusText.Text := "Robot Hand Enabled"
+    } else {
+        robotHandStatusGui.BackColor := "6C1F1F"
+        robotHandStatusText.Opt("+cFFFFFF")
+        robotHandStatusText.Text := "Robot Hand Disabled"
+    }
+
+    GetRobotHandStatusRect(&x, &y, &w, &h)
+    robotHandStatusText.Move(, , w - 20, 24)
+    robotHandStatusGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
+}
+
+EnforceRobotHandOutputs(active, isTransition := false) {
+    global pid1
+
+    if (active) {
+        EnsurePrimaryVlcPlayback(false)
+        SetRobotHandPaused(false)
+        SetRobotHandAudioPaused(false)
+        try WinShow("Robot Hand")
+        try WinSetAlwaysOnTop(false, "ahk_pid " pid1)
+        try WinSetAlwaysOnTop(true, "Robot Hand")
+        try WinActivate("Robot Hand")
+    } else {
+        SetRobotHandPaused(true)
+        SetRobotHandAudioPaused(true)
+        try WinHide("Robot Hand")
+        try WinSetAlwaysOnTop(false, "Robot Hand")
+        try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
+        EnsurePrimaryVlcPlayback(true)
+    }
+}
+
+EffectiveRobotHandModeState() {
+    if (!RobotHandEnabled())
+        return "0"
+    return RobotHandModeState()
+}
+
 SyncRobotHandState() {
     global robotHandMode, pid1, omniPaused
+
+    UpdateRobotHandStatusIndicator()
 
     if (omniPaused)
         return
 
-    modeState := RobotHandModeState()
+    modeState := EffectiveRobotHandModeState()
     modeOn := (modeState = "1")
 
     if (modeOn && !robotHandMode) {
         robotHandMode := true
         Log("Entering Robot Hand mode")
-        try ControlSend("{Space}", , "ahk_pid " pid1)   ; pause pid1
-        try WinSetAlwaysOnTop(false, "ahk_pid " pid1)
-        try WinSetAlwaysOnTop(true, "Robot Hand")
-        try WinActivate("Robot Hand")
+        EnforceRobotHandOutputs(true, true)
     } else if (!modeOn && robotHandMode) {
         robotHandMode := false
         Log("Leaving Robot Hand mode")
-        try WinSetAlwaysOnTop(false, "Robot Hand")
-        try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
-        if (modeState = "0") {
-            try ControlSend("{Space}", , "ahk_pid " pid1)   ; only resume on normal exit
-        }
+        EnforceRobotHandOutputs(false, true)
+    } else {
+        EnforceRobotHandOutputs(modeOn, false)
     }
+}
+
+ToggleRobotHandEnabled() {
+    enabled := !RobotHandEnabled()
+    SetRobotHandEnabled(enabled)
+
+    if (enabled) {
+        Log("Robot Hand hotkey: enabled")
+    } else {
+        Log("Robot Hand hotkey: disabled")
+    }
+
+    SyncRobotHandState()
 }
 
 ; -------------------- LAUNCH --------------------
 
 Log("Controller starting")
+if FileExist(ICON_PATH)
+    TraySetIcon(ICON_PATH)
 
 OnExit(HandleControllerExit)
 
-pid1 := RunVLC("--no-one-instance --random --repeat", PRIMARY_VLC_SOURCES)
+SetRobotHandEnabled(true)
+SetRobotHandPaused(true)
+SetRobotHandAudioPaused(true)
+RestartBroker()
+
+pid1 := RunVLC(Join(
+    "--no-one-instance --random --repeat",
+    "--extraintf http",
+    "--http-host 127.0.0.1",
+    "--http-port " . PRIMARY_VLC_PORT,
+    "--http-password " . Q(VLC_PASS)
+), PRIMARY_VLC_SOURCES)
 Sleep 900
 SendToPid(pid1, "n")
 
@@ -300,6 +450,7 @@ pid3 := RunVLC(Join(
     "--http-password " . Q(VLC_PASS)
 ), LANDSCAPE_DIR)
 
+WaitForHttp(PRIMARY_VLC_PORT, 7000)
 WaitForHttp(VLC2_PORT, 7000)
 WaitForHttp(VLC3_PORT, 7000)
 
@@ -316,6 +467,7 @@ PrepareChromeOverlayManifest()
 PositionAll(pid1, pid2, pid3, pidM)
 SetTopMost(pid1, pid2, pid3, pidM)
 MaybeLaunchChromeOverlay(pidM)
+CreateRobotHandStatusGui()
 
 Sleep 1200
 
@@ -337,7 +489,6 @@ pidA := RunApp(ROBOT_HAND_PY
     , "-m " . ROBOT_HAND_AUDIO_MODULE
     . " --config " . Q(CONFIG_PATH)
     . " --audio-folder " . Q(ROBOT_HAND_AUDIO)
-    . " --cmd-file " . Q(AUDIO_CMD_FILE)
 )
 Log("Started Robot Hand audio pid=" . pidA)
 
@@ -363,8 +514,10 @@ SC01A::HandlePrevAction()
 ]::HandleNextAction()
 SC01B::HandleNextAction()
 
+r::ToggleRobotHandEnabled()
+
 \::{
-    if (RobotHandModeState() = "1") {
+    if (EffectiveRobotHandModeState() = "1") {
         QueueRobotHandOffsetQuarterCycle()
     } else {
         ; Managed file-open flow: pause globally while browsing, then resume without
@@ -402,11 +555,16 @@ s::ToggleLock(3)
 ; =====================================================================
 
 ShutdownAll() {
-    global isShuttingDown, pid1, pid2, pid3, pidM, pidR, pidA
+    global isShuttingDown, pid1, pid2, pid3, pidM, pidR, pidA, robotHandStatusGui
     if (isShuttingDown)
         return
     isShuttingDown := true
     Log("Shutdown requested")
+    SetTimer(SyncRobotHandState, 0)
+    try {
+        if (IsObject(robotHandStatusGui))
+            robotHandStatusGui.Destroy()
+    }
 
     for pid in [pid1, pid2, pid3, pidM, pidR, pidA]
         TryClosePid(pid)
@@ -424,10 +582,27 @@ ShutdownAll() {
     ExitApp
 }
 
+RestartBroker() {
+    global PROJECT_DIR
+
+    launchPath := PROJECT_DIR . "\launch_broker_tray.vbs"
+    psCmd := "$targets = Get-CimInstance Win32_Process | Where-Object { "
+        . "(($_.Name -match '^pythonw?\.exe$|^py\.exe$') -and $_.CommandLine -match 'fun_time\.broker_app') -or "
+        . "(($_.Name -match '^powershell\.exe$|^pwsh\.exe$|^wscript\.exe$') -and $_.CommandLine -match 'broker_tray\.ps1|launch_broker_tray\.vbs') "
+        . "}; "
+        . "$targets | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; "
+        . "Start-Sleep -Milliseconds 400"
+
+    try RunWait("powershell.exe -NoProfile -WindowStyle Hidden -Command " . Q(psCmd), PROJECT_DIR, "Hide")
+    Sleep 400
+    if FileExist(launchPath)
+        Run(Q("wscript.exe") . " " . Q(launchPath), PROJECT_DIR)
+}
+
 PositionAll(pid1, pid2, pid3, pidM) {
-    global PRIMARY_MONITOR, SECONDARY_MONITOR, PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
+    global MAIN_MONITOR, SECONDARY_MONITOR, PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
     MonitorGetWorkArea(SECONDARY_MONITOR, &pL, &pT, &pR, &pB)
-    MonitorGetWorkArea(PRIMARY_MONITOR, &sL, &sT, &sR, &sB)
+    MonitorGetWorkArea(MAIN_MONITOR, &sL, &sT, &sR, &sB)
 
     pW := pR - pL, pH := pB - pT
     sW := sR - sL, sH := sB - sT
@@ -687,6 +862,31 @@ GetRepeatMode(port, &mode) {
         mode := "off"
     }
     return true
+}
+
+GetVlcPlaybackState(port, &state) {
+    state := ""
+    xml := VlcHttpReq(port, "/requests/status.xml", &st)
+    if (st != 200 || xml = "")
+        return false
+    if RegExMatch(xml, "<state>([^<]+)</state>", &m)
+        state := StrLower(Trim(m[1]))
+    return (state != "")
+}
+
+EnsurePrimaryVlcPlayback(shouldPlay) {
+    global PRIMARY_VLC_PORT
+    target := shouldPlay ? "playing" : "paused"
+    loop 8 {
+        if !GetVlcPlaybackState(PRIMARY_VLC_PORT, &state)
+            break
+        if (state = target)
+            return true
+        VlcHttpCmd(PRIMARY_VLC_PORT, "pl_pause")
+        Sleep 120
+    }
+    Log("Primary VLC failed to reach playback state " . target)
+    return false
 }
 
 SetRepeatMode(port, target) {
@@ -951,8 +1151,7 @@ ToggleLock(which) {
 ; -------------------- OmniPause --------------------
 
 WriteCmd(file, cmd) {
-    try FileDelete(file)
-    FileAppend(cmd, file, "UTF-8-RAW")
+    WriteRawStateFile(file, cmd)
 }
 
 OmniPauseToggle() {
@@ -966,7 +1165,7 @@ OmniPauseToggle() {
 
 EnterOmniPause() {
     global omniPaused, robotHandMode, pid1, pid2, pid3, pidM
-    global VLC2_PORT, VLC3_PORT, ROBOT_HAND_CMD_FILE, AUDIO_CMD_FILE
+    global VLC2_PORT, VLC3_PORT
 
     omniPaused := true
     Log("OmniPause: entering")
@@ -975,12 +1174,12 @@ EnterOmniPause() {
         ; Auto mode: VLC1 is already paused by Robot Hand mode; pause VLC2+3, freeze Robot Hand, and pause audio
         VlcHttpCmd(VLC2_PORT, "pl_pause")
         VlcHttpCmd(VLC3_PORT, "pl_pause")
-        WriteCmd(ROBOT_HAND_CMD_FILE, "PAUSE")
-        WriteCmd(AUDIO_CMD_FILE, "PAUSE")
+        SetRobotHandPaused(true)
+        SetRobotHandAudioPaused(true)
         try WinSetAlwaysOnTop(false, "Robot Hand")
     } else {
         ; Controlled mode: pause all 3 VLCs
-        try ControlSend("{Space}", , "ahk_pid " pid1)
+        EnsurePrimaryVlcPlayback(false)
         VlcHttpCmd(VLC2_PORT, "pl_pause")
         VlcHttpCmd(VLC3_PORT, "pl_pause")
     }
@@ -995,21 +1194,21 @@ EnterOmniPause() {
 
 LeaveOmniPause(skipPrimaryVlcPlaybackToggleOnResume := false) {
     global omniPaused, robotHandMode, pid1, pid2, pid3, pidM
-    global VLC2_PORT, VLC3_PORT, ROBOT_HAND_CMD_FILE, AUDIO_CMD_FILE
+    global VLC2_PORT, VLC3_PORT
 
     Log("OmniPause: leaving")
     Suspend false
 
     if (robotHandMode) {
         ; Auto mode: resume Robot Hand animation, resume audio, and resume VLC2+3
-        WriteCmd(ROBOT_HAND_CMD_FILE, "RESUME")
-        WriteCmd(AUDIO_CMD_FILE, "RESUME")
+        SetRobotHandPaused(false)
+        SetRobotHandAudioPaused(false)
         VlcHttpCmd(VLC2_PORT, "pl_pause")  ; toggle back to playing
         VlcHttpCmd(VLC3_PORT, "pl_pause")
     } else {
         ; Controlled mode: resume all 3 VLCs and restore VLC1 always-on-top
         if (!skipPrimaryVlcPlaybackToggleOnResume)
-            try ControlSend("{Space}", , "ahk_pid " pid1)
+            EnsurePrimaryVlcPlayback(true)
         VlcHttpCmd(VLC2_PORT, "pl_pause")  ; toggle back to playing
         VlcHttpCmd(VLC3_PORT, "pl_pause")
         try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
