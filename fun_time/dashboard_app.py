@@ -11,6 +11,7 @@ import tkinter as tk
 from fun_time.config import LayoutConfig
 from fun_time.controller_manifest import CONTROLLER_MANIFEST_FILENAME
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
+from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
 from fun_time.dashboard_state import (
     LABEL_BROKER,
     LABEL_CONTROLLER,
@@ -34,6 +35,8 @@ COLOR_LINK = "#3A7AFE"
 class DashboardAppConfig:
     layout: LayoutConfig
     manifest_path: Path
+    dashboard_state_file: Path
+    dashboard_cmd_file: Path
 
 
 @dataclass(frozen=True)
@@ -73,7 +76,12 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         mfp_width_ratio=parser.getfloat("layout", "mfp_width_ratio"),
         mfp_height_ratio=parser.getfloat("layout", "mfp_height_ratio"),
     )
-    return DashboardAppConfig(layout=layout, manifest_path=manifest_path)
+    return DashboardAppConfig(
+        layout=layout,
+        manifest_path=manifest_path,
+        dashboard_state_file=Path(parser.get("commands", "dashboard_state_file", fallback="dashboard_state.ini")),
+        dashboard_cmd_file=Path(parser.get("commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt")),
+    )
 
 
 def resolve_logical_monitor_sizes(
@@ -157,29 +165,57 @@ def get_preview_monitor_sizes(app_config: DashboardAppConfig) -> tuple[Size, Siz
     return Size(2560, 1392), Size(1440, 3440)
 
 
-def build_dashboard_scene(layout: DashboardPreviewLayout) -> DashboardScene:
+def build_dashboard_scene(layout: DashboardPreviewLayout, snapshot: DashboardSnapshot | None = None) -> DashboardScene:
+    primary_label = LABEL_PRIMARY_VLC
+    portrait_label = LABEL_PORTRAIT_VLC
+    landscape_label = LABEL_LANDSCAPE_VLC
+    osr2_label = LABEL_OSR2
+    mfp_label = LABEL_MFP
+    link_label = "Robot Link"
+    broker_chip = "b"
+    controller_chip = "c"
+    fmode_chip = "f"
+    primary_fill = COLOR_PANEL
+    portrait_fill = COLOR_PANEL
+    landscape_fill = COLOR_PANEL
+    osr2_fill = COLOR_PANEL
+    mfp_fill = COLOR_PANEL
+
+    if snapshot is not None:
+        primary_label = f"{snapshot.primary.label}\n{snapshot.primary.clip or '(none)'}"
+        portrait_label = f"{snapshot.portrait.label}\n{snapshot.portrait.clip or '(none)'}"
+        landscape_label = f"{snapshot.landscape.label}\n{snapshot.landscape.clip or '(none)'}"
+        osr2_label = f"{LABEL_OSR2}\n{snapshot.osr2_mode}"
+        mfp_label = f"{LABEL_MFP}\n{'connected' if snapshot.mfp_connected else 'disconnected'}"
+        link_label = "Robot Link" if snapshot.robot_link_enabled else "Broken Link"
+        primary_fill = COLOR_LINK if snapshot.primary.accent == "osr2" else (COLOR_LINK if snapshot.primary.highlight else COLOR_PANEL)
+        portrait_fill = COLOR_LINK if snapshot.portrait.highlight else COLOR_PANEL
+        landscape_fill = COLOR_LINK if snapshot.landscape.highlight else COLOR_PANEL
+        osr2_fill = "#1F6F52" if snapshot.osr2_mode == "auto" else "#8A6A2C"
+        mfp_fill = "#1F6F52" if snapshot.mfp_connected else "#6C1F1F"
+
     rects = (
         DashboardRectItem(layout.main_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.secondary_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.main_status_strip, fill=COLOR_PANEL),
-        DashboardRectItem(layout.mfp_panel, fill=COLOR_PANEL),
-        DashboardRectItem(layout.landscape_panel, fill=COLOR_PANEL),
-        DashboardRectItem(layout.portrait_panel, fill=COLOR_PANEL),
-        DashboardRectItem(layout.primary_panel, fill=COLOR_PANEL),
-        DashboardRectItem(layout.osr2_panel, fill=COLOR_PANEL),
+        DashboardRectItem(layout.mfp_panel, fill=mfp_fill),
+        DashboardRectItem(layout.landscape_panel, fill=landscape_fill),
+        DashboardRectItem(layout.portrait_panel, fill=portrait_fill),
+        DashboardRectItem(layout.primary_panel, fill=primary_fill),
+        DashboardRectItem(layout.osr2_panel, fill=osr2_fill),
         DashboardRectItem(layout.link_toggle, fill=COLOR_LINK, outline=COLOR_LINK),
     )
     texts = (
         DashboardTextItem("Fun Time", Rect(10, layout.dashboard_height - 22, 88, 12), anchor="w"),
-        DashboardTextItem(LABEL_MFP, layout.mfp_panel),
-        DashboardTextItem(LABEL_LANDSCAPE_VLC, layout.landscape_panel),
-        DashboardTextItem(LABEL_PORTRAIT_VLC, layout.portrait_panel),
-        DashboardTextItem(LABEL_PRIMARY_VLC, layout.primary_panel),
-        DashboardTextItem(LABEL_OSR2, layout.osr2_panel),
-        DashboardTextItem("Robot Link", layout.link_toggle, color=COLOR_TEXT, font=("Segoe UI", 8, "bold")),
-        DashboardTextItem("b", Rect(layout.main_status_strip.x + 6, layout.main_status_strip.y + 3, 12, 12), font=("Segoe UI", 7, "bold")),
-        DashboardTextItem("c", Rect(layout.main_status_strip.x + 19, layout.main_status_strip.y + 3, 12, 12), font=("Segoe UI", 7, "bold")),
-        DashboardTextItem("f", Rect(layout.main_status_strip.x + 32, layout.main_status_strip.y + 3, 12, 12), font=("Segoe UI", 7, "bold")),
+        DashboardTextItem(mfp_label, layout.mfp_panel),
+        DashboardTextItem(landscape_label, layout.landscape_panel),
+        DashboardTextItem(portrait_label, layout.portrait_panel),
+        DashboardTextItem(primary_label, layout.primary_panel),
+        DashboardTextItem(osr2_label, layout.osr2_panel),
+        DashboardTextItem(link_label, layout.link_toggle, color=COLOR_TEXT, font=("Segoe UI", 8, "bold")),
+        DashboardTextItem(broker_chip, Rect(layout.main_status_strip.x + 6, layout.main_status_strip.y + 3, 12, 12), font=("Segoe UI", 7, "bold")),
+        DashboardTextItem(controller_chip, Rect(layout.main_status_strip.x + 19, layout.main_status_strip.y + 3, 12, 12), font=("Segoe UI", 7, "bold")),
+        DashboardTextItem(fmode_chip, Rect(layout.main_status_strip.x + 32, layout.main_status_strip.y + 3, 12, 12), font=("Segoe UI", 7, "bold")),
         DashboardTextItem(LABEL_BROKER, Rect(0, 0, 0, 0), color=COLOR_MUTED, font=("Segoe UI", 1, "bold")),
         DashboardTextItem(LABEL_CONTROLLER, Rect(0, 0, 0, 0), color=COLOR_MUTED, font=("Segoe UI", 1, "bold")),
         DashboardTextItem(LABEL_F_MODE, Rect(0, 0, 0, 0), color=COLOR_MUTED, font=("Segoe UI", 1, "bold")),
@@ -218,7 +254,6 @@ def render_dashboard_scene(canvas: tk.Canvas, scene: DashboardScene) -> None:
 def build_dashboard_window(app_config: DashboardAppConfig) -> tk.Tk:
     main_monitor, secondary_monitor = get_preview_monitor_sizes(app_config)
     preview_layout = compute_dashboard_preview_layout(main_monitor, secondary_monitor, app_config.layout)
-    scene = build_dashboard_scene(preview_layout)
 
     root = tk.Tk()
     root.title("Fun Time Dashboard Preview")
@@ -226,7 +261,14 @@ def build_dashboard_window(app_config: DashboardAppConfig) -> tk.Tk:
     root.resizable(False, False)
     canvas = tk.Canvas(root, bg=COLOR_BG, highlightthickness=0, bd=0)
     canvas.pack()
-    render_dashboard_scene(canvas, scene)
+
+    def refresh() -> None:
+        snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
+        scene = build_dashboard_scene(preview_layout, snapshot)
+        render_dashboard_scene(canvas, scene)
+        root.after(500, refresh)
+
+    refresh()
     return root
 
 

@@ -35,6 +35,8 @@ ROBOT_HAND_PAUSED_FILE := RequireManifestValue("commands", "robot_hand_paused_fi
 BROKER_CMD_FILE := RequireManifestValue("commands", "broker_cmd_file")
 AUDIO_CMD_FILE := RequireManifestValue("commands", "audio_cmd_file")
 AUDIO_PAUSED_FILE := RequireManifestValue("commands", "audio_paused_file")
+DASHBOARD_STATE_FILE := RequireManifestValue("commands", "dashboard_state_file")
+DASHBOARD_CMD_FILE := RequireManifestValue("commands", "dashboard_cmd_file")
 MAIN_MONITOR := RequireManifestValue("layout", "main_monitor")
 SECONDARY_MONITOR := RequireManifestValue("layout", "secondary_monitor")
 PRIMARY_TOP_RATIO := RequireManifestValue("layout", "primary_top_ratio")
@@ -708,9 +710,37 @@ UpdateFunTimeDashboard() {
     SetDashboardControlVisual(funTimeDashboardControls["landscape_trash"], "Trash", COLOR_WARNING)
     SetDashboardControlVisual(funTimeDashboardControls["link_toggle"], robotHandEnabled ? "Robot Link" : "Broken Link", robotHandEnabled ? COLOR_LINK_ON : COLOR_LINK_OFF)
     SetDashboardControlVisual(funTimeDashboardControls["quarter_button"], "1/4", primaryUsesRobotHand ? osr2Color : COLOR_PANEL)
+    WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabled)
 
     GetFunTimeDashboardRect(&x, &y, &w, &h)
     funTimeDashboardGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
+}
+
+WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabled) {
+    global DASHBOARD_STATE_FILE, LABEL_PRIMARY_ROBOT, LABEL_PRIMARY_VLC, LABEL_PORTRAIT_VLC, LABEL_LANDSCAPE_VLC
+    global fModeEnabled
+
+    IniWrite(IsBrokerRunning() ? "1" : "0", DASHBOARD_STATE_FILE, "broker", "running")
+    IniWrite("1", DASHBOARD_STATE_FILE, "controller", "running")
+    IniWrite(fModeEnabled ? "1" : "0", DASHBOARD_STATE_FILE, "fmode", "enabled")
+    IniWrite(robotHandEnabled ? "1" : "0", DASHBOARD_STATE_FILE, "robot_link", "enabled")
+    IniWrite(osr2Auto ? "auto" : "controlled", DASHBOARD_STATE_FILE, "osr2", "mode")
+    IniWrite(IsMfpConnected() ? "1" : "0", DASHBOARD_STATE_FILE, "mfp", "connected")
+
+    IniWrite(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC, DASHBOARD_STATE_FILE, "primary", "label")
+    IniWrite(ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath), DASHBOARD_STATE_FILE, "primary", "clip")
+    IniWrite(PrimaryPanelShouldHighlight() ? "1" : "0", DASHBOARD_STATE_FILE, "primary", "highlight")
+    IniWrite(primaryUsesRobotHand ? "osr2" : "", DASHBOARD_STATE_FILE, "primary", "accent")
+
+    IniWrite(LABEL_PORTRAIT_VLC, DASHBOARD_STATE_FILE, "portrait", "label")
+    IniWrite(ClipLabelFromPath(portraitPath), DASHBOARD_STATE_FILE, "portrait", "clip")
+    IniWrite(SatellitePanelShouldHighlight(VLC2_PORT) ? "1" : "0", DASHBOARD_STATE_FILE, "portrait", "highlight")
+    IniWrite("", DASHBOARD_STATE_FILE, "portrait", "accent")
+
+    IniWrite(LABEL_LANDSCAPE_VLC, DASHBOARD_STATE_FILE, "landscape", "label")
+    IniWrite(ClipLabelFromPath(landscapePath), DASHBOARD_STATE_FILE, "landscape", "clip")
+    IniWrite(SatellitePanelShouldHighlight(VLC3_PORT) ? "1" : "0", DASHBOARD_STATE_FILE, "landscape", "highlight")
+    IniWrite("", DASHBOARD_STATE_FILE, "landscape", "accent")
 }
 
 EnforceRobotHandOutputs(active, isTransition := false) {

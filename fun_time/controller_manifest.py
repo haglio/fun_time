@@ -31,6 +31,7 @@ def build_controller_manifest(config, vlc_http_pass: str) -> dict[str, dict[str,
         "modules": {
             "robot_hand_module": "fun_time.robot_hand.app",
             "audio_module": "fun_time.audio_companion_app",
+            "dashboard_module": "fun_time.dashboard_app",
         },
         "commands": {
             "robot_hand_mode_file": str(config.robot_hand_mode_file),
@@ -40,6 +41,8 @@ def build_controller_manifest(config, vlc_http_pass: str) -> dict[str, dict[str,
             "broker_cmd_file": str(config.broker_cmd_file),
             "audio_cmd_file": str(config.audio_cmd_file),
             "audio_paused_file": str(config.audio_paused_file),
+            "dashboard_state_file": str(config.paths.state_dir / "dashboard_state.ini"),
+            "dashboard_cmd_file": str(config.paths.state_dir / "dashboard_cmd.txt"),
         },
         "controller": {
             "primary_vlc_port": str(config.controller.primary_vlc_http_port),
