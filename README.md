@@ -356,6 +356,23 @@ Current broker behavior:
 
 This means broker startup is more resilient now, but MFP still needs its saved `CNCA*` selection to be correct.
 
+### MFP to primary VLC connection contract
+
+Fun Time depends on MFP auto-connecting to the primary VLC instance, not one of the satellites.
+
+The important runtime expectations are:
+
+- the primary VLC HTTP interface comes up before MFP launches
+- MFP starts before the portrait and landscape VLC instances
+- MFP's saved VLC endpoint points at the configured primary VLC HTTP port
+- Fun Time prefers the stable VLC HTTP password from `%APPDATA%\vlc\vlcrc` so MFP and the controller can agree on the same password across launches
+
+If MFP stops loading scripts for the primary VLC, check:
+
+- `C:\Program Files\MultiFunPlayer-1.33.9-patreon\MultiFunPlayer.config.json`
+- `MediaSource.VLC.Endpoint` should match Fun Time's primary VLC port, currently `127.0.0.1:8090`
+- `%APPDATA%\vlc\vlcrc` should contain the HTTP password that both VLC and MFP expect
+
 ## Hotkeys
 
 Primary controls:
@@ -370,18 +387,23 @@ Mode-dependent keys:
 - `[`
 - `]`
 - `r`
+- `f`
 - `\`
 
 Behavior:
 
 - in control mode, `[` / `]` control the primary VLC
 - `r` toggles whether Robot Hand is allowed to take over during OSR2 auto/free mode
+- `f` toggles F-mode immediately across all three VLCs
 - in control mode, `\` opens the primary VLC open-file dialog
 - in Robot Hand mode, `[` / `]` cycle Robot Hand clips
 - in Robot Hand mode, `\` offsets Robot Hand playback by a quarter cycle
+- while F-mode is on, the primary VLC only plays videos whose mirrored path under `videos\scripts\scripts\2D\non_AI` has the same relative path and a `.funscript` extension
+- while F-mode is on, each satellite VLC only plays items that are both in its normal portrait/landscape pool and present in `favs.csv`
+- toggling F-mode reloads each VLC playlist immediately instead of waiting for the next advance
 - if `r` disables Robot Hand while it is already visible, Fun Time swaps back to the primary VLC the same way it does on a normal auto-mode exit
 - while Robot Hand is disabled with `r`, its audio companion stays suppressed too, even if OSR2 remains in auto/free mode
-- a small Fun Time status indicator above MFP shows whether Robot Hand takeover is currently enabled
+- a small Fun Time status indicator above MFP shows both Robot Hand enablement and whether F-mode is on
 - on non-US keyboard layouts, the physical bracket-key positions are also bound
 - while Fun Time is running and not OmniPaused, these hotkeys are global and do not depend on which window is active
 

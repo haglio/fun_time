@@ -5,10 +5,11 @@ import secrets
 import subprocess
 import sys
 import time
+import os
 from pathlib import Path
 
 from .config import load_config
-from .broker_ports import ensure_mfp_serial_port
+from .broker_ports import ensure_mfp_serial_port, ensure_mfp_vlc_endpoint
 from .controller_manifest import write_controller_manifest
 from .logging_utils import configure_logging, install_exception_logging
 from . import orchestrator_broker
@@ -144,9 +145,32 @@ def ensure_broker_running(config, logger, *, attempts: int = 20, delay_seconds: 
     return False
 
 
+def vlc_http_password_from_vlcrc() -> str | None:
+    appdata = os.environ.get("APPDATA")
+    if not appdata:
+        return None
+    vlcrc = Path(appdata) / "vlc" / "vlcrc"
+    try:
+        with vlcrc.open("r", encoding="utf-8", errors="ignore") as fh:
+            for line in fh:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                if stripped.startswith("http-password="):
+                    value = stripped.split("=", 1)[1].strip()
+                    return value or None
+    except OSError:
+        return None
+    return None
+
+
+def resolve_vlc_http_password() -> str:
+    return vlc_http_password_from_vlcrc() or f"fun_time_{secrets.token_hex(6)}"
+
+
 def run_controller(config, logger) -> int:
     ahk_script = config.project_dir / "controller.ahk"
-    vlc_http_pass = f"fun_time_{secrets.token_hex(6)}"
+    vlc_http_pass = resolve_vlc_http_password()
     manifest_path = write_controller_manifest(config, vlc_http_pass)
     command = [str(config.paths.ahk_exe), str(ahk_script), str(manifest_path)]
     logger.info("Launching AutoHotkey controller using config %s", config.config_path)
@@ -172,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     ensure_mfp_serial_port(config, logger)
+    ensure_mfp_vlc_endpoint(config, logger)
     ensure_broker_running(config, logger)
     return run_controller(config, logger)
 
