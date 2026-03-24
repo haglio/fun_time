@@ -27,8 +27,8 @@ def test_controller_uses_manifest_argument_instead_of_positional_protocol():
 def test_controller_defines_robot_hand_status_indicator():
     text = _controller_text()
 
-    assert "CreateRobotHandStatusGui()" in text
-    assert "UpdateRobotHandStatusIndicator()" in text
+    assert "CreateFunTimeDashboard()" in text
+    assert "UpdateFunTimeDashboard()" in text
     assert "TraySetIcon(ICON_PATH)" in text
 
 
@@ -60,12 +60,32 @@ def test_controller_reloads_f_mode_via_generated_playlist_files():
     assert 'SendVlcInputCommand(port, "in_play", playlistPath)' in text
 
 
+def test_controller_dashboard_wires_existing_actions_into_click_targets():
+    text = _controller_text()
+
+    assert "ToggleRobotHandEnabled()" in text
+    assert "QueueRobotHandOffsetQuarterCycle()" in text
+    assert "HandlePrevAction()" in text
+    assert "HandleNextAction()" in text
+    assert "ToggleLock(2)" in text
+    assert "ToggleLock(3)" in text
+    assert "Discard(2)" in text
+    assert "Discard(3)" in text
+
+
+def test_controller_broker_probe_uses_q_wrapped_powershell_command():
+    text = _controller_text()
+
+    assert 'psCmd := "$targets = Get-CimInstance Win32_Process | Where-Object { "' in text
+    assert 'cmd := "powershell.exe -NoProfile -WindowStyle Hidden -Command " . Q(psCmd)' in text
+
+
 def test_controller_uses_main_monitor_for_landscape_and_mfp_layout():
     text = _controller_text()
 
     assert "GetLogicalMonitorRects(&mainRect, &secondaryRect)" in text
     assert 'MovePidWindow(pid3, landscapeX, mainT, landscapeW, mainH)' in text
-    assert 'MovePidWindow(pidM, mX, mY, mW, mH)' in text
+    assert 'PositionMfpWindow(pidM)' in text
 
 
 def test_controller_uses_secondary_monitor_for_portrait_primary_and_robot_hand():
