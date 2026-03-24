@@ -15,6 +15,7 @@ from fun_time.controller_manifest import (
 from fun_time.orchestrator import (
     build_parser,
     ensure_broker_running,
+    is_broker_tray_running,
     is_broker_running,
     require_dir,
     require_file,
@@ -228,6 +229,18 @@ class TestBrokerHelpers:
              patch("fun_time.orchestrator.subprocess.run", return_value=completed):
             assert is_broker_running() is True
 
+    def test_is_broker_tray_running_false_when_probe_finds_nothing(self):
+        completed = subprocess_result(stdout="", returncode=0)
+        with patch("fun_time.orchestrator.sys.platform", "win32"), \
+             patch("fun_time.orchestrator.subprocess.run", return_value=completed):
+            assert is_broker_tray_running() is False
+
+    def test_is_broker_tray_running_true_when_probe_finds_process(self):
+        completed = subprocess_result(stdout="RUNNING\r\n", returncode=0)
+        with patch("fun_time.orchestrator.sys.platform", "win32"), \
+             patch("fun_time.orchestrator.subprocess.run", return_value=completed):
+            assert is_broker_tray_running() is True
+
     def test_start_broker_launches_tray_launcher(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()
@@ -247,13 +260,15 @@ class TestBrokerHelpers:
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
-        with patch("fun_time.orchestrator.is_broker_running", side_effect=[False, False, True]) as probe, \
+        with patch("fun_time.orchestrator.is_broker_running", side_effect=[False, False, False, True]) as broker_probe, \
+             patch("fun_time.orchestrator.is_broker_tray_running", side_effect=[True]) as tray_probe, \
              patch("fun_time.orchestrator.start_broker") as starter, \
              patch("fun_time.orchestrator.time.sleep") as sleeper:
             result = ensure_broker_running(cfg, logger, attempts=3, delay_seconds=0.01)
 
         assert result is True
-        assert probe.call_count == 3
+        assert broker_probe.call_count == 4
+        assert tray_probe.call_count == 1
         starter.assert_called_once_with(cfg, logger)
         sleeper.assert_called()
 
@@ -261,13 +276,47 @@ class TestBrokerHelpers:
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
-        with patch("fun_time.orchestrator.is_broker_running", return_value=True) as probe, \
+        with patch("fun_time.orchestrator.is_broker_running", return_value=True) as broker_probe, \
+             patch("fun_time.orchestrator.is_broker_tray_running", return_value=True) as tray_probe, \
              patch("fun_time.orchestrator.start_broker") as starter:
             result = ensure_broker_running(cfg, logger)
 
         assert result is True
-        probe.assert_called_once_with()
+        broker_probe.assert_called_once_with()
+        tray_probe.assert_called_once_with()
         starter.assert_not_called()
+
+    def test_ensure_broker_running_starts_when_service_exists_but_tray_is_missing(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+
+        with patch("fun_time.orchestrator.is_broker_running", side_effect=[True, True]) as broker_probe, \
+             patch("fun_time.orchestrator.is_broker_tray_running", side_effect=[False, True]) as tray_probe, \
+             patch("fun_time.orchestrator.start_broker") as starter, \
+             patch("fun_time.orchestrator.time.sleep") as sleeper:
+            result = ensure_broker_running(cfg, logger, attempts=1, delay_seconds=0.01)
+
+        assert result is True
+        assert broker_probe.call_count == 2
+        assert tray_probe.call_count == 2
+        starter.assert_called_once_with(cfg, logger)
+        sleeper.assert_called_once()
+
+    def test_ensure_broker_running_starts_when_tray_exists_but_service_is_missing(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+
+        with patch("fun_time.orchestrator.is_broker_running", side_effect=[False, True]) as broker_probe, \
+             patch("fun_time.orchestrator.is_broker_tray_running", side_effect=[True, True]) as tray_probe, \
+             patch("fun_time.orchestrator.start_broker") as starter, \
+             patch("fun_time.orchestrator.time.sleep") as sleeper:
+            result = ensure_broker_running(cfg, logger, attempts=1, delay_seconds=0.01)
+
+        assert result is True
+        assert broker_probe.call_count == 2
+        assert tray_probe.call_count == 1
+        starter.assert_called_once_with(cfg, logger)
+        sleeper.assert_called_once()
 
 
 class TestRunController:
