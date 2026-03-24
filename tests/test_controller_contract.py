@@ -58,6 +58,8 @@ def test_controller_reloads_f_mode_via_generated_playlist_files():
 
     assert 'WritePlaylistFile(playlistPath, paths)' in text
     assert 'SendVlcInputCommand(port, "in_play", playlistPath)' in text
+    assert "ToFileUri(winPath) {" in text
+    assert 'uri := ToFileUri(fullPath)' in text
 
 
 def test_controller_dashboard_wires_existing_actions_into_click_targets():

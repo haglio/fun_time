@@ -187,6 +187,14 @@ RunDetached(cmdLine) {
     return pid
 }
 
+ToFileUri(winPath) {
+    if (winPath = "")
+        return ""
+    p := StrReplace(winPath, "\", "/")
+    p := StrReplace(p, " ", "%20")
+    return "file:///" . p
+}
+
 RunMediaAction(action, targetPath) {
     global ROBOT_HAND_PY, MEDIA_ACTIONS_MODULE, FAVS_FILE, WEIRD_DIR, PROJECT_DIR
     if (targetPath = "")
