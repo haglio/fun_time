@@ -6,7 +6,13 @@ from unittest.mock import patch
 
 import json
 
-from fun_time.broker_ports import ensure_mfp_serial_port, resolve_mfp_serial_port, resolve_virtual_port
+from fun_time.broker_ports import (
+    ensure_mfp_serial_port,
+    ensure_mfp_vlc_endpoint,
+    read_mfp_vlc_endpoint,
+    resolve_mfp_serial_port,
+    resolve_virtual_port,
+)
 from fun_time.config import load_config
 
 
@@ -116,3 +122,50 @@ class TestResolveMfpSerialPort:
         assert result == "COM0COM\\PORT\\CNCA1"
         payload = json.loads(mfp_config_path.read_text(encoding="utf-8"))
         assert payload["OutputTarget"]["Items"][0]["SelectedSerialPort"] == "COM0COM\\PORT\\CNCA1"
+
+
+class TestEnsureMfpVlcEndpoint:
+    def test_reads_existing_vlc_endpoint(self, cfg_path: Path):
+        config = load_config(cfg_path)
+        mfp_config_path = config.paths.mfp_exe.with_name("MultiFunPlayer.config.json")
+        mfp_config_path.write_text(
+            json.dumps(
+                {
+                    "MediaSource": {
+                        "VLC": {
+                            "Endpoint": "127.0.0.1:8080",
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert read_mfp_vlc_endpoint(config) == "127.0.0.1:8080"
+
+    def test_updates_mfp_vlc_endpoint_to_primary_port(self, cfg_path: Path):
+        config = load_config(cfg_path)
+        logger = logging.getLogger("test.broker")
+        mfp_config_path = config.paths.mfp_exe.with_name("MultiFunPlayer.config.json")
+        mfp_config_path.write_text(
+            json.dumps(
+                {
+                    "MediaSource": {
+                        "ActiveItem": "Web",
+                        "VLC": {
+                            "AutoConnectEnabled": False,
+                            "Endpoint": "127.0.0.1:8080",
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = ensure_mfp_vlc_endpoint(config, logger)
+
+        assert result == "127.0.0.1:8090"
+        payload = json.loads(mfp_config_path.read_text(encoding="utf-8"))
+        assert payload["MediaSource"]["ActiveItem"] == "VLC"
+        assert payload["MediaSource"]["VLC"]["AutoConnectEnabled"] is True
+        assert payload["MediaSource"]["VLC"]["Endpoint"] == "127.0.0.1:8090"

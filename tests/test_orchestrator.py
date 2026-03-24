@@ -20,9 +20,11 @@ from fun_time.orchestrator import (
     main,
     require_dir,
     require_file,
+    resolve_vlc_http_password,
     run_controller,
     start_broker,
     validate_config,
+    vlc_http_password_from_vlcrc,
 )
 from fun_time.config import load_config
 
@@ -298,12 +300,14 @@ class TestBrokerHelpers:
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.ensure_mfp_serial_port") as ensure_mfp_port, \
+             patch("fun_time.orchestrator.ensure_mfp_vlc_endpoint") as ensure_mfp_vlc_endpoint, \
              patch("fun_time.orchestrator.ensure_broker_running") as ensure_broker, \
              patch("fun_time.orchestrator.run_controller", return_value=0) as run_controller:
             result = main(["--config", str(cfg_path)])
 
         assert result == 0
         ensure_mfp_port.assert_called_once()
+        ensure_mfp_vlc_endpoint.assert_called_once()
         ensure_broker.assert_called_once()
         run_controller.assert_called_once()
 
@@ -341,18 +345,28 @@ class TestBrokerHelpers:
 
 
 class TestRunController:
+    def test_prefers_vlcrc_http_password(self):
+        with patch("fun_time.orchestrator.vlc_http_password_from_vlcrc", return_value="from-vlcrc"), \
+             patch("fun_time.orchestrator.secrets.token_hex", return_value="abc123"):
+            assert resolve_vlc_http_password() == "from-vlcrc"
+
+    def test_falls_back_to_generated_http_password(self):
+        with patch("fun_time.orchestrator.vlc_http_password_from_vlcrc", return_value=None), \
+             patch("fun_time.orchestrator.secrets.token_hex", return_value="abc123"):
+            assert resolve_vlc_http_password() == "fun_time_abc123"
+
     def test_uses_manifest_path_for_controller_launch(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
-        with patch("fun_time.orchestrator.secrets.token_hex", return_value="abc123"), \
+        with patch("fun_time.orchestrator.resolve_vlc_http_password", return_value="pw-from-config"), \
              patch("fun_time.orchestrator.write_controller_manifest", return_value=cfg.paths.state_dir / CONTROLLER_MANIFEST_FILENAME) as writer, \
              patch("fun_time.orchestrator.subprocess.run") as run:
             run.return_value.returncode = 0
             result = run_controller(cfg, logger)
 
         assert result == 0
-        writer.assert_called_once_with(cfg, "fun_time_abc123")
+        writer.assert_called_once_with(cfg, "pw-from-config")
         command = run.call_args.args[0]
         assert command == [
             str(cfg.paths.ahk_exe),
