@@ -47,6 +47,7 @@ CHROME_MANIFEST_FILE := RequireManifestValue("chrome_overlay", "manifest_file")
 CONFIG_PATH := RequireManifestValue("runtime", "config_path")
 PROJECT_DIR := RequireManifestValue("runtime", "project_dir")
 ICON_PATH := PROJECT_DIR . "\icon.ico"
+STATE_DIR := GetParentDir(CONTROLLER_LOG_FILE)
 
 ; IMPORTANT: VLC web interface commonly uses BLANK username + password.
 VLC_USER := ""
@@ -55,6 +56,7 @@ locked2 := false
 locked3 := false
 
 robotHandMode := false
+fModeEnabled := false
 omniPaused := false
 isShuttingDown := false
 pid1 := 0
@@ -67,6 +69,11 @@ robotHandStatusGui := ""
 robotHandStatusText := ""
 
 Q(s) => Format('"{1}"', s)
+
+GetParentDir(path) {
+    SplitPath(path, , &dirPath)
+    return dirPath
+}
 
 Join(a, b, c := "", d := "", e := "") {
     out := a
@@ -305,9 +312,9 @@ GetRobotHandStatusRect(&x, &y, &w, &h) {
     GetMfpRect(&mX, &mY, &mW, &mH)
     margin := 14
     x := mX
-    y := Max(0, mY - 52)
+    y := Max(0, mY - 64)
     w := Max(220, mW)
-    h := 40
+    h := 52
 }
 
 CreateRobotHandStatusGui() {
@@ -315,32 +322,32 @@ CreateRobotHandStatusGui() {
     guiObj := Gui("+AlwaysOnTop -Caption +ToolWindow", "Fun Time Status")
     guiObj.BackColor := "20262C"
     guiObj.SetFont("s10 Bold", "Segoe UI")
-    textCtrl := guiObj.AddText("Center cFFFFFF w260 h24", "")
+    textCtrl := guiObj.AddText("Center cFFFFFF w260 h36", "")
     robotHandStatusGui := guiObj
     robotHandStatusText := textCtrl
     GetRobotHandStatusRect(&x, &y, &w, &h)
-    textCtrl.Move(, , w - 20, 24)
+    textCtrl.Move(, , w - 20, 36)
     guiObj.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
     UpdateRobotHandStatusIndicator()
 }
 
 UpdateRobotHandStatusIndicator() {
-    global robotHandStatusGui, robotHandStatusText
+    global robotHandStatusGui, robotHandStatusText, fModeEnabled
     if (!IsObject(robotHandStatusGui) || !IsObject(robotHandStatusText))
         return
 
     if (RobotHandEnabled()) {
         robotHandStatusGui.BackColor := "1F4D2E"
         robotHandStatusText.Opt("+cFFFFFF")
-        robotHandStatusText.Text := "Robot Hand Enabled"
+        robotHandStatusText.Text := "Robot Hand: Enabled`nF-Mode: " . (fModeEnabled ? "On" : "Off")
     } else {
         robotHandStatusGui.BackColor := "6C1F1F"
         robotHandStatusText.Opt("+cFFFFFF")
-        robotHandStatusText.Text := "Robot Hand Disabled"
+        robotHandStatusText.Text := "Robot Hand: Disabled`nF-Mode: " . (fModeEnabled ? "On" : "Off")
     }
 
     GetRobotHandStatusRect(&x, &y, &w, &h)
-    robotHandStatusText.Move(, , w - 20, 24)
+    robotHandStatusText.Move(, , w - 20, 36)
     robotHandStatusGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
 }
 
@@ -408,6 +415,235 @@ ToggleRobotHandEnabled() {
     SyncRobotHandState()
 }
 
+IsSupportedVideoPath(path) {
+    SplitPath(path, , , &ext)
+    ext := "." . StrLower(ext)
+    return ext = ".mp4" || ext = ".mkv" || ext = ".mov" || ext = ".avi" || ext = ".webm" || ext = ".m4v"
+}
+
+NormalizePathKey(path) {
+    return StrLower(Trim(path))
+}
+
+CollectVideoFiles(sourceSpec) {
+    files := []
+    seen := Map()
+    for sourcePart in StrSplit(sourceSpec, "|") {
+        rootPath := Trim(sourcePart)
+        if (rootPath = "")
+            continue
+
+        if DirExist(rootPath) {
+            Loop Files, rootPath . "\*.*", "FR" {
+                fullPath := A_LoopFileFullPath
+                if !IsSupportedVideoPath(fullPath)
+                    continue
+                key := NormalizePathKey(fullPath)
+                if seen.Has(key)
+                    continue
+                seen[key] := true
+                files.Push(fullPath)
+            }
+            continue
+        }
+
+        if FileExist(rootPath) && IsSupportedVideoPath(rootPath) {
+            key := NormalizePathKey(rootPath)
+            if !seen.Has(key) {
+                seen[key] := true
+                files.Push(rootPath)
+            }
+        }
+    }
+    return files
+}
+
+BuildMirroredFunscriptPath(videoPath) {
+    global PRIMARY_VLC_SOURCES
+
+    for sourcePart in StrSplit(PRIMARY_VLC_SOURCES, "|") {
+        sourceRoot := Trim(sourcePart)
+        if (sourceRoot = "" || !DirExist(sourceRoot))
+            continue
+
+        sourceRootNorm := RTrim(sourceRoot, "\/")
+        prefix := sourceRootNorm . "\"
+        if (SubStr(videoPath, 1, StrLen(prefix)) != prefix)
+            continue
+
+        relativePath := SubStr(videoPath, StrLen(prefix) + 1)
+        funscriptRoot := StrReplace(sourceRootNorm, "\videos\videos\", "\videos\scripts\scripts\")
+        return funscriptRoot . "\" . RegExReplace(relativePath, "\.[^.\\\/]+$", ".funscript")
+    }
+
+    return ""
+}
+
+HasMatchingFunscript(videoPath) {
+    funscriptPath := BuildMirroredFunscriptPath(videoPath)
+    return funscriptPath != "" && FileExist(funscriptPath)
+}
+
+ReadFavsContent() {
+    global FAVS_FILE
+    if !FileExist(FAVS_FILE)
+        return ""
+    try return FileRead(FAVS_FILE, "UTF-8")
+    catch {
+        return ""
+    }
+}
+
+IsFavoritePath(videoPath, favsContent) {
+    if (videoPath = "" || favsContent = "")
+        return false
+    return InStr(favsContent, videoPath, false) > 0
+}
+
+ShufflePaths(paths) {
+    if (paths.Length <= 1)
+        return paths
+    idx := paths.Length
+    while (idx > 1) {
+        swapIdx := Random(1, idx)
+        if (swapIdx != idx) {
+            temp := paths[idx]
+            paths[idx] := paths[swapIdx]
+            paths[swapIdx] := temp
+        }
+        idx -= 1
+    }
+    return paths
+}
+
+BuildPrimaryPlaylistPaths(fMode) {
+    global PRIMARY_VLC_SOURCES
+    files := CollectVideoFiles(PRIMARY_VLC_SOURCES)
+    if !fMode
+        return ShufflePaths(files)
+
+    filtered := []
+    for fullPath in files {
+        if HasMatchingFunscript(fullPath)
+            filtered.Push(fullPath)
+    }
+    return ShufflePaths(filtered)
+}
+
+BuildSatellitePlaylistPaths(sourceSpec, fMode) {
+    files := CollectVideoFiles(sourceSpec)
+    if !fMode
+        return ShufflePaths(files)
+
+    favsContent := ReadFavsContent()
+    filtered := []
+    for fullPath in files {
+        if IsFavoritePath(fullPath, favsContent)
+            filtered.Push(fullPath)
+    }
+    return ShufflePaths(filtered)
+}
+
+UrlEncodeQueryValue(text) {
+    out := ""
+    Loop Parse, text {
+        ch := A_LoopField
+        code := Ord(ch)
+        if ((code >= 0x30 && code <= 0x39)
+            || (code >= 0x41 && code <= 0x5A)
+            || (code >= 0x61 && code <= 0x7A)
+            || InStr("-_.~", ch)) {
+            out .= ch
+            continue
+        }
+
+        byteCount := StrPut(ch, "UTF-8") - 1
+        bytes := Buffer(byteCount, 0)
+        StrPut(ch, bytes, "UTF-8")
+        Loop byteCount {
+            out .= "%" . Format("{:02X}", NumGet(bytes, A_Index - 1, "UChar"))
+        }
+    }
+    return out
+}
+
+SendVlcInputCommand(port, command, fullPath) {
+    uri := ToFileUri(fullPath)
+    if (uri = "")
+        return false
+    VlcHttpReq(port, "/requests/status.xml?command=" . command . "&input=" . UrlEncodeQueryValue(uri), &st)
+    return st = 200
+}
+
+BuildPlaylistFilePath(name) {
+    global STATE_DIR
+    return STATE_DIR . "\" . name . ".m3u"
+}
+
+WritePlaylistFile(path, paths) {
+    content := "#EXTM3U`r`n"
+    for fullPath in paths
+        content .= fullPath . "`r`n"
+    WriteRawStateFile(path, content)
+}
+
+ReplaceVlcPlaylist(port, paths, playlistName, repeatMode := "") {
+    if (paths.Length = 0)
+        return false
+
+    playlistPath := BuildPlaylistFilePath(playlistName)
+    WritePlaylistFile(playlistPath, paths)
+    VlcHttpCmd(port, "pl_empty")
+    VlcHttpCmd(port, "pl_stop")
+    Sleep 180
+
+    if !SendVlcInputCommand(port, "in_play", playlistPath)
+        return false
+
+    if (repeatMode != "")
+        SetRepeatMode(port, repeatMode)
+    return true
+}
+
+ApplyFModePlaylists(enabled) {
+    global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT, PORTRAIT_DIR, LANDSCAPE_DIR, locked2, locked3
+
+    primaryPaths := BuildPrimaryPlaylistPaths(enabled)
+    portraitPaths := BuildSatellitePlaylistPaths(PORTRAIT_DIR, enabled)
+    landscapePaths := BuildSatellitePlaylistPaths(LANDSCAPE_DIR, enabled)
+    Log("F-mode playlist sizes: primary=" . primaryPaths.Length . " portrait=" . portraitPaths.Length . " landscape=" . landscapePaths.Length)
+
+    if (primaryPaths.Length = 0 || portraitPaths.Length = 0 || landscapePaths.Length = 0) {
+        Log("F-mode toggle aborted because one or more playlists would be empty")
+        return false
+    }
+
+    locked2 := false
+    locked3 := false
+
+    if !ReplaceVlcPlaylist(PRIMARY_VLC_PORT, primaryPaths, "primary_vlc_playlist")
+        return false
+    if !ReplaceVlcPlaylist(VLC2_PORT, portraitPaths, "portrait_vlc_playlist", "all")
+        return false
+    if !ReplaceVlcPlaylist(VLC3_PORT, landscapePaths, "landscape_vlc_playlist", "all")
+        return false
+    return true
+}
+
+ToggleFMode() {
+    global fModeEnabled
+
+    targetEnabled := !fModeEnabled
+    if !ApplyFModePlaylists(targetEnabled) {
+        Log("F-mode hotkey: unchanged")
+        return
+    }
+
+    fModeEnabled := targetEnabled
+    Log("F-mode hotkey: " . (fModeEnabled ? "enabled" : "disabled"))
+    UpdateRobotHandStatusIndicator()
+}
+
 ; -------------------- LAUNCH --------------------
 
 Log("Controller starting")
@@ -428,10 +664,12 @@ pid1 := RunVLC(Join(
     "--http-port " . PRIMARY_VLC_PORT,
     "--http-password " . Q(VLC_PASS)
 ), PRIMARY_VLC_SOURCES)
-Sleep 900
+WaitForHttp(PRIMARY_VLC_PORT, 7000)
+Sleep 300
 SendToPid(pid1, "n")
 
 pidM := RunApp(MFP_EXE, "")
+WinWait("ahk_pid " pidM, , 15)
 Sleep 5000
 
 pid2 := RunVLC(Join(
@@ -450,7 +688,6 @@ pid3 := RunVLC(Join(
     "--http-password " . Q(VLC_PASS)
 ), LANDSCAPE_DIR)
 
-WaitForHttp(PRIMARY_VLC_PORT, 7000)
 WaitForHttp(VLC2_PORT, 7000)
 WaitForHttp(VLC3_PORT, 7000)
 
@@ -515,6 +752,7 @@ SC01A::HandlePrevAction()
 SC01B::HandleNextAction()
 
 r::ToggleRobotHandEnabled()
+$f::ToggleFMode()
 
 \::{
     if (EffectiveRobotHandModeState() = "1") {
