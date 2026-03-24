@@ -78,11 +78,19 @@ function Update-NotifyIcon {
     $status = Get-BrokerStatus
     $runningText = if ($status.IsRunning) { 'running' } else { 'stopped' }
 
-    if ($status.IsRunning) {
+    if ($script:trayIcon -ne $null) {
+        $script:notifyIcon.Icon = $script:trayIcon
+    }
+    elseif ($status.IsRunning) {
         $script:notifyIcon.Icon = [System.Drawing.SystemIcons]::Application
+    }
+    else {
+        $script:notifyIcon.Icon = [System.Drawing.SystemIcons]::Error
+    }
+
+    if ($status.IsRunning) {
         $script:notifyIcon.Text = "Fun Time Broker: running ($($status.ModeText))"
     } else {
-        $script:notifyIcon.Icon = [System.Drawing.SystemIcons]::Error
         $script:notifyIcon.Text = 'Fun Time Broker: stopped'
     }
 
@@ -103,8 +111,10 @@ function Update-NotifyIcon {
 $notifyIcon = New-Object System.Windows.Forms.NotifyIcon
 $notifyIcon.Visible = $true
 $notifyIcon.Text = 'Fun Time Broker'
+$trayIcon = $null
 if (Test-Path $trayIconPath) {
-    $notifyIcon.Icon = New-Object System.Drawing.Icon($trayIconPath)
+    $trayIcon = New-Object System.Drawing.Icon($trayIconPath)
+    $notifyIcon.Icon = $trayIcon
 }
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
@@ -167,6 +177,7 @@ $script:timer = $timer
 $script:statusItem = $statusItem
 $script:actionItem = $actionItem
 $script:pauseItem = $pauseItem
+$script:trayIcon = $trayIcon
 
 Start-BrokerProcess
 Update-NotifyIcon
