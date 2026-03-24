@@ -30,6 +30,13 @@ def test_broker_tray_shows_status_as_disabled_menu_text():
     assert "Close tray icon" not in text
 
 
+def test_broker_tray_uses_fun_time_icon_when_available():
+    text = _read("scripts/broker_tray.ps1")
+
+    assert "$trayIconPath = Join-Path $projectRoot 'icon.ico'" in text
+    assert "$notifyIcon.Icon = New-Object System.Drawing.Icon($trayIconPath)" in text
+
+
 def test_broker_tray_quit_stops_broker_and_tray():
     text = _read("scripts/broker_tray.ps1")
 
