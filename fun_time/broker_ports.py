@@ -34,6 +34,32 @@ def read_mfp_selected_serial_port(config) -> str | None:
     return match.group(1)
 
 
+def write_mfp_selected_serial_port(config, selected_port: str) -> None:
+    config_path = mfp_config_path(config)
+    payload = {}
+    if config_path.exists():
+        try:
+            import json
+
+            payload = json.loads(config_path.read_text(encoding="utf-8"))
+        except Exception:
+            payload = {}
+
+    output_target = payload.setdefault("OutputTarget", {})
+    items = output_target.setdefault("Items", [])
+    if not items:
+        items.append({})
+    first_item = items[0]
+    if not isinstance(first_item, dict):
+        first_item = {}
+        items[0] = first_item
+    first_item["SelectedSerialPort"] = selected_port
+
+    import json
+
+    config_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def collect_com0com_ports() -> dict[str, tuple[str, str]]:
     ports: dict[str, tuple[str, str]] = {}
     for port in iter_serial_ports():
@@ -95,3 +121,59 @@ def resolve_virtual_port(config, configured_port: str, logger) -> str:
         ", ".join(sorted(com0com_ports)),
     )
     return configured_port
+
+
+def resolve_mfp_serial_port(config, logger) -> str | None:
+    selected_port = read_mfp_selected_serial_port(config)
+    com0com_ports = collect_com0com_ports()
+
+    selected_match = RE_COM0COM_PORT.search(selected_port or "")
+    if selected_match:
+        selected_role = selected_match.group(1).upper()
+        selected_index = selected_match.group(2)
+        for _device, (_desc, hwid) in com0com_ports.items():
+            hwid_match = RE_COM0COM_PORT.search(hwid)
+            if hwid_match and hwid_match.group(1).upper() == selected_role and hwid_match.group(2) == selected_index:
+                return selected_port
+
+    broker_device = resolve_virtual_port(config, config.broker.virtual_port, logger).upper()
+    broker_entry = com0com_ports.get(broker_device)
+    if broker_entry is not None:
+        broker_hwid = broker_entry[1]
+        broker_match = RE_COM0COM_PORT.search(broker_hwid)
+        if broker_match:
+            desired_role = "CNCA" if broker_match.group(1).upper() == "CNCB" else "CNCB"
+            desired_index = broker_match.group(2)
+            for _device, (_desc, hwid) in com0com_ports.items():
+                hwid_match = RE_COM0COM_PORT.search(hwid)
+                if hwid_match and hwid_match.group(1).upper() == desired_role and hwid_match.group(2) == desired_index:
+                    logger.warning(
+                        "MFP serial port %s is stale; using detected %s to match broker port %s",
+                        selected_port,
+                        hwid,
+                        broker_device,
+                    )
+                    return hwid
+
+    cnca_hwids: list[str] = []
+    for _device, (_desc, hwid) in com0com_ports.items():
+        hwid_match = RE_COM0COM_PORT.search(hwid)
+        if hwid_match and hwid_match.group(1).upper() == "CNCA":
+            cnca_hwids.append(hwid)
+    if len(cnca_hwids) == 1:
+        logger.warning("MFP serial port %s is stale; using sole detected com0com MFP-side port %s", selected_port, cnca_hwids[0])
+        return cnca_hwids[0]
+
+    return selected_port
+
+
+def ensure_mfp_serial_port(config, logger) -> str | None:
+    resolved = resolve_mfp_serial_port(config, logger)
+    if not resolved:
+        return None
+    current = read_mfp_selected_serial_port(config)
+    if current == resolved:
+        return current
+    write_mfp_selected_serial_port(config, resolved)
+    logger.info("Updated MFP selected serial port to %s", resolved)
+    return resolved

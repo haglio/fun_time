@@ -17,6 +17,7 @@ from fun_time.orchestrator import (
     ensure_broker_running,
     is_broker_tray_running,
     is_broker_running,
+    main,
     require_dir,
     require_file,
     run_controller,
@@ -285,6 +286,21 @@ class TestBrokerHelpers:
         broker_probe.assert_called_once_with()
         tray_probe.assert_called_once_with()
         starter.assert_not_called()
+
+    def test_main_ensures_mfp_serial_port_before_broker_and_controller(self, cfg_path: Path):
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.orchestrator.ensure_runtime_files"), \
+             patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.ensure_mfp_serial_port") as ensure_mfp_port, \
+             patch("fun_time.orchestrator.ensure_broker_running") as ensure_broker, \
+             patch("fun_time.orchestrator.run_controller", return_value=0) as run_controller:
+            result = main(["--config", str(cfg_path)])
+
+        assert result == 0
+        ensure_mfp_port.assert_called_once()
+        ensure_broker.assert_called_once()
+        run_controller.assert_called_once()
 
     def test_ensure_broker_running_starts_when_service_exists_but_tray_is_missing(self, cfg_path: Path):
         cfg = load_config(cfg_path)

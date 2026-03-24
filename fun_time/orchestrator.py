@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from .config import load_config
+from .broker_ports import ensure_mfp_serial_port
 from .controller_manifest import write_controller_manifest
 from .logging_utils import configure_logging, install_exception_logging
 from .runtime_support import hidden_subprocess_kwargs
@@ -163,6 +164,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Config validation succeeded")
         return 0
 
+    ensure_mfp_serial_port(config, logger)
     ensure_broker_running(config, logger)
     return run_controller(config, logger)
 
