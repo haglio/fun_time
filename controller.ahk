@@ -586,7 +586,7 @@ FocusChromeWindow(hwnd, timeoutSeconds := 2.0) {
 SendChromeKeys(hwnd, keys, waitMs := 0) {
     if (!FocusChromeWindow(hwnd))
         return false
-    try ControlSend(keys, , "ahk_id " hwnd)
+    SendEvent(keys)
     if (waitMs > 0)
         Sleep waitMs
     return true

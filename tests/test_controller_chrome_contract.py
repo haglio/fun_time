@@ -14,7 +14,7 @@ def _controller_text() -> str:
 def test_chrome_overlay_targets_the_chrome_window_for_keystrokes():
     text = _controller_text()
 
-    assert 'ControlSend(keys, , "ahk_id " hwnd)' in text
+    assert 'SendEvent(keys)' in text
 
     open_urls_start = text.index("OpenUrlsInChromeWindow(hwnd, urls) {")
     handle_in_list_start = text.index("HandleInList(hwnd, handles) {", open_urls_start)
@@ -26,3 +26,14 @@ def test_chrome_overlay_targets_the_chrome_window_for_keystrokes():
     assert 'SendEvent("^t")' not in open_urls_block
     assert 'SendEvent("^l")' not in open_urls_block
     assert 'SendEvent("^v{Enter}")' not in open_urls_block
+
+
+def test_chrome_overlay_refocuses_before_each_send():
+    text = _controller_text()
+
+    send_keys_start = text.index("SendChromeKeys(hwnd, keys, waitMs := 0) {")
+    open_urls_start = text.index("OpenUrlsInChromeWindow(hwnd, urls) {", send_keys_start)
+    send_keys_block = text[send_keys_start:open_urls_start]
+
+    assert 'if (!FocusChromeWindow(hwnd))' in send_keys_block
+    assert 'try ControlSend' not in send_keys_block
