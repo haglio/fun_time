@@ -632,6 +632,8 @@ Completed from the earlier cleanup list:
 
 ## Developing
 
+Before doing repo work, consult [AGENTS.md](c:/suite-root/blah/blah/projects/fun_time/AGENTS.md) for the required preflight and the canonical test commands.
+
 ### Running the tests
 
 Tests live in `tests/` and use [pytest](https://docs.pytest.org/).
@@ -646,6 +648,12 @@ Run everything:
 
 ```bash
 bash test.sh
+```
+
+Windows-safe direct equivalent:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
 ```
 
 Stop on the first failure and show a short traceback:
