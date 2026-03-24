@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pygame
 
+from .audio_companion_runtime import AudioCompanionRuntime
 from .config import load_config
 from .logging_utils import configure_logging, install_exception_logging
 from .runtime_support import consume_command_file as _consume_command_file
@@ -211,28 +212,17 @@ def main(argv: list[str] | None = None) -> int:
     sock.settimeout(0.15)
 
     controller = AudioPlaybackController(audio_folder=audio_folder, logger=logger)
+    runtime = AudioCompanionRuntime(
+        sock=sock,
+        controller=controller,
+        cmd_file=cmd_file,
+        consume_command_file=consume_command_file,
+    )
 
     try:
-        while True:
-            line = ""
-            try:
-                data, _addr = sock.recvfrom(4096)
-                line = data.decode("utf-8", errors="replace").strip()
-            except socket.timeout:
-                pass
-
-            cmd = consume_command_file(cmd_file)
-            if cmd == "PAUSE":
-                controller.set_manual_paused(True)
-            elif cmd == "RESUME":
-                controller.set_manual_paused(False)
-
-            if not line:
-                continue
-
-            controller.handle_udp_line(line)
+        runtime.run_forever()
     finally:
-        sock.close()
+        runtime.close()
 
 
 if __name__ == "__main__":
