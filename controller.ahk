@@ -25,6 +25,7 @@ VLC3_PORT := RequireManifestValue("controller", "vlc3_port")
 VLC_PASS := RequireManifestValue("controller", "vlc_pass")
 ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")
 ROBOT_HAND_MODULE := RequireManifestValue("modules", "robot_hand_module")
+MEDIA_ACTIONS_MODULE := RequireManifestValue("modules", "media_actions_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -184,6 +185,19 @@ RunVLC(args, mediaPath) {
 RunDetached(cmdLine) {
     Run(cmdLine, , , &pid)
     return pid
+}
+
+RunMediaAction(action, targetPath) {
+    global ROBOT_HAND_PY, MEDIA_ACTIONS_MODULE, FAVS_FILE, WEIRD_DIR, PROJECT_DIR
+    if (targetPath = "")
+        return
+    cmd := Q(ROBOT_HAND_PY)
+        . " -m " . MEDIA_ACTIONS_MODULE
+        . " " . action
+        . " --favs-file " . Q(FAVS_FILE)
+        . " --weird-dir " . Q(WEIRD_DIR)
+        . " --path " . Q(targetPath)
+    RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
 TryClosePid(pid) {
@@ -1652,145 +1666,18 @@ UrlDecode(s) {
     return s
 }
 
-; -------------------- Favorites CSV (2 columns, clickable formulas) --------------------
-
-; LibreOffice formula separator:
-; - Most locales use ";"  (keep as-is unless your Calc expects ",")
-FORMULA_SEP := ";"
-
-CsvEscape(s) {
-    s := StrReplace(s, '"', '""')
-    return '"' . s . '"'
-}
-
-EnsureFavsCsvExists() {
-    if FileExist(FAVS_FILE) && FileGetSize(FAVS_FILE) > 0
-        return
-    FileAppend("local_file,web_url`r`n", FAVS_FILE, "UTF-8")
-}
-
-ToFileUri(winPath) {
-    if (winPath = "")
-        return ""
-    p := StrReplace(winPath, "\", "/")
-    p := StrReplace(p, " ", "%20")
-    return "file:///" . p
-}
-
-MakeWebUrlFromPath(fullPath) {
-    if (fullPath = "")
-        return ""
-
-    SplitPath(fullPath, &name, , , &nameNoExt)
-    id := RegExReplace(nameNoExt, "_[^_]+$", "")
-
-    if InStr(fullPath, "\provider2\")
-        return "https://example.net/image/" . id
-    if InStr(fullPath, "\provider\")
-        return "https://example.com/image/" . id
-
-    return ""
-}
-
-MakeLocalCell(fullPath) {
-    global FORMULA_SEP
-    if (fullPath = "")
-        return ""
-    uri := ToFileUri(fullPath)
-    q := Chr(34)
-    return "=HYPERLINK(" . q . uri . q . FORMULA_SEP . q . fullPath . q . ")"
-}
-
-MakeWebCell(fullPath) {
-    global FORMULA_SEP
-    url := MakeWebUrlFromPath(fullPath)
-    if (url = "")
-        return ""
-    q := Chr(34)
-    return "=HYPERLINK(" . q . url . q . FORMULA_SEP . q . url . q . ")"
-}
-
 EnsureInFavs(fullPath) {
-    if (fullPath = "")
-        return
-
-    EnsureFavsCsvExists()
-
-    localCell := MakeLocalCell(fullPath)
-    webCell   := MakeWebCell(fullPath)
-
-    content := FileRead(FAVS_FILE, "UTF-8")
-
-    needle := CsvEscape(localCell) . ","
-    if InStr(content, needle)
-        return
-
-    row := CsvEscape(localCell) . "," . CsvEscape(webCell) . "`r`n"
-    FileAppend(row, FAVS_FILE, "UTF-8")
+    RunMediaAction("ensure-in-favs", fullPath)
 }
 
 RemoveFromFavs(fullPath) {
-    if (fullPath = "")
-        return
-    if !FileExist(FAVS_FILE)
-        return
-
-    targetLocal := MakeLocalCell(fullPath)
-    targetPrefix := CsvEscape(targetLocal) . ","
-
-    content := FileRead(FAVS_FILE, "UTF-8")
-    lines := StrSplit(content, "`n", "`r")
-    out := ""
-
-    for line in lines {
-        if (line = "")
-            continue
-
-        if (InStr(line, "local_file,web_url") = 1) {
-            out .= line . "`r`n"
-            continue
-        }
-
-        if (InStr(line, targetPrefix) = 1)
-            continue
-
-        out .= line . "`r`n"
-    }
-
-    FileDelete(FAVS_FILE)
-    FileAppend(out, FAVS_FILE, "UTF-8")
+    RunMediaAction("remove-from-favs", fullPath)
 }
 
 ; -------------------- Weird move + actions --------------------
 
 MoveToWeird(srcPath) {
-    if (srcPath = "")
-        return
-    try DirCreate(WEIRD_DIR)
-
-    SplitPath(srcPath, &name, , &ext, &nameNoExt)
-    dest := WEIRD_DIR . "\" . name
-
-    if FileExist(dest) {
-        i := 1
-        loop {
-            dest := WEIRD_DIR . "\" . nameNoExt . "__dup" . i . "." . ext
-            if !FileExist(dest)
-                break
-            i += 1
-        }
-    }
-
-    tries := 0
-    while (tries < 25) {
-        try {
-            FileMove(srcPath, dest, false)
-            return
-        } catch {
-            Sleep 120
-            tries += 1
-        }
-    }
+    RunMediaAction("move-to-weird", srcPath)
 }
 
 Discard(which) {

@@ -32,6 +32,7 @@ def build_controller_manifest(config, vlc_http_pass: str) -> dict[str, dict[str,
             "robot_hand_module": "fun_time.robot_hand.app",
             "audio_module": "fun_time.audio_companion_app",
             "dashboard_module": "fun_time.dashboard_app",
+            "media_actions_module": "fun_time.media_actions_app",
         },
         "commands": {
             "robot_hand_mode_file": str(config.robot_hand_mode_file),
