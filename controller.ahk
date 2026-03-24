@@ -506,12 +506,16 @@ MaybeLaunchChromeOverlay(pidM) {
         return
 
     existing := GetVisibleChromeWindowHandles()
-    cmd := Q(CHROME_SHORTCUT_PATH)
-    try RunDetached(cmd)
+    launchSpec := BuildChromeLaunchSpec(manifest)
+    if (launchSpec.cmd = "") {
+        Log("Chrome overlay skipped because the Chrome shortcut could not be resolved")
+        return
+    }
+    try Run(launchSpec.cmd, launchSpec.workDir, , &chromePid)
 
     newHwnd := WaitForNewChromeWindow(existing, 8000)
     if (!newHwnd) {
-        Log("Chrome overlay skipped because the Blair Chrome shortcut did not produce a new visible window")
+        Log("Chrome overlay skipped because the Chrome launch command did not produce a new visible window")
         return
     }
 
@@ -521,12 +525,32 @@ MaybeLaunchChromeOverlay(pidM) {
         WinMove(x, y, w, h, "ahk_id " newHwnd)
         WinSetAlwaysOnTop(false, "ahk_id " newHwnd)
     }
-    OpenUrlsInChromeWindow(newHwnd, manifest.urls)
     try {
         WinSetAlwaysOnTop(true, "ahk_pid " pidM)
         WinActivate("ahk_pid " pidM)
     }
-    Log("Chrome overlay positioned using shortcut for profile " . manifest.profileDir)
+    Log("Chrome overlay positioned using direct launch for profile " . manifest.profileDir)
+}
+
+BuildChromeLaunchSpec(manifest) {
+    global CHROME_SHORTCUT_PATH
+
+    target := "", workDir := "", args := "", description := "", iconPath := "", iconNum := 0, runState := 0
+    try FileGetShortcut(CHROME_SHORTCUT_PATH, &target, &workDir, &args, &description, &iconPath, &iconNum, &runState)
+    if (target = "")
+        return {cmd: "", workDir: ""}
+
+    cmd := Q(target)
+    existingArgs := Trim(args)
+    if (existingArgs != "")
+        cmd .= " " . existingArgs
+    if (manifest.profileDir != "" && !InStr(StrLower(existingArgs), "--profile-directory"))
+        cmd .= " --profile-directory=" . Q(manifest.profileDir)
+    if !InStr(StrLower(existingArgs), "--new-window")
+        cmd .= " --new-window"
+    for url in manifest.urls
+        cmd .= " " . Q(url)
+    return {cmd: cmd, workDir: workDir}
 }
 
 ReadChromeOverlayManifest(path) {
@@ -574,48 +598,6 @@ WaitForNewChromeWindow(existingHandles, timeoutMs := 8000) {
         Sleep 200
     }
     return 0
-}
-
-FocusChromeWindow(hwnd, timeoutSeconds := 2.0) {
-    if (!hwnd)
-        return false
-    try WinActivate("ahk_id " hwnd)
-    return WinWaitActive("ahk_id " hwnd, , timeoutSeconds)
-}
-
-SendChromeKeys(hwnd, keys, waitMs := 0) {
-    if (!FocusChromeWindow(hwnd))
-        return false
-    SendEvent(keys)
-    if (waitMs > 0)
-        Sleep waitMs
-    return true
-}
-
-OpenUrlsInChromeWindow(hwnd, urls) {
-    if (!hwnd || urls.Length = 0)
-        return
-
-    savedClipboard := ClipboardAll()
-    try {
-        if (!FocusChromeWindow(hwnd))
-            return
-        Sleep 250
-
-        first := true
-        for url in urls {
-            if (!first) {
-                SendChromeKeys(hwnd, "^t", 250)
-            }
-            first := false
-            A_Clipboard := url
-            ClipWait(1.0)
-            SendChromeKeys(hwnd, "^l", 150)
-            SendChromeKeys(hwnd, "^v{Enter}", 450)
-        }
-    } finally {
-        A_Clipboard := savedClipboard
-    }
 }
 
 HandleInList(hwnd, handles) {
