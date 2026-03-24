@@ -2,28 +2,52 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from fun_time.robot_hand.view import create_robot_hand_view, install_tk_exception_handler
+from fun_time.robot_hand.view import (
+    apply_window_outer_bounds,
+    create_robot_hand_view,
+    install_tk_exception_handler,
+)
 
 
 class FakeRoot:
     def __init__(self):
         self.title_text = None
-        self.geometry_text = None
+        self.geometry_calls: list[str] = []
         self.configure_calls: list[dict] = []
         self.iconbitmap_calls: list[str] = []
         self.report_callback_exception = None
+        self.update_idletasks_calls = 0
+        self.x = 10
+        self.y = 20
+        self.rootx = 18
+        self.rooty = 52
 
     def title(self, value: str) -> None:
         self.title_text = value
 
     def geometry(self, value: str) -> None:
-        self.geometry_text = value
+        self.geometry_calls.append(value)
 
     def configure(self, **kwargs) -> None:
         self.configure_calls.append(kwargs)
 
     def iconbitmap(self, value: str) -> None:
         self.iconbitmap_calls.append(value)
+
+    def update_idletasks(self) -> None:
+        self.update_idletasks_calls += 1
+
+    def winfo_x(self) -> int:
+        return self.x
+
+    def winfo_y(self) -> int:
+        return self.y
+
+    def winfo_rootx(self) -> int:
+        return self.rootx
+
+    def winfo_rooty(self) -> int:
+        return self.rooty
 
 
 class FakeFrame:
@@ -77,7 +101,7 @@ def test_create_robot_hand_view_builds_window_widgets():
 
     assert view.root is fake_tk.root
     assert fake_tk.root.title_text == "Robot Hand"
-    assert fake_tk.root.geometry_text == "1200x900+10+20"
+    assert fake_tk.root.geometry_calls == ["1200x900+10+20", "1184x860+10+20"]
     assert fake_tk.root.configure_calls == [{"bg": "black"}]
     assert view.container.kwargs == {"bg": "black"}
     assert view.container.pack_calls == [{"fill": "both", "expand": True}]
@@ -97,6 +121,15 @@ def test_create_robot_hand_view_sets_icon_when_present(tmp_path):
     create_robot_hand_view(width=1200, height=900, x=10, y=20, icon_path=icon_path, tk_module=fake_tk)
 
     assert fake_tk.root.iconbitmap_calls == [str(icon_path)]
+
+
+def test_apply_window_outer_bounds_compensates_for_window_decorations():
+    root = FakeRoot()
+
+    apply_window_outer_bounds(root=root, width=1200, height=900, x=10, y=20)
+
+    assert root.geometry_calls == ["1200x900+10+20", "1184x860+10+20"]
+    assert root.update_idletasks_calls == 1
 
 
 def test_install_tk_exception_handler_updates_status_and_shows_overlay():
