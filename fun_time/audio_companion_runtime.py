@@ -10,8 +10,10 @@ from typing import Any, Callable
 class AudioCompanionRuntime:
     sock: Any
     controller: Any
-    cmd_file: Path
-    consume_command_file: Callable[[Path], str | None]
+    mode_file: Path
+    read_mode_active: Callable[[Path], bool]
+    paused_file: Path
+    read_paused_state: Callable[[Path], bool]
 
     def receive_udp_line(self) -> str:
         try:
@@ -20,15 +22,10 @@ class AudioCompanionRuntime:
             return ""
         return data.decode("utf-8", errors="replace").strip()
 
-    def apply_runtime_command(self, command: str | None) -> None:
-        if command == "PAUSE":
-            self.controller.set_manual_paused(True)
-        elif command == "RESUME":
-            self.controller.set_manual_paused(False)
-
     def process_iteration(self) -> None:
         line = self.receive_udp_line()
-        self.apply_runtime_command(self.consume_command_file(self.cmd_file))
+        self.controller.set_mode_active(self.read_mode_active(self.mode_file))
+        self.controller.set_manual_paused(self.read_paused_state(self.paused_file))
         if line:
             self.controller.handle_udp_line(line)
 

@@ -91,12 +91,12 @@ class TestUdpReader:
             t.join(timeout=1.0)
         assert state.visible is False
 
-    def test_auto_1_enables_auto_and_visible(self):
+    def test_auto_1_enables_auto_without_forcing_visibility(self):
         state = self._run_with_message("AUTO 1")
         assert state.auto_active is True
-        assert state.visible is True
+        assert state.visible is False
 
-    def test_auto_0_disables_auto_and_visible(self):
+    def test_auto_0_disables_auto_without_forcing_visibility(self):
         state = SharedState()
         state.auto_active = True
         state.visible = True
@@ -109,7 +109,7 @@ class TestUdpReader:
             stop.set()
             t.join(timeout=1.0)
         assert state.auto_active is False
-        assert state.visible is False
+        assert state.visible is True
 
     def test_bpm_parsed(self):
         state = self._run_with_message("BPM 120.5")

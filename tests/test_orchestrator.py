@@ -103,6 +103,8 @@ class TestControllerManifest:
         result = build_controller_manifest(cfg, "pw")
         assert result["controller"]["vlc2_port"] == "8091"
         assert result["controller"]["vlc3_port"] == "8092"
+        assert result["layout"]["main_monitor"] == "1"
+        assert result["layout"]["secondary_monitor"] == "2"
 
     def test_runtime_section_includes_config_path(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -169,6 +171,9 @@ class TestControllerManifest:
         assert parser["runtime"]["project_dir"] == str(cfg.project_dir)
         assert parser["controller"]["vlc_pass"] == "pw"
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
+        assert parser["commands"]["robot_hand_enabled_file"] == str(cfg.robot_hand_enabled_file)
+        assert parser["commands"]["robot_hand_paused_file"] == str(cfg.robot_hand_paused_file)
+        assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
         assert parser["chrome_overlay"]["manifest_file"] == str(cfg.chrome_overlay_manifest_file)
 
 

@@ -13,7 +13,6 @@ import pygame
 from .audio_companion_runtime import AudioCompanionRuntime
 from .config import load_config
 from .logging_utils import configure_logging, install_exception_logging
-from .runtime_support import consume_command_file as _consume_command_file
 from .runtime_support import preparse_config_path
 
 SUPPORTED_EXTS = [".mp3", ".wav", ".ogg", ".flac", ".m4a"]
@@ -29,7 +28,8 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--audio-folder", default=str(config.paths.audio_dir))
     ap.add_argument("--host", default=config.audio_companion.host)
     ap.add_argument("--port", type=int, default=config.audio_companion.port)
-    ap.add_argument("--cmd-file", default=str(config.audio_cmd_file))
+    ap.add_argument("--mode-file", default=str(config.robot_hand_mode_file))
+    ap.add_argument("--paused-file", default=str(config.audio_paused_file))
     return ap
 
 
@@ -41,8 +41,22 @@ def find_audio(audio_folder: Path, stem: str) -> Path | None:
     return None
 
 
-def consume_command_file(path: Path) -> str | None:
-    return _consume_command_file(path)
+def read_mode_active(path: Path) -> bool:
+    try:
+        if not path.exists():
+            return False
+        return path.read_text(encoding="utf-8").replace("\ufeff", "").strip() == "1"
+    except Exception:
+        return False
+
+
+def read_paused_state(path: Path) -> bool:
+    try:
+        if not path.exists():
+            return False
+        return path.read_text(encoding="utf-8").replace("\ufeff", "").strip() == "1"
+    except Exception:
+        return False
 
 
 @dataclass
@@ -51,6 +65,7 @@ class AudioPlaybackController:
     logger: logging.Logger
     current_path: Path | None = None
     visible: bool = False
+    mode_active: bool = False
     paused: bool = False
     manual_paused: bool = False
     playback_running: bool = False
@@ -128,7 +143,7 @@ class AudioPlaybackController:
         self.paused = False
 
     def apply_state(self) -> None:
-        should_play = self.visible and self.current_path is not None and not self.manual_paused
+        should_play = self.mode_active and self.visible and self.current_path is not None and not self.manual_paused
 
         if should_play:
             if pygame.mixer.music.get_busy():
@@ -167,9 +182,15 @@ class AudioPlaybackController:
         self.apply_state()
 
     def set_manual_paused(self, paused: bool) -> None:
+        if self.manual_paused == paused:
+            return
         self.manual_paused = paused
         self.apply_state()
         self.logger.info("Audio %s", "paused" if paused else "resumed")
+
+    def set_mode_active(self, active: bool) -> None:
+        self.mode_active = active
+        self.apply_state()
 
     def handle_udp_line(self, line: str) -> None:
         if line.startswith("CLIP "):
@@ -202,7 +223,8 @@ def main(argv: list[str] | None = None) -> int:
     if not audio_folder.exists():
         raise RuntimeError(f"Audio folder does not exist: {audio_folder}")
 
-    cmd_file = Path(args.cmd_file)
+    mode_file = Path(args.mode_file)
+    paused_file = Path(args.paused_file)
 
     pygame.mixer.init()
     logger.info("Audio companion listening on %s:%s", args.host, args.port)
@@ -215,8 +237,10 @@ def main(argv: list[str] | None = None) -> int:
     runtime = AudioCompanionRuntime(
         sock=sock,
         controller=controller,
-        cmd_file=cmd_file,
-        consume_command_file=consume_command_file,
+        mode_file=mode_file,
+        read_mode_active=read_mode_active,
+        paused_file=paused_file,
+        read_paused_state=read_paused_state,
     )
 
     try:

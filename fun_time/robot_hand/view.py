@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import tkinter as tk
 
@@ -16,11 +17,16 @@ class RobotHandView:
     status_label: object
 
 
-def create_robot_hand_view(*, width: int, height: int, x: int, y: int, tk_module=tk) -> RobotHandView:
+def create_robot_hand_view(*, width: int, height: int, x: int, y: int, icon_path: Path | None = None, tk_module=tk) -> RobotHandView:
     root = tk_module.Tk()
     root.title("Robot Hand")
     root.geometry(f"{width}x{height}+{x}+{y}")
     root.configure(bg="black")
+    if icon_path is not None and icon_path.exists():
+        try:
+            root.iconbitmap(str(icon_path))
+        except Exception:
+            pass
 
     container = tk_module.Frame(root, bg="black")
     container.pack(fill="both", expand=True)

@@ -21,6 +21,7 @@ def test_all_fun_time_action_hotkeys_are_global():
         "SC01A::HandlePrevAction()",
         "]::HandleNextAction()",
         "SC01B::HandleNextAction()",
+        "r::ToggleRobotHandEnabled()",
         "\\::{",
         "-::try ControlSend(\"!{Left}\", , \"ahk_pid \" pid1)",
         "=::try ControlSend(\"!{Right}\", , \"ahk_pid \" pid1)",
@@ -49,6 +50,7 @@ def test_only_escape_and_shutdown_are_suspend_exempt():
     for hotkey in (
         "[::HandlePrevAction()",
         "]::HandleNextAction()",
+        "r::ToggleRobotHandEnabled()",
         "\\::{",
         "Down::ToggleLock(2)",
         "s::ToggleLock(3)",

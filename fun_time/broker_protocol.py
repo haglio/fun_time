@@ -32,6 +32,7 @@ class BrokerAutoController:
         logger,
         write_mode,
         udp_send,
+        enabled: bool = True,
     ):
         self.state_file = state_file
         self.udp_host = udp_host
@@ -41,24 +42,42 @@ class BrokerAutoController:
         self.udp_send = udp_send
         self._lock = threading.Lock()
         self._auto_active = False
+        self._enabled = enabled
 
     @property
     def is_active(self) -> bool:
         with self._lock:
             return self._auto_active
 
+    def publish_effective_state(self, sock: socket.socket, mode_value: str | None = None) -> None:
+        with self._lock:
+            effective_active = self._auto_active and self._enabled
+
+        mode_text = mode_value if mode_value is not None else ("1" if effective_active else "0")
+        self.write_mode(self.state_file, mode_text, self.logger)
+        self.udp_send(sock, self.udp_host, self.udp_port, f"AUTO {1 if effective_active else 0}")
+        self.udp_send(sock, self.udp_host, self.udp_port, "SHOW" if effective_active else "HIDE")
+
     def set_auto(self, sock: socket.socket, value: bool, mode_value: str | None = None) -> None:
         with self._lock:
             changed = self._auto_active != value
             self._auto_active = value
 
-        mode_text = mode_value if mode_value is not None else ("1" if value else "0")
-        self.write_mode(self.state_file, mode_text, self.logger)
-        self.udp_send(sock, self.udp_host, self.udp_port, f"AUTO {1 if value else 0}")
-        self.udp_send(sock, self.udp_host, self.udp_port, "SHOW" if value else "HIDE")
+        self.publish_effective_state(sock, mode_value=mode_value)
 
         if changed:
             self.logger.info("AUTO %s", "ON" if value else "OFF")
+
+    def set_enabled(self, sock: socket.socket, value: bool) -> None:
+        with self._lock:
+            changed = self._enabled != value
+            self._enabled = value
+
+        if not changed:
+            return
+
+        self.publish_effective_state(sock)
+        self.logger.info("Robot Hand %s", "ENABLED" if value else "DISABLED")
 
     def handle_line(self, sock: socket.socket, line: str) -> None:
         low = line.lower()

@@ -27,6 +27,7 @@ class RobotHandRefreshController:
         engine,
         rh_paused,
         command_file: Path,
+        paused_file: Path,
         beats_per_loop: float,
         bpm_smoothing: float,
         sync_strength: float,
@@ -39,6 +40,7 @@ class RobotHandRefreshController:
         log_name: str,
         now_source=time.monotonic,
         consume_command=consume_command_file,
+        read_paused_state=None,
     ):
         self.state = state
         self.loader = loader
@@ -48,6 +50,7 @@ class RobotHandRefreshController:
         self.engine = engine
         self.rh_paused = rh_paused
         self.command_file = command_file
+        self.paused_file = paused_file
         self.beats_per_loop = beats_per_loop
         self.bpm_smoothing = bpm_smoothing
         self.sync_strength = sync_strength
@@ -60,6 +63,7 @@ class RobotHandRefreshController:
         self.log_name = log_name
         self.now_source = now_source
         self.consume_command = consume_command
+        self.read_paused_state = read_paused_state or (lambda _path, logger=None: False)
         self.window_visible = False
 
     def refresh(self) -> None:
@@ -77,6 +81,7 @@ class RobotHandRefreshController:
         self.loader.adopt_prefetch_if_ready()
 
         shared = read_shared_state_snapshot(self.state)
+        self.rh_paused["value"] = self.read_paused_state(self.paused_file, logger=self.logger)
 
         self.window_visible = self.notifier.sync_window_visibility(
             desired_visible=shared.visible,
