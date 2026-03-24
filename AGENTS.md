@@ -38,6 +38,10 @@ If `bash test.sh` fails in PowerShell because Git Bash cannot create its signal 
    Update `docs/refactor-log.md` when the architectural shape or working norms change, and update README/other docs when runtime contracts, workflows, or operator expectations change.
 7. Leave a clean handoff.
    Before finishing, make sure the worktree is clean, the tests are green, temporary exploration artifacts are removed, and the repo is in a good state for the next feature or fix.
+8. Treat executable script syntax as a separate validation concern.
+   When changing `controller.ahk`, `.ps1`, `.vbs`, shell wrappers, or other directly executed script files, do not rely only on text-based Python tests. Reuse an existing in-repo quoting/style pattern when possible, add a regression test for the intended contract, and run at least one syntax/startup-focused validation step before handoff so the script still opens cleanly.
+9. Escalate when executable-script scope starts expanding into product/UI work.
+   If a change would substantially increase the size or responsibility of `controller.ahk` or another executable script, pause and document the tradeoff before continuing. Prefer extracting logic into Python/modules or a dedicated UI surface when the work is no longer "glue code", especially for stateful dashboards, layout-heavy UI, or multi-step interaction flows.
 
 ## Current Repo-Specific Gotchas
 
