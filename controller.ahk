@@ -182,18 +182,57 @@ ForceKillPid(pid) {
     try RunWait(A_ComSpec . " /c taskkill /PID " . pid . " /T /F", , "Hide")
 }
 
-GetRobotHandRect(&x, &y, &w, &h) {
-    global MAIN_MONITOR, PRIMARY_TOP_RATIO
-    MonitorGetWorkArea(MAIN_MONITOR, &sL, &sT, &sR, &sB)
-    sW := sR - sL
-    sH := sB - sT
-    hTop := Floor(sH * Clamp01(PRIMARY_TOP_RATIO))
-    hBot := sH - hTop
+GetMonitorRect(index) {
+    MonitorGetWorkArea(index, &left, &top, &right, &bottom)
+    return Map("index", index, "x", left, "y", top, "w", right - left, "h", bottom - top)
+}
 
-    x := sL
-    y := sT + hTop
-    w := sW
-    h := hBot
+GetLogicalMonitorRects(&mainRect, &secondaryRect) {
+    global MAIN_MONITOR, SECONDARY_MONITOR
+
+    configuredMain := GetMonitorRect(MAIN_MONITOR)
+    configuredSecondary := GetMonitorRect(SECONDARY_MONITOR)
+
+    ; Keep config values intuitive while correcting Windows display-number weirdness:
+    ; treat the wide/landscape screen as the logical main monitor and the tall screen
+    ; as the logical secondary monitor.
+    if (configuredMain["w"] >= configuredMain["h"] && configuredSecondary["w"] < configuredSecondary["h"]) {
+        mainRect := configuredMain
+        secondaryRect := configuredSecondary
+        return
+    }
+
+    if (configuredSecondary["w"] >= configuredSecondary["h"] && configuredMain["w"] < configuredMain["h"]) {
+        mainRect := configuredSecondary
+        secondaryRect := configuredMain
+        return
+    }
+
+    ; Fallback when both screens are the same orientation: leftmost is main.
+    if (configuredMain["x"] <= configuredSecondary["x"]) {
+        mainRect := configuredMain
+        secondaryRect := configuredSecondary
+    } else {
+        mainRect := configuredSecondary
+        secondaryRect := configuredMain
+    }
+}
+
+GetRobotHandRect(&x, &y, &w, &h) {
+    global PRIMARY_TOP_RATIO
+    mainRect := "", secondaryRect := ""
+    GetLogicalMonitorRects(&mainRect, &secondaryRect)
+    secondaryL := secondaryRect["x"]
+    secondaryT := secondaryRect["y"]
+    secondaryW := secondaryRect["w"]
+    secondaryH := secondaryRect["h"]
+    portraitH := Floor(secondaryH * Clamp01(PRIMARY_TOP_RATIO))
+    primaryH := secondaryH - portraitH
+
+    x := secondaryL
+    y := secondaryT + portraitH
+    w := secondaryW
+    h := primaryH
 }
 
 SendToPid(pid, keys) {
@@ -838,49 +877,48 @@ RestartBroker() {
 }
 
 PositionAll(pid1, pid2, pid3, pidM) {
-    global MAIN_MONITOR, SECONDARY_MONITOR, PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
-    MonitorGetWorkArea(SECONDARY_MONITOR, &pL, &pT, &pR, &pB)
-    MonitorGetWorkArea(MAIN_MONITOR, &sL, &sT, &sR, &sB)
+    global PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
+    mainRect := "", secondaryRect := ""
+    GetLogicalMonitorRects(&mainRect, &secondaryRect)
+    mainL := mainRect["x"], mainT := mainRect["y"], mainW := mainRect["w"], mainH := mainRect["h"]
+    secondaryL := secondaryRect["x"], secondaryT := secondaryRect["y"], secondaryW := secondaryRect["w"], secondaryH := secondaryRect["h"]
 
-    pW := pR - pL, pH := pB - pT
-    sW := sR - sL, sH := sB - sT
+    portraitH := Floor(secondaryH * Clamp01(PRIMARY_TOP_RATIO))
+    primaryH := secondaryH - portraitH
 
-    hTop := Floor(sH * Clamp01(PRIMARY_TOP_RATIO))
-    hBot := sH - hTop
-
-    MovePidWindow(pid2, sL, sT,       sW, hTop)
-    MovePidWindow(pid1, sL, sT+hTop,  sW, hBot)
-    w3 := Floor(pW * Clamp01(LANDSCAPE_WIDTH_RATIO))
-    x3 := pL + (pW - w3)   ; right-aligned 2/3
-    MovePidWindow(pid3, x3, pT, w3, pH)
+    MovePidWindow(pid2, secondaryL, secondaryT, secondaryW, portraitH)
+    MovePidWindow(pid1, secondaryL, secondaryT + portraitH, secondaryW, primaryH)
+    landscapeW := Floor(mainW * Clamp01(LANDSCAPE_WIDTH_RATIO))
+    landscapeX := mainL + (mainW - landscapeW)
+    MovePidWindow(pid3, landscapeX, mainT, landscapeW, mainH)
 
     GetMfpRect(&mX, &mY, &mW, &mH)
     MovePidWindow(pidM, mX, mY, mW, mH)
 }
 
 GetMfpRect(&x, &y, &w, &h) {
-    global SECONDARY_MONITOR, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
-    MonitorGetWorkArea(SECONDARY_MONITOR, &pL, &pT, &pR, &pB)
-    pW := pR - pL
-    pH := pB - pT
-    w3 := Floor(pW * Clamp01(LANDSCAPE_WIDTH_RATIO))
-    leftW := pW - w3
+    global LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
+    mainRect := "", secondaryRect := ""
+    GetLogicalMonitorRects(&mainRect, &secondaryRect)
+    mainL := mainRect["x"], mainT := mainRect["y"], mainW := mainRect["w"], mainH := mainRect["h"]
+    landscapeW := Floor(mainW * Clamp01(LANDSCAPE_WIDTH_RATIO))
+    leftW := mainW - landscapeW
     w := Floor(leftW * Clamp01(MFP_WIDTH_RATIO))
-    h := Floor(pH * Clamp01(MFP_HEIGHT_RATIO))
-    x := pL + Floor((leftW - w) / 2)
-    y := pT + Floor((pH - h) / 2)
+    h := Floor(mainH * Clamp01(MFP_HEIGHT_RATIO))
+    x := mainL + Floor((leftW - w) / 2)
+    y := mainT + Floor((mainH - h) / 2)
 }
 
 GetChromeOverlayRect(&x, &y, &w, &h) {
-    global SECONDARY_MONITOR, LANDSCAPE_WIDTH_RATIO
-    MonitorGetWorkArea(SECONDARY_MONITOR, &pL, &pT, &pR, &pB)
-    pW := pR - pL
-    pH := pB - pT
-    w3 := Floor(pW * Clamp01(LANDSCAPE_WIDTH_RATIO))
-    w := pW - w3
-    h := pH
-    x := pL
-    y := pT
+    global LANDSCAPE_WIDTH_RATIO
+    mainRect := "", secondaryRect := ""
+    GetLogicalMonitorRects(&mainRect, &secondaryRect)
+    mainL := mainRect["x"], mainT := mainRect["y"], mainW := mainRect["w"], mainH := mainRect["h"]
+    landscapeW := Floor(mainW * Clamp01(LANDSCAPE_WIDTH_RATIO))
+    w := mainW - landscapeW
+    h := mainH
+    x := mainL
+    y := mainT
 }
 
 MovePidWindow(pid, x, y, w, h) {

@@ -58,3 +58,20 @@ def test_controller_reloads_f_mode_via_generated_playlist_files():
 
     assert 'WritePlaylistFile(playlistPath, paths)' in text
     assert 'SendVlcInputCommand(port, "in_play", playlistPath)' in text
+
+
+def test_controller_uses_main_monitor_for_landscape_and_mfp_layout():
+    text = _controller_text()
+
+    assert "GetLogicalMonitorRects(&mainRect, &secondaryRect)" in text
+    assert 'MovePidWindow(pid3, landscapeX, mainT, landscapeW, mainH)' in text
+    assert 'MovePidWindow(pidM, mX, mY, mW, mH)' in text
+
+
+def test_controller_uses_secondary_monitor_for_portrait_primary_and_robot_hand():
+    text = _controller_text()
+
+    assert "GetLogicalMonitorRects(&mainRect, &secondaryRect)" in text
+    assert 'MovePidWindow(pid2, secondaryL, secondaryT, secondaryW, portraitH)' in text
+    assert 'MovePidWindow(pid1, secondaryL, secondaryT + portraitH, secondaryW, primaryH)' in text
+    assert 'x := secondaryL' in text
