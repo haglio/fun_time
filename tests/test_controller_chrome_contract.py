@@ -14,26 +14,25 @@ def _controller_text() -> str:
 def test_chrome_overlay_targets_the_chrome_window_for_keystrokes():
     text = _controller_text()
 
-    assert 'SendEvent(keys)' in text
-
-    open_urls_start = text.index("OpenUrlsInChromeWindow(hwnd, urls) {")
-    handle_in_list_start = text.index("HandleInList(hwnd, handles) {", open_urls_start)
-    open_urls_block = text[open_urls_start:handle_in_list_start]
-
-    assert 'SendChromeKeys(hwnd, "^t"' in open_urls_block
-    assert 'SendChromeKeys(hwnd, "^l"' in open_urls_block
-    assert 'SendChromeKeys(hwnd, "^v{Enter}"' in open_urls_block
-    assert 'SendEvent("^t")' not in open_urls_block
-    assert 'SendEvent("^l")' not in open_urls_block
-    assert 'SendEvent("^v{Enter}")' not in open_urls_block
+    assert "OpenUrlsInChromeWindow" not in text
+    assert "SendChromeKeys" not in text
 
 
 def test_chrome_overlay_refocuses_before_each_send():
     text = _controller_text()
 
-    send_keys_start = text.index("SendChromeKeys(hwnd, keys, waitMs := 0) {")
-    open_urls_start = text.index("OpenUrlsInChromeWindow(hwnd, urls) {", send_keys_start)
-    send_keys_block = text[send_keys_start:open_urls_start]
+    assert "FocusChromeWindow" not in text
+    assert "ControlSend" in text
 
-    assert 'if (!FocusChromeWindow(hwnd))' in send_keys_block
-    assert 'try ControlSend' not in send_keys_block
+
+def test_chrome_overlay_launches_urls_via_chrome_command_line():
+    text = _controller_text()
+
+    maybe_launch_start = text.index("MaybeLaunchChromeOverlay(pidM) {")
+    read_manifest_start = text.index("ReadChromeOverlayManifest(path) {", maybe_launch_start)
+    maybe_launch_block = text[maybe_launch_start:read_manifest_start]
+
+    assert "BuildChromeLaunchSpec(manifest)" in maybe_launch_block
+    assert "OpenUrlsInChromeWindow" not in maybe_launch_block
+    assert "--new-window" in text
+    assert "FileGetShortcut" in text
