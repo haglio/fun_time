@@ -58,16 +58,33 @@ function Get-ModeText {
     }
 }
 
-function Update-NotifyIcon {
+function Get-BrokerStatus {
     $proc = Get-BrokerProcess
-    $modeText = Get-ModeText
+    return [pscustomobject]@{
+        IsRunning = ($null -ne $proc)
+        ModeText = Get-ModeText
+    }
+}
 
-    if ($proc) {
+function Update-NotifyIcon {
+    $status = Get-BrokerStatus
+    $runningText = if ($status.IsRunning) { 'running' } else { 'stopped' }
+
+    if ($status.IsRunning) {
         $script:notifyIcon.Icon = [System.Drawing.SystemIcons]::Application
-        $script:notifyIcon.Text = "Fun Time Broker: running ($modeText)"
+        $script:notifyIcon.Text = "Fun Time Broker: running ($($status.ModeText))"
     } else {
         $script:notifyIcon.Icon = [System.Drawing.SystemIcons]::Error
         $script:notifyIcon.Text = 'Fun Time Broker: stopped'
+    }
+
+    $script:statusItem.Text = "Broker status: $runningText ($($status.ModeText))"
+    $script:statusItem.Enabled = $false
+    $script:actionItem.Text = if ($status.IsRunning) { 'Restart broker' } else { 'Start broker' }
+    $script:actionItem.ToolTipText = if ($status.IsRunning) {
+        'Restart the broker service process'
+    } else {
+        'Start the broker service process'
     }
 }
 
@@ -79,21 +96,17 @@ $notifyIcon.Text = 'Fun Time Broker'
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 
-$statusItem = $menu.Items.Add('Status refresh')
-$statusItem.add_Click({
-    Update-NotifyIcon
-})
+$statusItem = $menu.Items.Add('Broker status: unknown')
+$statusItem.Enabled = $false
 
-$startItem = $menu.Items.Add('Start broker')
-$startItem.add_Click({
-    Start-BrokerProcess
-    Start-Sleep -Milliseconds 500
-    Update-NotifyIcon
-})
-
-$restartItem = $menu.Items.Add('Restart broker')
-$restartItem.add_Click({
-    Restart-BrokerProcess
+$actionItem = $menu.Items.Add('Start broker')
+$actionItem.add_Click({
+    if ((Get-BrokerStatus).IsRunning) {
+        Restart-BrokerProcess
+    }
+    else {
+        Start-BrokerProcess
+    }
     Start-Sleep -Milliseconds 500
     Update-NotifyIcon
 })
@@ -108,7 +121,7 @@ $logItem.add_Click({
 
 $menu.Items.Add('-') | Out-Null
 
-$exitItem = $menu.Items.Add('Exit tray')
+$exitItem = $menu.Items.Add('Close tray icon')
 $exitItem.add_Click({
     $script:timer.Stop()
     $script:notifyIcon.Visible = $false
@@ -130,6 +143,8 @@ $timer.add_Tick({
 
 $script:notifyIcon = $notifyIcon
 $script:timer = $timer
+$script:statusItem = $statusItem
+$script:actionItem = $actionItem
 
 Start-BrokerProcess
 Update-NotifyIcon
