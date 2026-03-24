@@ -180,6 +180,16 @@ def test_dashboard_does_not_include_hover_tip_workaround():
     assert '"hover_tip"' not in text
 
 
+def test_dashboard_exports_runtime_snapshot_for_python_bridge():
+    text = _controller_text()
+
+    assert "WriteDashboardStateSnapshot(" in text
+    assert 'IniWrite(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC, DASHBOARD_STATE_FILE, "primary", "label")' in text
+    assert 'IniWrite(ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath), DASHBOARD_STATE_FILE, "primary", "clip")' in text
+    assert 'IniWrite(IsMfpConnected() ? "1" : "0", DASHBOARD_STATE_FILE, "mfp", "connected")' in text
+    assert 'IniWrite(osr2Auto ? "auto" : "controlled", DASHBOARD_STATE_FILE, "osr2", "mode")' in text
+
+
 def test_dashboard_uses_smaller_font_for_status_chips_and_keeps_title_in_bottom_left():
     text = _controller_text()
 

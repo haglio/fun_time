@@ -80,6 +80,13 @@ def test_controller_broker_probe_uses_q_wrapped_powershell_command():
     assert 'cmd := "powershell.exe -NoProfile -WindowStyle Hidden -Command " . Q(psCmd)' in text
 
 
+def test_controller_reads_dashboard_bridge_paths_from_manifest():
+    text = _controller_text()
+
+    assert 'DASHBOARD_STATE_FILE := RequireManifestValue("commands", "dashboard_state_file")' in text
+    assert 'DASHBOARD_CMD_FILE := RequireManifestValue("commands", "dashboard_cmd_file")' in text
+
+
 def test_controller_uses_main_monitor_for_landscape_and_mfp_layout():
     text = _controller_text()
 
