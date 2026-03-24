@@ -65,8 +65,28 @@ pid3 := 0
 pidM := 0
 pidR := 0
 pidA := 0
-robotHandStatusGui := ""
-robotHandStatusText := ""
+funTimeDashboardGui := ""
+funTimeDashboardControls := Map()
+LABEL_PRIMARY_VLC := "Non-AI VLC"
+LABEL_PRIMARY_ROBOT := "Non-AI Robot Hand"
+LABEL_PORTRAIT_VLC := "Portrait AI VLC"
+LABEL_LANDSCAPE_VLC := "Landscape AI VLC"
+LABEL_OSR2 := "OSR2"
+LABEL_MFP := "MFP"
+LABEL_BROKER := "Broker"
+LABEL_CONTROLLER := "Controller"
+LABEL_F_MODE := "F-Mode"
+
+COLOR_BG := "20262C"
+COLOR_PANEL := "2A3038"
+COLOR_TEXT := "F4F7FA"
+COLOR_MUTED := "AEB7C2"
+COLOR_ACTIVE := "1F6F52"
+COLOR_ACTIVE_ALT := "2C8A65"
+COLOR_DISABLED := "6C1F1F"
+COLOR_WARNING := "8A6A2C"
+COLOR_LINK_ON := "3A7AFE"
+COLOR_LINK_OFF := "7C8694"
 
 Q(s) => Format('"{1}"', s)
 
@@ -347,47 +367,350 @@ SetRobotHandAudioPaused(paused) {
     WriteRawStateFile(AUDIO_PAUSED_FILE, paused ? "1" : "0")
 }
 
-GetRobotHandStatusRect(&x, &y, &w, &h) {
-    GetMfpRect(&mX, &mY, &mW, &mH)
-    margin := 14
-    x := mX
-    y := Max(0, mY - 64)
-    w := Max(220, mW)
-    h := 52
+GetFunTimeDashboardRect(&x, &y, &w, &h) {
+    layout := ""
+    GetDashboardMonitorPreviewLayout(&layout)
+    GetActualMfpSize(&mfpW, &mfpH)
+    stack := ""
+    GetLeftPartitionStackLayout(layout["dashboard_w"], layout["dashboard_h"], mfpW, mfpH, &stack)
+    x := stack["dashboard_x"]
+    y := stack["dashboard_y"]
+    w := layout["dashboard_w"]
+    h := layout["dashboard_h"]
 }
 
-CreateRobotHandStatusGui() {
-    global robotHandStatusGui, robotHandStatusText
-    guiObj := Gui("+AlwaysOnTop -Caption +ToolWindow", "Fun Time Status")
-    guiObj.BackColor := "20262C"
-    guiObj.SetFont("s10 Bold", "Segoe UI")
-    textCtrl := guiObj.AddText("Center cFFFFFF w260 h36", "")
-    robotHandStatusGui := guiObj
-    robotHandStatusText := textCtrl
-    GetRobotHandStatusRect(&x, &y, &w, &h)
-    textCtrl.Move(, , w - 20, 36)
-    guiObj.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
-    UpdateRobotHandStatusIndicator()
+AddDashboardText(guiObj, controls, key, options, text, clickHandler := "") {
+    ctrl := guiObj.AddText(options, text)
+    if (clickHandler != "")
+        ctrl.OnEvent("Click", clickHandler)
+    controls[key] := ctrl
+    return ctrl
 }
 
-UpdateRobotHandStatusIndicator() {
-    global robotHandStatusGui, robotHandStatusText, fModeEnabled
-    if (!IsObject(robotHandStatusGui) || !IsObject(robotHandStatusText))
+SetDashboardControlRect(ctrl, x, y, w, h) {
+    ctrl.Move(Round(x), Round(y), Max(1, Round(w)), Max(1, Round(h)))
+}
+
+SetDashboardControlVisual(ctrl, text, bgColor, fgColor := COLOR_TEXT) {
+    ctrl.Text := text
+    ctrl.Opt("+Background" . bgColor)
+    ctrl.Opt("+c" . fgColor)
+}
+
+GetDashboardMonitorPreviewLayout(&layout) {
+    global PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
+
+    mainRect := "", secondaryRect := ""
+    GetLogicalMonitorRects(&mainRect, &secondaryRect)
+
+    outerPad := 10
+    bottomPad := 6
+    topY := outerPad
+    monitorGap := 10
+    previewMaxH := 250
+    baseScale := previewMaxH / Max(mainRect["h"], secondaryRect["h"])
+
+    leftW := Round(mainRect["w"] * baseScale)
+    leftH := Round(mainRect["h"] * baseScale)
+    rightW := Round(secondaryRect["w"] * baseScale)
+    rightH := Round(secondaryRect["h"] * baseScale)
+    mainX := outerPad
+    secondaryX := mainX + leftW + monitorGap
+    secondaryY := topY
+
+    innerPad := 10
+    panelGap := 8
+    statusChipSize := 12
+    statusChipGap := 1
+    portraitUnits := 7
+    primaryUnits := 4
+    stackGap := 8
+
+    rightInnerX := secondaryX + innerPad
+    rightInnerY := secondaryY + innerPad
+    rightInnerW := Max(40, rightW - innerPad * 2)
+    rightInnerH := Max(40, rightH - innerPad * 2)
+    availableStackH := Max(80, rightInnerH - stackGap)
+    unitH := Max(10, Floor(availableStackH / (portraitUnits + primaryUnits)))
+    portraitH := Max(52, unitH * portraitUnits)
+    primaryH := Max(48, availableStackH - portraitH)
+    portraitY := rightInnerY
+    primaryY := rightInnerY + portraitH + stackGap
+
+    mainY := portraitY + Floor((portraitH - leftH) / 2)
+    previewBottom := Max(mainY + leftH, secondaryY + rightH, primaryY + primaryH)
+
+    mainInnerX := mainX + innerPad
+    mainInnerY := mainY + innerPad
+    mainInnerW := Max(40, leftW - innerPad * 2)
+    mainInnerH := Max(40, leftH - innerPad * 2)
+
+    landscapeW := Max(34, Floor(mainInnerW * Clamp01(LANDSCAPE_WIDTH_RATIO)))
+    leftStripW := Max(52, mainInnerW - landscapeW - panelGap)
+    mfpMaxW := Max(44, Floor(leftStripW * Clamp01(MFP_WIDTH_RATIO)))
+    statusStripY := mainInnerY
+    statusStripH := statusChipSize + 6
+    mfpAreaY := statusStripY + statusStripH + panelGap
+    mfpAreaH := Max(28, mainInnerH - statusStripH - panelGap)
+    mfpPreviewAspect := 0.67
+    mfpH := Max(40, Floor(mfpAreaH * 0.92))
+    mfpW := Min(mfpMaxW, Round(mfpH * mfpPreviewAspect))
+    statusStripW := Max(mfpW, statusChipSize * 3 + statusChipGap * 2 + 8)
+    leftColumnNudge := 2
+    statusStripX := mainInnerX + Floor((leftStripW - statusStripW) / 2) - leftColumnNudge
+    mfpX := mainInnerX + Floor((leftStripW - mfpW) / 2) - leftColumnNudge
+    mfpY := mfpAreaY + Floor((mfpAreaH - mfpH) / 2)
+    landscapeX := mainInnerX + leftStripW + panelGap
+    landscapeY := mainInnerY
+
+    mainRectPreview := Map("x", mainX, "y", mainY, "w", leftW, "h", leftH)
+    secondaryRectPreview := Map("x", secondaryX, "y", secondaryY, "w", rightW, "h", rightH)
+    landscapeRect := Map("x", landscapeX, "y", landscapeY, "w", landscapeW, "h", mainInnerH)
+    portraitRect := Map("x", rightInnerX, "y", portraitY, "w", rightInnerW, "h", portraitH)
+    primaryRect := Map("x", rightInnerX, "y", primaryY, "w", rightInnerW, "h", primaryH)
+    osr2W := 56
+    osr2H := 56
+    linkW := 62
+    linkGap := 8
+    osr2X := secondaryX - osr2W - linkGap - linkW - linkGap
+    osr2Y := primaryY + Floor((primaryH - osr2H) / 2)
+    linkY := primaryY + Floor((primaryH - 18) / 2)
+    linkX := osr2X + osr2W + linkGap
+    statusRowX := statusStripX + Floor((statusStripW - (statusChipSize * 3 + statusChipGap * 2)) / 2)
+    statusRowY := statusStripY + 3
+    dashboardW := secondaryX + rightW + outerPad
+    titleY := previewBottom - 14
+    dashboardH := Max(previewBottom, osr2Y + osr2H, linkY + 18) + bottomPad
+
+    layout := Map(
+        "dashboard_w", dashboardW,
+        "dashboard_h", dashboardH,
+        "preview_bottom", previewBottom,
+        "title", Map("x", outerPad, "y", titleY, "w", 88, "h", 12),
+        "main_monitor", mainRectPreview,
+        "secondary_monitor", secondaryRectPreview,
+        "main_status_strip", Map("x", statusStripX, "y", statusStripY, "w", statusStripW, "h", statusStripH),
+        "mfp_panel", Map("x", mfpX, "y", mfpY, "w", mfpW, "h", mfpH),
+        "landscape_panel", landscapeRect,
+        "portrait_panel", portraitRect,
+        "primary_panel", primaryRect,
+        "portrait_prev", Map("x", portraitRect["x"] + 6, "y", portraitRect["y"] + Floor((portraitRect["h"] - 22) / 2), "w", 18, "h", 22),
+        "portrait_next", Map("x", portraitRect["x"] + portraitRect["w"] - 24, "y", portraitRect["y"] + Floor((portraitRect["h"] - 22) / 2), "w", 18, "h", 22),
+        "portrait_trash", Map("x", portraitRect["x"] + Floor((portraitRect["w"] - 30) / 2), "y", portraitRect["y"] + Floor((portraitRect["h"] - 36) / 2), "w", 30, "h", 16),
+        "portrait_lock", Map("x", portraitRect["x"] + Floor((portraitRect["w"] - 30) / 2), "y", portraitRect["y"] + Floor((portraitRect["h"] - 36) / 2) + 20, "w", 30, "h", 16),
+        "primary_prev", Map("x", primaryRect["x"] + 6, "y", primaryRect["y"] + Floor((primaryRect["h"] - 22) / 2), "w", 18, "h", 22),
+        "primary_next", Map("x", primaryRect["x"] + primaryRect["w"] - 24, "y", primaryRect["y"] + Floor((primaryRect["h"] - 22) / 2), "w", 18, "h", 22),
+        "quarter_button", Map("x", primaryRect["x"] + Floor((primaryRect["w"] - 28) / 2), "y", primaryRect["y"] + Floor((primaryRect["h"] - 16) / 2), "w", 28, "h", 16),
+        "landscape_prev", Map("x", landscapeRect["x"] + 6, "y", landscapeRect["y"] + Floor((landscapeRect["h"] - 22) / 2), "w", 18, "h", 22),
+        "landscape_next", Map("x", landscapeRect["x"] + landscapeRect["w"] - 24, "y", landscapeRect["y"] + Floor((landscapeRect["h"] - 22) / 2), "w", 18, "h", 22),
+        "landscape_trash", Map("x", landscapeRect["x"] + Floor((landscapeRect["w"] - 30) / 2), "y", landscapeRect["y"] + Floor((landscapeRect["h"] - 36) / 2), "w", 30, "h", 16),
+        "landscape_lock", Map("x", landscapeRect["x"] + Floor((landscapeRect["w"] - 30) / 2), "y", landscapeRect["y"] + Floor((landscapeRect["h"] - 36) / 2) + 20, "w", 30, "h", 16),
+        "link_toggle", Map("x", linkX, "y", linkY, "w", linkW, "h", 18),
+        "osr2_panel", Map("x", osr2X, "y", osr2Y, "w", osr2W, "h", osr2H),
+        "broker_panel", Map("x", statusRowX, "y", statusRowY, "w", statusChipSize, "h", statusChipSize),
+        "controller_panel", Map("x", statusRowX + statusChipSize + statusChipGap, "y", statusRowY, "w", statusChipSize, "h", statusChipSize),
+        "fmode_panel", Map("x", statusRowX + (statusChipSize + statusChipGap) * 2, "y", statusRowY, "w", statusChipSize, "h", statusChipSize)
+    )
+}
+
+ApplyFunTimeDashboardLayout() {
+    global funTimeDashboardControls
+
+    if (!IsObject(funTimeDashboardControls))
         return
 
-    if (RobotHandEnabled()) {
-        robotHandStatusGui.BackColor := "1F4D2E"
-        robotHandStatusText.Opt("+cFFFFFF")
-        robotHandStatusText.Text := "Robot Hand: Enabled`nF-Mode: " . (fModeEnabled ? "On" : "Off")
-    } else {
-        robotHandStatusGui.BackColor := "6C1F1F"
-        robotHandStatusText.Opt("+cFFFFFF")
-        robotHandStatusText.Text := "Robot Hand: Disabled`nF-Mode: " . (fModeEnabled ? "On" : "Off")
-    }
+    layout := ""
+    GetDashboardMonitorPreviewLayout(&layout)
 
-    GetRobotHandStatusRect(&x, &y, &w, &h)
-    robotHandStatusText.Move(, , w - 20, 36)
-    robotHandStatusGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
+    SetDashboardControlRect(funTimeDashboardControls["title"], layout["title"]["x"], layout["title"]["y"], layout["title"]["w"], layout["title"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["main_monitor"], layout["main_monitor"]["x"], layout["main_monitor"]["y"], layout["main_monitor"]["w"], layout["main_monitor"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["secondary_monitor"], layout["secondary_monitor"]["x"], layout["secondary_monitor"]["y"], layout["secondary_monitor"]["w"], layout["secondary_monitor"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["main_status_strip"], layout["main_status_strip"]["x"], layout["main_status_strip"]["y"], layout["main_status_strip"]["w"], layout["main_status_strip"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["mfp_panel"], layout["mfp_panel"]["x"], layout["mfp_panel"]["y"], layout["mfp_panel"]["w"], layout["mfp_panel"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["landscape_panel"], layout["landscape_panel"]["x"], layout["landscape_panel"]["y"], layout["landscape_panel"]["w"], layout["landscape_panel"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["portrait_panel"], layout["portrait_panel"]["x"], layout["portrait_panel"]["y"], layout["portrait_panel"]["w"], layout["portrait_panel"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["primary_panel"], layout["primary_panel"]["x"], layout["primary_panel"]["y"], layout["primary_panel"]["w"], layout["primary_panel"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["portrait_prev"], layout["portrait_prev"]["x"], layout["portrait_prev"]["y"], layout["portrait_prev"]["w"], layout["portrait_prev"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["portrait_next"], layout["portrait_next"]["x"], layout["portrait_next"]["y"], layout["portrait_next"]["w"], layout["portrait_next"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["portrait_lock"], layout["portrait_lock"]["x"], layout["portrait_lock"]["y"], layout["portrait_lock"]["w"], layout["portrait_lock"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["portrait_trash"], layout["portrait_trash"]["x"], layout["portrait_trash"]["y"], layout["portrait_trash"]["w"], layout["portrait_trash"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["primary_prev"], layout["primary_prev"]["x"], layout["primary_prev"]["y"], layout["primary_prev"]["w"], layout["primary_prev"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["primary_next"], layout["primary_next"]["x"], layout["primary_next"]["y"], layout["primary_next"]["w"], layout["primary_next"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["quarter_button"], layout["quarter_button"]["x"], layout["quarter_button"]["y"], layout["quarter_button"]["w"], layout["quarter_button"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["landscape_prev"], layout["landscape_prev"]["x"], layout["landscape_prev"]["y"], layout["landscape_prev"]["w"], layout["landscape_prev"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["landscape_next"], layout["landscape_next"]["x"], layout["landscape_next"]["y"], layout["landscape_next"]["w"], layout["landscape_next"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["landscape_lock"], layout["landscape_lock"]["x"], layout["landscape_lock"]["y"], layout["landscape_lock"]["w"], layout["landscape_lock"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["landscape_trash"], layout["landscape_trash"]["x"], layout["landscape_trash"]["y"], layout["landscape_trash"]["w"], layout["landscape_trash"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["link_toggle"], layout["link_toggle"]["x"], layout["link_toggle"]["y"], layout["link_toggle"]["w"], layout["link_toggle"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["osr2_panel"], layout["osr2_panel"]["x"], layout["osr2_panel"]["y"], layout["osr2_panel"]["w"], layout["osr2_panel"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["broker_panel"], layout["broker_panel"]["x"], layout["broker_panel"]["y"], layout["broker_panel"]["w"], layout["broker_panel"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["controller_panel"], layout["controller_panel"]["x"], layout["controller_panel"]["y"], layout["controller_panel"]["w"], layout["controller_panel"]["h"])
+    SetDashboardControlRect(funTimeDashboardControls["fmode_panel"], layout["fmode_panel"]["x"], layout["fmode_panel"]["y"], layout["fmode_panel"]["w"], layout["fmode_panel"]["h"])
+}
+
+ClipLabelFromPath(path) {
+    if (path = "")
+        return "(none)"
+    SplitPath(path, &name)
+    return name
+}
+
+PanelLabelText(label) {
+    global LABEL_PORTRAIT_VLC, LABEL_LANDSCAPE_VLC, LABEL_PRIMARY_VLC, LABEL_PRIMARY_ROBOT
+    switch label {
+        case LABEL_PORTRAIT_VLC:
+            return "Portrait AI`nVLC"
+        case LABEL_LANDSCAPE_VLC:
+            return "Landscape AI`nVLC"
+        case LABEL_PRIMARY_VLC:
+            return "Non-AI`nVLC"
+        case LABEL_PRIMARY_ROBOT:
+            return "Non-AI`nRobot Hand"
+        default:
+            return label
+    }
+}
+
+PrimaryPanelShouldHighlight() {
+    global fModeEnabled, PRIMARY_VLC_PORT
+    if (fModeEnabled)
+        return true
+    path := GetCurrentFilePath(PRIMARY_VLC_PORT)
+    return path != "" && HasMatchingFunscript(path)
+}
+
+SatellitePanelShouldHighlight(port) {
+    global fModeEnabled
+    if (fModeEnabled)
+        return true
+    return IsFavoritePath(GetCurrentFilePath(port), ReadFavsContent())
+}
+
+IsBrokerRunning() {
+    global PROJECT_DIR
+    shell := ComObject("WScript.Shell")
+    psCmd := "$targets = Get-CimInstance Win32_Process | Where-Object { "
+        . "(($_.Name -match '^pythonw?\.exe$|^py\.exe$') -and $_.CommandLine -match 'fun_time\.broker_app') -or "
+        . "(($_.Name -match '^powershell\.exe$|^pwsh\.exe$|^wscript\.exe$') -and $_.CommandLine -match 'broker_tray\.ps1|launch_broker_tray\.vbs') "
+        . "}; if ($targets) { '1' } else { '0' }"
+    cmd := "powershell.exe -NoProfile -WindowStyle Hidden -Command " . Q(psCmd)
+    try {
+        exec := shell.Exec(cmd)
+        return Trim(exec.StdOut.ReadAll()) = "1"
+    } catch {
+        return false
+    }
+}
+
+IsProcessAlive(pid) {
+    return pid && ProcessExist(pid)
+}
+
+IsVlcResponsive(port) {
+    xml := VlcHttpReq(port, "/requests/status.xml", &st)
+    return st = 200 && InStr(xml, "<state>")
+}
+
+IsMfpConnected() {
+    global pidM, PRIMARY_VLC_PORT
+    return IsProcessAlive(pidM) && IsVlcResponsive(PRIMARY_VLC_PORT) && IsBrokerRunning()
+}
+
+CreateFunTimeDashboard() {
+    global funTimeDashboardGui, funTimeDashboardControls
+    global COLOR_BG, COLOR_PANEL, COLOR_TEXT, COLOR_MUTED
+
+    guiObj := Gui("+AlwaysOnTop -Caption +ToolWindow", "Fun Time Dashboard")
+    guiObj.BackColor := COLOR_BG
+    guiObj.SetFont("s9 Bold", "Segoe UI")
+    controls := Map()
+
+    AddDashboardText(guiObj, controls, "title", "x16 y12 w300 h20 BackgroundTrans c" . COLOR_TEXT, "Fun Time")
+    AddDashboardText(guiObj, controls, "main_monitor", "x16 y40 w146 h194 Border Background" . COLOR_PANEL . " c" . COLOR_MUTED, "")
+    AddDashboardText(guiObj, controls, "secondary_monitor", "x176 y40 w146 h194 Border Background" . COLOR_PANEL . " c" . COLOR_MUTED, "")
+    AddDashboardText(guiObj, controls, "main_status_strip", "x20 y20 w80 h30 Border Background" . COLOR_PANEL . " c" . COLOR_MUTED, "")
+
+    AddDashboardText(guiObj, controls, "portrait_panel", "x46 y66 w86 h48 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, LABEL_PORTRAIT_VLC)
+    AddDashboardText(guiObj, controls, "portrait_prev", "x24 y74 w18 h24 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "<", (*) => (CancelLock(2), VlcHttpCmd(VLC2_PORT, "pl_previous")))
+    AddDashboardText(guiObj, controls, "portrait_next", "x136 y74 w18 h24 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, ">", (*) => (CancelLock(2), VlcHttpCmd(VLC2_PORT, "pl_next")))
+    AddDashboardText(guiObj, controls, "portrait_lock", "x84 y118 w34 h18 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "Lock", (*) => ToggleLock(2))
+    AddDashboardText(guiObj, controls, "portrait_trash", "x120 y118 w34 h18 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "Trash", (*) => Discard(2))
+
+    AddDashboardText(guiObj, controls, "primary_panel", "x46 y150 w86 h62 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, LABEL_PRIMARY_VLC)
+    AddDashboardText(guiObj, controls, "primary_prev", "x24 y166 w18 h32 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "<", (*) => HandlePrevAction())
+    AddDashboardText(guiObj, controls, "primary_next", "x136 y166 w18 h32 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, ">", (*) => HandleNextAction())
+    AddDashboardText(guiObj, controls, "quarter_button", "x104 y216 w50 h18 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "1/4", (*) => QueueRobotHandOffsetQuarterCycle())
+
+    AddDashboardText(guiObj, controls, "mfp_panel", "x188 y82 w56 h76 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, LABEL_MFP)
+    AddDashboardText(guiObj, controls, "landscape_panel", "x270 y66 w42 h148 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, LABEL_LANDSCAPE_VLC)
+    AddDashboardText(guiObj, controls, "landscape_prev", "x248 y118 w18 h24 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "<", (*) => (CancelLock(3), VlcHttpCmd(VLC3_PORT, "pl_previous")))
+    AddDashboardText(guiObj, controls, "landscape_next", "x316 y118 w18 h24 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, ">", (*) => (CancelLock(3), VlcHttpCmd(VLC3_PORT, "pl_next")))
+    AddDashboardText(guiObj, controls, "landscape_lock", "x242 y188 w42 h18 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "Lock", (*) => ToggleLock(3))
+    AddDashboardText(guiObj, controls, "landscape_trash", "x286 y188 w48 h18 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "Trash", (*) => Discard(3))
+
+    AddDashboardText(guiObj, controls, "link_toggle", "x132 y236 w74 h18 Border Center Background" . COLOR_LINK_ON . " c" . COLOR_TEXT, "Robot Link", (*) => ToggleRobotHandEnabled())
+    AddDashboardText(guiObj, controls, "osr2_panel", "x82 y260 w176 h44 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, LABEL_OSR2)
+    guiObj.SetFont("s7 Bold", "Segoe UI")
+    AddDashboardText(guiObj, controls, "broker_panel", "x16 y314 w16 h16 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "b")
+    AddDashboardText(guiObj, controls, "controller_panel", "x120 y314 w16 h16 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "c")
+    AddDashboardText(guiObj, controls, "fmode_panel", "x224 y314 w16 h16 Border Center Background" . COLOR_PANEL . " c" . COLOR_TEXT, "f")
+    guiObj.SetFont("s9 Bold", "Segoe UI")
+
+    funTimeDashboardGui := guiObj
+    funTimeDashboardControls := controls
+    ApplyFunTimeDashboardLayout()
+    GetFunTimeDashboardRect(&x, &y, &w, &h)
+    guiObj.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
+    UpdateFunTimeDashboard()
+}
+
+UpdateFunTimeDashboard() {
+    global funTimeDashboardGui, funTimeDashboardControls
+    global robotHandMode, fModeEnabled, locked2, locked3
+    global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT
+    global COLOR_PANEL, COLOR_TEXT, COLOR_MUTED, COLOR_ACTIVE, COLOR_ACTIVE_ALT, COLOR_DISABLED, COLOR_WARNING, COLOR_LINK_ON, COLOR_LINK_OFF
+    global LABEL_PRIMARY_VLC, LABEL_PRIMARY_ROBOT, LABEL_PORTRAIT_VLC, LABEL_LANDSCAPE_VLC, LABEL_OSR2, LABEL_MFP, LABEL_BROKER, LABEL_CONTROLLER, LABEL_F_MODE
+
+    if (!IsObject(funTimeDashboardGui) || !IsObject(funTimeDashboardControls))
+        return
+
+    ApplyFunTimeDashboardLayout()
+
+    primaryPath := GetCurrentFilePath(PRIMARY_VLC_PORT)
+    portraitPath := GetCurrentFilePath(VLC2_PORT)
+    landscapePath := GetCurrentFilePath(VLC3_PORT)
+    osr2Auto := RobotHandModeState() = "1"
+    robotHandEnabled := RobotHandEnabled()
+    primaryUsesRobotHand := robotHandMode && robotHandEnabled
+    primaryColor := PrimaryPanelShouldHighlight() ? COLOR_ACTIVE_ALT : COLOR_PANEL
+    portraitColor := SatellitePanelShouldHighlight(VLC2_PORT) ? COLOR_ACTIVE_ALT : COLOR_PANEL
+    landscapeColor := SatellitePanelShouldHighlight(VLC3_PORT) ? COLOR_ACTIVE_ALT : COLOR_PANEL
+    osr2Color := osr2Auto ? COLOR_ACTIVE : COLOR_WARNING
+    mfpColor := IsMfpConnected() ? COLOR_ACTIVE : COLOR_DISABLED
+    brokerColor := IsBrokerRunning() ? COLOR_ACTIVE : COLOR_DISABLED
+    controllerColor := COLOR_ACTIVE
+    fModeColor := fModeEnabled ? COLOR_ACTIVE_ALT : COLOR_PANEL
+
+    if (primaryUsesRobotHand)
+        primaryColor := osr2Color
+
+    SetDashboardControlVisual(funTimeDashboardControls["portrait_panel"], PanelLabelText(LABEL_PORTRAIT_VLC) . "`n" . ClipLabelFromPath(portraitPath), portraitColor)
+    SetDashboardControlVisual(funTimeDashboardControls["landscape_panel"], PanelLabelText(LABEL_LANDSCAPE_VLC) . "`n" . ClipLabelFromPath(landscapePath), landscapeColor)
+    SetDashboardControlVisual(funTimeDashboardControls["primary_panel"], PanelLabelText(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC) . "`n" . ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath), primaryColor)
+    SetDashboardControlVisual(funTimeDashboardControls["osr2_panel"], LABEL_OSR2 . "`n" . (osr2Auto ? "auto" : "controlled"), osr2Color)
+    SetDashboardControlVisual(funTimeDashboardControls["mfp_panel"], LABEL_MFP . "`n" . (IsMfpConnected() ? "connected" : "disconnected"), mfpColor)
+    SetDashboardControlVisual(funTimeDashboardControls["broker_panel"], "b", brokerColor)
+    SetDashboardControlVisual(funTimeDashboardControls["controller_panel"], "c", controllerColor)
+    SetDashboardControlVisual(funTimeDashboardControls["fmode_panel"], "f", fModeColor)
+    SetDashboardControlVisual(funTimeDashboardControls["portrait_lock"], "Lock", locked2 ? COLOR_ACTIVE : COLOR_PANEL)
+    SetDashboardControlVisual(funTimeDashboardControls["landscape_lock"], "Lock", locked3 ? COLOR_ACTIVE : COLOR_PANEL)
+    SetDashboardControlVisual(funTimeDashboardControls["portrait_trash"], "Trash", COLOR_WARNING)
+    SetDashboardControlVisual(funTimeDashboardControls["landscape_trash"], "Trash", COLOR_WARNING)
+    SetDashboardControlVisual(funTimeDashboardControls["link_toggle"], robotHandEnabled ? "Robot Link" : "Broken Link", robotHandEnabled ? COLOR_LINK_ON : COLOR_LINK_OFF)
+    SetDashboardControlVisual(funTimeDashboardControls["quarter_button"], "1/4", primaryUsesRobotHand ? osr2Color : COLOR_PANEL)
+
+    GetFunTimeDashboardRect(&x, &y, &w, &h)
+    funTimeDashboardGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
 }
 
 EnforceRobotHandOutputs(active, isTransition := false) {
@@ -420,7 +743,7 @@ EffectiveRobotHandModeState() {
 SyncRobotHandState() {
     global robotHandMode, pid1, omniPaused
 
-    UpdateRobotHandStatusIndicator()
+    UpdateFunTimeDashboard()
 
     if (omniPaused)
         return
@@ -680,7 +1003,7 @@ ToggleFMode() {
 
     fModeEnabled := targetEnabled
     Log("F-mode hotkey: " . (fModeEnabled ? "enabled" : "disabled"))
-    UpdateRobotHandStatusIndicator()
+    UpdateFunTimeDashboard()
 }
 
 ; -------------------- LAUNCH --------------------
@@ -743,7 +1066,8 @@ PrepareChromeOverlayManifest()
 PositionAll(pid1, pid2, pid3, pidM)
 SetTopMost(pid1, pid2, pid3, pidM)
 MaybeLaunchChromeOverlay(pidM)
-CreateRobotHandStatusGui()
+CreateFunTimeDashboard()
+SetTimer(UpdateFunTimeDashboard, 500)
 
 Sleep 1200
 
@@ -832,15 +1156,16 @@ s::ToggleLock(3)
 ; =====================================================================
 
 ShutdownAll() {
-    global isShuttingDown, pid1, pid2, pid3, pidM, pidR, pidA, robotHandStatusGui
+    global isShuttingDown, pid1, pid2, pid3, pidM, pidR, pidA, funTimeDashboardGui
     if (isShuttingDown)
         return
     isShuttingDown := true
     Log("Shutdown requested")
     SetTimer(SyncRobotHandState, 0)
+    SetTimer(UpdateFunTimeDashboard, 0)
     try {
-        if (IsObject(robotHandStatusGui))
-            robotHandStatusGui.Destroy()
+        if (IsObject(funTimeDashboardGui))
+            funTimeDashboardGui.Destroy()
     }
 
     for pid in [pid1, pid2, pid3, pidM, pidR, pidA]
@@ -892,21 +1217,88 @@ PositionAll(pid1, pid2, pid3, pidM) {
     landscapeX := mainL + (mainW - landscapeW)
     MovePidWindow(pid3, landscapeX, mainT, landscapeW, mainH)
 
-    GetMfpRect(&mX, &mY, &mW, &mH)
-    MovePidWindow(pidM, mX, mY, mW, mH)
+    PositionMfpWindow(pidM)
+}
+
+PositionMfpWindow(pidM) {
+    layout := ""
+    GetDashboardMonitorPreviewLayout(&layout)
+    hwnd := WinWait("ahk_pid " pidM, , 10)
+
+    GetActualMfpSize(&moveW, &moveH)
+    stack := ""
+    GetLeftPartitionStackLayout(layout["dashboard_w"], layout["dashboard_h"], moveW, moveH, &stack)
+    moveX := stack["mfp_x"]
+    moveY := stack["mfp_y"]
+
+    Loop 3 {
+        WinRestore("ahk_id " hwnd)
+        WinMove(moveX, moveY, moveW, moveH, "ahk_id " hwnd)
+        Sleep 80
+        WinGetPos(&actualX, &actualY, &actualW, &actualH, "ahk_id " hwnd)
+        GetLeftPartitionStackLayout(layout["dashboard_w"], layout["dashboard_h"], actualW, actualH, &stack)
+        deltaX := stack["mfp_x"] - actualX
+        deltaY := stack["mfp_y"] - actualY
+        if (Abs(deltaX) <= 1 && Abs(deltaY) <= 1)
+            break
+        moveX += deltaX
+        moveY += deltaY
+        moveW := actualW
+        moveH := actualH
+    }
 }
 
 GetMfpRect(&x, &y, &w, &h) {
-    global LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
+    layout := ""
+    GetDashboardMonitorPreviewLayout(&layout)
+    GetActualMfpSize(&mfpW, &mfpH)
+    stack := ""
+    GetLeftPartitionStackLayout(layout["dashboard_w"], layout["dashboard_h"], mfpW, mfpH, &stack)
+    x := stack["mfp_x"]
+    y := stack["mfp_y"]
+    w := stack["mfp_w"]
+    h := stack["mfp_h"]
+}
+
+GetActualMfpSize(&w, &h) {
+    global pidM, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
+    hwnd := pidM ? WinExist("ahk_pid " pidM) : 0
+    if (hwnd) {
+        try {
+            WinGetPos(, , &w, &h, "ahk_id " hwnd)
+            if (w > 0 && h > 0)
+                return
+        }
+    }
+
+    mainRect := "", secondaryRect := ""
+    GetLogicalMonitorRects(&mainRect, &secondaryRect)
+    landscapeW := Floor(mainRect["w"] * Clamp01(LANDSCAPE_WIDTH_RATIO))
+    leftW := mainRect["w"] - landscapeW
+    w := Floor(leftW * Clamp01(MFP_WIDTH_RATIO))
+    h := Floor(mainRect["h"] * Clamp01(MFP_HEIGHT_RATIO))
+}
+
+GetLeftPartitionStackLayout(dashboardW, dashboardH, mfpW, mfpH, &stack) {
+    global LANDSCAPE_WIDTH_RATIO
     mainRect := "", secondaryRect := ""
     GetLogicalMonitorRects(&mainRect, &secondaryRect)
     mainL := mainRect["x"], mainT := mainRect["y"], mainW := mainRect["w"], mainH := mainRect["h"]
     landscapeW := Floor(mainW * Clamp01(LANDSCAPE_WIDTH_RATIO))
     leftW := mainW - landscapeW
-    w := Floor(leftW * Clamp01(MFP_WIDTH_RATIO))
-    h := Floor(mainH * Clamp01(MFP_HEIGHT_RATIO))
-    x := mainL + Floor((leftW - w) / 2)
-    y := mainT + Floor((mainH - h) / 2)
+    dashboardX := mainL + Floor((leftW - dashboardW) / 2)
+    mfpX := mainL + Floor((leftW - mfpW) / 2)
+    gapY := Floor((mainH - dashboardH - mfpH) / 3)
+    dashboardY := mainT + gapY
+    mfpY := dashboardY + dashboardH + gapY
+    stack := Map(
+        "dashboard_x", dashboardX,
+        "dashboard_y", dashboardY,
+        "mfp_x", mfpX,
+        "mfp_y", mfpY,
+        "mfp_w", mfpW,
+        "mfp_h", mfpH
+    )
 }
 
 GetChromeOverlayRect(&x, &y, &w, &h) {
