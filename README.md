@@ -26,8 +26,9 @@ Core files:
 - `fun_time_config.json` — central config for paths, ports, and layout values
 - `controller.ahk` — AutoHotkey controller and hotkeys
 - `fun_time/` — shared Python package for config, logging, orchestration, and Robot Hand modules
-- `scripts/run_broker_service.ps1` — broker runner for scheduled-task usage
+- `scripts/run_broker_service.ps1` — broker runner used behind the tray launcher
 - `scripts/install_broker_startup_task.ps1` — installs the Windows startup scheduled task for broker
+- `launch_broker_tray.vbs` — hidden Windows launcher for the broker tray app
 - `icon.ico` — Fun Time / Robot Hand icon
 
 Asset folders:
@@ -230,7 +231,7 @@ Use the `Fun Time` shortcut / taskbar launcher, which calls:
 - `launch.vbs`
 - which runs `python -m fun_time.orchestrator`
 
-`fun_time.orchestrator` no longer launches the broker process.
+`fun_time.orchestrator` now starts the broker tray launcher if the broker is missing, so the tray status icon and broker recovery flow stay aligned with Windows logon startup.
 
 ### Clipper way
 

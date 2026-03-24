@@ -8,6 +8,8 @@ This note is the quick restart point for a future agent continuing the cleanup w
 - The Python/AHK launch boundary now uses a named manifest instead of positional arguments.
 - Clipper rendering, controls, state mutations, session persistence, export orchestration, and post-processing have all been separated into smaller modules.
 - `loop_fixer_and_sizer` was renamed to `clip_postprocess`, and the post-processing internals are now split into media, transform, and pipeline modules.
+- Broker startup is expected to flow through `launch_broker_tray.vbs` now, both from the Windows startup installer and from orchestrator recovery, so the tray icon remains the canonical operator surface.
+- Chrome overlay tab opening is guarded by explicit Chrome-window targeting in `controller.ahk` to avoid leaking `Ctrl+T` / `Ctrl+L` into VLC windows.
 - The suite was last verified green at `490 passed`.
 
 ## Recent Architectural Shape
