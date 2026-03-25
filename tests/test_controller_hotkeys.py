@@ -103,9 +103,12 @@ def test_status_indicator_shows_robot_hand_and_f_mode_state():
     assert 'LABEL_BROKER := "Broker"' in text
     assert 'LABEL_CONTROLLER := "Controller"' in text
     assert 'LABEL_F_MODE := "F-Mode"' in text
-    assert 'IniWrite("1", DASHBOARD_STATE_FILE, "controller", "running")' in text
-    assert 'IniWrite(brokerRunning ? "1" : "0", DASHBOARD_STATE_FILE, "broker", "running")' in text
-    assert 'IniWrite(fModeEnabled ? "1" : "0", DASHBOARD_STATE_FILE, "fmode", "enabled")' in text
+    assert '. "[controller]`n"' in text
+    assert '. "running=1`n"' in text
+    assert '. "[broker]`n"' in text
+    assert '. "running=" . (brokerRunning ? "1" : "0") . "`n"' in text
+    assert '. "[fmode]`n"' in text
+    assert '. "enabled=" . (fModeEnabled ? "1" : "0") . "`n"' in text
 
 
 def test_dashboard_highlights_use_favs_and_funscript_state():
@@ -179,17 +182,17 @@ def test_dashboard_exports_runtime_snapshot_for_python_bridge():
     text = _controller_text()
 
     assert "WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, brokerRunningNow, mfpConnectedNow, x, y, w, h, locked2, locked3)" in text
-    assert 'IniWrite(x, DASHBOARD_STATE_FILE, "window", "x")' in text
-    assert 'IniWrite(y, DASHBOARD_STATE_FILE, "window", "y")' in text
-    assert 'IniWrite(w, DASHBOARD_STATE_FILE, "window", "width")' in text
-    assert 'IniWrite(h, DASHBOARD_STATE_FILE, "window", "height")' in text
-    assert 'IniWrite(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC, DASHBOARD_STATE_FILE, "primary", "label")' in text
-    assert 'IniWrite(ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath), DASHBOARD_STATE_FILE, "primary", "clip")' in text
-    assert 'IniWrite(mfpConnected ? "1" : "0", DASHBOARD_STATE_FILE, "mfp", "connected")' in text
-    assert 'IniWrite(brokerRunning ? "1" : "0", DASHBOARD_STATE_FILE, "broker", "running")' in text
-    assert 'IniWrite(osr2Auto ? "auto" : "controlled", DASHBOARD_STATE_FILE, "osr2", "mode")' in text
-    assert 'IniWrite(portraitLocked ? "1" : "0", DASHBOARD_STATE_FILE, "portrait", "locked")' in text
-    assert 'IniWrite(landscapeLocked ? "1" : "0", DASHBOARD_STATE_FILE, "landscape", "locked")' in text
+    assert 'snapshotText := "[window]`n"' in text
+    assert '. "x=" . x . "`n"' in text
+    assert '. "width=" . w . "`n"' in text
+    assert '. "running=" . (brokerRunning ? "1" : "0") . "`n"' in text
+    assert '. "label=" . IniEscape(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC) . "`n"' in text
+    assert '. "clip=" . IniEscape(ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath)) . "`n"' in text
+    assert '. "mode=" . (osr2Auto ? "auto" : "controlled") . "`n"' in text
+    assert '. "locked=" . (portraitLocked ? "1" : "0") . "`n"' in text
+    assert '. "locked=" . (landscapeLocked ? "1" : "0") . "`n"' in text
+    assert 'if (snapshotText = lastDashboardSnapshotText)' in text
+    assert 'FileAppend(snapshotText, DASHBOARD_STATE_FILE, "UTF-16")' in text
 
 
 def test_dashboard_caches_expensive_status_probes_between_refreshes():
@@ -199,6 +202,15 @@ def test_dashboard_caches_expensive_status_probes_between_refreshes():
     assert 'if (dashboardStatusRefreshTick = 0 || (A_TickCount - dashboardStatusRefreshTick) >= 2000) {' in text
     assert 'brokerRunningNow := IsBrokerRunning()' in text
     assert 'dashboardMfpConnected := IsProcessAlive(pidM) && IsVlcResponsive(PRIMARY_VLC_PORT) && brokerRunningNow' in text
+
+
+def test_dashboard_snapshot_writer_avoids_rewriting_identical_state():
+    text = _controller_text()
+
+    assert 'global fModeEnabled, lastDashboardSnapshotText' in text
+    assert 'if (snapshotText = lastDashboardSnapshotText)' in text
+    assert 'lastDashboardSnapshotText := snapshotText' in text
+    assert 'IniEscape(value) {' in text
 
 
 def test_dashboard_uses_smaller_font_for_status_chips_and_keeps_title_in_bottom_left():
