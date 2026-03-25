@@ -75,6 +75,39 @@ def test_build_parser_accepts_launch_runtime_companions_command():
     assert args.width == 30
 
 
+def test_build_parser_accepts_launch_core_apps_command():
+    args = build_parser().parse_args(
+        [
+            "launch-core-apps",
+            "--project-dir",
+            "C:\\FunTime",
+            "--vlc-exe",
+            "vlc.exe",
+            "--mfp-exe",
+            "mfp.exe",
+            "--primary-sources",
+            "primary_a|primary_b",
+            "--portrait-sources",
+            "portrait_a",
+            "--landscape-sources",
+            "landscape_a",
+            "--primary-port",
+            "8090",
+            "--portrait-port",
+            "8091",
+            "--landscape-port",
+            "8092",
+            "--password",
+            "pw",
+            "--result-file",
+            "state\\core_apps.ini",
+        ]
+    )
+
+    assert args.command == "launch-core-apps"
+    assert args.primary_port == 8090
+
+
 def test_main_dispatches_restart_broker(monkeypatch):
     recorded: dict[str, str] = {}
 
@@ -181,3 +214,46 @@ def test_main_dispatches_launch_runtime_companions(monkeypatch):
     assert recorded["python_exe"] == "python.exe"
     assert recorded["width"] == 30
     assert recorded["result_file"] == "state\\runtime_companions.ini"
+
+
+def test_main_dispatches_launch_core_apps(monkeypatch):
+    recorded: dict[str, object] = {}
+
+    def fake_launch(**kwargs) -> None:
+        recorded.update(kwargs)
+
+    monkeypatch.setattr("fun_time.controller_startup_app.launch_core_apps", fake_launch)
+
+    code = main(
+        [
+            "launch-core-apps",
+            "--project-dir",
+            "C:\\FunTime",
+            "--vlc-exe",
+            "vlc.exe",
+            "--mfp-exe",
+            "mfp.exe",
+            "--primary-sources",
+            "primary_a|primary_b",
+            "--portrait-sources",
+            "portrait_a",
+            "--landscape-sources",
+            "landscape_a",
+            "--primary-port",
+            "8090",
+            "--portrait-port",
+            "8091",
+            "--landscape-port",
+            "8092",
+            "--password",
+            "pw",
+            "--result-file",
+            "state\\core_apps.ini",
+        ]
+    )
+
+    assert code == 0
+    assert recorded["project_dir"] == "C:\\FunTime"
+    assert recorded["vlc_exe"] == "vlc.exe"
+    assert recorded["mfp_exe"] == "mfp.exe"
+    assert recorded["portrait_port"] == 8091

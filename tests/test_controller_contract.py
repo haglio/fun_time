@@ -62,15 +62,15 @@ def test_controller_uses_explicit_primary_vlc_playback_state_helpers():
     assert 'ControlSend("{Space}", , "ahk_pid " pid1)' not in text
 
 
-def test_controller_waits_for_primary_vlc_before_launching_mfp_and_satellites():
+def test_controller_delegates_core_media_launch_and_waits_for_mfp_window_afterward():
     text = _controller_text()
 
-    primary_launch = text.index("pid1 := RunVLC(")
-    primary_wait = text.index("WaitForHttp(PRIMARY_VLC_PORT, 7000)", primary_launch)
-    mfp_launch = text.index("pidM := RunApp(MFP_EXE, \"\")", primary_wait)
-    satellite_launch = text.index("pid2 := RunVLC(", mfp_launch)
+    core_launch = text.index('args := "launch-core-apps"')
+    core_result = text.index('coreResult := LoadStartupActionResult(coreResultPath)', core_launch)
+    mfp_wait = text.index('WinWait("ahk_pid " pidM, , 15)', core_result)
+    position_all = text.index("PositionAll(pid1, pid2, pid3, pidM)", mfp_wait)
 
-    assert primary_launch < primary_wait < mfp_launch < satellite_launch
+    assert core_launch < core_result < mfp_wait < position_all
 
 
 def test_controller_delegates_f_mode_execution_to_python_modes_app():
@@ -248,6 +248,7 @@ def test_controller_delegates_startup_broker_restart_and_browser_manifest_prep_t
 
     assert 'args := "restart-broker --project-dir " . Q(PROJECT_DIR)' in text
     assert 'args := "seed-robot-hand-state"' in text
+    assert 'args := "launch-core-apps"' in text
     assert 'args := "launch-runtime-companions"' in text
     assert 'args := "prepare-random-favs-browser-manifest"' in text
     assert '. " --config " . Q(CONFIG_PATH)' in text
@@ -267,6 +268,22 @@ def test_controller_launches_robot_hand_and_audio_via_startup_helper():
     assert 'pidA := startupResult["audio_pid"]' in text
     assert 'pidR := RunApp(ROBOT_HAND_PY' not in text
     assert 'pidA := RunApp(ROBOT_HAND_PY' not in text
+
+
+def test_controller_launches_primary_mfp_and_satellites_via_startup_helper():
+    text = _controller_text()
+
+    assert 'coreResultPath := BuildStartupResultPath()' in text
+    assert 'args := "launch-core-apps"' in text
+    assert 'coreResult := LoadStartupActionResult(coreResultPath)' in text
+    assert 'pid1 := coreResult["primary_pid"]' in text
+    assert 'pidM := coreResult["mfp_pid"]' in text
+    assert 'pid2 := coreResult["portrait_pid"]' in text
+    assert 'pid3 := coreResult["landscape_pid"]' in text
+    assert 'pid1 := RunVLC(' not in text
+    assert 'pidM := RunApp(MFP_EXE, "")' not in text
+    assert text.count('pid2 := RunVLC(') == 0
+    assert text.count('pid3 := RunVLC(') == 0
 
 
 def test_controller_processes_python_dashboard_commands_from_state_file():
