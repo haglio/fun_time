@@ -216,6 +216,11 @@ class TestControllerManifest:
         result = build_controller_manifest(cfg, "pw")
         assert result["modules"]["controller_startup_module"] == "fun_time.controller_startup_app"
 
+    def test_controller_dashboard_bridge_module_name_included(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        result = build_controller_manifest(cfg, "pw")
+        assert result["modules"]["controller_dashboard_bridge_module"] == "fun_time.controller_dashboard_bridge_app"
+
     def test_random_favs_browser_paths_included(self, cfg_factory):
         cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
         result = build_controller_manifest(cfg, "pw")
@@ -244,6 +249,7 @@ class TestControllerManifest:
         assert parser["modules"]["controller_vlc_actions_module"] == "fun_time.controller_vlc_actions_app"
         assert parser["modules"]["controller_random_favs_browser_module"] == "fun_time.controller_random_favs_browser_app"
         assert parser["modules"]["controller_startup_module"] == "fun_time.controller_startup_app"
+        assert parser["modules"]["controller_dashboard_bridge_module"] == "fun_time.controller_dashboard_bridge_app"
         assert parser["commands"]["robot_hand_enabled_file"] == str(cfg.robot_hand_enabled_file)
         assert parser["commands"]["robot_hand_paused_file"] == str(cfg.robot_hand_paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
@@ -291,6 +297,8 @@ class TestValidateConfig:
         controller_random_favs_browser_py.touch()
         controller_startup_py = cfg.project_dir / "fun_time" / "controller_startup_app.py"
         controller_startup_py.touch()
+        controller_dashboard_bridge_py = cfg.project_dir / "fun_time" / "controller_dashboard_bridge_app.py"
+        controller_dashboard_bridge_py.touch()
         return cfg
 
     def test_raises_when_vlc_exe_missing(self, cfg_path: Path, tmp_path: Path):

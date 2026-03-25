@@ -135,8 +135,8 @@ def test_status_indicator_shows_robot_hand_and_f_mode_state():
     assert 'LABEL_BROKER := "Broker"' in text
     assert 'LABEL_CONTROLLER := "Controller"' in text
     assert 'LABEL_F_MODE := "F-Mode"' in text
-    assert 'snapshotText := "[fmode]`n"' in text
-    assert '. "enabled=" . (fModeEnabled ? "1" : "0") . "`n"' in text
+    assert 'args := "--output-file " . Q(DASHBOARD_STATE_FILE)' in text
+    assert '. " --f-mode-enabled " . (fModeEnabled ? "1" : "0")' in text
 
 
 def test_dashboard_highlights_are_derived_in_python_dashboard_app():
@@ -212,18 +212,14 @@ def test_dashboard_does_not_include_hover_tip_workaround():
 def test_dashboard_exports_controller_state_snapshot_for_python_bridge():
     text = _controller_text()
 
-    assert "WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, locked2, locked3)" in text
-    assert 'snapshotText := "[fmode]`n"' in text
-    assert '[window]' not in text
-    assert '. "[mfp]`n"' in text
-    assert '. "alive=" . (mfpAlive ? "1" : "0") . "`n"' in text
-    assert '. "[primary]`n"' in text
-    assert '. "uses_robot_hand=" . (primaryUsesRobotHand ? "1" : "0") . "`n"' in text
-    assert '. "mode=" . (osr2Auto ? "auto" : "controlled") . "`n"' in text
-    assert '. "locked=" . (portraitLocked ? "1" : "0") . "`n"' in text
-    assert '. "locked=" . (landscapeLocked ? "1" : "0") . "`n"' in text
-    assert 'if (snapshotText = lastDashboardSnapshotText)' in text
-    assert 'FileAppend(snapshotText, DASHBOARD_STATE_FILE, "UTF-16")' in text
+    assert 'RunControllerDashboardBridgeAction(args)' in text
+    assert 'args := "--output-file " . Q(DASHBOARD_STATE_FILE)' in text
+    assert '. " --robot-link-enabled " . (robotHandEnabledNow ? "1" : "0")' in text
+    assert '. " --osr2-mode " . (osr2Auto ? "auto" : "controlled")' in text
+    assert '. " --mfp-alive " . (mfpAlive ? "1" : "0")' in text
+    assert '. " --primary-uses-robot-hand " . (primaryUsesRobotHand ? "1" : "0")' in text
+    assert '. " --portrait-locked " . (locked2 ? "1" : "0")' in text
+    assert '. " --landscape-locked " . (locked3 ? "1" : "0")' in text
 
 
 def test_dashboard_no_longer_caches_broker_and_mfp_status_probes_in_ahk():
@@ -235,12 +231,12 @@ def test_dashboard_no_longer_caches_broker_and_mfp_status_probes_in_ahk():
     assert 'mfpAlive := pidM && ProcessExist(pidM)' in text
 
 
-def test_dashboard_snapshot_writer_avoids_rewriting_identical_state():
+def test_dashboard_snapshot_writer_logic_is_no_longer_inline_in_ahk():
     text = _controller_text()
 
-    assert 'static lastDashboardSnapshotText := ""' in text
-    assert 'if (snapshotText = lastDashboardSnapshotText)' in text
-    assert 'lastDashboardSnapshotText := snapshotText' in text
+    assert 'static lastDashboardSnapshotText := ""' not in text
+    assert 'if (snapshotText = lastDashboardSnapshotText)' not in text
+    assert 'lastDashboardSnapshotText := snapshotText' not in text
     assert 'IniEscape(value) {' not in text
 
 

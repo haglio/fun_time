@@ -174,13 +174,21 @@ def test_controller_reads_controller_startup_module_from_manifest():
     assert 'BuildStartupResultPath() {' in text
 
 
+def test_controller_reads_controller_dashboard_bridge_module_from_manifest():
+    text = _controller_text()
+
+    assert 'CONTROLLER_DASHBOARD_BRIDGE_MODULE := RequireManifestValue("modules", "controller_dashboard_bridge_module")' in text
+    assert 'RunControllerDashboardBridgeAction(args) {' in text
+    assert 'cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_DASHBOARD_BRIDGE_MODULE . " " . args' in text
+
+
 def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper():
     text = _controller_text()
 
     assert 'robotHandEnabledNow := RobotHandEnabled()' in text
     assert 'primaryUsesRobotHand := robotHandMode && robotHandEnabledNow' in text
     assert 'mfpAlive := pidM && ProcessExist(pidM)' in text
-    assert 'WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, locked2, locked3)' in text
+    assert 'RunControllerDashboardBridgeAction(args)' in text
 
 
 def test_controller_only_activates_robot_hand_window_on_transition():
@@ -195,25 +203,20 @@ def test_controller_dashboard_no_longer_repositions_or_refreshes_on_a_timer():
     text = _controller_text()
 
     update_start = text.index("UpdateFunTimeDashboard() {")
-    snapshot_fn_start = text.index("\nWriteDashboardStateSnapshot(", update_start)
+    snapshot_fn_start = text.index("\nEffectiveRobotHandModeState(", update_start)
     update_block = text[update_start:snapshot_fn_start]
 
     assert "GetFunTimeDashboardRect(&x, &y, &w, &h)" not in update_block
     assert 'SetTimer(UpdateFunTimeDashboard, 500)' not in text
-    assert 'WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, locked2, locked3)' in update_block
+    assert 'args := "--output-file " . Q(DASHBOARD_STATE_FILE)' in update_block
+    assert 'RunControllerDashboardBridgeAction(args)' in update_block
 
 
-def test_controller_dashboard_snapshot_writer_uses_function_static_cache():
+def test_controller_dashboard_snapshot_writer_is_delegated_to_python():
     text = _controller_text()
 
-    snapshot_start = text.index("WriteDashboardStateSnapshot(")
-    next_block_start = text.index("\nEffectiveRobotHandModeState(", snapshot_start)
-    snapshot_block = text[snapshot_start:next_block_start]
-
-    assert "global fModeEnabled" in snapshot_block
-    assert "static lastDashboardSnapshotText := \"\"" in snapshot_block
-    assert "global fModeEnabled, lastDashboardSnapshotText" not in snapshot_block
-    assert "if (snapshotText = lastDashboardSnapshotText)" in snapshot_block
+    assert "WriteDashboardStateSnapshot(" not in text
+    assert 'RunControllerDashboardBridgeAction(args)' in text
 
 
 def test_controller_dashboard_export_is_raw_runtime_state_only():
