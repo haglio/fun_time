@@ -21,6 +21,22 @@ def vlc_http_req(port: int, path: str, password: str, user: str = "") -> tuple[i
         return 0, ""
 
 
+def wait_for_http(
+    port: int,
+    password: str,
+    timeout_ms: int = 5000,
+    *,
+    sleep_fn=time.sleep,
+) -> bool:
+    deadline = time.monotonic() + max(0, timeout_ms) / 1000
+    while time.monotonic() <= deadline:
+        status, xml = vlc_http_req(port, "/requests/status.xml", password)
+        if status == 200 and "<state>" in xml:
+            return True
+        sleep_fn(0.2)
+    return False
+
+
 def vlc_http_cmd(port: int, command: str, password: str) -> bool:
     status, _ = vlc_http_req(port, f"/requests/status.xml?command={command}", password)
     return status == 200
@@ -31,6 +47,26 @@ def send_vlc_input_command(port: int, command: str, full_path: str, password: st
     encoded_uri = urllib.parse.quote(file_uri, safe="-_.~")
     status, _ = vlc_http_req(port, f"/requests/status.xml?command={command}&input={encoded_uri}", password)
     return status == 200
+
+
+def decode_file_uri(uri: str) -> str:
+    if not uri.startswith("file:///"):
+        return ""
+    decoded = urllib.parse.unquote(uri[8:])
+    return decoded.replace("/", "\\")
+
+
+def get_current_file_path(port: int, password: str) -> str:
+    status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
+    if status != 200 or not xml:
+        return ""
+
+    match = re.search(r'uri="([^"]+)"[^>]*current="current"', xml, re.IGNORECASE)
+    if not match:
+        match = re.search(r'current="current"[^>]*uri="([^"]+)"', xml, re.IGNORECASE)
+    if not match:
+        return ""
+    return decode_file_uri(match.group(1))
 
 
 def get_repeat_mode(port: int, password: str) -> str | None:

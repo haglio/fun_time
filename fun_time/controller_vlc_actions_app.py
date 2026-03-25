@@ -1,8 +1,15 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
-from .controller_vlc_actions import ensure_playback_state, replace_playlist_from_file, set_repeat_mode
+from .controller_vlc_actions import (
+    ensure_playback_state,
+    get_current_file_path,
+    replace_playlist_from_file,
+    set_repeat_mode,
+    wait_for_http,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,6 +32,16 @@ def build_parser() -> argparse.ArgumentParser:
     playlist_parser.add_argument("--playlist-path", required=True)
     playlist_parser.add_argument("--repeat-mode", default="")
 
+    wait_parser = subparsers.add_parser("wait-for-http")
+    wait_parser.add_argument("--port", type=int, required=True)
+    wait_parser.add_argument("--password", required=True)
+    wait_parser.add_argument("--timeout-ms", type=int, default=5000)
+
+    current_file_parser = subparsers.add_parser("current-file-path")
+    current_file_parser.add_argument("--port", type=int, required=True)
+    current_file_parser.add_argument("--password", required=True)
+    current_file_parser.add_argument("--output-file", required=True)
+
     return parser
 
 
@@ -45,6 +62,15 @@ def main(argv: list[str] | None = None) -> int:
             args.playlist_path,
             repeat_mode=args.repeat_mode,
         ) else 1
+
+    if args.action == "wait-for-http":
+        return 0 if wait_for_http(args.port, args.password, args.timeout_ms) else 1
+
+    if args.action == "current-file-path":
+        output_path = Path(args.output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(get_current_file_path(args.port, args.password), encoding="utf-8")
+        return 0
 
     return 1
 

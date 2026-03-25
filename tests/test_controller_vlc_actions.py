@@ -17,6 +17,20 @@ def test_get_playback_state_reads_state_from_xml(monkeypatch):
     assert vlc_actions.get_playback_state(8080, "pw") == "paused"
 
 
+def test_wait_for_http_succeeds_when_state_tag_appears(monkeypatch):
+    responses = iter([(0, ""), (200, "<state>playing</state>")])
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": next(responses))
+
+    assert vlc_actions.wait_for_http(8080, "pw", 500, sleep_fn=lambda _seconds: None) is True
+
+
+def test_get_current_file_path_decodes_current_file_uri(monkeypatch):
+    xml = '<leaf uri="file:///C:/clips/demo%20clip.mp4" current="current"></leaf>'
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
+
+    assert vlc_actions.get_current_file_path(8080, "pw") == r"C:\clips\demo clip.mp4"
+
+
 def test_ensure_playback_state_toggles_pause_until_target(monkeypatch):
     states = iter(["paused", "paused", "playing"])
     commands: list[str] = []
