@@ -64,9 +64,9 @@ def build_controller_manifest(config, vlc_http_pass: str) -> dict[str, dict[str,
             "mfp_width_ratio": str(layout.mfp_width_ratio),
             "mfp_height_ratio": str(layout.mfp_height_ratio),
         },
-        "chrome_overlay": {
-            "shortcut_path": str(config.chrome_overlay.shortcut_path),
-            "manifest_file": str(config.chrome_overlay_manifest_file),
+        "random_favs_browser": {
+            "shortcut_path": str(config.random_favs_browser.shortcut_path),
+            "manifest_file": str(config.random_favs_browser_manifest_file),
         },
     }
 

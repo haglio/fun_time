@@ -127,7 +127,7 @@ The layout values that used to be hard-coded in AutoHotkey now live under `contr
 Monitor naming under `controller.layout` now uses:
 
 - `main_monitor` — the monitor that shows portrait VLC, the primary VLC, and Robot Hand
-- `secondary_monitor` — the monitor that shows landscape VLC, MFP, and the Chrome overlay
+- `secondary_monitor` — the monitor that shows landscape VLC, MFP, and the Random Favs Browser
 
 ## High-level architecture
 

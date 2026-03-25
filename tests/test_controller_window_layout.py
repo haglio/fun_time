@@ -31,7 +31,7 @@ def test_compute_window_layout_uses_secondary_monitor_for_portrait_primary_and_r
     assert plan.robot_hand == plan.primary
 
 
-def test_compute_window_layout_uses_main_monitor_for_landscape_and_chrome(cfg_path: Path):
+def test_compute_window_layout_uses_main_monitor_for_landscape_and_random_favs_browser(cfg_path: Path):
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
@@ -43,8 +43,8 @@ def test_compute_window_layout_uses_main_monitor_for_landscape_and_chrome(cfg_pa
 
     assert plan.landscape.height == 1392
     assert plan.landscape.x > 0
-    assert plan.chrome.x == 0
-    assert plan.chrome.width + plan.landscape.width == 2560
+    assert plan.random_favs_browser.x == 0
+    assert plan.random_favs_browser.width + plan.landscape.width == 2560
 
 
 def test_compute_left_partition_stack_centers_dashboard_above_mfp(cfg_path: Path):

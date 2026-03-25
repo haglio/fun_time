@@ -270,4 +270,4 @@ def test_controller_delegates_window_layout_planning_to_python_plan():
     assert 'LoadWindowLayoutPlan(path) {' in text
     assert 'cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_WINDOW_LAYOUT_MODULE . " " . args' in text
     assert 'plan["dashboard"] := ' not in text
-    assert 'for section in ["portrait", "primary", "landscape", "mfp", "dashboard", "chrome", "robot_hand"] {' in text
+    assert 'for section in ["portrait", "primary", "landscape", "mfp", "dashboard", "random_favs_browser", "robot_hand"] {' in text

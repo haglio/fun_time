@@ -114,7 +114,7 @@ class AudioCompanionConfig:
 
 
 @dataclass(frozen=True)
-class ChromeOverlayConfig:
+class RandomFavsBrowserConfig:
     enabled: bool
     shortcut_path: Path
     user_data_dir: Path
@@ -132,7 +132,7 @@ class ProjectConfig:
     broker: BrokerConfig
     robot_hand: RobotHandConfig
     audio_companion: AudioCompanionConfig
-    chrome_overlay: ChromeOverlayConfig
+    random_favs_browser: RandomFavsBrowserConfig
 
     @property
     def robot_hand_mode_file(self) -> Path:
@@ -163,8 +163,8 @@ class ProjectConfig:
         return self.paths.state_dir / "audio_paused.txt"
 
     @property
-    def chrome_overlay_manifest_file(self) -> Path:
-        return self.paths.state_dir / "chrome_overlay_urls.txt"
+    def random_favs_browser_manifest_file(self) -> Path:
+        return self.paths.state_dir / "random_favs_browser_urls.txt"
 
     @property
     def logs_dir(self) -> Path:
@@ -289,16 +289,16 @@ def _load_audio_companion_config(audio_raw: dict[str, Any], source_path: Path) -
     )
 
 
-def _load_chrome_overlay_config(chrome_raw: dict[str, Any] | None) -> ChromeOverlayConfig:
+def _load_random_favs_browser_config(browser_raw: dict[str, Any] | None) -> RandomFavsBrowserConfig:
     default_user_data_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
-    chrome_values = chrome_raw or {}
-    return ChromeOverlayConfig(
-        enabled=bool(chrome_values.get("enabled", False)),
-        shortcut_path=_resolve_path(PROJECT_DIR, str(chrome_values.get("shortcut_path", "Blair Chrome.lnk"))),
-        user_data_dir=_resolve_path(PROJECT_DIR, str(chrome_values.get("user_data_dir", default_user_data_dir))),
-        profile_name=str(chrome_values.get("profile_name", "Blair")),
-        bookmarks_folder_name=str(chrome_values.get("bookmarks_folder_name", "Fun Time Favs")),
-        open_count=int(chrome_values.get("open_count", 10)),
+    browser_values = browser_raw or {}
+    return RandomFavsBrowserConfig(
+        enabled=bool(browser_values.get("enabled", False)),
+        shortcut_path=_resolve_path(PROJECT_DIR, str(browser_values.get("shortcut_path", "Blair Chrome.lnk"))),
+        user_data_dir=_resolve_path(PROJECT_DIR, str(browser_values.get("user_data_dir", default_user_data_dir))),
+        profile_name=str(browser_values.get("profile_name", "Blair")),
+        bookmarks_folder_name=str(browser_values.get("bookmarks_folder_name", "Fun Time Favs")),
+        open_count=int(browser_values.get("open_count", 10)),
     )
 
 
@@ -314,7 +314,9 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     broker_raw = _require_dict(raw, "broker", path)
     robot_raw = _require_dict(raw, "robot_hand", path)
     audio_raw = _require_dict(raw, "audio_companion", path)
-    chrome_raw = _require_optional_dict(raw, "chrome_overlay", path)
+    browser_raw = _require_optional_dict(raw, "random_favs_browser", path)
+    if browser_raw is None:
+        browser_raw = _require_optional_dict(raw, "chrome_overlay", path)
 
     return ProjectConfig(
         project_dir=PROJECT_DIR,
@@ -324,7 +326,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         broker=_load_broker_config(broker_raw, path),
         robot_hand=_load_robot_hand_config(robot_raw, path),
         audio_companion=_load_audio_companion_config(audio_raw, path),
-        chrome_overlay=_load_chrome_overlay_config(chrome_raw),
+        random_favs_browser=_load_random_favs_browser_config(browser_raw),
     )
 
 

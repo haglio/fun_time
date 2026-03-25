@@ -65,5 +65,5 @@ If an executable script has become a concentration point:
 ## Current Repo-Specific Gotchas
 
 - Broker startup should flow through `launch_broker_tray.vbs`, not directly to `scripts/run_broker_service.ps1`, so the tray icon and service startup stay in sync.
-- Chrome overlay tab opening is sensitive to window focus. Changes there should preserve explicit targeting of the Chrome window.
+- Random Favs Browser tab opening is sensitive to window focus. Changes there should preserve explicit targeting of the Chrome window.
 - The canonical test environment is the project `.venv`, not the system Python or Conda Python.

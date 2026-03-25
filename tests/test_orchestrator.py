@@ -190,11 +190,11 @@ class TestControllerManifest:
         result = build_controller_manifest(cfg, "pw")
         assert result["modules"]["controller_window_layout_module"] == "fun_time.controller_window_layout_app"
 
-    def test_chrome_overlay_paths_included(self, cfg_path: Path):
+    def test_random_favs_browser_paths_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_controller_manifest(cfg, "pw")
-        assert result["chrome_overlay"]["shortcut_path"] == str(cfg.chrome_overlay.shortcut_path)
-        assert result["chrome_overlay"]["manifest_file"] == str(cfg.chrome_overlay_manifest_file)
+        assert result["random_favs_browser"]["shortcut_path"] == str(cfg.random_favs_browser.shortcut_path)
+        assert result["random_favs_browser"]["manifest_file"] == str(cfg.random_favs_browser_manifest_file)
 
     def test_write_controller_manifest_writes_expected_ini(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
@@ -220,7 +220,7 @@ class TestControllerManifest:
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
         assert parser["commands"]["dashboard_state_file"] == str(cfg.paths.state_dir / "dashboard_state.ini")
         assert parser["commands"]["dashboard_cmd_file"] == str(cfg.paths.state_dir / "dashboard_cmd.txt")
-        assert parser["chrome_overlay"]["manifest_file"] == str(cfg.chrome_overlay_manifest_file)
+        assert parser["random_favs_browser"]["manifest_file"] == str(cfg.random_favs_browser_manifest_file)
 
 
 # ---------------------------------------------------------------------------
@@ -265,11 +265,11 @@ class TestValidateConfig:
         with pytest.raises(FileNotFoundError):
             validate_config(cfg)
 
-    def test_raises_when_chrome_shortcut_missing_if_overlay_enabled(self, cfg_factory: Path):
+    def test_raises_when_random_favs_browser_shortcut_missing_if_enabled(self, cfg_factory: Path):
         cfg = load_config(
             cfg_factory(
                 {
-                    "chrome_overlay": {
+                    "random_favs_browser": {
                         "enabled": True,
                         "shortcut_path": "missing_chrome.lnk",
                     }
