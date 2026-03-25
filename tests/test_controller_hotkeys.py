@@ -5,6 +5,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONTROLLER_AHK = PROJECT_ROOT / "controller.ahk"
+WINDOWS_BRIDGE_AHK = PROJECT_ROOT / "windows_bridge.ahk"
 CONTROLLER_WINDOWS_AHK = PROJECT_ROOT / "controller_windows.ahk"
 CONTROLLER_RUNTIME_AHK = PROJECT_ROOT / "controller_runtime.ahk"
 CONTROLLER_ACTIONS_AHK = PROJECT_ROOT / "controller_actions.ahk"
@@ -13,7 +14,7 @@ DASHBOARD_LAYOUT_PY = PROJECT_ROOT / "fun_time" / "dashboard_layout.py"
 
 def _controller_text() -> str:
     return (
-        CONTROLLER_AHK.read_text(encoding="utf-8")
+        WINDOWS_BRIDGE_AHK.read_text(encoding="utf-8")
         + "\n"
         + CONTROLLER_WINDOWS_AHK.read_text(encoding="utf-8")
         + "\n"
@@ -83,7 +84,8 @@ def test_omnipause_toggle_no_longer_depends_on_active_window():
     enter_start = text.index("EnterOmniPause() {", toggle_start)
     toggle_block = text[toggle_start:enter_start]
 
-    assert 'plan := RunControllerOmniPauseAction("toggle", omniPaused, robotHandMode, false, planPath)' in toggle_block
+    assert 'args := "build-omnipause-toggle"' in toggle_block
+    assert 'RunControllerRuntimeFlowAction(args)' in toggle_block
     assert 'if (plan["action"] = "enter")' in toggle_block
     assert "LeaveOmniPause()" in toggle_block
     assert "IsOurWindow()" not in toggle_block
@@ -98,12 +100,14 @@ def test_omnipause_non_window_side_effects_are_applied_via_python_helper():
     leave_end = text.index("StartController() {", leave_start)
     leave_block = text[leave_start:leave_end]
 
-    assert 'RunControllerOmniPauseAction("apply-enter", omniPaused, robotHandMode, false, planPath, extraArgs)' in enter_block
+    assert 'args := "apply-enter-omnipause"' in enter_block
+    assert 'RunControllerRuntimeFlowAction(args)' in enter_block
     assert 'SendVlcCommand(VLC2_PORT, "pl_pause")' not in enter_block
     assert 'SetRobotHandPaused(true)' not in enter_block
     assert 'EnsurePrimaryVlcPlayback(false)' not in enter_block
 
-    assert 'RunControllerOmniPauseAction("apply-leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath, extraArgs)' in leave_block
+    assert 'args := "apply-leave-omnipause"' in leave_block
+    assert 'RunControllerRuntimeFlowAction(args)' in leave_block
     assert 'SendVlcCommand(VLC2_PORT, "pl_pause")' not in leave_block
     assert 'SetRobotHandPaused(false)' not in leave_block
     assert 'EnsurePrimaryVlcPlayback(true)' not in leave_block
@@ -310,8 +314,10 @@ def test_robot_hand_sync_non_window_side_effects_are_applied_via_python_helper()
     toggle_start = text.index("ToggleRobotHandEnabled() {", sync_start)
     sync_block = text[sync_start:toggle_start]
 
-    assert 'RunControllerRobotHandAction("apply-sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)' in sync_block
+    assert 'args := "sync-robot-hand"' in sync_block
+    assert 'RunControllerRuntimeFlowAction(args)' in sync_block
     assert '--enabled-file ' in sync_block
+    assert '--mode-state-file ' in sync_block
     assert '--paused-file ' in sync_block
     assert '--audio-paused-file ' in sync_block
     assert 'EnsurePrimaryVlcPlayback(' not in sync_block

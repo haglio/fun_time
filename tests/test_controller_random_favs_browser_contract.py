@@ -5,6 +5,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONTROLLER_AHK = PROJECT_ROOT / "controller.ahk"
+WINDOWS_BRIDGE_AHK = PROJECT_ROOT / "windows_bridge.ahk"
 CONTROLLER_WINDOWS_AHK = PROJECT_ROOT / "controller_windows.ahk"
 CONTROLLER_RUNTIME_AHK = PROJECT_ROOT / "controller_runtime.ahk"
 CONTROLLER_ACTIONS_AHK = PROJECT_ROOT / "controller_actions.ahk"
@@ -12,7 +13,7 @@ CONTROLLER_ACTIONS_AHK = PROJECT_ROOT / "controller_actions.ahk"
 
 def _controller_text() -> str:
     return (
-        CONTROLLER_AHK.read_text(encoding="utf-8")
+        WINDOWS_BRIDGE_AHK.read_text(encoding="utf-8")
         + "\n"
         + CONTROLLER_WINDOWS_AHK.read_text(encoding="utf-8")
         + "\n"

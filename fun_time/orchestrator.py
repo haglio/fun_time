@@ -55,6 +55,7 @@ def validate_config(config) -> None:
         require_dir(landscape_dir)
     require_dir(config.paths.clips_dir)
     require_dir(config.paths.audio_dir)
+    require_file(config.project_dir / "windows_bridge.ahk")
     require_file(config.project_dir / "controller.ahk")
     require_file(config.project_dir / "scripts" / "run_broker_service.ps1")
     require_file(config.project_dir / "fun_time" / "broker_app.py")
@@ -178,7 +179,7 @@ def resolve_vlc_http_password() -> str:
 
 
 def run_controller(config, logger) -> int:
-    ahk_script = config.project_dir / "controller.ahk"
+    ahk_script = config.project_dir / "windows_bridge.ahk"
     vlc_http_pass = resolve_vlc_http_password()
     manifest_path = write_controller_manifest(config, vlc_http_pass)
     command = [str(config.paths.ahk_exe), str(ahk_script), str(manifest_path)]
