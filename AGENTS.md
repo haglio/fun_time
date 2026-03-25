@@ -38,6 +38,8 @@ If `bash test.sh` fails in PowerShell because Git Bash cannot create its signal 
    Update `docs/refactor-log.md` when the architectural shape or working norms change, and update README/other docs when runtime contracts, workflows, or operator expectations change.
 7. Leave a clean handoff.
    Before finishing, make sure the worktree is clean, the tests are green, temporary exploration artifacts are removed, and the repo is in a good state for the next feature or fix.
+8. Inspect local runtime evidence proactively.
+   When debugging controller/runtime behavior, check the relevant local logs, state files, and other runtime artifacts yourself before asking the user to gather or relay them. Ask the user to reproduce or confirm behavior when needed, but do not offload basic local log inspection to them.
 
 ## Architecture Escalation
 
