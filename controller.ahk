@@ -221,7 +221,7 @@ RunControllerLockAction(action, which, locked, currentPath, planPath, extraArgs 
     return LoadLockActionPlan(planPath)
 }
 
-RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, planPath) {
+RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, planPath, extraArgs := "") {
     global ROBOT_HAND_PY, CONTROLLER_ROBOT_HAND_MODULE, PROJECT_DIR
     args := action
         . " --robot-hand-mode-on " . (robotHandModeOn ? "1" : "0")
@@ -229,19 +229,23 @@ RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, pla
         . " --mode-state-on " . (RobotHandModeState() = "1" ? "1" : "0")
         . " --omni-paused " . (omniPausedOn ? "1" : "0")
         . " --plan-file " . Q(planPath)
+    if (extraArgs != "")
+        args .= " " . extraArgs
     cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_ROBOT_HAND_MODULE . " " . args
     if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
         return ""
     return LoadRobotHandActionPlan(planPath)
 }
 
-RunControllerOmniPauseAction(action, omniPausedOn, robotHandModeOn, skipPrimaryResume, planPath) {
+RunControllerOmniPauseAction(action, omniPausedOn, robotHandModeOn, skipPrimaryResume, planPath, extraArgs := "") {
     global ROBOT_HAND_PY, CONTROLLER_OMNIPAUSE_MODULE, PROJECT_DIR
     args := action
         . " --omni-paused " . (omniPausedOn ? "1" : "0")
         . " --robot-hand-mode-on " . (robotHandModeOn ? "1" : "0")
         . " --skip-primary-resume " . (skipPrimaryResume ? "1" : "0")
         . " --plan-file " . Q(planPath)
+    if (extraArgs != "")
+        args .= " " . extraArgs
     cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_OMNIPAUSE_MODULE . " " . args
     if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
         return ""

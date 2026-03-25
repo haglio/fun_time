@@ -293,10 +293,13 @@ def test_controller_delegates_lock_execution_to_python_app():
 def test_controller_keeps_robot_hand_sync_local_but_delegates_toggle_plan():
     text = _controller_text()
 
-    assert 'RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, planPath)' in text
+    assert 'RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, planPath, extraArgs := "")' in text
     assert 'LoadRobotHandActionPlan(path)' in text
     assert 'plan := RunControllerRobotHandAction("sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath)' not in text
-    assert 'plan := RunControllerRobotHandAction("toggle-enabled", robotHandMode, RobotHandEnabled(), omniPaused, planPath)' in text
+    assert 'plan := RunControllerRobotHandAction("apply-toggle-enabled", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)' in text
+    assert '--enabled-file ' in text
+    assert '--paused-file ' in text
+    assert '--audio-paused-file ' in text
     assert 'modeState := EffectiveRobotHandModeState()' in text
 
     sync_start = text.index("SyncRobotHandState() {")
@@ -308,10 +311,13 @@ def test_controller_keeps_robot_hand_sync_local_but_delegates_toggle_plan():
 def test_controller_delegates_omnipause_state_decisions_to_python_plan():
     text = _controller_text()
 
-    assert 'RunControllerOmniPauseAction(action, omniPausedOn, robotHandModeOn, skipPrimaryResume, planPath)' in text
+    assert 'RunControllerOmniPauseAction(action, omniPausedOn, robotHandModeOn, skipPrimaryResume, planPath, extraArgs := "")' in text
     assert 'LoadOmniPauseActionPlan(path)' in text
     assert 'plan := RunControllerOmniPauseAction("toggle", omniPaused, robotHandMode, false, planPath)' in text
-    assert 'plan := RunControllerOmniPauseAction("leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath)' in text
+    assert 'plan := RunControllerOmniPauseAction("apply-enter", omniPaused, robotHandMode, false, planPath, extraArgs)' in text
+    assert 'plan := RunControllerOmniPauseAction("apply-leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath, extraArgs)' in text
+    assert '--robot-hand-paused-file ' in text
+    assert '--audio-paused-file ' in text
 
 
 def test_controller_does_not_keep_temporary_focus_debug_monitoring():
