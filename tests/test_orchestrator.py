@@ -190,6 +190,11 @@ class TestControllerManifest:
         result = build_controller_manifest(cfg, "pw")
         assert result["modules"]["controller_window_layout_module"] == "fun_time.controller_window_layout_app"
 
+    def test_controller_vlc_actions_module_name_included(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        result = build_controller_manifest(cfg, "pw")
+        assert result["modules"]["controller_vlc_actions_module"] == "fun_time.controller_vlc_actions_app"
+
     def test_random_favs_browser_paths_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_controller_manifest(cfg, "pw")
@@ -215,6 +220,7 @@ class TestControllerManifest:
         assert parser["modules"]["controller_robot_hand_module"] == "fun_time.controller_robot_hand_app"
         assert parser["modules"]["controller_omnipause_module"] == "fun_time.controller_omnipause_app"
         assert parser["modules"]["controller_window_layout_module"] == "fun_time.controller_window_layout_app"
+        assert parser["modules"]["controller_vlc_actions_module"] == "fun_time.controller_vlc_actions_app"
         assert parser["commands"]["robot_hand_enabled_file"] == str(cfg.robot_hand_enabled_file)
         assert parser["commands"]["robot_hand_paused_file"] == str(cfg.robot_hand_paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)

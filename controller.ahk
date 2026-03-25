@@ -32,6 +32,7 @@ CONTROLLER_LOCK_MODULE := RequireManifestValue("modules", "controller_lock_modul
 CONTROLLER_ROBOT_HAND_MODULE := RequireManifestValue("modules", "controller_robot_hand_module")
 CONTROLLER_OMNIPAUSE_MODULE := RequireManifestValue("modules", "controller_omnipause_module")
 CONTROLLER_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "controller_window_layout_module")
+CONTROLLER_VLC_ACTIONS_MODULE := RequireManifestValue("modules", "controller_vlc_actions_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -196,14 +197,6 @@ RunDetached(cmdLine) {
     return pid
 }
 
-ToFileUri(winPath) {
-    if (winPath = "")
-        return ""
-    p := StrReplace(winPath, "\", "/")
-    p := StrReplace(p, " ", "%20")
-    return "file:///" . p
-}
-
 RunMediaAction(action, targetPath) {
     global ROBOT_HAND_PY, MEDIA_ACTIONS_MODULE, FAVS_FILE, WEIRD_DIR, PROJECT_DIR
     if (targetPath = "")
@@ -357,6 +350,12 @@ RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {
     if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
         return ""
     return LoadWindowLayoutPlan(planPath)
+}
+
+RunControllerVlcAction(args) {
+    global ROBOT_HAND_PY, CONTROLLER_VLC_ACTIONS_MODULE, PROJECT_DIR
+    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_VLC_ACTIONS_MODULE . " " . args
+    return RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
 LoadWindowLayoutPlan(path) {
@@ -873,37 +872,6 @@ IsFavoritePath(videoPath, favsContent) {
     return InStr(favsContent, videoPath, false) > 0
 }
 
-UrlEncodeQueryValue(text) {
-    out := ""
-    Loop Parse, text {
-        ch := A_LoopField
-        code := Ord(ch)
-        if ((code >= 0x30 && code <= 0x39)
-            || (code >= 0x41 && code <= 0x5A)
-            || (code >= 0x61 && code <= 0x7A)
-            || InStr("-_.~", ch)) {
-            out .= ch
-            continue
-        }
-
-        byteCount := StrPut(ch, "UTF-8") - 1
-        bytes := Buffer(byteCount, 0)
-        StrPut(ch, bytes, "UTF-8")
-        Loop byteCount {
-            out .= "%" . Format("{:02X}", NumGet(bytes, A_Index - 1, "UChar"))
-        }
-    }
-    return out
-}
-
-SendVlcInputCommand(port, command, fullPath) {
-    uri := ToFileUri(fullPath)
-    if (uri = "")
-        return false
-    VlcHttpReq(port, "/requests/status.xml?command=" . command . "&input=" . UrlEncodeQueryValue(uri), &st)
-    return st = 200
-}
-
 BuildPlaylistFilePath(name) {
     global STATE_DIR
     return STATE_DIR . "\" . name . ".m3u"
@@ -924,19 +892,14 @@ WriteFModePlaylists(enabled) {
 }
 
 ReplaceVlcPlaylistFromFile(port, playlistPath, repeatMode := "") {
-    if !FileExist(playlistPath)
-        return false
-
-    VlcHttpCmd(port, "pl_empty")
-    VlcHttpCmd(port, "pl_stop")
-    Sleep 180
-
-    if !SendVlcInputCommand(port, "in_play", playlistPath)
-        return false
-
+    global VLC_PASS
+    args := "replace-playlist"
+        . " --port " . port
+        . " --password " . Q(VLC_PASS)
+        . " --playlist-path " . Q(playlistPath)
     if (repeatMode != "")
-        SetRepeatMode(port, repeatMode)
-    return true
+        args .= " --repeat-mode " . repeatMode
+    return RunControllerVlcAction(args) = 0
 }
 
 ApplyFModePlaylists(enabled) {
@@ -1420,77 +1383,25 @@ VlcHttpCmd(port, cmd) {
     VlcHttpReq(port, "/requests/status.xml?command=" . cmd, &st)
 }
 
-GetLoopRepeat(port, &loopVal, &repeatVal) {
-    loopVal := "", repeatVal := ""
-    xml := VlcHttpReq(port, "/requests/status.xml", &st)
-    if (st != 200 || xml = "")
-        return false
-    if RegExMatch(xml, "<loop>([^<]+)</loop>", &m1)
-        loopVal := m1[1]
-    if RegExMatch(xml, "<repeat>([^<]+)</repeat>", &m2)
-        repeatVal := m2[1]
-    return true
-}
-
-ToBool(v) {
-    v := StrLower(Trim(v))
-    return (v = "1" || v = "true" || v = "yes")
-}
-
-GetRepeatMode(port, &mode) {
-    if !GetLoopRepeat(port, &lv, &rv)
-        return false
-
-    if (rv != "" && ToBool(rv)) {
-        mode := "one"
-    } else if (lv != "" && ToBool(lv)) {
-        mode := "all"
-    } else {
-        mode := "off"
-    }
-    return true
-}
-
-GetVlcPlaybackState(port, &state) {
-    state := ""
-    xml := VlcHttpReq(port, "/requests/status.xml", &st)
-    if (st != 200 || xml = "")
-        return false
-    if RegExMatch(xml, "<state>([^<]+)</state>", &m)
-        state := StrLower(Trim(m[1]))
-    return (state != "")
-}
-
 EnsurePrimaryVlcPlayback(shouldPlay) {
-    global PRIMARY_VLC_PORT
-    target := shouldPlay ? "playing" : "paused"
-    loop 8 {
-        if !GetVlcPlaybackState(PRIMARY_VLC_PORT, &state)
-            break
-        if (state = target)
-            return true
-        VlcHttpCmd(PRIMARY_VLC_PORT, "pl_pause")
-        Sleep 120
-    }
-    Log("Primary VLC failed to reach playback state " . target)
+    global PRIMARY_VLC_PORT, VLC_PASS
+    args := "ensure-playback-state"
+        . " --port " . PRIMARY_VLC_PORT
+        . " --password " . Q(VLC_PASS)
+        . " --should-play " . (shouldPlay ? "1" : "0")
+    if (RunControllerVlcAction(args) = 0)
+        return true
+    Log("Primary VLC failed to reach playback state " . (shouldPlay ? "playing" : "paused"))
     return false
 }
 
 SetRepeatMode(port, target) {
-    loop 12 {
-        if !GetRepeatMode(port, &m)
-            return false
-        if (m = target)
-            return true
-
-        if (target = "one")
-            VlcHttpCmd(port, "pl_repeat")
-        else
-            VlcHttpCmd(port, "pl_loop")
-
-        Sleep 120
-    }
-    return false
+    global VLC_PASS
+    args := "set-repeat-mode"
+        . " --port " . port
+        . " --password " . Q(VLC_PASS)
+        . " --target " . target
+    return RunControllerVlcAction(args) = 0
 }
 
 CancelLock(which) {
@@ -1630,7 +1541,7 @@ OmniPauseToggle() {
 }
 
 EnterOmniPause() {
-    global omniPaused, robotHandMode, pid1, pid2, pid3, pidM
+    global omniPaused, robotHandMode, pid1, pid2, pid3, pidM, pidD
     global VLC2_PORT, VLC3_PORT
     planPath := BuildOmniPausePlanPath()
     plan := RunControllerOmniPauseAction("enter", omniPaused, robotHandMode, false, planPath)
@@ -1654,8 +1565,8 @@ EnterOmniPause() {
         VlcHttpCmd(VLC3_PORT, "pl_pause")
     }
 
-    ; Remove always-on-top from all VLC windows and MFP so they stop blocking other windows.
-    for pid in [pid1, pid2, pid3, pidM] {
+    ; Remove always-on-top from all Fun Time windows so they stop blocking other windows.
+    for pid in [pid1, pid2, pid3, pidM, pidD] {
         try WinSetAlwaysOnTop(false, "ahk_pid " pid)
     }
 
@@ -1663,7 +1574,7 @@ EnterOmniPause() {
 }
 
 LeaveOmniPause(skipPrimaryVlcPlaybackToggleOnResume := false) {
-    global omniPaused, robotHandMode, pid1, pid2, pid3, pidM
+    global omniPaused, robotHandMode, pid1, pid2, pid3, pidM, pidD
     global VLC2_PORT, VLC3_PORT
     planPath := BuildOmniPausePlanPath()
     plan := RunControllerOmniPauseAction("leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath)
@@ -1688,7 +1599,8 @@ LeaveOmniPause(skipPrimaryVlcPlaybackToggleOnResume := false) {
         try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
     }
 
-    ; Restore always-on-top for the two secondary VLC windows and MFP.
+    ; Restore always-on-top for the dashboard, secondary VLC windows, and MFP.
+    try WinSetAlwaysOnTop(true, "ahk_pid " pidD)
     try WinSetAlwaysOnTop(true, "ahk_pid " pid2)
     try WinSetAlwaysOnTop(true, "ahk_pid " pid3)
     try WinSetAlwaysOnTop(true, "ahk_pid " pidM)
