@@ -5,10 +5,21 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONTROLLER_AHK = PROJECT_ROOT / "controller.ahk"
+CONTROLLER_WINDOWS_AHK = PROJECT_ROOT / "controller_windows.ahk"
 
 
 def _controller_text() -> str:
-    return CONTROLLER_AHK.read_text(encoding="utf-8")
+    return (
+        CONTROLLER_AHK.read_text(encoding="utf-8")
+        + "\n"
+        + CONTROLLER_WINDOWS_AHK.read_text(encoding="utf-8")
+    )
+
+
+def test_controller_includes_windows_bridge_helpers():
+    text = CONTROLLER_AHK.read_text(encoding="utf-8")
+
+    assert "#Include controller_windows.ahk" in text
 
 
 def test_controller_uses_manifest_argument_instead_of_positional_protocol():
