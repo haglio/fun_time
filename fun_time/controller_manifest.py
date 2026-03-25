@@ -42,6 +42,7 @@ def build_controller_manifest(config, vlc_http_pass: str) -> dict[str, dict[str,
             "controller_window_layout_module": "fun_time.controller_window_layout_app",
             "controller_vlc_actions_module": "fun_time.controller_vlc_actions_app",
             "controller_random_favs_browser_module": "fun_time.controller_random_favs_browser_app",
+            "controller_startup_module": "fun_time.controller_startup_app",
         },
         "commands": {
             "robot_hand_mode_file": str(config.robot_hand_mode_file),
