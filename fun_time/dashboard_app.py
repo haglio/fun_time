@@ -34,7 +34,14 @@ from fun_time.dashboard_state import (
     LABEL_MFP,
     LABEL_OSR2,
     LABEL_PORTRAIT_VLC,
+    LABEL_PRIMARY_ROBOT,
     LABEL_PRIMARY_VLC,
+    clip_label_from_path,
+    has_matching_funscript,
+    is_favorite_path,
+    primary_panel_should_highlight,
+    read_favs_content,
+    satellite_panel_should_highlight,
 )
 
 
@@ -53,6 +60,8 @@ COLOR_WARNING = "#8A6A2C"
 class DashboardAppConfig:
     layout: LayoutConfig
     manifest_path: Path
+    primary_sources: str
+    favs_file: Path
     dashboard_state_file: Path
     dashboard_cmd_file: Path
 
@@ -98,6 +107,8 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
     return DashboardAppConfig(
         layout=layout,
         manifest_path=manifest_path,
+        primary_sources=parser.get("media", "primary_vlc_sources", fallback=""),
+        favs_file=Path(parser.get("media", "favs_file", fallback="favs.csv")),
         dashboard_state_file=Path(parser.get("commands", "dashboard_state_file", fallback="dashboard_state.ini")),
         dashboard_cmd_file=Path(parser.get("commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt")),
     )
@@ -184,7 +195,13 @@ def get_preview_monitor_sizes(app_config: DashboardAppConfig) -> tuple[Size, Siz
     return Size(2560, 1392), Size(1440, 3440)
 
 
-def build_dashboard_scene(layout: DashboardPreviewLayout, snapshot: DashboardSnapshot | None = None) -> DashboardScene:
+def build_dashboard_scene(
+    layout: DashboardPreviewLayout,
+    snapshot: DashboardSnapshot | None = None,
+    *,
+    primary_sources: str = "",
+    favs_file: Path | None = None,
+) -> DashboardScene:
     primary_label = LABEL_PRIMARY_VLC
     portrait_label = LABEL_PORTRAIT_VLC
     landscape_label = LABEL_LANDSCAPE_VLC
@@ -206,15 +223,27 @@ def build_dashboard_scene(layout: DashboardPreviewLayout, snapshot: DashboardSna
     landscape_lock_fill = COLOR_PANEL
 
     if snapshot is not None:
-        primary_label = f"{snapshot.primary.label}\n{snapshot.primary.clip or '(none)'}"
-        portrait_label = f"{snapshot.portrait.label}\n{snapshot.portrait.clip or '(none)'}"
-        landscape_label = f"{snapshot.landscape.label}\n{snapshot.landscape.clip or '(none)'}"
+        favs_content = read_favs_content(favs_file) if favs_file is not None else ""
+        primary_label_name = LABEL_PRIMARY_ROBOT if snapshot.primary_uses_robot_hand else LABEL_PRIMARY_VLC
+        primary_label = f"{primary_label_name}\n{clip_label_from_path('' if snapshot.primary_uses_robot_hand else snapshot.primary.path)}"
+        portrait_label = f"{LABEL_PORTRAIT_VLC}\n{clip_label_from_path(snapshot.portrait.path)}"
+        landscape_label = f"{LABEL_LANDSCAPE_VLC}\n{clip_label_from_path(snapshot.landscape.path)}"
         osr2_label = f"{LABEL_OSR2}\n{snapshot.osr2_mode}"
         mfp_label = f"{LABEL_MFP}\n{'connected' if snapshot.mfp_connected else 'disconnected'}"
         link_label = "Robot Link" if snapshot.robot_link_enabled else "Broken Link"
-        primary_fill = COLOR_ACTIVE_ALT if snapshot.primary.accent == "osr2" else (COLOR_ACTIVE_ALT if snapshot.primary.highlight else COLOR_PANEL)
-        portrait_fill = COLOR_ACTIVE_ALT if snapshot.portrait.highlight else COLOR_PANEL
-        landscape_fill = COLOR_ACTIVE_ALT if snapshot.landscape.highlight else COLOR_PANEL
+        primary_fill = COLOR_ACTIVE_ALT if primary_panel_should_highlight(
+            f_mode_enabled=snapshot.f_mode_enabled,
+            primary_path=snapshot.primary.path,
+            has_matching_funscript=has_matching_funscript(snapshot.primary.path, primary_sources),
+        ) else COLOR_PANEL
+        portrait_fill = COLOR_ACTIVE_ALT if satellite_panel_should_highlight(
+            f_mode_enabled=snapshot.f_mode_enabled,
+            is_favorite=is_favorite_path(snapshot.portrait.path, favs_content),
+        ) else COLOR_PANEL
+        landscape_fill = COLOR_ACTIVE_ALT if satellite_panel_should_highlight(
+            f_mode_enabled=snapshot.f_mode_enabled,
+            is_favorite=is_favorite_path(snapshot.landscape.path, favs_content),
+        ) else COLOR_PANEL
         osr2_fill = COLOR_ACTIVE if snapshot.osr2_mode == "auto" else COLOR_WARNING
         mfp_fill = COLOR_ACTIVE if snapshot.mfp_connected else COLOR_DISABLED
         broker_fill = COLOR_ACTIVE if snapshot.broker_running else COLOR_DISABLED
@@ -238,7 +267,7 @@ def build_dashboard_scene(layout: DashboardPreviewLayout, snapshot: DashboardSna
         DashboardRectItem(layout.portrait_trash, fill=COLOR_WARNING),
         DashboardRectItem(layout.primary_prev, fill=COLOR_PANEL),
         DashboardRectItem(layout.primary_next, fill=COLOR_PANEL),
-        DashboardRectItem(layout.quarter_button, fill=osr2_fill if snapshot is not None and snapshot.primary.accent == "osr2" else COLOR_PANEL),
+        DashboardRectItem(layout.quarter_button, fill=osr2_fill if snapshot is not None and snapshot.primary_uses_robot_hand else COLOR_PANEL),
         DashboardRectItem(layout.landscape_prev, fill=COLOR_PANEL),
         DashboardRectItem(layout.landscape_next, fill=COLOR_PANEL),
         DashboardRectItem(layout.landscape_lock, fill=landscape_lock_fill),
@@ -357,7 +386,12 @@ def build_dashboard_window(app_config: DashboardAppConfig) -> tk.Tk:
 
     def refresh() -> None:
         snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
-        scene = build_dashboard_scene(preview_layout, snapshot)
+        scene = build_dashboard_scene(
+            preview_layout,
+            snapshot,
+            primary_sources=app_config.primary_sources,
+            favs_file=app_config.favs_file,
+        )
         apply_dashboard_window_geometry(root, snapshot, scene)
         render_dashboard_scene(canvas, scene)
         bind_dashboard_actions(canvas, scene, app_config.dashboard_cmd_file)

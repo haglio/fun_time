@@ -187,6 +187,18 @@ def test_controller_dashboard_snapshot_writer_declares_cache_global():
     assert "if (snapshotText = lastDashboardSnapshotText)" in snapshot_block
 
 
+def test_controller_dashboard_export_is_raw_runtime_state_only():
+    text = _controller_text()
+
+    assert "ClipLabelFromPath(" not in text
+    assert "PrimaryPanelShouldHighlight(" not in text
+    assert "SatellitePanelShouldHighlight(" not in text
+    assert "BuildMirroredFunscriptPath(" not in text
+    assert "HasMatchingFunscript(" not in text
+    assert "ReadFavsContent(" not in text
+    assert "IsFavoritePath(" not in text
+
+
 def test_controller_restores_random_favs_browser_launch_spec_helpers():
     text = _controller_text()
 

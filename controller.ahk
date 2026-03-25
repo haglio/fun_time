@@ -609,28 +609,6 @@ GetFunTimeDashboardRect(&x, &y, &w, &h) {
     h := plan["dashboard"]["h"]
 }
 
-ClipLabelFromPath(path) {
-    if (path = "")
-        return "(none)"
-    SplitPath(path, &name)
-    return name
-}
-
-PrimaryPanelShouldHighlight() {
-    global fModeEnabled, PRIMARY_VLC_PORT
-    if (fModeEnabled)
-        return true
-    path := GetCurrentFilePath(PRIMARY_VLC_PORT)
-    return path != "" && HasMatchingFunscript(path)
-}
-
-SatellitePanelShouldHighlight(port) {
-    global fModeEnabled
-    if (fModeEnabled)
-        return true
-    return IsFavoritePath(GetCurrentFilePath(port), ReadFavsContent())
-}
-
 IsBrokerRunning() {
     try {
         wmi := ComObjGet("winmgmts:")
@@ -699,7 +677,7 @@ UpdateFunTimeDashboard() {
 }
 
 WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabled, brokerRunning, mfpConnected, x, y, w, h, portraitLocked, landscapeLocked) {
-    global DASHBOARD_STATE_FILE, LABEL_PRIMARY_ROBOT, LABEL_PRIMARY_VLC, LABEL_PORTRAIT_VLC, LABEL_LANDSCAPE_VLC
+    global DASHBOARD_STATE_FILE
     global fModeEnabled, lastDashboardSnapshotText
 
     snapshotText := "[window]`n"
@@ -720,22 +698,15 @@ WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUse
         . "[mfp]`n"
         . "connected=" . (mfpConnected ? "1" : "0") . "`n"
         . "[primary]`n"
-        . "label=" . IniEscape(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC) . "`n"
-        . "clip=" . IniEscape(ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath)) . "`n"
-        . "highlight=" . (PrimaryPanelShouldHighlight() ? "1" : "0") . "`n"
-        . "accent=" . IniEscape(primaryUsesRobotHand ? "osr2" : "") . "`n"
+        . "uses_robot_hand=" . (primaryUsesRobotHand ? "1" : "0") . "`n"
+        . "path=" . IniEscape(primaryPath) . "`n"
+        . "locked=0`n"
         . "[portrait]`n"
-        . "label=" . IniEscape(LABEL_PORTRAIT_VLC) . "`n"
-        . "clip=" . IniEscape(ClipLabelFromPath(portraitPath)) . "`n"
-        . "highlight=" . (SatellitePanelShouldHighlight(VLC2_PORT) ? "1" : "0") . "`n"
+        . "path=" . IniEscape(portraitPath) . "`n"
         . "locked=" . (portraitLocked ? "1" : "0") . "`n"
-        . "accent=`n"
         . "[landscape]`n"
-        . "label=" . IniEscape(LABEL_LANDSCAPE_VLC) . "`n"
-        . "clip=" . IniEscape(ClipLabelFromPath(landscapePath)) . "`n"
-        . "highlight=" . (SatellitePanelShouldHighlight(VLC3_PORT) ? "1" : "0") . "`n"
+        . "path=" . IniEscape(landscapePath) . "`n"
         . "locked=" . (landscapeLocked ? "1" : "0") . "`n"
-        . "accent=`n"
 
     if (snapshotText = lastDashboardSnapshotText)
         return
@@ -818,58 +789,6 @@ ToggleRobotHandEnabled() {
     if (plan["enforce_outputs"])
         EnforceRobotHandOutputs(plan["enforce_active"], plan["is_transition"])
     UpdateFunTimeDashboard()
-}
-
-IsSupportedVideoPath(path) {
-    SplitPath(path, , , &ext)
-    ext := "." . StrLower(ext)
-    return ext = ".mp4" || ext = ".mkv" || ext = ".mov" || ext = ".avi" || ext = ".webm" || ext = ".m4v"
-}
-
-NormalizePathKey(path) {
-    return StrLower(Trim(path))
-}
-
-BuildMirroredFunscriptPath(videoPath) {
-    global PRIMARY_VLC_SOURCES
-
-    for sourcePart in StrSplit(PRIMARY_VLC_SOURCES, "|") {
-        sourceRoot := Trim(sourcePart)
-        if (sourceRoot = "" || !DirExist(sourceRoot))
-            continue
-
-        sourceRootNorm := RTrim(sourceRoot, "\/")
-        prefix := sourceRootNorm . "\"
-        if (SubStr(videoPath, 1, StrLen(prefix)) != prefix)
-            continue
-
-        relativePath := SubStr(videoPath, StrLen(prefix) + 1)
-        funscriptRoot := StrReplace(sourceRootNorm, "\videos\videos\", "\videos\scripts\scripts\")
-        return funscriptRoot . "\" . RegExReplace(relativePath, "\.[^.\\\/]+$", ".funscript")
-    }
-
-    return ""
-}
-
-HasMatchingFunscript(videoPath) {
-    funscriptPath := BuildMirroredFunscriptPath(videoPath)
-    return funscriptPath != "" && FileExist(funscriptPath)
-}
-
-ReadFavsContent() {
-    global FAVS_FILE
-    if !FileExist(FAVS_FILE)
-        return ""
-    try return FileRead(FAVS_FILE, "UTF-8")
-    catch {
-        return ""
-    }
-}
-
-IsFavoritePath(videoPath, favsContent) {
-    if (videoPath = "" || favsContent = "")
-        return false
-    return InStr(favsContent, videoPath, false) > 0
 }
 
 BuildPlaylistFilePath(name) {

@@ -112,13 +112,15 @@ def test_status_indicator_shows_robot_hand_and_f_mode_state():
     assert '. "enabled=" . (fModeEnabled ? "1" : "0") . "`n"' in text
 
 
-def test_dashboard_highlights_use_favs_and_funscript_state():
+def test_dashboard_highlights_are_derived_in_python_dashboard_app():
     text = _controller_text()
 
-    assert "PrimaryPanelShouldHighlight()" in text
-    assert "SatellitePanelShouldHighlight(port)" in text
-    assert "IsFavoritePath(GetCurrentFilePath(port), ReadFavsContent())" in text
-    assert "HasMatchingFunscript(path)" in text
+    assert "PrimaryPanelShouldHighlight(" not in text
+    assert "SatellitePanelShouldHighlight(" not in text
+    assert "IsFavoritePath(" not in text
+    assert "HasMatchingFunscript(" not in text
+    assert "ReadFavsContent(" not in text
+    assert "ClipLabelFromPath(" not in text
 
 
 def test_dashboard_layout_uses_monitor_work_areas_for_preview_proportions():
@@ -187,11 +189,13 @@ def test_dashboard_exports_runtime_snapshot_for_python_bridge():
     assert '. "x=" . x . "`n"' in text
     assert '. "width=" . w . "`n"' in text
     assert '. "running=" . (brokerRunning ? "1" : "0") . "`n"' in text
-    assert '. "label=" . IniEscape(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC) . "`n"' in text
-    assert '. "clip=" . IniEscape(ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath)) . "`n"' in text
+    assert '. "uses_robot_hand=" . (primaryUsesRobotHand ? "1" : "0") . "`n"' in text
+    assert '. "path=" . IniEscape(primaryPath) . "`n"' in text
     assert '. "mode=" . (osr2Auto ? "auto" : "controlled") . "`n"' in text
     assert '. "locked=" . (portraitLocked ? "1" : "0") . "`n"' in text
     assert '. "locked=" . (landscapeLocked ? "1" : "0") . "`n"' in text
+    assert '. "path=" . IniEscape(portraitPath) . "`n"' in text
+    assert '. "path=" . IniEscape(landscapePath) . "`n"' in text
     assert 'if (snapshotText = lastDashboardSnapshotText)' in text
     assert 'FileAppend(snapshotText, DASHBOARD_STATE_FILE, "UTF-16")' in text
 
@@ -258,8 +262,8 @@ def test_left_partition_stack_layout_uses_equal_vertical_gaps():
     assert 'moveY := plan["mfp"]["y"]' in text
 
 
-def test_primary_f_mode_uses_mirrored_funscript_tree():
+def test_primary_f_mode_funscript_path_logic_is_no_longer_in_controller():
     text = _controller_text()
 
-    assert 'StrReplace(sourceRootNorm, "\\videos\\videos\\", "\\videos\\scripts\\scripts\\")' in text
-    assert 'RegExReplace(relativePath, "\\.[^.\\\\\\/]+$", ".funscript")' in text
+    assert 'StrReplace(sourceRootNorm, "\\videos\\videos\\", "\\videos\\scripts\\scripts\\")' not in text
+    assert 'RegExReplace(relativePath, "\\.[^.\\\\\\/]+$", ".funscript")' not in text

@@ -7,11 +7,8 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class DashboardPanelSnapshot:
-    label: str
-    clip: str
-    highlight: bool
+    path: str
     locked: bool = False
-    accent: str = ""
 
 
 @dataclass(frozen=True)
@@ -28,6 +25,7 @@ class DashboardSnapshot:
     controller_running: bool
     f_mode_enabled: bool
     robot_link_enabled: bool
+    primary_uses_robot_hand: bool
     osr2_mode: str
     mfp_connected: bool
     primary: DashboardPanelSnapshot
@@ -51,6 +49,7 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         controller_running=_read_bool(parser, "controller", "running"),
         f_mode_enabled=_read_bool(parser, "fmode", "enabled"),
         robot_link_enabled=_read_bool(parser, "robot_link", "enabled"),
+        primary_uses_robot_hand=_read_bool(parser, "primary", "uses_robot_hand"),
         osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
         mfp_connected=_read_bool(parser, "mfp", "connected"),
         primary=_read_panel(parser, "primary"),
@@ -76,11 +75,8 @@ def _read_bool(parser: configparser.ConfigParser, section: str, option: str) -> 
 
 def _read_panel(parser: configparser.ConfigParser, section: str) -> DashboardPanelSnapshot:
     return DashboardPanelSnapshot(
-        label=parser.get(section, "label", fallback=""),
-        clip=parser.get(section, "clip", fallback=""),
-        highlight=_read_bool(parser, section, "highlight"),
+        path=parser.get(section, "path", fallback=""),
         locked=_read_bool(parser, section, "locked"),
-        accent=parser.get(section, "accent", fallback=""),
     )
 
 
