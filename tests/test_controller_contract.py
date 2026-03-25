@@ -106,12 +106,28 @@ def test_controller_reads_controller_modes_module_from_manifest():
     assert 'CONTROLLER_MODES_MODULE := RequireManifestValue("modules", "controller_modes_module")' in text
 
 
+def test_controller_reads_controller_lock_module_from_manifest():
+    text = _controller_text()
+
+    assert 'CONTROLLER_LOCK_MODULE := RequireManifestValue("modules", "controller_lock_module")' in text
+
+
 def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper():
     text = _controller_text()
 
     assert 'robotHandEnabledNow := RobotHandEnabled()' in text
     assert 'primaryUsesRobotHand := robotHandMode && robotHandEnabledNow' in text
     assert 'SetDashboardControlVisual(funTimeDashboardControls["link_toggle"], robotHandEnabledNow ? "Robot Link" : "Broken Link"' in text
+
+
+def test_controller_delegates_lock_state_decisions_to_python_plan():
+    text = _controller_text()
+
+    assert 'RunControllerLockAction(action, which, locked, currentPath, planPath)' in text
+    assert 'LoadLockActionPlan(path)' in text
+    assert 'plan := RunControllerLockAction("toggle-lock", which, currentLocked, currentPath, planPath)' in text
+    assert 'plan := RunControllerLockAction("discard", which, currentLocked, src, planPath)' in text
+    assert 'plan := RunControllerLockAction("cancel-lock", which, currentLocked, "", planPath)' in text
 
 
 def test_controller_uses_main_monitor_for_landscape_and_mfp_layout():

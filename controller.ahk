@@ -27,6 +27,7 @@ ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")
 ROBOT_HAND_MODULE := RequireManifestValue("modules", "robot_hand_module")
 MEDIA_ACTIONS_MODULE := RequireManifestValue("modules", "media_actions_module")
 CONTROLLER_MODES_MODULE := RequireManifestValue("modules", "controller_modes_module")
+CONTROLLER_LOCK_MODULE := RequireManifestValue("modules", "controller_lock_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -213,6 +214,39 @@ RunControllerModesAction(args) {
     global ROBOT_HAND_PY, CONTROLLER_MODES_MODULE, PROJECT_DIR
     cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_MODES_MODULE . " " . args
     return RunWait(cmd, PROJECT_DIR, "Hide")
+}
+
+RunControllerLockAction(action, which, locked, currentPath, planPath) {
+    global ROBOT_HAND_PY, CONTROLLER_LOCK_MODULE, PROJECT_DIR
+    args := action
+        . " --which " . which
+        . " --locked " . (locked ? "1" : "0")
+        . " --current-path " . Q(currentPath)
+        . " --plan-file " . Q(planPath)
+    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_LOCK_MODULE . " " . args
+    if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
+        return ""
+    return LoadLockActionPlan(planPath)
+}
+
+LoadLockActionPlan(path) {
+    if !FileExist(path)
+        return ""
+    plan := Map()
+    plan["next_locked"] := IniRead(path, "plan", "next_locked", "0") = "1"
+    plan["repeat_mode"] := IniRead(path, "plan", "repeat_mode", "")
+    plan["ensure_in_favs"] := IniRead(path, "plan", "ensure_in_favs", "0") = "1"
+    plan["remove_from_favs"] := IniRead(path, "plan", "remove_from_favs", "0") = "1"
+    plan["advance_playlist"] := IniRead(path, "plan", "advance_playlist", "0") = "1"
+    plan["move_to_weird"] := IniRead(path, "plan", "move_to_weird", "0") = "1"
+    plan["log_message"] := IniRead(path, "plan", "log_message", "")
+    try FileDelete(path)
+    return plan
+}
+
+BuildLockPlanPath(which) {
+    global STATE_DIR
+    return STATE_DIR . "\lock_action_plan_" . which . ".ini"
 }
 
 TryClosePid(pid) {
@@ -1559,14 +1593,18 @@ SetRepeatMode(port, target) {
 CancelLock(which) {
     global locked2, locked3
     port := (which = 2) ? VLC2_PORT : VLC3_PORT
+    currentLocked := (which = 2) ? locked2 : locked3
+    planPath := BuildLockPlanPath(which)
+    plan := RunControllerLockAction("cancel-lock", which, currentLocked, "", planPath)
+    if !IsObject(plan)
+        return
 
-    if (which = 2 && locked2) {
-        SetRepeatMode(port, "all")
-        locked2 := false
-    } else if (which = 3 && locked3) {
-        SetRepeatMode(port, "all")
-        locked3 := false
-    }
+    if (plan["repeat_mode"] != "")
+        SetRepeatMode(port, plan["repeat_mode"])
+    if (which = 2)
+        locked2 := plan["next_locked"]
+    else
+        locked3 := plan["next_locked"]
 }
 
 ; -------------------- Current item --------------------
@@ -1622,53 +1660,52 @@ Discard(which) {
     global locked2, locked3
     port := (which = 2) ? VLC2_PORT : VLC3_PORT
     src := GetCurrentFilePath(port)
+    currentLocked := (which = 2) ? locked2 : locked3
+    planPath := BuildLockPlanPath(which)
+    plan := RunControllerLockAction("discard", which, currentLocked, src, planPath)
+    if !IsObject(plan)
+        return
 
-    Log("Discarding from player " . which . ": " . src)
-
-    if (which = 2 && locked2) {
-        SetRepeatMode(port, "all")
-        locked2 := false
-    } else if (which = 3 && locked3) {
-        SetRepeatMode(port, "all")
-        locked3 := false
+    if (plan["log_message"] != "")
+        Log(plan["log_message"])
+    if (plan["repeat_mode"] != "")
+        SetRepeatMode(port, plan["repeat_mode"])
+    if (which = 2)
+        locked2 := plan["next_locked"]
+    else
+        locked3 := plan["next_locked"]
+    if (plan["remove_from_favs"])
+        RemoveFromFavs(src)
+    if (plan["advance_playlist"]) {
+        VlcHttpCmd(port, "pl_next")
+        Sleep 250
     }
-
-    RemoveFromFavs(src)
-
-    VlcHttpCmd(port, "pl_next")
-    Sleep 250
-    MoveToWeird(src)
+    if (plan["move_to_weird"])
+        MoveToWeird(src)
 }
 
 ToggleLock(which) {
     global locked2, locked3
     port := (which = 2) ? VLC2_PORT : VLC3_PORT
+    currentLocked := (which = 2) ? locked2 : locked3
+    currentPath := GetCurrentFilePath(port)
+    planPath := BuildLockPlanPath(which)
+    plan := RunControllerLockAction("toggle-lock", which, currentLocked, currentPath, planPath)
+    if !IsObject(plan)
+        return
 
-    if (which = 2) {
-        if (!locked2) {
-            SetRepeatMode(port, "one")
-            EnsureInFavs(GetCurrentFilePath(port))
-            locked2 := true
-            Log("Locked portrait VLC")
-        } else {
-            SetRepeatMode(port, "all")
-            VlcHttpCmd(port, "pl_next")
-            locked2 := false
-            Log("Unlocked portrait VLC")
-        }
-    } else {
-        if (!locked3) {
-            SetRepeatMode(port, "one")
-            EnsureInFavs(GetCurrentFilePath(port))
-            locked3 := true
-            Log("Locked landscape VLC")
-        } else {
-            SetRepeatMode(port, "all")
-            VlcHttpCmd(port, "pl_next")
-            locked3 := false
-            Log("Unlocked landscape VLC")
-        }
-    }
+    if (plan["repeat_mode"] != "")
+        SetRepeatMode(port, plan["repeat_mode"])
+    if (plan["ensure_in_favs"])
+        EnsureInFavs(currentPath)
+    if (plan["advance_playlist"])
+        VlcHttpCmd(port, "pl_next")
+    if (which = 2)
+        locked2 := plan["next_locked"]
+    else
+        locked3 := plan["next_locked"]
+    if (plan["log_message"] != "")
+        Log(plan["log_message"])
 }
 
 ; -------------------- OmniPause --------------------
