@@ -48,6 +48,25 @@ SetRobotHandAudioPaused(paused) {
     WriteRawStateFile(AUDIO_PAUSED_FILE, paused ? "1" : "0")
 }
 
+EnforceRobotHandWindowState(active, isTransition := false) {
+    global pid1
+
+    if (active) {
+        if (isTransition) {
+            try WinShow("Robot Hand")
+            try WinSetAlwaysOnTop(false, "ahk_pid " pid1)
+            try WinSetAlwaysOnTop(true, "Robot Hand")
+            try WinActivate("Robot Hand")
+        }
+    } else {
+        if (isTransition) {
+            try WinHide("Robot Hand")
+            try WinSetAlwaysOnTop(false, "Robot Hand")
+            try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
+        }
+    }
+}
+
 UpdateFunTimeDashboard() {
     global DASHBOARD_ENABLED, pidM
     global robotHandMode, locked2, locked3
@@ -90,26 +109,15 @@ WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabled, mf
 }
 
 EnforceRobotHandOutputs(active, isTransition := false) {
-    global pid1
-
     if (active) {
         EnsurePrimaryVlcPlayback(false)
         SetRobotHandPaused(false)
         SetRobotHandAudioPaused(false)
-        if (isTransition) {
-            try WinShow("Robot Hand")
-            try WinSetAlwaysOnTop(false, "ahk_pid " pid1)
-            try WinSetAlwaysOnTop(true, "Robot Hand")
-            try WinActivate("Robot Hand")
-        }
+        EnforceRobotHandWindowState(true, isTransition)
     } else {
         SetRobotHandPaused(true)
         SetRobotHandAudioPaused(true)
-        if (isTransition) {
-            try WinHide("Robot Hand")
-            try WinSetAlwaysOnTop(false, "Robot Hand")
-            try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
-        }
+        EnforceRobotHandWindowState(false, isTransition)
         EnsurePrimaryVlcPlayback(true)
     }
 }
@@ -146,17 +154,22 @@ SyncRobotHandState() {
 
 ToggleRobotHandEnabled() {
     global robotHandMode, omniPaused
+    global ROBOT_HAND_ENABLED_FILE, ROBOT_HAND_PAUSED_FILE, AUDIO_PAUSED_FILE
+    global PRIMARY_VLC_PORT, VLC_PASS
     planPath := BuildRobotHandPlanPath()
-    plan := RunControllerRobotHandAction("toggle-enabled", robotHandMode, RobotHandEnabled(), omniPaused, planPath)
+    extraArgs := "--enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)
+        . " --paused-file " . Q(ROBOT_HAND_PAUSED_FILE)
+        . " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)
+        . " --primary-port " . PRIMARY_VLC_PORT
+        . " --password " . Q(VLC_PASS)
+    plan := RunControllerRobotHandAction("apply-toggle-enabled", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)
     if !IsObject(plan)
         return
-    if (plan["write_enabled"])
-        SetRobotHandEnabled(plan["enabled_value"])
     if (plan["log_message"] != "")
         Log(plan["log_message"])
     robotHandMode := plan["next_robot_hand_mode"]
     if (plan["enforce_outputs"])
-        EnforceRobotHandOutputs(plan["enforce_active"], plan["is_transition"])
+        EnforceRobotHandWindowState(plan["enforce_active"], plan["is_transition"])
     UpdateFunTimeDashboard()
 }
 
@@ -257,9 +270,16 @@ OmniPauseToggle() {
 
 EnterOmniPause() {
     global omniPaused, robotHandMode, pid1, pid2, pid3, pidM, pidD
-    global VLC2_PORT, VLC3_PORT
+    global VLC2_PORT, VLC3_PORT, PRIMARY_VLC_PORT, VLC_PASS
+    global ROBOT_HAND_PAUSED_FILE, AUDIO_PAUSED_FILE
     planPath := BuildOmniPausePlanPath()
-    plan := RunControllerOmniPauseAction("enter", omniPaused, robotHandMode, false, planPath)
+    extraArgs := "--portrait-port " . VLC2_PORT
+        . " --landscape-port " . VLC3_PORT
+        . " --primary-port " . PRIMARY_VLC_PORT
+        . " --password " . Q(VLC_PASS)
+        . " --robot-hand-paused-file " . Q(ROBOT_HAND_PAUSED_FILE)
+        . " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)
+    plan := RunControllerOmniPauseAction("apply-enter", omniPaused, robotHandMode, false, planPath, extraArgs)
     if !IsObject(plan)
         return
 
@@ -267,15 +287,7 @@ EnterOmniPause() {
     Log(plan["log_message"])
 
     if (plan["robot_hand_branch"]) {
-        SendVlcCommand(VLC2_PORT, "pl_pause")
-        SendVlcCommand(VLC3_PORT, "pl_pause")
-        SetRobotHandPaused(true)
-        SetRobotHandAudioPaused(true)
         try WinSetAlwaysOnTop(false, "Robot Hand")
-    } else {
-        EnsurePrimaryVlcPlayback(false)
-        SendVlcCommand(VLC2_PORT, "pl_pause")
-        SendVlcCommand(VLC3_PORT, "pl_pause")
     }
 
     for pid in [pid1, pid2, pid3, pidM, pidD] {
@@ -287,25 +299,23 @@ EnterOmniPause() {
 
 LeaveOmniPause(skipPrimaryVlcPlaybackToggleOnResume := false) {
     global omniPaused, robotHandMode, pid1, pid2, pid3, pidM, pidD
-    global VLC2_PORT, VLC3_PORT
+    global VLC2_PORT, VLC3_PORT, PRIMARY_VLC_PORT, VLC_PASS
+    global ROBOT_HAND_PAUSED_FILE, AUDIO_PAUSED_FILE
     planPath := BuildOmniPausePlanPath()
-    plan := RunControllerOmniPauseAction("leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath)
+    extraArgs := "--portrait-port " . VLC2_PORT
+        . " --landscape-port " . VLC3_PORT
+        . " --primary-port " . PRIMARY_VLC_PORT
+        . " --password " . Q(VLC_PASS)
+        . " --robot-hand-paused-file " . Q(ROBOT_HAND_PAUSED_FILE)
+        . " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)
+    plan := RunControllerOmniPauseAction("apply-leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath, extraArgs)
     if !IsObject(plan)
         return
 
     Log(plan["log_message"])
     Suspend false
 
-    if (plan["robot_hand_branch"]) {
-        SetRobotHandPaused(false)
-        SetRobotHandAudioPaused(false)
-        SendVlcCommand(VLC2_PORT, "pl_pause")
-        SendVlcCommand(VLC3_PORT, "pl_pause")
-    } else {
-        if (plan["resume_primary_playback"])
-            EnsurePrimaryVlcPlayback(true)
-        SendVlcCommand(VLC2_PORT, "pl_pause")
-        SendVlcCommand(VLC3_PORT, "pl_pause")
+    if (!plan["robot_hand_branch"]) {
         try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
     }
 

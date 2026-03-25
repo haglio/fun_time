@@ -89,6 +89,26 @@ def test_omnipause_toggle_no_longer_depends_on_active_window():
     assert "IsOurWindow()" not in toggle_block
 
 
+def test_omnipause_non_window_side_effects_are_applied_via_python_helper():
+    text = _controller_text()
+
+    enter_start = text.index("EnterOmniPause() {")
+    leave_start = text.index("LeaveOmniPause(", enter_start)
+    enter_block = text[enter_start:leave_start]
+    leave_end = text.index("StartController() {", leave_start)
+    leave_block = text[leave_start:leave_end]
+
+    assert 'RunControllerOmniPauseAction("apply-enter", omniPaused, robotHandMode, false, planPath, extraArgs)' in enter_block
+    assert 'SendVlcCommand(VLC2_PORT, "pl_pause")' not in enter_block
+    assert 'SetRobotHandPaused(true)' not in enter_block
+    assert 'EnsurePrimaryVlcPlayback(false)' not in enter_block
+
+    assert 'RunControllerOmniPauseAction("apply-leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath, extraArgs)' in leave_block
+    assert 'SendVlcCommand(VLC2_PORT, "pl_pause")' not in leave_block
+    assert 'SetRobotHandPaused(false)' not in leave_block
+    assert 'EnsurePrimaryVlcPlayback(true)' not in leave_block
+
+
 def test_omnipause_still_restores_topmost_for_robot_hand_and_media_windows():
     text = _controller_text()
 
