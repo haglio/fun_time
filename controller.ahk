@@ -310,6 +310,7 @@ LoadStartupActionResult(path) {
     if !FileExist(path)
         return ""
     result := Map()
+    result["dashboard_pid"] := IniRead(path, "result", "dashboard_pid", "0") + 0
     result["primary_pid"] := IniRead(path, "result", "primary_pid", "0") + 0
     result["mfp_pid"] := IniRead(path, "result", "mfp_pid", "0") + 0
     result["portrait_pid"] := IniRead(path, "result", "portrait_pid", "0") + 0
@@ -359,19 +360,6 @@ BuildVlcQueryOutputPath(prefix) {
     static counter := 0
     counter += 1
     return STATE_DIR . "\" . prefix . "_" . A_TickCount . "_" . counter . ".txt"
-}
-
-LaunchDashboardApp(x, y, w, h, mfpPid := 0) {
-    global ROBOT_HAND_PY, DASHBOARD_MODULE, CONTROLLER_MANIFEST_PATH
-    args := "-m " . DASHBOARD_MODULE
-        . " " . Q(CONTROLLER_MANIFEST_PATH)
-        . " --x " . x
-        . " --y " . y
-        . " --width " . w
-        . " --height " . h
-    if (mfpPid)
-        args .= " --mfp-pid " . mfpPid
-    return RunApp(ROBOT_HAND_PY, args)
 }
 
 RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {

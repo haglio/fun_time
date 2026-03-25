@@ -47,7 +47,7 @@ def test_controller_defines_robot_hand_status_indicator():
     text = _controller_text()
 
     assert 'DASHBOARD_MODULE := RequireManifestValue("modules", "dashboard_module")' in text
-    assert "pidD := LaunchDashboardApp(" in text
+    assert 'args := "launch-ui-companions"' in text
     assert "UpdateFunTimeDashboard()" in text
     assert "SetTimer(ProcessDashboardCommand, 150)" in text
     assert "TraySetIcon(ICON_PATH)" in text
@@ -246,24 +246,26 @@ def test_controller_delegates_startup_broker_restart_and_browser_manifest_prep_t
     text = _controller_text()
 
     assert 'args := "start-core-session"' in text
-    assert 'args := "launch-runtime-companions"' in text
+    assert 'args := "launch-ui-companions"' in text
     assert '. " --config " . Q(CONFIG_PATH)' in text
     assert '. " --random-favs-browser-manifest-file " . Q(RANDOM_FAVS_BROWSER_MANIFEST_FILE)' in text
     assert '. " --enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)' in text
     assert '. " --paused-file " . Q(ROBOT_HAND_PAUSED_FILE)' in text
     assert '. " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)' in text
-    assert '. " --result-file " . Q(startupResultPath)' in text
+    assert '. " --result-file " . Q(uiResultPath)' in text
     assert "RestartBroker() {" not in text
 
 
 def test_controller_launches_robot_hand_and_audio_via_startup_helper():
     text = _controller_text()
 
-    assert 'startupResultPath := BuildStartupResultPath()' in text
+    assert 'uiResultPath := BuildStartupResultPath()' in text
     assert 'RunControllerStartupAction(args) != 0' in text
-    assert 'startupResult := LoadStartupActionResult(startupResultPath)' in text
+    assert 'startupResult := LoadStartupActionResult(uiResultPath)' in text
+    assert 'pidD := startupResult["dashboard_pid"]' in text
     assert 'pidR := startupResult["robot_hand_pid"]' in text
     assert 'pidA := startupResult["audio_pid"]' in text
+    assert 'LaunchDashboardApp(' not in text
     assert 'pidR := RunApp(ROBOT_HAND_PY' not in text
     assert 'pidA := RunApp(ROBOT_HAND_PY' not in text
 
@@ -282,6 +284,27 @@ def test_controller_launches_primary_mfp_and_satellites_via_startup_helper():
     assert 'pidM := RunApp(MFP_EXE, "")' not in text
     assert text.count('pid2 := RunVLC(') == 0
     assert text.count('pid3 := RunVLC(') == 0
+
+
+def test_controller_launches_dashboard_via_startup_helper_after_window_layout_is_known():
+    text = _controller_text()
+
+    get_layout = text.index('GetCurrentWindowLayout(&plan)')
+    robot_rect = text.index('GetRobotHandRect(&rx, &ry, &rw, &rh)', get_layout)
+    ui_launch = text.index('args := "launch-ui-companions"', robot_rect)
+    ui_result = text.index('pidD := startupResult["dashboard_pid"]', ui_launch)
+
+    assert get_layout < robot_rect < ui_launch < ui_result
+    assert '. " --dashboard-module " . Q(DASHBOARD_MODULE)' in text
+    assert '. " --controller-manifest-path " . Q(CONTROLLER_MANIFEST_PATH)' in text
+    assert '. " --dashboard-x " . dashboardX' in text
+    assert '. " --dashboard-y " . dashboardY' in text
+    assert '. " --dashboard-width " . dashboardW' in text
+    assert '. " --dashboard-height " . dashboardH' in text
+    assert '. " --robot-x " . rx' in text
+    assert '. " --robot-y " . ry' in text
+    assert '. " --robot-width " . rw' in text
+    assert '. " --robot-height " . rh' in text
 
 
 def test_controller_processes_python_dashboard_commands_from_state_file():

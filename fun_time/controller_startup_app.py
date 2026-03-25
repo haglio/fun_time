@@ -4,7 +4,7 @@ import argparse
 
 from .controller_startup import (
     launch_core_apps,
-    launch_runtime_companions,
+    launch_ui_companions,
     prepare_random_favs_browser_manifest,
     restart_broker,
     seed_robot_hand_state,
@@ -55,21 +55,29 @@ def build_parser() -> argparse.ArgumentParser:
     browser.add_argument("--config", required=True)
     browser.add_argument("--output", required=True)
 
-    companions = subparsers.add_parser(
-        "launch-runtime-companions",
-        help="Launch the Robot Hand and audio companion processes.",
+    ui = subparsers.add_parser(
+        "launch-ui-companions",
+        help="Launch the dashboard, Robot Hand, and audio companion processes.",
     )
-    companions.add_argument("--python-exe", required=True)
-    companions.add_argument("--robot-hand-module", required=True)
-    companions.add_argument("--audio-module", required=True)
-    companions.add_argument("--config", required=True)
-    companions.add_argument("--clips-folder", required=True)
-    companions.add_argument("--audio-folder", required=True)
-    companions.add_argument("--x", required=True, type=int)
-    companions.add_argument("--y", required=True, type=int)
-    companions.add_argument("--width", required=True, type=int)
-    companions.add_argument("--height", required=True, type=int)
-    companions.add_argument("--result-file", required=True)
+    ui.add_argument("--python-exe", required=True)
+    ui.add_argument("--dashboard-module", required=True)
+    ui.add_argument("--dashboard-enabled", required=True)
+    ui.add_argument("--controller-manifest-path", required=True)
+    ui.add_argument("--dashboard-x", required=True, type=int)
+    ui.add_argument("--dashboard-y", required=True, type=int)
+    ui.add_argument("--dashboard-width", required=True, type=int)
+    ui.add_argument("--dashboard-height", required=True, type=int)
+    ui.add_argument("--mfp-pid", required=True, type=int)
+    ui.add_argument("--robot-hand-module", required=True)
+    ui.add_argument("--audio-module", required=True)
+    ui.add_argument("--config", required=True)
+    ui.add_argument("--clips-folder", required=True)
+    ui.add_argument("--audio-folder", required=True)
+    ui.add_argument("--robot-x", required=True, type=int)
+    ui.add_argument("--robot-y", required=True, type=int)
+    ui.add_argument("--robot-width", required=True, type=int)
+    ui.add_argument("--robot-height", required=True, type=int)
+    ui.add_argument("--result-file", required=True)
 
     core = subparsers.add_parser(
         "launch-core-apps",
@@ -117,18 +125,26 @@ def main(argv: list[str] | None = None) -> int:
             result_file=args.result_file,
         )
         return 0
-    if args.command == "launch-runtime-companions":
-        launch_runtime_companions(
+    if args.command == "launch-ui-companions":
+        launch_ui_companions(
             python_exe=args.python_exe,
+            dashboard_module=args.dashboard_module,
+            dashboard_enabled=args.dashboard_enabled.strip() not in {"", "0", "false", "False"},
+            controller_manifest_path=args.controller_manifest_path,
+            dashboard_x=args.dashboard_x,
+            dashboard_y=args.dashboard_y,
+            dashboard_width=args.dashboard_width,
+            dashboard_height=args.dashboard_height,
+            mfp_pid=args.mfp_pid,
             robot_hand_module=args.robot_hand_module,
             audio_module=args.audio_module,
             config_path=args.config,
             clips_folder=args.clips_folder,
             audio_folder=args.audio_folder,
-            x=args.x,
-            y=args.y,
-            width=args.width,
-            height=args.height,
+            robot_x=args.robot_x,
+            robot_y=args.robot_y,
+            robot_width=args.robot_width,
+            robot_height=args.robot_height,
             result_file=args.result_file,
         )
         return 0

@@ -86,12 +86,28 @@ def test_build_parser_accepts_start_core_session_command():
     assert args.random_favs_browser_manifest_file.endswith("random_favs_browser_urls.txt")
 
 
-def test_build_parser_accepts_launch_runtime_companions_command():
+def test_build_parser_accepts_launch_ui_companions_command():
     args = build_parser().parse_args(
         [
-            "launch-runtime-companions",
+            "launch-ui-companions",
             "--python-exe",
             "python.exe",
+            "--dashboard-module",
+            "fun_time.dashboard_app",
+            "--dashboard-enabled",
+            "1",
+            "--controller-manifest-path",
+            "controller_launch.ini",
+            "--dashboard-x",
+            "10",
+            "--dashboard-y",
+            "20",
+            "--dashboard-width",
+            "30",
+            "--dashboard-height",
+            "40",
+            "--mfp-pid",
+            "55",
             "--robot-hand-module",
             "fun_time.robot_hand.app",
             "--audio-module",
@@ -102,21 +118,22 @@ def test_build_parser_accepts_launch_runtime_companions_command():
             "clips",
             "--audio-folder",
             "audio",
-            "--x",
-            "10",
-            "--y",
-            "20",
-            "--width",
-            "30",
-            "--height",
-            "40",
+            "--robot-x",
+            "100",
+            "--robot-y",
+            "200",
+            "--robot-width",
+            "300",
+            "--robot-height",
+            "400",
             "--result-file",
-            "state\\runtime_companions.ini",
+            "state\\ui_companions.ini",
         ]
     )
 
-    assert args.command == "launch-runtime-companions"
-    assert args.width == 30
+    assert args.command == "launch-ui-companions"
+    assert args.dashboard_width == 30
+    assert args.robot_height == 400
 
 
 def test_build_parser_accepts_launch_core_apps_command():
@@ -271,19 +288,35 @@ def test_main_dispatches_start_core_session(monkeypatch):
     assert recorded["result_file"] == "state\\core_session.ini"
 
 
-def test_main_dispatches_launch_runtime_companions(monkeypatch):
+def test_main_dispatches_launch_ui_companions(monkeypatch):
     recorded: dict[str, object] = {}
 
     def fake_launch(**kwargs) -> None:
         recorded.update(kwargs)
 
-    monkeypatch.setattr("fun_time.controller_startup_app.launch_runtime_companions", fake_launch)
+    monkeypatch.setattr("fun_time.controller_startup_app.launch_ui_companions", fake_launch)
 
     code = main(
         [
-            "launch-runtime-companions",
+            "launch-ui-companions",
             "--python-exe",
             "python.exe",
+            "--dashboard-module",
+            "fun_time.dashboard_app",
+            "--dashboard-enabled",
+            "1",
+            "--controller-manifest-path",
+            "controller_launch.ini",
+            "--dashboard-x",
+            "10",
+            "--dashboard-y",
+            "20",
+            "--dashboard-width",
+            "30",
+            "--dashboard-height",
+            "40",
+            "--mfp-pid",
+            "55",
             "--robot-hand-module",
             "fun_time.robot_hand.app",
             "--audio-module",
@@ -294,23 +327,26 @@ def test_main_dispatches_launch_runtime_companions(monkeypatch):
             "clips",
             "--audio-folder",
             "audio",
-            "--x",
-            "10",
-            "--y",
-            "20",
-            "--width",
-            "30",
-            "--height",
-            "40",
+            "--robot-x",
+            "100",
+            "--robot-y",
+            "200",
+            "--robot-width",
+            "300",
+            "--robot-height",
+            "400",
             "--result-file",
-            "state\\runtime_companions.ini",
+            "state\\ui_companions.ini",
         ]
     )
 
     assert code == 0
     assert recorded["python_exe"] == "python.exe"
-    assert recorded["width"] == 30
-    assert recorded["result_file"] == "state\\runtime_companions.ini"
+    assert recorded["dashboard_module"] == "fun_time.dashboard_app"
+    assert recorded["dashboard_enabled"] is True
+    assert recorded["controller_manifest_path"] == "controller_launch.ini"
+    assert recorded["mfp_pid"] == 55
+    assert recorded["robot_height"] == 400
 
 
 def test_main_dispatches_launch_core_apps(monkeypatch):

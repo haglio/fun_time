@@ -288,7 +288,7 @@ StartController() {
     global pid1, pid2, pid3, pidM, pidD, pidR, pidA
     global MFP_EXE, PRIMARY_VLC_PORT, PRIMARY_VLC_SOURCES, VLC_PASS
     global VLC2_PORT, VLC3_PORT, PORTRAIT_DIR, LANDSCAPE_DIR
-    global ROBOT_HAND_PY, ROBOT_HAND_MODULE, CONFIG_PATH, ROBOT_HAND_CLIPS
+    global ROBOT_HAND_PY, ROBOT_HAND_MODULE, DASHBOARD_MODULE, CONTROLLER_MANIFEST_PATH, CONFIG_PATH, ROBOT_HAND_CLIPS
     global ROBOT_HAND_AUDIO_MODULE, ROBOT_HAND_AUDIO
 
     Log("Controller starting")
@@ -338,27 +338,16 @@ StartController() {
     SetTopMost(pid1, pid2, pid3, pidM)
     Log("Startup: core windows positioned and topmost set")
     MaybeLaunchRandomFavsBrowser(pidM)
-    if (DASHBOARD_ENABLED) {
-        try FileDelete(DASHBOARD_CMD_FILE)
-        GetCurrentWindowLayout(&plan)
-        pidD := LaunchDashboardApp(
-            plan["dashboard"]["x"],
-            plan["dashboard"]["y"],
-            plan["dashboard"]["w"],
-            plan["dashboard"]["h"],
-            pidM
-        )
-        Log("Startup: launched dashboard pid=" . pidD)
-        SetTimer(ProcessDashboardCommand, 150)
-        UpdateFunTimeDashboard()
-        Log("Startup: dashboard state seeded")
-        Log("Startup: dashboard command timer running")
-    } else {
-        try FileDelete(DASHBOARD_CMD_FILE)
+
+    try FileDelete(DASHBOARD_CMD_FILE)
+    if (!DASHBOARD_ENABLED)
         try FileDelete(DASHBOARD_STATE_FILE)
-        SetTimer(ProcessDashboardCommand, 150)
-        Log("Startup: dashboard disabled")
-    }
+
+    GetCurrentWindowLayout(&plan)
+    dashboardX := plan["dashboard"]["x"]
+    dashboardY := plan["dashboard"]["y"]
+    dashboardW := plan["dashboard"]["w"]
+    dashboardH := plan["dashboard"]["h"]
 
     Sleep 1200
 
@@ -366,26 +355,44 @@ StartController() {
     GetRobotHandRect(&rx, &ry, &rw, &rh)
     Log("Startup: resolved Robot Hand rect x=" . rx . " y=" . ry . " w=" . rw . " h=" . rh)
 
-    startupResultPath := BuildStartupResultPath()
-    args := "launch-runtime-companions"
+    uiResultPath := BuildStartupResultPath()
+    args := "launch-ui-companions"
         . " --python-exe " . Q(ROBOT_HAND_PY)
+        . " --dashboard-module " . Q(DASHBOARD_MODULE)
+        . " --dashboard-enabled " . (DASHBOARD_ENABLED ? "1" : "0")
+        . " --controller-manifest-path " . Q(CONTROLLER_MANIFEST_PATH)
+        . " --dashboard-x " . dashboardX
+        . " --dashboard-y " . dashboardY
+        . " --dashboard-width " . dashboardW
+        . " --dashboard-height " . dashboardH
+        . " --mfp-pid " . pidM
         . " --robot-hand-module " . Q(ROBOT_HAND_MODULE)
         . " --audio-module " . Q(ROBOT_HAND_AUDIO_MODULE)
         . " --config " . Q(CONFIG_PATH)
         . " --clips-folder " . Q(ROBOT_HAND_CLIPS)
         . " --audio-folder " . Q(ROBOT_HAND_AUDIO)
-        . " --x " . rx
-        . " --y " . ry
-        . " --width " . rw
-        . " --height " . rh
-        . " --result-file " . Q(startupResultPath)
+        . " --robot-x " . rx
+        . " --robot-y " . ry
+        . " --robot-width " . rw
+        . " --robot-height " . rh
+        . " --result-file " . Q(uiResultPath)
     if (RunControllerStartupAction(args) != 0)
-        throw Error("Failed to launch Robot Hand runtime companions")
-    startupResult := LoadStartupActionResult(startupResultPath)
+        throw Error("Failed to launch UI/runtime companions")
+    startupResult := LoadStartupActionResult(uiResultPath)
     if !IsObject(startupResult)
-        throw Error("Failed to read Robot Hand runtime companion pids")
+        throw Error("Failed to read UI/runtime companion pids")
+    pidD := startupResult["dashboard_pid"]
     pidR := startupResult["robot_hand_pid"]
     pidA := startupResult["audio_pid"]
+    if (DASHBOARD_ENABLED) {
+        Log("Startup: launched dashboard pid=" . pidD)
+        UpdateFunTimeDashboard()
+        Log("Startup: dashboard state seeded")
+        Log("Startup: dashboard command timer running")
+    } else {
+        Log("Startup: dashboard disabled")
+    }
+    SetTimer(ProcessDashboardCommand, 150)
     Log("Started Robot Hand listener pid=" . pidR)
     Log("Started Robot Hand audio pid=" . pidA)
 
