@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.controller_manifest import write_controller_manifest
+from fun_time.windows_bridge_manifest import write_windows_bridge_manifest
 from fun_time.dashboard_app import (
     COLOR_DISABLED,
     COLOR_ACTIVE_ALT,
@@ -22,7 +22,7 @@ from fun_time import load_config
 
 def test_dashboard_app_loads_layout_from_controller_manifest(cfg_path: Path, tmp_path: Path):
     config = load_config(cfg_path)
-    manifest_path = write_controller_manifest(config, "vlc-pass", destination=tmp_path / "controller_launch.ini")
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
 
     app_config = load_dashboard_app_config(manifest_path)
 
@@ -228,7 +228,7 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
 
 def test_dashboard_app_hydrates_live_vlc_state(cfg_path: Path):
     config = load_config(cfg_path)
-    manifest_path = write_controller_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
     app_config = load_dashboard_app_config(manifest_path)
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,

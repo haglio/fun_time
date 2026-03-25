@@ -11,8 +11,8 @@ from pathlib import Path
 import tkinter as tk
 
 from fun_time.config import LayoutConfig
-from fun_time.controller_manifest import CONTROLLER_MANIFEST_FILENAME
-from fun_time.controller_vlc_actions import get_current_file_path, vlc_http_req
+from fun_time.windows_bridge_manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
+from fun_time.windows_bridge_vlc_actions import get_current_file_path, vlc_http_req
 from fun_time.dashboard_actions import (
     LANDSCAPE_LOCK,
     LANDSCAPE_NEXT,
@@ -476,8 +476,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "manifest_path",
         nargs="?",
-        default=str(Path("state") / CONTROLLER_MANIFEST_FILENAME),
-        help="Path to the controller launch manifest",
+        default=str(Path("state") / WINDOWS_BRIDGE_MANIFEST_FILENAME),
+        help="Path to the Windows bridge launch manifest",
     )
     parser.add_argument("--x", type=int)
     parser.add_argument("--y", type=int)
@@ -505,3 +505,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

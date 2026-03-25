@@ -39,7 +39,7 @@ def isolated_integration_session(tmp_path):
 
 @pytest.mark.integration
 def test_fun_time_startup_runtime_smoke(shared_integration_session: FunTimeIntegrationSession):
-    assert shared_integration_session.controller_log.exists()
+    assert shared_integration_session.windows_bridge_log.exists()
     assert shared_integration_session.orchestrator_log.exists()
 
 
@@ -115,3 +115,4 @@ def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session
         timeout=12,
         description="portrait sample to be moved into the integration weird dir",
     )
+

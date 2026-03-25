@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from fun_time.config import load_config
-from fun_time.controller_modes import build_mirrored_funscript_path, has_matching_funscript
+from fun_time.windows_bridge_modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 
 
@@ -29,8 +29,8 @@ class FunTimeIntegrationSession:
         self._log_pos = 0
 
     @property
-    def controller_log(self) -> Path:
-        return self.config.log_file("controller")
+    def windows_bridge_log(self) -> Path:
+        return self.config.log_file("windows_bridge")
 
     @property
     def orchestrator_log(self) -> Path:
@@ -68,13 +68,13 @@ class FunTimeIntegrationSession:
             stderr=subprocess.DEVNULL,
             text=True,
         )
-        self.wait_for_log("Controller starting", timeout=wait_seconds)
+        self.wait_for_log("Windows bridge starting", timeout=wait_seconds)
         self.wait_for_any_log(
             ["Startup: Robot Hand sync timer running", "Started Robot Hand listener pid="],
             timeout=wait_seconds,
         )
         time.sleep(1.0)
-        self._log_pos = self.controller_log.stat().st_size if self.controller_log.exists() else 0
+        self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
 
     def stop(self) -> None:
         if self._proc and self._proc.poll() is None:
@@ -131,7 +131,7 @@ class FunTimeIntegrationSession:
     def wait_for_log(self, needle: str, timeout: float = 10.0) -> str:
         deadline = time.time() + timeout
         while time.time() < deadline:
-            text = self._read_controller_log()
+            text = self._read_windows_bridge_log()
             if needle in text:
                 return text
             time.sleep(0.2)
@@ -140,7 +140,7 @@ class FunTimeIntegrationSession:
     def wait_for_new_log(self, needle: str, timeout: float = 10.0) -> str:
         deadline = time.time() + timeout
         while time.time() < deadline:
-            chunk = self._read_controller_log_chunk()
+            chunk = self._read_windows_bridge_log_chunk()
             if needle in chunk:
                 return chunk
             time.sleep(0.2)
@@ -149,26 +149,26 @@ class FunTimeIntegrationSession:
     def wait_for_any_log(self, needles: list[str], timeout: float = 10.0) -> str:
         deadline = time.time() + timeout
         while time.time() < deadline:
-            text = self._read_controller_log()
+            text = self._read_windows_bridge_log()
             for needle in needles:
                 if needle in text:
                     return needle
             time.sleep(0.2)
         raise AssertionError(f"Did not find any log line containing one of {needles!r}")
 
-    def _read_controller_log(self) -> str:
-        if not self.controller_log.exists():
+    def _read_windows_bridge_log(self) -> str:
+        if not self.windows_bridge_log.exists():
             return ""
         try:
-            return self.controller_log.read_text(encoding="utf-8", errors="ignore")
+            return self.windows_bridge_log.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             return ""
 
-    def _read_controller_log_chunk(self) -> str:
-        if not self.controller_log.exists():
+    def _read_windows_bridge_log_chunk(self) -> str:
+        if not self.windows_bridge_log.exists():
             return ""
         try:
-            with self.controller_log.open("r", encoding="utf-8", errors="ignore") as fh:
+            with self.windows_bridge_log.open("r", encoding="utf-8", errors="ignore") as fh:
                 fh.seek(self._log_pos)
                 chunk = fh.read()
                 self._log_pos = fh.tell()
@@ -268,3 +268,4 @@ def _safe_link(src: Path, dest: Path) -> None:
         os.link(src, dest)
     except OSError:
         shutil.copy2(src, dest)
+

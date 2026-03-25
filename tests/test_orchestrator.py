@@ -7,10 +7,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fun_time.controller_manifest import (
-    CONTROLLER_MANIFEST_FILENAME,
-    build_controller_manifest,
-    write_controller_manifest,
+from fun_time.windows_bridge_manifest import (
+    WINDOWS_BRIDGE_MANIFEST_FILENAME,
+    build_windows_bridge_manifest,
+    write_windows_bridge_manifest,
 )
 from fun_time.orchestrator import (
     build_parser,
@@ -21,7 +21,7 @@ from fun_time.orchestrator import (
     require_dir,
     require_file,
     resolve_vlc_http_password,
-    run_controller,
+    run_windows_bridge,
     start_broker,
     validate_config,
     vlc_http_password_from_vlcrc,
@@ -92,17 +92,17 @@ class TestRequireDir:
 class TestControllerManifest:
     def test_returns_sections(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "testpass")
+        result = build_windows_bridge_manifest(cfg, "testpass")
         assert isinstance(result, dict)
 
     def test_vlc_pass_is_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "mysecret")
+        result = build_windows_bridge_manifest(cfg, "mysecret")
         assert result["controller"]["vlc_pass"] == "mysecret"
 
     def test_vlc_ports_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg, "pw")
         assert result["controller"]["vlc2_port"] == "8091"
         assert result["controller"]["vlc3_port"] == "8092"
         assert result["layout"]["main_monitor"] == "1"
@@ -110,7 +110,7 @@ class TestControllerManifest:
 
     def test_runtime_section_includes_config_path(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg, "pw")
         assert result["runtime"]["config_path"] == str(cfg.config_path)
 
     def test_primary_vlc_dirs_joined_with_pipe(self, tmp_path: Path, cfg_factory):
@@ -121,7 +121,7 @@ class TestControllerManifest:
             str(extra),
         ]}})
         cfg = load_config(path)
-        manifest = build_controller_manifest(cfg, "pw")
+        manifest = build_windows_bridge_manifest(cfg, "pw")
         joined = manifest["media"]["primary_vlc_sources"]
         assert str(tmp_path / "vlc_primary") in joined
         assert str(extra) in joined
@@ -137,7 +137,7 @@ class TestControllerManifest:
             "landscape_dirs": [str(tmp_path / "landscape"), str(landscape_extra)],
         }})
         cfg = load_config(path)
-        manifest = build_controller_manifest(cfg, "pw")
+        manifest = build_windows_bridge_manifest(cfg, "pw")
         assert str(tmp_path / "portrait") in manifest["media"]["portrait_dirs"]
         assert str(portrait_extra) in manifest["media"]["portrait_dirs"]
         assert "|" in manifest["media"]["portrait_dirs"]
@@ -147,97 +147,97 @@ class TestControllerManifest:
 
     def test_robot_hand_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg, "pw")
         assert result["modules"]["robot_hand_module"] == "fun_time.robot_hand.app"
 
     def test_audio_companion_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg, "pw")
         assert result["modules"]["audio_module"] == "fun_time.audio_companion_app"
 
     def test_dashboard_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg, "pw")
         assert result["modules"]["dashboard_module"] == "fun_time.dashboard_app"
 
     def test_dashboard_enabled_defaults_true(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg, "pw")
         assert result["dashboard"]["enabled"] == "1"
 
     def test_dashboard_enabled_can_be_disabled_for_integration(self, cfg_path: Path, monkeypatch):
         cfg = load_config(cfg_path)
         monkeypatch.setenv("FUN_TIME_DISABLE_DASHBOARD", "1")
-        result = build_controller_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg, "pw")
         assert result["dashboard"]["enabled"] == "0"
 
     def test_media_actions_module_removed_from_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg, "pw")
         assert "media_actions_module" not in result["modules"]
 
-    def test_controller_lock_module_name_included(self, cfg_path: Path):
+    def test_windows_bridge_lock_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["controller_lock_module"] == "fun_time.controller_lock_app"
+        result = build_windows_bridge_manifest(cfg, "pw")
+        assert result["modules"]["windows_bridge_lock_module"] == "fun_time.windows_bridge_lock_app"
 
-    def test_controller_runtime_flow_module_name_included(self, cfg_path: Path):
+    def test_windows_bridge_runtime_flow_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["controller_runtime_flow_module"] == "fun_time.controller_runtime_flow_app"
+        result = build_windows_bridge_manifest(cfg, "pw")
+        assert result["modules"]["windows_bridge_runtime_flow_module"] == "fun_time.windows_bridge_runtime_flow_app"
 
-    def test_controller_window_layout_module_name_included(self, cfg_path: Path):
+    def test_windows_bridge_window_layout_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["controller_window_layout_module"] == "fun_time.controller_window_layout_app"
+        result = build_windows_bridge_manifest(cfg, "pw")
+        assert result["modules"]["windows_bridge_window_layout_module"] == "fun_time.windows_bridge_window_layout_app"
 
-    def test_controller_vlc_actions_module_name_included(self, cfg_path: Path):
+    def test_windows_bridge_vlc_actions_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["controller_vlc_actions_module"] == "fun_time.controller_vlc_actions_app"
+        result = build_windows_bridge_manifest(cfg, "pw")
+        assert result["modules"]["windows_bridge_vlc_actions_module"] == "fun_time.windows_bridge_vlc_actions_app"
 
-    def test_controller_random_favs_browser_module_name_included(self, cfg_path: Path):
+    def test_windows_bridge_random_favs_browser_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["controller_random_favs_browser_module"] == "fun_time.controller_random_favs_browser_app"
+        result = build_windows_bridge_manifest(cfg, "pw")
+        assert result["modules"]["windows_bridge_random_favs_browser_module"] == "fun_time.windows_bridge_random_favs_browser_app"
 
-    def test_controller_startup_module_name_included(self, cfg_path: Path):
+    def test_windows_bridge_startup_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["controller_startup_module"] == "fun_time.controller_startup_app"
+        result = build_windows_bridge_manifest(cfg, "pw")
+        assert result["modules"]["windows_bridge_startup_module"] == "fun_time.windows_bridge_startup_app"
 
-    def test_controller_dashboard_bridge_module_name_included(self, cfg_path: Path):
+    def test_windows_bridge_dashboard_bridge_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["controller_dashboard_bridge_module"] == "fun_time.controller_dashboard_bridge_app"
+        result = build_windows_bridge_manifest(cfg, "pw")
+        assert result["modules"]["windows_bridge_dashboard_bridge_module"] == "fun_time.windows_bridge_dashboard_bridge_app"
 
     def test_random_favs_browser_paths_included(self, cfg_factory):
         cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
-        result = build_controller_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg, "pw")
         assert result["random_favs_browser"]["enabled"] == "1"
         assert result["random_favs_browser"]["shortcut_path"] == str(cfg.random_favs_browser.shortcut_path)
         assert result["random_favs_browser"]["manifest_file"] == str(cfg.random_favs_browser_manifest_file)
 
-    def test_write_controller_manifest_writes_expected_ini(self, cfg_factory, tmp_path: Path):
+    def test_write_windows_bridge_manifest_writes_expected_ini(self, cfg_factory, tmp_path: Path):
         cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
-        manifest_path = write_controller_manifest(cfg, "pw", tmp_path / CONTROLLER_MANIFEST_FILENAME)
+        manifest_path = write_windows_bridge_manifest(cfg, "pw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
         parser = configparser.ConfigParser()
         parser.optionxform = str
         parser.read(manifest_path, encoding="utf-8")
 
-        assert manifest_path.name == CONTROLLER_MANIFEST_FILENAME
+        assert manifest_path.name == WINDOWS_BRIDGE_MANIFEST_FILENAME
         assert parser["runtime"]["project_dir"] == str(cfg.project_dir)
         assert parser["controller"]["vlc_pass"] == "pw"
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
-        assert parser["modules"]["controller_lock_module"] == "fun_time.controller_lock_app"
-        assert parser["modules"]["controller_runtime_flow_module"] == "fun_time.controller_runtime_flow_app"
-        assert parser["modules"]["controller_window_layout_module"] == "fun_time.controller_window_layout_app"
-        assert parser["modules"]["controller_vlc_actions_module"] == "fun_time.controller_vlc_actions_app"
-        assert parser["modules"]["controller_random_favs_browser_module"] == "fun_time.controller_random_favs_browser_app"
-        assert parser["modules"]["controller_startup_module"] == "fun_time.controller_startup_app"
-        assert parser["modules"]["controller_dashboard_bridge_module"] == "fun_time.controller_dashboard_bridge_app"
+        assert parser["modules"]["windows_bridge_lock_module"] == "fun_time.windows_bridge_lock_app"
+        assert parser["modules"]["windows_bridge_runtime_flow_module"] == "fun_time.windows_bridge_runtime_flow_app"
+        assert parser["modules"]["windows_bridge_window_layout_module"] == "fun_time.windows_bridge_window_layout_app"
+        assert parser["modules"]["windows_bridge_vlc_actions_module"] == "fun_time.windows_bridge_vlc_actions_app"
+        assert parser["modules"]["windows_bridge_random_favs_browser_module"] == "fun_time.windows_bridge_random_favs_browser_app"
+        assert parser["modules"]["windows_bridge_startup_module"] == "fun_time.windows_bridge_startup_app"
+        assert parser["modules"]["windows_bridge_dashboard_bridge_module"] == "fun_time.windows_bridge_dashboard_bridge_app"
         assert parser["commands"]["robot_hand_enabled_file"] == str(cfg.robot_hand_enabled_file)
         assert parser["commands"]["robot_hand_paused_file"] == str(cfg.robot_hand_paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
@@ -259,7 +259,7 @@ class TestValidateConfig:
         for p in (cfg.paths.vlc_exe, cfg.paths.mfp_exe, cfg.paths.ahk_exe, cfg.paths.python_exe):
             p.touch()
         # Create AHK scripts
-        (cfg.project_dir / "controller.ahk").touch()
+        (cfg.project_dir / "windows_bridge.ahk").touch()
         (cfg.project_dir / "windows_bridge.ahk").touch()
         # Create Python entry points
         broker_py = cfg.project_dir / "fun_time" / "broker_app.py"
@@ -272,21 +272,21 @@ class TestValidateConfig:
         ac_py.touch()
         media_actions_py = cfg.project_dir / "fun_time" / "media_actions_app.py"
         media_actions_py.touch()
-        controller_modes_py = cfg.project_dir / "fun_time" / "controller_modes_app.py"
+        controller_modes_py = cfg.project_dir / "fun_time" / "windows_bridge_modes_app.py"
         controller_modes_py.touch()
-        controller_lock_py = cfg.project_dir / "fun_time" / "controller_lock_app.py"
+        controller_lock_py = cfg.project_dir / "fun_time" / "windows_bridge_lock_app.py"
         controller_lock_py.touch()
-        controller_robot_hand_py = cfg.project_dir / "fun_time" / "controller_robot_hand_app.py"
+        controller_robot_hand_py = cfg.project_dir / "fun_time" / "windows_bridge_robot_hand_app.py"
         controller_robot_hand_py.touch()
-        controller_omnipause_py = cfg.project_dir / "fun_time" / "controller_omnipause_app.py"
+        controller_omnipause_py = cfg.project_dir / "fun_time" / "windows_bridge_omnipause_app.py"
         controller_omnipause_py.touch()
-        controller_window_layout_py = cfg.project_dir / "fun_time" / "controller_window_layout_app.py"
+        controller_window_layout_py = cfg.project_dir / "fun_time" / "windows_bridge_window_layout_app.py"
         controller_window_layout_py.touch()
-        controller_random_favs_browser_py = cfg.project_dir / "fun_time" / "controller_random_favs_browser_app.py"
+        controller_random_favs_browser_py = cfg.project_dir / "fun_time" / "windows_bridge_random_favs_browser_app.py"
         controller_random_favs_browser_py.touch()
-        controller_startup_py = cfg.project_dir / "fun_time" / "controller_startup_app.py"
+        controller_startup_py = cfg.project_dir / "fun_time" / "windows_bridge_startup_app.py"
         controller_startup_py.touch()
-        controller_dashboard_bridge_py = cfg.project_dir / "fun_time" / "controller_dashboard_bridge_app.py"
+        controller_dashboard_bridge_py = cfg.project_dir / "fun_time" / "windows_bridge_dashboard_bridge_app.py"
         controller_dashboard_bridge_py.touch()
         return cfg
 
@@ -389,14 +389,14 @@ class TestBrokerHelpers:
              patch("fun_time.orchestrator.ensure_mfp_serial_port") as ensure_mfp_port, \
              patch("fun_time.orchestrator.ensure_mfp_vlc_endpoint") as ensure_mfp_vlc_endpoint, \
              patch("fun_time.orchestrator.ensure_broker_running") as ensure_broker, \
-             patch("fun_time.orchestrator.run_controller", return_value=0) as run_controller:
+             patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_windows_bridge:
             result = main(["--config", str(cfg_path)])
 
         assert result == 0
         ensure_mfp_port.assert_called_once()
         ensure_mfp_vlc_endpoint.assert_called_once()
         ensure_broker.assert_called_once()
-        run_controller.assert_called_once()
+        run_windows_bridge.assert_called_once()
 
     def test_ensure_broker_running_starts_when_service_exists_but_tray_is_missing(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -447,10 +447,10 @@ class TestRunController:
         logger = MagicMock()
 
         with patch("fun_time.orchestrator.resolve_vlc_http_password", return_value="pw-from-config"), \
-             patch("fun_time.orchestrator.write_controller_manifest", return_value=cfg.paths.state_dir / CONTROLLER_MANIFEST_FILENAME) as writer, \
+             patch("fun_time.orchestrator.write_windows_bridge_manifest", return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME) as writer, \
              patch("fun_time.orchestrator.subprocess.run") as run:
             run.return_value.returncode = 0
-            result = run_controller(cfg, logger)
+            result = run_windows_bridge(cfg, logger)
 
         assert result == 0
         writer.assert_called_once_with(cfg, "pw-from-config")
@@ -458,7 +458,7 @@ class TestRunController:
         assert command == [
             str(cfg.paths.ahk_exe),
             str(cfg.project_dir / "windows_bridge.ahk"),
-            str(cfg.paths.state_dir / CONTROLLER_MANIFEST_FILENAME),
+            str(cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME),
         ]
 
 
@@ -467,3 +467,4 @@ def subprocess_result(*, stdout: str, returncode: int):
     mock.stdout = stdout
     mock.returncode = returncode
     return mock
+

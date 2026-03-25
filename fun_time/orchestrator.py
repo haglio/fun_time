@@ -10,13 +10,13 @@ from pathlib import Path
 
 from .config import load_config
 from .broker_ports import ensure_mfp_serial_port, ensure_mfp_vlc_endpoint
-from .controller_manifest import write_controller_manifest
+from .windows_bridge_manifest import write_windows_bridge_manifest
 from .logging_utils import configure_logging, install_exception_logging
 from . import orchestrator_broker
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description="Launch the Fun Time controller stack.")
+    ap = argparse.ArgumentParser(description="Launch the Fun Time Windows bridge stack.")
     ap.add_argument("--config", help="Path to a JSON config file.")
     ap.add_argument("--check", action="store_true", help="Validate config and exit.")
     return ap
@@ -56,20 +56,20 @@ def validate_config(config) -> None:
     require_dir(config.paths.clips_dir)
     require_dir(config.paths.audio_dir)
     require_file(config.project_dir / "windows_bridge.ahk")
-    require_file(config.project_dir / "controller.ahk")
     require_file(config.project_dir / "scripts" / "run_broker_service.ps1")
     require_file(config.project_dir / "fun_time" / "broker_app.py")
     require_file(config.project_dir / "fun_time" / "robot_hand" / "app.py")
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
     require_file(config.project_dir / "fun_time" / "media_actions_app.py")
-    require_file(config.project_dir / "fun_time" / "controller_modes_app.py")
-    require_file(config.project_dir / "fun_time" / "controller_lock_app.py")
-    require_file(config.project_dir / "fun_time" / "controller_robot_hand_app.py")
-    require_file(config.project_dir / "fun_time" / "controller_omnipause_app.py")
-    require_file(config.project_dir / "fun_time" / "controller_window_layout_app.py")
-    require_file(config.project_dir / "fun_time" / "controller_random_favs_browser_app.py")
-    require_file(config.project_dir / "fun_time" / "controller_startup_app.py")
-    require_file(config.project_dir / "fun_time" / "controller_dashboard_bridge_app.py")
+    require_file(config.project_dir / "fun_time" / "windows_bridge_modes_app.py")
+    require_file(config.project_dir / "fun_time" / "windows_bridge_lock_app.py")
+    require_file(config.project_dir / "fun_time" / "windows_bridge_robot_hand_app.py")
+    require_file(config.project_dir / "fun_time" / "windows_bridge_omnipause_app.py")
+    require_file(config.project_dir / "fun_time" / "windows_bridge_window_layout_app.py")
+    require_file(config.project_dir / "fun_time" / "windows_bridge_random_favs_browser_app.py")
+    require_file(config.project_dir / "fun_time" / "windows_bridge_startup_app.py")
+    require_file(config.project_dir / "fun_time" / "windows_bridge_dashboard_bridge_app.py")
+    require_file(config.project_dir / "fun_time" / "windows_bridge_runtime_flow_app.py")
 
 
 def is_broker_running() -> bool:
@@ -178,16 +178,16 @@ def resolve_vlc_http_password() -> str:
     return vlc_http_password_from_vlcrc() or f"fun_time_{secrets.token_hex(6)}"
 
 
-def run_controller(config, logger) -> int:
+def run_windows_bridge(config, logger) -> int:
     ahk_script = config.project_dir / "windows_bridge.ahk"
     vlc_http_pass = resolve_vlc_http_password()
-    manifest_path = write_controller_manifest(config, vlc_http_pass)
+    manifest_path = write_windows_bridge_manifest(config, vlc_http_pass)
     command = [str(config.paths.ahk_exe), str(ahk_script), str(manifest_path)]
-    logger.info("Launching AutoHotkey controller using config %s", config.config_path)
+    logger.info("Launching AutoHotkey Windows bridge using config %s", config.config_path)
     logger.info("VLC HTTP ports: portrait=%s landscape=%s", config.controller.vlc2_http_port, config.controller.vlc3_http_port)
 
     result = subprocess.run(command, cwd=config.project_dir, check=False)
-    logger.info("Controller exited with code %s", result.returncode)
+    logger.info("Windows bridge exited with code %s", result.returncode)
     return result.returncode
 
 
@@ -208,8 +208,9 @@ def main(argv: list[str] | None = None) -> int:
     ensure_mfp_serial_port(config, logger)
     ensure_mfp_vlc_endpoint(config, logger)
     ensure_broker_running(config, logger)
-    return run_controller(config, logger)
+    return run_windows_bridge(config, logger)
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
