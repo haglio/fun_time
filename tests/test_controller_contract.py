@@ -112,6 +112,12 @@ def test_controller_reads_controller_lock_module_from_manifest():
     assert 'CONTROLLER_LOCK_MODULE := RequireManifestValue("modules", "controller_lock_module")' in text
 
 
+def test_controller_reads_controller_robot_hand_module_from_manifest():
+    text = _controller_text()
+
+    assert 'CONTROLLER_ROBOT_HAND_MODULE := RequireManifestValue("modules", "controller_robot_hand_module")' in text
+
+
 def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper():
     text = _controller_text()
 
@@ -128,6 +134,15 @@ def test_controller_delegates_lock_state_decisions_to_python_plan():
     assert 'plan := RunControllerLockAction("toggle-lock", which, currentLocked, currentPath, planPath)' in text
     assert 'plan := RunControllerLockAction("discard", which, currentLocked, src, planPath)' in text
     assert 'plan := RunControllerLockAction("cancel-lock", which, currentLocked, "", planPath)' in text
+
+
+def test_controller_delegates_robot_hand_transition_decisions_to_python_plan():
+    text = _controller_text()
+
+    assert 'RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, planPath)' in text
+    assert 'LoadRobotHandActionPlan(path)' in text
+    assert 'plan := RunControllerRobotHandAction("sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath)' in text
+    assert 'plan := RunControllerRobotHandAction("toggle-enabled", robotHandMode, RobotHandEnabled(), omniPaused, planPath)' in text
 
 
 def test_controller_uses_main_monitor_for_landscape_and_mfp_layout():
