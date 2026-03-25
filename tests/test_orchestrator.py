@@ -176,25 +176,15 @@ class TestControllerManifest:
         result = build_controller_manifest(cfg, "pw")
         assert "media_actions_module" not in result["modules"]
 
-    def test_controller_modes_module_name_included(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["controller_modes_module"] == "fun_time.controller_modes_app"
-
     def test_controller_lock_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_controller_manifest(cfg, "pw")
         assert result["modules"]["controller_lock_module"] == "fun_time.controller_lock_app"
 
-    def test_controller_robot_hand_module_name_included(self, cfg_path: Path):
+    def test_controller_runtime_flow_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["controller_robot_hand_module"] == "fun_time.controller_robot_hand_app"
-
-    def test_controller_omnipause_module_name_included(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["controller_omnipause_module"] == "fun_time.controller_omnipause_app"
+        assert result["modules"]["controller_runtime_flow_module"] == "fun_time.controller_runtime_flow_app"
 
     def test_controller_window_layout_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -241,10 +231,8 @@ class TestControllerManifest:
         assert parser["controller"]["vlc_pass"] == "pw"
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
-        assert parser["modules"]["controller_modes_module"] == "fun_time.controller_modes_app"
         assert parser["modules"]["controller_lock_module"] == "fun_time.controller_lock_app"
-        assert parser["modules"]["controller_robot_hand_module"] == "fun_time.controller_robot_hand_app"
-        assert parser["modules"]["controller_omnipause_module"] == "fun_time.controller_omnipause_app"
+        assert parser["modules"]["controller_runtime_flow_module"] == "fun_time.controller_runtime_flow_app"
         assert parser["modules"]["controller_window_layout_module"] == "fun_time.controller_window_layout_app"
         assert parser["modules"]["controller_vlc_actions_module"] == "fun_time.controller_vlc_actions_app"
         assert parser["modules"]["controller_random_favs_browser_module"] == "fun_time.controller_random_favs_browser_app"
@@ -270,8 +258,9 @@ class TestValidateConfig:
         # Create stub executable files
         for p in (cfg.paths.vlc_exe, cfg.paths.mfp_exe, cfg.paths.ahk_exe, cfg.paths.python_exe):
             p.touch()
-        # Create AHK script
+        # Create AHK scripts
         (cfg.project_dir / "controller.ahk").touch()
+        (cfg.project_dir / "windows_bridge.ahk").touch()
         # Create Python entry points
         broker_py = cfg.project_dir / "fun_time" / "broker_app.py"
         broker_py.parent.mkdir(parents=True, exist_ok=True)
@@ -468,7 +457,7 @@ class TestRunController:
         command = run.call_args.args[0]
         assert command == [
             str(cfg.paths.ahk_exe),
-            str(cfg.project_dir / "controller.ahk"),
+            str(cfg.project_dir / "windows_bridge.ahk"),
             str(cfg.paths.state_dir / CONTROLLER_MANIFEST_FILENAME),
         ]
 

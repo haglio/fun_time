@@ -5,6 +5,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONTROLLER_AHK = PROJECT_ROOT / "controller.ahk"
+WINDOWS_BRIDGE_AHK = PROJECT_ROOT / "windows_bridge.ahk"
 CONTROLLER_WINDOWS_AHK = PROJECT_ROOT / "controller_windows.ahk"
 CONTROLLER_RUNTIME_AHK = PROJECT_ROOT / "controller_runtime.ahk"
 CONTROLLER_ACTIONS_AHK = PROJECT_ROOT / "controller_actions.ahk"
@@ -12,7 +13,7 @@ CONTROLLER_ACTIONS_AHK = PROJECT_ROOT / "controller_actions.ahk"
 
 def _controller_text() -> str:
     return (
-        CONTROLLER_AHK.read_text(encoding="utf-8")
+        WINDOWS_BRIDGE_AHK.read_text(encoding="utf-8")
         + "\n"
         + CONTROLLER_WINDOWS_AHK.read_text(encoding="utf-8")
         + "\n"
@@ -22,12 +23,27 @@ def _controller_text() -> str:
     )
 
 
-def test_controller_includes_windows_bridge_helpers():
+def test_controller_shim_includes_windows_bridge():
     text = CONTROLLER_AHK.read_text(encoding="utf-8")
+
+    assert "#Include windows_bridge.ahk" in text
+
+
+def test_windows_bridge_includes_windows_bridge_helpers():
+    text = WINDOWS_BRIDGE_AHK.read_text(encoding="utf-8")
 
     assert "#Include controller_windows.ahk" in text
     assert "#Include controller_runtime.ahk" in text
     assert "#Include controller_actions.ahk" in text
+
+
+def test_windows_bridge_runs_startup_before_hotkey_block():
+    text = WINDOWS_BRIDGE_AHK.read_text(encoding="utf-8")
+
+    startup_call = text.index("StartController()")
+    suspend_exempt = text.index("#SuspendExempt true")
+
+    assert startup_call < suspend_exempt
 
 
 def test_controller_uses_manifest_argument_instead_of_positional_protocol():
@@ -47,6 +63,7 @@ def test_controller_defines_robot_hand_status_indicator():
     text = _controller_text()
 
     assert 'DASHBOARD_MODULE := RequireManifestValue("modules", "dashboard_module")' in text
+    assert 'CONTROLLER_RUNTIME_FLOW_MODULE := RequireManifestValue("modules", "controller_runtime_flow_module")' in text
     assert 'args := "launch-ui-companions"' in text
     assert "UpdateFunTimeDashboard()" in text
     assert "SetTimer(ProcessDashboardCommand, 150)" in text
@@ -72,12 +89,13 @@ def test_controller_delegates_core_media_launch_and_waits_for_mfp_window_afterwa
     assert core_launch < core_result < mfp_wait < position_all
 
 
-def test_controller_delegates_f_mode_execution_to_python_modes_app():
+def test_controller_delegates_f_mode_execution_to_python_runtime_flow():
     text = _controller_text()
 
-    assert 'args := "apply-fmode"' in text
-    assert 'BuildModesResultPath() {' in text
-    assert 'LoadModesActionResult(path) {' in text
+    assert 'RunControllerRuntimeFlowAction(args)' in text
+    assert 'BuildRuntimeFlowResultPath() {' in text
+    assert 'LoadControllerRuntimeFlowResult(path) {' in text
+    assert 'args := "toggle-fmode"' in text
     assert 'BuildPrimaryPlaylistPaths(fMode)' not in text
     assert 'BuildSatellitePlaylistPaths(sourceSpec, fMode)' not in text
     assert 'WriteFModePlaylists(enabled)' not in text
@@ -120,28 +138,18 @@ def test_controller_no_longer_reads_media_actions_module_from_manifest():
     assert 'ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")' in text
 
 
-def test_controller_reads_controller_modes_module_from_manifest():
+def test_controller_no_longer_reads_legacy_runtime_modules_from_manifest():
     text = _controller_text()
 
-    assert 'CONTROLLER_MODES_MODULE := RequireManifestValue("modules", "controller_modes_module")' in text
+    assert 'CONTROLLER_MODES_MODULE := RequireManifestValue("modules", "controller_modes_module")' not in text
+    assert 'CONTROLLER_ROBOT_HAND_MODULE := RequireManifestValue("modules", "controller_robot_hand_module")' not in text
+    assert 'CONTROLLER_OMNIPAUSE_MODULE := RequireManifestValue("modules", "controller_omnipause_module")' not in text
 
 
 def test_controller_reads_controller_lock_module_from_manifest():
     text = _controller_text()
 
     assert 'CONTROLLER_LOCK_MODULE := RequireManifestValue("modules", "controller_lock_module")' in text
-
-
-def test_controller_reads_controller_robot_hand_module_from_manifest():
-    text = _controller_text()
-
-    assert 'CONTROLLER_ROBOT_HAND_MODULE := RequireManifestValue("modules", "controller_robot_hand_module")' in text
-
-
-def test_controller_reads_controller_omnipause_module_from_manifest():
-    text = _controller_text()
-
-    assert 'CONTROLLER_OMNIPAUSE_MODULE := RequireManifestValue("modules", "controller_omnipause_module")' in text
 
 
 def test_controller_reads_controller_window_layout_module_from_manifest():
@@ -235,9 +243,7 @@ def test_controller_restores_random_favs_browser_launch_spec_helpers():
 
     assert 'try FileGetShortcut(RANDOM_FAVS_BROWSER_SHORTCUT_PATH, &target, &workDir, &args, &description, &iconPath, &iconNum, &runState)' in text
     assert 'LaunchRandomFavsBrowserViaPython(RANDOM_FAVS_BROWSER_MANIFEST_FILE, target, workDir, args)' in text
-    assert 'encodedShortcutArgs := Base64EncodeUtf8(shortcutArgs)' in text
-    assert 'args := "launch"' in text
-    assert ' --shortcut-args-b64 ' in text
+    assert 'Base64EncodeUtf8(s) {' in text
     assert 'LoadRandomFavsBrowserLaunchPlan(path) {' not in text
     assert 'if (!RANDOM_FAVS_BROWSER_ENABLED)' in text
 
@@ -347,13 +353,14 @@ def test_controller_delegates_lock_execution_to_python_app():
     assert 'MoveToWeird(src)' not in text
 
 
-def test_controller_keeps_robot_hand_sync_local_but_delegates_toggle_plan():
+def test_controller_delegates_robot_hand_runtime_flow_to_python_helper():
     text = _controller_text()
 
-    assert 'RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, planPath, extraArgs := "")' in text
-    assert 'LoadRobotHandActionPlan(path)' in text
-    assert 'plan := RunControllerRobotHandAction("apply-sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)' in text
-    assert 'plan := RunControllerRobotHandAction("apply-toggle-enabled", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)' in text
+    assert 'RunControllerRuntimeFlowAction(args)' in text
+    assert 'LoadControllerRuntimeFlowResult(path)' in text
+    assert 'args := "sync-robot-hand"' in text
+    assert 'args := "toggle-robot-hand-enabled"' in text
+    assert '--mode-state-file ' in text
     assert '--enabled-file ' in text
     assert '--paused-file ' in text
     assert '--audio-paused-file ' in text
@@ -371,11 +378,11 @@ def test_controller_keeps_robot_hand_sync_local_but_delegates_toggle_plan():
 def test_controller_delegates_omnipause_state_decisions_to_python_plan():
     text = _controller_text()
 
-    assert 'RunControllerOmniPauseAction(action, omniPausedOn, robotHandModeOn, skipPrimaryResume, planPath, extraArgs := "")' in text
-    assert 'LoadOmniPauseActionPlan(path)' in text
-    assert 'plan := RunControllerOmniPauseAction("toggle", omniPaused, robotHandMode, false, planPath)' in text
-    assert 'plan := RunControllerOmniPauseAction("apply-enter", omniPaused, robotHandMode, false, planPath, extraArgs)' in text
-    assert 'plan := RunControllerOmniPauseAction("apply-leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath, extraArgs)' in text
+    assert 'RunControllerRuntimeFlowAction(args)' in text
+    assert 'LoadControllerRuntimeFlowResult(path)' in text
+    assert 'args := "build-omnipause-toggle"' in text
+    assert 'args := "apply-enter-omnipause"' in text
+    assert 'args := "apply-leave-omnipause"' in text
     assert '--robot-hand-paused-file ' in text
     assert '--audio-paused-file ' in text
 

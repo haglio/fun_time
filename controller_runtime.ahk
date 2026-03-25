@@ -87,19 +87,26 @@ ApplyRobotHandPlanWindowState(plan) {
 
 SyncRobotHandState() {
     global robotHandMode, omniPaused
-    global ROBOT_HAND_ENABLED_FILE, ROBOT_HAND_PAUSED_FILE, AUDIO_PAUSED_FILE
+    global ROBOT_HAND_ENABLED_FILE, ROBOT_HAND_MODE_FILE, ROBOT_HAND_PAUSED_FILE, AUDIO_PAUSED_FILE
     global PRIMARY_VLC_PORT, VLC_PASS
 
     if (omniPaused)
         return
 
-    planPath := BuildRobotHandPlanPath()
-    extraArgs := "--enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)
+    resultPath := BuildRuntimeFlowResultPath()
+    args := "sync-robot-hand"
+        . " --result-file " . Q(resultPath)
+        . " --robot-hand-mode-on " . (robotHandMode ? "1" : "0")
+        . " --omni-paused " . (omniPaused ? "1" : "0")
+        . " --enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)
+        . " --mode-state-file " . Q(ROBOT_HAND_MODE_FILE)
         . " --paused-file " . Q(ROBOT_HAND_PAUSED_FILE)
         . " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)
         . " --primary-port " . PRIMARY_VLC_PORT
         . " --password " . Q(VLC_PASS)
-    plan := RunControllerRobotHandAction("apply-sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)
+    if (RunControllerRuntimeFlowAction(args) != 0)
+        return
+    plan := LoadControllerRuntimeFlowResult(resultPath)
     if !IsObject(plan)
         return
     robotHandMode := plan["next_robot_hand_mode"]
@@ -111,15 +118,22 @@ SyncRobotHandState() {
 
 ToggleRobotHandEnabled() {
     global robotHandMode, omniPaused
-    global ROBOT_HAND_ENABLED_FILE, ROBOT_HAND_PAUSED_FILE, AUDIO_PAUSED_FILE
+    global ROBOT_HAND_ENABLED_FILE, ROBOT_HAND_MODE_FILE, ROBOT_HAND_PAUSED_FILE, AUDIO_PAUSED_FILE
     global PRIMARY_VLC_PORT, VLC_PASS
-    planPath := BuildRobotHandPlanPath()
-    extraArgs := "--enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)
+    resultPath := BuildRuntimeFlowResultPath()
+    args := "toggle-robot-hand-enabled"
+        . " --result-file " . Q(resultPath)
+        . " --robot-hand-mode-on " . (robotHandMode ? "1" : "0")
+        . " --omni-paused " . (omniPaused ? "1" : "0")
+        . " --enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)
+        . " --mode-state-file " . Q(ROBOT_HAND_MODE_FILE)
         . " --paused-file " . Q(ROBOT_HAND_PAUSED_FILE)
         . " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)
         . " --primary-port " . PRIMARY_VLC_PORT
         . " --password " . Q(VLC_PASS)
-    plan := RunControllerRobotHandAction("apply-toggle-enabled", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)
+    if (RunControllerRuntimeFlowAction(args) != 0)
+        return
+    plan := LoadControllerRuntimeFlowResult(resultPath)
     if !IsObject(plan)
         return
     if (plan["log_message"] != "")
@@ -129,13 +143,15 @@ ToggleRobotHandEnabled() {
     UpdateFunTimeDashboard()
 }
 
-ApplyFModePlaylists(enabled) {
+ToggleFMode() {
+    global fModeEnabled
     global PRIMARY_VLC_SOURCES, PORTRAIT_DIR, LANDSCAPE_DIR, FAVS_FILE, STATE_DIR
     global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT, VLC_PASS, locked2, locked3
 
-    resultPath := BuildModesResultPath()
-    try FileDelete(resultPath)
-    args := "apply-fmode"
+    resultPath := BuildRuntimeFlowResultPath()
+    args := "toggle-fmode"
+        . " --result-file " . Q(resultPath)
+        . " --f-mode-enabled " . (fModeEnabled ? "1" : "0")
         . " --primary-sources " . Q(PRIMARY_VLC_SOURCES)
         . " --portrait-sources " . Q(PORTRAIT_DIR)
         . " --landscape-sources " . Q(LANDSCAPE_DIR)
@@ -145,35 +161,22 @@ ApplyFModePlaylists(enabled) {
         . " --portrait-port " . VLC2_PORT
         . " --landscape-port " . VLC3_PORT
         . " --password " . Q(VLC_PASS)
-        . " --result-file " . Q(resultPath)
-        . " --enabled " . (enabled ? "1" : "0")
-
-    exitCode := RunControllerModesAction(args)
-    if (exitCode = 3) {
-        Log("F-mode toggle aborted because one or more playlists would be empty")
-        return false
-    }
-    if (exitCode != 0)
-        return false
-    result := LoadModesActionResult(resultPath)
+    if (RunControllerRuntimeFlowAction(args) != 0)
+        return
+    result := LoadControllerRuntimeFlowResult(resultPath)
     if !IsObject(result)
-        return false
-    locked2 := result["next_locked2"]
-    locked3 := result["next_locked3"]
-    return true
-}
-
-ToggleFMode() {
-    global fModeEnabled
-
-    targetEnabled := !fModeEnabled
-    if !ApplyFModePlaylists(targetEnabled) {
+        return
+    if !result["success"] {
+        if (result["log_message"] != "")
+            Log(result["log_message"])
         Log("F-mode hotkey: unchanged")
         return
     }
-
-    fModeEnabled := targetEnabled
-    Log("F-mode hotkey: " . (fModeEnabled ? "enabled" : "disabled"))
+    fModeEnabled := result["next_f_mode_enabled"]
+    locked2 := result["next_locked2"]
+    locked3 := result["next_locked3"]
+    if (result["log_message"] != "")
+        Log(result["log_message"])
     UpdateFunTimeDashboard()
 }
 
@@ -208,8 +211,14 @@ WriteCmd(file, cmd) {
 
 OmniPauseToggle() {
     global omniPaused, robotHandMode
-    planPath := BuildOmniPausePlanPath()
-    plan := RunControllerOmniPauseAction("toggle", omniPaused, robotHandMode, false, planPath)
+    resultPath := BuildRuntimeFlowResultPath()
+    args := "build-omnipause-toggle"
+        . " --result-file " . Q(resultPath)
+        . " --omni-paused " . (omniPaused ? "1" : "0")
+        . " --robot-hand-mode-on " . (robotHandMode ? "1" : "0")
+    if (RunControllerRuntimeFlowAction(args) != 0)
+        return
+    plan := LoadControllerRuntimeFlowResult(resultPath)
     if !IsObject(plan)
         return
     if (plan["action"] = "enter")
@@ -222,14 +231,20 @@ EnterOmniPause() {
     global omniPaused, robotHandMode, pid1, pid2, pid3, pidM, pidD
     global VLC2_PORT, VLC3_PORT, PRIMARY_VLC_PORT, VLC_PASS
     global ROBOT_HAND_PAUSED_FILE, AUDIO_PAUSED_FILE
-    planPath := BuildOmniPausePlanPath()
-    extraArgs := "--portrait-port " . VLC2_PORT
+    resultPath := BuildRuntimeFlowResultPath()
+    args := "apply-enter-omnipause"
+        . " --result-file " . Q(resultPath)
+        . " --omni-paused " . (omniPaused ? "1" : "0")
+        . " --robot-hand-mode-on " . (robotHandMode ? "1" : "0")
+        . " --portrait-port " . VLC2_PORT
         . " --landscape-port " . VLC3_PORT
         . " --primary-port " . PRIMARY_VLC_PORT
         . " --password " . Q(VLC_PASS)
         . " --robot-hand-paused-file " . Q(ROBOT_HAND_PAUSED_FILE)
         . " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)
-    plan := RunControllerOmniPauseAction("apply-enter", omniPaused, robotHandMode, false, planPath, extraArgs)
+    if (RunControllerRuntimeFlowAction(args) != 0)
+        return
+    plan := LoadControllerRuntimeFlowResult(resultPath)
     if !IsObject(plan)
         return
 
@@ -249,16 +264,21 @@ EnterOmniPause() {
 
 LeaveOmniPause(skipPrimaryVlcPlaybackToggleOnResume := false) {
     global omniPaused, robotHandMode, pid1, pid2, pid3, pidM, pidD
-    global VLC2_PORT, VLC3_PORT, PRIMARY_VLC_PORT, VLC_PASS
+    global PRIMARY_VLC_PORT, VLC_PASS
     global ROBOT_HAND_PAUSED_FILE, AUDIO_PAUSED_FILE
-    planPath := BuildOmniPausePlanPath()
-    extraArgs := "--portrait-port " . VLC2_PORT
-        . " --landscape-port " . VLC3_PORT
+    resultPath := BuildRuntimeFlowResultPath()
+    args := "apply-leave-omnipause"
+        . " --result-file " . Q(resultPath)
+        . " --omni-paused " . (omniPaused ? "1" : "0")
+        . " --robot-hand-mode-on " . (robotHandMode ? "1" : "0")
+        . " --skip-primary-resume " . (skipPrimaryVlcPlaybackToggleOnResume ? "1" : "0")
         . " --primary-port " . PRIMARY_VLC_PORT
         . " --password " . Q(VLC_PASS)
         . " --robot-hand-paused-file " . Q(ROBOT_HAND_PAUSED_FILE)
         . " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)
-    plan := RunControllerOmniPauseAction("apply-leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath, extraArgs)
+    if (RunControllerRuntimeFlowAction(args) != 0)
+        return
+    plan := LoadControllerRuntimeFlowResult(resultPath)
     if !IsObject(plan)
         return
 
