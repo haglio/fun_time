@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fun_time.config import load_config
 from fun_time.controller_modes import build_mirrored_funscript_path, has_matching_funscript
+from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
@@ -38,6 +39,22 @@ class FunTimeIntegrationSession:
     @property
     def dashboard_cmd_file(self) -> Path:
         return self.config.paths.state_dir / "dashboard_cmd.txt"
+
+    @property
+    def robot_hand_mode_file(self) -> Path:
+        return self.config.robot_hand_mode_file
+
+    @property
+    def favs_file(self) -> Path:
+        return self.config.paths.favs_file
+
+    @property
+    def weird_dir(self) -> Path:
+        return self.config.paths.weird_dir
+
+    @property
+    def robot_hand_enabled_file(self) -> Path:
+        return self.config.robot_hand_enabled_file
 
     def start(self, wait_seconds: float = 45.0) -> None:
         self._kill_recent_runtime_processes()
@@ -71,6 +88,24 @@ class FunTimeIntegrationSession:
     def write_dashboard_command(self, action: str) -> None:
         self.dashboard_cmd_file.parent.mkdir(parents=True, exist_ok=True)
         self.dashboard_cmd_file.write_text(action, encoding="utf-8")
+
+    def write_robot_hand_mode(self, enabled: bool) -> None:
+        self.robot_hand_mode_file.parent.mkdir(parents=True, exist_ok=True)
+        self.robot_hand_mode_file.write_text("1" if enabled else "0", encoding="utf-8")
+
+    def favs_contains(self, path: Path) -> bool:
+        if not self.favs_file.exists():
+            return False
+        text = self.favs_file.read_text(encoding="utf-8", errors="ignore")
+        return str(path.resolve()) in text
+
+    def wait_until(self, predicate, *, timeout: float = 10.0, description: str = "condition") -> None:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if predicate():
+                return
+            time.sleep(0.2)
+        raise AssertionError(f"Timed out waiting for {description}")
 
     def send_hotkey(self, keys: str) -> None:
         script = (
@@ -166,10 +201,9 @@ def build_integration_config(tmp_path: Path) -> Path:
     landscape_paths = _link_sample_files(real.paths.landscape_dirs, landscape_dir, count=2)
 
     favs_file = integration_root / "favs.csv"
-    favs_lines = ["local_file,web_url"]
+    ensure_favs_csv_exists(favs_file)
     for path in [*portrait_paths, *landscape_paths]:
-        favs_lines.append(f"{path.resolve()},")
-    favs_file.write_text("\n".join(favs_lines) + "\n", encoding="utf-8")
+        ensure_in_favs(favs_file, str(path.resolve()))
 
     config = json.loads(real.config_path.read_text(encoding="utf-8"))
     config["paths"]["primary_vlc_dirs"] = [str(primary_dir)]
