@@ -31,6 +31,7 @@ CONTROLLER_MODES_MODULE := RequireManifestValue("modules", "controller_modes_mod
 CONTROLLER_LOCK_MODULE := RequireManifestValue("modules", "controller_lock_module")
 CONTROLLER_ROBOT_HAND_MODULE := RequireManifestValue("modules", "controller_robot_hand_module")
 CONTROLLER_OMNIPAUSE_MODULE := RequireManifestValue("modules", "controller_omnipause_module")
+CONTROLLER_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "controller_window_layout_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -319,9 +320,58 @@ BuildOmniPausePlanPath() {
     return STATE_DIR . "\omnipause_action_plan.ini"
 }
 
+BuildWindowLayoutPlanPath() {
+    global STATE_DIR
+    static counter := 0
+    counter += 1
+    return STATE_DIR . "\window_layout_plan_" . A_TickCount . "_" . counter . ".ini"
+}
+
 LaunchDashboardApp() {
     global ROBOT_HAND_PY, DASHBOARD_MODULE, CONTROLLER_MANIFEST_PATH
     return RunApp(ROBOT_HAND_PY, "-m " . DASHBOARD_MODULE . " " . Q(CONTROLLER_MANIFEST_PATH))
+}
+
+RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {
+    global ROBOT_HAND_PY, CONTROLLER_WINDOW_LAYOUT_MODULE, PROJECT_DIR
+    global PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
+
+    args := "write-plan"
+        . " --main-x " . mainRect["x"]
+        . " --main-y " . mainRect["y"]
+        . " --main-width " . mainRect["w"]
+        . " --main-height " . mainRect["h"]
+        . " --secondary-x " . secondaryRect["x"]
+        . " --secondary-y " . secondaryRect["y"]
+        . " --secondary-width " . secondaryRect["w"]
+        . " --secondary-height " . secondaryRect["h"]
+        . " --primary-top-ratio " . PRIMARY_TOP_RATIO
+        . " --landscape-width-ratio " . LANDSCAPE_WIDTH_RATIO
+        . " --mfp-width-ratio " . MFP_WIDTH_RATIO
+        . " --mfp-height-ratio " . MFP_HEIGHT_RATIO
+        . " --mfp-width " . mfpW
+        . " --mfp-height " . mfpH
+        . " --plan-file " . Q(planPath)
+    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_WINDOW_LAYOUT_MODULE . " " . args
+    if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
+        return ""
+    return LoadWindowLayoutPlan(planPath)
+}
+
+LoadWindowLayoutPlan(path) {
+    if !FileExist(path)
+        return ""
+    plan := Map()
+    for section in ["portrait", "primary", "landscape", "mfp", "dashboard", "chrome", "robot_hand"] {
+        plan[section] := Map(
+            "x", IniRead(path, section, "x", "0") + 0,
+            "y", IniRead(path, section, "y", "0") + 0,
+            "w", IniRead(path, section, "width", "0") + 0,
+            "h", IniRead(path, section, "height", "0") + 0
+        )
+    }
+    try FileDelete(path)
+    return plan
 }
 
 ProcessDashboardCommand() {
@@ -418,21 +468,24 @@ GetLogicalMonitorRects(&mainRect, &secondaryRect) {
     }
 }
 
-GetRobotHandRect(&x, &y, &w, &h) {
-    global PRIMARY_TOP_RATIO
+GetCurrentWindowLayout(&plan, mfpW := "", mfpH := "") {
     mainRect := "", secondaryRect := ""
     GetLogicalMonitorRects(&mainRect, &secondaryRect)
-    secondaryL := secondaryRect["x"]
-    secondaryT := secondaryRect["y"]
-    secondaryW := secondaryRect["w"]
-    secondaryH := secondaryRect["h"]
-    portraitH := Floor(secondaryH * Clamp01(PRIMARY_TOP_RATIO))
-    primaryH := secondaryH - portraitH
+    if (mfpW = "" || mfpH = "")
+        GetActualMfpSize(&mfpW, &mfpH)
+    planPath := BuildWindowLayoutPlanPath()
+    plan := RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath)
+    if (!IsObject(plan))
+        throw Error("Failed to build window layout plan")
+}
 
-    x := secondaryL
-    y := secondaryT + portraitH
-    w := secondaryW
-    h := primaryH
+GetRobotHandRect(&x, &y, &w, &h) {
+    plan := ""
+    GetCurrentWindowLayout(&plan)
+    x := plan["robot_hand"]["x"]
+    y := plan["robot_hand"]["y"]
+    w := plan["robot_hand"]["w"]
+    h := plan["robot_hand"]["h"]
 }
 
 SendToPid(pid, keys) {
@@ -548,131 +601,12 @@ SetRobotHandAudioPaused(paused) {
 }
 
 GetFunTimeDashboardRect(&x, &y, &w, &h) {
-    layout := ""
-    GetDashboardMonitorPreviewLayout(&layout)
-    GetActualMfpSize(&mfpW, &mfpH)
-    stack := ""
-    GetLeftPartitionStackLayout(layout["dashboard_w"], layout["dashboard_h"], mfpW, mfpH, &stack)
-    x := stack["dashboard_x"]
-    y := stack["dashboard_y"]
-    w := layout["dashboard_w"]
-    h := layout["dashboard_h"]
-}
-
-GetDashboardMonitorPreviewLayout(&layout) {
-    global PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
-
-    mainRect := "", secondaryRect := ""
-    GetLogicalMonitorRects(&mainRect, &secondaryRect)
-
-    outerPad := 10
-    bottomPad := 6
-    topY := outerPad
-    monitorGap := 10
-    previewMaxH := 250
-    baseScale := previewMaxH / Max(mainRect["h"], secondaryRect["h"])
-
-    leftW := Round(mainRect["w"] * baseScale)
-    leftH := Round(mainRect["h"] * baseScale)
-    rightW := Round(secondaryRect["w"] * baseScale)
-    rightH := Round(secondaryRect["h"] * baseScale)
-    mainX := outerPad
-    secondaryX := mainX + leftW + monitorGap
-    secondaryY := topY
-
-    innerPad := 10
-    panelGap := 8
-    statusChipSize := 12
-    statusChipGap := 1
-    portraitUnits := 7
-    primaryUnits := 4
-    stackGap := 8
-
-    rightInnerX := secondaryX + innerPad
-    rightInnerY := secondaryY + innerPad
-    rightInnerW := Max(40, rightW - innerPad * 2)
-    rightInnerH := Max(40, rightH - innerPad * 2)
-    availableStackH := Max(80, rightInnerH - stackGap)
-    unitH := Max(10, Floor(availableStackH / (portraitUnits + primaryUnits)))
-    portraitH := Max(52, unitH * portraitUnits)
-    primaryH := Max(48, availableStackH - portraitH)
-    portraitY := rightInnerY
-    primaryY := rightInnerY + portraitH + stackGap
-
-    mainY := portraitY + Floor((portraitH - leftH) / 2)
-    previewBottom := Max(mainY + leftH, secondaryY + rightH, primaryY + primaryH)
-
-    mainInnerX := mainX + innerPad
-    mainInnerY := mainY + innerPad
-    mainInnerW := Max(40, leftW - innerPad * 2)
-    mainInnerH := Max(40, leftH - innerPad * 2)
-
-    landscapeW := Max(34, Floor(mainInnerW * Clamp01(LANDSCAPE_WIDTH_RATIO)))
-    leftStripW := Max(52, mainInnerW - landscapeW - panelGap)
-    mfpMaxW := Max(44, Floor(leftStripW * Clamp01(MFP_WIDTH_RATIO)))
-    statusStripY := mainInnerY
-    statusStripH := statusChipSize + 6
-    mfpAreaY := statusStripY + statusStripH + panelGap
-    mfpAreaH := Max(28, mainInnerH - statusStripH - panelGap)
-    mfpPreviewAspect := 0.67
-    mfpH := Max(40, Floor(mfpAreaH * 0.92))
-    mfpW := Min(mfpMaxW, Round(mfpH * mfpPreviewAspect))
-    statusStripW := Max(mfpW, statusChipSize * 3 + statusChipGap * 2 + 8)
-    leftColumnNudge := 2
-    statusStripX := mainInnerX + Floor((leftStripW - statusStripW) / 2) - leftColumnNudge
-    mfpX := mainInnerX + Floor((leftStripW - mfpW) / 2) - leftColumnNudge
-    mfpY := mfpAreaY + Floor((mfpAreaH - mfpH) / 2)
-    landscapeX := mainInnerX + leftStripW + panelGap
-    landscapeY := mainInnerY
-
-    mainRectPreview := Map("x", mainX, "y", mainY, "w", leftW, "h", leftH)
-    secondaryRectPreview := Map("x", secondaryX, "y", secondaryY, "w", rightW, "h", rightH)
-    landscapeRect := Map("x", landscapeX, "y", landscapeY, "w", landscapeW, "h", mainInnerH)
-    portraitRect := Map("x", rightInnerX, "y", portraitY, "w", rightInnerW, "h", portraitH)
-    primaryRect := Map("x", rightInnerX, "y", primaryY, "w", rightInnerW, "h", primaryH)
-    osr2W := 56
-    osr2H := 56
-    linkW := 62
-    linkGap := 8
-    osr2X := secondaryX - osr2W - linkGap - linkW - linkGap
-    osr2Y := primaryY + Floor((primaryH - osr2H) / 2)
-    linkY := primaryY + Floor((primaryH - 18) / 2)
-    linkX := osr2X + osr2W + linkGap
-    statusRowX := statusStripX + Floor((statusStripW - (statusChipSize * 3 + statusChipGap * 2)) / 2)
-    statusRowY := statusStripY + 3
-    dashboardW := secondaryX + rightW + outerPad
-    titleY := previewBottom - 14
-    dashboardH := Max(previewBottom, osr2Y + osr2H, linkY + 18) + bottomPad
-
-    layout := Map(
-        "dashboard_w", dashboardW,
-        "dashboard_h", dashboardH,
-        "preview_bottom", previewBottom,
-        "title", Map("x", outerPad, "y", titleY, "w", 88, "h", 12),
-        "main_monitor", mainRectPreview,
-        "secondary_monitor", secondaryRectPreview,
-        "main_status_strip", Map("x", statusStripX, "y", statusStripY, "w", statusStripW, "h", statusStripH),
-        "mfp_panel", Map("x", mfpX, "y", mfpY, "w", mfpW, "h", mfpH),
-        "landscape_panel", landscapeRect,
-        "portrait_panel", portraitRect,
-        "primary_panel", primaryRect,
-        "portrait_prev", Map("x", portraitRect["x"] + 6, "y", portraitRect["y"] + Floor((portraitRect["h"] - 22) / 2), "w", 18, "h", 22),
-        "portrait_next", Map("x", portraitRect["x"] + portraitRect["w"] - 24, "y", portraitRect["y"] + Floor((portraitRect["h"] - 22) / 2), "w", 18, "h", 22),
-        "portrait_trash", Map("x", portraitRect["x"] + Floor((portraitRect["w"] - 30) / 2), "y", portraitRect["y"] + Floor((portraitRect["h"] - 36) / 2), "w", 30, "h", 16),
-        "portrait_lock", Map("x", portraitRect["x"] + Floor((portraitRect["w"] - 30) / 2), "y", portraitRect["y"] + Floor((portraitRect["h"] - 36) / 2) + 20, "w", 30, "h", 16),
-        "primary_prev", Map("x", primaryRect["x"] + 6, "y", primaryRect["y"] + Floor((primaryRect["h"] - 22) / 2), "w", 18, "h", 22),
-        "primary_next", Map("x", primaryRect["x"] + primaryRect["w"] - 24, "y", primaryRect["y"] + Floor((primaryRect["h"] - 22) / 2), "w", 18, "h", 22),
-        "quarter_button", Map("x", primaryRect["x"] + Floor((primaryRect["w"] - 28) / 2), "y", primaryRect["y"] + Floor((primaryRect["h"] - 16) / 2), "w", 28, "h", 16),
-        "landscape_prev", Map("x", landscapeRect["x"] + 6, "y", landscapeRect["y"] + Floor((landscapeRect["h"] - 22) / 2), "w", 18, "h", 22),
-        "landscape_next", Map("x", landscapeRect["x"] + landscapeRect["w"] - 24, "y", landscapeRect["y"] + Floor((landscapeRect["h"] - 22) / 2), "w", 18, "h", 22),
-        "landscape_trash", Map("x", landscapeRect["x"] + Floor((landscapeRect["w"] - 30) / 2), "y", landscapeRect["y"] + Floor((landscapeRect["h"] - 36) / 2), "w", 30, "h", 16),
-        "landscape_lock", Map("x", landscapeRect["x"] + Floor((landscapeRect["w"] - 30) / 2), "y", landscapeRect["y"] + Floor((landscapeRect["h"] - 36) / 2) + 20, "w", 30, "h", 16),
-        "link_toggle", Map("x", linkX, "y", linkY, "w", linkW, "h", 18),
-        "osr2_panel", Map("x", osr2X, "y", osr2Y, "w", osr2W, "h", osr2H),
-        "broker_panel", Map("x", statusRowX, "y", statusRowY, "w", statusChipSize, "h", statusChipSize),
-        "controller_panel", Map("x", statusRowX + statusChipSize + statusChipGap, "y", statusRowY, "w", statusChipSize, "h", statusChipSize),
-        "fmode_panel", Map("x", statusRowX + (statusChipSize + statusChipGap) * 2, "y", statusRowY, "w", statusChipSize, "h", statusChipSize)
-    )
+    plan := ""
+    GetCurrentWindowLayout(&plan)
+    x := plan["dashboard"]["x"]
+    y := plan["dashboard"]["y"]
+    w := plan["dashboard"]["w"]
+    h := plan["dashboard"]["h"]
 }
 
 ClipLabelFromPath(path) {
@@ -1214,43 +1148,32 @@ RestartBroker() {
 }
 
 PositionAll(pid1, pid2, pid3, pidM) {
-    global PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
-    mainRect := "", secondaryRect := ""
-    GetLogicalMonitorRects(&mainRect, &secondaryRect)
-    mainL := mainRect["x"], mainT := mainRect["y"], mainW := mainRect["w"], mainH := mainRect["h"]
-    secondaryL := secondaryRect["x"], secondaryT := secondaryRect["y"], secondaryW := secondaryRect["w"], secondaryH := secondaryRect["h"]
-
-    portraitH := Floor(secondaryH * Clamp01(PRIMARY_TOP_RATIO))
-    primaryH := secondaryH - portraitH
-
-    MovePidWindow(pid2, secondaryL, secondaryT, secondaryW, portraitH)
-    MovePidWindow(pid1, secondaryL, secondaryT + portraitH, secondaryW, primaryH)
-    landscapeW := Floor(mainW * Clamp01(LANDSCAPE_WIDTH_RATIO))
-    landscapeX := mainL + (mainW - landscapeW)
-    MovePidWindow(pid3, landscapeX, mainT, landscapeW, mainH)
-
+    GetActualMfpSize(&mfpW, &mfpH)
+    plan := ""
+    GetCurrentWindowLayout(&plan, mfpW, mfpH)
+    MovePidWindow(pid2, plan["portrait"]["x"], plan["portrait"]["y"], plan["portrait"]["w"], plan["portrait"]["h"])
+    MovePidWindow(pid1, plan["primary"]["x"], plan["primary"]["y"], plan["primary"]["w"], plan["primary"]["h"])
+    MovePidWindow(pid3, plan["landscape"]["x"], plan["landscape"]["y"], plan["landscape"]["w"], plan["landscape"]["h"])
     PositionMfpWindow(pidM)
 }
 
 PositionMfpWindow(pidM) {
-    layout := ""
-    GetDashboardMonitorPreviewLayout(&layout)
     hwnd := WinWait("ahk_pid " pidM, , 10)
 
     GetActualMfpSize(&moveW, &moveH)
-    stack := ""
-    GetLeftPartitionStackLayout(layout["dashboard_w"], layout["dashboard_h"], moveW, moveH, &stack)
-    moveX := stack["mfp_x"]
-    moveY := stack["mfp_y"]
+    plan := ""
+    GetCurrentWindowLayout(&plan, moveW, moveH)
+    moveX := plan["mfp"]["x"]
+    moveY := plan["mfp"]["y"]
 
     Loop 3 {
         WinRestore("ahk_id " hwnd)
         WinMove(moveX, moveY, moveW, moveH, "ahk_id " hwnd)
         Sleep 80
         WinGetPos(&actualX, &actualY, &actualW, &actualH, "ahk_id " hwnd)
-        GetLeftPartitionStackLayout(layout["dashboard_w"], layout["dashboard_h"], actualW, actualH, &stack)
-        deltaX := stack["mfp_x"] - actualX
-        deltaY := stack["mfp_y"] - actualY
+        GetCurrentWindowLayout(&plan, actualW, actualH)
+        deltaX := plan["mfp"]["x"] - actualX
+        deltaY := plan["mfp"]["y"] - actualY
         if (Abs(deltaX) <= 1 && Abs(deltaY) <= 1)
             break
         moveX += deltaX
@@ -1258,18 +1181,6 @@ PositionMfpWindow(pidM) {
         moveW := actualW
         moveH := actualH
     }
-}
-
-GetMfpRect(&x, &y, &w, &h) {
-    layout := ""
-    GetDashboardMonitorPreviewLayout(&layout)
-    GetActualMfpSize(&mfpW, &mfpH)
-    stack := ""
-    GetLeftPartitionStackLayout(layout["dashboard_w"], layout["dashboard_h"], mfpW, mfpH, &stack)
-    x := stack["mfp_x"]
-    y := stack["mfp_y"]
-    w := stack["mfp_w"]
-    h := stack["mfp_h"]
 }
 
 GetActualMfpSize(&w, &h) {
@@ -1291,38 +1202,13 @@ GetActualMfpSize(&w, &h) {
     h := Floor(mainRect["h"] * Clamp01(MFP_HEIGHT_RATIO))
 }
 
-GetLeftPartitionStackLayout(dashboardW, dashboardH, mfpW, mfpH, &stack) {
-    global LANDSCAPE_WIDTH_RATIO
-    mainRect := "", secondaryRect := ""
-    GetLogicalMonitorRects(&mainRect, &secondaryRect)
-    mainL := mainRect["x"], mainT := mainRect["y"], mainW := mainRect["w"], mainH := mainRect["h"]
-    landscapeW := Floor(mainW * Clamp01(LANDSCAPE_WIDTH_RATIO))
-    leftW := mainW - landscapeW
-    dashboardX := mainL + Floor((leftW - dashboardW) / 2)
-    mfpX := mainL + Floor((leftW - mfpW) / 2)
-    gapY := Floor((mainH - dashboardH - mfpH) / 3)
-    dashboardY := mainT + gapY
-    mfpY := dashboardY + dashboardH + gapY
-    stack := Map(
-        "dashboard_x", dashboardX,
-        "dashboard_y", dashboardY,
-        "mfp_x", mfpX,
-        "mfp_y", mfpY,
-        "mfp_w", mfpW,
-        "mfp_h", mfpH
-    )
-}
-
 GetChromeOverlayRect(&x, &y, &w, &h) {
-    global LANDSCAPE_WIDTH_RATIO
-    mainRect := "", secondaryRect := ""
-    GetLogicalMonitorRects(&mainRect, &secondaryRect)
-    mainL := mainRect["x"], mainT := mainRect["y"], mainW := mainRect["w"], mainH := mainRect["h"]
-    landscapeW := Floor(mainW * Clamp01(LANDSCAPE_WIDTH_RATIO))
-    w := mainW - landscapeW
-    h := mainH
-    x := mainL
-    y := mainT
+    plan := ""
+    GetCurrentWindowLayout(&plan)
+    x := plan["chrome"]["x"]
+    y := plan["chrome"]["y"]
+    w := plan["chrome"]["w"]
+    h := plan["chrome"]["h"]
 }
 
 MovePidWindow(pid, x, y, w, h) {

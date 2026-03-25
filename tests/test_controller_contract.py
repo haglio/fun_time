@@ -134,6 +134,12 @@ def test_controller_reads_controller_omnipause_module_from_manifest():
     assert 'CONTROLLER_OMNIPAUSE_MODULE := RequireManifestValue("modules", "controller_omnipause_module")' in text
 
 
+def test_controller_reads_controller_window_layout_module_from_manifest():
+    text = _controller_text()
+
+    assert 'CONTROLLER_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "controller_window_layout_module")' in text
+
+
 def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper():
     text = _controller_text()
 
@@ -236,7 +242,8 @@ def test_controller_uses_main_monitor_for_landscape_and_mfp_layout():
     text = _controller_text()
 
     assert "GetLogicalMonitorRects(&mainRect, &secondaryRect)" in text
-    assert 'MovePidWindow(pid3, landscapeX, mainT, landscapeW, mainH)' in text
+    assert 'plan := RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath)' in text
+    assert 'MovePidWindow(pid3, plan["landscape"]["x"], plan["landscape"]["y"], plan["landscape"]["w"], plan["landscape"]["h"])' in text
     assert 'PositionMfpWindow(pidM)' in text
 
 
@@ -244,6 +251,23 @@ def test_controller_uses_secondary_monitor_for_portrait_primary_and_robot_hand()
     text = _controller_text()
 
     assert "GetLogicalMonitorRects(&mainRect, &secondaryRect)" in text
-    assert 'MovePidWindow(pid2, secondaryL, secondaryT, secondaryW, portraitH)' in text
-    assert 'MovePidWindow(pid1, secondaryL, secondaryT + portraitH, secondaryW, primaryH)' in text
-    assert 'x := secondaryL' in text
+    assert 'MovePidWindow(pid2, plan["portrait"]["x"], plan["portrait"]["y"], plan["portrait"]["w"], plan["portrait"]["h"])' in text
+    assert 'MovePidWindow(pid1, plan["primary"]["x"], plan["primary"]["y"], plan["primary"]["w"], plan["primary"]["h"])' in text
+    assert 'x := plan["robot_hand"]["x"]' in text
+    assert 'y := plan["robot_hand"]["y"]' in text
+    assert 'w := plan["robot_hand"]["w"]' in text
+    assert 'h := plan["robot_hand"]["h"]' in text
+
+
+def test_controller_delegates_window_layout_planning_to_python_plan():
+    text = _controller_text()
+
+    assert 'BuildWindowLayoutPlanPath() {' in text
+    assert 'static counter := 0' in text
+    assert 'counter += 1' in text
+    assert 'return STATE_DIR . "\\window_layout_plan_" . A_TickCount . "_" . counter . ".ini"' in text
+    assert 'RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {' in text
+    assert 'LoadWindowLayoutPlan(path) {' in text
+    assert 'cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_WINDOW_LAYOUT_MODULE . " " . args' in text
+    assert 'plan["dashboard"] := ' not in text
+    assert 'for section in ["portrait", "primary", "landscape", "mfp", "dashboard", "chrome", "robot_hand"] {' in text
