@@ -185,6 +185,11 @@ class TestControllerManifest:
         result = build_controller_manifest(cfg, "pw")
         assert result["modules"]["controller_omnipause_module"] == "fun_time.controller_omnipause_app"
 
+    def test_controller_window_layout_module_name_included(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        result = build_controller_manifest(cfg, "pw")
+        assert result["modules"]["controller_window_layout_module"] == "fun_time.controller_window_layout_app"
+
     def test_chrome_overlay_paths_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_controller_manifest(cfg, "pw")
@@ -209,6 +214,7 @@ class TestControllerManifest:
         assert parser["modules"]["controller_lock_module"] == "fun_time.controller_lock_app"
         assert parser["modules"]["controller_robot_hand_module"] == "fun_time.controller_robot_hand_app"
         assert parser["modules"]["controller_omnipause_module"] == "fun_time.controller_omnipause_app"
+        assert parser["modules"]["controller_window_layout_module"] == "fun_time.controller_window_layout_app"
         assert parser["commands"]["robot_hand_enabled_file"] == str(cfg.robot_hand_enabled_file)
         assert parser["commands"]["robot_hand_paused_file"] == str(cfg.robot_hand_paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
@@ -249,6 +255,8 @@ class TestValidateConfig:
         controller_robot_hand_py.touch()
         controller_omnipause_py = cfg.project_dir / "fun_time" / "controller_omnipause_app.py"
         controller_omnipause_py.touch()
+        controller_window_layout_py = cfg.project_dir / "fun_time" / "controller_window_layout_app.py"
+        controller_window_layout_py.touch()
         return cfg
 
     def test_raises_when_vlc_exe_missing(self, cfg_path: Path, tmp_path: Path):
