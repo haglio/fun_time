@@ -26,6 +26,7 @@ VLC_PASS := RequireManifestValue("controller", "vlc_pass")
 ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")
 ROBOT_HAND_MODULE := RequireManifestValue("modules", "robot_hand_module")
 MEDIA_ACTIONS_MODULE := RequireManifestValue("modules", "media_actions_module")
+CONTROLLER_MODES_MODULE := RequireManifestValue("modules", "controller_modes_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -206,6 +207,12 @@ RunMediaAction(action, targetPath) {
         . " --weird-dir " . Q(WEIRD_DIR)
         . " --path " . Q(targetPath)
     RunWait(cmd, PROJECT_DIR, "Hide")
+}
+
+RunControllerModesAction(args) {
+    global ROBOT_HAND_PY, CONTROLLER_MODES_MODULE, PROJECT_DIR
+    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_MODES_MODULE . " " . args
+    return RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
 TryClosePid(pid) {
@@ -704,8 +711,8 @@ UpdateFunTimeDashboard() {
     portraitPath := GetCurrentFilePath(VLC2_PORT)
     landscapePath := GetCurrentFilePath(VLC3_PORT)
     osr2Auto := RobotHandModeState() = "1"
-    robotHandEnabled := RobotHandEnabled()
-    primaryUsesRobotHand := robotHandMode && robotHandEnabled
+    robotHandEnabledNow := RobotHandEnabled()
+    primaryUsesRobotHand := robotHandMode && robotHandEnabledNow
     primaryColor := PrimaryPanelShouldHighlight() ? COLOR_ACTIVE_ALT : COLOR_PANEL
     portraitColor := SatellitePanelShouldHighlight(VLC2_PORT) ? COLOR_ACTIVE_ALT : COLOR_PANEL
     landscapeColor := SatellitePanelShouldHighlight(VLC3_PORT) ? COLOR_ACTIVE_ALT : COLOR_PANEL
@@ -730,9 +737,9 @@ UpdateFunTimeDashboard() {
     SetDashboardControlVisual(funTimeDashboardControls["landscape_lock"], "Lock", locked3 ? COLOR_ACTIVE : COLOR_PANEL)
     SetDashboardControlVisual(funTimeDashboardControls["portrait_trash"], "Trash", COLOR_WARNING)
     SetDashboardControlVisual(funTimeDashboardControls["landscape_trash"], "Trash", COLOR_WARNING)
-    SetDashboardControlVisual(funTimeDashboardControls["link_toggle"], robotHandEnabled ? "Robot Link" : "Broken Link", robotHandEnabled ? COLOR_LINK_ON : COLOR_LINK_OFF)
+    SetDashboardControlVisual(funTimeDashboardControls["link_toggle"], robotHandEnabledNow ? "Robot Link" : "Broken Link", robotHandEnabledNow ? COLOR_LINK_ON : COLOR_LINK_OFF)
     SetDashboardControlVisual(funTimeDashboardControls["quarter_button"], "1/4", primaryUsesRobotHand ? osr2Color : COLOR_PANEL)
-    WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabled)
+    WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow)
 
     GetFunTimeDashboardRect(&x, &y, &w, &h)
     funTimeDashboardGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
@@ -839,39 +846,6 @@ NormalizePathKey(path) {
     return StrLower(Trim(path))
 }
 
-CollectVideoFiles(sourceSpec) {
-    files := []
-    seen := Map()
-    for sourcePart in StrSplit(sourceSpec, "|") {
-        rootPath := Trim(sourcePart)
-        if (rootPath = "")
-            continue
-
-        if DirExist(rootPath) {
-            Loop Files, rootPath . "\*.*", "FR" {
-                fullPath := A_LoopFileFullPath
-                if !IsSupportedVideoPath(fullPath)
-                    continue
-                key := NormalizePathKey(fullPath)
-                if seen.Has(key)
-                    continue
-                seen[key] := true
-                files.Push(fullPath)
-            }
-            continue
-        }
-
-        if FileExist(rootPath) && IsSupportedVideoPath(rootPath) {
-            key := NormalizePathKey(rootPath)
-            if !seen.Has(key) {
-                seen[key] := true
-                files.Push(rootPath)
-            }
-        }
-    }
-    return files
-}
-
 BuildMirroredFunscriptPath(videoPath) {
     global PRIMARY_VLC_SOURCES
 
@@ -914,50 +888,6 @@ IsFavoritePath(videoPath, favsContent) {
     return InStr(favsContent, videoPath, false) > 0
 }
 
-ShufflePaths(paths) {
-    if (paths.Length <= 1)
-        return paths
-    idx := paths.Length
-    while (idx > 1) {
-        swapIdx := Random(1, idx)
-        if (swapIdx != idx) {
-            temp := paths[idx]
-            paths[idx] := paths[swapIdx]
-            paths[swapIdx] := temp
-        }
-        idx -= 1
-    }
-    return paths
-}
-
-BuildPrimaryPlaylistPaths(fMode) {
-    global PRIMARY_VLC_SOURCES
-    files := CollectVideoFiles(PRIMARY_VLC_SOURCES)
-    if !fMode
-        return ShufflePaths(files)
-
-    filtered := []
-    for fullPath in files {
-        if HasMatchingFunscript(fullPath)
-            filtered.Push(fullPath)
-    }
-    return ShufflePaths(filtered)
-}
-
-BuildSatellitePlaylistPaths(sourceSpec, fMode) {
-    files := CollectVideoFiles(sourceSpec)
-    if !fMode
-        return ShufflePaths(files)
-
-    favsContent := ReadFavsContent()
-    filtered := []
-    for fullPath in files {
-        if IsFavoritePath(fullPath, favsContent)
-            filtered.Push(fullPath)
-    }
-    return ShufflePaths(filtered)
-}
-
 UrlEncodeQueryValue(text) {
     out := ""
     Loop Parse, text {
@@ -994,19 +924,24 @@ BuildPlaylistFilePath(name) {
     return STATE_DIR . "\" . name . ".m3u"
 }
 
-WritePlaylistFile(path, paths) {
-    content := "#EXTM3U`r`n"
-    for fullPath in paths
-        content .= fullPath . "`r`n"
-    WriteRawStateFile(path, content)
+WriteFModePlaylists(enabled) {
+    global PRIMARY_VLC_SOURCES, PORTRAIT_DIR, LANDSCAPE_DIR, FAVS_FILE, STATE_DIR
+
+    args := "write-fmode-playlists"
+        . " --primary-sources " . Q(PRIMARY_VLC_SOURCES)
+        . " --portrait-sources " . Q(PORTRAIT_DIR)
+        . " --landscape-sources " . Q(LANDSCAPE_DIR)
+        . " --favs-file " . Q(FAVS_FILE)
+        . " --state-dir " . Q(STATE_DIR)
+        . " --enabled " . (enabled ? "1" : "0")
+
+    return RunControllerModesAction(args) = 0
 }
 
-ReplaceVlcPlaylist(port, paths, playlistName, repeatMode := "") {
-    if (paths.Length = 0)
+ReplaceVlcPlaylistFromFile(port, playlistPath, repeatMode := "") {
+    if !FileExist(playlistPath)
         return false
 
-    playlistPath := BuildPlaylistFilePath(playlistName)
-    WritePlaylistFile(playlistPath, paths)
     VlcHttpCmd(port, "pl_empty")
     VlcHttpCmd(port, "pl_stop")
     Sleep 180
@@ -1020,14 +955,9 @@ ReplaceVlcPlaylist(port, paths, playlistName, repeatMode := "") {
 }
 
 ApplyFModePlaylists(enabled) {
-    global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT, PORTRAIT_DIR, LANDSCAPE_DIR, locked2, locked3
+    global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT, locked2, locked3
 
-    primaryPaths := BuildPrimaryPlaylistPaths(enabled)
-    portraitPaths := BuildSatellitePlaylistPaths(PORTRAIT_DIR, enabled)
-    landscapePaths := BuildSatellitePlaylistPaths(LANDSCAPE_DIR, enabled)
-    Log("F-mode playlist sizes: primary=" . primaryPaths.Length . " portrait=" . portraitPaths.Length . " landscape=" . landscapePaths.Length)
-
-    if (primaryPaths.Length = 0 || portraitPaths.Length = 0 || landscapePaths.Length = 0) {
+    if !WriteFModePlaylists(enabled) {
         Log("F-mode toggle aborted because one or more playlists would be empty")
         return false
     }
@@ -1035,11 +965,11 @@ ApplyFModePlaylists(enabled) {
     locked2 := false
     locked3 := false
 
-    if !ReplaceVlcPlaylist(PRIMARY_VLC_PORT, primaryPaths, "primary_vlc_playlist")
+    if !ReplaceVlcPlaylistFromFile(PRIMARY_VLC_PORT, BuildPlaylistFilePath("primary_vlc_playlist"))
         return false
-    if !ReplaceVlcPlaylist(VLC2_PORT, portraitPaths, "portrait_vlc_playlist", "all")
+    if !ReplaceVlcPlaylistFromFile(VLC2_PORT, BuildPlaylistFilePath("portrait_vlc_playlist"), "all")
         return false
-    if !ReplaceVlcPlaylist(VLC3_PORT, landscapePaths, "landscape_vlc_playlist", "all")
+    if !ReplaceVlcPlaylistFromFile(VLC3_PORT, BuildPlaylistFilePath("landscape_vlc_playlist"), "all")
         return false
     return true
 }
