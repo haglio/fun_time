@@ -202,12 +202,6 @@ ShutdownAll() {
     ExitApp
 }
 
-RestartBroker() {
-    global PROJECT_DIR
-    args := "restart-broker --project-dir " . Q(PROJECT_DIR)
-    RunControllerStartupAction(args)
-}
-
 WriteCmd(file, cmd) {
     WriteRawStateFile(file, cmd)
 }
@@ -303,18 +297,14 @@ StartController() {
 
     OnExit(HandleControllerExit)
 
-    args := "seed-robot-hand-state"
+    coreResultPath := BuildStartupResultPath()
+    args := "start-core-session"
+        . " --project-dir " . Q(PROJECT_DIR)
+        . " --config " . Q(CONFIG_PATH)
+        . " --random-favs-browser-manifest-file " . Q(RANDOM_FAVS_BROWSER_MANIFEST_FILE)
         . " --enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)
         . " --paused-file " . Q(ROBOT_HAND_PAUSED_FILE)
         . " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)
-    RunControllerStartupAction(args)
-    Log("Startup: reset Robot Hand enabled/paused state files")
-    RestartBroker()
-    Log("Startup: broker restart requested")
-
-    coreResultPath := BuildStartupResultPath()
-    args := "launch-core-apps"
-        . " --project-dir " . Q(PROJECT_DIR)
         . " --vlc-exe " . Q(VLC_EXE)
         . " --mfp-exe " . Q(MFP_EXE)
         . " --primary-sources " . Q(PRIMARY_VLC_SOURCES)
@@ -338,14 +328,11 @@ StartController() {
     Log("Startup: launched MFP pid=" . pidM)
     Log("Startup: launched portrait VLC pid=" . pid2)
     Log("Startup: launched landscape VLC pid=" . pid3)
-    Log("Startup: core VLC HTTP ready and initial playlists seeded")
+    Log("Startup: broker restarted, Robot Hand state seeded, browser manifest prepared, and core media stack launched")
 
     WinWait("ahk_pid " pidM, , 15)
     Sleep 5000
     Log("Startup: MFP window ready")
-
-    PrepareRandomFavsBrowserManifest()
-    Log("Startup: Random Favs Browser manifest prepared")
 
     PositionAll(pid1, pid2, pid3, pidM)
     SetTopMost(pid1, pid2, pid3, pidM)

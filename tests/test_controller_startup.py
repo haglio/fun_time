@@ -10,6 +10,7 @@ from fun_time.controller_startup import (
     prepare_random_favs_browser_manifest,
     restart_broker,
     seed_robot_hand_state,
+    start_core_session,
 )
 
 
@@ -53,6 +54,51 @@ def test_seed_robot_hand_state_writes_enabled_and_paused_files(tmp_path: Path):
     assert enabled_file.read_text(encoding="utf-8") == "1"
     assert paused_file.read_text(encoding="utf-8") == "1"
     assert audio_file.read_text(encoding="utf-8") == "1"
+
+
+def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: Path):
+    result_file = tmp_path / "core_session.ini"
+
+    with patch("fun_time.controller_startup.restart_broker") as restart, patch(
+        "fun_time.controller_startup.seed_robot_hand_state"
+    ) as seed, patch(
+        "fun_time.controller_startup.prepare_random_favs_browser_manifest"
+    ) as prepare, patch("fun_time.controller_startup.launch_core_apps") as launch:
+        start_core_session(
+            project_dir=tmp_path,
+            config_path="fun_time_config.json",
+            random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
+            enabled_file=tmp_path / "robot_hand_enabled.txt",
+            paused_file=tmp_path / "robot_hand_paused.txt",
+            audio_paused_file=tmp_path / "audio_paused.txt",
+            vlc_exe="vlc.exe",
+            mfp_exe="mfp.exe",
+            primary_sources="primary_a|primary_b",
+            portrait_sources="portrait_a",
+            landscape_sources="landscape_a",
+            primary_port=8090,
+            portrait_port=8091,
+            landscape_port=8092,
+            password="pw",
+            result_file=result_file,
+        )
+
+    restart.assert_called_once_with(tmp_path)
+    seed.assert_called_once()
+    prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
+    launch.assert_called_once_with(
+        project_dir=tmp_path,
+        vlc_exe="vlc.exe",
+        mfp_exe="mfp.exe",
+        primary_sources="primary_a|primary_b",
+        portrait_sources="portrait_a",
+        landscape_sources="landscape_a",
+        primary_port=8090,
+        portrait_port=8091,
+        landscape_port=8092,
+        password="pw",
+        result_file=result_file,
+    )
 
 
 def test_launch_runtime_companions_starts_robot_and_audio_and_writes_result(tmp_path: Path):

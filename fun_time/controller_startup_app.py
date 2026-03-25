@@ -8,6 +8,7 @@ from .controller_startup import (
     prepare_random_favs_browser_manifest,
     restart_broker,
     seed_robot_hand_state,
+    start_core_session,
 )
 
 
@@ -25,6 +26,27 @@ def build_parser() -> argparse.ArgumentParser:
     seed.add_argument("--enabled-file", required=True)
     seed.add_argument("--paused-file", required=True)
     seed.add_argument("--audio-paused-file", required=True)
+
+    core_session = subparsers.add_parser(
+        "start-core-session",
+        help="Run the broker/state/browser/core-media startup sequence and write the core PIDs.",
+    )
+    core_session.add_argument("--project-dir", required=True)
+    core_session.add_argument("--config", required=True)
+    core_session.add_argument("--random-favs-browser-manifest-file", required=True)
+    core_session.add_argument("--enabled-file", required=True)
+    core_session.add_argument("--paused-file", required=True)
+    core_session.add_argument("--audio-paused-file", required=True)
+    core_session.add_argument("--vlc-exe", required=True)
+    core_session.add_argument("--mfp-exe", required=True)
+    core_session.add_argument("--primary-sources", required=True)
+    core_session.add_argument("--portrait-sources", required=True)
+    core_session.add_argument("--landscape-sources", required=True)
+    core_session.add_argument("--primary-port", required=True, type=int)
+    core_session.add_argument("--portrait-port", required=True, type=int)
+    core_session.add_argument("--landscape-port", required=True, type=int)
+    core_session.add_argument("--password", required=True)
+    core_session.add_argument("--result-file", required=True)
 
     browser = subparsers.add_parser(
         "prepare-random-favs-browser-manifest",
@@ -74,6 +96,26 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "seed-robot-hand-state":
         seed_robot_hand_state(args.enabled_file, args.paused_file, args.audio_paused_file)
+        return 0
+    if args.command == "start-core-session":
+        start_core_session(
+            project_dir=args.project_dir,
+            config_path=args.config,
+            random_favs_browser_manifest_file=args.random_favs_browser_manifest_file,
+            enabled_file=args.enabled_file,
+            paused_file=args.paused_file,
+            audio_paused_file=args.audio_paused_file,
+            vlc_exe=args.vlc_exe,
+            mfp_exe=args.mfp_exe,
+            primary_sources=args.primary_sources,
+            portrait_sources=args.portrait_sources,
+            landscape_sources=args.landscape_sources,
+            primary_port=args.primary_port,
+            portrait_port=args.portrait_port,
+            landscape_port=args.landscape_port,
+            password=args.password,
+            result_file=args.result_file,
+        )
         return 0
     if args.command == "launch-runtime-companions":
         launch_runtime_companions(
