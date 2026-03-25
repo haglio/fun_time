@@ -122,11 +122,6 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
                 "locked=1",
                 "[landscape]",
                 "locked=0",
-                "[window]",
-                "x=11",
-                "y=22",
-                "width=33",
-                "height=44",
             ]
         ),
         encoding="utf-8",
@@ -140,7 +135,7 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
     assert snapshot.primary.path == ""
     assert snapshot.primary_responsive is False
     assert snapshot.portrait.locked is True
-    assert snapshot.window.width == 33
+    assert snapshot.window.width == 0
 
 
 def test_broker_heartbeat_is_fresh_when_recent(tmp_path: Path):

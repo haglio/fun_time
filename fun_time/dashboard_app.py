@@ -6,6 +6,7 @@ import ctypes
 from ctypes import wintypes
 from dataclasses import dataclass
 from dataclasses import replace
+import os
 from pathlib import Path
 import tkinter as tk
 
@@ -74,6 +75,14 @@ class DashboardAppConfig:
 
 
 @dataclass(frozen=True)
+class DashboardLaunchGeometry:
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+@dataclass(frozen=True)
 class DashboardTextItem:
     text: str
     rect: Rect
@@ -126,7 +135,17 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
     )
 
 
-def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, app_config: DashboardAppConfig) -> DashboardSnapshot:
+def is_process_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, app_config: DashboardAppConfig, *, mfp_pid: int = 0) -> DashboardSnapshot:
     primary_path = get_current_file_path(app_config.primary_vlc_port, app_config.vlc_password)
     portrait_path = get_current_file_path(app_config.portrait_vlc_port, app_config.vlc_password)
     landscape_path = get_current_file_path(app_config.landscape_vlc_port, app_config.vlc_password)
@@ -135,6 +154,7 @@ def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, app_config: Dashboar
     return replace(
         snapshot,
         primary_responsive=primary_responsive,
+        mfp_alive=is_process_alive(mfp_pid),
         primary=replace(snapshot.primary, path=primary_path),
         portrait=replace(snapshot.portrait, path=portrait_path),
         landscape=replace(snapshot.landscape, path=landscape_path),
@@ -379,7 +399,19 @@ def write_dashboard_command(path: Path, action_id: str) -> None:
     path.write_text(action_id, encoding="utf-8")
 
 
-def apply_dashboard_window_geometry(root: tk.Tk, snapshot: DashboardSnapshot | None, scene: DashboardScene) -> None:
+def apply_dashboard_window_geometry(
+    root: tk.Tk,
+    snapshot: DashboardSnapshot | None,
+    scene: DashboardScene,
+    *,
+    launch_geometry: DashboardLaunchGeometry | None = None,
+) -> None:
+    if launch_geometry is not None:
+        root.geometry(
+            f"{launch_geometry.width}x{launch_geometry.height}"
+            f"+{launch_geometry.x}+{launch_geometry.y}"
+        )
+        return
     if snapshot is None or snapshot.window.width <= 0 or snapshot.window.height <= 0:
         root.geometry(f"{scene.width}x{scene.height}")
         return
@@ -401,7 +433,12 @@ def bind_dashboard_actions(canvas: tk.Canvas, scene: DashboardScene, command_fil
         canvas.tag_bind(tag, "<Button-1>", lambda _event, action=action_id: write_dashboard_command(command_file, action))
 
 
-def build_dashboard_window(app_config: DashboardAppConfig) -> tk.Tk:
+def build_dashboard_window(
+    app_config: DashboardAppConfig,
+    *,
+    launch_geometry: DashboardLaunchGeometry | None = None,
+    mfp_pid: int = 0,
+) -> tk.Tk:
     main_monitor, secondary_monitor = get_preview_monitor_sizes(app_config)
     preview_layout = compute_dashboard_preview_layout(main_monitor, secondary_monitor, app_config.layout)
 
@@ -417,7 +454,7 @@ def build_dashboard_window(app_config: DashboardAppConfig) -> tk.Tk:
     def refresh() -> None:
         snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
         if snapshot is not None:
-            snapshot = hydrate_dashboard_snapshot(snapshot, app_config)
+            snapshot = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=mfp_pid)
         scene = build_dashboard_scene(
             preview_layout,
             snapshot,
@@ -425,7 +462,7 @@ def build_dashboard_window(app_config: DashboardAppConfig) -> tk.Tk:
             favs_file=app_config.favs_file,
             broker_heartbeat_file=app_config.broker_heartbeat_file,
         )
-        apply_dashboard_window_geometry(root, snapshot, scene)
+        apply_dashboard_window_geometry(root, snapshot, scene, launch_geometry=launch_geometry)
         render_dashboard_scene(canvas, scene)
         bind_dashboard_actions(canvas, scene, app_config.dashboard_cmd_file)
         root.after(500, refresh)
@@ -442,13 +479,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=str(Path("state") / CONTROLLER_MANIFEST_FILENAME),
         help="Path to the controller launch manifest",
     )
+    parser.add_argument("--x", type=int)
+    parser.add_argument("--y", type=int)
+    parser.add_argument("--width", type=int)
+    parser.add_argument("--height", type=int)
+    parser.add_argument("--mfp-pid", type=int, default=0)
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     app_config = load_dashboard_app_config(Path(args.manifest_path))
-    root = build_dashboard_window(app_config)
+    launch_geometry = None
+    if None not in {args.x, args.y, args.width, args.height}:
+        launch_geometry = DashboardLaunchGeometry(
+            x=args.x,
+            y=args.y,
+            width=args.width,
+            height=args.height,
+        )
+    root = build_dashboard_window(app_config, launch_geometry=launch_geometry, mfp_pid=args.mfp_pid)
     root.mainloop()
     return 0
 

@@ -79,7 +79,6 @@ pidM := 0
 pidD := 0
 pidR := 0
 pidA := 0
-lastDashboardSnapshotText := ""
 LABEL_PRIMARY_VLC := "Non-AI VLC"
 LABEL_PRIMARY_ROBOT := "Non-AI Robot Hand"
 LABEL_PORTRAIT_VLC := "Portrait AI VLC"
@@ -336,9 +335,17 @@ BuildVlcQueryOutputPath(prefix) {
     return STATE_DIR . "\" . prefix . "_" . A_TickCount . "_" . counter . ".txt"
 }
 
-LaunchDashboardApp() {
+LaunchDashboardApp(x, y, w, h, mfpPid := 0) {
     global ROBOT_HAND_PY, DASHBOARD_MODULE, CONTROLLER_MANIFEST_PATH
-    return RunApp(ROBOT_HAND_PY, "-m " . DASHBOARD_MODULE . " " . Q(CONTROLLER_MANIFEST_PATH))
+    args := "-m " . DASHBOARD_MODULE
+        . " " . Q(CONTROLLER_MANIFEST_PATH)
+        . " --x " . x
+        . " --y " . y
+        . " --width " . w
+        . " --height " . h
+    if (mfpPid)
+        args .= " --mfp-pid " . mfpPid
+    return RunApp(ROBOT_HAND_PY, args)
 }
 
 RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {
