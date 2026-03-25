@@ -41,7 +41,7 @@ def test_controller_uses_explicit_primary_vlc_playback_state_helpers():
     assert "EnsurePrimaryVlcPlayback(true)" in text
     assert "EnsurePrimaryVlcPlayback(false)" in text
     assert "SetRobotHandEnabled(true)" in text
-    assert "broker_tray\\.ps1|launch_broker_tray\\.vbs" in text
+    assert 'args := "restart-broker --project-dir " . Q(PROJECT_DIR)' in text
     assert 'ControlSend("{Space}", , "ahk_pid " pid1)' not in text
 
 
@@ -152,6 +152,14 @@ def test_controller_reads_controller_random_favs_browser_module_from_manifest():
     assert 'RANDOM_FAVS_BROWSER_ENABLED := RequireManifestValue("random_favs_browser", "enabled") = "1"' in text
 
 
+def test_controller_reads_controller_startup_module_from_manifest():
+    text = _controller_text()
+
+    assert 'CONTROLLER_STARTUP_MODULE := RequireManifestValue("modules", "controller_startup_module")' in text
+    assert 'RunControllerStartupAction(args) {' in text
+    assert 'cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_STARTUP_MODULE . " " . args' in text
+
+
 def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper():
     text = _controller_text()
 
@@ -216,6 +224,17 @@ def test_controller_restores_random_favs_browser_launch_spec_helpers():
     assert ' --shortcut-args-b64 ' in text
     assert 'LoadRandomFavsBrowserLaunchPlan(path) {' not in text
     assert 'if (!RANDOM_FAVS_BROWSER_ENABLED)' in text
+
+
+def test_controller_delegates_startup_broker_restart_and_browser_manifest_prep_to_python():
+    text = _controller_text()
+
+    assert 'args := "restart-broker --project-dir " . Q(PROJECT_DIR)' in text
+    assert 'args := "prepare-random-favs-browser-manifest"' in text
+    assert '. " --config " . Q(CONFIG_PATH)' in text
+    assert '. " --output " . Q(RANDOM_FAVS_BROWSER_MANIFEST_FILE)' in text
+    assert '"powershell.exe -NoProfile -WindowStyle Hidden -Command "' not in text[text.index("RestartBroker() {"):text.index("\nPositionAll(pid1, pid2, pid3, pidM) {")]
+    assert '. " -m fun_time.random_favs_browser"' not in text[text.index("PrepareRandomFavsBrowserManifest() {"):text.index("\nMaybeLaunchRandomFavsBrowser(pidM) {")]
 
 
 def test_controller_processes_python_dashboard_commands_from_state_file():

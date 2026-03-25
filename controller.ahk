@@ -34,6 +34,7 @@ CONTROLLER_OMNIPAUSE_MODULE := RequireManifestValue("modules", "controller_omnip
 CONTROLLER_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "controller_window_layout_module")
 CONTROLLER_VLC_ACTIONS_MODULE := RequireManifestValue("modules", "controller_vlc_actions_module")
 CONTROLLER_RANDOM_FAVS_BROWSER_MODULE := RequireManifestValue("modules", "controller_random_favs_browser_module")
+CONTROLLER_STARTUP_MODULE := RequireManifestValue("modules", "controller_startup_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -365,6 +366,12 @@ RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {
 RunControllerVlcAction(args) {
     global ROBOT_HAND_PY, CONTROLLER_VLC_ACTIONS_MODULE, PROJECT_DIR
     cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_VLC_ACTIONS_MODULE . " " . args
+    return RunWait(cmd, PROJECT_DIR, "Hide")
+}
+
+RunControllerStartupAction(args) {
+    global ROBOT_HAND_PY, CONTROLLER_STARTUP_MODULE, PROJECT_DIR
+    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_STARTUP_MODULE . " " . args
     return RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
@@ -1099,19 +1106,8 @@ ShutdownAll() {
 
 RestartBroker() {
     global PROJECT_DIR
-
-    launchPath := PROJECT_DIR . "\launch_broker_tray.vbs"
-    psCmd := "$targets = Get-CimInstance Win32_Process | Where-Object { "
-        . "(($_.Name -match '^pythonw?\.exe$|^py\.exe$') -and $_.CommandLine -match 'fun_time\.broker_app') -or "
-        . "(($_.Name -match '^powershell\.exe$|^pwsh\.exe$|^wscript\.exe$') -and $_.CommandLine -match 'broker_tray\.ps1|launch_broker_tray\.vbs') "
-        . "}; "
-        . "$targets | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; "
-        . "Start-Sleep -Milliseconds 400"
-
-    try RunWait("powershell.exe -NoProfile -WindowStyle Hidden -Command " . Q(psCmd), PROJECT_DIR, "Hide")
-    Sleep 400
-    if FileExist(launchPath)
-        Run(Q("wscript.exe") . " " . Q(launchPath), PROJECT_DIR)
+    args := "restart-broker --project-dir " . Q(PROJECT_DIR)
+    RunControllerStartupAction(args)
 }
 
 PositionAll(pid1, pid2, pid3, pidM) {
@@ -1204,11 +1200,10 @@ PrepareRandomFavsBrowserManifest() {
         return
     }
     try FileDelete(RANDOM_FAVS_BROWSER_MANIFEST_FILE)
-    cmd := Q(ROBOT_HAND_PY)
-        . " -m fun_time.random_favs_browser"
+    args := "prepare-random-favs-browser-manifest"
         . " --config " . Q(CONFIG_PATH)
         . " --output " . Q(RANDOM_FAVS_BROWSER_MANIFEST_FILE)
-    try RunWait(cmd, PROJECT_DIR, "Hide")
+    RunControllerStartupAction(args)
 }
 
 MaybeLaunchRandomFavsBrowser(pidM) {
