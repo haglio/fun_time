@@ -78,6 +78,7 @@ pidA := 0
 dashboardStatusRefreshTick := 0
 dashboardBrokerRunning := false
 dashboardMfpConnected := false
+lastDashboardSnapshotText := ""
 LABEL_PRIMARY_VLC := "Non-AI VLC"
 LABEL_PRIMARY_ROBOT := "Non-AI Robot Hand"
 LABEL_PORTRAIT_VLC := "Portrait AI VLC"
@@ -700,35 +701,55 @@ UpdateFunTimeDashboard() {
 
 WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabled, brokerRunning, mfpConnected, x, y, w, h, portraitLocked, landscapeLocked) {
     global DASHBOARD_STATE_FILE, LABEL_PRIMARY_ROBOT, LABEL_PRIMARY_VLC, LABEL_PORTRAIT_VLC, LABEL_LANDSCAPE_VLC
-    global fModeEnabled
+    global fModeEnabled, lastDashboardSnapshotText
 
-    IniWrite(x, DASHBOARD_STATE_FILE, "window", "x")
-    IniWrite(y, DASHBOARD_STATE_FILE, "window", "y")
-    IniWrite(w, DASHBOARD_STATE_FILE, "window", "width")
-    IniWrite(h, DASHBOARD_STATE_FILE, "window", "height")
-    IniWrite(brokerRunning ? "1" : "0", DASHBOARD_STATE_FILE, "broker", "running")
-    IniWrite("1", DASHBOARD_STATE_FILE, "controller", "running")
-    IniWrite(fModeEnabled ? "1" : "0", DASHBOARD_STATE_FILE, "fmode", "enabled")
-    IniWrite(robotHandEnabled ? "1" : "0", DASHBOARD_STATE_FILE, "robot_link", "enabled")
-    IniWrite(osr2Auto ? "auto" : "controlled", DASHBOARD_STATE_FILE, "osr2", "mode")
-    IniWrite(mfpConnected ? "1" : "0", DASHBOARD_STATE_FILE, "mfp", "connected")
+    snapshotText := "[window]`n"
+        . "x=" . x . "`n"
+        . "y=" . y . "`n"
+        . "width=" . w . "`n"
+        . "height=" . h . "`n"
+        . "[broker]`n"
+        . "running=" . (brokerRunning ? "1" : "0") . "`n"
+        . "[controller]`n"
+        . "running=1`n"
+        . "[fmode]`n"
+        . "enabled=" . (fModeEnabled ? "1" : "0") . "`n"
+        . "[robot_link]`n"
+        . "enabled=" . (robotHandEnabled ? "1" : "0") . "`n"
+        . "[osr2]`n"
+        . "mode=" . (osr2Auto ? "auto" : "controlled") . "`n"
+        . "[mfp]`n"
+        . "connected=" . (mfpConnected ? "1" : "0") . "`n"
+        . "[primary]`n"
+        . "label=" . IniEscape(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC) . "`n"
+        . "clip=" . IniEscape(ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath)) . "`n"
+        . "highlight=" . (PrimaryPanelShouldHighlight() ? "1" : "0") . "`n"
+        . "accent=" . IniEscape(primaryUsesRobotHand ? "osr2" : "") . "`n"
+        . "[portrait]`n"
+        . "label=" . IniEscape(LABEL_PORTRAIT_VLC) . "`n"
+        . "clip=" . IniEscape(ClipLabelFromPath(portraitPath)) . "`n"
+        . "highlight=" . (SatellitePanelShouldHighlight(VLC2_PORT) ? "1" : "0") . "`n"
+        . "locked=" . (portraitLocked ? "1" : "0") . "`n"
+        . "accent=`n"
+        . "[landscape]`n"
+        . "label=" . IniEscape(LABEL_LANDSCAPE_VLC) . "`n"
+        . "clip=" . IniEscape(ClipLabelFromPath(landscapePath)) . "`n"
+        . "highlight=" . (SatellitePanelShouldHighlight(VLC3_PORT) ? "1" : "0") . "`n"
+        . "locked=" . (landscapeLocked ? "1" : "0") . "`n"
+        . "accent=`n"
 
-    IniWrite(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC, DASHBOARD_STATE_FILE, "primary", "label")
-    IniWrite(ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath), DASHBOARD_STATE_FILE, "primary", "clip")
-    IniWrite(PrimaryPanelShouldHighlight() ? "1" : "0", DASHBOARD_STATE_FILE, "primary", "highlight")
-    IniWrite(primaryUsesRobotHand ? "osr2" : "", DASHBOARD_STATE_FILE, "primary", "accent")
+    if (snapshotText = lastDashboardSnapshotText)
+        return
+    lastDashboardSnapshotText := snapshotText
+    FileDelete(DASHBOARD_STATE_FILE)
+    FileAppend(snapshotText, DASHBOARD_STATE_FILE, "UTF-16")
+}
 
-    IniWrite(LABEL_PORTRAIT_VLC, DASHBOARD_STATE_FILE, "portrait", "label")
-    IniWrite(ClipLabelFromPath(portraitPath), DASHBOARD_STATE_FILE, "portrait", "clip")
-    IniWrite(SatellitePanelShouldHighlight(VLC2_PORT) ? "1" : "0", DASHBOARD_STATE_FILE, "portrait", "highlight")
-    IniWrite(portraitLocked ? "1" : "0", DASHBOARD_STATE_FILE, "portrait", "locked")
-    IniWrite("", DASHBOARD_STATE_FILE, "portrait", "accent")
-
-    IniWrite(LABEL_LANDSCAPE_VLC, DASHBOARD_STATE_FILE, "landscape", "label")
-    IniWrite(ClipLabelFromPath(landscapePath), DASHBOARD_STATE_FILE, "landscape", "clip")
-    IniWrite(SatellitePanelShouldHighlight(VLC3_PORT) ? "1" : "0", DASHBOARD_STATE_FILE, "landscape", "highlight")
-    IniWrite(landscapeLocked ? "1" : "0", DASHBOARD_STATE_FILE, "landscape", "locked")
-    IniWrite("", DASHBOARD_STATE_FILE, "landscape", "accent")
+IniEscape(value) {
+    text := value . ""
+    text := StrReplace(text, "`r", " ")
+    text := StrReplace(text, "`n", " ")
+    return text
 }
 
 EnforceRobotHandOutputs(active, isTransition := false) {

@@ -170,6 +170,26 @@ def test_controller_dashboard_refresh_repositions_only_when_rect_changes():
     assert 'WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, brokerRunningNow, mfpConnectedNow, x, y, w, h, locked2, locked3)' in update_block
 
 
+def test_controller_dashboard_snapshot_writer_declares_cache_global():
+    text = _controller_text()
+
+    snapshot_start = text.index("WriteDashboardStateSnapshot(")
+    escape_start = text.index("\nIniEscape(value) {", snapshot_start)
+    snapshot_block = text[snapshot_start:escape_start]
+
+    assert 'lastDashboardSnapshotText := ""' in text
+    assert "global fModeEnabled, lastDashboardSnapshotText" in snapshot_block
+    assert "if (snapshotText = lastDashboardSnapshotText)" in snapshot_block
+
+
+def test_controller_restores_random_favs_browser_launch_spec_helpers():
+    text = _controller_text()
+
+    assert 'BuildRandomFavsBrowserLaunchSpec(manifest) {' in text
+    assert 'ReadRandomFavsBrowserManifest(path) {' in text
+    assert 'try FileGetShortcut(RANDOM_FAVS_BROWSER_SHORTCUT_PATH, &target, &workDir, &args, &description, &iconPath, &iconNum, &runState)' in text
+
+
 def test_controller_processes_python_dashboard_commands_from_state_file():
     text = _controller_text()
 
