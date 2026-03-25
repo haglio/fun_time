@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,13 +22,12 @@ class DashboardWindowSnapshot:
 
 @dataclass(frozen=True)
 class DashboardSnapshot:
-    broker_running: bool
-    controller_running: bool
     f_mode_enabled: bool
     robot_link_enabled: bool
     primary_uses_robot_hand: bool
     osr2_mode: str
-    mfp_connected: bool
+    mfp_alive: bool
+    primary_responsive: bool
     primary: DashboardPanelSnapshot
     portrait: DashboardPanelSnapshot
     landscape: DashboardPanelSnapshot
@@ -45,18 +45,28 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         return None
 
     return DashboardSnapshot(
-        broker_running=_read_bool(parser, "broker", "running"),
-        controller_running=_read_bool(parser, "controller", "running"),
         f_mode_enabled=_read_bool(parser, "fmode", "enabled"),
         robot_link_enabled=_read_bool(parser, "robot_link", "enabled"),
         primary_uses_robot_hand=_read_bool(parser, "primary", "uses_robot_hand"),
         osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
-        mfp_connected=_read_bool(parser, "mfp", "connected"),
+        mfp_alive=_read_bool(parser, "mfp", "alive"),
+        primary_responsive=_read_bool(parser, "primary", "responsive"),
         primary=_read_panel(parser, "primary"),
         portrait=_read_panel(parser, "portrait"),
         landscape=_read_panel(parser, "landscape"),
         window=_read_window(parser),
     )
+
+
+def is_broker_heartbeat_fresh(path: Path, *, max_age_seconds: float = 3.0, now: float | None = None) -> bool:
+    if not path.exists():
+        return False
+    try:
+        heartbeat = float(path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return False
+    current = time.time() if now is None else now
+    return (current - heartbeat) <= max_age_seconds
 
 
 def _read_dashboard_text(path: Path) -> str:

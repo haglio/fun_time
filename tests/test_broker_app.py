@@ -85,3 +85,13 @@ class TestMainReconnect:
         assert result == 0
         assert open_ports.count("COM4") >= 2
         assert open_ports.count("COM15") >= 2
+
+
+def test_write_heartbeat_persists_current_timestamp(tmp_path: Path, broker_app_module):
+    heartbeat_file = tmp_path / "state" / "broker_heartbeat.txt"
+    logger = logging.getLogger("test.broker")
+
+    with patch("fun_time.broker_app.time.time", return_value=123.45):
+        broker_app_module.write_heartbeat(heartbeat_file, logger)
+
+    assert heartbeat_file.read_text(encoding="utf-8") == "123.45"

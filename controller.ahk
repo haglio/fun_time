@@ -80,9 +80,6 @@ pidM := 0
 pidD := 0
 pidR := 0
 pidA := 0
-dashboardStatusRefreshTick := 0
-dashboardBrokerRunning := false
-dashboardMfpConnected := false
 lastDashboardSnapshotText := ""
 LABEL_PRIMARY_VLC := "Non-AI VLC"
 LABEL_PRIMARY_ROBOT := "Non-AI Robot Hand"
@@ -649,60 +646,13 @@ GetFunTimeDashboardRect(&x, &y, &w, &h) {
     h := plan["dashboard"]["h"]
 }
 
-IsBrokerRunning() {
-    try {
-        wmi := ComObjGet("winmgmts:")
-        query := "SELECT Name, CommandLine FROM Win32_Process WHERE "
-            . "Name='python.exe' OR Name='pythonw.exe' OR Name='py.exe' OR "
-            . "Name='powershell.exe' OR Name='pwsh.exe' OR Name='wscript.exe'"
-        for process in wmi.ExecQuery(query) {
-            name := ""
-            cmdLine := ""
-            try name := StrLower(process.Name . "")
-            try cmdLine := StrLower(process.CommandLine . "")
-            if ((name = "python.exe" || name = "pythonw.exe" || name = "py.exe") && InStr(cmdLine, "fun_time.broker_app"))
-                return true
-            if ((name = "powershell.exe" || name = "pwsh.exe" || name = "wscript.exe")
-                && (InStr(cmdLine, "broker_tray.ps1") || InStr(cmdLine, "launch_broker_tray.vbs")))
-                return true
-        }
-        return false
-    } catch {
-        return false
-    }
-}
-
-IsProcessAlive(pid) {
-    return pid && ProcessExist(pid)
-}
-
 IsVlcResponsive(port) {
     xml := VlcHttpReq(port, "/requests/status.xml", &st)
     return st = 200 && InStr(xml, "<state>")
 }
 
-IsMfpConnected() {
-    global pidM, PRIMARY_VLC_PORT
-    return IsProcessAlive(pidM) && IsVlcResponsive(PRIMARY_VLC_PORT) && IsBrokerRunning()
-}
-
-GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected) {
-    global dashboardStatusRefreshTick, dashboardBrokerRunning, dashboardMfpConnected
-    global pidM, PRIMARY_VLC_PORT
-
-    if (dashboardStatusRefreshTick = 0 || (A_TickCount - dashboardStatusRefreshTick) >= 2000) {
-        brokerRunningNow := IsBrokerRunning()
-        dashboardBrokerRunning := brokerRunningNow
-        dashboardMfpConnected := IsProcessAlive(pidM) && IsVlcResponsive(PRIMARY_VLC_PORT) && brokerRunningNow
-        dashboardStatusRefreshTick := A_TickCount
-    }
-
-    brokerRunning := dashboardBrokerRunning
-    mfpConnected := dashboardMfpConnected
-}
-
 UpdateFunTimeDashboard() {
-    global DASHBOARD_ENABLED
+    global DASHBOARD_ENABLED, pidM
     global robotHandMode, fModeEnabled, locked2, locked3
     global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT
     if (!DASHBOARD_ENABLED)
@@ -713,13 +663,14 @@ UpdateFunTimeDashboard() {
     landscapePath := GetCurrentFilePath(VLC3_PORT)
     osr2Auto := RobotHandModeState() = "1"
     robotHandEnabledNow := RobotHandEnabled()
-    GetDashboardStatusSnapshot(&brokerRunningNow, &mfpConnectedNow)
     primaryUsesRobotHand := robotHandMode && robotHandEnabledNow
+    primaryResponsive := IsVlcResponsive(PRIMARY_VLC_PORT)
+    mfpAlive := pidM && ProcessExist(pidM)
     GetFunTimeDashboardRect(&x, &y, &w, &h)
-    WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, brokerRunningNow, mfpConnectedNow, x, y, w, h, locked2, locked3)
+    WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, primaryResponsive, mfpAlive, x, y, w, h, locked2, locked3)
 }
 
-WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabled, brokerRunning, mfpConnected, x, y, w, h, portraitLocked, landscapeLocked) {
+WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabled, primaryResponsive, mfpAlive, x, y, w, h, portraitLocked, landscapeLocked) {
     global DASHBOARD_STATE_FILE
     global fModeEnabled, lastDashboardSnapshotText
 
@@ -728,10 +679,6 @@ WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUse
         . "y=" . y . "`n"
         . "width=" . w . "`n"
         . "height=" . h . "`n"
-        . "[broker]`n"
-        . "running=" . (brokerRunning ? "1" : "0") . "`n"
-        . "[controller]`n"
-        . "running=1`n"
         . "[fmode]`n"
         . "enabled=" . (fModeEnabled ? "1" : "0") . "`n"
         . "[robot_link]`n"
@@ -739,10 +686,11 @@ WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUse
         . "[osr2]`n"
         . "mode=" . (osr2Auto ? "auto" : "controlled") . "`n"
         . "[mfp]`n"
-        . "connected=" . (mfpConnected ? "1" : "0") . "`n"
+        . "alive=" . (mfpAlive ? "1" : "0") . "`n"
         . "[primary]`n"
         . "uses_robot_hand=" . (primaryUsesRobotHand ? "1" : "0") . "`n"
         . "path=" . IniEscape(primaryPath) . "`n"
+        . "responsive=" . (primaryResponsive ? "1" : "0") . "`n"
         . "locked=0`n"
         . "[portrait]`n"
         . "path=" . IniEscape(portraitPath) . "`n"
