@@ -171,10 +171,10 @@ class TestControllerManifest:
         result = build_controller_manifest(cfg, "pw")
         assert result["dashboard"]["enabled"] == "0"
 
-    def test_media_actions_module_name_included(self, cfg_path: Path):
+    def test_media_actions_module_removed_from_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_controller_manifest(cfg, "pw")
-        assert result["modules"]["media_actions_module"] == "fun_time.media_actions_app"
+        assert "media_actions_module" not in result["modules"]
 
     def test_controller_modes_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -236,7 +236,6 @@ class TestControllerManifest:
         assert parser["controller"]["vlc_pass"] == "pw"
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
-        assert parser["modules"]["media_actions_module"] == "fun_time.media_actions_app"
         assert parser["modules"]["controller_modes_module"] == "fun_time.controller_modes_app"
         assert parser["modules"]["controller_lock_module"] == "fun_time.controller_lock_app"
         assert parser["modules"]["controller_robot_hand_module"] == "fun_time.controller_robot_hand_app"

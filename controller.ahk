@@ -26,7 +26,6 @@ VLC_PASS := RequireManifestValue("controller", "vlc_pass")
 ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")
 ROBOT_HAND_MODULE := RequireManifestValue("modules", "robot_hand_module")
 DASHBOARD_MODULE := RequireManifestValue("modules", "dashboard_module")
-MEDIA_ACTIONS_MODULE := RequireManifestValue("modules", "media_actions_module")
 CONTROLLER_MODES_MODULE := RequireManifestValue("modules", "controller_modes_module")
 CONTROLLER_LOCK_MODULE := RequireManifestValue("modules", "controller_lock_module")
 CONTROLLER_ROBOT_HAND_MODULE := RequireManifestValue("modules", "controller_robot_hand_module")
@@ -198,32 +197,21 @@ RunDetached(cmdLine) {
     return pid
 }
 
-RunMediaAction(action, targetPath) {
-    global ROBOT_HAND_PY, MEDIA_ACTIONS_MODULE, FAVS_FILE, WEIRD_DIR, PROJECT_DIR
-    if (targetPath = "")
-        return
-    cmd := Q(ROBOT_HAND_PY)
-        . " -m " . MEDIA_ACTIONS_MODULE
-        . " " . action
-        . " --favs-file " . Q(FAVS_FILE)
-        . " --weird-dir " . Q(WEIRD_DIR)
-        . " --path " . Q(targetPath)
-    RunWait(cmd, PROJECT_DIR, "Hide")
-}
-
 RunControllerModesAction(args) {
     global ROBOT_HAND_PY, CONTROLLER_MODES_MODULE, PROJECT_DIR
     cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_MODES_MODULE . " " . args
     return RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
-RunControllerLockAction(action, which, locked, currentPath, planPath) {
+RunControllerLockAction(action, which, locked, currentPath, planPath, extraArgs := "") {
     global ROBOT_HAND_PY, CONTROLLER_LOCK_MODULE, PROJECT_DIR
     args := action
         . " --which " . which
         . " --locked " . (locked ? "1" : "0")
         . " --current-path " . Q(currentPath)
         . " --plan-file " . Q(planPath)
+    if (extraArgs != "")
+        args .= " " . extraArgs
     cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_LOCK_MODULE . " " . args
     if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
         return ""
@@ -300,6 +288,16 @@ LoadOmniPauseActionPlan(path) {
     return plan
 }
 
+LoadModesActionResult(path) {
+    if !FileExist(path)
+        return ""
+    result := Map()
+    result["next_locked2"] := IniRead(path, "result", "next_locked2", "0") = "1"
+    result["next_locked3"] := IniRead(path, "result", "next_locked3", "0") = "1"
+    try FileDelete(path)
+    return result
+}
+
 BuildLockPlanPath(which) {
     global STATE_DIR
     return STATE_DIR . "\lock_action_plan_" . which . ".ini"
@@ -313,6 +311,11 @@ BuildRobotHandPlanPath() {
 BuildOmniPausePlanPath() {
     global STATE_DIR
     return STATE_DIR . "\omnipause_action_plan.ini"
+}
+
+BuildModesResultPath() {
+    global STATE_DIR
+    return STATE_DIR . "\modes_action_result.ini"
 }
 
 BuildWindowLayoutPlanPath() {
@@ -782,53 +785,37 @@ ToggleRobotHandEnabled() {
     UpdateFunTimeDashboard()
 }
 
-BuildPlaylistFilePath(name) {
-    global STATE_DIR
-    return STATE_DIR . "\" . name . ".m3u"
-}
-
-WriteFModePlaylists(enabled) {
+ApplyFModePlaylists(enabled) {
     global PRIMARY_VLC_SOURCES, PORTRAIT_DIR, LANDSCAPE_DIR, FAVS_FILE, STATE_DIR
+    global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT, VLC_PASS, locked2, locked3
 
-    args := "write-fmode-playlists"
+    resultPath := BuildModesResultPath()
+    try FileDelete(resultPath)
+    args := "apply-fmode"
         . " --primary-sources " . Q(PRIMARY_VLC_SOURCES)
         . " --portrait-sources " . Q(PORTRAIT_DIR)
         . " --landscape-sources " . Q(LANDSCAPE_DIR)
         . " --favs-file " . Q(FAVS_FILE)
         . " --state-dir " . Q(STATE_DIR)
+        . " --primary-port " . PRIMARY_VLC_PORT
+        . " --portrait-port " . VLC2_PORT
+        . " --landscape-port " . VLC3_PORT
+        . " --password " . Q(VLC_PASS)
+        . " --result-file " . Q(resultPath)
         . " --enabled " . (enabled ? "1" : "0")
 
-    return RunControllerModesAction(args) = 0
-}
-
-ReplaceVlcPlaylistFromFile(port, playlistPath, repeatMode := "") {
-    global VLC_PASS
-    args := "replace-playlist"
-        . " --port " . port
-        . " --password " . Q(VLC_PASS)
-        . " --playlist-path " . Q(playlistPath)
-    if (repeatMode != "")
-        args .= " --repeat-mode " . repeatMode
-    return RunControllerVlcAction(args) = 0
-}
-
-ApplyFModePlaylists(enabled) {
-    global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT, locked2, locked3
-
-    if !WriteFModePlaylists(enabled) {
+    exitCode := RunControllerModesAction(args)
+    if (exitCode = 3) {
         Log("F-mode toggle aborted because one or more playlists would be empty")
         return false
     }
-
-    locked2 := false
-    locked3 := false
-
-    if !ReplaceVlcPlaylistFromFile(PRIMARY_VLC_PORT, BuildPlaylistFilePath("primary_vlc_playlist"))
+    if (exitCode != 0)
         return false
-    if !ReplaceVlcPlaylistFromFile(VLC2_PORT, BuildPlaylistFilePath("portrait_vlc_playlist"), "all")
+    result := LoadModesActionResult(resultPath)
+    if !IsObject(result)
         return false
-    if !ReplaceVlcPlaylistFromFile(VLC3_PORT, BuildPlaylistFilePath("landscape_vlc_playlist"), "all")
-        return false
+    locked2 := result["next_locked2"]
+    locked3 := result["next_locked3"]
     return true
 }
 
@@ -1305,16 +1292,15 @@ SetRepeatMode(port, target) {
 }
 
 CancelLock(which) {
-    global locked2, locked3
+    global locked2, locked3, VLC_PASS
     port := (which = 2) ? VLC2_PORT : VLC3_PORT
     currentLocked := (which = 2) ? locked2 : locked3
     planPath := BuildLockPlanPath(which)
-    plan := RunControllerLockAction("cancel-lock", which, currentLocked, "", planPath)
+    extraArgs := "--port " . port
+        . " --password " . Q(VLC_PASS)
+    plan := RunControllerLockAction("apply-cancel-lock", which, currentLocked, "", planPath, extraArgs)
     if !IsObject(plan)
         return
-
-    if (plan["repeat_mode"] != "")
-        SetRepeatMode(port, plan["repeat_mode"])
     if (which = 2)
         locked2 := plan["next_locked"]
     else
@@ -1341,64 +1327,43 @@ GetCurrentFilePath(port) {
     }
 }
 
-EnsureInFavs(fullPath) {
-    RunMediaAction("ensure-in-favs", fullPath)
-}
-
-RemoveFromFavs(fullPath) {
-    RunMediaAction("remove-from-favs", fullPath)
-}
-
 ; -------------------- Weird move + actions --------------------
 
-MoveToWeird(srcPath) {
-    RunMediaAction("move-to-weird", srcPath)
-}
-
 Discard(which) {
-    global locked2, locked3
+    global locked2, locked3, FAVS_FILE, WEIRD_DIR, VLC_PASS
     port := (which = 2) ? VLC2_PORT : VLC3_PORT
     src := GetCurrentFilePath(port)
     currentLocked := (which = 2) ? locked2 : locked3
     planPath := BuildLockPlanPath(which)
-    plan := RunControllerLockAction("discard", which, currentLocked, src, planPath)
+    extraArgs := "--port " . port
+        . " --password " . Q(VLC_PASS)
+        . " --favs-file " . Q(FAVS_FILE)
+        . " --weird-dir " . Q(WEIRD_DIR)
+    plan := RunControllerLockAction("apply-discard", which, currentLocked, src, planPath, extraArgs)
     if !IsObject(plan)
         return
 
-    if (plan["log_message"] != "")
-        Log(plan["log_message"])
-    if (plan["repeat_mode"] != "")
-        SetRepeatMode(port, plan["repeat_mode"])
     if (which = 2)
         locked2 := plan["next_locked"]
     else
         locked3 := plan["next_locked"]
-    if (plan["remove_from_favs"])
-        RemoveFromFavs(src)
-    if (plan["advance_playlist"]) {
-        VlcHttpCmd(port, "pl_next")
-        Sleep 250
-    }
-    if (plan["move_to_weird"])
-        MoveToWeird(src)
+    if (plan["log_message"] != "")
+        Log(plan["log_message"])
 }
 
 ToggleLock(which) {
-    global locked2, locked3
+    global locked2, locked3, FAVS_FILE, VLC_PASS
     port := (which = 2) ? VLC2_PORT : VLC3_PORT
     currentLocked := (which = 2) ? locked2 : locked3
     currentPath := GetCurrentFilePath(port)
     planPath := BuildLockPlanPath(which)
-    plan := RunControllerLockAction("toggle-lock", which, currentLocked, currentPath, planPath)
+    extraArgs := "--port " . port
+        . " --password " . Q(VLC_PASS)
+        . " --favs-file " . Q(FAVS_FILE)
+    plan := RunControllerLockAction("apply-toggle-lock", which, currentLocked, currentPath, planPath, extraArgs)
     if !IsObject(plan)
         return
 
-    if (plan["repeat_mode"] != "")
-        SetRepeatMode(port, plan["repeat_mode"])
-    if (plan["ensure_in_favs"])
-        EnsureInFavs(currentPath)
-    if (plan["advance_playlist"])
-        VlcHttpCmd(port, "pl_next")
     if (which = 2)
         locked2 := plan["next_locked"]
     else

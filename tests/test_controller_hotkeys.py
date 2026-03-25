@@ -234,12 +234,13 @@ def test_dashboard_preview_mfp_box_uses_tall_portraitish_ratio():
     assert 'h := Floor(mainRect["h"] * Clamp01(MFP_HEIGHT_RATIO))' in text
 
 
-def test_controller_delegates_favorites_and_weird_file_mutation_to_python_media_actions():
+def test_controller_no_longer_keeps_media_mutation_helpers_in_ahk():
     text = _controller_text()
 
-    assert 'RunMediaAction("ensure-in-favs", fullPath)' in text
-    assert 'RunMediaAction("remove-from-favs", fullPath)' in text
-    assert 'RunMediaAction("move-to-weird", srcPath)' in text
+    assert "RunMediaAction(" not in text
+    assert "EnsureInFavs(fullPath)" not in text
+    assert "RemoveFromFavs(fullPath)" not in text
+    assert "MoveToWeird(srcPath)" not in text
     assert 'FileAppend("local_file,web_url`r`n", FAVS_FILE, "UTF-8")' not in text
     assert 'FileMove(srcPath, dest, false)' not in text
 
