@@ -160,6 +160,17 @@ class TestControllerManifest:
         result = build_controller_manifest(cfg, "pw")
         assert result["modules"]["dashboard_module"] == "fun_time.dashboard_app"
 
+    def test_dashboard_enabled_defaults_true(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        result = build_controller_manifest(cfg, "pw")
+        assert result["dashboard"]["enabled"] == "1"
+
+    def test_dashboard_enabled_can_be_disabled_for_integration(self, cfg_path: Path, monkeypatch):
+        cfg = load_config(cfg_path)
+        monkeypatch.setenv("FUN_TIME_DISABLE_DASHBOARD", "1")
+        result = build_controller_manifest(cfg, "pw")
+        assert result["dashboard"]["enabled"] == "0"
+
     def test_media_actions_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_controller_manifest(cfg, "pw")

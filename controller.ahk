@@ -45,6 +45,7 @@ AUDIO_CMD_FILE := RequireManifestValue("commands", "audio_cmd_file")
 AUDIO_PAUSED_FILE := RequireManifestValue("commands", "audio_paused_file")
 DASHBOARD_STATE_FILE := RequireManifestValue("commands", "dashboard_state_file")
 DASHBOARD_CMD_FILE := RequireManifestValue("commands", "dashboard_cmd_file")
+DASHBOARD_ENABLED := RequireManifestValue("dashboard", "enabled") = "1"
 MAIN_MONITOR := RequireManifestValue("layout", "main_monitor")
 SECONDARY_MONITOR := RequireManifestValue("layout", "secondary_monitor")
 PRIMARY_TOP_RATIO := RequireManifestValue("layout", "primary_top_ratio")
@@ -418,6 +419,12 @@ ProcessDashboardCommand() {
             Discard(3)
         case "link_toggle":
             ToggleRobotHandEnabled()
+        case "omnipause_toggle":
+            OmniPauseToggle()
+        case "fmode_toggle":
+            ToggleFMode()
+        case "robot_toggle":
+            ToggleRobotHandEnabled()
     }
 }
 
@@ -669,8 +676,11 @@ GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected) {
 }
 
 UpdateFunTimeDashboard() {
+    global DASHBOARD_ENABLED
     global robotHandMode, fModeEnabled, locked2, locked3
     global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT
+    if (!DASHBOARD_ENABLED)
+        return
 
     primaryPath := GetCurrentFilePath(PRIMARY_VLC_PORT)
     portraitPath := GetCurrentFilePath(VLC2_PORT)
@@ -873,7 +883,9 @@ OnExit(HandleControllerExit)
 SetRobotHandEnabled(true)
 SetRobotHandPaused(true)
 SetRobotHandAudioPaused(true)
+Log("Startup: reset Robot Hand enabled/paused state files")
 RestartBroker()
+Log("Startup: broker restart requested")
 
 pid1 := RunVLC(Join(
     "--no-one-instance --random --repeat",
@@ -882,13 +894,18 @@ pid1 := RunVLC(Join(
     "--http-port " . PRIMARY_VLC_PORT,
     "--http-password " . Q(VLC_PASS)
 ), PRIMARY_VLC_SOURCES)
+Log("Startup: launched primary VLC pid=" . pid1)
 WaitForHttp(PRIMARY_VLC_PORT, 7000)
+Log("Startup: primary VLC HTTP ready")
 Sleep 300
 SendToPid(pid1, "n")
+Log("Startup: nudged primary VLC to next item")
 
 pidM := RunApp(MFP_EXE, "")
+Log("Startup: launched MFP pid=" . pidM)
 WinWait("ahk_pid " pidM, , 15)
 Sleep 5000
+Log("Startup: MFP window ready")
 
 pid2 := RunVLC(Join(
     "--no-one-instance --random --loop",
@@ -897,6 +914,7 @@ pid2 := RunVLC(Join(
     "--http-port " . VLC2_PORT,
     "--http-password " . Q(VLC_PASS)
 ), PORTRAIT_DIR)
+Log("Startup: launched portrait VLC pid=" . pid2)
 
 pid3 := RunVLC(Join(
     "--no-one-instance --random --loop",
@@ -905,33 +923,52 @@ pid3 := RunVLC(Join(
     "--http-port " . VLC3_PORT,
     "--http-password " . Q(VLC_PASS)
 ), LANDSCAPE_DIR)
+Log("Startup: launched landscape VLC pid=" . pid3)
 
 WaitForHttp(VLC2_PORT, 7000)
+Log("Startup: portrait VLC HTTP ready")
 WaitForHttp(VLC3_PORT, 7000)
+Log("Startup: landscape VLC HTTP ready")
 
 SetRepeatMode(VLC2_PORT, "all")
 SetRepeatMode(VLC3_PORT, "all")
+Log("Startup: satellite repeat modes configured")
 
 Sleep 250
 VlcHttpCmd(VLC2_PORT, "pl_next")
 Sleep 150
 VlcHttpCmd(VLC3_PORT, "pl_next")
+Log("Startup: satellite VLCs advanced to first item")
 
 PrepareRandomFavsBrowserManifest()
+Log("Startup: Random Favs Browser manifest prepared")
 
 PositionAll(pid1, pid2, pid3, pidM)
 SetTopMost(pid1, pid2, pid3, pidM)
+Log("Startup: core windows positioned and topmost set")
 MaybeLaunchRandomFavsBrowser(pidM)
-try FileDelete(DASHBOARD_CMD_FILE)
-pidD := LaunchDashboardApp()
-SetTimer(UpdateFunTimeDashboard, 500)
-SetTimer(ProcessDashboardCommand, 150)
-UpdateFunTimeDashboard()
+if (DASHBOARD_ENABLED) {
+    try FileDelete(DASHBOARD_CMD_FILE)
+    pidD := LaunchDashboardApp()
+    Log("Startup: launched dashboard pid=" . pidD)
+    SetTimer(UpdateFunTimeDashboard, 500)
+    SetTimer(ProcessDashboardCommand, 150)
+    Log("Startup: refreshing dashboard snapshot")
+    UpdateFunTimeDashboard()
+    Log("Startup: dashboard snapshot written")
+    Log("Startup: dashboard timers running")
+} else {
+    try FileDelete(DASHBOARD_CMD_FILE)
+    try FileDelete(DASHBOARD_STATE_FILE)
+    SetTimer(ProcessDashboardCommand, 150)
+    Log("Startup: dashboard disabled")
+}
 
 Sleep 1200
 
 rx := 0, ry := 0, rw := 0, rh := 0
 GetRobotHandRect(&rx, &ry, &rw, &rh)
+Log("Startup: resolved Robot Hand rect x=" . rx . " y=" . ry . " w=" . rw . " h=" . rh)
 
 pidR := RunApp(ROBOT_HAND_PY
     , "-m " . ROBOT_HAND_MODULE

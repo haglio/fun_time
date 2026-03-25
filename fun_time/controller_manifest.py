@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import os
 from pathlib import Path
 
 CONTROLLER_MANIFEST_FILENAME = "controller_launch.ini"
@@ -8,6 +9,7 @@ CONTROLLER_MANIFEST_FILENAME = "controller_launch.ini"
 
 def build_controller_manifest(config, vlc_http_pass: str) -> dict[str, dict[str, str]]:
     layout = config.controller.layout
+    dashboard_enabled = os.environ.get("FUN_TIME_DISABLE_DASHBOARD") != "1"
     return {
         "runtime": {
             "project_dir": str(config.project_dir),
@@ -50,6 +52,9 @@ def build_controller_manifest(config, vlc_http_pass: str) -> dict[str, dict[str,
             "audio_paused_file": str(config.audio_paused_file),
             "dashboard_state_file": str(config.paths.state_dir / "dashboard_state.ini"),
             "dashboard_cmd_file": str(config.paths.state_dir / "dashboard_cmd.txt"),
+        },
+        "dashboard": {
+            "enabled": "1" if dashboard_enabled else "0",
         },
         "controller": {
             "primary_vlc_port": str(config.controller.primary_vlc_http_port),
