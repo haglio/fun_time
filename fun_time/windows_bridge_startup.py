@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import configparser
+import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -20,7 +22,37 @@ def _write_result_file(result_file: str | Path, values: dict[str, int | str]) ->
         parser.write(fp)
 
 
-def restart_broker(project_dir: str | Path) -> None:
+def _integration_direct_broker_start_enabled() -> bool:
+    return os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
+
+
+def _resolve_broker_python_exe(config_path: str | Path) -> list[str]:
+    config = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    python_exe = str(config.get("paths", {}).get("python_exe", "")).strip()
+    if python_exe:
+        python_path = Path(python_exe)
+        if not python_path.is_absolute():
+            python_path = (Path(config_path).resolve().parent / python_path).resolve()
+        if python_path.name.lower() == "pythonw.exe":
+            python_console = python_path.with_name("python.exe")
+            if python_console.exists():
+                python_path = python_console
+        if python_path.exists():
+            return [str(python_path)]
+    return ["py", "-3"]
+
+
+def _start_broker_process_direct(config_path: str | Path) -> subprocess.Popen[bytes]:
+    config_path = Path(config_path).resolve()
+    command = [*_resolve_broker_python_exe(config_path), "-m", "fun_time.broker_app", "--config", str(config_path)]
+    return subprocess.Popen(
+        command,
+        cwd=config_path.parent,
+        **subprocess_window_kwargs(),
+    )
+
+
+def restart_broker(project_dir: str | Path, config_path: str | Path | None = None) -> None:
     project_path = Path(project_dir)
     launch_path = project_path / "launch_broker_tray.vbs"
     ps_command = (
@@ -41,6 +73,9 @@ def restart_broker(project_dir: str | Path) -> None:
         check=False,
         **subprocess_window_kwargs(),
     )
+    if _integration_direct_broker_start_enabled() and config_path is not None:
+        _start_broker_process_direct(config_path)
+        return
     if launch_path.is_file():
         subprocess.Popen(
             ["wscript.exe", str(launch_path)],
@@ -83,7 +118,7 @@ def start_core_session(
     password: str,
     result_file: str | Path,
 ) -> None:
-    restart_broker(project_dir)
+    restart_broker(project_dir, config_path)
     seed_robot_hand_state(enabled_file, paused_file, audio_paused_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     launch_core_apps(

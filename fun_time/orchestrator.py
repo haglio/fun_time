@@ -129,6 +129,24 @@ def start_broker(config, logger) -> subprocess.Popen | None:
         logger.warning("Broker auto-start is only implemented on Windows")
         return None
 
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
+        python_exe = str(config.paths.python_exe)
+        python_path = Path(python_exe)
+        if python_path.name.lower() == "pythonw.exe":
+            python_console = python_path.with_name("python.exe")
+            if python_console.exists():
+                python_path = python_console
+        if python_path.exists():
+            command = [str(python_path), "-m", "fun_time.broker_app", "--config", str(config.config_path)]
+        else:
+            command = ["py", "-3", "-m", "fun_time.broker_app", "--config", str(config.config_path)]
+        logger.warning("Broker was not running; starting direct integration broker process")
+        return subprocess.Popen(
+            command,
+            cwd=config.project_dir,
+            **orchestrator_broker.subprocess_window_kwargs(),
+        )
+
     tray_launcher = config.project_dir / "launch_broker_tray.vbs"
     command = ["wscript.exe", str(tray_launcher)]
     logger.warning("Broker was not running; starting %s", tray_launcher)
@@ -140,6 +158,21 @@ def start_broker(config, logger) -> subprocess.Popen | None:
 
 
 def ensure_broker_running(config, logger, *, attempts: int = 20, delay_seconds: float = 0.25) -> bool:
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
+        if is_broker_running():
+            return True
+
+        start_broker(config, logger)
+
+        for _ in range(max(1, attempts)):
+            time.sleep(delay_seconds)
+            if is_broker_running():
+                logger.info("Broker runtime is now running in integration mode")
+                return True
+
+        logger.warning("Broker runtime did not appear to start successfully in integration mode")
+        return False
+
     if is_broker_running() and is_broker_tray_running():
         return True
 

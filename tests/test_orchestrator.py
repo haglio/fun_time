@@ -351,6 +351,22 @@ class TestBrokerHelpers:
             str(cfg.project_dir / "launch_broker_tray.vbs"),
         ]
 
+    def test_start_broker_uses_direct_python_process_during_integration(self, cfg_path: Path, monkeypatch):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+        cfg.paths.python_exe.touch()
+
+        with patch("fun_time.orchestrator.sys.platform", "win32"), \
+             patch("fun_time.orchestrator.subprocess.Popen") as popen, \
+             patch("fun_time.orchestrator.orchestrator_broker.subprocess_window_kwargs", return_value={"creationflags": 1}):
+            start_broker(cfg, logger)
+
+        popen.assert_called_once()
+        command = popen.call_args.args[0]
+        assert command[:3] == [str(cfg.paths.python_exe), "-m", "fun_time.broker_app"]
+        assert command[-2:] == ["--config", str(cfg.config_path)]
+
     def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()
@@ -364,6 +380,23 @@ class TestBrokerHelpers:
         assert result is True
         assert broker_probe.call_count == 4
         assert tray_probe.call_count == 1
+        starter.assert_called_once_with(cfg, logger)
+        sleeper.assert_called()
+
+    def test_ensure_broker_running_in_integration_mode_only_requires_runtime(self, cfg_path: Path, monkeypatch):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+
+        with patch("fun_time.orchestrator.is_broker_running", side_effect=[False, False, True]) as broker_probe, \
+             patch("fun_time.orchestrator.is_broker_tray_running") as tray_probe, \
+             patch("fun_time.orchestrator.start_broker") as starter, \
+             patch("fun_time.orchestrator.time.sleep") as sleeper:
+            result = ensure_broker_running(cfg, logger, attempts=3, delay_seconds=0.01)
+
+        assert result is True
+        assert broker_probe.call_count == 3
+        tray_probe.assert_not_called()
         starter.assert_called_once_with(cfg, logger)
         sleeper.assert_called()
 
