@@ -57,31 +57,21 @@ GetFunTimeDashboardRect(&x, &y, &w, &h) {
     h := plan["dashboard"]["h"]
 }
 
-IsVlcResponsive(port) {
-    xml := VlcHttpReq(port, "/requests/status.xml", &st)
-    return st = 200 && InStr(xml, "<state>")
-}
-
 UpdateFunTimeDashboard() {
     global DASHBOARD_ENABLED, pidM
     global robotHandMode, locked2, locked3
-    global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT
     if (!DASHBOARD_ENABLED)
         return
 
-    primaryPath := GetCurrentFilePath(PRIMARY_VLC_PORT)
-    portraitPath := GetCurrentFilePath(VLC2_PORT)
-    landscapePath := GetCurrentFilePath(VLC3_PORT)
     osr2Auto := RobotHandModeState() = "1"
     robotHandEnabledNow := RobotHandEnabled()
     primaryUsesRobotHand := robotHandMode && robotHandEnabledNow
-    primaryResponsive := IsVlcResponsive(PRIMARY_VLC_PORT)
     mfpAlive := pidM && ProcessExist(pidM)
     GetFunTimeDashboardRect(&x, &y, &w, &h)
-    WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, primaryResponsive, mfpAlive, x, y, w, h, locked2, locked3)
+    WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, x, y, w, h, locked2, locked3)
 }
 
-WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabled, primaryResponsive, mfpAlive, x, y, w, h, portraitLocked, landscapeLocked) {
+WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabled, mfpAlive, x, y, w, h, portraitLocked, landscapeLocked) {
     global DASHBOARD_STATE_FILE
     global fModeEnabled, lastDashboardSnapshotText
 
@@ -100,14 +90,10 @@ WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUse
         . "alive=" . (mfpAlive ? "1" : "0") . "`n"
         . "[primary]`n"
         . "uses_robot_hand=" . (primaryUsesRobotHand ? "1" : "0") . "`n"
-        . "path=" . IniEscape(primaryPath) . "`n"
-        . "responsive=" . (primaryResponsive ? "1" : "0") . "`n"
         . "locked=0`n"
         . "[portrait]`n"
-        . "path=" . IniEscape(portraitPath) . "`n"
         . "locked=" . (portraitLocked ? "1" : "0") . "`n"
         . "[landscape]`n"
-        . "path=" . IniEscape(landscapePath) . "`n"
         . "locked=" . (landscapeLocked ? "1" : "0") . "`n"
 
     if (snapshotText = lastDashboardSnapshotText)

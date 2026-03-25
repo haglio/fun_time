@@ -191,21 +191,17 @@ def test_dashboard_does_not_include_hover_tip_workaround():
 def test_dashboard_exports_runtime_snapshot_for_python_bridge():
     text = _controller_text()
 
-    assert "WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, primaryResponsive, mfpAlive, x, y, w, h, locked2, locked3)" in text
+    assert "WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, x, y, w, h, locked2, locked3)" in text
     assert 'snapshotText := "[window]`n"' in text
     assert '. "x=" . x . "`n"' in text
     assert '. "width=" . w . "`n"' in text
     assert '. "[mfp]`n"' in text
     assert '. "alive=" . (mfpAlive ? "1" : "0") . "`n"' in text
     assert '. "[primary]`n"' in text
-    assert '. "responsive=" . (primaryResponsive ? "1" : "0") . "`n"' in text
     assert '. "uses_robot_hand=" . (primaryUsesRobotHand ? "1" : "0") . "`n"' in text
-    assert '. "path=" . IniEscape(primaryPath) . "`n"' in text
     assert '. "mode=" . (osr2Auto ? "auto" : "controlled") . "`n"' in text
     assert '. "locked=" . (portraitLocked ? "1" : "0") . "`n"' in text
     assert '. "locked=" . (landscapeLocked ? "1" : "0") . "`n"' in text
-    assert '. "path=" . IniEscape(portraitPath) . "`n"' in text
-    assert '. "path=" . IniEscape(landscapePath) . "`n"' in text
     assert 'if (snapshotText = lastDashboardSnapshotText)' in text
     assert 'FileAppend(snapshotText, DASHBOARD_STATE_FILE, "UTF-16")' in text
 
@@ -216,7 +212,6 @@ def test_dashboard_no_longer_caches_broker_and_mfp_status_probes_in_ahk():
     assert "GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected) {" not in text
     assert "dashboardStatusRefreshTick := 0" not in text
     assert "dashboardMfpConnected := " not in text
-    assert 'primaryResponsive := IsVlcResponsive(PRIMARY_VLC_PORT)' in text
     assert 'mfpAlive := pidM && ProcessExist(pidM)' in text
 
 

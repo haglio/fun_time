@@ -5,11 +5,13 @@ import configparser
 import ctypes
 from ctypes import wintypes
 from dataclasses import dataclass
+from dataclasses import replace
 from pathlib import Path
 import tkinter as tk
 
 from fun_time.config import LayoutConfig
 from fun_time.controller_manifest import CONTROLLER_MANIFEST_FILENAME
+from fun_time.controller_vlc_actions import get_current_file_path, vlc_http_req
 from fun_time.dashboard_actions import (
     LANDSCAPE_LOCK,
     LANDSCAPE_NEXT,
@@ -62,6 +64,10 @@ class DashboardAppConfig:
     manifest_path: Path
     primary_sources: str
     favs_file: Path
+    primary_vlc_port: int
+    portrait_vlc_port: int
+    landscape_vlc_port: int
+    vlc_password: str
     broker_heartbeat_file: Path
     dashboard_state_file: Path
     dashboard_cmd_file: Path
@@ -110,9 +116,28 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         manifest_path=manifest_path,
         primary_sources=parser.get("media", "primary_vlc_sources", fallback=""),
         favs_file=Path(parser.get("media", "favs_file", fallback="favs.csv")),
+        primary_vlc_port=parser.getint("controller", "primary_vlc_port", fallback=8090),
+        portrait_vlc_port=parser.getint("controller", "vlc2_port", fallback=8091),
+        landscape_vlc_port=parser.getint("controller", "vlc3_port", fallback=8092),
+        vlc_password=parser.get("controller", "vlc_pass", fallback=""),
         broker_heartbeat_file=Path(parser.get("commands", "broker_heartbeat_file", fallback="broker_heartbeat.txt")),
         dashboard_state_file=Path(parser.get("commands", "dashboard_state_file", fallback="dashboard_state.ini")),
         dashboard_cmd_file=Path(parser.get("commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt")),
+    )
+
+
+def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, app_config: DashboardAppConfig) -> DashboardSnapshot:
+    primary_path = get_current_file_path(app_config.primary_vlc_port, app_config.vlc_password)
+    portrait_path = get_current_file_path(app_config.portrait_vlc_port, app_config.vlc_password)
+    landscape_path = get_current_file_path(app_config.landscape_vlc_port, app_config.vlc_password)
+    primary_status, primary_xml = vlc_http_req(app_config.primary_vlc_port, "/requests/status.xml", app_config.vlc_password)
+    primary_responsive = primary_status == 200 and "<state>" in primary_xml
+    return replace(
+        snapshot,
+        primary_responsive=primary_responsive,
+        primary=replace(snapshot.primary, path=primary_path),
+        portrait=replace(snapshot.portrait, path=portrait_path),
+        landscape=replace(snapshot.landscape, path=landscape_path),
     )
 
 
@@ -391,6 +416,8 @@ def build_dashboard_window(app_config: DashboardAppConfig) -> tk.Tk:
 
     def refresh() -> None:
         snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
+        if snapshot is not None:
+            snapshot = hydrate_dashboard_snapshot(snapshot, app_config)
         scene = build_dashboard_scene(
             preview_layout,
             snapshot,
