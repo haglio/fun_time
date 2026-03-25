@@ -27,20 +27,14 @@ def test_load_dashboard_snapshot_parses_controller_export(tmp_path: Path):
                 "[mfp]",
                 "connected=1",
                 "[primary]",
-                "label=Non-AI VLC",
-                "clip=demo-primary.mp4",
-                "highlight=1",
+                "uses_robot_hand=0",
+                "path=demo-primary.mp4",
                 "locked=0",
-                "accent=osr2",
                 "[portrait]",
-                "label=Portrait AI VLC",
-                "clip=demo-portrait.mp4",
-                "highlight=0",
+                "path=demo-portrait.mp4",
                 "locked=1",
                 "[landscape]",
-                "label=Landscape AI VLC",
-                "clip=demo-landscape.mp4",
-                "highlight=1",
+                "path=demo-landscape.mp4",
                 "locked=0",
                 "[window]",
                 "x=100",
@@ -57,11 +51,11 @@ def test_load_dashboard_snapshot_parses_controller_export(tmp_path: Path):
     assert snapshot is not None
     assert snapshot.broker_running is True
     assert snapshot.osr2_mode == "auto"
-    assert snapshot.primary.label == "Non-AI VLC"
-    assert snapshot.primary.highlight is True
+    assert snapshot.primary_uses_robot_hand is False
+    assert snapshot.primary.path == "demo-primary.mp4"
     assert snapshot.primary.locked is False
     assert snapshot.portrait.locked is True
-    assert snapshot.landscape.clip == "demo-landscape.mp4"
+    assert snapshot.landscape.path == "demo-landscape.mp4"
     assert snapshot.window.width == 300
     assert snapshot.window.height == 400
 
@@ -84,20 +78,14 @@ def test_load_dashboard_snapshot_supports_utf16_ahk_ini_exports(tmp_path: Path):
                 "[mfp]",
                 "connected=1",
                 "[primary]",
-                "label=Non-AI Robot Hand",
-                "clip=",
-                "highlight=1",
+                "uses_robot_hand=1",
+                "path=primary.mp4",
                 "locked=0",
-                "accent=osr2",
                 "[portrait]",
-                "label=Portrait AI VLC",
-                "clip=portrait.mp4",
-                "highlight=0",
+                "path=portrait.mp4",
                 "locked=1",
                 "[landscape]",
-                "label=Landscape AI VLC",
-                "clip=landscape.mp4",
-                "highlight=1",
+                "path=landscape.mp4",
                 "locked=0",
                 "[window]",
                 "x=10",
@@ -114,6 +102,6 @@ def test_load_dashboard_snapshot_supports_utf16_ahk_ini_exports(tmp_path: Path):
     assert snapshot is not None
     assert snapshot.f_mode_enabled is True
     assert snapshot.robot_link_enabled is False
-    assert snapshot.primary.accent == "osr2"
+    assert snapshot.primary_uses_robot_hand is True
     assert snapshot.portrait.locked is True
     assert snapshot.window.x == 10
