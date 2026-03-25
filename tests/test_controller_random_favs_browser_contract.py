@@ -29,10 +29,21 @@ def test_random_favs_browser_launches_urls_via_browser_command_line():
     text = _controller_text()
 
     maybe_launch_start = text.index("MaybeLaunchRandomFavsBrowser(pidM) {")
-    read_manifest_start = text.index("ReadRandomFavsBrowserManifest(path) {", maybe_launch_start)
-    maybe_launch_block = text[maybe_launch_start:read_manifest_start]
+    visible_handles_start = text.index("GetVisibleChromeWindowSnapshot() {", maybe_launch_start)
+    maybe_launch_block = text[maybe_launch_start:visible_handles_start]
 
-    assert "BuildRandomFavsBrowserLaunchSpec(manifest)" in maybe_launch_block
-    assert "OpenUrlsInChromeWindow" not in maybe_launch_block
-    assert "--new-window" in text
+    assert "LaunchRandomFavsBrowserViaPython(" in maybe_launch_block
+    assert "WaitForChromeLaunchWindow(existing, 8000)" in maybe_launch_block
+    assert "BuildRandomFavsBrowserLaunchSpec(" not in text
+    assert "ReadRandomFavsBrowserManifest(" not in text
     assert "FileGetShortcut" in text
+
+
+def test_random_favs_browser_detects_retargeted_existing_chrome_window():
+    text = _controller_text()
+
+    assert "GetVisibleChromeWindowSnapshot() {" in text
+    assert "WaitForChromeLaunchWindow(existingWindows, timeoutMs := 8000) {" in text
+    assert 'previousTitle := GetChromeWindowTitle(window.hwnd, existingWindows)' in text
+    assert 'if (previousTitle != "" && previousTitle != window.title)' in text
+    assert "HandleInChromeWindowSnapshot(hwnd, windows) {" in text

@@ -66,6 +66,7 @@ def validate_config(config) -> None:
     require_file(config.project_dir / "fun_time" / "controller_robot_hand_app.py")
     require_file(config.project_dir / "fun_time" / "controller_omnipause_app.py")
     require_file(config.project_dir / "fun_time" / "controller_window_layout_app.py")
+    require_file(config.project_dir / "fun_time" / "controller_random_favs_browser_app.py")
 
 
 def is_broker_running() -> bool:

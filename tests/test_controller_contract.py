@@ -145,6 +145,13 @@ def test_controller_reads_controller_vlc_actions_module_from_manifest():
     assert 'CONTROLLER_VLC_ACTIONS_MODULE := RequireManifestValue("modules", "controller_vlc_actions_module")' in text
 
 
+def test_controller_reads_controller_random_favs_browser_module_from_manifest():
+    text = _controller_text()
+
+    assert 'CONTROLLER_RANDOM_FAVS_BROWSER_MODULE := RequireManifestValue("modules", "controller_random_favs_browser_module")' in text
+    assert 'RANDOM_FAVS_BROWSER_ENABLED := RequireManifestValue("random_favs_browser", "enabled") = "1"' in text
+
+
 def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper():
     text = _controller_text()
 
@@ -202,9 +209,13 @@ def test_controller_dashboard_export_is_raw_runtime_state_only():
 def test_controller_restores_random_favs_browser_launch_spec_helpers():
     text = _controller_text()
 
-    assert 'BuildRandomFavsBrowserLaunchSpec(manifest) {' in text
-    assert 'ReadRandomFavsBrowserManifest(path) {' in text
     assert 'try FileGetShortcut(RANDOM_FAVS_BROWSER_SHORTCUT_PATH, &target, &workDir, &args, &description, &iconPath, &iconNum, &runState)' in text
+    assert 'LaunchRandomFavsBrowserViaPython(RANDOM_FAVS_BROWSER_MANIFEST_FILE, target, workDir, args)' in text
+    assert 'encodedShortcutArgs := Base64EncodeUtf8(shortcutArgs)' in text
+    assert 'args := "launch"' in text
+    assert ' --shortcut-args-b64 ' in text
+    assert 'LoadRandomFavsBrowserLaunchPlan(path) {' not in text
+    assert 'if (!RANDOM_FAVS_BROWSER_ENABLED)' in text
 
 
 def test_controller_processes_python_dashboard_commands_from_state_file():
