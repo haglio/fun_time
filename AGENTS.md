@@ -44,6 +44,8 @@ If `bash test.sh` fails in PowerShell because Git Bash cannot create its signal 
    If a change affects whether Fun Time or one of its startup components launches at all, do not use the user as the first detector. Reproduce the launch locally yourself first, using the repo's runtime artifacts and, when needed, an actual app launch/smoke run. Manual user checks are appropriate for subjective UI review or hard-to-automate operator workflows, not for basic questions like "did the component appear?"
 10. Prefer reusable launch diagnostics over one-off guesses.
    When a launch/startup issue is hard to see from tests alone, improve the repo's ability to inspect it: add or update targeted logging, state markers, or a local smoke/inspection script so future agents can verify the same class of problem with less guesswork.
+11. Do not parallelize live controller launches.
+   `controller.ahk` still runs under `#SingleInstance Force`, so real startup checks, integration runs, smoke runs, and direct AHK launch validations must be executed sequentially. Parallel live launches can evict each other and create false-negative runtime signals.
 
 ## Architecture Escalation
 

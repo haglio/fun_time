@@ -304,3 +304,20 @@ def test_controller_no_longer_parses_vlc_playlist_xml_in_ahk():
     assert 'RegExMatch(xml, "i)uri=' not in text
     assert "DecodeFileUri(" not in text
     assert "UrlDecode(" not in text
+
+
+def test_robot_hand_sync_non_window_side_effects_are_applied_via_python_helper():
+    text = _controller_text()
+
+    sync_start = text.index("SyncRobotHandState() {")
+    toggle_start = text.index("ToggleRobotHandEnabled() {", sync_start)
+    sync_block = text[sync_start:toggle_start]
+
+    assert 'RunControllerRobotHandAction("apply-sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)' in sync_block
+    assert '--enabled-file ' in sync_block
+    assert '--paused-file ' in sync_block
+    assert '--audio-paused-file ' in sync_block
+    assert 'EnsurePrimaryVlcPlayback(' not in sync_block
+    assert 'SetRobotHandPaused(' not in sync_block
+    assert 'SetRobotHandAudioPaused(' not in sync_block
+    assert 'ApplyRobotHandPlanWindowState(plan)' in sync_block
