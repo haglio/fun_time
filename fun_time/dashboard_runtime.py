@@ -10,7 +10,16 @@ class DashboardPanelSnapshot:
     label: str
     clip: str
     highlight: bool
+    locked: bool = False
     accent: str = ""
+
+
+@dataclass(frozen=True)
+class DashboardWindowSnapshot:
+    x: int
+    y: int
+    width: int
+    height: int
 
 
 @dataclass(frozen=True)
@@ -24,6 +33,7 @@ class DashboardSnapshot:
     primary: DashboardPanelSnapshot
     portrait: DashboardPanelSnapshot
     landscape: DashboardPanelSnapshot
+    window: DashboardWindowSnapshot
 
 
 def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
@@ -32,7 +42,7 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
 
     parser = configparser.ConfigParser()
     parser.optionxform = str
-    parser.read(path, encoding="utf-8")
+    parser.read_string(_read_dashboard_text(path))
     if not parser.sections():
         return None
 
@@ -46,7 +56,18 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         primary=_read_panel(parser, "primary"),
         portrait=_read_panel(parser, "portrait"),
         landscape=_read_panel(parser, "landscape"),
+        window=_read_window(parser),
     )
+
+
+def _read_dashboard_text(path: Path) -> str:
+    raw = path.read_bytes()
+    for encoding in ("utf-8-sig", "utf-16", "utf-8"):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise UnicodeDecodeError("dashboard_state", raw, 0, 1, "unable to decode dashboard snapshot")
 
 
 def _read_bool(parser: configparser.ConfigParser, section: str, option: str) -> bool:
@@ -58,5 +79,15 @@ def _read_panel(parser: configparser.ConfigParser, section: str) -> DashboardPan
         label=parser.get(section, "label", fallback=""),
         clip=parser.get(section, "clip", fallback=""),
         highlight=_read_bool(parser, section, "highlight"),
+        locked=_read_bool(parser, section, "locked"),
         accent=parser.get(section, "accent", fallback=""),
+    )
+
+
+def _read_window(parser: configparser.ConfigParser) -> DashboardWindowSnapshot:
+    return DashboardWindowSnapshot(
+        x=parser.getint("window", "x", fallback=0),
+        y=parser.getint("window", "y", fallback=0),
+        width=parser.getint("window", "width", fallback=0),
+        height=parser.getint("window", "height", fallback=0),
     )
