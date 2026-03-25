@@ -320,3 +320,14 @@ def test_controller_delegates_write_side_vlc_actions_to_python():
     assert 'args := "set-repeat-mode"' in text
     assert "SendVlcInputCommand(" not in text
     assert "GetRepeatMode(" not in text
+
+
+def test_controller_delegates_current_file_path_and_http_wait_to_python():
+    text = _controller_text()
+
+    assert 'BuildVlcQueryOutputPath(prefix) {' in text
+    assert 'args := "wait-for-http"' in text
+    assert 'args := "current-file-path"' in text
+    assert 'return Trim(FileRead(outputPath, "UTF-8"))' in text
+    assert "DecodeFileUri(" not in text
+    assert "UrlDecode(" not in text

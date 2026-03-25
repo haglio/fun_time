@@ -321,6 +321,13 @@ BuildWindowLayoutPlanPath() {
     return STATE_DIR . "\window_layout_plan_" . A_TickCount . "_" . counter . ".ini"
 }
 
+BuildVlcQueryOutputPath(prefix) {
+    global STATE_DIR
+    static counter := 0
+    counter += 1
+    return STATE_DIR . "\" . prefix . "_" . A_TickCount . "_" . counter . ".txt"
+}
+
 LaunchDashboardApp() {
     global ROBOT_HAND_PY, DASHBOARD_MODULE, CONTROLLER_MANIFEST_PATH
     return RunApp(ROBOT_HAND_PY, "-m " . DASHBOARD_MODULE . " " . Q(CONTROLLER_MANIFEST_PATH))
@@ -1284,15 +1291,13 @@ VlcHttpReq(port, path, &status := 0) {
 }
 
 WaitForHttp(port, timeoutMs := 5000) {
-    t0 := A_TickCount
-    loop {
-        txt := VlcHttpReq(port, "/requests/status.xml", &st)
-        if (st = 200 && txt != "" && InStr(txt, "<state>"))
-            return true
-        if (A_TickCount - t0 > timeoutMs)
-            break
-        Sleep 200
-    }
+    global VLC_PASS
+    args := "wait-for-http"
+        . " --port " . port
+        . " --password " . Q(VLC_PASS)
+        . " --timeout-ms " . timeoutMs
+    if (RunControllerVlcAction(args) = 0)
+        return true
     Log("VLC HTTP interface failed to come up on port " . port)
     MsgBox("VLC HTTP interface did not come up on port " . port . "`nControls for that player will not work until this is resolved.", "fun_time", "Icon!")
     return false
@@ -1343,36 +1348,21 @@ CancelLock(which) {
 ; -------------------- Current item --------------------
 
 GetCurrentFilePath(port) {
-    xml := VlcHttpReq(port, "/requests/playlist_jstree.xml", &st)
-    if (st != 200 || xml = "")
+    global VLC_PASS
+    outputPath := BuildVlcQueryOutputPath("vlc_current_file")
+    args := "current-file-path"
+        . " --port " . port
+        . " --password " . Q(VLC_PASS)
+        . " --output-file " . Q(outputPath)
+    if (RunControllerVlcAction(args) != 0)
         return ""
-
-    uri := ""
-    if RegExMatch(xml, "i)uri=\x22([^\x22]+)\x22[^>]*current=\x22current\x22", &m)
-        uri := m[1]
-    else if RegExMatch(xml, "i)current=\x22current\x22[^>]*uri=\x22([^\x22]+)\x22", &m2)
-        uri := m2[1]
-
-    if (uri = "")
-        return ""
-    return DecodeFileUri(uri)
-}
-
-DecodeFileUri(uri) {
-    if !InStr(uri, "file:///")
-        return ""
-    p := SubStr(uri, 9)
-    p := UrlDecode(p)
-    p := StrReplace(p, "/", "\")
-    return p
-}
-
-UrlDecode(s) {
-    s := StrReplace(s, "+", " ")
-    while RegExMatch(s, "i)%([0-9A-F]{2})", &m) {
-        s := StrReplace(s, m[0], Chr("0x" . m[1]))
+    try {
+        if !FileExist(outputPath)
+            return ""
+        return Trim(FileRead(outputPath, "UTF-8"))
+    } finally {
+        try FileDelete(outputPath)
     }
-    return s
 }
 
 EnsureInFavs(fullPath) {

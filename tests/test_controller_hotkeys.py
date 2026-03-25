@@ -267,3 +267,13 @@ def test_primary_f_mode_funscript_path_logic_is_no_longer_in_controller():
 
     assert 'StrReplace(sourceRootNorm, "\\videos\\videos\\", "\\videos\\scripts\\scripts\\")' not in text
     assert 'RegExReplace(relativePath, "\\.[^.\\\\\\/]+$", ".funscript")' not in text
+
+
+def test_controller_no_longer_parses_vlc_playlist_xml_in_ahk():
+    text = _controller_text()
+
+    assert 'args := "current-file-path"' in text
+    assert 'args := "wait-for-http"' in text
+    assert 'RegExMatch(xml, "i)uri=' not in text
+    assert "DecodeFileUri(" not in text
+    assert "UrlDecode(" not in text
