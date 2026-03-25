@@ -7,6 +7,7 @@ from fun_time.controller_manifest import write_controller_manifest
 from fun_time.dashboard_app import (
     COLOR_DISABLED,
     COLOR_ACTIVE_ALT,
+    DashboardLaunchGeometry,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
     hydrate_dashboard_snapshot,
@@ -164,6 +165,33 @@ def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path:
     assert root.geometry_value == "333x444+111+222"
 
 
+def test_dashboard_window_geometry_prefers_launch_geometry_when_provided(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+    scene = build_dashboard_scene(preview_layout)
+
+    class FakeRoot:
+        def __init__(self):
+            self.geometry_value = ""
+
+        def geometry(self, value: str):
+            self.geometry_value = value
+
+    root = FakeRoot()
+    apply_dashboard_window_geometry(
+        root,
+        None,
+        scene,
+        launch_geometry=DashboardLaunchGeometry(x=11, y=22, width=333, height=444),
+    )
+
+    assert root.geometry_value == "333x444+11+22"
+
+
 def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale(cfg_path: Path):
     config = load_config(cfg_path)
     preview_layout = compute_dashboard_preview_layout(
@@ -218,10 +246,12 @@ def test_dashboard_app_hydrates_live_vlc_state(cfg_path: Path):
     with (
         patch("fun_time.dashboard_app.get_current_file_path", side_effect=["primary.mp4", "portrait.mp4", "landscape.mp4"]),
         patch("fun_time.dashboard_app.vlc_http_req", return_value=(200, "<state>playing</state>")),
+        patch("fun_time.dashboard_app.is_process_alive", return_value=False),
     ):
-        hydrated = hydrate_dashboard_snapshot(snapshot, app_config)
+        hydrated = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=123)
 
     assert hydrated.primary.path == "primary.mp4"
     assert hydrated.portrait.path == "portrait.mp4"
     assert hydrated.landscape.path == "landscape.mp4"
     assert hydrated.primary_responsive is True
+    assert hydrated.mfp_alive is False

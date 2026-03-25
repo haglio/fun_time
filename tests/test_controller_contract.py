@@ -47,7 +47,7 @@ def test_controller_defines_robot_hand_status_indicator():
     text = _controller_text()
 
     assert 'DASHBOARD_MODULE := RequireManifestValue("modules", "dashboard_module")' in text
-    assert "pidD := LaunchDashboardApp()" in text
+    assert "pidD := LaunchDashboardApp(" in text
     assert "UpdateFunTimeDashboard()" in text
     assert "SetTimer(ProcessDashboardCommand, 150)" in text
     assert "TraySetIcon(ICON_PATH)" in text
@@ -179,7 +179,7 @@ def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper()
     assert 'robotHandEnabledNow := RobotHandEnabled()' in text
     assert 'primaryUsesRobotHand := robotHandMode && robotHandEnabledNow' in text
     assert 'mfpAlive := pidM && ProcessExist(pidM)' in text
-    assert 'WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, x, y, w, h, locked2, locked3)' in text
+    assert 'WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, locked2, locked3)' in text
 
 
 def test_controller_only_activates_robot_hand_window_on_transition():
@@ -190,28 +190,28 @@ def test_controller_only_activates_robot_hand_window_on_transition():
     assert 'try WinActivate("Robot Hand")' in text
 
 
-def test_controller_dashboard_refresh_repositions_only_when_rect_changes():
+def test_controller_dashboard_no_longer_repositions_or_refreshes_on_a_timer():
     text = _controller_text()
 
     update_start = text.index("UpdateFunTimeDashboard() {")
     snapshot_fn_start = text.index("\nWriteDashboardStateSnapshot(", update_start)
     update_block = text[update_start:snapshot_fn_start]
 
-    assert 'funTimeDashboardGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)' not in update_block
-    assert 'WinMove(x, y, w, h, "ahk_id " funTimeDashboardGui.Hwnd)' not in update_block
-    assert "GetFunTimeDashboardRect(&x, &y, &w, &h)" in update_block
-    assert 'WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, x, y, w, h, locked2, locked3)' in update_block
+    assert "GetFunTimeDashboardRect(&x, &y, &w, &h)" not in update_block
+    assert 'SetTimer(UpdateFunTimeDashboard, 500)' not in text
+    assert 'WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, locked2, locked3)' in update_block
 
 
-def test_controller_dashboard_snapshot_writer_declares_cache_global():
+def test_controller_dashboard_snapshot_writer_uses_function_static_cache():
     text = _controller_text()
 
     snapshot_start = text.index("WriteDashboardStateSnapshot(")
-    escape_start = text.index("\nIniEscape(value) {", snapshot_start)
-    snapshot_block = text[snapshot_start:escape_start]
+    next_block_start = text.index("\nEnforceRobotHandOutputs(", snapshot_start)
+    snapshot_block = text[snapshot_start:next_block_start]
 
-    assert 'lastDashboardSnapshotText := ""' in text
-    assert "global fModeEnabled, lastDashboardSnapshotText" in snapshot_block
+    assert "global fModeEnabled" in snapshot_block
+    assert "static lastDashboardSnapshotText := \"\"" in snapshot_block
+    assert "global fModeEnabled, lastDashboardSnapshotText" not in snapshot_block
     assert "if (snapshotText = lastDashboardSnapshotText)" in snapshot_block
 
 
@@ -272,6 +272,7 @@ def test_controller_shutdown_closes_python_dashboard_process():
 
     assert "ShutdownAll() {" in text
     assert "SetTimer(ProcessDashboardCommand, 0)" in text
+    assert "SetTimer(UpdateFunTimeDashboard, 0)" not in text
     assert "for pid in [pid1, pid2, pid3, pidM, pidD, pidR, pidA]" in text
 
 
@@ -301,7 +302,7 @@ def test_controller_keeps_robot_hand_sync_local_but_delegates_toggle_plan():
     sync_start = text.index("SyncRobotHandState() {")
     toggle_start = text.index("ToggleRobotHandEnabled() {", sync_start)
     sync_block = text[sync_start:toggle_start]
-    assert "UpdateFunTimeDashboard()" not in sync_block
+    assert 'UpdateFunTimeDashboard()' in sync_block
 
 
 def test_controller_delegates_omnipause_state_decisions_to_python_plan():

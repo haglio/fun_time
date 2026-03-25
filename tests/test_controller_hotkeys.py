@@ -115,7 +115,7 @@ def test_status_indicator_shows_robot_hand_and_f_mode_state():
     assert 'LABEL_BROKER := "Broker"' in text
     assert 'LABEL_CONTROLLER := "Controller"' in text
     assert 'LABEL_F_MODE := "F-Mode"' in text
-    assert '. "[fmode]`n"' in text
+    assert 'snapshotText := "[fmode]`n"' in text
     assert '. "enabled=" . (fModeEnabled ? "1" : "0") . "`n"' in text
 
 
@@ -165,8 +165,8 @@ def test_dashboard_centers_main_preview_vertically_without_monitor_labels():
     text = _controller_text()
 
     assert 'GetCurrentWindowLayout(&plan)' in text
-    assert 'x := plan["dashboard"]["x"]' in text
-    assert 'y := plan["dashboard"]["y"]' in text
+    assert 'plan["dashboard"]["x"]' in text
+    assert 'plan["dashboard"]["y"]' in text
 
 
 def test_dashboard_window_rect_centers_above_mfp():
@@ -174,10 +174,11 @@ def test_dashboard_window_rect_centers_above_mfp():
 
     assert "GetActualMfpSize(&mfpW, &mfpH)" in text
     assert 'GetCurrentWindowLayout(&plan)' in text
-    assert 'x := plan["dashboard"]["x"]' in text
-    assert 'y := plan["dashboard"]["y"]' in text
-    assert 'w := plan["dashboard"]["w"]' in text
-    assert 'h := plan["dashboard"]["h"]' in text
+    assert 'LaunchDashboardApp(' in text
+    assert 'plan["dashboard"]["x"]' in text
+    assert 'plan["dashboard"]["y"]' in text
+    assert 'plan["dashboard"]["w"]' in text
+    assert 'plan["dashboard"]["h"]' in text
 
 
 def test_dashboard_does_not_include_hover_tip_workaround():
@@ -188,13 +189,12 @@ def test_dashboard_does_not_include_hover_tip_workaround():
     assert '"hover_tip"' not in text
 
 
-def test_dashboard_exports_runtime_snapshot_for_python_bridge():
+def test_dashboard_exports_controller_state_snapshot_for_python_bridge():
     text = _controller_text()
 
-    assert "WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, x, y, w, h, locked2, locked3)" in text
-    assert 'snapshotText := "[window]`n"' in text
-    assert '. "x=" . x . "`n"' in text
-    assert '. "width=" . w . "`n"' in text
+    assert "WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, locked2, locked3)" in text
+    assert 'snapshotText := "[fmode]`n"' in text
+    assert '[window]' not in text
     assert '. "[mfp]`n"' in text
     assert '. "alive=" . (mfpAlive ? "1" : "0") . "`n"' in text
     assert '. "[primary]`n"' in text
@@ -218,10 +218,10 @@ def test_dashboard_no_longer_caches_broker_and_mfp_status_probes_in_ahk():
 def test_dashboard_snapshot_writer_avoids_rewriting_identical_state():
     text = _controller_text()
 
-    assert 'global fModeEnabled, lastDashboardSnapshotText' in text
+    assert 'static lastDashboardSnapshotText := ""' in text
     assert 'if (snapshotText = lastDashboardSnapshotText)' in text
     assert 'lastDashboardSnapshotText := snapshotText' in text
-    assert 'IniEscape(value) {' in text
+    assert 'IniEscape(value) {' not in text
 
 
 def test_dashboard_uses_smaller_font_for_status_chips_and_keeps_title_in_bottom_left():

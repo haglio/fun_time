@@ -153,6 +153,7 @@ CancelLock(which) {
         locked2 := plan["next_locked"]
     else
         locked3 := plan["next_locked"]
+    UpdateFunTimeDashboard()
 }
 
 GetCurrentFilePath(port) {
@@ -193,6 +194,7 @@ Discard(which) {
         locked3 := plan["next_locked"]
     if (plan["log_message"] != "")
         Log(plan["log_message"])
+    UpdateFunTimeDashboard()
 }
 
 ToggleLock(which) {
@@ -214,4 +216,5 @@ ToggleLock(which) {
         locked3 := plan["next_locked"]
     if (plan["log_message"] != "")
         Log(plan["log_message"])
+    UpdateFunTimeDashboard()
 }

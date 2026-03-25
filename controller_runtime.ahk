@@ -48,15 +48,6 @@ SetRobotHandAudioPaused(paused) {
     WriteRawStateFile(AUDIO_PAUSED_FILE, paused ? "1" : "0")
 }
 
-GetFunTimeDashboardRect(&x, &y, &w, &h) {
-    plan := ""
-    GetCurrentWindowLayout(&plan)
-    x := plan["dashboard"]["x"]
-    y := plan["dashboard"]["y"]
-    w := plan["dashboard"]["w"]
-    h := plan["dashboard"]["h"]
-}
-
 UpdateFunTimeDashboard() {
     global DASHBOARD_ENABLED, pidM
     global robotHandMode, locked2, locked3
@@ -67,20 +58,15 @@ UpdateFunTimeDashboard() {
     robotHandEnabledNow := RobotHandEnabled()
     primaryUsesRobotHand := robotHandMode && robotHandEnabledNow
     mfpAlive := pidM && ProcessExist(pidM)
-    GetFunTimeDashboardRect(&x, &y, &w, &h)
-    WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, x, y, w, h, locked2, locked3)
+    WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, locked2, locked3)
 }
 
-WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabled, mfpAlive, x, y, w, h, portraitLocked, landscapeLocked) {
+WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabled, mfpAlive, portraitLocked, landscapeLocked) {
     global DASHBOARD_STATE_FILE
-    global fModeEnabled, lastDashboardSnapshotText
+    global fModeEnabled
+    static lastDashboardSnapshotText := ""
 
-    snapshotText := "[window]`n"
-        . "x=" . x . "`n"
-        . "y=" . y . "`n"
-        . "width=" . w . "`n"
-        . "height=" . h . "`n"
-        . "[fmode]`n"
+    snapshotText := "[fmode]`n"
         . "enabled=" . (fModeEnabled ? "1" : "0") . "`n"
         . "[robot_link]`n"
         . "enabled=" . (robotHandEnabled ? "1" : "0") . "`n"
@@ -101,13 +87,6 @@ WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabled, mf
     lastDashboardSnapshotText := snapshotText
     FileDelete(DASHBOARD_STATE_FILE)
     FileAppend(snapshotText, DASHBOARD_STATE_FILE, "UTF-16")
-}
-
-IniEscape(value) {
-    text := value . ""
-    text := StrReplace(text, "`r", " ")
-    text := StrReplace(text, "`n", " ")
-    return text
 }
 
 EnforceRobotHandOutputs(active, isTransition := false) {
@@ -154,10 +133,12 @@ SyncRobotHandState() {
         robotHandMode := true
         Log("Entering Robot Hand mode")
         EnforceRobotHandOutputs(true, true)
+        UpdateFunTimeDashboard()
     } else if (!modeOn && robotHandMode) {
         robotHandMode := false
         Log("Leaving Robot Hand mode")
         EnforceRobotHandOutputs(false, true)
+        UpdateFunTimeDashboard()
     } else {
         EnforceRobotHandOutputs(modeOn, false)
     }
@@ -234,7 +215,6 @@ ShutdownAll() {
     isShuttingDown := true
     Log("Shutdown requested")
     SetTimer(SyncRobotHandState, 0)
-    SetTimer(UpdateFunTimeDashboard, 0)
     SetTimer(ProcessDashboardCommand, 0)
 
     for pid in [pid1, pid2, pid3, pidM, pidD, pidR, pidA]
@@ -426,14 +406,19 @@ StartController() {
     MaybeLaunchRandomFavsBrowser(pidM)
     if (DASHBOARD_ENABLED) {
         try FileDelete(DASHBOARD_CMD_FILE)
-        pidD := LaunchDashboardApp()
+        GetCurrentWindowLayout(&plan)
+        pidD := LaunchDashboardApp(
+            plan["dashboard"]["x"],
+            plan["dashboard"]["y"],
+            plan["dashboard"]["w"],
+            plan["dashboard"]["h"],
+            pidM
+        )
         Log("Startup: launched dashboard pid=" . pidD)
-        SetTimer(UpdateFunTimeDashboard, 500)
         SetTimer(ProcessDashboardCommand, 150)
-        Log("Startup: refreshing dashboard snapshot")
         UpdateFunTimeDashboard()
-        Log("Startup: dashboard snapshot written")
-        Log("Startup: dashboard timers running")
+        Log("Startup: dashboard state seeded")
+        Log("Startup: dashboard command timer running")
     } else {
         try FileDelete(DASHBOARD_CMD_FILE)
         try FileDelete(DASHBOARD_STATE_FILE)
