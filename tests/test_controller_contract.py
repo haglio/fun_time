@@ -57,15 +57,14 @@ def test_controller_uses_explicit_primary_vlc_playback_state_helpers():
     text = _controller_text()
 
     assert "EnsurePrimaryVlcPlayback(shouldPlay) {" in text
-    assert 'args := "seed-robot-hand-state"' in text
-    assert 'args := "restart-broker --project-dir " . Q(PROJECT_DIR)' in text
+    assert 'args := "start-core-session"' in text
     assert 'ControlSend("{Space}", , "ahk_pid " pid1)' not in text
 
 
 def test_controller_delegates_core_media_launch_and_waits_for_mfp_window_afterward():
     text = _controller_text()
 
-    core_launch = text.index('args := "launch-core-apps"')
+    core_launch = text.index('args := "start-core-session"')
     core_result = text.index('coreResult := LoadStartupActionResult(coreResultPath)', core_launch)
     mfp_wait = text.index('WinWait("ahk_pid " pidM, , 15)', core_result)
     position_all = text.index("PositionAll(pid1, pid2, pid3, pidM)", mfp_wait)
@@ -246,16 +245,15 @@ def test_controller_restores_random_favs_browser_launch_spec_helpers():
 def test_controller_delegates_startup_broker_restart_and_browser_manifest_prep_to_python():
     text = _controller_text()
 
-    assert 'args := "restart-broker --project-dir " . Q(PROJECT_DIR)' in text
-    assert 'args := "seed-robot-hand-state"' in text
-    assert 'args := "launch-core-apps"' in text
+    assert 'args := "start-core-session"' in text
     assert 'args := "launch-runtime-companions"' in text
-    assert 'args := "prepare-random-favs-browser-manifest"' in text
     assert '. " --config " . Q(CONFIG_PATH)' in text
-    assert '. " --output " . Q(RANDOM_FAVS_BROWSER_MANIFEST_FILE)' in text
+    assert '. " --random-favs-browser-manifest-file " . Q(RANDOM_FAVS_BROWSER_MANIFEST_FILE)' in text
+    assert '. " --enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)' in text
+    assert '. " --paused-file " . Q(ROBOT_HAND_PAUSED_FILE)' in text
+    assert '. " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)' in text
     assert '. " --result-file " . Q(startupResultPath)' in text
-    assert '"powershell.exe -NoProfile -WindowStyle Hidden -Command "' not in text[text.index("RestartBroker() {"):text.index("\nPositionAll(pid1, pid2, pid3, pidM) {")]
-    assert '. " -m fun_time.random_favs_browser"' not in text[text.index("PrepareRandomFavsBrowserManifest() {"):text.index("\nMaybeLaunchRandomFavsBrowser(pidM) {")]
+    assert "RestartBroker() {" not in text
 
 
 def test_controller_launches_robot_hand_and_audio_via_startup_helper():
@@ -274,7 +272,7 @@ def test_controller_launches_primary_mfp_and_satellites_via_startup_helper():
     text = _controller_text()
 
     assert 'coreResultPath := BuildStartupResultPath()' in text
-    assert 'args := "launch-core-apps"' in text
+    assert 'args := "start-core-session"' in text
     assert 'coreResult := LoadStartupActionResult(coreResultPath)' in text
     assert 'pid1 := coreResult["primary_pid"]' in text
     assert 'pidM := coreResult["mfp_pid"]' in text

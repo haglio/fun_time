@@ -42,6 +42,50 @@ def test_build_parser_accepts_seed_robot_hand_state_command():
     assert args.enabled_file.endswith("robot_hand_enabled.txt")
 
 
+def test_build_parser_accepts_start_core_session_command():
+    args = build_parser().parse_args(
+        [
+            "start-core-session",
+            "--project-dir",
+            "C:\\FunTime",
+            "--config",
+            "fun_time_config.json",
+            "--random-favs-browser-manifest-file",
+            "state\\random_favs_browser_urls.txt",
+            "--enabled-file",
+            "state\\robot_hand_enabled.txt",
+            "--paused-file",
+            "state\\robot_hand_paused.txt",
+            "--audio-paused-file",
+            "state\\audio_paused.txt",
+            "--vlc-exe",
+            "vlc.exe",
+            "--mfp-exe",
+            "mfp.exe",
+            "--primary-sources",
+            "primary_a|primary_b",
+            "--portrait-sources",
+            "portrait_a",
+            "--landscape-sources",
+            "landscape_a",
+            "--primary-port",
+            "8090",
+            "--portrait-port",
+            "8091",
+            "--landscape-port",
+            "8092",
+            "--password",
+            "pw",
+            "--result-file",
+            "state\\core_session.ini",
+        ]
+    )
+
+    assert args.command == "start-core-session"
+    assert args.primary_port == 8090
+    assert args.random_favs_browser_manifest_file.endswith("random_favs_browser_urls.txt")
+
+
 def test_build_parser_accepts_launch_runtime_companions_command():
     args = build_parser().parse_args(
         [
@@ -172,6 +216,59 @@ def test_main_dispatches_seed_robot_hand_state(monkeypatch):
     assert recorded["enabled"] == "state\\robot_hand_enabled.txt"
     assert recorded["paused"] == "state\\robot_hand_paused.txt"
     assert recorded["audio"] == "state\\audio_paused.txt"
+
+
+def test_main_dispatches_start_core_session(monkeypatch):
+    recorded: dict[str, object] = {}
+
+    def fake_start(**kwargs) -> None:
+        recorded.update(kwargs)
+
+    monkeypatch.setattr("fun_time.controller_startup_app.start_core_session", fake_start)
+
+    code = main(
+        [
+            "start-core-session",
+            "--project-dir",
+            "C:\\FunTime",
+            "--config",
+            "fun_time_config.json",
+            "--random-favs-browser-manifest-file",
+            "state\\random_favs_browser_urls.txt",
+            "--enabled-file",
+            "state\\robot_hand_enabled.txt",
+            "--paused-file",
+            "state\\robot_hand_paused.txt",
+            "--audio-paused-file",
+            "state\\audio_paused.txt",
+            "--vlc-exe",
+            "vlc.exe",
+            "--mfp-exe",
+            "mfp.exe",
+            "--primary-sources",
+            "primary_a|primary_b",
+            "--portrait-sources",
+            "portrait_a",
+            "--landscape-sources",
+            "landscape_a",
+            "--primary-port",
+            "8090",
+            "--portrait-port",
+            "8091",
+            "--landscape-port",
+            "8092",
+            "--password",
+            "pw",
+            "--result-file",
+            "state\\core_session.ini",
+        ]
+    )
+
+    assert code == 0
+    assert recorded["project_dir"] == "C:\\FunTime"
+    assert recorded["config_path"] == "fun_time_config.json"
+    assert recorded["random_favs_browser_manifest_file"] == "state\\random_favs_browser_urls.txt"
+    assert recorded["result_file"] == "state\\core_session.ini"
 
 
 def test_main_dispatches_launch_runtime_companions(monkeypatch):

@@ -10,6 +10,16 @@ from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, su
 from .random_favs_browser import build_manifest, write_manifest
 
 
+def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser["result"] = {key: str(value) for key, value in values.items()}
+    result_path = Path(result_file)
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    with result_path.open("w", encoding="utf-8") as fp:
+        parser.write(fp)
+
+
 def restart_broker(project_dir: str | Path) -> None:
     project_path = Path(project_dir)
     launch_path = project_path / "launch_broker_tray.vbs"
@@ -52,6 +62,43 @@ def seed_robot_hand_state(enabled_file: str | Path, paused_file: str | Path, aud
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(value, encoding="utf-8")
+
+
+def start_core_session(
+    *,
+    project_dir: str | Path,
+    config_path: str | Path,
+    random_favs_browser_manifest_file: str | Path,
+    enabled_file: str | Path,
+    paused_file: str | Path,
+    audio_paused_file: str | Path,
+    vlc_exe: str | Path,
+    mfp_exe: str | Path,
+    primary_sources: str,
+    portrait_sources: str,
+    landscape_sources: str,
+    primary_port: int,
+    portrait_port: int,
+    landscape_port: int,
+    password: str,
+    result_file: str | Path,
+) -> None:
+    restart_broker(project_dir)
+    seed_robot_hand_state(enabled_file, paused_file, audio_paused_file)
+    prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
+    launch_core_apps(
+        project_dir=project_dir,
+        vlc_exe=vlc_exe,
+        mfp_exe=mfp_exe,
+        primary_sources=primary_sources,
+        portrait_sources=portrait_sources,
+        landscape_sources=landscape_sources,
+        primary_port=primary_port,
+        portrait_port=portrait_port,
+        landscape_port=landscape_port,
+        password=password,
+        result_file=result_file,
+    )
 
 
 def launch_core_apps(
@@ -105,18 +152,15 @@ def launch_core_apps(
     time.sleep(0.15)
     vlc_http_cmd(landscape_port, "pl_next", password)
 
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser["result"] = {
-        "primary_pid": str(primary_proc.pid),
-        "mfp_pid": str(mfp_proc.pid),
-        "portrait_pid": str(portrait_proc.pid),
-        "landscape_pid": str(landscape_proc.pid),
-    }
-    result_path = Path(result_file)
-    result_path.parent.mkdir(parents=True, exist_ok=True)
-    with result_path.open("w", encoding="utf-8") as fp:
-        parser.write(fp)
+    _write_result_file(
+        result_file,
+        {
+            "primary_pid": primary_proc.pid,
+            "mfp_pid": mfp_proc.pid,
+            "portrait_pid": portrait_proc.pid,
+            "landscape_pid": landscape_proc.pid,
+        },
+    )
 
 
 def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: str, *, repeat_mode: str) -> list[str]:
@@ -193,13 +237,10 @@ def launch_runtime_companions(
         **subprocess_window_kwargs(),
     )
 
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser["result"] = {
-        "robot_hand_pid": str(robot_proc.pid),
-        "audio_pid": str(audio_proc.pid),
-    }
-    result_path = Path(result_file)
-    result_path.parent.mkdir(parents=True, exist_ok=True)
-    with result_path.open("w", encoding="utf-8") as fp:
-        parser.write(fp)
+    _write_result_file(
+        result_file,
+        {
+            "robot_hand_pid": robot_proc.pid,
+            "audio_pid": audio_proc.pid,
+        },
+    )
