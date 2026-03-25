@@ -40,6 +40,7 @@ class FunTimeIntegrationSession:
         return self.config.paths.state_dir / "dashboard_cmd.txt"
 
     def start(self, wait_seconds: float = 45.0) -> None:
+        self._kill_recent_runtime_processes()
         env = os.environ.copy()
         env["FUN_TIME_DISABLE_DASHBOARD"] = "1"
         self._proc = subprocess.Popen(

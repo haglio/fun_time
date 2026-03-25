@@ -33,21 +33,6 @@ RobotHandEnabled() {
     }
 }
 
-SetRobotHandEnabled(enabled) {
-    global ROBOT_HAND_ENABLED_FILE
-    WriteRawStateFile(ROBOT_HAND_ENABLED_FILE, enabled ? "1" : "0")
-}
-
-SetRobotHandPaused(paused) {
-    global ROBOT_HAND_PAUSED_FILE
-    WriteRawStateFile(ROBOT_HAND_PAUSED_FILE, paused ? "1" : "0")
-}
-
-SetRobotHandAudioPaused(paused) {
-    global AUDIO_PAUSED_FILE
-    WriteRawStateFile(AUDIO_PAUSED_FILE, paused ? "1" : "0")
-}
-
 EnforceRobotHandWindowState(active, isTransition := false) {
     global pid1
 
@@ -108,48 +93,39 @@ WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabled, mf
     FileAppend(snapshotText, DASHBOARD_STATE_FILE, "UTF-16")
 }
 
-EnforceRobotHandOutputs(active, isTransition := false) {
-    if (active) {
-        EnsurePrimaryVlcPlayback(false)
-        SetRobotHandPaused(false)
-        SetRobotHandAudioPaused(false)
-        EnforceRobotHandWindowState(true, isTransition)
-    } else {
-        SetRobotHandPaused(true)
-        SetRobotHandAudioPaused(true)
-        EnforceRobotHandWindowState(false, isTransition)
-        EnsurePrimaryVlcPlayback(true)
-    }
-}
-
 EffectiveRobotHandModeState() {
     if (!RobotHandEnabled())
         return "0"
     return RobotHandModeState()
 }
 
+ApplyRobotHandPlanWindowState(plan) {
+    if (plan["enforce_outputs"])
+        EnforceRobotHandWindowState(plan["enforce_active"], plan["is_transition"])
+}
+
 SyncRobotHandState() {
     global robotHandMode, omniPaused
+    global ROBOT_HAND_ENABLED_FILE, ROBOT_HAND_PAUSED_FILE, AUDIO_PAUSED_FILE
+    global PRIMARY_VLC_PORT, VLC_PASS
 
     if (omniPaused)
         return
 
-    modeState := EffectiveRobotHandModeState()
-    modeOn := (modeState = "1")
-
-    if (modeOn && !robotHandMode) {
-        robotHandMode := true
-        Log("Entering Robot Hand mode")
-        EnforceRobotHandOutputs(true, true)
-        UpdateFunTimeDashboard()
-    } else if (!modeOn && robotHandMode) {
-        robotHandMode := false
-        Log("Leaving Robot Hand mode")
-        EnforceRobotHandOutputs(false, true)
-        UpdateFunTimeDashboard()
-    } else {
-        EnforceRobotHandOutputs(modeOn, false)
-    }
+    planPath := BuildRobotHandPlanPath()
+    extraArgs := "--enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)
+        . " --paused-file " . Q(ROBOT_HAND_PAUSED_FILE)
+        . " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)
+        . " --primary-port " . PRIMARY_VLC_PORT
+        . " --password " . Q(VLC_PASS)
+    plan := RunControllerRobotHandAction("apply-sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)
+    if !IsObject(plan)
+        return
+    robotHandMode := plan["next_robot_hand_mode"]
+    if (plan["log_message"] != "")
+        Log(plan["log_message"])
+    ApplyRobotHandPlanWindowState(plan)
+    UpdateFunTimeDashboard()
 }
 
 ToggleRobotHandEnabled() {
@@ -168,8 +144,7 @@ ToggleRobotHandEnabled() {
     if (plan["log_message"] != "")
         Log(plan["log_message"])
     robotHandMode := plan["next_robot_hand_mode"]
-    if (plan["enforce_outputs"])
-        EnforceRobotHandWindowState(plan["enforce_active"], plan["is_transition"])
+    ApplyRobotHandPlanWindowState(plan)
     UpdateFunTimeDashboard()
 }
 

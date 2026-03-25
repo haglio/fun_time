@@ -10,7 +10,7 @@ from .controller_vlc_actions import ensure_playback_state
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build Fun Time Robot Hand action plans.")
-    parser.add_argument("action", choices=("sync-state", "toggle-enabled", "apply-toggle-enabled"))
+    parser.add_argument("action", choices=("sync-state", "toggle-enabled", "apply-toggle-enabled", "apply-sync-state"))
     parser.add_argument("--robot-hand-mode-on", required=True)
     parser.add_argument("--enabled", required=True)
     parser.add_argument("--mode-state-on", required=True)
@@ -46,10 +46,10 @@ def main(argv: list[str] | None = None) -> int:
         omni_paused=_to_bool(args.omni_paused),
     )
 
-    if args.action == "apply-toggle-enabled":
+    if args.action in {"apply-toggle-enabled", "apply-sync-state"}:
         if not all((args.enabled_file, args.paused_file, args.audio_paused_file, args.primary_port, args.password)):
-            raise ValueError("apply-toggle-enabled requires state-file paths, primary port, and password")
-        if plan.write_enabled:
+            raise ValueError(f"{args.action} requires state-file paths, primary port, and password")
+        if args.action == "apply-toggle-enabled" and plan.write_enabled:
             _write_state_file(args.enabled_file, plan.enabled_value)
         if plan.enforce_outputs:
             _write_state_file(args.paused_file, not plan.enforce_active)

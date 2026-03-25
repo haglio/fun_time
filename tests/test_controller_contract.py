@@ -56,8 +56,7 @@ def test_controller_defines_robot_hand_status_indicator():
 def test_controller_uses_explicit_primary_vlc_playback_state_helpers():
     text = _controller_text()
 
-    assert "EnsurePrimaryVlcPlayback(true)" in text
-    assert "EnsurePrimaryVlcPlayback(false)" in text
+    assert "EnsurePrimaryVlcPlayback(shouldPlay) {" in text
     assert 'args := "seed-robot-hand-state"' in text
     assert 'args := "restart-broker --project-dir " . Q(PROJECT_DIR)' in text
     assert 'ControlSend("{Space}", , "ahk_pid " pid1)' not in text
@@ -187,7 +186,7 @@ def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper()
 def test_controller_only_activates_robot_hand_window_on_transition():
     text = _controller_text()
 
-    assert "EnforceRobotHandOutputs(active, isTransition := false) {" in text
+    assert "ApplyRobotHandPlanWindowState(plan) {" in text
     assert 'if (isTransition) {' in text
     assert 'try WinActivate("Robot Hand")' in text
 
@@ -208,7 +207,7 @@ def test_controller_dashboard_snapshot_writer_uses_function_static_cache():
     text = _controller_text()
 
     snapshot_start = text.index("WriteDashboardStateSnapshot(")
-    next_block_start = text.index("\nEnforceRobotHandOutputs(", snapshot_start)
+    next_block_start = text.index("\nEffectiveRobotHandModeState(", snapshot_start)
     snapshot_block = text[snapshot_start:next_block_start]
 
     assert "global fModeEnabled" in snapshot_block
@@ -312,12 +311,15 @@ def test_controller_keeps_robot_hand_sync_local_but_delegates_toggle_plan():
 
     assert 'RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, planPath, extraArgs := "")' in text
     assert 'LoadRobotHandActionPlan(path)' in text
-    assert 'plan := RunControllerRobotHandAction("sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath)' not in text
+    assert 'plan := RunControllerRobotHandAction("apply-sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)' in text
     assert 'plan := RunControllerRobotHandAction("apply-toggle-enabled", robotHandMode, RobotHandEnabled(), omniPaused, planPath, extraArgs)' in text
     assert '--enabled-file ' in text
     assert '--paused-file ' in text
     assert '--audio-paused-file ' in text
-    assert 'modeState := EffectiveRobotHandModeState()' in text
+    assert 'modeState := EffectiveRobotHandModeState()' not in text
+    assert 'EnforceRobotHandOutputs(active, isTransition := false) {' not in text
+    assert 'SetRobotHandPaused(' not in text
+    assert 'SetRobotHandAudioPaused(' not in text
 
     sync_start = text.index("SyncRobotHandState() {")
     toggle_start = text.index("ToggleRobotHandEnabled() {", sync_start)
