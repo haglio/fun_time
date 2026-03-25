@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import configparser
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.controller_startup import prepare_random_favs_browser_manifest, restart_broker
+from fun_time.controller_startup import (
+    launch_runtime_companions,
+    prepare_random_favs_browser_manifest,
+    restart_broker,
+    seed_robot_hand_state,
+)
 
 
 def test_restart_broker_stops_existing_processes_and_launches_tray(tmp_path: Path):
@@ -34,3 +40,47 @@ def test_prepare_random_favs_browser_manifest_delegates_to_random_browser_builde
 
     build.assert_called_once_with("config.json")
     write.assert_called_once_with(output_path, "Profile 2", ["https://example.com"])
+
+
+def test_seed_robot_hand_state_writes_enabled_and_paused_files(tmp_path: Path):
+    enabled_file = tmp_path / "robot_hand_enabled.txt"
+    paused_file = tmp_path / "robot_hand_paused.txt"
+    audio_file = tmp_path / "audio_paused.txt"
+
+    seed_robot_hand_state(enabled_file, paused_file, audio_file)
+
+    assert enabled_file.read_text(encoding="utf-8") == "1"
+    assert paused_file.read_text(encoding="utf-8") == "1"
+    assert audio_file.read_text(encoding="utf-8") == "1"
+
+
+def test_launch_runtime_companions_starts_robot_and_audio_and_writes_result(tmp_path: Path):
+    result_file = tmp_path / "runtime_companions.ini"
+
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.controller_startup.subprocess.Popen", side_effect=[FakeProc(111), FakeProc(222)]) as popen, patch(
+        "fun_time.controller_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+    ):
+        launch_runtime_companions(
+            python_exe="python.exe",
+            robot_hand_module="fun_time.robot_hand.app",
+            audio_module="fun_time.audio_companion_app",
+            config_path="cfg.json",
+            clips_folder="clips",
+            audio_folder="audio",
+            x=10,
+            y=20,
+            width=30,
+            height=40,
+            result_file=result_file,
+        )
+
+    assert popen.call_count == 2
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(result_file, encoding="utf-8")
+    assert parser.get("result", "robot_hand_pid") == "111"
+    assert parser.get("result", "audio_pid") == "222"
