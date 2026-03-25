@@ -20,8 +20,8 @@
   - Robot Hand
 - Notes:
   - Several controller-side attempts were made to force topmost off during OmniPause.
-  - Those attempts did not resolve the issue reliably enough to justify carrying more AHK-specific complexity while the controller is actively being reduced toward a thinner hotkey/window listener.
-  - This should be revisited after more window-management responsibility has been extracted out of `controller.ahk`.
+  - Those attempts did not resolve the issue reliably enough to justify carrying more AHK-specific complexity while the Windows bridge is actively being reduced toward a thinner hotkey/window listener.
+  - This should be revisited after more window-management responsibility has been extracted out of `windows_bridge.ahk`.
 
 ## Python Dashboard Text Rendering Is Ugly
 
@@ -29,5 +29,5 @@
 - Symptom: After moving the Fun Time dashboard rendering from AHK to the Python/Tk dashboard app, the overlay appears in the correct place and is functionally usable, but the text rendering/layout looks noticeably worse than the old AHK version.
 - Notes:
   - This is currently treated as visual polish debt, not a blocker for the extraction effort.
-  - The immediate architectural goal is to keep moving dashboard and controller responsibilities out of `controller.ahk`.
+  - The immediate architectural goal is to keep moving dashboard and runtime responsibilities out of `windows_bridge.ahk`.
   - Future follow-up should improve typography/text wrapping/rendering in the Python dashboard without moving the UI back into AHK.

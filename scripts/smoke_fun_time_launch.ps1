@@ -19,7 +19,7 @@ function Get-RecentProcessSnapshot {
 
 $projectDir = Split-Path -Parent $PSScriptRoot
 $pythonExe = Join-Path $projectDir ".venv\Scripts\python.exe"
-$controllerLog = Join-Path $projectDir "state\controller.log"
+$windowsBridgeLog = Join-Path $projectDir "state\windows_bridge.log"
 $orchestratorLog = Join-Path $projectDir "state\orchestrator.log"
 $browserManifest = Join-Path $projectDir "state\random_favs_browser_urls.txt"
 $outputFile = Join-Path $projectDir $OutputPath
@@ -45,7 +45,7 @@ try {
         chrome_after = @($afterChrome | ForEach-Object { [pscustomobject]@{ id = $_.Id; title = $_.MainWindowTitle } })
         recent_processes_before = @($beforeProcesses)
         recent_processes_after = @($afterProcesses)
-        controller_log_tail = if (Test-Path $controllerLog) { @(Get-Content $controllerLog -Tail 80) } else { @("NO_CONTROLLER_LOG") }
+        windows_bridge_log_tail = if (Test-Path $windowsBridgeLog) { @(Get-Content $windowsBridgeLog -Tail 80) } else { @("NO_WINDOWS_BRIDGE_LOG") }
         orchestrator_log_tail = if (Test-Path $orchestratorLog) { @(Get-Content $orchestratorLog -Tail 80) } else { @("NO_ORCHESTRATOR_LOG") }
         random_favs_browser_manifest = if (Test-Path $browserManifest) { @(Get-Content $browserManifest) } else { @("NO_BROWSER_MANIFEST") }
     }

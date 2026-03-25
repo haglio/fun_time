@@ -5,13 +5,13 @@ DetectHiddenWindows False
 SetTitleMatchMode 2
 
 ; Args:
-; 1 CONTROLLER_MANIFEST_PATH
+; 1 WINDOWS_BRIDGE_MANIFEST_PATH
 if (A_Args.Length < 1) {
-    MsgBox("Not enough arguments passed to controller. Got " . A_Args.Length, "fun_time", "Iconx")
+    MsgBox("Not enough arguments passed to Windows bridge. Got " . A_Args.Length, "fun_time", "Iconx")
     ExitApp 2
 }
 
-CONTROLLER_MANIFEST_PATH := A_Args[1]
+WINDOWS_BRIDGE_MANIFEST_PATH := A_Args[1]
 VLC_EXE := RequireManifestValue("executables", "vlc_exe")
 MFP_EXE := RequireManifestValue("executables", "mfp_exe")
 PRIMARY_VLC_SOURCES := RequireManifestValue("media", "primary_vlc_sources")
@@ -26,13 +26,13 @@ VLC_PASS := RequireManifestValue("controller", "vlc_pass")
 ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")
 ROBOT_HAND_MODULE := RequireManifestValue("modules", "robot_hand_module")
 DASHBOARD_MODULE := RequireManifestValue("modules", "dashboard_module")
-CONTROLLER_LOCK_MODULE := RequireManifestValue("modules", "controller_lock_module")
-CONTROLLER_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "controller_window_layout_module")
-CONTROLLER_VLC_ACTIONS_MODULE := RequireManifestValue("modules", "controller_vlc_actions_module")
-CONTROLLER_RANDOM_FAVS_BROWSER_MODULE := RequireManifestValue("modules", "controller_random_favs_browser_module")
-CONTROLLER_STARTUP_MODULE := RequireManifestValue("modules", "controller_startup_module")
-CONTROLLER_DASHBOARD_BRIDGE_MODULE := RequireManifestValue("modules", "controller_dashboard_bridge_module")
-CONTROLLER_RUNTIME_FLOW_MODULE := RequireManifestValue("modules", "controller_runtime_flow_module")
+WINDOWS_BRIDGE_LOCK_MODULE := RequireManifestValue("modules", "windows_bridge_lock_module")
+WINDOWS_BRIDGE_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "windows_bridge_window_layout_module")
+WINDOWS_BRIDGE_VLC_ACTIONS_MODULE := RequireManifestValue("modules", "windows_bridge_vlc_actions_module")
+WINDOWS_BRIDGE_RANDOM_FAVS_BROWSER_MODULE := RequireManifestValue("modules", "windows_bridge_random_favs_browser_module")
+WINDOWS_BRIDGE_STARTUP_MODULE := RequireManifestValue("modules", "windows_bridge_startup_module")
+WINDOWS_BRIDGE_DASHBOARD_BRIDGE_MODULE := RequireManifestValue("modules", "windows_bridge_dashboard_bridge_module")
+WINDOWS_BRIDGE_RUNTIME_FLOW_MODULE := RequireManifestValue("modules", "windows_bridge_runtime_flow_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -52,14 +52,14 @@ PRIMARY_TOP_RATIO := RequireManifestValue("layout", "primary_top_ratio")
 LANDSCAPE_WIDTH_RATIO := RequireManifestValue("layout", "landscape_width_ratio")
 MFP_WIDTH_RATIO := RequireManifestValue("layout", "mfp_width_ratio")
 MFP_HEIGHT_RATIO := RequireManifestValue("layout", "mfp_height_ratio")
-CONTROLLER_LOG_FILE := RequireManifestValue("runtime", "controller_log_file")
+WINDOWS_BRIDGE_LOG_FILE := RequireManifestValue("runtime", "windows_bridge_log_file")
 RANDOM_FAVS_BROWSER_SHORTCUT_PATH := RequireManifestValue("random_favs_browser", "shortcut_path")
 RANDOM_FAVS_BROWSER_MANIFEST_FILE := RequireManifestValue("random_favs_browser", "manifest_file")
 RANDOM_FAVS_BROWSER_ENABLED := RequireManifestValue("random_favs_browser", "enabled") = "1"
 CONFIG_PATH := RequireManifestValue("runtime", "config_path")
 PROJECT_DIR := RequireManifestValue("runtime", "project_dir")
 ICON_PATH := PROJECT_DIR . "\icon.ico"
-STATE_DIR := GetParentDir(CONTROLLER_LOG_FILE)
+STATE_DIR := GetParentDir(WINDOWS_BRIDGE_LOG_FILE)
 
 ; IMPORTANT: VLC web interface commonly uses BLANK username + password.
 VLC_USER := ""
@@ -101,9 +101,9 @@ COLOR_LINK_OFF := "7C8694"
 
 Q(s) => Format('"{1}"', s)
 
-#Include controller_windows.ahk
-#Include controller_runtime.ahk
-#Include controller_actions.ahk
+#Include windows_bridge_windows.ahk
+#Include windows_bridge_runtime.ahk
+#Include windows_bridge_actions.ahk
 
 GetParentDir(path) {
     SplitPath(path, , &dirPath)
@@ -129,9 +129,9 @@ Clamp01(value) {
 }
 
 Log(msg) {
-    global CONTROLLER_LOG_FILE
+    global WINDOWS_BRIDGE_LOG_FILE
     try {
-        FileAppend(FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n", CONTROLLER_LOG_FILE, "UTF-8")
+        FileAppend(FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n", WINDOWS_BRIDGE_LOG_FILE, "UTF-8")
     }
 }
 
@@ -163,11 +163,11 @@ WriteRawStateFile(path, text) {
 }
 
 RequireManifestValue(section, key) {
-    global CONTROLLER_MANIFEST_PATH
+    global WINDOWS_BRIDGE_MANIFEST_PATH
     missing := "__missing__"
-    value := IniRead(CONTROLLER_MANIFEST_PATH, section, key, missing)
+    value := IniRead(WINDOWS_BRIDGE_MANIFEST_PATH, section, key, missing)
     if (value = missing) {
-        MsgBox("Missing controller manifest value [" . section . "] " . key, "fun_time", "Iconx")
+        MsgBox("Missing windows bridge manifest value [" . section . "] " . key, "fun_time", "Iconx")
         ExitApp 2
     }
     return value
@@ -199,8 +199,8 @@ RunDetached(cmdLine) {
     return pid
 }
 
-RunControllerLockAction(action, which, locked, currentPath, planPath, extraArgs := "") {
-    global ROBOT_HAND_PY, CONTROLLER_LOCK_MODULE, PROJECT_DIR
+RunWindowsBridgeLockAction(action, which, locked, currentPath, planPath, extraArgs := "") {
+    global ROBOT_HAND_PY, WINDOWS_BRIDGE_LOCK_MODULE, PROJECT_DIR
     args := action
         . " --which " . which
         . " --locked " . (locked ? "1" : "0")
@@ -208,7 +208,7 @@ RunControllerLockAction(action, which, locked, currentPath, planPath, extraArgs 
         . " --plan-file " . Q(planPath)
     if (extraArgs != "")
         args .= " " . extraArgs
-    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_LOCK_MODULE . " " . args
+    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_LOCK_MODULE . " " . args
     if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
         return ""
     return LoadLockActionPlan(planPath)
@@ -277,8 +277,8 @@ BuildVlcQueryOutputPath(prefix) {
     return STATE_DIR . "\" . prefix . "_" . A_TickCount . "_" . counter . ".txt"
 }
 
-RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {
-    global ROBOT_HAND_PY, CONTROLLER_WINDOW_LAYOUT_MODULE, PROJECT_DIR
+RunWindowsBridgeWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {
+    global ROBOT_HAND_PY, WINDOWS_BRIDGE_WINDOW_LAYOUT_MODULE, PROJECT_DIR
     global PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
 
     args := "write-plan"
@@ -297,45 +297,45 @@ RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {
         . " --mfp-width " . mfpW
         . " --mfp-height " . mfpH
         . " --plan-file " . Q(planPath)
-    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_WINDOW_LAYOUT_MODULE . " " . args
+    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_WINDOW_LAYOUT_MODULE . " " . args
     if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
         return ""
     return LoadWindowLayoutPlan(planPath)
 }
 
-RunControllerVlcAction(args) {
-    global ROBOT_HAND_PY, CONTROLLER_VLC_ACTIONS_MODULE, PROJECT_DIR
-    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_VLC_ACTIONS_MODULE . " " . args
+RunWindowsBridgeVlcAction(args) {
+    global ROBOT_HAND_PY, WINDOWS_BRIDGE_VLC_ACTIONS_MODULE, PROJECT_DIR
+    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_VLC_ACTIONS_MODULE . " " . args
     return RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
-RunControllerStartupAction(args) {
-    global ROBOT_HAND_PY, CONTROLLER_STARTUP_MODULE, PROJECT_DIR
-    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_STARTUP_MODULE . " " . args
+RunWindowsBridgeStartupAction(args) {
+    global ROBOT_HAND_PY, WINDOWS_BRIDGE_STARTUP_MODULE, PROJECT_DIR
+    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_STARTUP_MODULE . " " . args
     return RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
-RunControllerDashboardBridgeAction(args) {
-    global ROBOT_HAND_PY, CONTROLLER_DASHBOARD_BRIDGE_MODULE, PROJECT_DIR
-    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_DASHBOARD_BRIDGE_MODULE . " " . args
+RunWindowsBridgeDashboardBridgeAction(args) {
+    global ROBOT_HAND_PY, WINDOWS_BRIDGE_DASHBOARD_BRIDGE_MODULE, PROJECT_DIR
+    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_DASHBOARD_BRIDGE_MODULE . " " . args
     return RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
-RunControllerRuntimeFlowAction(args) {
-    global ROBOT_HAND_PY, CONTROLLER_RUNTIME_FLOW_MODULE, PROJECT_DIR
-    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_RUNTIME_FLOW_MODULE . " " . args
+RunWindowsBridgeRuntimeFlowAction(args) {
+    global ROBOT_HAND_PY, WINDOWS_BRIDGE_RUNTIME_FLOW_MODULE, PROJECT_DIR
+    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_RUNTIME_FLOW_MODULE . " " . args
     return RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
 LaunchRandomFavsBrowserViaPython(manifestPath, shortcutTarget, shortcutWorkDir, shortcutArgs) {
-    global ROBOT_HAND_PY, CONTROLLER_RANDOM_FAVS_BROWSER_MODULE, PROJECT_DIR
+    global ROBOT_HAND_PY, WINDOWS_BRIDGE_RANDOM_FAVS_BROWSER_MODULE, PROJECT_DIR
     encodedShortcutArgs := Base64EncodeUtf8(shortcutArgs)
     args := "launch"
         . " --manifest-file " . Q(manifestPath)
         . " --shortcut-target " . Q(shortcutTarget)
         . " --shortcut-work-dir " . Q(shortcutWorkDir)
         . " --shortcut-args-b64 " . Q(encodedShortcutArgs)
-    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_RANDOM_FAVS_BROWSER_MODULE . " " . args
+    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_RANDOM_FAVS_BROWSER_MODULE . " " . args
     exitCode := RunWait(cmd, PROJECT_DIR, "Hide")
     if (exitCode = 0)
         return true
@@ -360,7 +360,7 @@ LoadWindowLayoutPlan(path) {
     return plan
 }
 
-LoadControllerRuntimeFlowResult(path) {
+LoadWindowsBridgeRuntimeFlowResult(path) {
     if !FileExist(path)
         return ""
     result := Map()
@@ -441,14 +441,14 @@ GetCurrentWindowLayout(&plan, mfpW := "", mfpH := "") {
     if (mfpW = "" || mfpH = "")
         GetActualMfpSize(&mfpW, &mfpH)
     planPath := BuildWindowLayoutPlanPath()
-    plan := RunControllerWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath)
+    plan := RunWindowsBridgeWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath)
     if (!IsObject(plan))
         throw Error("Failed to build window layout plan")
 }
 
-; lifecycle/runtime orchestration moved to controller_runtime.ahk
+; lifecycle/runtime orchestration moved to windows_bridge_runtime.ahk
 
-StartController()
+StartWindowsBridge()
 
 ; -------------------- HOTKEYS --------------------
 
@@ -506,5 +506,6 @@ s::ToggleLock(3)
 
 ; -------------------- HTTP --------------------
 
-; action/runtime glue moved to controller_actions.ahk
+; action/runtime glue moved to windows_bridge_actions.ahk
+
 
