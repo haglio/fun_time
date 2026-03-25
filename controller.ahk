@@ -28,6 +28,7 @@ ROBOT_HAND_MODULE := RequireManifestValue("modules", "robot_hand_module")
 MEDIA_ACTIONS_MODULE := RequireManifestValue("modules", "media_actions_module")
 CONTROLLER_MODES_MODULE := RequireManifestValue("modules", "controller_modes_module")
 CONTROLLER_LOCK_MODULE := RequireManifestValue("modules", "controller_lock_module")
+CONTROLLER_ROBOT_HAND_MODULE := RequireManifestValue("modules", "controller_robot_hand_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -229,6 +230,20 @@ RunControllerLockAction(action, which, locked, currentPath, planPath) {
     return LoadLockActionPlan(planPath)
 }
 
+RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, planPath) {
+    global ROBOT_HAND_PY, CONTROLLER_ROBOT_HAND_MODULE, PROJECT_DIR
+    args := action
+        . " --robot-hand-mode-on " . (robotHandModeOn ? "1" : "0")
+        . " --enabled " . (enabled ? "1" : "0")
+        . " --mode-state-on " . (RobotHandModeState() = "1" ? "1" : "0")
+        . " --omni-paused " . (omniPausedOn ? "1" : "0")
+        . " --plan-file " . Q(planPath)
+    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_ROBOT_HAND_MODULE . " " . args
+    if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
+        return ""
+    return LoadRobotHandActionPlan(planPath)
+}
+
 LoadLockActionPlan(path) {
     if !FileExist(path)
         return ""
@@ -244,9 +259,29 @@ LoadLockActionPlan(path) {
     return plan
 }
 
+LoadRobotHandActionPlan(path) {
+    if !FileExist(path)
+        return ""
+    plan := Map()
+    plan["write_enabled"] := IniRead(path, "plan", "write_enabled", "0") = "1"
+    plan["enabled_value"] := IniRead(path, "plan", "enabled_value", "0") = "1"
+    plan["next_robot_hand_mode"] := IniRead(path, "plan", "next_robot_hand_mode", "0") = "1"
+    plan["enforce_outputs"] := IniRead(path, "plan", "enforce_outputs", "0") = "1"
+    plan["enforce_active"] := IniRead(path, "plan", "enforce_active", "0") = "1"
+    plan["is_transition"] := IniRead(path, "plan", "is_transition", "0") = "1"
+    plan["log_message"] := IniRead(path, "plan", "log_message", "")
+    try FileDelete(path)
+    return plan
+}
+
 BuildLockPlanPath(which) {
     global STATE_DIR
     return STATE_DIR . "\lock_action_plan_" . which . ".ini"
+}
+
+BuildRobotHandPlanPath() {
+    global STATE_DIR
+    return STATE_DIR . "\robot_hand_action_plan.ini"
 }
 
 TryClosePid(pid) {
@@ -837,37 +872,31 @@ SyncRobotHandState() {
     global robotHandMode, pid1, omniPaused
 
     UpdateFunTimeDashboard()
-
-    if (omniPaused)
+    planPath := BuildRobotHandPlanPath()
+    plan := RunControllerRobotHandAction("sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath)
+    if !IsObject(plan)
         return
-
-    modeState := EffectiveRobotHandModeState()
-    modeOn := (modeState = "1")
-
-    if (modeOn && !robotHandMode) {
-        robotHandMode := true
-        Log("Entering Robot Hand mode")
-        EnforceRobotHandOutputs(true, true)
-    } else if (!modeOn && robotHandMode) {
-        robotHandMode := false
-        Log("Leaving Robot Hand mode")
-        EnforceRobotHandOutputs(false, true)
-    } else {
-        EnforceRobotHandOutputs(modeOn, false)
-    }
+    robotHandMode := plan["next_robot_hand_mode"]
+    if (plan["log_message"] != "")
+        Log(plan["log_message"])
+    if (plan["enforce_outputs"])
+        EnforceRobotHandOutputs(plan["enforce_active"], plan["is_transition"])
 }
 
 ToggleRobotHandEnabled() {
-    enabled := !RobotHandEnabled()
-    SetRobotHandEnabled(enabled)
-
-    if (enabled) {
-        Log("Robot Hand hotkey: enabled")
-    } else {
-        Log("Robot Hand hotkey: disabled")
-    }
-
-    SyncRobotHandState()
+    global robotHandMode, omniPaused
+    planPath := BuildRobotHandPlanPath()
+    plan := RunControllerRobotHandAction("toggle-enabled", robotHandMode, RobotHandEnabled(), omniPaused, planPath)
+    if !IsObject(plan)
+        return
+    if (plan["write_enabled"])
+        SetRobotHandEnabled(plan["enabled_value"])
+    if (plan["log_message"] != "")
+        Log(plan["log_message"])
+    robotHandMode := plan["next_robot_hand_mode"]
+    if (plan["enforce_outputs"])
+        EnforceRobotHandOutputs(plan["enforce_active"], plan["is_transition"])
+    UpdateFunTimeDashboard()
 }
 
 IsSupportedVideoPath(path) {
