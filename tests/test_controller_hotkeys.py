@@ -5,11 +5,16 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONTROLLER_AHK = PROJECT_ROOT / "controller.ahk"
+CONTROLLER_WINDOWS_AHK = PROJECT_ROOT / "controller_windows.ahk"
 DASHBOARD_LAYOUT_PY = PROJECT_ROOT / "fun_time" / "dashboard_layout.py"
 
 
 def _controller_text() -> str:
-    return CONTROLLER_AHK.read_text(encoding="utf-8")
+    return (
+        CONTROLLER_AHK.read_text(encoding="utf-8")
+        + "\n"
+        + CONTROLLER_WINDOWS_AHK.read_text(encoding="utf-8")
+    )
 
 
 def _dashboard_layout_text() -> str:
