@@ -55,16 +55,16 @@ def test_controller_waits_for_primary_vlc_before_launching_mfp_and_satellites():
     assert primary_launch < primary_wait < mfp_launch < satellite_launch
 
 
-def test_controller_reloads_f_mode_via_generated_playlist_files():
+def test_controller_delegates_f_mode_execution_to_python_modes_app():
     text = _controller_text()
 
-    assert 'WriteFModePlaylists(enabled)' in text
+    assert 'args := "apply-fmode"' in text
+    assert 'BuildModesResultPath() {' in text
+    assert 'LoadModesActionResult(path) {' in text
     assert 'BuildPrimaryPlaylistPaths(fMode)' not in text
     assert 'BuildSatellitePlaylistPaths(sourceSpec, fMode)' not in text
-    assert 'ReplaceVlcPlaylistFromFile(PRIMARY_VLC_PORT, BuildPlaylistFilePath("primary_vlc_playlist"))' in text
-    assert 'ReplaceVlcPlaylistFromFile(VLC2_PORT, BuildPlaylistFilePath("portrait_vlc_playlist"), "all")' in text
-    assert 'ReplaceVlcPlaylistFromFile(VLC3_PORT, BuildPlaylistFilePath("landscape_vlc_playlist"), "all")' in text
-    assert 'args := "replace-playlist"' in text
+    assert 'WriteFModePlaylists(enabled)' not in text
+    assert 'ReplaceVlcPlaylistFromFile(' not in text
 
 
 def test_controller_dashboard_wires_existing_actions_into_click_targets():
@@ -96,10 +96,10 @@ def test_controller_reads_dashboard_bridge_paths_from_manifest():
     assert 'DASHBOARD_CMD_FILE := RequireManifestValue("commands", "dashboard_cmd_file")' in text
 
 
-def test_controller_reads_media_actions_module_from_manifest():
+def test_controller_no_longer_reads_media_actions_module_from_manifest():
     text = _controller_text()
 
-    assert 'MEDIA_ACTIONS_MODULE := RequireManifestValue("modules", "media_actions_module")' in text
+    assert 'MEDIA_ACTIONS_MODULE := RequireManifestValue("modules", "media_actions_module")' not in text
     assert 'ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")' in text
 
 
@@ -257,14 +257,18 @@ def test_controller_shutdown_closes_python_dashboard_process():
     assert "for pid in [pid1, pid2, pid3, pidM, pidD, pidR, pidA]" in text
 
 
-def test_controller_delegates_lock_state_decisions_to_python_plan():
+def test_controller_delegates_lock_execution_to_python_app():
     text = _controller_text()
 
-    assert 'RunControllerLockAction(action, which, locked, currentPath, planPath)' in text
+    assert 'RunControllerLockAction(action, which, locked, currentPath, planPath, extraArgs := "")' in text
     assert 'LoadLockActionPlan(path)' in text
-    assert 'plan := RunControllerLockAction("toggle-lock", which, currentLocked, currentPath, planPath)' in text
-    assert 'plan := RunControllerLockAction("discard", which, currentLocked, src, planPath)' in text
-    assert 'plan := RunControllerLockAction("cancel-lock", which, currentLocked, "", planPath)' in text
+    assert 'plan := RunControllerLockAction("apply-toggle-lock", which, currentLocked, currentPath, planPath' in text
+    assert 'plan := RunControllerLockAction("apply-discard", which, currentLocked, src, planPath' in text
+    assert 'plan := RunControllerLockAction("apply-cancel-lock", which, currentLocked, "", planPath' in text
+    assert 'SetRepeatMode(port, plan["repeat_mode"])' not in text
+    assert 'EnsureInFavs(currentPath)' not in text
+    assert 'RemoveFromFavs(src)' not in text
+    assert 'MoveToWeird(src)' not in text
 
 
 def test_controller_keeps_robot_hand_sync_local_but_delegates_toggle_plan():
@@ -343,9 +347,9 @@ def test_controller_delegates_write_side_vlc_actions_to_python():
 
     assert 'RunControllerVlcAction(args) {' in text
     assert 'cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_VLC_ACTIONS_MODULE . " " . args' in text
-    assert 'args := "replace-playlist"' in text
     assert 'args := "ensure-playback-state"' in text
     assert 'args := "set-repeat-mode"' in text
+    assert 'args := "replace-playlist"' not in text
     assert "SendVlcInputCommand(" not in text
     assert "GetRepeatMode(" not in text
 
