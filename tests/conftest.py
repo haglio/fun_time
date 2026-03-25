@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import uuid
 from pathlib import Path
@@ -9,13 +10,18 @@ from pathlib import Path
 import pytest
 
 
-TMP_ROOT = Path(__file__).resolve().parent.parent / ".tmp-pytest-local"
+TMP_ROOT = Path(
+    os.environ.get(
+        "FUN_TIME_PYTEST_TMP_ROOT",
+        str(Path(__file__).resolve().parent.parent / ".tmp-pytest-local"),
+    )
+).resolve()
 
 
 @pytest.fixture()
 def tmp_path() -> Path:
     TMP_ROOT.mkdir(parents=True, exist_ok=True)
-    path = TMP_ROOT / f"case_{uuid.uuid4().hex}"
+    path = (TMP_ROOT / f"case_{uuid.uuid4().hex}").resolve()
     path.mkdir()
     try:
         yield path

@@ -32,6 +32,33 @@ def test_restart_broker_stops_existing_processes_and_launches_tray(tmp_path: Pat
     popen.assert_called_once_with(["wscript.exe", str(launch_path)], cwd=project_dir, creationflags=1)
 
 
+def test_restart_broker_starts_broker_directly_during_integration(tmp_path: Path, monkeypatch):
+    project_dir = tmp_path
+    config_path = project_dir / "fun_time_integration_config.json"
+    config_path.write_text(
+        '{"paths": {"python_exe": "pythonw.exe"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
+        "fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(123)
+    ) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+    ), patch("fun_time.windows_bridge_startup.Path.exists", return_value=True):
+        restart_broker(project_dir, config_path)
+
+    run.assert_called_once()
+    command = popen.call_args.args[0]
+    assert command[0].endswith("python.exe")
+    assert command[1:3] == ["-m", "fun_time.broker_app"]
+    assert command[-2:] == ["--config", str(config_path.resolve())]
+
+
 def test_prepare_random_favs_browser_manifest_delegates_to_random_browser_builder(tmp_path: Path):
     output_path = tmp_path / "browser_manifest.txt"
 
@@ -83,7 +110,7 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
             result_file=result_file,
         )
 
-    restart.assert_called_once_with(tmp_path)
+    restart.assert_called_once_with(tmp_path, "fun_time_config.json")
     seed.assert_called_once()
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
     launch.assert_called_once_with(
