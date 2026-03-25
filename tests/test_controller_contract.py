@@ -65,8 +65,7 @@ def test_controller_reloads_f_mode_via_generated_playlist_files():
     assert 'ReplaceVlcPlaylistFromFile(PRIMARY_VLC_PORT, BuildPlaylistFilePath("primary_vlc_playlist"))' in text
     assert 'ReplaceVlcPlaylistFromFile(VLC2_PORT, BuildPlaylistFilePath("portrait_vlc_playlist"), "all")' in text
     assert 'ReplaceVlcPlaylistFromFile(VLC3_PORT, BuildPlaylistFilePath("landscape_vlc_playlist"), "all")' in text
-    assert "ToFileUri(winPath) {" in text
-    assert 'uri := ToFileUri(fullPath)' in text
+    assert 'args := "replace-playlist"' in text
 
 
 def test_controller_dashboard_wires_existing_actions_into_click_targets():
@@ -138,6 +137,12 @@ def test_controller_reads_controller_window_layout_module_from_manifest():
     text = _controller_text()
 
     assert 'CONTROLLER_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "controller_window_layout_module")' in text
+
+
+def test_controller_reads_controller_vlc_actions_module_from_manifest():
+    text = _controller_text()
+
+    assert 'CONTROLLER_VLC_ACTIONS_MODULE := RequireManifestValue("modules", "controller_vlc_actions_module")' in text
 
 
 def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper():
@@ -291,3 +296,15 @@ def test_controller_delegates_window_layout_planning_to_python_plan():
     assert 'cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_WINDOW_LAYOUT_MODULE . " " . args' in text
     assert 'plan["dashboard"] := ' not in text
     assert 'for section in ["portrait", "primary", "landscape", "mfp", "dashboard", "random_favs_browser", "robot_hand"] {' in text
+
+
+def test_controller_delegates_write_side_vlc_actions_to_python():
+    text = _controller_text()
+
+    assert 'RunControllerVlcAction(args) {' in text
+    assert 'cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_VLC_ACTIONS_MODULE . " " . args' in text
+    assert 'args := "replace-playlist"' in text
+    assert 'args := "ensure-playback-state"' in text
+    assert 'args := "set-repeat-mode"' in text
+    assert "SendVlcInputCommand(" not in text
+    assert "GetRepeatMode(" not in text

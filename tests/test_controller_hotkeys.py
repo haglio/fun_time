@@ -82,9 +82,10 @@ def test_omnipause_still_restores_topmost_for_robot_hand_and_media_windows():
     text = _controller_text()
 
     assert 'try WinSetAlwaysOnTop(false, "Robot Hand")' in text
-    assert 'for pid in [pid1, pid2, pid3, pidM] {' in text
+    assert 'for pid in [pid1, pid2, pid3, pidM, pidD] {' in text
     assert 'try WinSetAlwaysOnTop(false, "ahk_pid " pid)' in text
     assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pid1)' in text
+    assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pidD)' in text
     assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pid2)' in text
     assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pid3)' in text
     assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pidM)' in text
