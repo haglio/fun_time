@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from fun_time.controller_startup import (
     launch_core_apps,
-    launch_runtime_companions,
+    launch_ui_companions,
     prepare_random_favs_browser_manifest,
     restart_broker,
     seed_robot_hand_state,
@@ -101,27 +101,84 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
     )
 
 
-def test_launch_runtime_companions_starts_robot_and_audio_and_writes_result(tmp_path: Path):
-    result_file = tmp_path / "runtime_companions.ini"
+def test_launch_ui_companions_starts_dashboard_robot_and_audio_and_writes_result(tmp_path: Path):
+    result_file = tmp_path / "ui_companions.ini"
 
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
 
-    with patch("fun_time.controller_startup.subprocess.Popen", side_effect=[FakeProc(111), FakeProc(222)]) as popen, patch(
+    with patch("fun_time.controller_startup.subprocess.Popen", side_effect=[FakeProc(11), FakeProc(22), FakeProc(33)]) as popen, patch(
         "fun_time.controller_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
     ):
-        launch_runtime_companions(
+        launch_ui_companions(
             python_exe="python.exe",
+            dashboard_module="fun_time.dashboard_app",
+            dashboard_enabled=True,
+            controller_manifest_path="controller_launch.ini",
+            dashboard_x=10,
+            dashboard_y=20,
+            dashboard_width=30,
+            dashboard_height=40,
+            mfp_pid=55,
             robot_hand_module="fun_time.robot_hand.app",
             audio_module="fun_time.audio_companion_app",
             config_path="cfg.json",
             clips_folder="clips",
             audio_folder="audio",
-            x=10,
-            y=20,
-            width=30,
-            height=40,
+            robot_x=100,
+            robot_y=200,
+            robot_width=300,
+            robot_height=400,
+            result_file=result_file,
+        )
+
+    assert popen.call_count == 3
+    dashboard_command = popen.call_args_list[0].args[0]
+    assert dashboard_command[:3] == ["python.exe", "-m", "fun_time.dashboard_app"]
+    assert "--mfp-pid" in dashboard_command
+    robot_command = popen.call_args_list[1].args[0]
+    assert robot_command[:3] == ["python.exe", "-m", "fun_time.robot_hand.app"]
+    audio_command = popen.call_args_list[2].args[0]
+    assert audio_command[:3] == ["python.exe", "-m", "fun_time.audio_companion_app"]
+
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(result_file, encoding="utf-8")
+    assert parser.get("result", "dashboard_pid") == "11"
+    assert parser.get("result", "robot_hand_pid") == "22"
+    assert parser.get("result", "audio_pid") == "33"
+
+
+def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
+    result_file = tmp_path / "ui_companions.ini"
+
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.controller_startup.subprocess.Popen", side_effect=[FakeProc(22), FakeProc(33)]) as popen, patch(
+        "fun_time.controller_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+    ):
+        launch_ui_companions(
+            python_exe="python.exe",
+            dashboard_module="fun_time.dashboard_app",
+            dashboard_enabled=False,
+            controller_manifest_path="controller_launch.ini",
+            dashboard_x=10,
+            dashboard_y=20,
+            dashboard_width=30,
+            dashboard_height=40,
+            mfp_pid=55,
+            robot_hand_module="fun_time.robot_hand.app",
+            audio_module="fun_time.audio_companion_app",
+            config_path="cfg.json",
+            clips_folder="clips",
+            audio_folder="audio",
+            robot_x=100,
+            robot_y=200,
+            robot_width=300,
+            robot_height=400,
             result_file=result_file,
         )
 
@@ -129,8 +186,9 @@ def test_launch_runtime_companions_starts_robot_and_audio_and_writes_result(tmp_
     parser = configparser.ConfigParser()
     parser.optionxform = str
     parser.read(result_file, encoding="utf-8")
-    assert parser.get("result", "robot_hand_pid") == "111"
-    assert parser.get("result", "audio_pid") == "222"
+    assert parser.get("result", "dashboard_pid") == "0"
+    assert parser.get("result", "robot_hand_pid") == "22"
+    assert parser.get("result", "audio_pid") == "33"
 
 
 def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: Path):

@@ -194,7 +194,8 @@ def test_dashboard_window_rect_centers_above_mfp():
 
     assert "GetActualMfpSize(&mfpW, &mfpH)" in text
     assert 'GetCurrentWindowLayout(&plan)' in text
-    assert 'LaunchDashboardApp(' in text
+    assert 'args := "launch-ui-companions"' in text
+    assert 'pidD := startupResult["dashboard_pid"]' in text
     assert 'plan["dashboard"]["x"]' in text
     assert 'plan["dashboard"]["y"]' in text
     assert 'plan["dashboard"]["w"]' in text

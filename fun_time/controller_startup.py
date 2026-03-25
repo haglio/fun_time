@@ -101,6 +101,100 @@ def start_core_session(
     )
 
 
+def launch_ui_companions(
+    *,
+    python_exe: str | Path,
+    dashboard_module: str,
+    dashboard_enabled: bool,
+    controller_manifest_path: str | Path,
+    dashboard_x: int,
+    dashboard_y: int,
+    dashboard_width: int,
+    dashboard_height: int,
+    mfp_pid: int,
+    robot_hand_module: str,
+    audio_module: str,
+    config_path: str | Path,
+    clips_folder: str | Path,
+    audio_folder: str | Path,
+    robot_x: int,
+    robot_y: int,
+    robot_width: int,
+    robot_height: int,
+    result_file: str | Path,
+) -> None:
+    python_exe = str(python_exe)
+    controller_manifest_path = str(controller_manifest_path)
+    config_path = str(config_path)
+    clips_folder = str(clips_folder)
+    audio_folder = str(audio_folder)
+
+    dashboard_pid = 0
+    if dashboard_enabled:
+        dashboard_proc = subprocess.Popen(
+            [
+                python_exe,
+                "-m",
+                dashboard_module,
+                controller_manifest_path,
+                "--x",
+                str(dashboard_x),
+                "--y",
+                str(dashboard_y),
+                "--width",
+                str(dashboard_width),
+                "--height",
+                str(dashboard_height),
+                "--mfp-pid",
+                str(mfp_pid),
+            ],
+            **subprocess_window_kwargs(),
+        )
+        dashboard_pid = dashboard_proc.pid
+
+    robot_proc = subprocess.Popen(
+        [
+            python_exe,
+            "-m",
+            robot_hand_module,
+            "--config",
+            config_path,
+            "--clips-folder",
+            clips_folder,
+            "--x",
+            str(robot_x),
+            "--y",
+            str(robot_y),
+            "--width",
+            str(robot_width),
+            "--height",
+            str(robot_height),
+        ],
+        **subprocess_window_kwargs(),
+    )
+    audio_proc = subprocess.Popen(
+        [
+            python_exe,
+            "-m",
+            audio_module,
+            "--config",
+            config_path,
+            "--audio-folder",
+            audio_folder,
+        ],
+        **subprocess_window_kwargs(),
+    )
+
+    _write_result_file(
+        result_file,
+        {
+            "dashboard_pid": dashboard_pid,
+            "robot_hand_pid": robot_proc.pid,
+            "audio_pid": audio_proc.pid,
+        },
+    )
+
+
 def launch_core_apps(
     *,
     project_dir: str | Path,
@@ -184,63 +278,3 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
     command.extend([part for part in sources.split("|") if part])
     return command
 
-
-def launch_runtime_companions(
-    *,
-    python_exe: str | Path,
-    robot_hand_module: str,
-    audio_module: str,
-    config_path: str | Path,
-    clips_folder: str | Path,
-    audio_folder: str | Path,
-    x: int,
-    y: int,
-    width: int,
-    height: int,
-    result_file: str | Path,
-) -> None:
-    python_exe = str(python_exe)
-    config_path = str(config_path)
-    clips_folder = str(clips_folder)
-    audio_folder = str(audio_folder)
-
-    robot_proc = subprocess.Popen(
-        [
-            python_exe,
-            "-m",
-            robot_hand_module,
-            "--config",
-            config_path,
-            "--clips-folder",
-            clips_folder,
-            "--x",
-            str(x),
-            "--y",
-            str(y),
-            "--width",
-            str(width),
-            "--height",
-            str(height),
-        ],
-        **subprocess_window_kwargs(),
-    )
-    audio_proc = subprocess.Popen(
-        [
-            python_exe,
-            "-m",
-            audio_module,
-            "--config",
-            config_path,
-            "--audio-folder",
-            audio_folder,
-        ],
-        **subprocess_window_kwargs(),
-    )
-
-    _write_result_file(
-        result_file,
-        {
-            "robot_hand_pid": robot_proc.pid,
-            "audio_pid": audio_proc.pid,
-        },
-    )
