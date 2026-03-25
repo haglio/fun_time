@@ -35,7 +35,7 @@ class WindowLayoutPlan:
     landscape: WindowRect
     mfp: WindowRect
     dashboard: WindowRect
-    chrome: WindowRect
+    random_favs_browser: WindowRect
     robot_hand: WindowRect
 
 
@@ -76,7 +76,7 @@ def compute_window_layout(
         height=main_monitor.height,
     )
 
-    chrome = WindowRect(
+    random_favs_browser = WindowRect(
         x=main_monitor.x,
         y=main_monitor.y,
         width=main_monitor.width - landscape_width,
@@ -96,7 +96,7 @@ def compute_window_layout(
         landscape=landscape,
         mfp=mfp,
         dashboard=dashboard,
-        chrome=chrome,
+        random_favs_browser=random_favs_browser,
         robot_hand=robot_hand,
     )
 
@@ -158,7 +158,7 @@ def write_window_layout_plan(path: Path, plan: WindowLayoutPlan) -> None:
                 "landscape": plan.landscape,
                 "mfp": plan.mfp,
                 "dashboard": plan.dashboard,
-                "chrome": plan.chrome,
+                "random_favs_browser": plan.random_favs_browser,
                 "robot_hand": plan.robot_hand,
             }.items()
         }

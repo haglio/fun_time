@@ -1,4 +1,4 @@
-# Chrome Overlay
+# Random Favs Browser
 
 Fun Time can open a Chrome window behind MFP on the left side of the secondary monitor.
 
@@ -16,4 +16,4 @@ Current setup:
 - Chrome profile: `Profile 2` / visible name `Blair`
 - Bookmark folder: `Fun Time Favs`
 
-Configuration lives in `fun_time_config.json` under `chrome_overlay`.
+Configuration lives in `fun_time_config.json` under `random_favs_browser`.

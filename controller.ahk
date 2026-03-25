@@ -51,8 +51,8 @@ LANDSCAPE_WIDTH_RATIO := RequireManifestValue("layout", "landscape_width_ratio")
 MFP_WIDTH_RATIO := RequireManifestValue("layout", "mfp_width_ratio")
 MFP_HEIGHT_RATIO := RequireManifestValue("layout", "mfp_height_ratio")
 CONTROLLER_LOG_FILE := RequireManifestValue("runtime", "controller_log_file")
-CHROME_SHORTCUT_PATH := RequireManifestValue("chrome_overlay", "shortcut_path")
-CHROME_MANIFEST_FILE := RequireManifestValue("chrome_overlay", "manifest_file")
+RANDOM_FAVS_BROWSER_SHORTCUT_PATH := RequireManifestValue("random_favs_browser", "shortcut_path")
+RANDOM_FAVS_BROWSER_MANIFEST_FILE := RequireManifestValue("random_favs_browser", "manifest_file")
 CONFIG_PATH := RequireManifestValue("runtime", "config_path")
 PROJECT_DIR := RequireManifestValue("runtime", "project_dir")
 ICON_PATH := PROJECT_DIR . "\icon.ico"
@@ -362,7 +362,7 @@ LoadWindowLayoutPlan(path) {
     if !FileExist(path)
         return ""
     plan := Map()
-    for section in ["portrait", "primary", "landscape", "mfp", "dashboard", "chrome", "robot_hand"] {
+    for section in ["portrait", "primary", "landscape", "mfp", "dashboard", "random_favs_browser", "robot_hand"] {
         plan[section] := Map(
             "x", IniRead(path, section, "x", "0") + 0,
             "y", IniRead(path, section, "y", "0") + 0,
@@ -1007,11 +1007,11 @@ VlcHttpCmd(VLC2_PORT, "pl_next")
 Sleep 150
 VlcHttpCmd(VLC3_PORT, "pl_next")
 
-PrepareChromeOverlayManifest()
+PrepareRandomFavsBrowserManifest()
 
 PositionAll(pid1, pid2, pid3, pidM)
 SetTopMost(pid1, pid2, pid3, pidM)
-MaybeLaunchChromeOverlay(pidM)
+MaybeLaunchRandomFavsBrowser(pidM)
 try FileDelete(DASHBOARD_CMD_FILE)
 pidD := LaunchDashboardApp()
 SetTimer(UpdateFunTimeDashboard, 500)
@@ -1202,13 +1202,13 @@ GetActualMfpSize(&w, &h) {
     h := Floor(mainRect["h"] * Clamp01(MFP_HEIGHT_RATIO))
 }
 
-GetChromeOverlayRect(&x, &y, &w, &h) {
+GetRandomFavsBrowserRect(&x, &y, &w, &h) {
     plan := ""
     GetCurrentWindowLayout(&plan)
-    x := plan["chrome"]["x"]
-    y := plan["chrome"]["y"]
-    w := plan["chrome"]["w"]
-    h := plan["chrome"]["h"]
+    x := plan["random_favs_browser"]["x"]
+    y := plan["random_favs_browser"]["y"]
+    w := plan["random_favs_browser"]["w"]
+    h := plan["random_favs_browser"]["h"]
 }
 
 MovePidWindow(pid, x, y, w, h) {
@@ -1229,38 +1229,38 @@ SetTopMost(pid1, pid2, pid3, pidM) {
     }
 }
 
-PrepareChromeOverlayManifest() {
-    global ROBOT_HAND_PY, CHROME_MANIFEST_FILE, CONFIG_PATH
-    try FileDelete(CHROME_MANIFEST_FILE)
+PrepareRandomFavsBrowserManifest() {
+    global ROBOT_HAND_PY, RANDOM_FAVS_BROWSER_MANIFEST_FILE, CONFIG_PATH
+    try FileDelete(RANDOM_FAVS_BROWSER_MANIFEST_FILE)
     cmd := Q(ROBOT_HAND_PY)
-        . " -m fun_time.chrome_overlay"
+        . " -m fun_time.random_favs_browser"
         . " --config " . Q(CONFIG_PATH)
-        . " --output " . Q(CHROME_MANIFEST_FILE)
+        . " --output " . Q(RANDOM_FAVS_BROWSER_MANIFEST_FILE)
     try RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
-MaybeLaunchChromeOverlay(pidM) {
-    global CHROME_MANIFEST_FILE, CHROME_SHORTCUT_PATH
+MaybeLaunchRandomFavsBrowser(pidM) {
+    global RANDOM_FAVS_BROWSER_MANIFEST_FILE, RANDOM_FAVS_BROWSER_SHORTCUT_PATH
 
-    manifest := ReadChromeOverlayManifest(CHROME_MANIFEST_FILE)
+    manifest := ReadRandomFavsBrowserManifest(RANDOM_FAVS_BROWSER_MANIFEST_FILE)
     if (manifest.profileDir = "" || manifest.urls.Length = 0)
         return
 
     existing := GetVisibleChromeWindowHandles()
-    launchSpec := BuildChromeLaunchSpec(manifest)
+    launchSpec := BuildRandomFavsBrowserLaunchSpec(manifest)
     if (launchSpec.cmd = "") {
-        Log("Chrome overlay skipped because the Chrome shortcut could not be resolved")
+        Log("Random Favs Browser skipped because the browser shortcut could not be resolved")
         return
     }
-    try Run(launchSpec.cmd, launchSpec.workDir, , &chromePid)
+    try Run(launchSpec.cmd, launchSpec.workDir, , &browserPid)
 
     newHwnd := WaitForNewChromeWindow(existing, 8000)
     if (!newHwnd) {
-        Log("Chrome overlay skipped because the Chrome launch command did not produce a new visible window")
+        Log("Random Favs Browser skipped because the browser launch command did not produce a new visible window")
         return
     }
 
-    GetChromeOverlayRect(&x, &y, &w, &h)
+    GetRandomFavsBrowserRect(&x, &y, &w, &h)
     try {
         WinRestore("ahk_id " newHwnd)
         WinMove(x, y, w, h, "ahk_id " newHwnd)
@@ -1270,14 +1270,14 @@ MaybeLaunchChromeOverlay(pidM) {
         WinSetAlwaysOnTop(true, "ahk_pid " pidM)
         WinActivate("ahk_pid " pidM)
     }
-    Log("Chrome overlay positioned using direct launch for profile " . manifest.profileDir)
+    Log("Random Favs Browser positioned using direct launch for profile " . manifest.profileDir)
 }
 
-BuildChromeLaunchSpec(manifest) {
-    global CHROME_SHORTCUT_PATH
+BuildRandomFavsBrowserLaunchSpec(manifest) {
+    global RANDOM_FAVS_BROWSER_SHORTCUT_PATH
 
     target := "", workDir := "", args := "", description := "", iconPath := "", iconNum := 0, runState := 0
-    try FileGetShortcut(CHROME_SHORTCUT_PATH, &target, &workDir, &args, &description, &iconPath, &iconNum, &runState)
+    try FileGetShortcut(RANDOM_FAVS_BROWSER_SHORTCUT_PATH, &target, &workDir, &args, &description, &iconPath, &iconNum, &runState)
     if (target = "")
         return {cmd: "", workDir: ""}
 
@@ -1294,7 +1294,7 @@ BuildChromeLaunchSpec(manifest) {
     return {cmd: cmd, workDir: workDir}
 }
 
-ReadChromeOverlayManifest(path) {
+ReadRandomFavsBrowserManifest(path) {
     result := {profileDir: "", urls: []}
     if !FileExist(path)
         return result

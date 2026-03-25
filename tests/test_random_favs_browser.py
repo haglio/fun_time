@@ -4,7 +4,7 @@ import json
 import random
 from pathlib import Path
 
-from fun_time.chrome_overlay import (
+from fun_time.random_favs_browser import (
     build_manifest,
     choose_random_urls,
     load_folder_urls,
@@ -102,7 +102,7 @@ def test_build_manifest_returns_profile_and_urls(cfg_factory, tmp_path: Path):
     )
     cfg_path = cfg_factory(
         {
-            "chrome_overlay": {
+            "random_favs_browser": {
                 "enabled": True,
                 "user_data_dir": str(user_data_dir),
                 "open_count": 10,

@@ -84,4 +84,4 @@ def test_main_writes_window_layout_plan_file(tmp_path: Path):
 
     assert code == 0
     assert plan_file.exists()
-    assert "[chrome]" in plan_file.read_text(encoding="utf-8")
+    assert "[random_favs_browser]" in plan_file.read_text(encoding="utf-8")

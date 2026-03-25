@@ -139,17 +139,37 @@ class TestLoadConfig:
         assert cfg.audio_companion.host == "127.0.0.1"
         assert cfg.audio_companion.port == 50556
 
-    def test_missing_chrome_overlay_section_defaults_disabled(self, cfg_factory):
+    def test_missing_random_favs_browser_section_defaults_disabled(self, cfg_factory):
         path = cfg_factory()
         raw = json.loads(path.read_text(encoding="utf-8"))
+        raw.pop("random_favs_browser", None)
         raw.pop("chrome_overlay", None)
         path.write_text(json.dumps(raw), encoding="utf-8")
 
         cfg = load_config(path)
-        assert cfg.chrome_overlay.enabled is False
-        assert cfg.chrome_overlay.profile_name == "Blair"
+        assert cfg.random_favs_browser.enabled is False
+        assert cfg.random_favs_browser.profile_name == "Blair"
 
-    def test_loads_chrome_overlay_settings(self, cfg_factory):
+    def test_loads_random_favs_browser_settings(self, cfg_factory):
+        path = cfg_factory(
+            {
+                "random_favs_browser": {
+                    "enabled": True,
+                    "shortcut_path": "chrome.exe",
+                    "user_data_dir": "chrome_data",
+                    "profile_name": "Blair",
+                    "bookmarks_folder_name": "Fun Time Favs",
+                    "open_count": 7,
+                }
+            }
+        )
+        cfg = load_config(path)
+        assert cfg.random_favs_browser.enabled is True
+        assert cfg.random_favs_browser.shortcut_path.name == "chrome.exe"
+        assert cfg.random_favs_browser.user_data_dir.name == "chrome_data"
+        assert cfg.random_favs_browser.open_count == 7
+
+    def test_legacy_chrome_overlay_section_still_loads_random_favs_browser_settings(self, cfg_factory):
         path = cfg_factory(
             {
                 "chrome_overlay": {
@@ -163,10 +183,8 @@ class TestLoadConfig:
             }
         )
         cfg = load_config(path)
-        assert cfg.chrome_overlay.enabled is True
-        assert cfg.chrome_overlay.shortcut_path.name == "chrome.exe"
-        assert cfg.chrome_overlay.user_data_dir.name == "chrome_data"
-        assert cfg.chrome_overlay.open_count == 7
+        assert cfg.random_favs_browser.enabled is True
+        assert cfg.random_favs_browser.shortcut_path.name == "chrome.exe"
 
     def test_primary_vlc_dir_property(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
@@ -239,6 +257,6 @@ class TestProjectConfigProperties:
         cfg = load_config(cfg_path)
         assert cfg.logs_dir == (tmp_path / "state").resolve()
 
-    def test_chrome_overlay_manifest_file(self, cfg_path: Path, tmp_path: Path):
+    def test_random_favs_browser_manifest_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.chrome_overlay_manifest_file == (tmp_path / "state" / "chrome_overlay_urls.txt").resolve()
+        assert cfg.random_favs_browser_manifest_file == (tmp_path / "state" / "random_favs_browser_urls.txt").resolve()

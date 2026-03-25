@@ -56,17 +56,17 @@ def choose_random_urls(urls: list[str], count: int, rng: random.Random | None = 
 
 def build_manifest(config_path: str | Path | None = None) -> tuple[str, list[str]]:
     config = load_config(config_path)
-    overlay = config.chrome_overlay
-    if not overlay.enabled:
+    browser = config.random_favs_browser
+    if not browser.enabled:
         return "", []
 
-    profile_directory = resolve_profile_directory(overlay.user_data_dir, overlay.profile_name)
+    profile_directory = resolve_profile_directory(browser.user_data_dir, browser.profile_name)
     if not profile_directory:
         return "", []
 
-    bookmarks_path = overlay.user_data_dir / profile_directory / "Bookmarks"
-    urls = load_folder_urls(bookmarks_path, overlay.bookmarks_folder_name)
-    return profile_directory, choose_random_urls(urls, overlay.open_count)
+    bookmarks_path = browser.user_data_dir / profile_directory / "Bookmarks"
+    urls = load_folder_urls(bookmarks_path, browser.bookmarks_folder_name)
+    return profile_directory, choose_random_urls(urls, browser.open_count)
 
 
 def write_manifest(output_path: Path, profile_directory: str, urls: list[str]) -> None:
@@ -100,7 +100,7 @@ def _find_folder_urls(node: dict, folder_name: str) -> list[str] | None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Build a Chrome overlay launch manifest for Fun Time.")
+    ap = argparse.ArgumentParser(description="Build a Random Favs Browser launch manifest for Fun Time.")
     ap.add_argument("--config", help="Path to a JSON config file.")
     ap.add_argument("--output", required=True, help="Output manifest file path.")
     args = ap.parse_args(argv)
