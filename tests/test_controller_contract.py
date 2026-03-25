@@ -27,8 +27,10 @@ def test_controller_uses_manifest_argument_instead_of_positional_protocol():
 def test_controller_defines_robot_hand_status_indicator():
     text = _controller_text()
 
-    assert "CreateFunTimeDashboard()" in text
+    assert 'DASHBOARD_MODULE := RequireManifestValue("modules", "dashboard_module")' in text
+    assert "pidD := LaunchDashboardApp()" in text
     assert "UpdateFunTimeDashboard()" in text
+    assert "SetTimer(ProcessDashboardCommand, 150)" in text
     assert "GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected)" in text
     assert "TraySetIcon(ICON_PATH)" in text
 
@@ -138,7 +140,7 @@ def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper()
     assert 'robotHandEnabledNow := RobotHandEnabled()' in text
     assert 'GetDashboardStatusSnapshot(&brokerRunningNow, &mfpConnectedNow)' in text
     assert 'primaryUsesRobotHand := robotHandMode && robotHandEnabledNow' in text
-    assert 'SetDashboardControlVisual(funTimeDashboardControls["link_toggle"], robotHandEnabledNow ? "Robot Link" : "Broken Link"' in text
+    assert 'WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, brokerRunningNow, mfpConnectedNow, x, y, w, h, locked2, locked3)' in text
 
 
 def test_controller_only_activates_robot_hand_window_on_transition():
@@ -157,12 +159,31 @@ def test_controller_dashboard_refresh_repositions_only_when_rect_changes():
     update_block = text[update_start:snapshot_fn_start]
 
     assert 'funTimeDashboardGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)' not in update_block
-    assert 'if (x != dashboardLastX || y != dashboardLastY || w != dashboardLastW || h != dashboardLastH) {' in update_block
-    assert 'WinMove(x, y, w, h, "ahk_id " funTimeDashboardGui.Hwnd)' in update_block
-    assert 'dashboardLastX := x' in text
-    assert 'dashboardLastY := y' in text
-    assert 'dashboardLastW := w' in text
-    assert 'dashboardLastH := h' in text
+    assert 'WinMove(x, y, w, h, "ahk_id " funTimeDashboardGui.Hwnd)' not in update_block
+    assert "GetFunTimeDashboardRect(&x, &y, &w, &h)" in update_block
+    assert 'WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, brokerRunningNow, mfpConnectedNow, x, y, w, h, locked2, locked3)' in update_block
+
+
+def test_controller_processes_python_dashboard_commands_from_state_file():
+    text = _controller_text()
+
+    assert "ProcessDashboardCommand() {" in text
+    assert 'action := Trim(FileRead(DASHBOARD_CMD_FILE, "UTF-8"))' in text
+    assert 'FileDelete(DASHBOARD_CMD_FILE)' in text
+    assert 'case "portrait_prev":' in text
+    assert 'case "portrait_lock":' in text
+    assert 'case "primary_prev":' in text
+    assert 'case "quarter_button":' in text
+    assert 'case "landscape_trash":' in text
+    assert 'case "link_toggle":' in text
+
+
+def test_controller_shutdown_closes_python_dashboard_process():
+    text = _controller_text()
+
+    assert "ShutdownAll() {" in text
+    assert "SetTimer(ProcessDashboardCommand, 0)" in text
+    assert "for pid in [pid1, pid2, pid3, pidM, pidD, pidR, pidA]" in text
 
 
 def test_controller_delegates_lock_state_decisions_to_python_plan():

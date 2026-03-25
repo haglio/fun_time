@@ -29,13 +29,28 @@ class DashboardPreviewLayout:
     dashboard_height: int
     main_monitor: Rect
     secondary_monitor: Rect
+    title: Rect
     main_status_strip: Rect
     mfp_panel: Rect
     landscape_panel: Rect
     portrait_panel: Rect
     primary_panel: Rect
+    portrait_prev: Rect
+    portrait_next: Rect
+    portrait_lock: Rect
+    portrait_trash: Rect
+    primary_prev: Rect
+    primary_next: Rect
+    quarter_button: Rect
+    landscape_prev: Rect
+    landscape_next: Rect
+    landscape_lock: Rect
+    landscape_trash: Rect
     osr2_panel: Rect
     link_toggle: Rect
+    broker_panel: Rect
+    controller_panel: Rect
+    fmode_panel: Rect
 
 
 def compute_dashboard_preview_layout(
@@ -111,6 +126,12 @@ def compute_dashboard_preview_layout(
     osr2_y = primary_y + (primary_h - osr2_h) // 2
     link_y = primary_y + (primary_h - 18) // 2
     link_x = osr2_x + osr2_w + link_gap
+    portrait_button_y = portrait_y + (portrait_h - 22) // 2
+    portrait_stack_y = portrait_y + (portrait_h - 36) // 2
+    primary_button_y = primary_y + (primary_h - 22) // 2
+    landscape_button_y = landscape_y + (main_inner_h - 22) // 2
+    landscape_stack_y = landscape_y + (main_inner_h - 36) // 2
+    status_row_x = status_strip_x + (status_strip_w - (status_chip_size * 3 + status_chip_gap * 2)) // 2
 
     dashboard_w = secondary_x + right_w + outer_pad
     dashboard_h = max(preview_bottom, osr2_y + osr2_h, link_y + 18) + bottom_pad
@@ -120,11 +141,26 @@ def compute_dashboard_preview_layout(
         dashboard_height=dashboard_h,
         main_monitor=Rect(main_x, main_y, left_w, left_h),
         secondary_monitor=Rect(secondary_x, secondary_y, right_w, right_h),
+        title=Rect(outer_pad, preview_bottom - 14, 88, 12),
         main_status_strip=Rect(status_strip_x, status_strip_y, status_strip_w, status_strip_h),
         mfp_panel=Rect(mfp_x, mfp_y, mfp_w, mfp_h),
         landscape_panel=Rect(landscape_x, landscape_y, landscape_w, main_inner_h),
         portrait_panel=Rect(right_inner_x, portrait_y, right_inner_w, portrait_h),
         primary_panel=Rect(right_inner_x, primary_y, right_inner_w, primary_h),
+        portrait_prev=Rect(right_inner_x + 6, portrait_button_y, 18, 22),
+        portrait_next=Rect(right_inner_x + right_inner_w - 24, portrait_button_y, 18, 22),
+        portrait_trash=Rect(right_inner_x + (right_inner_w - 30) // 2, portrait_stack_y, 30, 16),
+        portrait_lock=Rect(right_inner_x + (right_inner_w - 30) // 2, portrait_stack_y + 20, 30, 16),
+        primary_prev=Rect(right_inner_x + 6, primary_button_y, 18, 22),
+        primary_next=Rect(right_inner_x + right_inner_w - 24, primary_button_y, 18, 22),
+        quarter_button=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_y + (primary_h - 16) // 2, 28, 16),
+        landscape_prev=Rect(landscape_x + 6, landscape_button_y, 18, 22),
+        landscape_next=Rect(landscape_x + landscape_w - 24, landscape_button_y, 18, 22),
+        landscape_trash=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y, 30, 16),
+        landscape_lock=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y + 20, 30, 16),
         osr2_panel=Rect(osr2_x, osr2_y, osr2_w, osr2_h),
         link_toggle=Rect(link_x, link_y, link_w, 18),
+        broker_panel=Rect(status_row_x, status_strip_y + 3, status_chip_size, status_chip_size),
+        controller_panel=Rect(status_row_x + status_chip_size + status_chip_gap, status_strip_y + 3, status_chip_size, status_chip_size),
+        fmode_panel=Rect(status_row_x + (status_chip_size + status_chip_gap) * 2, status_strip_y + 3, status_chip_size, status_chip_size),
     )

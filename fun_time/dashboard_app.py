@@ -10,6 +10,20 @@ import tkinter as tk
 
 from fun_time.config import LayoutConfig
 from fun_time.controller_manifest import CONTROLLER_MANIFEST_FILENAME
+from fun_time.dashboard_actions import (
+    LANDSCAPE_LOCK,
+    LANDSCAPE_NEXT,
+    LANDSCAPE_PREV,
+    LANDSCAPE_TRASH,
+    LINK_TOGGLE,
+    PORTRAIT_LOCK,
+    PORTRAIT_NEXT,
+    PORTRAIT_PREV,
+    PORTRAIT_TRASH,
+    PRIMARY_NEXT,
+    PRIMARY_PREV,
+    QUARTER_BUTTON,
+)
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
 from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
 from fun_time.dashboard_state import (
@@ -29,6 +43,10 @@ COLOR_PANEL = "#2A3038"
 COLOR_TEXT = "#F4F7FA"
 COLOR_MUTED = "#AEB7C2"
 COLOR_LINK = "#3A7AFE"
+COLOR_ACTIVE = "#1F6F52"
+COLOR_ACTIVE_ALT = "#2C8A65"
+COLOR_DISABLED = "#6C1F1F"
+COLOR_WARNING = "#8A6A2C"
 
 
 @dataclass(frozen=True)
@@ -61,6 +79,7 @@ class DashboardScene:
     height: int
     rects: tuple[DashboardRectItem, ...]
     texts: tuple[DashboardTextItem, ...]
+    actions: tuple[tuple[str, Rect], ...]
 
 
 def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
@@ -180,6 +199,11 @@ def build_dashboard_scene(layout: DashboardPreviewLayout, snapshot: DashboardSna
     landscape_fill = COLOR_PANEL
     osr2_fill = COLOR_PANEL
     mfp_fill = COLOR_PANEL
+    broker_fill = COLOR_PANEL
+    controller_fill = COLOR_ACTIVE
+    fmode_fill = COLOR_PANEL
+    portrait_lock_fill = COLOR_PANEL
+    landscape_lock_fill = COLOR_PANEL
 
     if snapshot is not None:
         primary_label = f"{snapshot.primary.label}\n{snapshot.primary.clip or '(none)'}"
@@ -188,11 +212,15 @@ def build_dashboard_scene(layout: DashboardPreviewLayout, snapshot: DashboardSna
         osr2_label = f"{LABEL_OSR2}\n{snapshot.osr2_mode}"
         mfp_label = f"{LABEL_MFP}\n{'connected' if snapshot.mfp_connected else 'disconnected'}"
         link_label = "Robot Link" if snapshot.robot_link_enabled else "Broken Link"
-        primary_fill = COLOR_LINK if snapshot.primary.accent == "osr2" else (COLOR_LINK if snapshot.primary.highlight else COLOR_PANEL)
-        portrait_fill = COLOR_LINK if snapshot.portrait.highlight else COLOR_PANEL
-        landscape_fill = COLOR_LINK if snapshot.landscape.highlight else COLOR_PANEL
-        osr2_fill = "#1F6F52" if snapshot.osr2_mode == "auto" else "#8A6A2C"
-        mfp_fill = "#1F6F52" if snapshot.mfp_connected else "#6C1F1F"
+        primary_fill = COLOR_ACTIVE_ALT if snapshot.primary.accent == "osr2" else (COLOR_ACTIVE_ALT if snapshot.primary.highlight else COLOR_PANEL)
+        portrait_fill = COLOR_ACTIVE_ALT if snapshot.portrait.highlight else COLOR_PANEL
+        landscape_fill = COLOR_ACTIVE_ALT if snapshot.landscape.highlight else COLOR_PANEL
+        osr2_fill = COLOR_ACTIVE if snapshot.osr2_mode == "auto" else COLOR_WARNING
+        mfp_fill = COLOR_ACTIVE if snapshot.mfp_connected else COLOR_DISABLED
+        broker_fill = COLOR_ACTIVE if snapshot.broker_running else COLOR_DISABLED
+        fmode_fill = COLOR_ACTIVE_ALT if snapshot.f_mode_enabled else COLOR_PANEL
+        portrait_lock_fill = COLOR_ACTIVE if snapshot.portrait.locked else COLOR_PANEL
+        landscape_lock_fill = COLOR_ACTIVE if snapshot.landscape.locked else COLOR_PANEL
 
     rects = (
         DashboardRectItem(layout.main_monitor, fill=COLOR_PANEL),
@@ -204,27 +232,63 @@ def build_dashboard_scene(layout: DashboardPreviewLayout, snapshot: DashboardSna
         DashboardRectItem(layout.primary_panel, fill=primary_fill),
         DashboardRectItem(layout.osr2_panel, fill=osr2_fill),
         DashboardRectItem(layout.link_toggle, fill=COLOR_LINK, outline=COLOR_LINK),
+        DashboardRectItem(layout.portrait_prev, fill=COLOR_PANEL),
+        DashboardRectItem(layout.portrait_next, fill=COLOR_PANEL),
+        DashboardRectItem(layout.portrait_lock, fill=portrait_lock_fill),
+        DashboardRectItem(layout.portrait_trash, fill=COLOR_WARNING),
+        DashboardRectItem(layout.primary_prev, fill=COLOR_PANEL),
+        DashboardRectItem(layout.primary_next, fill=COLOR_PANEL),
+        DashboardRectItem(layout.quarter_button, fill=osr2_fill if snapshot is not None and snapshot.primary.accent == "osr2" else COLOR_PANEL),
+        DashboardRectItem(layout.landscape_prev, fill=COLOR_PANEL),
+        DashboardRectItem(layout.landscape_next, fill=COLOR_PANEL),
+        DashboardRectItem(layout.landscape_lock, fill=landscape_lock_fill),
+        DashboardRectItem(layout.landscape_trash, fill=COLOR_WARNING),
+        DashboardRectItem(layout.broker_panel, fill=broker_fill),
+        DashboardRectItem(layout.controller_panel, fill=controller_fill),
+        DashboardRectItem(layout.fmode_panel, fill=fmode_fill),
     )
     texts = (
-        DashboardTextItem("Fun Time", Rect(10, layout.dashboard_height - 22, 88, 12), anchor="w"),
+        DashboardTextItem("Fun Time", layout.title, anchor="w"),
         DashboardTextItem(mfp_label, layout.mfp_panel),
         DashboardTextItem(landscape_label, layout.landscape_panel),
         DashboardTextItem(portrait_label, layout.portrait_panel),
         DashboardTextItem(primary_label, layout.primary_panel),
         DashboardTextItem(osr2_label, layout.osr2_panel),
         DashboardTextItem(link_label, layout.link_toggle, color=COLOR_TEXT, font=("Segoe UI", 8, "bold")),
-        DashboardTextItem(broker_chip, Rect(layout.main_status_strip.x + 6, layout.main_status_strip.y + 3, 12, 12), font=("Segoe UI", 7, "bold")),
-        DashboardTextItem(controller_chip, Rect(layout.main_status_strip.x + 19, layout.main_status_strip.y + 3, 12, 12), font=("Segoe UI", 7, "bold")),
-        DashboardTextItem(fmode_chip, Rect(layout.main_status_strip.x + 32, layout.main_status_strip.y + 3, 12, 12), font=("Segoe UI", 7, "bold")),
-        DashboardTextItem(LABEL_BROKER, Rect(0, 0, 0, 0), color=COLOR_MUTED, font=("Segoe UI", 1, "bold")),
-        DashboardTextItem(LABEL_CONTROLLER, Rect(0, 0, 0, 0), color=COLOR_MUTED, font=("Segoe UI", 1, "bold")),
-        DashboardTextItem(LABEL_F_MODE, Rect(0, 0, 0, 0), color=COLOR_MUTED, font=("Segoe UI", 1, "bold")),
+        DashboardTextItem("<", layout.portrait_prev, font=("Segoe UI", 9, "bold")),
+        DashboardTextItem(">", layout.portrait_next, font=("Segoe UI", 9, "bold")),
+        DashboardTextItem("Lock", layout.portrait_lock, font=("Segoe UI", 8, "bold")),
+        DashboardTextItem("Trash", layout.portrait_trash, font=("Segoe UI", 8, "bold")),
+        DashboardTextItem("<", layout.primary_prev, font=("Segoe UI", 9, "bold")),
+        DashboardTextItem(">", layout.primary_next, font=("Segoe UI", 9, "bold")),
+        DashboardTextItem("1/4", layout.quarter_button, font=("Segoe UI", 8, "bold")),
+        DashboardTextItem("<", layout.landscape_prev, font=("Segoe UI", 9, "bold")),
+        DashboardTextItem(">", layout.landscape_next, font=("Segoe UI", 9, "bold")),
+        DashboardTextItem("Lock", layout.landscape_lock, font=("Segoe UI", 8, "bold")),
+        DashboardTextItem("Trash", layout.landscape_trash, font=("Segoe UI", 8, "bold")),
+        DashboardTextItem(broker_chip, layout.broker_panel, font=("Segoe UI", 7, "bold")),
+        DashboardTextItem(controller_chip, layout.controller_panel, font=("Segoe UI", 7, "bold")),
+        DashboardTextItem(fmode_chip, layout.fmode_panel, font=("Segoe UI", 7, "bold")),
     )
     return DashboardScene(
         width=layout.dashboard_width,
         height=layout.dashboard_height,
         rects=rects,
         texts=texts,
+        actions=(
+            (PORTRAIT_PREV, layout.portrait_prev),
+            (PORTRAIT_NEXT, layout.portrait_next),
+            (PORTRAIT_LOCK, layout.portrait_lock),
+            (PORTRAIT_TRASH, layout.portrait_trash),
+            (PRIMARY_PREV, layout.primary_prev),
+            (PRIMARY_NEXT, layout.primary_next),
+            (QUARTER_BUTTON, layout.quarter_button),
+            (LANDSCAPE_PREV, layout.landscape_prev),
+            (LANDSCAPE_NEXT, layout.landscape_next),
+            (LANDSCAPE_LOCK, layout.landscape_lock),
+            (LANDSCAPE_TRASH, layout.landscape_trash),
+            (LINK_TOGGLE, layout.link_toggle),
+        ),
     )
 
 
@@ -251,21 +315,52 @@ def render_dashboard_scene(canvas: tk.Canvas, scene: DashboardScene) -> None:
         canvas.create_text(x, y, text=item.text, fill=item.color, font=item.font, anchor=item.anchor)
 
 
+def write_dashboard_command(path: Path, action_id: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(action_id, encoding="utf-8")
+
+
+def apply_dashboard_window_geometry(root: tk.Tk, snapshot: DashboardSnapshot | None, scene: DashboardScene) -> None:
+    if snapshot is None or snapshot.window.width <= 0 or snapshot.window.height <= 0:
+        root.geometry(f"{scene.width}x{scene.height}")
+        return
+    root.geometry(f"{snapshot.window.width}x{snapshot.window.height}+{snapshot.window.x}+{snapshot.window.y}")
+
+
+def bind_dashboard_actions(canvas: tk.Canvas, scene: DashboardScene, command_file: Path) -> None:
+    for action_id, rect in scene.actions:
+        tag = f"action:{action_id}"
+        canvas.create_rectangle(
+            rect.x,
+            rect.y,
+            rect.x + rect.width,
+            rect.y + rect.height,
+            outline="",
+            fill="",
+            tags=(tag,),
+        )
+        canvas.tag_bind(tag, "<Button-1>", lambda _event, action=action_id: write_dashboard_command(command_file, action))
+
+
 def build_dashboard_window(app_config: DashboardAppConfig) -> tk.Tk:
     main_monitor, secondary_monitor = get_preview_monitor_sizes(app_config)
     preview_layout = compute_dashboard_preview_layout(main_monitor, secondary_monitor, app_config.layout)
 
     root = tk.Tk()
-    root.title("Fun Time Dashboard Preview")
+    root.title("Fun Time Dashboard")
     root.configure(bg=COLOR_BG)
     root.resizable(False, False)
+    root.overrideredirect(True)
+    root.attributes("-topmost", True)
     canvas = tk.Canvas(root, bg=COLOR_BG, highlightthickness=0, bd=0)
     canvas.pack()
 
     def refresh() -> None:
         snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
         scene = build_dashboard_scene(preview_layout, snapshot)
+        apply_dashboard_window_geometry(root, snapshot, scene)
         render_dashboard_scene(canvas, scene)
+        bind_dashboard_actions(canvas, scene, app_config.dashboard_cmd_file)
         root.after(500, refresh)
 
     refresh()
