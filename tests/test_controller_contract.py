@@ -56,8 +56,12 @@ def test_controller_waits_for_primary_vlc_before_launching_mfp_and_satellites():
 def test_controller_reloads_f_mode_via_generated_playlist_files():
     text = _controller_text()
 
-    assert 'WritePlaylistFile(playlistPath, paths)' in text
-    assert 'SendVlcInputCommand(port, "in_play", playlistPath)' in text
+    assert 'WriteFModePlaylists(enabled)' in text
+    assert 'BuildPrimaryPlaylistPaths(fMode)' not in text
+    assert 'BuildSatellitePlaylistPaths(sourceSpec, fMode)' not in text
+    assert 'ReplaceVlcPlaylistFromFile(PRIMARY_VLC_PORT, BuildPlaylistFilePath("primary_vlc_playlist"))' in text
+    assert 'ReplaceVlcPlaylistFromFile(VLC2_PORT, BuildPlaylistFilePath("portrait_vlc_playlist"), "all")' in text
+    assert 'ReplaceVlcPlaylistFromFile(VLC3_PORT, BuildPlaylistFilePath("landscape_vlc_playlist"), "all")' in text
     assert "ToFileUri(winPath) {" in text
     assert 'uri := ToFileUri(fullPath)' in text
 
@@ -94,6 +98,20 @@ def test_controller_reads_media_actions_module_from_manifest():
 
     assert 'MEDIA_ACTIONS_MODULE := RequireManifestValue("modules", "media_actions_module")' in text
     assert 'ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")' in text
+
+
+def test_controller_reads_controller_modes_module_from_manifest():
+    text = _controller_text()
+
+    assert 'CONTROLLER_MODES_MODULE := RequireManifestValue("modules", "controller_modes_module")' in text
+
+
+def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper():
+    text = _controller_text()
+
+    assert 'robotHandEnabledNow := RobotHandEnabled()' in text
+    assert 'primaryUsesRobotHand := robotHandMode && robotHandEnabledNow' in text
+    assert 'SetDashboardControlVisual(funTimeDashboardControls["link_toggle"], robotHandEnabledNow ? "Robot Link" : "Broken Link"' in text
 
 
 def test_controller_uses_main_monitor_for_landscape_and_mfp_layout():
