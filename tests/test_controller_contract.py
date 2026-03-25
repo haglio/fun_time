@@ -219,6 +219,9 @@ def test_controller_processes_python_dashboard_commands_from_state_file():
     assert 'case "quarter_button":' in text
     assert 'case "landscape_trash":' in text
     assert 'case "link_toggle":' in text
+    assert 'case "omnipause_toggle":' in text
+    assert 'case "fmode_toggle":' in text
+    assert 'case "robot_toggle":' in text
 
 
 def test_controller_shutdown_closes_python_dashboard_process():

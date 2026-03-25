@@ -40,6 +40,10 @@ If `bash test.sh` fails in PowerShell because Git Bash cannot create its signal 
    Before finishing, make sure the worktree is clean, the tests are green, temporary exploration artifacts are removed, and the repo is in a good state for the next feature or fix.
 8. Inspect local runtime evidence proactively.
    When debugging controller/runtime behavior, check the relevant local logs, state files, and other runtime artifacts yourself before asking the user to gather or relay them. Ask the user to reproduce or confirm behavior when needed, but do not offload basic local log inspection to them.
+9. Reproduce launch/component regressions locally before asking for manual verification.
+   If a change affects whether Fun Time or one of its startup components launches at all, do not use the user as the first detector. Reproduce the launch locally yourself first, using the repo's runtime artifacts and, when needed, an actual app launch/smoke run. Manual user checks are appropriate for subjective UI review or hard-to-automate operator workflows, not for basic questions like "did the component appear?"
+10. Prefer reusable launch diagnostics over one-off guesses.
+   When a launch/startup issue is hard to see from tests alone, improve the repo's ability to inspect it: add or update targeted logging, state markers, or a local smoke/inspection script so future agents can verify the same class of problem with less guesswork.
 
 ## Architecture Escalation
 

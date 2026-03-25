@@ -1,0 +1,235 @@
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+from fun_time.config import load_config
+from fun_time.controller_modes import build_mirrored_funscript_path, has_matching_funscript
+
+
+VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
+
+
+def integration_enabled() -> bool:
+    return os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
+
+
+class FunTimeIntegrationSession:
+    def __init__(self, config_path: Path):
+        self.config = load_config(config_path)
+        self._proc: subprocess.Popen[str] | None = None
+        self._started_at = time.time()
+        self._log_pos = 0
+
+    @property
+    def controller_log(self) -> Path:
+        return self.config.log_file("controller")
+
+    @property
+    def orchestrator_log(self) -> Path:
+        return self.config.log_file("orchestrator")
+
+    @property
+    def dashboard_cmd_file(self) -> Path:
+        return self.config.paths.state_dir / "dashboard_cmd.txt"
+
+    def start(self, wait_seconds: float = 45.0) -> None:
+        env = os.environ.copy()
+        env["FUN_TIME_DISABLE_DASHBOARD"] = "1"
+        self._proc = subprocess.Popen(
+            [sys.executable, "-m", "fun_time.orchestrator", "--config", str(self.config.config_path)],
+            cwd=self.config.project_dir,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        self.wait_for_log("Controller starting", timeout=wait_seconds)
+        self.wait_for_any_log(
+            ["Startup: Robot Hand sync timer running", "Started Robot Hand listener pid="],
+            timeout=wait_seconds,
+        )
+        time.sleep(1.0)
+        self._log_pos = self.controller_log.stat().st_size if self.controller_log.exists() else 0
+
+    def stop(self) -> None:
+        if self._proc and self._proc.poll() is None:
+            self._proc.terminate()
+            try:
+                self._proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._proc.kill()
+        self._kill_recent_runtime_processes()
+
+    def write_dashboard_command(self, action: str) -> None:
+        self.dashboard_cmd_file.parent.mkdir(parents=True, exist_ok=True)
+        self.dashboard_cmd_file.write_text(action, encoding="utf-8")
+
+    def send_hotkey(self, keys: str) -> None:
+        script = (
+            "#Requires AutoHotkey v2.0\n"
+            "SetKeyDelay 50, 50\n"
+            f'SendEvent "{keys}"\n'
+        )
+        fd, script_path_raw = tempfile.mkstemp(suffix=".ahk")
+        os.close(fd)
+        script_path = Path(script_path_raw)
+        try:
+            script_path.write_text(script, encoding="utf-8")
+            subprocess.run(
+                [str(self.config.paths.ahk_exe), str(script_path)],
+                cwd=self.config.project_dir,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        finally:
+            script_path.unlink(missing_ok=True)
+
+    def wait_for_log(self, needle: str, timeout: float = 10.0) -> str:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            text = self._read_controller_log()
+            if needle in text:
+                return text
+            time.sleep(0.2)
+        raise AssertionError(f"Did not find log line containing {needle!r}")
+
+    def wait_for_new_log(self, needle: str, timeout: float = 10.0) -> str:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            chunk = self._read_controller_log_chunk()
+            if needle in chunk:
+                return chunk
+            time.sleep(0.2)
+        raise AssertionError(f"Did not find new log line containing {needle!r}")
+
+    def wait_for_any_log(self, needles: list[str], timeout: float = 10.0) -> str:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            text = self._read_controller_log()
+            for needle in needles:
+                if needle in text:
+                    return needle
+            time.sleep(0.2)
+        raise AssertionError(f"Did not find any log line containing one of {needles!r}")
+
+    def _read_controller_log(self) -> str:
+        if not self.controller_log.exists():
+            return ""
+        try:
+            return self.controller_log.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return ""
+
+    def _read_controller_log_chunk(self) -> str:
+        if not self.controller_log.exists():
+            return ""
+        try:
+            with self.controller_log.open("r", encoding="utf-8", errors="ignore") as fh:
+                fh.seek(self._log_pos)
+                chunk = fh.read()
+                self._log_pos = fh.tell()
+            return chunk
+        except OSError:
+            return ""
+
+    def _kill_recent_runtime_processes(self) -> None:
+        ps = (
+            "Get-Process AutoHotkey64,pythonw,vlc,MultiFunPlayer -ErrorAction SilentlyContinue | "
+            "Where-Object { $_.StartTime -gt (Get-Date).AddMinutes(-5) } | "
+            "Stop-Process -Force -ErrorAction SilentlyContinue"
+        )
+        subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], check=False)
+
+
+def build_integration_config(tmp_path: Path) -> Path:
+    real = load_config()
+    integration_root = tmp_path.resolve() / "integration_runtime"
+    state_dir = integration_root / "state"
+    weird_dir = integration_root / "weird"
+    portrait_dir = integration_root / "portrait"
+    landscape_dir = integration_root / "landscape"
+    primary_dir = integration_root / "videos" / "videos" / "primary"
+    for path in (state_dir, weird_dir, portrait_dir, landscape_dir, primary_dir):
+        path.mkdir(parents=True, exist_ok=True)
+
+    primary_paths = _link_primary_samples(real, primary_dir)
+    portrait_paths = _link_sample_files(real.paths.portrait_dirs, portrait_dir, count=2)
+    landscape_paths = _link_sample_files(real.paths.landscape_dirs, landscape_dir, count=2)
+
+    favs_file = integration_root / "favs.csv"
+    favs_lines = ["local_file,web_url"]
+    for path in [*portrait_paths, *landscape_paths]:
+        favs_lines.append(f"{path.resolve()},")
+    favs_file.write_text("\n".join(favs_lines) + "\n", encoding="utf-8")
+
+    config = json.loads(real.config_path.read_text(encoding="utf-8"))
+    config["paths"]["primary_vlc_dirs"] = [str(primary_dir)]
+    config["paths"]["portrait_dirs"] = [str(portrait_dir)]
+    config["paths"]["landscape_dirs"] = [str(landscape_dir)]
+    config["paths"]["weird_dir"] = str(weird_dir)
+    config["paths"]["favs_file"] = str(favs_file)
+    config["paths"]["state_dir"] = str(state_dir)
+    config["random_favs_browser"]["enabled"] = False
+
+    config_path = integration_root / "fun_time_integration_config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    return config_path
+
+
+def _link_primary_samples(real_config, dest_dir: Path) -> list[Path]:
+    selected: list[Path] = []
+    for source_root in real_config.paths.primary_vlc_dirs:
+        for candidate in source_root.rglob("*"):
+            if candidate.suffix.lower() not in VIDEO_EXTENSIONS or not candidate.is_file():
+                continue
+            if has_matching_funscript(str(candidate), str(source_root)):
+                relative_video = candidate.relative_to(Path(source_root))
+                target = dest_dir / relative_video
+                target.parent.mkdir(parents=True, exist_ok=True)
+                _safe_link(candidate, target)
+                mirrored = Path(build_mirrored_funscript_path(str(candidate), str(source_root)))
+                if mirrored.exists():
+                    temp_mirrored_root = Path(str(dest_dir).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\"))
+                    mirrored_dest = (temp_mirrored_root / relative_video).with_suffix(".funscript")
+                    mirrored_dest.parent.mkdir(parents=True, exist_ok=True)
+                    _safe_link(mirrored, mirrored_dest)
+                selected.append(target)
+                break
+        if selected:
+            break
+    if not selected:
+        raise FileNotFoundError("Could not find a primary video with a matching funscript for integration config")
+    return selected
+
+
+def _link_sample_files(source_dirs: tuple[Path, ...], dest_dir: Path, *, count: int) -> list[Path]:
+    selected: list[Path] = []
+    for source_dir in source_dirs:
+        for candidate in source_dir.rglob("*"):
+            if candidate.suffix.lower() not in VIDEO_EXTENSIONS or not candidate.is_file():
+                continue
+            target = dest_dir / candidate.name
+            if target.exists():
+                continue
+            _safe_link(candidate, target)
+            selected.append(target)
+            if len(selected) >= count:
+                return selected
+    if len(selected) < count:
+        raise FileNotFoundError(f"Could not find {count} sample media files in {source_dirs}")
+    return selected
+
+
+def _safe_link(src: Path, dest: Path) -> None:
+    try:
+        os.link(src, dest)
+    except OSError:
+        shutil.copy2(src, dest)
