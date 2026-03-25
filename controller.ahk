@@ -310,6 +310,10 @@ LoadStartupActionResult(path) {
     if !FileExist(path)
         return ""
     result := Map()
+    result["primary_pid"] := IniRead(path, "result", "primary_pid", "0") + 0
+    result["mfp_pid"] := IniRead(path, "result", "mfp_pid", "0") + 0
+    result["portrait_pid"] := IniRead(path, "result", "portrait_pid", "0") + 0
+    result["landscape_pid"] := IniRead(path, "result", "landscape_pid", "0") + 0
     result["robot_hand_pid"] := IniRead(path, "result", "robot_hand_pid", "0") + 0
     result["audio_pid"] := IniRead(path, "result", "audio_pid", "0") + 0
     try FileDelete(path)

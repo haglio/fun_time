@@ -312,58 +312,37 @@ StartController() {
     RestartBroker()
     Log("Startup: broker restart requested")
 
-    pid1 := RunVLC(Join(
-        "--no-one-instance --random --repeat",
-        "--extraintf http",
-        "--http-host 127.0.0.1",
-        "--http-port " . PRIMARY_VLC_PORT,
-        "--http-password " . Q(VLC_PASS)
-    ), PRIMARY_VLC_SOURCES)
+    coreResultPath := BuildStartupResultPath()
+    args := "launch-core-apps"
+        . " --project-dir " . Q(PROJECT_DIR)
+        . " --vlc-exe " . Q(VLC_EXE)
+        . " --mfp-exe " . Q(MFP_EXE)
+        . " --primary-sources " . Q(PRIMARY_VLC_SOURCES)
+        . " --portrait-sources " . Q(PORTRAIT_DIR)
+        . " --landscape-sources " . Q(LANDSCAPE_DIR)
+        . " --primary-port " . PRIMARY_VLC_PORT
+        . " --portrait-port " . VLC2_PORT
+        . " --landscape-port " . VLC3_PORT
+        . " --password " . Q(VLC_PASS)
+        . " --result-file " . Q(coreResultPath)
+    if (RunControllerStartupAction(args) != 0)
+        throw Error("Failed to launch core media stack")
+    coreResult := LoadStartupActionResult(coreResultPath)
+    if !IsObject(coreResult)
+        throw Error("Failed to read core media stack startup result")
+    pid1 := coreResult["primary_pid"]
+    pidM := coreResult["mfp_pid"]
+    pid2 := coreResult["portrait_pid"]
+    pid3 := coreResult["landscape_pid"]
     Log("Startup: launched primary VLC pid=" . pid1)
-    WaitForHttp(PRIMARY_VLC_PORT, 7000)
-    Log("Startup: primary VLC HTTP ready")
-    Sleep 300
-    SendToPid(pid1, "n")
-    Log("Startup: nudged primary VLC to next item")
-
-    pidM := RunApp(MFP_EXE, "")
     Log("Startup: launched MFP pid=" . pidM)
+    Log("Startup: launched portrait VLC pid=" . pid2)
+    Log("Startup: launched landscape VLC pid=" . pid3)
+    Log("Startup: core VLC HTTP ready and initial playlists seeded")
+
     WinWait("ahk_pid " pidM, , 15)
     Sleep 5000
     Log("Startup: MFP window ready")
-
-    pid2 := RunVLC(Join(
-        "--no-one-instance --random --loop",
-        "--extraintf http",
-        "--http-host 127.0.0.1",
-        "--http-port " . VLC2_PORT,
-        "--http-password " . Q(VLC_PASS)
-    ), PORTRAIT_DIR)
-    Log("Startup: launched portrait VLC pid=" . pid2)
-
-    pid3 := RunVLC(Join(
-        "--no-one-instance --random --loop",
-        "--extraintf http",
-        "--http-host 127.0.0.1",
-        "--http-port " . VLC3_PORT,
-        "--http-password " . Q(VLC_PASS)
-    ), LANDSCAPE_DIR)
-    Log("Startup: launched landscape VLC pid=" . pid3)
-
-    WaitForHttp(VLC2_PORT, 7000)
-    Log("Startup: portrait VLC HTTP ready")
-    WaitForHttp(VLC3_PORT, 7000)
-    Log("Startup: landscape VLC HTTP ready")
-
-    SetRepeatMode(VLC2_PORT, "all")
-    SetRepeatMode(VLC3_PORT, "all")
-    Log("Startup: satellite repeat modes configured")
-
-    Sleep 250
-    SendVlcCommand(VLC2_PORT, "pl_next")
-    Sleep 150
-    SendVlcCommand(VLC3_PORT, "pl_next")
-    Log("Startup: satellite VLCs advanced to first item")
 
     PrepareRandomFavsBrowserManifest()
     Log("Startup: Random Favs Browser manifest prepared")

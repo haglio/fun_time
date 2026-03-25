@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fun_time.controller_startup import (
+    launch_core_apps,
     launch_runtime_companions,
     prepare_random_favs_browser_manifest,
     restart_broker,
@@ -84,3 +85,54 @@ def test_launch_runtime_companions_starts_robot_and_audio_and_writes_result(tmp_
     parser.read(result_file, encoding="utf-8")
     assert parser.get("result", "robot_hand_pid") == "111"
     assert parser.get("result", "audio_pid") == "222"
+
+
+def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: Path):
+    result_file = tmp_path / "core_apps.ini"
+
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.controller_startup.subprocess.Popen", side_effect=[FakeProc(101), FakeProc(202), FakeProc(303), FakeProc(404)]) as popen, patch(
+        "fun_time.controller_startup.wait_for_http", return_value=True
+    ) as wait_http, patch(
+        "fun_time.controller_startup.set_repeat_mode", return_value=True
+    ) as set_repeat, patch("fun_time.controller_startup.vlc_http_cmd", return_value=True) as vlc_cmd, patch(
+        "fun_time.controller_startup.time.sleep"
+    ):
+        launch_core_apps(
+            project_dir=tmp_path,
+            vlc_exe="vlc.exe",
+            mfp_exe="mfp.exe",
+            primary_sources="primary_a|primary_b",
+            portrait_sources="portrait_a",
+            landscape_sources="landscape_a|landscape_b",
+            primary_port=8090,
+            portrait_port=8091,
+            landscape_port=8092,
+            password="pw",
+            result_file=result_file,
+        )
+
+    assert popen.call_count == 4
+    first_command = popen.call_args_list[0].args[0]
+    assert first_command[:2] == ["vlc.exe", "--no-one-instance"]
+    assert "primary_a" in first_command
+    assert "primary_b" in first_command
+    wait_http.assert_any_call(8090, "pw", 7000)
+    wait_http.assert_any_call(8091, "pw", 7000)
+    wait_http.assert_any_call(8092, "pw", 7000)
+    set_repeat.assert_any_call(8091, "pw", "all")
+    set_repeat.assert_any_call(8092, "pw", "all")
+    vlc_cmd.assert_any_call(8090, "pl_next", "pw")
+    vlc_cmd.assert_any_call(8091, "pl_next", "pw")
+    vlc_cmd.assert_any_call(8092, "pl_next", "pw")
+
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(result_file, encoding="utf-8")
+    assert parser.get("result", "primary_pid") == "101"
+    assert parser.get("result", "mfp_pid") == "202"
+    assert parser.get("result", "portrait_pid") == "303"
+    assert parser.get("result", "landscape_pid") == "404"

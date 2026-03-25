@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import configparser
 import subprocess
+import time
 from pathlib import Path
 
+from .controller_vlc_actions import set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
 
@@ -50,6 +52,93 @@ def seed_robot_hand_state(enabled_file: str | Path, paused_file: str | Path, aud
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(value, encoding="utf-8")
+
+
+def launch_core_apps(
+    *,
+    project_dir: str | Path,
+    vlc_exe: str | Path,
+    mfp_exe: str | Path,
+    primary_sources: str,
+    portrait_sources: str,
+    landscape_sources: str,
+    primary_port: int,
+    portrait_port: int,
+    landscape_port: int,
+    password: str,
+    result_file: str | Path,
+) -> None:
+    project_dir = Path(project_dir)
+    vlc_exe = str(vlc_exe)
+    mfp_exe = str(mfp_exe)
+
+    primary_proc = subprocess.Popen(
+        _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat"),
+        cwd=project_dir,
+    )
+    if not wait_for_http(primary_port, password, 7000):
+        raise RuntimeError("Primary VLC HTTP did not come up")
+    time.sleep(0.3)
+    vlc_http_cmd(primary_port, "pl_next", password)
+
+    mfp_proc = subprocess.Popen([mfp_exe], cwd=project_dir)
+
+    portrait_proc = subprocess.Popen(
+        _build_vlc_launch_command(vlc_exe, portrait_sources, portrait_port, password, repeat_mode="loop"),
+        cwd=project_dir,
+    )
+    landscape_proc = subprocess.Popen(
+        _build_vlc_launch_command(vlc_exe, landscape_sources, landscape_port, password, repeat_mode="loop"),
+        cwd=project_dir,
+    )
+
+    if not wait_for_http(portrait_port, password, 7000):
+        raise RuntimeError("Portrait VLC HTTP did not come up")
+    if not wait_for_http(landscape_port, password, 7000):
+        raise RuntimeError("Landscape VLC HTTP did not come up")
+
+    set_repeat_mode(portrait_port, password, "all")
+    set_repeat_mode(landscape_port, password, "all")
+
+    time.sleep(0.25)
+    vlc_http_cmd(portrait_port, "pl_next", password)
+    time.sleep(0.15)
+    vlc_http_cmd(landscape_port, "pl_next", password)
+
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser["result"] = {
+        "primary_pid": str(primary_proc.pid),
+        "mfp_pid": str(mfp_proc.pid),
+        "portrait_pid": str(portrait_proc.pid),
+        "landscape_pid": str(landscape_proc.pid),
+    }
+    result_path = Path(result_file)
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    with result_path.open("w", encoding="utf-8") as fp:
+        parser.write(fp)
+
+
+def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: str, *, repeat_mode: str) -> list[str]:
+    command = [
+        vlc_exe,
+        "--no-one-instance",
+        "--random",
+        "--extraintf",
+        "http",
+        "--http-host",
+        "127.0.0.1",
+        "--http-port",
+        str(port),
+        "--http-password",
+        password,
+    ]
+    if repeat_mode == "repeat":
+        command.append("--repeat")
+    elif repeat_mode == "loop":
+        command.append("--loop")
+    command.extend([part for part in sources.split("|") if part])
+    return command
 
 
 def launch_runtime_companions(

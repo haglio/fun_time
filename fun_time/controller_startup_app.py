@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 
 from .controller_startup import (
+    launch_core_apps,
     launch_runtime_companions,
     prepare_random_favs_browser_manifest,
     restart_broker,
@@ -47,6 +48,22 @@ def build_parser() -> argparse.ArgumentParser:
     companions.add_argument("--width", required=True, type=int)
     companions.add_argument("--height", required=True, type=int)
     companions.add_argument("--result-file", required=True)
+
+    core = subparsers.add_parser(
+        "launch-core-apps",
+        help="Launch the core VLC and MFP stack and seed the initial VLC state.",
+    )
+    core.add_argument("--project-dir", required=True)
+    core.add_argument("--vlc-exe", required=True)
+    core.add_argument("--mfp-exe", required=True)
+    core.add_argument("--primary-sources", required=True)
+    core.add_argument("--portrait-sources", required=True)
+    core.add_argument("--landscape-sources", required=True)
+    core.add_argument("--primary-port", required=True, type=int)
+    core.add_argument("--portrait-port", required=True, type=int)
+    core.add_argument("--landscape-port", required=True, type=int)
+    core.add_argument("--password", required=True)
+    core.add_argument("--result-file", required=True)
     return parser
 
 
@@ -70,6 +87,21 @@ def main(argv: list[str] | None = None) -> int:
             y=args.y,
             width=args.width,
             height=args.height,
+            result_file=args.result_file,
+        )
+        return 0
+    if args.command == "launch-core-apps":
+        launch_core_apps(
+            project_dir=args.project_dir,
+            vlc_exe=args.vlc_exe,
+            mfp_exe=args.mfp_exe,
+            primary_sources=args.primary_sources,
+            portrait_sources=args.portrait_sources,
+            landscape_sources=args.landscape_sources,
+            primary_port=args.primary_port,
+            portrait_port=args.portrait_port,
+            landscape_port=args.landscape_port,
+            password=args.password,
             result_file=args.result_file,
         )
         return 0
