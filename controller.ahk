@@ -33,6 +33,7 @@ CONTROLLER_ROBOT_HAND_MODULE := RequireManifestValue("modules", "controller_robo
 CONTROLLER_OMNIPAUSE_MODULE := RequireManifestValue("modules", "controller_omnipause_module")
 CONTROLLER_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "controller_window_layout_module")
 CONTROLLER_VLC_ACTIONS_MODULE := RequireManifestValue("modules", "controller_vlc_actions_module")
+CONTROLLER_RANDOM_FAVS_BROWSER_MODULE := RequireManifestValue("modules", "controller_random_favs_browser_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -55,6 +56,7 @@ MFP_HEIGHT_RATIO := RequireManifestValue("layout", "mfp_height_ratio")
 CONTROLLER_LOG_FILE := RequireManifestValue("runtime", "controller_log_file")
 RANDOM_FAVS_BROWSER_SHORTCUT_PATH := RequireManifestValue("random_favs_browser", "shortcut_path")
 RANDOM_FAVS_BROWSER_MANIFEST_FILE := RequireManifestValue("random_favs_browser", "manifest_file")
+RANDOM_FAVS_BROWSER_ENABLED := RequireManifestValue("random_favs_browser", "enabled") = "1"
 CONFIG_PATH := RequireManifestValue("runtime", "config_path")
 PROJECT_DIR := RequireManifestValue("runtime", "project_dir")
 ICON_PATH := PROJECT_DIR . "\icon.ico"
@@ -364,6 +366,23 @@ RunControllerVlcAction(args) {
     global ROBOT_HAND_PY, CONTROLLER_VLC_ACTIONS_MODULE, PROJECT_DIR
     cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_VLC_ACTIONS_MODULE . " " . args
     return RunWait(cmd, PROJECT_DIR, "Hide")
+}
+
+LaunchRandomFavsBrowserViaPython(manifestPath, shortcutTarget, shortcutWorkDir, shortcutArgs) {
+    global ROBOT_HAND_PY, CONTROLLER_RANDOM_FAVS_BROWSER_MODULE, PROJECT_DIR
+    encodedShortcutArgs := Base64EncodeUtf8(shortcutArgs)
+    args := "launch"
+        . " --manifest-file " . Q(manifestPath)
+        . " --shortcut-target " . Q(shortcutTarget)
+        . " --shortcut-work-dir " . Q(shortcutWorkDir)
+        . " --shortcut-args-b64 " . Q(encodedShortcutArgs)
+    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_RANDOM_FAVS_BROWSER_MODULE . " " . args
+    exitCode := RunWait(cmd, PROJECT_DIR, "Hide")
+    if (exitCode = 0)
+        return true
+    if (exitCode != 3)
+        Log("Random Favs Browser launcher failed exitCode=" . exitCode)
+    return false
 }
 
 LoadWindowLayoutPlan(path) {
@@ -989,6 +1008,7 @@ pidA := RunApp(ROBOT_HAND_PY
 Log("Started Robot Hand audio pid=" . pidA)
 
 SetTimer(SyncRobotHandState, 200)
+Log("Startup: Robot Hand sync timer running")
 
 A_IconTip := "Fun Time Controller"
 A_TrayMenu.Delete()
@@ -1178,6 +1198,11 @@ SetTopMost(pid1, pid2, pid3, pidM) {
 
 PrepareRandomFavsBrowserManifest() {
     global ROBOT_HAND_PY, RANDOM_FAVS_BROWSER_MANIFEST_FILE, CONFIG_PATH
+    global RANDOM_FAVS_BROWSER_ENABLED
+    if (!RANDOM_FAVS_BROWSER_ENABLED) {
+        try FileDelete(RANDOM_FAVS_BROWSER_MANIFEST_FILE)
+        return
+    }
     try FileDelete(RANDOM_FAVS_BROWSER_MANIFEST_FILE)
     cmd := Q(ROBOT_HAND_PY)
         . " -m fun_time.random_favs_browser"
@@ -1187,23 +1212,21 @@ PrepareRandomFavsBrowserManifest() {
 }
 
 MaybeLaunchRandomFavsBrowser(pidM) {
-    global RANDOM_FAVS_BROWSER_MANIFEST_FILE, RANDOM_FAVS_BROWSER_SHORTCUT_PATH
-
-    manifest := ReadRandomFavsBrowserManifest(RANDOM_FAVS_BROWSER_MANIFEST_FILE)
-    if (manifest.profileDir = "" || manifest.urls.Length = 0)
+    global RANDOM_FAVS_BROWSER_ENABLED, RANDOM_FAVS_BROWSER_MANIFEST_FILE, RANDOM_FAVS_BROWSER_SHORTCUT_PATH
+    if (!RANDOM_FAVS_BROWSER_ENABLED)
         return
 
-    existing := GetVisibleChromeWindowHandles()
-    launchSpec := BuildRandomFavsBrowserLaunchSpec(manifest)
-    if (launchSpec.cmd = "") {
-        Log("Random Favs Browser skipped because the browser shortcut could not be resolved")
+    existing := GetVisibleChromeWindowSnapshot()
+    target := "", workDir := "", args := "", description := "", iconPath := "", iconNum := 0, runState := 0
+    try FileGetShortcut(RANDOM_FAVS_BROWSER_SHORTCUT_PATH, &target, &workDir, &args, &description, &iconPath, &iconNum, &runState)
+    if !LaunchRandomFavsBrowserViaPython(RANDOM_FAVS_BROWSER_MANIFEST_FILE, target, workDir, args) {
+        Log("Random Favs Browser skipped because the launch plan was empty")
         return
     }
-    try Run(launchSpec.cmd, launchSpec.workDir, , &browserPid)
 
-    newHwnd := WaitForNewChromeWindow(existing, 8000)
+    newHwnd := WaitForChromeLaunchWindow(existing, 8000)
     if (!newHwnd) {
-        Log("Random Favs Browser skipped because the browser launch command did not produce a new visible window")
+        Log("Random Favs Browser skipped because the browser launch command did not produce a usable visible window")
         return
     }
 
@@ -1217,69 +1240,34 @@ MaybeLaunchRandomFavsBrowser(pidM) {
         WinSetAlwaysOnTop(true, "ahk_pid " pidM)
         WinActivate("ahk_pid " pidM)
     }
-    Log("Random Favs Browser positioned using direct launch for profile " . manifest.profileDir)
+    Log("Random Favs Browser positioned using direct launch plan")
 }
 
-BuildRandomFavsBrowserLaunchSpec(manifest) {
-    global RANDOM_FAVS_BROWSER_SHORTCUT_PATH
-
-    target := "", workDir := "", args := "", description := "", iconPath := "", iconNum := 0, runState := 0
-    try FileGetShortcut(RANDOM_FAVS_BROWSER_SHORTCUT_PATH, &target, &workDir, &args, &description, &iconPath, &iconNum, &runState)
-    if (target = "")
-        return {cmd: "", workDir: ""}
-
-    cmd := Q(target)
-    existingArgs := Trim(args)
-    if (existingArgs != "")
-        cmd .= " " . existingArgs
-    if (manifest.profileDir != "" && !InStr(StrLower(existingArgs), "--profile-directory"))
-        cmd .= " --profile-directory=" . Q(manifest.profileDir)
-    if !InStr(StrLower(existingArgs), "--new-window")
-        cmd .= " --new-window"
-    for url in manifest.urls
-        cmd .= " " . Q(url)
-    return {cmd: cmd, workDir: workDir}
-}
-
-ReadRandomFavsBrowserManifest(path) {
-    result := {profileDir: "", urls: []}
-    if !FileExist(path)
-        return result
-    content := ""
-    try content := FileRead(path, "UTF-8")
-    if (content = "")
-        return result
-    lines := StrSplit(content, "`n", "`r")
-    if (lines.Length >= 1)
-        result.profileDir := Trim(lines[1])
-    Loop lines.Length - 1 {
-        url := Trim(lines[A_Index + 1])
-        if (url != "")
-            result.urls.Push(url)
-    }
-    return result
-}
-
-GetVisibleChromeWindowHandles() {
-    handles := []
+GetVisibleChromeWindowSnapshot() {
+    windows := []
     winList := WinGetList("ahk_exe chrome.exe")
     for hwnd in winList {
         title := ""
         try title := WinGetTitle("ahk_id " hwnd)
         if (Trim(title) = "")
             continue
-        handles.Push(hwnd)
+        windows.Push({hwnd: hwnd, title: title})
     }
-    return handles
+    return windows
 }
 
-WaitForNewChromeWindow(existingHandles, timeoutMs := 8000) {
+WaitForChromeLaunchWindow(existingWindows, timeoutMs := 8000) {
     started := A_TickCount
     loop {
-        current := GetVisibleChromeWindowHandles()
-        for hwnd in current {
-            if !HandleInList(hwnd, existingHandles)
-                return hwnd
+        current := GetVisibleChromeWindowSnapshot()
+        for window in current {
+            if !HandleInChromeWindowSnapshot(window.hwnd, existingWindows)
+                return window.hwnd
+        }
+        for window in current {
+            previousTitle := GetChromeWindowTitle(window.hwnd, existingWindows)
+            if (previousTitle != "" && previousTitle != window.title)
+                return window.hwnd
         }
         if (A_TickCount - started > timeoutMs)
             break
@@ -1288,12 +1276,20 @@ WaitForNewChromeWindow(existingHandles, timeoutMs := 8000) {
     return 0
 }
 
-HandleInList(hwnd, handles) {
-    for existing in handles {
-        if (existing = hwnd)
+HandleInChromeWindowSnapshot(hwnd, windows) {
+    for window in windows {
+        if (window.hwnd = hwnd)
             return true
     }
     return false
+}
+
+GetChromeWindowTitle(hwnd, windows) {
+    for window in windows {
+        if (window.hwnd = hwnd)
+            return window.title
+    }
+    return ""
 }
 
 ; -------------------- HTTP --------------------

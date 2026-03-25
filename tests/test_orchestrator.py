@@ -206,14 +206,20 @@ class TestControllerManifest:
         result = build_controller_manifest(cfg, "pw")
         assert result["modules"]["controller_vlc_actions_module"] == "fun_time.controller_vlc_actions_app"
 
-    def test_random_favs_browser_paths_included(self, cfg_path: Path):
+    def test_controller_random_favs_browser_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_controller_manifest(cfg, "pw")
+        assert result["modules"]["controller_random_favs_browser_module"] == "fun_time.controller_random_favs_browser_app"
+
+    def test_random_favs_browser_paths_included(self, cfg_factory):
+        cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
+        result = build_controller_manifest(cfg, "pw")
+        assert result["random_favs_browser"]["enabled"] == "1"
         assert result["random_favs_browser"]["shortcut_path"] == str(cfg.random_favs_browser.shortcut_path)
         assert result["random_favs_browser"]["manifest_file"] == str(cfg.random_favs_browser_manifest_file)
 
-    def test_write_controller_manifest_writes_expected_ini(self, cfg_path: Path, tmp_path: Path):
-        cfg = load_config(cfg_path)
+    def test_write_controller_manifest_writes_expected_ini(self, cfg_factory, tmp_path: Path):
+        cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
         manifest_path = write_controller_manifest(cfg, "pw", tmp_path / CONTROLLER_MANIFEST_FILENAME)
 
         parser = configparser.ConfigParser()
@@ -232,11 +238,13 @@ class TestControllerManifest:
         assert parser["modules"]["controller_omnipause_module"] == "fun_time.controller_omnipause_app"
         assert parser["modules"]["controller_window_layout_module"] == "fun_time.controller_window_layout_app"
         assert parser["modules"]["controller_vlc_actions_module"] == "fun_time.controller_vlc_actions_app"
+        assert parser["modules"]["controller_random_favs_browser_module"] == "fun_time.controller_random_favs_browser_app"
         assert parser["commands"]["robot_hand_enabled_file"] == str(cfg.robot_hand_enabled_file)
         assert parser["commands"]["robot_hand_paused_file"] == str(cfg.robot_hand_paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
         assert parser["commands"]["dashboard_state_file"] == str(cfg.paths.state_dir / "dashboard_state.ini")
         assert parser["commands"]["dashboard_cmd_file"] == str(cfg.paths.state_dir / "dashboard_cmd.txt")
+        assert parser["random_favs_browser"]["enabled"] == "1"
         assert parser["random_favs_browser"]["manifest_file"] == str(cfg.random_favs_browser_manifest_file)
 
 
@@ -274,6 +282,8 @@ class TestValidateConfig:
         controller_omnipause_py.touch()
         controller_window_layout_py = cfg.project_dir / "fun_time" / "controller_window_layout_app.py"
         controller_window_layout_py.touch()
+        controller_random_favs_browser_py = cfg.project_dir / "fun_time" / "controller_random_favs_browser_app.py"
+        controller_random_favs_browser_py.touch()
         return cfg
 
     def test_raises_when_vlc_exe_missing(self, cfg_path: Path, tmp_path: Path):
