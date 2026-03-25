@@ -67,9 +67,23 @@ def test_omnipause_toggle_no_longer_depends_on_active_window():
     enter_start = text.index("EnterOmniPause() {", toggle_start)
     toggle_block = text[toggle_start:enter_start]
 
-    assert "} else {" in toggle_block
+    assert 'plan := RunControllerOmniPauseAction("toggle", omniPaused, robotHandMode, false, planPath)' in toggle_block
+    assert 'if (plan["action"] = "enter")' in toggle_block
     assert "LeaveOmniPause()" in toggle_block
     assert "IsOurWindow()" not in toggle_block
+
+
+def test_omnipause_still_restores_topmost_for_robot_hand_and_media_windows():
+    text = _controller_text()
+
+    assert 'try WinSetAlwaysOnTop(false, "Robot Hand")' in text
+    assert 'for pid in [pid1, pid2, pid3, pidM] {' in text
+    assert 'try WinSetAlwaysOnTop(false, "ahk_pid " pid)' in text
+    assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pid1)' in text
+    assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pid2)' in text
+    assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pid3)' in text
+    assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pidM)' in text
+    assert 'try WinSetAlwaysOnTop(true, "Robot Hand")' in text
 
 
 def test_status_indicator_shows_robot_hand_and_f_mode_state():
@@ -183,11 +197,21 @@ def test_dashboard_does_not_include_hover_tip_workaround():
 def test_dashboard_exports_runtime_snapshot_for_python_bridge():
     text = _controller_text()
 
-    assert "WriteDashboardStateSnapshot(" in text
+    assert "WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, brokerRunningNow, mfpConnectedNow)" in text
     assert 'IniWrite(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC, DASHBOARD_STATE_FILE, "primary", "label")' in text
     assert 'IniWrite(ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath), DASHBOARD_STATE_FILE, "primary", "clip")' in text
-    assert 'IniWrite(IsMfpConnected() ? "1" : "0", DASHBOARD_STATE_FILE, "mfp", "connected")' in text
+    assert 'IniWrite(mfpConnected ? "1" : "0", DASHBOARD_STATE_FILE, "mfp", "connected")' in text
+    assert 'IniWrite(brokerRunning ? "1" : "0", DASHBOARD_STATE_FILE, "broker", "running")' in text
     assert 'IniWrite(osr2Auto ? "auto" : "controlled", DASHBOARD_STATE_FILE, "osr2", "mode")' in text
+
+
+def test_dashboard_caches_expensive_status_probes_between_refreshes():
+    text = _controller_text()
+
+    assert "GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected) {" in text
+    assert 'if (dashboardStatusRefreshTick = 0 || (A_TickCount - dashboardStatusRefreshTick) >= 2000) {' in text
+    assert 'brokerRunningNow := IsBrokerRunning()' in text
+    assert 'dashboardMfpConnected := IsProcessAlive(pidM) && IsVlcResponsive(PRIMARY_VLC_PORT) && brokerRunningNow' in text
 
 
 def test_dashboard_uses_smaller_font_for_status_chips_and_keeps_title_in_bottom_left():

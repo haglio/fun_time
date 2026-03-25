@@ -29,6 +29,7 @@ def test_controller_defines_robot_hand_status_indicator():
 
     assert "CreateFunTimeDashboard()" in text
     assert "UpdateFunTimeDashboard()" in text
+    assert "GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected)" in text
     assert "TraySetIcon(ICON_PATH)" in text
 
 
@@ -79,11 +80,18 @@ def test_controller_dashboard_wires_existing_actions_into_click_targets():
     assert "Discard(3)" in text
 
 
-def test_controller_broker_probe_uses_q_wrapped_powershell_command():
+def test_controller_broker_probe_uses_wmi_instead_of_hidden_powershell():
     text = _controller_text()
+    fn_start = text.index("IsBrokerRunning() {")
+    fn_end = text.index("\nIsProcessAlive(pid) {", fn_start)
+    broker_block = text[fn_start:fn_end]
 
-    assert 'psCmd := "$targets = Get-CimInstance Win32_Process | Where-Object { "' in text
-    assert 'cmd := "powershell.exe -NoProfile -WindowStyle Hidden -Command " . Q(psCmd)' in text
+    assert 'wmi := ComObjGet("winmgmts:")' in broker_block
+    assert 'query := "SELECT Name, CommandLine FROM Win32_Process WHERE "' in broker_block
+    assert 'for process in wmi.ExecQuery(query) {' in broker_block
+    assert 'InStr(cmdLine, "fun_time.broker_app")' in broker_block
+    assert 'InStr(cmdLine, "broker_tray.ps1") || InStr(cmdLine, "launch_broker_tray.vbs")' in broker_block
+    assert '"powershell.exe -NoProfile -WindowStyle Hidden -Command "' not in broker_block
 
 
 def test_controller_reads_dashboard_bridge_paths_from_manifest():
@@ -118,12 +126,43 @@ def test_controller_reads_controller_robot_hand_module_from_manifest():
     assert 'CONTROLLER_ROBOT_HAND_MODULE := RequireManifestValue("modules", "controller_robot_hand_module")' in text
 
 
+def test_controller_reads_controller_omnipause_module_from_manifest():
+    text = _controller_text()
+
+    assert 'CONTROLLER_OMNIPAUSE_MODULE := RequireManifestValue("modules", "controller_omnipause_module")' in text
+
+
 def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper():
     text = _controller_text()
 
     assert 'robotHandEnabledNow := RobotHandEnabled()' in text
+    assert 'GetDashboardStatusSnapshot(&brokerRunningNow, &mfpConnectedNow)' in text
     assert 'primaryUsesRobotHand := robotHandMode && robotHandEnabledNow' in text
     assert 'SetDashboardControlVisual(funTimeDashboardControls["link_toggle"], robotHandEnabledNow ? "Robot Link" : "Broken Link"' in text
+
+
+def test_controller_only_activates_robot_hand_window_on_transition():
+    text = _controller_text()
+
+    assert "EnforceRobotHandOutputs(active, isTransition := false) {" in text
+    assert 'if (isTransition) {' in text
+    assert 'try WinActivate("Robot Hand")' in text
+
+
+def test_controller_dashboard_refresh_repositions_only_when_rect_changes():
+    text = _controller_text()
+
+    update_start = text.index("UpdateFunTimeDashboard() {")
+    snapshot_fn_start = text.index("\nWriteDashboardStateSnapshot(", update_start)
+    update_block = text[update_start:snapshot_fn_start]
+
+    assert 'funTimeDashboardGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)' not in update_block
+    assert 'if (x != dashboardLastX || y != dashboardLastY || w != dashboardLastW || h != dashboardLastH) {' in update_block
+    assert 'WinMove(x, y, w, h, "ahk_id " funTimeDashboardGui.Hwnd)' in update_block
+    assert 'dashboardLastX := x' in text
+    assert 'dashboardLastY := y' in text
+    assert 'dashboardLastW := w' in text
+    assert 'dashboardLastH := h' in text
 
 
 def test_controller_delegates_lock_state_decisions_to_python_plan():
@@ -136,13 +175,40 @@ def test_controller_delegates_lock_state_decisions_to_python_plan():
     assert 'plan := RunControllerLockAction("cancel-lock", which, currentLocked, "", planPath)' in text
 
 
-def test_controller_delegates_robot_hand_transition_decisions_to_python_plan():
+def test_controller_keeps_robot_hand_sync_local_but_delegates_toggle_plan():
     text = _controller_text()
 
     assert 'RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, planPath)' in text
     assert 'LoadRobotHandActionPlan(path)' in text
-    assert 'plan := RunControllerRobotHandAction("sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath)' in text
+    assert 'plan := RunControllerRobotHandAction("sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath)' not in text
     assert 'plan := RunControllerRobotHandAction("toggle-enabled", robotHandMode, RobotHandEnabled(), omniPaused, planPath)' in text
+    assert 'modeState := EffectiveRobotHandModeState()' in text
+
+    sync_start = text.index("SyncRobotHandState() {")
+    toggle_start = text.index("ToggleRobotHandEnabled() {", sync_start)
+    sync_block = text[sync_start:toggle_start]
+    assert "UpdateFunTimeDashboard()" not in sync_block
+
+
+def test_controller_delegates_omnipause_state_decisions_to_python_plan():
+    text = _controller_text()
+
+    assert 'RunControllerOmniPauseAction(action, omniPausedOn, robotHandModeOn, skipPrimaryResume, planPath)' in text
+    assert 'LoadOmniPauseActionPlan(path)' in text
+    assert 'plan := RunControllerOmniPauseAction("toggle", omniPaused, robotHandMode, false, planPath)' in text
+    assert 'plan := RunControllerOmniPauseAction("leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath)' in text
+
+
+def test_controller_does_not_keep_temporary_focus_debug_monitoring():
+    text = _controller_text()
+
+    assert "DescribeWindow(" not in text
+    assert "IsWindowTopMost(" not in text
+    assert "LogFocusTrace(" not in text
+    assert "LogFunTimeTopMostState(" not in text
+    assert "StartFocusMonitor(" not in text
+    assert "StopFocusMonitor(" not in text
+    assert "MonitorFocusTick()" not in text
 
 
 def test_controller_uses_main_monitor_for_landscape_and_mfp_layout():

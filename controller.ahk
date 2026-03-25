@@ -29,6 +29,7 @@ MEDIA_ACTIONS_MODULE := RequireManifestValue("modules", "media_actions_module")
 CONTROLLER_MODES_MODULE := RequireManifestValue("modules", "controller_modes_module")
 CONTROLLER_LOCK_MODULE := RequireManifestValue("modules", "controller_lock_module")
 CONTROLLER_ROBOT_HAND_MODULE := RequireManifestValue("modules", "controller_robot_hand_module")
+CONTROLLER_OMNIPAUSE_MODULE := RequireManifestValue("modules", "controller_omnipause_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -71,6 +72,13 @@ pid3 := 0
 pidM := 0
 pidR := 0
 pidA := 0
+dashboardLastX := ""
+dashboardLastY := ""
+dashboardLastW := ""
+dashboardLastH := ""
+dashboardStatusRefreshTick := 0
+dashboardBrokerRunning := false
+dashboardMfpConnected := false
 funTimeDashboardGui := ""
 funTimeDashboardControls := Map()
 LABEL_PRIMARY_VLC := "Non-AI VLC"
@@ -244,6 +252,19 @@ RunControllerRobotHandAction(action, robotHandModeOn, enabled, omniPausedOn, pla
     return LoadRobotHandActionPlan(planPath)
 }
 
+RunControllerOmniPauseAction(action, omniPausedOn, robotHandModeOn, skipPrimaryResume, planPath) {
+    global ROBOT_HAND_PY, CONTROLLER_OMNIPAUSE_MODULE, PROJECT_DIR
+    args := action
+        . " --omni-paused " . (omniPausedOn ? "1" : "0")
+        . " --robot-hand-mode-on " . (robotHandModeOn ? "1" : "0")
+        . " --skip-primary-resume " . (skipPrimaryResume ? "1" : "0")
+        . " --plan-file " . Q(planPath)
+    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_OMNIPAUSE_MODULE . " " . args
+    if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
+        return ""
+    return LoadOmniPauseActionPlan(planPath)
+}
+
 LoadLockActionPlan(path) {
     if !FileExist(path)
         return ""
@@ -274,6 +295,19 @@ LoadRobotHandActionPlan(path) {
     return plan
 }
 
+LoadOmniPauseActionPlan(path) {
+    if !FileExist(path)
+        return ""
+    plan := Map()
+    plan["action"] := IniRead(path, "plan", "action", "")
+    plan["next_omni_paused"] := IniRead(path, "plan", "next_omni_paused", "0") = "1"
+    plan["robot_hand_branch"] := IniRead(path, "plan", "robot_hand_branch", "0") = "1"
+    plan["resume_primary_playback"] := IniRead(path, "plan", "resume_primary_playback", "0") = "1"
+    plan["log_message"] := IniRead(path, "plan", "log_message", "")
+    try FileDelete(path)
+    return plan
+}
+
 BuildLockPlanPath(which) {
     global STATE_DIR
     return STATE_DIR . "\lock_action_plan_" . which . ".ini"
@@ -282,6 +316,11 @@ BuildLockPlanPath(which) {
 BuildRobotHandPlanPath() {
     global STATE_DIR
     return STATE_DIR . "\robot_hand_action_plan.ini"
+}
+
+BuildOmniPausePlanPath() {
+    global STATE_DIR
+    return STATE_DIR . "\omnipause_action_plan.ini"
 }
 
 TryClosePid(pid) {
@@ -687,16 +726,23 @@ SatellitePanelShouldHighlight(port) {
 }
 
 IsBrokerRunning() {
-    global PROJECT_DIR
-    shell := ComObject("WScript.Shell")
-    psCmd := "$targets = Get-CimInstance Win32_Process | Where-Object { "
-        . "(($_.Name -match '^pythonw?\.exe$|^py\.exe$') -and $_.CommandLine -match 'fun_time\.broker_app') -or "
-        . "(($_.Name -match '^powershell\.exe$|^pwsh\.exe$|^wscript\.exe$') -and $_.CommandLine -match 'broker_tray\.ps1|launch_broker_tray\.vbs') "
-        . "}; if ($targets) { '1' } else { '0' }"
-    cmd := "powershell.exe -NoProfile -WindowStyle Hidden -Command " . Q(psCmd)
     try {
-        exec := shell.Exec(cmd)
-        return Trim(exec.StdOut.ReadAll()) = "1"
+        wmi := ComObjGet("winmgmts:")
+        query := "SELECT Name, CommandLine FROM Win32_Process WHERE "
+            . "Name='python.exe' OR Name='pythonw.exe' OR Name='py.exe' OR "
+            . "Name='powershell.exe' OR Name='pwsh.exe' OR Name='wscript.exe'"
+        for process in wmi.ExecQuery(query) {
+            name := ""
+            cmdLine := ""
+            try name := StrLower(process.Name . "")
+            try cmdLine := StrLower(process.CommandLine . "")
+            if ((name = "python.exe" || name = "pythonw.exe" || name = "py.exe") && InStr(cmdLine, "fun_time.broker_app"))
+                return true
+            if ((name = "powershell.exe" || name = "pwsh.exe" || name = "wscript.exe")
+                && (InStr(cmdLine, "broker_tray.ps1") || InStr(cmdLine, "launch_broker_tray.vbs")))
+                return true
+        }
+        return false
     } catch {
         return false
     }
@@ -716,8 +762,24 @@ IsMfpConnected() {
     return IsProcessAlive(pidM) && IsVlcResponsive(PRIMARY_VLC_PORT) && IsBrokerRunning()
 }
 
+GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected) {
+    global dashboardStatusRefreshTick, dashboardBrokerRunning, dashboardMfpConnected
+    global pidM, PRIMARY_VLC_PORT
+
+    if (dashboardStatusRefreshTick = 0 || (A_TickCount - dashboardStatusRefreshTick) >= 2000) {
+        brokerRunningNow := IsBrokerRunning()
+        dashboardBrokerRunning := brokerRunningNow
+        dashboardMfpConnected := IsProcessAlive(pidM) && IsVlcResponsive(PRIMARY_VLC_PORT) && brokerRunningNow
+        dashboardStatusRefreshTick := A_TickCount
+    }
+
+    brokerRunning := dashboardBrokerRunning
+    mfpConnected := dashboardMfpConnected
+}
+
 CreateFunTimeDashboard() {
     global funTimeDashboardGui, funTimeDashboardControls
+    global dashboardLastX, dashboardLastY, dashboardLastW, dashboardLastH
     global COLOR_BG, COLOR_PANEL, COLOR_TEXT, COLOR_MUTED
 
     guiObj := Gui("+AlwaysOnTop -Caption +ToolWindow", "Fun Time Dashboard")
@@ -761,11 +823,16 @@ CreateFunTimeDashboard() {
     ApplyFunTimeDashboardLayout()
     GetFunTimeDashboardRect(&x, &y, &w, &h)
     guiObj.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
+    dashboardLastX := x
+    dashboardLastY := y
+    dashboardLastW := w
+    dashboardLastH := h
     UpdateFunTimeDashboard()
 }
 
 UpdateFunTimeDashboard() {
     global funTimeDashboardGui, funTimeDashboardControls
+    global dashboardLastX, dashboardLastY, dashboardLastW, dashboardLastH
     global robotHandMode, fModeEnabled, locked2, locked3
     global PRIMARY_VLC_PORT, VLC2_PORT, VLC3_PORT
     global COLOR_PANEL, COLOR_TEXT, COLOR_MUTED, COLOR_ACTIVE, COLOR_ACTIVE_ALT, COLOR_DISABLED, COLOR_WARNING, COLOR_LINK_ON, COLOR_LINK_OFF
@@ -781,13 +848,14 @@ UpdateFunTimeDashboard() {
     landscapePath := GetCurrentFilePath(VLC3_PORT)
     osr2Auto := RobotHandModeState() = "1"
     robotHandEnabledNow := RobotHandEnabled()
+    GetDashboardStatusSnapshot(&brokerRunningNow, &mfpConnectedNow)
     primaryUsesRobotHand := robotHandMode && robotHandEnabledNow
     primaryColor := PrimaryPanelShouldHighlight() ? COLOR_ACTIVE_ALT : COLOR_PANEL
     portraitColor := SatellitePanelShouldHighlight(VLC2_PORT) ? COLOR_ACTIVE_ALT : COLOR_PANEL
     landscapeColor := SatellitePanelShouldHighlight(VLC3_PORT) ? COLOR_ACTIVE_ALT : COLOR_PANEL
     osr2Color := osr2Auto ? COLOR_ACTIVE : COLOR_WARNING
-    mfpColor := IsMfpConnected() ? COLOR_ACTIVE : COLOR_DISABLED
-    brokerColor := IsBrokerRunning() ? COLOR_ACTIVE : COLOR_DISABLED
+    mfpColor := mfpConnectedNow ? COLOR_ACTIVE : COLOR_DISABLED
+    brokerColor := brokerRunningNow ? COLOR_ACTIVE : COLOR_DISABLED
     controllerColor := COLOR_ACTIVE
     fModeColor := fModeEnabled ? COLOR_ACTIVE_ALT : COLOR_PANEL
 
@@ -798,7 +866,7 @@ UpdateFunTimeDashboard() {
     SetDashboardControlVisual(funTimeDashboardControls["landscape_panel"], PanelLabelText(LABEL_LANDSCAPE_VLC) . "`n" . ClipLabelFromPath(landscapePath), landscapeColor)
     SetDashboardControlVisual(funTimeDashboardControls["primary_panel"], PanelLabelText(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC) . "`n" . ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath), primaryColor)
     SetDashboardControlVisual(funTimeDashboardControls["osr2_panel"], LABEL_OSR2 . "`n" . (osr2Auto ? "auto" : "controlled"), osr2Color)
-    SetDashboardControlVisual(funTimeDashboardControls["mfp_panel"], LABEL_MFP . "`n" . (IsMfpConnected() ? "connected" : "disconnected"), mfpColor)
+    SetDashboardControlVisual(funTimeDashboardControls["mfp_panel"], LABEL_MFP . "`n" . (mfpConnectedNow ? "connected" : "disconnected"), mfpColor)
     SetDashboardControlVisual(funTimeDashboardControls["broker_panel"], "b", brokerColor)
     SetDashboardControlVisual(funTimeDashboardControls["controller_panel"], "c", controllerColor)
     SetDashboardControlVisual(funTimeDashboardControls["fmode_panel"], "f", fModeColor)
@@ -808,22 +876,28 @@ UpdateFunTimeDashboard() {
     SetDashboardControlVisual(funTimeDashboardControls["landscape_trash"], "Trash", COLOR_WARNING)
     SetDashboardControlVisual(funTimeDashboardControls["link_toggle"], robotHandEnabledNow ? "Robot Link" : "Broken Link", robotHandEnabledNow ? COLOR_LINK_ON : COLOR_LINK_OFF)
     SetDashboardControlVisual(funTimeDashboardControls["quarter_button"], "1/4", primaryUsesRobotHand ? osr2Color : COLOR_PANEL)
-    WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow)
+    WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, brokerRunningNow, mfpConnectedNow)
 
     GetFunTimeDashboardRect(&x, &y, &w, &h)
-    funTimeDashboardGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)
+    if (x != dashboardLastX || y != dashboardLastY || w != dashboardLastW || h != dashboardLastH) {
+        try WinMove(x, y, w, h, "ahk_id " funTimeDashboardGui.Hwnd)
+        dashboardLastX := x
+        dashboardLastY := y
+        dashboardLastW := w
+        dashboardLastH := h
+    }
 }
 
-WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabled) {
+WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabled, brokerRunning, mfpConnected) {
     global DASHBOARD_STATE_FILE, LABEL_PRIMARY_ROBOT, LABEL_PRIMARY_VLC, LABEL_PORTRAIT_VLC, LABEL_LANDSCAPE_VLC
     global fModeEnabled
 
-    IniWrite(IsBrokerRunning() ? "1" : "0", DASHBOARD_STATE_FILE, "broker", "running")
+    IniWrite(brokerRunning ? "1" : "0", DASHBOARD_STATE_FILE, "broker", "running")
     IniWrite("1", DASHBOARD_STATE_FILE, "controller", "running")
     IniWrite(fModeEnabled ? "1" : "0", DASHBOARD_STATE_FILE, "fmode", "enabled")
     IniWrite(robotHandEnabled ? "1" : "0", DASHBOARD_STATE_FILE, "robot_link", "enabled")
     IniWrite(osr2Auto ? "auto" : "controlled", DASHBOARD_STATE_FILE, "osr2", "mode")
-    IniWrite(IsMfpConnected() ? "1" : "0", DASHBOARD_STATE_FILE, "mfp", "connected")
+    IniWrite(mfpConnected ? "1" : "0", DASHBOARD_STATE_FILE, "mfp", "connected")
 
     IniWrite(primaryUsesRobotHand ? LABEL_PRIMARY_ROBOT : LABEL_PRIMARY_VLC, DASHBOARD_STATE_FILE, "primary", "label")
     IniWrite(ClipLabelFromPath(primaryUsesRobotHand ? "" : primaryPath), DASHBOARD_STATE_FILE, "primary", "clip")
@@ -848,16 +922,20 @@ EnforceRobotHandOutputs(active, isTransition := false) {
         EnsurePrimaryVlcPlayback(false)
         SetRobotHandPaused(false)
         SetRobotHandAudioPaused(false)
-        try WinShow("Robot Hand")
-        try WinSetAlwaysOnTop(false, "ahk_pid " pid1)
-        try WinSetAlwaysOnTop(true, "Robot Hand")
-        try WinActivate("Robot Hand")
+        if (isTransition) {
+            try WinShow("Robot Hand")
+            try WinSetAlwaysOnTop(false, "ahk_pid " pid1)
+            try WinSetAlwaysOnTop(true, "Robot Hand")
+            try WinActivate("Robot Hand")
+        }
     } else {
         SetRobotHandPaused(true)
         SetRobotHandAudioPaused(true)
-        try WinHide("Robot Hand")
-        try WinSetAlwaysOnTop(false, "Robot Hand")
-        try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
+        if (isTransition) {
+            try WinHide("Robot Hand")
+            try WinSetAlwaysOnTop(false, "Robot Hand")
+            try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
+        }
         EnsurePrimaryVlcPlayback(true)
     }
 }
@@ -871,16 +949,23 @@ EffectiveRobotHandModeState() {
 SyncRobotHandState() {
     global robotHandMode, pid1, omniPaused
 
-    UpdateFunTimeDashboard()
-    planPath := BuildRobotHandPlanPath()
-    plan := RunControllerRobotHandAction("sync-state", robotHandMode, RobotHandEnabled(), omniPaused, planPath)
-    if !IsObject(plan)
+    if (omniPaused)
         return
-    robotHandMode := plan["next_robot_hand_mode"]
-    if (plan["log_message"] != "")
-        Log(plan["log_message"])
-    if (plan["enforce_outputs"])
-        EnforceRobotHandOutputs(plan["enforce_active"], plan["is_transition"])
+
+    modeState := EffectiveRobotHandModeState()
+    modeOn := (modeState = "1")
+
+    if (modeOn && !robotHandMode) {
+        robotHandMode := true
+        Log("Entering Robot Hand mode")
+        EnforceRobotHandOutputs(true, true)
+    } else if (!modeOn && robotHandMode) {
+        robotHandMode := false
+        Log("Leaving Robot Hand mode")
+        EnforceRobotHandOutputs(false, true)
+    } else {
+        EnforceRobotHandOutputs(modeOn, false)
+    }
 }
 
 ToggleRobotHandEnabled() {
@@ -1744,22 +1829,29 @@ WriteCmd(file, cmd) {
 }
 
 OmniPauseToggle() {
-    global omniPaused
-    if (!omniPaused) {
+    global omniPaused, robotHandMode
+    planPath := BuildOmniPausePlanPath()
+    plan := RunControllerOmniPauseAction("toggle", omniPaused, robotHandMode, false, planPath)
+    if !IsObject(plan)
+        return
+    if (plan["action"] = "enter")
         EnterOmniPause()
-    } else {
+    else
         LeaveOmniPause()
-    }
 }
 
 EnterOmniPause() {
     global omniPaused, robotHandMode, pid1, pid2, pid3, pidM
     global VLC2_PORT, VLC3_PORT
+    planPath := BuildOmniPausePlanPath()
+    plan := RunControllerOmniPauseAction("enter", omniPaused, robotHandMode, false, planPath)
+    if !IsObject(plan)
+        return
 
-    omniPaused := true
-    Log("OmniPause: entering")
+    omniPaused := plan["next_omni_paused"]
+    Log(plan["log_message"])
 
-    if (robotHandMode) {
+    if (plan["robot_hand_branch"]) {
         ; Auto mode: VLC1 is already paused by Robot Hand mode; pause VLC2+3, freeze Robot Hand, and pause audio
         VlcHttpCmd(VLC2_PORT, "pl_pause")
         VlcHttpCmd(VLC3_PORT, "pl_pause")
@@ -1773,7 +1865,7 @@ EnterOmniPause() {
         VlcHttpCmd(VLC3_PORT, "pl_pause")
     }
 
-    ; Remove always-on-top from all VLC windows and MFP so they stop blocking other windows
+    ; Remove always-on-top from all VLC windows and MFP so they stop blocking other windows.
     for pid in [pid1, pid2, pid3, pidM] {
         try WinSetAlwaysOnTop(false, "ahk_pid " pid)
     }
@@ -1784,36 +1876,40 @@ EnterOmniPause() {
 LeaveOmniPause(skipPrimaryVlcPlaybackToggleOnResume := false) {
     global omniPaused, robotHandMode, pid1, pid2, pid3, pidM
     global VLC2_PORT, VLC3_PORT
+    planPath := BuildOmniPausePlanPath()
+    plan := RunControllerOmniPauseAction("leave", omniPaused, robotHandMode, skipPrimaryVlcPlaybackToggleOnResume, planPath)
+    if !IsObject(plan)
+        return
 
-    Log("OmniPause: leaving")
+    Log(plan["log_message"])
     Suspend false
 
-    if (robotHandMode) {
+    if (plan["robot_hand_branch"]) {
         ; Auto mode: resume Robot Hand animation, resume audio, and resume VLC2+3
         SetRobotHandPaused(false)
         SetRobotHandAudioPaused(false)
         VlcHttpCmd(VLC2_PORT, "pl_pause")  ; toggle back to playing
         VlcHttpCmd(VLC3_PORT, "pl_pause")
     } else {
-        ; Controlled mode: resume all 3 VLCs and restore VLC1 always-on-top
-        if (!skipPrimaryVlcPlaybackToggleOnResume)
+        ; Controlled mode: resume all 3 VLCs and restore VLC1 always-on-top.
+        if (plan["resume_primary_playback"])
             EnsurePrimaryVlcPlayback(true)
         VlcHttpCmd(VLC2_PORT, "pl_pause")  ; toggle back to playing
         VlcHttpCmd(VLC3_PORT, "pl_pause")
         try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
     }
 
-    ; Restore always-on-top for the two secondary VLC windows and MFP
+    ; Restore always-on-top for the two secondary VLC windows and MFP.
     try WinSetAlwaysOnTop(true, "ahk_pid " pid2)
     try WinSetAlwaysOnTop(true, "ahk_pid " pid3)
     try WinSetAlwaysOnTop(true, "ahk_pid " pidM)
 
     ; Allow SyncRobotHandState to run again and handle any mode transitions that
     ; occurred while paused (e.g. OSR2 exited freemode after receiving neutral pos)
-    omniPaused := false
+    omniPaused := plan["next_omni_paused"]
     SyncRobotHandState()
 
-    ; If still in auto mode after the sync check, restore Robot Hand always-on-top
+    ; If still in auto mode after the sync check, restore Robot Hand always-on-top.
     if (robotHandMode) {
         try WinSetAlwaysOnTop(true, "Robot Hand")
         try WinActivate("Robot Hand")
