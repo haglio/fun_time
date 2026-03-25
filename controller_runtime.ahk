@@ -54,6 +54,7 @@ EnforceRobotHandWindowState(active, isTransition := false) {
 
 UpdateFunTimeDashboard() {
     global DASHBOARD_ENABLED, pidM
+    global DASHBOARD_STATE_FILE, fModeEnabled
     global robotHandMode, locked2, locked3
     if (!DASHBOARD_ENABLED)
         return
@@ -62,35 +63,15 @@ UpdateFunTimeDashboard() {
     robotHandEnabledNow := RobotHandEnabled()
     primaryUsesRobotHand := robotHandMode && robotHandEnabledNow
     mfpAlive := pidM && ProcessExist(pidM)
-    WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, locked2, locked3)
-}
-
-WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabled, mfpAlive, portraitLocked, landscapeLocked) {
-    global DASHBOARD_STATE_FILE
-    global fModeEnabled
-    static lastDashboardSnapshotText := ""
-
-    snapshotText := "[fmode]`n"
-        . "enabled=" . (fModeEnabled ? "1" : "0") . "`n"
-        . "[robot_link]`n"
-        . "enabled=" . (robotHandEnabled ? "1" : "0") . "`n"
-        . "[osr2]`n"
-        . "mode=" . (osr2Auto ? "auto" : "controlled") . "`n"
-        . "[mfp]`n"
-        . "alive=" . (mfpAlive ? "1" : "0") . "`n"
-        . "[primary]`n"
-        . "uses_robot_hand=" . (primaryUsesRobotHand ? "1" : "0") . "`n"
-        . "locked=0`n"
-        . "[portrait]`n"
-        . "locked=" . (portraitLocked ? "1" : "0") . "`n"
-        . "[landscape]`n"
-        . "locked=" . (landscapeLocked ? "1" : "0") . "`n"
-
-    if (snapshotText = lastDashboardSnapshotText)
-        return
-    lastDashboardSnapshotText := snapshotText
-    FileDelete(DASHBOARD_STATE_FILE)
-    FileAppend(snapshotText, DASHBOARD_STATE_FILE, "UTF-16")
+    args := "--output-file " . Q(DASHBOARD_STATE_FILE)
+        . " --f-mode-enabled " . (fModeEnabled ? "1" : "0")
+        . " --robot-link-enabled " . (robotHandEnabledNow ? "1" : "0")
+        . " --osr2-mode " . (osr2Auto ? "auto" : "controlled")
+        . " --mfp-alive " . (mfpAlive ? "1" : "0")
+        . " --primary-uses-robot-hand " . (primaryUsesRobotHand ? "1" : "0")
+        . " --portrait-locked " . (locked2 ? "1" : "0")
+        . " --landscape-locked " . (locked3 ? "1" : "0")
+    RunControllerDashboardBridgeAction(args)
 }
 
 EffectiveRobotHandModeState() {

@@ -34,6 +34,7 @@ CONTROLLER_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "controller_w
 CONTROLLER_VLC_ACTIONS_MODULE := RequireManifestValue("modules", "controller_vlc_actions_module")
 CONTROLLER_RANDOM_FAVS_BROWSER_MODULE := RequireManifestValue("modules", "controller_random_favs_browser_module")
 CONTROLLER_STARTUP_MODULE := RequireManifestValue("modules", "controller_startup_module")
+CONTROLLER_DASHBOARD_BRIDGE_MODULE := RequireManifestValue("modules", "controller_dashboard_bridge_module")
 ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
 ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
 ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
@@ -404,6 +405,12 @@ RunControllerVlcAction(args) {
 RunControllerStartupAction(args) {
     global ROBOT_HAND_PY, CONTROLLER_STARTUP_MODULE, PROJECT_DIR
     cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_STARTUP_MODULE . " " . args
+    return RunWait(cmd, PROJECT_DIR, "Hide")
+}
+
+RunControllerDashboardBridgeAction(args) {
+    global ROBOT_HAND_PY, CONTROLLER_DASHBOARD_BRIDGE_MODULE, PROJECT_DIR
+    cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_DASHBOARD_BRIDGE_MODULE . " " . args
     return RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
