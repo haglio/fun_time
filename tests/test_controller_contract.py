@@ -347,6 +347,7 @@ def test_controller_delegates_write_side_vlc_actions_to_python():
 
     assert 'RunControllerVlcAction(args) {' in text
     assert 'cmd := Q(ROBOT_HAND_PY) . " -m " . CONTROLLER_VLC_ACTIONS_MODULE . " " . args' in text
+    assert 'args := "send-command"' in text
     assert 'args := "ensure-playback-state"' in text
     assert 'args := "set-repeat-mode"' in text
     assert 'args := "replace-playlist"' not in text
@@ -363,3 +364,10 @@ def test_controller_delegates_current_file_path_and_http_wait_to_python():
     assert 'return Trim(FileRead(outputPath, "UTF-8"))' in text
     assert "DecodeFileUri(" not in text
     assert "UrlDecode(" not in text
+
+
+def test_controller_no_longer_keeps_raw_vlc_command_sender_in_ahk():
+    text = _controller_text()
+
+    assert "VlcHttpCmd(port, cmd) {" not in text
+    assert 'SendVlcCommand(port, cmd) {' in text

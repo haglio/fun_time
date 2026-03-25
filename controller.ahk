@@ -422,9 +422,9 @@ ProcessDashboardCommand() {
         return
     switch action {
         case "portrait_prev":
-            CancelLock(2), VlcHttpCmd(VLC2_PORT, "pl_previous")
+            CancelLock(2), SendVlcCommand(VLC2_PORT, "pl_previous")
         case "portrait_next":
-            CancelLock(2), VlcHttpCmd(VLC2_PORT, "pl_next")
+            CancelLock(2), SendVlcCommand(VLC2_PORT, "pl_next")
         case "portrait_lock":
             ToggleLock(2)
         case "portrait_trash":
@@ -436,9 +436,9 @@ ProcessDashboardCommand() {
         case "quarter_button":
             QueueRobotHandOffsetQuarterCycle()
         case "landscape_prev":
-            CancelLock(3), VlcHttpCmd(VLC3_PORT, "pl_previous")
+            CancelLock(3), SendVlcCommand(VLC3_PORT, "pl_previous")
         case "landscape_next":
-            CancelLock(3), VlcHttpCmd(VLC3_PORT, "pl_next")
+            CancelLock(3), SendVlcCommand(VLC3_PORT, "pl_next")
         case "landscape_lock":
             ToggleLock(3)
         case "landscape_trash":
@@ -896,9 +896,9 @@ SetRepeatMode(VLC3_PORT, "all")
 Log("Startup: satellite repeat modes configured")
 
 Sleep 250
-VlcHttpCmd(VLC2_PORT, "pl_next")
+SendVlcCommand(VLC2_PORT, "pl_next")
 Sleep 150
-VlcHttpCmd(VLC3_PORT, "pl_next")
+SendVlcCommand(VLC3_PORT, "pl_next")
 Log("Startup: satellite VLCs advanced to first item")
 
 PrepareRandomFavsBrowserManifest()
@@ -989,22 +989,22 @@ $f::ToggleFMode()
 =::try ControlSend("!{Right}", , "ahk_pid " pid1)
 Left::{
     CancelLock(2)
-    VlcHttpCmd(VLC2_PORT, "pl_previous")
+    SendVlcCommand(VLC2_PORT, "pl_previous")
 }
 Right::{
     CancelLock(2)
-    VlcHttpCmd(VLC2_PORT, "pl_next")
+    SendVlcCommand(VLC2_PORT, "pl_next")
 }
 Up::Discard(2)
 Down::ToggleLock(2)
 
 a::{
     CancelLock(3)
-    VlcHttpCmd(VLC3_PORT, "pl_previous")
+    SendVlcCommand(VLC3_PORT, "pl_previous")
 }
 d::{
     CancelLock(3)
-    VlcHttpCmd(VLC3_PORT, "pl_next")
+    SendVlcCommand(VLC3_PORT, "pl_next")
 }
 w::Discard(3)
 s::ToggleLock(3)
@@ -1266,8 +1266,13 @@ WaitForHttp(port, timeoutMs := 5000) {
     return false
 }
 
-VlcHttpCmd(port, cmd) {
-    VlcHttpReq(port, "/requests/status.xml?command=" . cmd, &st)
+SendVlcCommand(port, cmd) {
+    global VLC_PASS
+    args := "send-command"
+        . " --port " . port
+        . " --password " . Q(VLC_PASS)
+        . " --command " . cmd
+    return RunControllerVlcAction(args) = 0
 }
 
 EnsurePrimaryVlcPlayback(shouldPlay) {
@@ -1403,16 +1408,16 @@ EnterOmniPause() {
 
     if (plan["robot_hand_branch"]) {
         ; Auto mode: VLC1 is already paused by Robot Hand mode; pause VLC2+3, freeze Robot Hand, and pause audio
-        VlcHttpCmd(VLC2_PORT, "pl_pause")
-        VlcHttpCmd(VLC3_PORT, "pl_pause")
+        SendVlcCommand(VLC2_PORT, "pl_pause")
+        SendVlcCommand(VLC3_PORT, "pl_pause")
         SetRobotHandPaused(true)
         SetRobotHandAudioPaused(true)
         try WinSetAlwaysOnTop(false, "Robot Hand")
     } else {
         ; Controlled mode: pause all 3 VLCs
         EnsurePrimaryVlcPlayback(false)
-        VlcHttpCmd(VLC2_PORT, "pl_pause")
-        VlcHttpCmd(VLC3_PORT, "pl_pause")
+        SendVlcCommand(VLC2_PORT, "pl_pause")
+        SendVlcCommand(VLC3_PORT, "pl_pause")
     }
 
     ; Remove always-on-top from all Fun Time windows so they stop blocking other windows.
@@ -1438,14 +1443,14 @@ LeaveOmniPause(skipPrimaryVlcPlaybackToggleOnResume := false) {
         ; Auto mode: resume Robot Hand animation, resume audio, and resume VLC2+3
         SetRobotHandPaused(false)
         SetRobotHandAudioPaused(false)
-        VlcHttpCmd(VLC2_PORT, "pl_pause")  ; toggle back to playing
-        VlcHttpCmd(VLC3_PORT, "pl_pause")
+        SendVlcCommand(VLC2_PORT, "pl_pause")  ; toggle back to playing
+        SendVlcCommand(VLC3_PORT, "pl_pause")
     } else {
         ; Controlled mode: resume all 3 VLCs and restore VLC1 always-on-top.
         if (plan["resume_primary_playback"])
             EnsurePrimaryVlcPlayback(true)
-        VlcHttpCmd(VLC2_PORT, "pl_pause")  ; toggle back to playing
-        VlcHttpCmd(VLC3_PORT, "pl_pause")
+        SendVlcCommand(VLC2_PORT, "pl_pause")  ; toggle back to playing
+        SendVlcCommand(VLC3_PORT, "pl_pause")
         try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
     }
 

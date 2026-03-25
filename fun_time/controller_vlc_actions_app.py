@@ -8,6 +8,7 @@ from .controller_vlc_actions import (
     get_current_file_path,
     replace_playlist_from_file,
     set_repeat_mode,
+    vlc_http_cmd,
     wait_for_http,
 )
 
@@ -31,6 +32,11 @@ def build_parser() -> argparse.ArgumentParser:
     playlist_parser.add_argument("--password", required=True)
     playlist_parser.add_argument("--playlist-path", required=True)
     playlist_parser.add_argument("--repeat-mode", default="")
+
+    command_parser = subparsers.add_parser("send-command")
+    command_parser.add_argument("--port", type=int, required=True)
+    command_parser.add_argument("--password", required=True)
+    command_parser.add_argument("--command", required=True)
 
     wait_parser = subparsers.add_parser("wait-for-http")
     wait_parser.add_argument("--port", type=int, required=True)
@@ -62,6 +68,9 @@ def main(argv: list[str] | None = None) -> int:
             args.playlist_path,
             repeat_mode=args.repeat_mode,
         ) else 1
+
+    if args.action == "send-command":
+        return 0 if vlc_http_cmd(args.port, args.command, args.password) else 1
 
     if args.action == "wait-for-http":
         return 0 if wait_for_http(args.port, args.password, args.timeout_ms) else 1
