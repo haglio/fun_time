@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 from fun_time.controller_manifest import write_controller_manifest
 from fun_time.dashboard_app import (
@@ -8,6 +9,7 @@ from fun_time.dashboard_app import (
     COLOR_ACTIVE_ALT,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
+    hydrate_dashboard_snapshot,
     load_dashboard_app_config,
     resolve_logical_monitor_sizes,
     write_dashboard_command,
@@ -28,6 +30,10 @@ def test_dashboard_app_loads_layout_from_controller_manifest(cfg_path: Path, tmp
     assert app_config.layout.landscape_width_ratio == config.controller.layout.landscape_width_ratio
     assert app_config.primary_sources == "|".join(str(path) for path in config.paths.primary_vlc_dirs)
     assert app_config.favs_file == config.paths.favs_file
+    assert app_config.primary_vlc_port == config.controller.primary_vlc_http_port
+    assert app_config.portrait_vlc_port == config.controller.vlc2_http_port
+    assert app_config.landscape_vlc_port == config.controller.vlc3_http_port
+    assert app_config.vlc_password == "vlc-pass"
     assert app_config.dashboard_state_file == config.paths.state_dir / "dashboard_state.ini"
     assert app_config.dashboard_cmd_file == config.paths.state_dir / "dashboard_cmd.txt"
 
@@ -190,3 +196,32 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
     fills = {item.rect: item.fill for item in scene.rects}
     assert fills[preview_layout.broker_panel] == COLOR_DISABLED
     assert fills[preview_layout.mfp_panel] == COLOR_DISABLED
+
+
+def test_dashboard_app_hydrates_live_vlc_state(cfg_path: Path):
+    config = load_config(cfg_path)
+    manifest_path = write_controller_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=True,
+        primary_uses_robot_hand=False,
+        osr2_mode="controlled",
+        mfp_alive=True,
+        primary_responsive=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", True),
+        landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(1, 2, 3, 4),
+    )
+
+    with (
+        patch("fun_time.dashboard_app.get_current_file_path", side_effect=["primary.mp4", "portrait.mp4", "landscape.mp4"]),
+        patch("fun_time.dashboard_app.vlc_http_req", return_value=(200, "<state>playing</state>")),
+    ):
+        hydrated = hydrate_dashboard_snapshot(snapshot, app_config)
+
+    assert hydrated.primary.path == "primary.mp4"
+    assert hydrated.portrait.path == "portrait.mp4"
+    assert hydrated.landscape.path == "landscape.mp4"
+    assert hydrated.primary_responsive is True

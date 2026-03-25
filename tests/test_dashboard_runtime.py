@@ -102,6 +102,47 @@ def test_load_dashboard_snapshot_supports_utf16_ahk_ini_exports(tmp_path: Path):
     assert snapshot.window.x == 10
 
 
+def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
+    snapshot_file = tmp_path / "dashboard_state_minimal.ini"
+    snapshot_file.write_text(
+        "\n".join(
+            [
+                "[fmode]",
+                "enabled=1",
+                "[robot_link]",
+                "enabled=1",
+                "[osr2]",
+                "mode=controlled",
+                "[mfp]",
+                "alive=0",
+                "[primary]",
+                "uses_robot_hand=0",
+                "locked=0",
+                "[portrait]",
+                "locked=1",
+                "[landscape]",
+                "locked=0",
+                "[window]",
+                "x=11",
+                "y=22",
+                "width=33",
+                "height=44",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = load_dashboard_snapshot(snapshot_file)
+
+    assert snapshot is not None
+    assert snapshot.f_mode_enabled is True
+    assert snapshot.robot_link_enabled is True
+    assert snapshot.primary.path == ""
+    assert snapshot.primary_responsive is False
+    assert snapshot.portrait.locked is True
+    assert snapshot.window.width == 33
+
+
 def test_broker_heartbeat_is_fresh_when_recent(tmp_path: Path):
     heartbeat_file = tmp_path / "broker_heartbeat.txt"
     heartbeat_file.write_text("100.0", encoding="utf-8")

@@ -178,9 +178,8 @@ def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper()
 
     assert 'robotHandEnabledNow := RobotHandEnabled()' in text
     assert 'primaryUsesRobotHand := robotHandMode && robotHandEnabledNow' in text
-    assert 'primaryResponsive := IsVlcResponsive(PRIMARY_VLC_PORT)' in text
     assert 'mfpAlive := pidM && ProcessExist(pidM)' in text
-    assert 'WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, primaryResponsive, mfpAlive, x, y, w, h, locked2, locked3)' in text
+    assert 'WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, x, y, w, h, locked2, locked3)' in text
 
 
 def test_controller_only_activates_robot_hand_window_on_transition():
@@ -201,7 +200,7 @@ def test_controller_dashboard_refresh_repositions_only_when_rect_changes():
     assert 'funTimeDashboardGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)' not in update_block
     assert 'WinMove(x, y, w, h, "ahk_id " funTimeDashboardGui.Hwnd)' not in update_block
     assert "GetFunTimeDashboardRect(&x, &y, &w, &h)" in update_block
-    assert 'WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, primaryResponsive, mfpAlive, x, y, w, h, locked2, locked3)' in update_block
+    assert 'WriteDashboardStateSnapshot(primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, mfpAlive, x, y, w, h, locked2, locked3)' in update_block
 
 
 def test_controller_dashboard_snapshot_writer_declares_cache_global():
