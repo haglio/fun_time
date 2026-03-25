@@ -347,9 +347,11 @@ StartController() {
 
     OnExit(HandleControllerExit)
 
-    SetRobotHandEnabled(true)
-    SetRobotHandPaused(true)
-    SetRobotHandAudioPaused(true)
+    args := "seed-robot-hand-state"
+        . " --enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)
+        . " --paused-file " . Q(ROBOT_HAND_PAUSED_FILE)
+        . " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)
+    RunControllerStartupAction(args)
     Log("Startup: reset Robot Hand enabled/paused state files")
     RestartBroker()
     Log("Startup: broker restart requested")
@@ -442,22 +444,27 @@ StartController() {
     GetRobotHandRect(&rx, &ry, &rw, &rh)
     Log("Startup: resolved Robot Hand rect x=" . rx . " y=" . ry . " w=" . rw . " h=" . rh)
 
-    pidR := RunApp(ROBOT_HAND_PY
-        , "-m " . ROBOT_HAND_MODULE
+    startupResultPath := BuildStartupResultPath()
+    args := "launch-runtime-companions"
+        . " --python-exe " . Q(ROBOT_HAND_PY)
+        . " --robot-hand-module " . Q(ROBOT_HAND_MODULE)
+        . " --audio-module " . Q(ROBOT_HAND_AUDIO_MODULE)
         . " --config " . Q(CONFIG_PATH)
         . " --clips-folder " . Q(ROBOT_HAND_CLIPS)
+        . " --audio-folder " . Q(ROBOT_HAND_AUDIO)
         . " --x " . rx
         . " --y " . ry
         . " --width " . rw
         . " --height " . rh
-    )
+        . " --result-file " . Q(startupResultPath)
+    if (RunControllerStartupAction(args) != 0)
+        throw Error("Failed to launch Robot Hand runtime companions")
+    startupResult := LoadStartupActionResult(startupResultPath)
+    if !IsObject(startupResult)
+        throw Error("Failed to read Robot Hand runtime companion pids")
+    pidR := startupResult["robot_hand_pid"]
+    pidA := startupResult["audio_pid"]
     Log("Started Robot Hand listener pid=" . pidR)
-
-    pidA := RunApp(ROBOT_HAND_PY
-        , "-m " . ROBOT_HAND_AUDIO_MODULE
-        . " --config " . Q(CONFIG_PATH)
-        . " --audio-folder " . Q(ROBOT_HAND_AUDIO)
-    )
     Log("Started Robot Hand audio pid=" . pidA)
 
     SetTimer(SyncRobotHandState, 200)

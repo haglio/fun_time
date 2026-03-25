@@ -305,6 +305,16 @@ LoadModesActionResult(path) {
     return result
 }
 
+LoadStartupActionResult(path) {
+    if !FileExist(path)
+        return ""
+    result := Map()
+    result["robot_hand_pid"] := IniRead(path, "result", "robot_hand_pid", "0") + 0
+    result["audio_pid"] := IniRead(path, "result", "audio_pid", "0") + 0
+    try FileDelete(path)
+    return result
+}
+
 BuildLockPlanPath(which) {
     global STATE_DIR
     return STATE_DIR . "\lock_action_plan_" . which . ".ini"
@@ -323,6 +333,13 @@ BuildOmniPausePlanPath() {
 BuildModesResultPath() {
     global STATE_DIR
     return STATE_DIR . "\modes_action_result.ini"
+}
+
+BuildStartupResultPath() {
+    global STATE_DIR
+    static counter := 0
+    counter += 1
+    return STATE_DIR . "\startup_action_result_" . A_TickCount . "_" . counter . ".ini"
 }
 
 BuildWindowLayoutPlanPath() {
