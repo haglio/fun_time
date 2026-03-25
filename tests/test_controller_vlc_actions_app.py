@@ -38,6 +38,22 @@ def test_build_parser_accepts_current_file_path_arguments():
     assert args.output_file == "state\\current.txt"
 
 
+def test_build_parser_accepts_send_command_arguments():
+    args = build_parser().parse_args([
+        "send-command",
+        "--port",
+        "8080",
+        "--password",
+        "pw",
+        "--command",
+        "pl_next",
+    ])
+
+    assert args.action == "send-command"
+    assert args.port == 8080
+    assert args.command == "pl_next"
+
+
 def test_main_returns_zero_when_replace_playlist_succeeds(monkeypatch, tmp_path: Path):
     playlist = tmp_path / "playlist.m3u"
     playlist.write_text("#EXTM3U\n", encoding="utf-8")
@@ -81,3 +97,22 @@ def test_main_writes_current_file_path_output(monkeypatch, tmp_path: Path):
 
     assert code == 0
     assert output_file.read_text(encoding="utf-8") == r"C:\clips\portrait.mp4"
+
+
+def test_main_returns_zero_when_send_command_succeeds(monkeypatch):
+    monkeypatch.setattr(
+        "fun_time.controller_vlc_actions_app.vlc_http_cmd",
+        lambda port, command, password: port == 8080 and command == "pl_next" and password == "pw",
+    )
+
+    code = main([
+        "send-command",
+        "--port",
+        "8080",
+        "--password",
+        "pw",
+        "--command",
+        "pl_next",
+    ])
+
+    assert code == 0
