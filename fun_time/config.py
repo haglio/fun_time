@@ -155,6 +155,10 @@ class ProjectConfig:
         return self.paths.state_dir / "broker_cmd.txt"
 
     @property
+    def broker_heartbeat_file(self) -> Path:
+        return self.paths.state_dir / "broker_heartbeat.txt"
+
+    @property
     def audio_cmd_file(self) -> Path:
         return self.paths.state_dir / "audio_cmd.txt"
 

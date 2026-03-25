@@ -38,6 +38,7 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--state-file", default=str(config.robot_hand_mode_file))
     ap.add_argument("--robot-hand-enabled-file", default=str(config.robot_hand_enabled_file))
     ap.add_argument("--broker-cmd-file", default=str(config.broker_cmd_file))
+    ap.add_argument("--heartbeat-file", default=str(config.broker_heartbeat_file))
     return ap
 
 
@@ -71,6 +72,20 @@ def ensure_robot_hand_enabled_file(path: Path, logger: logging.Logger) -> None:
         logger.exception("Failed to initialize Robot Hand enabled file %s", path)
 
 
+def write_heartbeat(path: Path, logger: logging.Logger) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(time.time()), encoding="utf-8")
+    except Exception:
+        logger.exception("Failed to write broker heartbeat %s", path)
+
+
+def heartbeat_loop(path: Path, stop_event: threading.Event, logger: logging.Logger, sleep=time.sleep) -> None:
+    while not stop_event.is_set():
+        write_heartbeat(path, logger)
+        sleep(0.5)
+
+
 def udp_send(sock: socket.socket, host: str, port: int, msg: str) -> None:
     sock.sendto(msg.encode("utf-8"), (host, port))
 
@@ -89,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     state_file = Path(args.state_file)
     robot_hand_enabled_file = Path(args.robot_hand_enabled_file)
     broker_cmd_file = Path(args.broker_cmd_file)
+    heartbeat_file = Path(args.heartbeat_file)
     ensure_robot_hand_enabled_file(robot_hand_enabled_file, logger)
     robot_hand_enabled = read_robot_hand_enabled(robot_hand_enabled_file)
     stop_event = threading.Event()
@@ -125,6 +141,11 @@ def main(argv: list[str] | None = None) -> int:
     write_mode(state_file, "0", logger)
 
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    heartbeat_thread = start_daemon_thread(
+        target=heartbeat_loop,
+        args=(heartbeat_file, stop_event, logger),
+        name="broker-heartbeat",
+    )
     logger.info("Starting broker: %s <-> %s", args.virtual_port, args.real_port)
     logger.info("Robot Hand UDP target: %s:%s", args.udp_host, args.udp_port)
 
@@ -139,6 +160,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Broker interrupted")
     finally:
         stop_event.set()
+        heartbeat_thread.join(timeout=1.0)
         udp_sock.close()
 
     return 0

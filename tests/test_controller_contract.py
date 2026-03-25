@@ -31,7 +31,6 @@ def test_controller_defines_robot_hand_status_indicator():
     assert "pidD := LaunchDashboardApp()" in text
     assert "UpdateFunTimeDashboard()" in text
     assert "SetTimer(ProcessDashboardCommand, 150)" in text
-    assert "GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected)" in text
     assert "TraySetIcon(ICON_PATH)" in text
 
 
@@ -81,18 +80,13 @@ def test_controller_dashboard_wires_existing_actions_into_click_targets():
     assert "Discard(3)" in text
 
 
-def test_controller_broker_probe_uses_wmi_instead_of_hidden_powershell():
+def test_controller_dashboard_no_longer_polls_broker_or_mfp_status_in_ahk():
     text = _controller_text()
-    fn_start = text.index("IsBrokerRunning() {")
-    fn_end = text.index("\nIsProcessAlive(pid) {", fn_start)
-    broker_block = text[fn_start:fn_end]
 
-    assert 'wmi := ComObjGet("winmgmts:")' in broker_block
-    assert 'query := "SELECT Name, CommandLine FROM Win32_Process WHERE "' in broker_block
-    assert 'for process in wmi.ExecQuery(query) {' in broker_block
-    assert 'InStr(cmdLine, "fun_time.broker_app")' in broker_block
-    assert 'InStr(cmdLine, "broker_tray.ps1") || InStr(cmdLine, "launch_broker_tray.vbs")' in broker_block
-    assert '"powershell.exe -NoProfile -WindowStyle Hidden -Command "' not in broker_block
+    assert "IsBrokerRunning() {" not in text
+    assert "IsProcessAlive(pid) {" not in text
+    assert "GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected)" not in text
+    assert 'RequireManifestValue("commands", "broker_heartbeat_file")' not in text
 
 
 def test_controller_reads_dashboard_bridge_paths_from_manifest():
@@ -164,9 +158,10 @@ def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper()
     text = _controller_text()
 
     assert 'robotHandEnabledNow := RobotHandEnabled()' in text
-    assert 'GetDashboardStatusSnapshot(&brokerRunningNow, &mfpConnectedNow)' in text
     assert 'primaryUsesRobotHand := robotHandMode && robotHandEnabledNow' in text
-    assert 'WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, brokerRunningNow, mfpConnectedNow, x, y, w, h, locked2, locked3)' in text
+    assert 'primaryResponsive := IsVlcResponsive(PRIMARY_VLC_PORT)' in text
+    assert 'mfpAlive := pidM && ProcessExist(pidM)' in text
+    assert 'WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, primaryResponsive, mfpAlive, x, y, w, h, locked2, locked3)' in text
 
 
 def test_controller_only_activates_robot_hand_window_on_transition():
@@ -187,7 +182,7 @@ def test_controller_dashboard_refresh_repositions_only_when_rect_changes():
     assert 'funTimeDashboardGui.Show("NA x" . x . " y" . y . " w" . w . " h" . h)' not in update_block
     assert 'WinMove(x, y, w, h, "ahk_id " funTimeDashboardGui.Hwnd)' not in update_block
     assert "GetFunTimeDashboardRect(&x, &y, &w, &h)" in update_block
-    assert 'WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, brokerRunningNow, mfpConnectedNow, x, y, w, h, locked2, locked3)' in update_block
+    assert 'WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, primaryResponsive, mfpAlive, x, y, w, h, locked2, locked3)' in update_block
 
 
 def test_controller_dashboard_snapshot_writer_declares_cache_global():

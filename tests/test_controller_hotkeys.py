@@ -104,10 +104,6 @@ def test_status_indicator_shows_robot_hand_and_f_mode_state():
     assert 'LABEL_BROKER := "Broker"' in text
     assert 'LABEL_CONTROLLER := "Controller"' in text
     assert 'LABEL_F_MODE := "F-Mode"' in text
-    assert '. "[controller]`n"' in text
-    assert '. "running=1`n"' in text
-    assert '. "[broker]`n"' in text
-    assert '. "running=" . (brokerRunning ? "1" : "0") . "`n"' in text
     assert '. "[fmode]`n"' in text
     assert '. "enabled=" . (fModeEnabled ? "1" : "0") . "`n"' in text
 
@@ -184,11 +180,14 @@ def test_dashboard_does_not_include_hover_tip_workaround():
 def test_dashboard_exports_runtime_snapshot_for_python_bridge():
     text = _controller_text()
 
-    assert "WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, brokerRunningNow, mfpConnectedNow, x, y, w, h, locked2, locked3)" in text
+    assert "WriteDashboardStateSnapshot(primaryPath, portraitPath, landscapePath, primaryUsesRobotHand, osr2Auto, robotHandEnabledNow, primaryResponsive, mfpAlive, x, y, w, h, locked2, locked3)" in text
     assert 'snapshotText := "[window]`n"' in text
     assert '. "x=" . x . "`n"' in text
     assert '. "width=" . w . "`n"' in text
-    assert '. "running=" . (brokerRunning ? "1" : "0") . "`n"' in text
+    assert '. "[mfp]`n"' in text
+    assert '. "alive=" . (mfpAlive ? "1" : "0") . "`n"' in text
+    assert '. "[primary]`n"' in text
+    assert '. "responsive=" . (primaryResponsive ? "1" : "0") . "`n"' in text
     assert '. "uses_robot_hand=" . (primaryUsesRobotHand ? "1" : "0") . "`n"' in text
     assert '. "path=" . IniEscape(primaryPath) . "`n"' in text
     assert '. "mode=" . (osr2Auto ? "auto" : "controlled") . "`n"' in text
@@ -200,13 +199,14 @@ def test_dashboard_exports_runtime_snapshot_for_python_bridge():
     assert 'FileAppend(snapshotText, DASHBOARD_STATE_FILE, "UTF-16")' in text
 
 
-def test_dashboard_caches_expensive_status_probes_between_refreshes():
+def test_dashboard_no_longer_caches_broker_and_mfp_status_probes_in_ahk():
     text = _controller_text()
 
-    assert "GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected) {" in text
-    assert 'if (dashboardStatusRefreshTick = 0 || (A_TickCount - dashboardStatusRefreshTick) >= 2000) {' in text
-    assert 'brokerRunningNow := IsBrokerRunning()' in text
-    assert 'dashboardMfpConnected := IsProcessAlive(pidM) && IsVlcResponsive(PRIMARY_VLC_PORT) && brokerRunningNow' in text
+    assert "GetDashboardStatusSnapshot(&brokerRunning, &mfpConnected) {" not in text
+    assert "dashboardStatusRefreshTick := 0" not in text
+    assert "dashboardMfpConnected := " not in text
+    assert 'primaryResponsive := IsVlcResponsive(PRIMARY_VLC_PORT)' in text
+    assert 'mfpAlive := pidM && ProcessExist(pidM)' in text
 
 
 def test_dashboard_snapshot_writer_avoids_rewriting_identical_state():

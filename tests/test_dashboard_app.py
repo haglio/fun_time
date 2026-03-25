@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fun_time.controller_manifest import write_controller_manifest
 from fun_time.dashboard_app import (
+    COLOR_DISABLED,
     COLOR_ACTIVE_ALT,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
@@ -80,14 +81,16 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
         f"local_file,web_url\n{portrait_path},\n",
         encoding="utf-8",
     )
+    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
+    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat_file.write_text("100.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        broker_running=True,
-        controller_running=True,
         f_mode_enabled=False,
         robot_link_enabled=False,
         primary_uses_robot_hand=False,
         osr2_mode="auto",
-        mfp_connected=True,
+        mfp_alive=True,
+        primary_responsive=True,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot(str(portrait_path), True),
         landscape=DashboardPanelSnapshot(str(landscape_path), False),
@@ -99,6 +102,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
         snapshot,
         primary_sources="|".join(str(path) for path in config.paths.primary_vlc_dirs),
         favs_file=favs_file,
+        broker_heartbeat_file=heartbeat_file,
     )
 
     texts = {item.text for item in scene.texts}
@@ -129,13 +133,12 @@ def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path:
     )
     scene = build_dashboard_scene(preview_layout)
     snapshot = DashboardSnapshot(
-        broker_running=False,
-        controller_running=True,
         f_mode_enabled=False,
         robot_link_enabled=True,
         primary_uses_robot_hand=False,
         osr2_mode="controlled",
-        mfp_connected=False,
+        mfp_alive=False,
+        primary_responsive=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False),
         landscape=DashboardPanelSnapshot("", False),
@@ -153,3 +156,37 @@ def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path:
     apply_dashboard_window_geometry(root, snapshot, scene)
 
     assert root.geometry_value == "333x444+111+222"
+
+
+def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
+    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat_file.write_text("0.0", encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=True,
+        primary_uses_robot_hand=False,
+        osr2_mode="controlled",
+        mfp_alive=True,
+        primary_responsive=True,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False),
+        landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(111, 222, 333, 444),
+    )
+
+    scene = build_dashboard_scene(
+        preview_layout,
+        snapshot,
+        broker_heartbeat_file=heartbeat_file,
+    )
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[preview_layout.broker_panel] == COLOR_DISABLED
+    assert fills[preview_layout.mfp_panel] == COLOR_DISABLED

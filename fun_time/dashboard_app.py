@@ -25,7 +25,7 @@ from fun_time.dashboard_actions import (
     QUARTER_BUTTON,
 )
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
-from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
+from fun_time.dashboard_runtime import DashboardSnapshot, is_broker_heartbeat_fresh, load_dashboard_snapshot
 from fun_time.dashboard_state import (
     LABEL_BROKER,
     LABEL_CONTROLLER,
@@ -62,6 +62,7 @@ class DashboardAppConfig:
     manifest_path: Path
     primary_sources: str
     favs_file: Path
+    broker_heartbeat_file: Path
     dashboard_state_file: Path
     dashboard_cmd_file: Path
 
@@ -109,6 +110,7 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         manifest_path=manifest_path,
         primary_sources=parser.get("media", "primary_vlc_sources", fallback=""),
         favs_file=Path(parser.get("media", "favs_file", fallback="favs.csv")),
+        broker_heartbeat_file=Path(parser.get("commands", "broker_heartbeat_file", fallback="broker_heartbeat.txt")),
         dashboard_state_file=Path(parser.get("commands", "dashboard_state_file", fallback="dashboard_state.ini")),
         dashboard_cmd_file=Path(parser.get("commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt")),
     )
@@ -201,6 +203,7 @@ def build_dashboard_scene(
     *,
     primary_sources: str = "",
     favs_file: Path | None = None,
+    broker_heartbeat_file: Path | None = None,
 ) -> DashboardScene:
     primary_label = LABEL_PRIMARY_VLC
     portrait_label = LABEL_PORTRAIT_VLC
@@ -224,12 +227,14 @@ def build_dashboard_scene(
 
     if snapshot is not None:
         favs_content = read_favs_content(favs_file) if favs_file is not None else ""
+        broker_running = is_broker_heartbeat_fresh(broker_heartbeat_file) if broker_heartbeat_file is not None else False
+        mfp_connected = snapshot.mfp_alive and snapshot.primary_responsive and broker_running
         primary_label_name = LABEL_PRIMARY_ROBOT if snapshot.primary_uses_robot_hand else LABEL_PRIMARY_VLC
         primary_label = f"{primary_label_name}\n{clip_label_from_path('' if snapshot.primary_uses_robot_hand else snapshot.primary.path)}"
         portrait_label = f"{LABEL_PORTRAIT_VLC}\n{clip_label_from_path(snapshot.portrait.path)}"
         landscape_label = f"{LABEL_LANDSCAPE_VLC}\n{clip_label_from_path(snapshot.landscape.path)}"
         osr2_label = f"{LABEL_OSR2}\n{snapshot.osr2_mode}"
-        mfp_label = f"{LABEL_MFP}\n{'connected' if snapshot.mfp_connected else 'disconnected'}"
+        mfp_label = f"{LABEL_MFP}\n{'connected' if mfp_connected else 'disconnected'}"
         link_label = "Robot Link" if snapshot.robot_link_enabled else "Broken Link"
         primary_fill = COLOR_ACTIVE_ALT if primary_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
@@ -245,8 +250,8 @@ def build_dashboard_scene(
             is_favorite=is_favorite_path(snapshot.landscape.path, favs_content),
         ) else COLOR_PANEL
         osr2_fill = COLOR_ACTIVE if snapshot.osr2_mode == "auto" else COLOR_WARNING
-        mfp_fill = COLOR_ACTIVE if snapshot.mfp_connected else COLOR_DISABLED
-        broker_fill = COLOR_ACTIVE if snapshot.broker_running else COLOR_DISABLED
+        mfp_fill = COLOR_ACTIVE if mfp_connected else COLOR_DISABLED
+        broker_fill = COLOR_ACTIVE if broker_running else COLOR_DISABLED
         fmode_fill = COLOR_ACTIVE_ALT if snapshot.f_mode_enabled else COLOR_PANEL
         portrait_lock_fill = COLOR_ACTIVE if snapshot.portrait.locked else COLOR_PANEL
         landscape_lock_fill = COLOR_ACTIVE if snapshot.landscape.locked else COLOR_PANEL
@@ -391,6 +396,7 @@ def build_dashboard_window(app_config: DashboardAppConfig) -> tk.Tk:
             snapshot,
             primary_sources=app_config.primary_sources,
             favs_file=app_config.favs_file,
+            broker_heartbeat_file=app_config.broker_heartbeat_file,
         )
         apply_dashboard_window_geometry(root, snapshot, scene)
         render_dashboard_scene(canvas, scene)
