@@ -18,6 +18,7 @@ from .bridge_command_dispatch import (
     dispatch_command,
 )
 from .windows_bridge_dashboard_bridge import write_dashboard_snapshot
+from .windows_bridge_dispatch_loop import write_shared_state
 from .windows_bridge_runtime_flow import read_flag_file
 
 
@@ -36,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--robot-hand-mode", default="0")
     ap.add_argument("--f-mode-enabled", default="0")
     ap.add_argument("--omni-paused", default="0")
+    ap.add_argument("--shared-state-file", default="")
     ap.add_argument("--dashboard-state-file", default="")
     ap.add_argument("--dashboard-enabled", default="0")
     ap.add_argument("--mfp-alive", default="0")
@@ -124,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         dispatch_logger.removeHandler(capture)
     _write_result(Path(args.result_file), new_state, ops, capture.messages)
+    if args.shared_state_file:
+        write_shared_state(Path(args.shared_state_file), new_state)
     if _to_bool(args.dashboard_enabled) and args.dashboard_state_file:
         robot_link_enabled = read_flag_file(config.robot_hand_enabled_file, True)
         robot_hand_mode_on = read_flag_file(config.robot_hand_mode_file, False)

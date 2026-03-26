@@ -129,3 +129,84 @@ def get_window_rect(hwnd: int) -> tuple[int, int, int, int]:
     rect = ctypes.wintypes.RECT()
     _user32.GetWindowRect(hwnd, ctypes.byref(rect))
     return rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top
+
+
+# --- SendInput structures for keyboard simulation ---
+
+INPUT_KEYBOARD = 1
+KEYEVENTF_KEYUP = 0x0002
+VK_CONTROL = 0x11
+VK_O = 0x4F
+
+
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", ctypes.wintypes.WORD),
+        ("wScan", ctypes.wintypes.WORD),
+        ("dwFlags", ctypes.wintypes.DWORD),
+        ("time", ctypes.wintypes.DWORD),
+        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+    ]
+
+
+class INPUT(ctypes.Structure):
+    class _INPUT_UNION(ctypes.Union):
+        _fields_ = [("ki", KEYBDINPUT)]
+
+    _fields_ = [
+        ("type", ctypes.wintypes.DWORD),
+        ("union", _INPUT_UNION),
+    ]
+
+
+def send_ctrl_o() -> None:
+    """Send Ctrl+O via SendInput (requires target window to be foreground)."""
+    inputs = (INPUT * 4)()
+    for i, (vk, flags) in enumerate([
+        (VK_CONTROL, 0),
+        (VK_O, 0),
+        (VK_O, KEYEVENTF_KEYUP),
+        (VK_CONTROL, KEYEVENTF_KEYUP),
+    ]):
+        inputs[i].type = INPUT_KEYBOARD
+        inputs[i].union.ki.wVk = vk
+        inputs[i].union.ki.dwFlags = flags
+    _user32.SendInput(4, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+
+
+def find_dialog_by_pid(pid: int, timeout_s: float = 1.0) -> int:
+    """Find a dialog window (class #32770) belonging to *pid*. Returns 0 on timeout."""
+    deadline = time.monotonic() + timeout_s
+    class_buf = ctypes.create_unicode_buffer(256)
+
+    while time.monotonic() < deadline:
+        found: int = 0
+
+        def callback(hwnd: int, _lparam: int) -> bool:
+            nonlocal found
+            if not _user32.IsWindowVisible(hwnd):
+                return True
+            window_pid = ctypes.wintypes.DWORD()
+            _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
+            if window_pid.value != pid:
+                return True
+            _user32.GetClassNameW(hwnd, class_buf, 256)
+            if class_buf.value == "#32770":
+                found = hwnd
+                return False
+            return True
+
+        _user32.EnumWindows(WNDENUMPROC(callback), 0)
+        if found:
+            return found
+        time.sleep(0.1)
+    return 0
+
+
+def wait_for_window_close(hwnd: int, timeout_s: float = 300.0) -> None:
+    """Block until *hwnd* is destroyed or timeout."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if not _user32.IsWindow(hwnd):
+            return
+        time.sleep(0.1)

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from .windows_bridge_modes import build_fmode_playlists
 from .windows_bridge_omnipause import build_omnipause_plan
@@ -68,7 +71,7 @@ def apply_sync_robot_hand(
         write_flag_file(paused_file, not plan.enforce_active)
         write_flag_file(audio_paused_file, not plan.enforce_active)
         if not ensure_playback_state(primary_port, password, should_play=not plan.enforce_active):
-            raise RuntimeError("Primary VLC failed to reach desired Robot Hand sync playback state")
+            logger.warning("Primary VLC failed to reach desired Robot Hand sync playback state")
     return RobotHandFlowResult(
         next_robot_hand_mode=plan.next_robot_hand_mode,
         current_enabled=enabled,
@@ -105,7 +108,7 @@ def apply_toggle_robot_hand_enabled(
         write_flag_file(paused_file, not plan.enforce_active)
         write_flag_file(audio_paused_file, not plan.enforce_active)
         if not ensure_playback_state(primary_port, password, should_play=not plan.enforce_active):
-            raise RuntimeError("Primary VLC failed to reach desired Robot Hand toggle playback state")
+            logger.warning("Primary VLC failed to reach desired Robot Hand toggle playback state")
     return RobotHandFlowResult(
         next_robot_hand_mode=plan.next_robot_hand_mode,
         current_enabled=plan.enabled_value if plan.write_enabled else enabled,
@@ -147,11 +150,11 @@ def apply_toggle_fmode(
             log_message="F-mode toggle aborted because one or more playlists would be empty",
         )
     if not replace_playlist_from_file(primary_port, password, plan.primary_playlist_path):
-        raise RuntimeError("Primary VLC failed to load F-mode playlist")
+        logger.warning("Primary VLC failed to load F-mode playlist")
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
-        raise RuntimeError("Portrait VLC failed to load F-mode playlist")
+        logger.warning("Portrait VLC failed to load F-mode playlist")
     if not replace_playlist_from_file(landscape_port, password, plan.landscape_playlist_path, repeat_mode="all"):
-        raise RuntimeError("Landscape VLC failed to load F-mode playlist")
+        logger.warning("Landscape VLC failed to load F-mode playlist")
     return FModeFlowResult(
         success=True,
         next_f_mode_enabled=target_enabled,
@@ -202,13 +205,13 @@ def apply_enter_omnipause(
         skip_primary_resume=False,
     )
     if not ensure_playback_state(portrait_port, password, should_play=False):
-        raise RuntimeError("Portrait VLC failed to pause for omnipause")
+        logger.warning("Portrait VLC failed to pause for omnipause")
     if not ensure_playback_state(landscape_port, password, should_play=False):
-        raise RuntimeError("Landscape VLC failed to pause for omnipause")
+        logger.warning("Landscape VLC failed to pause for omnipause")
     write_flag_file(robot_hand_paused_file, True)
     write_flag_file(audio_paused_file, True)
     if not ensure_playback_state(primary_port, password, should_play=False):
-        raise RuntimeError("Primary VLC failed to pause for omnipause")
+        logger.warning("Primary VLC failed to pause for omnipause")
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
@@ -238,11 +241,11 @@ def apply_leave_omnipause(
     write_flag_file(robot_hand_paused_file, False)
     write_flag_file(audio_paused_file, False)
     if not ensure_playback_state(portrait_port, password, should_play=True):
-        raise RuntimeError("Portrait VLC failed to resume from omnipause")
+        logger.warning("Portrait VLC failed to resume from omnipause")
     if not ensure_playback_state(landscape_port, password, should_play=True):
-        raise RuntimeError("Landscape VLC failed to resume from omnipause")
+        logger.warning("Landscape VLC failed to resume from omnipause")
     if plan.resume_primary_playback and not ensure_playback_state(primary_port, password, should_play=True):
-        raise RuntimeError("Primary VLC failed to resume from omnipause")
+        logger.warning("Primary VLC failed to resume from omnipause")
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,

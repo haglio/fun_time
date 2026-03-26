@@ -7,6 +7,7 @@ down all child processes.
 from __future__ import annotations
 
 import configparser
+import datetime
 import logging
 import subprocess
 import threading
@@ -67,6 +68,40 @@ def _shutdown_children(result: StartupResult) -> None:
         kill_process_tree(pid)
 
 
+class _AppendOnWriteHandler(logging.Handler):
+    """Logging handler that opens/closes the file on each write.
+
+    AHK's Log() function uses FileAppend which also opens/closes per write.
+    Using a persistent file handle (like RotatingFileHandler) would hold a
+    Windows file lock and block AHK from writing to the same log file.
+    """
+
+    def __init__(self, log_path: Path):
+        super().__init__()
+        self.log_path = log_path
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            msg = f"{ts} {record.getMessage()}\r\n"
+            with self.log_path.open("a", encoding="utf-8") as fh:
+                fh.write(msg)
+        except Exception:
+            pass
+
+
+def _add_dispatch_file_handler(log_path: Path) -> None:
+    """Add a file handler to the bridge_command_dispatch logger.
+
+    This ensures log messages from Python-dispatched commands appear in the
+    windows bridge log file — the same file AHK writes to.
+    """
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    dispatch_logger = logging.getLogger("fun_time.bridge_command_dispatch")
+    dispatch_logger.setLevel(logging.INFO)
+    dispatch_logger.addHandler(_AppendOnWriteHandler(log_path))
+
+
 def run_python_orchestrated_bridge(
     *,
     manifest_path: str | Path,
@@ -108,6 +143,11 @@ def run_python_orchestrated_bridge(
     bridge_config = build_bridge_config_from_manifest(manifest)
     dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
 
+    # Route dispatch log messages to the windows bridge log file so they
+    # appear alongside AHK log entries (integration tests read this file).
+    wb_log_path = Path(manifest["runtime"]["windows_bridge_log_file"])
+    _add_dispatch_file_handler(wb_log_path)
+
     dispatch_runner = DispatchLoopRunner(
         config=bridge_config,
         dashboard_cmd_file=Path(manifest["commands"]["dashboard_cmd_file"]),
@@ -115,6 +155,9 @@ def run_python_orchestrated_bridge(
         ahk_cmd_file=state_dir / "ahk_cmd.txt",
         primary_pid=result.primary_pid,
         mfp_pid=result.mfp_pid,
+        portrait_pid=result.portrait_pid,
+        landscape_pid=result.landscape_pid,
+        dashboard_pid=result.dashboard_pid,
         dashboard_enabled=dashboard_enabled,
     )
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")

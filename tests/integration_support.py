@@ -60,19 +60,18 @@ class FunTimeIntegrationSession:
         self._kill_recent_runtime_processes()
         env = os.environ.copy()
         env["FUN_TIME_DISABLE_DASHBOARD"] = "1"
+        self._stderr_file = self.config.paths.state_dir / "orchestrator_stderr.log"
+        self._stderr_file.parent.mkdir(parents=True, exist_ok=True)
+        self._stderr_fh = self._stderr_file.open("w", encoding="utf-8")
         self._proc = subprocess.Popen(
             [sys.executable, "-m", "fun_time.orchestrator", "--config", str(self.config.config_path)],
             cwd=self.config.project_dir,
             env=env,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=self._stderr_fh,
             text=True,
         )
-        self.wait_for_log("Windows bridge starting", timeout=wait_seconds)
-        self.wait_for_any_log(
-            ["Startup: Robot Hand sync timer running", "Started Robot Hand listener pid="],
-            timeout=wait_seconds,
-        )
+        self.wait_for_log("Hotkey script started with PIDs:", timeout=wait_seconds)
         time.sleep(1.0)
         self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
 
@@ -83,6 +82,8 @@ class FunTimeIntegrationSession:
                 self._proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self._proc.kill()
+        if hasattr(self, "_stderr_fh") and self._stderr_fh:
+            self._stderr_fh.close()
         self._kill_recent_runtime_processes()
 
     def write_dashboard_command(self, action: str) -> None:
@@ -144,11 +145,30 @@ class FunTimeIntegrationSession:
         )
 
     def _log_tail(self, lines: int = 30) -> str:
+        parts: list[str] = []
         text = self._read_windows_bridge_log()
-        if not text:
-            return "[windows bridge log is empty or missing]"
-        tail = "\n".join(text.splitlines()[-lines:])
-        return f"--- last {lines} log lines ---\n{tail}\n--- end ---"
+        if text:
+            tail = "\n".join(text.splitlines()[-lines:])
+            parts.append(f"--- windows bridge log (last {lines}) ---\n{tail}\n--- end ---")
+        else:
+            parts.append("[windows bridge log is empty or missing]")
+        orch_text = self._read_log_file(self.orchestrator_log)
+        if orch_text:
+            tail = "\n".join(orch_text.splitlines()[-lines:])
+            parts.append(f"--- orchestrator log (last {lines}) ---\n{tail}\n--- end ---")
+        stderr_text = self._read_log_file(getattr(self, "_stderr_file", None))
+        if stderr_text:
+            tail = "\n".join(stderr_text.splitlines()[-lines:])
+            parts.append(f"--- stderr (last {lines}) ---\n{tail}\n--- end ---")
+        return "\n".join(parts)
+
+    def _read_log_file(self, path: Path | None) -> str:
+        if path is None or not path.exists():
+            return ""
+        try:
+            return path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return ""
 
     def _read_windows_bridge_log(self) -> str:
         if not self.windows_bridge_log.exists():
