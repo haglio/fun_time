@@ -140,6 +140,32 @@ def compute_left_partition_stack(
     return dashboard, mfp
 
 
+def plan_window_layout(
+    monitors: list,
+    layout_config: LayoutConfig,
+    mfp_size: Size,
+) -> WindowLayoutPlan:
+    """Compute window layout from live monitor list and config.
+
+    ``monitors`` is a list of ``MonitorInfo`` from ``windows_bridge_monitors``.
+    This is the direct-call equivalent of shelling out to
+    ``windows_bridge_window_layout_app.py``.
+    """
+    from .windows_bridge_monitors import get_logical_monitor_rects
+
+    main_rect, secondary_rect = get_logical_monitor_rects(
+        monitors,
+        main_index=layout_config.main_monitor,
+        secondary_index=layout_config.secondary_monitor,
+    )
+    return compute_window_layout(
+        main_monitor=main_rect,
+        secondary_monitor=secondary_rect,
+        layout_config=layout_config,
+        mfp_size=mfp_size,
+    )
+
+
 def write_window_layout_plan(path: Path, plan: WindowLayoutPlan) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     parser = configparser.ConfigParser()

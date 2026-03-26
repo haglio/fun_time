@@ -8,8 +8,10 @@ from fun_time.windows_bridge_window_layout import (
     compute_dashboard_size,
     compute_left_partition_stack,
     compute_window_layout,
+    plan_window_layout,
     write_window_layout_plan,
 )
+from fun_time.windows_bridge_monitors import MonitorInfo
 from fun_time import load_config
 
 
@@ -91,3 +93,21 @@ def test_write_window_layout_plan_writes_named_sections(tmp_path: Path, cfg_path
     assert "[portrait]" in text
     assert "[dashboard]" in text
     assert "width = 321" in text
+
+
+def test_plan_window_layout_combines_monitors_and_config(cfg_path: Path):
+    config = load_config(cfg_path)
+    monitors = [
+        MonitorInfo(x=0, y=0, width=2560, height=1392),
+        MonitorInfo(x=2560, y=0, width=1440, height=3440),
+    ]
+
+    plan = plan_window_layout(
+        monitors=monitors,
+        layout_config=config.controller.layout,
+        mfp_size=Size(240, 395),
+    )
+
+    assert plan.portrait.x == 2560
+    assert plan.landscape.width == int(2560 * config.controller.layout.landscape_width_ratio)
+    assert plan.mfp.width == 240
