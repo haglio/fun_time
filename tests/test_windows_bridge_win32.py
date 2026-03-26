@@ -12,11 +12,13 @@ from fun_time.windows_bridge_win32 import (
     get_window_rect,
     find_window_by_pid,
     find_dialog_by_pid,
+    minimize_window,
     send_ctrl_o,
     send_alt_key_to_window,
     wait_for_window_close,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
+    SW_MINIMIZE,
     SW_RESTORE,
     SWP_NOZORDER,
     SWP_NOACTIVATE,
@@ -161,6 +163,13 @@ class TestSendAltKeyToWindow:
         assert calls[1][0][0] == 12345
         assert calls[1][0][1] == 0x0105
         assert calls[1][0][2] == 0x25
+
+
+class TestMinimizeWindow:
+    def test_calls_show_window_with_sw_minimize(self):
+        with patch("fun_time.windows_bridge_win32._user32") as mock_user32:
+            minimize_window(99999)
+        mock_user32.ShowWindow.assert_called_once_with(99999, SW_MINIMIZE)
 
 
 class TestConstants:

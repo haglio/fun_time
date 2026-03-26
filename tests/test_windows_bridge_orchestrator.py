@@ -9,6 +9,7 @@ import pytest
 from fun_time.config import load_config
 from fun_time.windows_bridge_manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
+    _minimize_all_windows,
     write_pids_file,
     run_python_orchestrated_bridge,
 )
@@ -53,6 +54,101 @@ class TestWritePidsFile:
         assert parser.getint("pids", "dashboard_pid") == 500
         assert parser.getint("pids", "robot_hand_pid") == 600
         assert parser.getint("pids", "audio_pid") == 700
+
+
+class TestMinimizeAllWindows:
+    def test_minimizes_windows_for_all_visible_pids(self):
+        result = _fake_startup_result()
+        minimized_hwnds: list[int] = []
+
+        def fake_find(pid):
+            return pid * 10  # e.g. pid 100 -> hwnd 1000
+
+        def fake_minimize(hwnd):
+            minimized_hwnds.append(hwnd)
+
+        with patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=fake_find), \
+             patch("fun_time.windows_bridge_orchestrator.minimize_window", side_effect=fake_minimize):
+            _minimize_all_windows(result)
+
+        assert 1000 in minimized_hwnds  # primary
+        assert 2000 in minimized_hwnds  # mfp
+        assert 3000 in minimized_hwnds  # portrait
+        assert 4000 in minimized_hwnds  # landscape
+        assert 6000 in minimized_hwnds  # robot_hand
+
+    def test_skips_pids_without_windows(self):
+        result = _fake_startup_result()
+        minimized_hwnds: list[int] = []
+
+        def fake_find(pid):
+            return pid * 10 if pid != 200 else 0  # mfp has no window
+
+        def fake_minimize(hwnd):
+            minimized_hwnds.append(hwnd)
+
+        with patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=fake_find), \
+             patch("fun_time.windows_bridge_orchestrator.minimize_window", side_effect=fake_minimize):
+            _minimize_all_windows(result)
+
+        assert 2000 not in minimized_hwnds
+        assert len(minimized_hwnds) == 4
+
+    def test_called_during_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        def fake_sequence(**kwargs):
+            return _fake_startup_result()
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator._minimize_all_windows") as mock_minimize:
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        mock_minimize.assert_called_once()
+
+    def test_not_called_outside_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        def fake_sequence(**kwargs):
+            return _fake_startup_result()
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator._minimize_all_windows") as mock_minimize:
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        mock_minimize.assert_not_called()
 
 
 class TestRunPythonOrchestratedBridge:

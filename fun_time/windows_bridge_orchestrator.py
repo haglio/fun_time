@@ -9,6 +9,7 @@ from __future__ import annotations
 import configparser
 import datetime
 import logging
+import os
 import subprocess
 import threading
 from pathlib import Path
@@ -18,6 +19,7 @@ from .windows_bridge_dispatch_loop import (
     build_bridge_config_from_manifest,
 )
 from .windows_bridge_sequencer import StartupResult, run_startup_sequence
+from .windows_bridge_win32 import find_window_by_pid, minimize_window
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,23 @@ def kill_process_tree(pid: int) -> None:
         )
     except OSError:
         pass
+
+
+def _minimize_all_windows(result: StartupResult) -> None:
+    """Minimize all Fun Time windows so integration tests don't take over the display."""
+    for pid in [
+        result.primary_pid,
+        result.mfp_pid,
+        result.portrait_pid,
+        result.landscape_pid,
+        result.robot_hand_pid,
+    ]:
+        if not pid:
+            continue
+        hwnd = find_window_by_pid(pid)
+        if hwnd:
+            minimize_window(hwnd)
+    logger.info("Minimized all windows for integration test run")
 
 
 def _shutdown_children(result: StartupResult) -> None:
@@ -132,6 +151,9 @@ def run_python_orchestrated_bridge(
         result.primary_pid, result.mfp_pid, result.portrait_pid, result.landscape_pid,
         result.dashboard_pid, result.robot_hand_pid, result.audio_pid,
     )
+
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
+        _minimize_all_windows(result)
 
     pids_file = state_dir / "bridge_pids.ini"
     write_pids_file(pids_file, result)
