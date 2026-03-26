@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import re
+import shutil
 import sys
 from pathlib import Path
 
 import pytest
 
-from .integration_support import FunTimeIntegrationSession, build_integration_config, integration_enabled
+from .integration_support import (
+    FunTimeIntegrationSession,
+    build_integration_config,
+    build_integration_temp_root,
+    integration_enabled,
+)
 
 
 pytestmark = pytest.mark.skipif(
@@ -16,25 +22,29 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture(scope="module")
-def shared_integration_session(tmp_path_factory):
-    config_path = build_integration_config(tmp_path_factory.mktemp("fun_time_integration_shared"))
+def shared_integration_session():
+    temp_root = build_integration_temp_root()
+    config_path = build_integration_config(temp_root)
     session = FunTimeIntegrationSession(config_path)
     try:
         session.start()
         yield session
     finally:
         session.stop()
+        shutil.rmtree(temp_root, ignore_errors=True)
 
 
 @pytest.fixture
-def isolated_integration_session(tmp_path):
-    config_path = build_integration_config(tmp_path)
+def isolated_integration_session():
+    temp_root = build_integration_temp_root()
+    config_path = build_integration_config(temp_root)
     session = FunTimeIntegrationSession(config_path)
     try:
         session.start()
         yield session
     finally:
         session.stop()
+        shutil.rmtree(temp_root, ignore_errors=True)
 
 
 @pytest.mark.integration
