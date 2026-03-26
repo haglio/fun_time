@@ -12,6 +12,5 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
-.tmp-pytest-cache/
-.tmp-pytest-local/
+.tmp-pytest-*/
 pytest-cache-files-*/
