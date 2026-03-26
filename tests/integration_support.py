@@ -71,7 +71,7 @@ class FunTimeIntegrationSession:
             stderr=self._stderr_fh,
             text=True,
         )
-        self.wait_for_log("Hotkey script started with primary PID=", timeout=wait_seconds)
+        self.wait_for_log("Hotkey script started", timeout=wait_seconds)
         time.sleep(1.0)
         self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
 

@@ -11,7 +11,7 @@ SetTitleMatchMode 2
 ;
 ; Args:
 ;   1  WINDOWS_BRIDGE_MANIFEST_PATH
-;   2  PIDS_FILE_PATH  (INI with [pids] section written by Python)
+;   2  PIDS_FILE_PATH  (accepted for compatibility, no longer read)
 
 if (A_Args.Length < 2) {
     MsgBox("Expected 2 arguments: manifest path, pids file path. Got " . A_Args.Length, "fun_time", "Iconx")
@@ -28,13 +28,6 @@ WINDOWS_BRIDGE_LOG_FILE := RequireManifestValue("runtime", "windows_bridge_log_f
 STATE_DIR := GetParentDir(WINDOWS_BRIDGE_LOG_FILE)
 ICON_PATH := PROJECT_DIR . "\icon.ico"
 
-; Read PIDs written by Python orchestrator (only pid1 needed for ControlSend).
-pid1 := IniRead(PIDS_FILE_PATH, "pids", "primary_pid", "0") + 0
-
-; Mutable state — synced from Python's shared state file.
-robotHandMode := false
-
-SHARED_STATE_FILE := STATE_DIR . "\shared_bridge_state.ini"
 AHK_CMD_FILE := STATE_DIR . "\ahk_cmd.txt"
 
 ; --- Setup ---
@@ -51,7 +44,7 @@ A_TrayMenu.AddStandard()
 
 SetTimer(ProcessAhkCommand, 150)
 
-Log("Hotkey script started with primary PID=" . pid1)
+Log("Hotkey script started")
 
 ; -------------------- HOTKEYS --------------------
 
@@ -67,16 +60,9 @@ SC01B::QueueCommand("primary_next")
 r::QueueCommand("robot_toggle")
 $f::QueueCommand("fmode_toggle")
 
-\::{
-    if (robotHandMode) {
-        QueueCommand("quarter_button")
-    } else {
-        QueueCommand("open_file_dialog")
-    }
-}
-
--::try ControlSend("!{Left}", , "ahk_pid " pid1)
-=::try ControlSend("!{Right}", , "ahk_pid " pid1)
+\::QueueCommand("backslash_key")
+-::QueueCommand("vlc_chapter_prev")
+=::QueueCommand("vlc_chapter_next")
 Left::QueueCommand("portrait_prev")
 Right::QueueCommand("portrait_next")
 Up::QueueCommand("portrait_trash")
@@ -95,7 +81,6 @@ QueueCommand(cmd) {
 
 ProcessAhkCommand() {
     global AHK_CMD_FILE
-    ReadSharedState()
     if !FileExist(AHK_CMD_FILE)
         return
     try {
@@ -110,15 +95,6 @@ ProcessAhkCommand() {
         Suspend true
     } else if (action = "unsuspend_hotkeys") {
         Suspend false
-    }
-}
-
-ReadSharedState() {
-    global robotHandMode, SHARED_STATE_FILE
-    if !FileExist(SHARED_STATE_FILE)
-        return
-    try {
-        robotHandMode := IniRead(SHARED_STATE_FILE, "state", "robot_hand_mode", "0") = "1"
     }
 }
 

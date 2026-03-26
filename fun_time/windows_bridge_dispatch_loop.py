@@ -20,6 +20,7 @@ from .windows_bridge_win32 import (
     find_window_by_pid,
     find_window_by_title,
     hide_window,
+    send_alt_key_to_window,
     send_ctrl_o,
     send_key_to_window,
     set_always_on_top,
@@ -59,6 +60,12 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
             hwnd = find_window_by_pid(primary_pid)
             if hwnd:
                 send_key_to_window(hwnd, op.key)
+            continue
+
+        if op.op == "send_alt_key":
+            hwnd = find_window_by_pid(primary_pid)
+            if hwnd:
+                send_alt_key_to_window(hwnd, op.vk)
             continue
 
         if op.title:
@@ -170,6 +177,15 @@ class DispatchLoopRunner:
                     daemon=True,
                     name="file-dialog",
                 ).start()
+            elif cmd == "backslash_key":
+                if self.state.robot_hand_mode:
+                    self._dispatch("quarter_button")
+                else:
+                    threading.Thread(
+                        target=self._handle_open_file_dialog,
+                        daemon=True,
+                        name="file-dialog",
+                    ).start()
             else:
                 self._dispatch(cmd)
 
