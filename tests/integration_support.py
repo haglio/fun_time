@@ -60,6 +60,7 @@ class FunTimeIntegrationSession:
         self._kill_recent_runtime_processes()
         env = os.environ.copy()
         env["FUN_TIME_DISABLE_DASHBOARD"] = "1"
+        env["FUN_TIME_MUTE_AUDIO"] = "1"
         self._stderr_file = self.config.paths.state_dir / "orchestrator_stderr.log"
         self._stderr_file.parent.mkdir(parents=True, exist_ok=True)
         self._stderr_fh = self._stderr_file.open("w", encoding="utf-8")
