@@ -11,6 +11,9 @@ from fun_time.windows_bridge_win32 import (
     activate_window,
     get_window_rect,
     find_window_by_pid,
+    find_dialog_by_pid,
+    send_ctrl_o,
+    wait_for_window_close,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
     SW_RESTORE,
@@ -79,6 +82,67 @@ class TestActivateWindow:
             activate_window(111)
 
         mock.SetForegroundWindow.assert_called_once_with(111)
+
+
+class TestSendCtrlO:
+    def test_calls_send_input_with_four_key_events(self):
+        with patch("fun_time.windows_bridge_win32._user32") as mock:
+            mock.SendInput.return_value = 4
+            send_ctrl_o()
+
+        mock.SendInput.assert_called_once()
+        args = mock.SendInput.call_args[0]
+        assert args[0] == 4  # four key events: ctrl down, o down, o up, ctrl up
+
+
+class TestFindDialogByPid:
+    def test_finds_dialog_window(self):
+        def fake_enum(callback, _lparam):
+            # Simulate a dialog window with class #32770 belonging to pid 100
+            callback(55555, 0)
+            return True
+
+        def fake_get_class(hwnd, buf, size):
+            if hwnd == 55555:
+                for i, c in enumerate("#32770"):
+                    buf[i] = c
+                buf[len("#32770")] = "\x00"
+            return len("#32770")
+
+        def fake_get_pid(hwnd, pid_ptr):
+            pid_ptr._obj.value = 100
+
+        with patch("fun_time.windows_bridge_win32._user32") as mock:
+            mock.EnumWindows.side_effect = fake_enum
+            mock.GetClassNameW.side_effect = fake_get_class
+            mock.GetWindowThreadProcessId.side_effect = fake_get_pid
+            mock.IsWindowVisible.return_value = True
+            result = find_dialog_by_pid(100, timeout_s=0.1)
+
+        assert result == 55555
+
+    def test_returns_zero_on_timeout(self):
+        with patch("fun_time.windows_bridge_win32._user32") as mock:
+            mock.EnumWindows.return_value = True  # no windows found
+            result = find_dialog_by_pid(100, timeout_s=0.05)
+
+        assert result == 0
+
+
+class TestWaitForWindowClose:
+    def test_returns_when_window_destroyed(self):
+        calls = [True, True, False]  # window exists, exists, gone
+
+        with patch("fun_time.windows_bridge_win32._user32") as mock:
+            mock.IsWindow.side_effect = calls
+            wait_for_window_close(55555, timeout_s=1.0)
+
+        assert mock.IsWindow.call_count == 3
+
+    def test_returns_on_timeout(self):
+        with patch("fun_time.windows_bridge_win32._user32") as mock:
+            mock.IsWindow.return_value = True  # window never closes
+            wait_for_window_close(55555, timeout_s=0.05)
 
 
 class TestConstants:

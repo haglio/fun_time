@@ -16,12 +16,15 @@ from .windows_bridge_dashboard_bridge import write_dashboard_snapshot
 from .windows_bridge_runtime_flow import read_flag_file
 from .windows_bridge_win32 import (
     activate_window,
+    find_dialog_by_pid,
     find_window_by_pid,
     find_window_by_title,
     hide_window,
+    send_ctrl_o,
     send_key_to_window,
     set_always_on_top,
     show_window,
+    wait_for_window_close,
 )
 
 logger = logging.getLogger(__name__)
@@ -125,6 +128,9 @@ class DispatchLoopRunner:
         ahk_cmd_file: Path,
         primary_pid: int,
         mfp_pid: int,
+        portrait_pid: int = 0,
+        landscape_pid: int = 0,
+        dashboard_pid: int = 0,
         dashboard_enabled: bool,
         sync_interval_ms: int = 200,
     ) -> None:
@@ -134,27 +140,47 @@ class DispatchLoopRunner:
         self.ahk_cmd_file = ahk_cmd_file
         self.primary_pid = primary_pid
         self.mfp_pid = mfp_pid
+        self.portrait_pid = portrait_pid
+        self.landscape_pid = landscape_pid
+        self.dashboard_pid = dashboard_pid
         self.dashboard_enabled = dashboard_enabled
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
+        self._ahk_cmd_pending_until = 0.0
         self._stop = threading.Event()
+        self._file_dialog_lock = threading.Lock()
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync robot hand."""
+        # Sync state from shared file — AHK hotkey dispatches update it directly.
+        shared = read_shared_state(self.shared_state_file)
+        if shared is not None:
+            self.state = shared
+
         # Dashboard command
         cmd = poll_dashboard_command(self.dashboard_cmd_file)
         if cmd:
             if cmd in _AHK_ONLY_COMMANDS:
                 self.ahk_cmd_file.write_text(cmd, encoding="utf-8")
+                # Suppress sync for a few seconds while AHK processes the
+                # command — prevents overwriting shared state with stale values.
+                self._ahk_cmd_pending_until = time.monotonic() + 5.0
+            elif cmd == "open_file_dialog":
+                threading.Thread(
+                    target=self._handle_open_file_dialog,
+                    daemon=True,
+                    name="file-dialog",
+                ).start()
             else:
                 self._dispatch(cmd)
 
-        # Robot hand sync
+        # Robot hand sync (skip while omni-paused or AHK command pending)
         now = time.monotonic()
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
-            self._dispatch("sync_robot_hand")
+            if not self.state.omni_paused and now >= self._ahk_cmd_pending_until:
+                self._dispatch("sync_robot_hand")
 
     def _dispatch(self, command: str) -> None:
         new_state, ops = dispatch_command(command, self.state, self.config)
@@ -180,6 +206,58 @@ class DispatchLoopRunner:
             )
         except Exception:
             pass
+
+    def _handle_open_file_dialog(self) -> None:
+        """Open VLC's file dialog with managed omnipause.
+
+        Replaces AHK's OpenPrimaryVlcFileDialogWithManagedOmniPause:
+        1. If not already paused: enter omnipause, suspend hotkeys, remove topmost
+        2. Activate primary VLC and send Ctrl+O
+        3. If entered omnipause: wait for the file dialog to close
+        4. Finally: leave omnipause, unsuspend hotkeys, restore topmost
+        """
+        if not self._file_dialog_lock.acquire(blocking=False):
+            return
+        try:
+            self._handle_open_file_dialog_inner()
+        finally:
+            self._file_dialog_lock.release()
+
+    def _handle_open_file_dialog_inner(self) -> None:
+        should_manage_omnipause = not self.state.omni_paused
+        all_pids = [self.primary_pid, self.portrait_pid, self.landscape_pid,
+                    self.mfp_pid, self.dashboard_pid]
+
+        if should_manage_omnipause:
+            self._dispatch("enter_omnipause")
+            self.ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
+            for pid in all_pids:
+                hwnd = find_window_by_pid(pid)
+                if hwnd:
+                    set_always_on_top(hwnd, False)
+
+        try:
+            primary_hwnd = find_window_by_pid(self.primary_pid)
+            if primary_hwnd:
+                activate_window(primary_hwnd)
+                time.sleep(0.05)
+            send_ctrl_o()
+
+            if should_manage_omnipause:
+                dialog_hwnd = find_dialog_by_pid(self.primary_pid, timeout_s=1.0)
+                if dialog_hwnd:
+                    wait_for_window_close(dialog_hwnd)
+        finally:
+            if should_manage_omnipause:
+                self._dispatch("leave_omnipause_skip_primary")
+                robot_hand_mode = self.state.robot_hand_mode
+                for pid in all_pids:
+                    if pid == self.primary_pid and robot_hand_mode:
+                        continue
+                    hwnd = find_window_by_pid(pid)
+                    if hwnd:
+                        set_always_on_top(hwnd, True)
+                self.ahk_cmd_file.write_text("unsuspend_hotkeys", encoding="utf-8")
 
     def run(self) -> None:
         """Main loop — call from a background thread."""

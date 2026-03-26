@@ -4,6 +4,7 @@ import configparser
 from pathlib import Path
 
 from fun_time.bridge_command_dispatch_app import main
+from fun_time.windows_bridge_dispatch_loop import read_shared_state
 
 
 def test_dispatch_app_writes_result_for_unknown_command(cfg_path: Path, tmp_path: Path):
@@ -90,6 +91,28 @@ def test_dispatch_app_skips_dashboard_when_disabled(cfg_path: Path, tmp_path: Pa
 
     assert exit_code == 0
     assert not dashboard_file.exists()
+
+
+def test_dispatch_app_writes_shared_state_file(cfg_path: Path, tmp_path: Path):
+    result_file = tmp_path / "result.ini"
+    shared_file = tmp_path / "shared_bridge_state.ini"
+
+    exit_code = main([
+        "bogus_command",
+        "--result-file", str(result_file),
+        "--config-path", str(cfg_path),
+        "--vlc-password", "pw",
+        "--locked2", "1",
+        "--omni-paused", "1",
+        "--shared-state-file", str(shared_file),
+    ])
+
+    assert exit_code == 0
+    assert shared_file.exists()
+    state = read_shared_state(shared_file)
+    assert state is not None
+    assert state.locked2 is True
+    assert state.omni_paused is True
 
 
 def test_dispatch_app_quarter_button_writes_robot_hand_cmd(cfg_path: Path, tmp_path: Path):

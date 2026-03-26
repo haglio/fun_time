@@ -86,7 +86,8 @@ $f::DispatchBridgeCommand("fmode_toggle")
     if (robotHandMode) {
         DispatchBridgeCommand("quarter_button")
     } else {
-        OpenPrimaryVlcFileDialogWithManagedOmniPause()
+        try FileDelete(DASHBOARD_CMD_FILE)
+        FileAppend("open_file_dialog", DASHBOARD_CMD_FILE, "UTF-8")
     }
 }
 
@@ -118,6 +119,10 @@ ProcessAhkCommand() {
         return
     if (action = "omnipause_toggle") {
         HandleOmniPauseToggle()
+    } else if (action = "suspend_hotkeys") {
+        Suspend true
+    } else if (action = "unsuspend_hotkeys") {
+        Suspend false
     }
 }
 
@@ -171,6 +176,7 @@ DispatchBridgeCommand(cmd) {
         . " --f-mode-enabled " . (fModeEnabled ? "1" : "0")
         . " --omni-paused " . (omniPaused ? "1" : "0")
         . " --dashboard-state-file " . Q(DASHBOARD_STATE_FILE)
+        . " --shared-state-file " . Q(SHARED_STATE_FILE)
         . " --dashboard-enabled " . (DASHBOARD_ENABLED ? "1" : "0")
         . " --mfp-alive " . (mfpAlive ? "1" : "0")
     pythonCmd := Q(ROBOT_HAND_PY) . " -m " . BRIDGE_COMMAND_DISPATCH_MODULE . " " . args
@@ -221,42 +227,6 @@ DispatchBridgeCommand(cmd) {
     }
 
     try FileDelete(resultPath)
-}
-
-OpenPrimaryVlcFileDialogWithManagedOmniPause() {
-    global pid1, pid2, pid3, pidM, pidD, omniPaused, robotHandMode
-
-    shouldLeaveOmniPause := !omniPaused
-    if (shouldLeaveOmniPause) {
-        DispatchBridgeCommand("enter_omnipause")
-        for pid in [pid1, pid2, pid3, pidM, pidD]
-            try WinSetAlwaysOnTop(false, "ahk_pid " pid)
-    }
-
-    try {
-        try {
-            WinActivate("ahk_pid " pid1)
-            WinWaitActive("ahk_pid " pid1, , 0.5)
-            Sleep 50
-            SendEvent("^o")
-        }
-
-        if (shouldLeaveOmniPause) {
-            dialogSpec := "ahk_class #32770 ahk_pid " pid1
-            if WinWait(dialogSpec, , 1.0)
-                WinWaitClose(dialogSpec)
-        }
-    } finally {
-        if (shouldLeaveOmniPause) {
-            DispatchBridgeCommand("leave_omnipause_skip_primary")
-            if (!robotHandMode)
-                try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
-            try WinSetAlwaysOnTop(true, "ahk_pid " pidD)
-            try WinSetAlwaysOnTop(true, "ahk_pid " pid2)
-            try WinSetAlwaysOnTop(true, "ahk_pid " pid3)
-            try WinSetAlwaysOnTop(true, "ahk_pid " pidM)
-        }
-    }
 }
 
 ; -------------------- UTILITIES --------------------
