@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
-
-import pytest
+from unittest.mock import patch
 
 from fun_time.bridge_command_dispatch import BridgeState, WindowOp
 
@@ -194,31 +192,30 @@ class TestDispatchLoopRunner:
         assert "portrait_next" in commands
         assert not cmd_file.exists()
 
-    def test_forwards_omnipause_to_ahk(self, tmp_path):
+    def test_dispatches_omnipause_in_python(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
-        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
         cmd_file.write_text("omnipause_toggle", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+        with patch.object(runner, "_handle_omnipause_toggle") as mock_handle:
             runner.tick()
 
-        # Should NOT dispatch in Python — forwarded to AHK
-        mock_dispatch.assert_not_called()
-        assert ahk_cmd_file.read_text(encoding="utf-8") == "omnipause_toggle"
-        # Pending flag suppresses sync_robot_hand
-        assert runner._ahk_cmd_pending_until > 0
+        mock_handle.assert_called_once()
 
-    def test_suppresses_sync_while_ahk_cmd_pending(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=100)
-        runner._last_sync = -999
-        runner._ahk_cmd_pending_until = time.monotonic() + 10.0
+    def test_dispatch_forwards_remaining_ops_to_ahk(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            runner.tick()
 
-        mock_dispatch.assert_not_called()
+        suspend_op = WindowOp(op="suspend_hotkeys")
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[suspend_op]):
+            mock_dispatch.return_value = (runner.state, [suspend_op])
+            runner._dispatch("some_command")
+
+        assert ahk_cmd_file.read_text(encoding="utf-8") == "suspend_hotkeys"
 
     def test_syncs_robot_hand_periodically(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
@@ -268,6 +265,99 @@ class TestDispatchLoopRunner:
         loaded = read_shared_state(state_file)
         assert loaded is not None
         assert loaded.locked3 is True
+
+
+class TestHandleOmniPauseToggle:
+    """Tests for omnipause toggle moved from AHK to Python."""
+
+    def _make_runner(self, tmp_path, **kwargs):
+        from fun_time.bridge_command_dispatch import BridgeConfig
+
+        config = BridgeConfig(
+            primary_port=9090,
+            portrait_port=9091,
+            landscape_port=9092,
+            vlc_password="test",
+            favs_file=tmp_path / "favs.txt",
+            weird_dir=tmp_path / "weird",
+            state_dir=tmp_path,
+            primary_sources="",
+            portrait_sources="",
+            landscape_sources="",
+            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
+            robot_hand_mode_file=tmp_path / "rh_mode.txt",
+            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
+            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            audio_paused_file=tmp_path / "audio_paused.txt",
+            dashboard_state_file=tmp_path / "dashboard_state.ini",
+        )
+        return DispatchLoopRunner(
+            config=config,
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            shared_state_file=tmp_path / "shared_state.ini",
+            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            primary_pid=100,
+            mfp_pid=200,
+            portrait_pid=300,
+            landscape_pid=400,
+            dashboard_pid=500,
+            dashboard_enabled=False,
+            **kwargs,
+        )
+
+    def test_entering_omnipause_removes_topmost(self, tmp_path):
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False)
+
+        topmost_calls = []
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
+            runner._handle_omnipause_toggle()
+
+        dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
+        assert "omnipause_toggle" in dispatched
+        removed = {h for h, v in topmost_calls if not v}
+        assert removed == {1001, 2001, 3001, 4001, 5001}
+
+    def test_leaving_omnipause_restores_topmost(self, tmp_path):
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+
+        topmost_calls = []
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            mock_dispatch.return_value = (BridgeState(omni_paused=False), [])
+            runner._handle_omnipause_toggle()
+
+        restored = {h for h, v in topmost_calls if v}
+        assert restored == {1001, 2001, 3001, 4001, 5001}
+
+    def test_leaving_skips_primary_topmost_in_robot_hand_mode(self, tmp_path):
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True, robot_hand_mode=True)
+
+        topmost_calls = []
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, robot_hand_mode=True), [])
+            runner._handle_omnipause_toggle()
+
+        restored = {h for h, v in topmost_calls if v}
+        assert 1001 not in restored
+        assert {2001, 3001, 4001, 5001} <= restored
 
 
 class TestHandleOpenFileDialog:
@@ -466,10 +556,15 @@ class TestHandleOpenFileDialog:
         # Should not wait for dialog
         mock_find_dialog.assert_not_called()
 
-    def test_sends_suspend_and_unsuspend_to_ahk(self, tmp_path):
+    def test_forwards_suspend_and_unsuspend_via_dispatch(self, tmp_path):
+        """Suspend/unsuspend reach AHK via _dispatch forwarding remaining ops."""
         runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
+
+
+        suspend_op = WindowOp(op="suspend_hotkeys")
+        unsuspend_op = WindowOp(op="unsuspend_hotkeys")
 
         ahk_commands_written = []
         original_write_text = Path.write_text
@@ -479,8 +574,11 @@ class TestHandleOpenFileDialog:
                 ahk_commands_written.append(text)
             return original_write_text(self_path, text, **kwargs)
 
+        # enter_omnipause returns suspend_hotkeys, leave_omnipause returns unsuspend
+        exec_returns = iter([[suspend_op], [unsuspend_op]])
+
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
              patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o"), \
@@ -492,7 +590,6 @@ class TestHandleOpenFileDialog:
 
         assert "suspend_hotkeys" in ahk_commands_written
         assert "unsuspend_hotkeys" in ahk_commands_written
-        # unsuspend must come after suspend
         assert ahk_commands_written.index("suspend_hotkeys") < ahk_commands_written.index("unsuspend_hotkeys")
 
     def test_concurrent_invocations_prevented(self, tmp_path):
