@@ -23,27 +23,26 @@ class TestStructure:
         assert "WINDOWS_BRIDGE_MANIFEST_PATH := A_Args[1]" in text
         assert "PIDS_FILE_PATH := A_Args[2]" in text
 
-    def test_reads_primary_pid_from_file(self):
+    def test_no_pid_reading(self):
+        """AHK no longer reads PIDs — all window ops handled by Python."""
         text = _hotkeys_text()
-        assert 'IniRead(PIDS_FILE_PATH, "pids",' in text
+        assert "IniRead(PIDS_FILE_PATH" not in text
+
+    def test_no_shared_state_reading(self):
+        """AHK no longer reads shared state — all state managed by Python."""
+        text = _hotkeys_text()
+        assert "ReadSharedState" not in text
+        assert "robotHandMode" not in text
 
     def test_no_startup_orchestration(self):
         text = _hotkeys_text()
         assert "start-core-session" not in text
         assert "launch-ui-companions" not in text
         assert "PositionAll" not in text
-        assert "GetLogicalMonitorRects" not in text
 
     def test_no_included_files(self):
         text = _hotkeys_text()
         assert "#Include" not in text
-
-    def test_no_shutdown_of_child_processes(self):
-        """Python orchestrator owns process lifecycle."""
-        text = _hotkeys_text()
-        assert "ShutdownAll" not in text
-        assert "TryClosePid" not in text
-        assert "TryKillPid" not in text
 
     def test_no_subprocess_dispatch(self):
         """All dispatch goes through Python's background dispatch loop."""
@@ -59,7 +58,8 @@ class TestHotkeyBindings:
         expected_commands = [
             "primary_prev", "primary_next",
             "robot_toggle", "fmode_toggle",
-            "quarter_button",
+            "backslash_key",
+            "vlc_chapter_prev", "vlc_chapter_next",
             "portrait_prev", "portrait_next", "portrait_trash", "portrait_lock",
             "landscape_prev", "landscape_next", "landscape_trash", "landscape_lock",
         ]
@@ -69,10 +69,6 @@ class TestHotkeyBindings:
     def test_omnipause_queued(self):
         text = _hotkeys_text()
         assert 'QueueCommand("omnipause_toggle")' in text
-
-    def test_open_file_dialog_queued(self):
-        text = _hotkeys_text()
-        assert 'QueueCommand("open_file_dialog")' in text
 
     def test_ctrl_alt_q_exits(self):
         text = _hotkeys_text()
@@ -105,13 +101,3 @@ class TestAhkCommands:
         assert '"unsuspend_hotkeys"' in text
         assert "Suspend true" in text
         assert "Suspend false" in text
-
-    def test_reads_shared_state(self):
-        text = _hotkeys_text()
-        assert "ReadSharedState()" in text
-        assert "SHARED_STATE_FILE" in text
-
-    def test_reads_only_robot_hand_mode(self):
-        """AHK only needs robotHandMode for the backslash hotkey branching."""
-        text = _hotkeys_text()
-        assert "robotHandMode" in text

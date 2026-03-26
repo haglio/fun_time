@@ -13,6 +13,7 @@ from fun_time.windows_bridge_win32 import (
     find_window_by_pid,
     find_dialog_by_pid,
     send_ctrl_o,
+    send_alt_key_to_window,
     wait_for_window_close,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
@@ -143,6 +144,23 @@ class TestWaitForWindowClose:
         with patch("fun_time.windows_bridge_win32._user32") as mock:
             mock.IsWindow.return_value = True  # window never closes
             wait_for_window_close(55555, timeout_s=0.05)
+
+
+class TestSendAltKeyToWindow:
+    def test_posts_syskeydown_and_syskeyup(self):
+        with patch("fun_time.windows_bridge_win32._user32") as mock:
+            send_alt_key_to_window(12345, 0x25)  # VK_LEFT
+
+        calls = mock.PostMessageW.call_args_list
+        assert len(calls) == 2
+        # First call: WM_SYSKEYDOWN (0x0104)
+        assert calls[0][0][0] == 12345
+        assert calls[0][0][1] == 0x0104
+        assert calls[0][0][2] == 0x25
+        # Second call: WM_SYSKEYUP (0x0105)
+        assert calls[1][0][0] == 12345
+        assert calls[1][0][1] == 0x0105
+        assert calls[1][0][2] == 0x25
 
 
 class TestConstants:

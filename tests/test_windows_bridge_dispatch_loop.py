@@ -132,6 +132,15 @@ class TestExecuteWindowOps:
         mock_send.assert_called_once_with(99, "p")
         assert remaining == []
 
+    def test_send_alt_key_uses_pid(self):
+        ops = [WindowOp(op="send_alt_key", vk=0x25)]  # VK_LEFT
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=99), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_alt_key_to_window") as mock_send:
+            remaining = execute_window_ops(ops, primary_pid=42)
+
+        mock_send.assert_called_once_with(99, 0x25)
+        assert remaining == []
+
     def test_skips_op_when_window_not_found(self):
         ops = [WindowOp(op="set_topmost", title="Nonexistent", value=True)]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
@@ -220,6 +229,35 @@ class TestDispatchLoopRunner:
 
         with patch.object(runner, "_handle_omnipause_toggle") as mock_handle:
             runner.tick()
+
+        mock_handle.assert_called_once()
+
+    def test_backslash_key_dispatches_quarter_button_in_robot_hand_mode(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(robot_hand_mode=True)
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("backslash_key", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        assert "quarter_button" in commands
+
+    def test_backslash_key_opens_file_dialog_when_not_robot_hand_mode(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(robot_hand_mode=False)
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("backslash_key", encoding="utf-8")
+
+        with patch.object(runner, "_handle_open_file_dialog") as mock_handle:
+            runner.tick()
+            import time as _time
+            _time.sleep(0.1)
 
         mock_handle.assert_called_once()
 

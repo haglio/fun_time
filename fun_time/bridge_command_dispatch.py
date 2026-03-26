@@ -68,6 +68,7 @@ class WindowOp:
     title: str = ""
     key: str = ""
     value: bool = True
+    vk: int = 0
 
 
 def _effective_robot_hand_mode(config: BridgeConfig) -> bool:
@@ -200,6 +201,14 @@ def dispatch_command(
 
     if command == "sync_robot_hand":
         return _dispatch_sync_robot_hand(state, config)
+
+    if command == "vlc_chapter_prev":
+        ops.append(WindowOp(op="send_alt_key", vk=0x25))  # VK_LEFT
+        return state, ops
+
+    if command == "vlc_chapter_next":
+        ops.append(WindowOp(op="send_alt_key", vk=0x27))  # VK_RIGHT
+        return state, ops
 
     return state, ops
 
