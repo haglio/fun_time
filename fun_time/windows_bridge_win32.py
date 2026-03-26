@@ -119,6 +119,7 @@ def find_window_by_title(title: str) -> int:
 
 SW_SHOW = 5
 SW_HIDE = 0
+SW_MINIMIZE = 6
 
 
 def show_window(hwnd: int) -> None:
@@ -129,6 +130,11 @@ def show_window(hwnd: int) -> None:
 def hide_window(hwnd: int) -> None:
     """Hide a window (WinHide equivalent)."""
     _user32.ShowWindow(hwnd, SW_HIDE)
+
+
+def minimize_window(hwnd: int) -> None:
+    """Minimize a window to the taskbar."""
+    _user32.ShowWindow(hwnd, SW_MINIMIZE)
 
 
 def send_key_to_window(hwnd: int, key: str) -> None:
