@@ -40,12 +40,15 @@ pidD := IniRead(PIDS_FILE_PATH, "pids", "dashboard_pid", "0") + 0
 pidR := IniRead(PIDS_FILE_PATH, "pids", "robot_hand_pid", "0") + 0
 pidA := IniRead(PIDS_FILE_PATH, "pids", "audio_pid", "0") + 0
 
-; Mutable state tracked by dispatch sync.
+; Mutable state — synced from Python's shared state file.
 locked2 := false
 locked3 := false
 robotHandMode := false
 fModeEnabled := false
 omniPaused := false
+
+SHARED_STATE_FILE := STATE_DIR . "\shared_bridge_state.ini"
+AHK_CMD_FILE := STATE_DIR . "\ahk_cmd.txt"
 
 Q(s) => Format('"{1}"', s)
 
@@ -61,8 +64,7 @@ A_TrayMenu.Add()
 A_TrayMenu.Add("Exit Fun Time", (*) => ExitApp())
 A_TrayMenu.AddStandard()
 
-SetTimer(ProcessDashboardCommand, 150)
-SetTimer(SyncRobotHandState, 200)
+SetTimer(ProcessAhkCommand, 150)
 
 Log("Hotkey script started with PIDs: primary=" . pid1 . " mfp=" . pidM . " portrait=" . pid2 . " landscape=" . pid3)
 
@@ -101,13 +103,14 @@ s::DispatchBridgeCommand("landscape_lock")
 
 ; -------------------- CORE FUNCTIONS --------------------
 
-ProcessDashboardCommand() {
-    global DASHBOARD_CMD_FILE
-    if !FileExist(DASHBOARD_CMD_FILE)
+ProcessAhkCommand() {
+    global AHK_CMD_FILE
+    ReadSharedState()
+    if !FileExist(AHK_CMD_FILE)
         return
     try {
-        action := Trim(FileRead(DASHBOARD_CMD_FILE, "UTF-8"))
-        FileDelete(DASHBOARD_CMD_FILE)
+        action := Trim(FileRead(AHK_CMD_FILE, "UTF-8"))
+        FileDelete(AHK_CMD_FILE)
     } catch {
         return
     }
@@ -115,8 +118,19 @@ ProcessDashboardCommand() {
         return
     if (action = "omnipause_toggle") {
         HandleOmniPauseToggle()
-    } else {
-        DispatchBridgeCommand(action)
+    }
+}
+
+ReadSharedState() {
+    global locked2, locked3, robotHandMode, fModeEnabled, omniPaused, SHARED_STATE_FILE
+    if !FileExist(SHARED_STATE_FILE)
+        return
+    try {
+        locked2 := IniRead(SHARED_STATE_FILE, "state", "locked2", "0") = "1"
+        locked3 := IniRead(SHARED_STATE_FILE, "state", "locked3", "0") = "1"
+        robotHandMode := IniRead(SHARED_STATE_FILE, "state", "robot_hand_mode", "0") = "1"
+        fModeEnabled := IniRead(SHARED_STATE_FILE, "state", "f_mode_enabled", "0") = "1"
+        omniPaused := IniRead(SHARED_STATE_FILE, "state", "omni_paused", "0") = "1"
     }
 }
 
@@ -134,12 +148,7 @@ HandleOmniPauseToggle() {
         try WinSetAlwaysOnTop(true, "ahk_pid " pid2)
         try WinSetAlwaysOnTop(true, "ahk_pid " pid3)
         try WinSetAlwaysOnTop(true, "ahk_pid " pidM)
-        SyncRobotHandState()
     }
-}
-
-SyncRobotHandState() {
-    DispatchBridgeCommand("sync_robot_hand")
 }
 
 DispatchBridgeCommand(cmd) {
@@ -149,6 +158,7 @@ DispatchBridgeCommand(cmd) {
     global locked2, locked3, robotHandMode, fModeEnabled, omniPaused
     global pid1, pidM
 
+    ReadSharedState()
     mfpAlive := pidM && ProcessExist(pidM)
     resultPath := BuildBridgeDispatchResultPath()
     args := Q(cmd)
@@ -245,7 +255,6 @@ OpenPrimaryVlcFileDialogWithManagedOmniPause() {
             try WinSetAlwaysOnTop(true, "ahk_pid " pid2)
             try WinSetAlwaysOnTop(true, "ahk_pid " pid3)
             try WinSetAlwaysOnTop(true, "ahk_pid " pidM)
-            SyncRobotHandState()
         }
     }
 }
