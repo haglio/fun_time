@@ -51,31 +51,40 @@ def test_controller_uses_manifest_argument_instead_of_positional_protocol():
 
     assert "if (A_Args.Length < 1)" in text
     assert 'WINDOWS_BRIDGE_MANIFEST_PATH := A_Args[1]' in text
-    assert 'RequireManifestValue("executables", "vlc_exe")' in text
-    assert 'RequireManifestValue("commands", "robot_hand_enabled_file")' in text
-    assert 'RequireManifestValue("controller", "primary_vlc_port")' in text
+    assert 'RequireManifestValue("controller", "vlc_pass")' in text
     assert 'RequireManifestValue("layout", "main_monitor")' in text
     assert 'RequireManifestValue("layout", "secondary_monitor")' in text
     assert "A_Args[29]" not in text
+    # Globals only used by startup CLI are no longer read from manifest
+    for removed in [
+        "VLC_EXE", "MFP_EXE", "PRIMARY_VLC_SOURCES", "PORTRAIT_DIR", "LANDSCAPE_DIR",
+        "PRIMARY_VLC_PORT", "VLC2_PORT", "VLC3_PORT",
+        "ROBOT_HAND_MODULE", "DASHBOARD_MODULE",
+        "ROBOT_HAND_CLIPS", "ROBOT_HAND_AUDIO_MODULE", "ROBOT_HAND_AUDIO",
+        "ROBOT_HAND_CMD_FILE", "ROBOT_HAND_PAUSED_FILE",
+        "BROKER_CMD_FILE", "AUDIO_CMD_FILE", "AUDIO_PAUSED_FILE",
+    ]:
+        assert f"{removed} :=" not in text, f"{removed} should be removed"
 
 
 def test_controller_defines_robot_hand_status_indicator():
     text = _windows_bridge_text()
 
-    assert 'DASHBOARD_MODULE := RequireManifestValue("modules", "dashboard_module")' in text
-    assert 'WINDOWS_BRIDGE_RUNTIME_FLOW_MODULE := RequireManifestValue("modules", "windows_bridge_runtime_flow_module")' in text
+    assert 'DASHBOARD_MODULE' not in text
+    assert 'WINDOWS_BRIDGE_RUNTIME_FLOW_MODULE' not in text
     assert 'args := "launch-ui-companions"' in text
-    assert "UpdateFunTimeDashboard()" in text
+    assert "UpdateFunTimeDashboard()" not in text
     assert "SetTimer(ProcessDashboardCommand, 150)" in text
     assert "TraySetIcon(ICON_PATH)" in text
 
 
-def test_controller_uses_explicit_primary_vlc_playback_state_helpers():
+def test_controller_no_longer_keeps_playback_helpers_in_ahk():
     text = _windows_bridge_text()
 
-    assert "EnsurePrimaryVlcPlayback(shouldPlay) {" in text
-    assert 'args := "start-core-session"' in text
+    assert "EnsurePrimaryVlcPlayback(" not in text
+    assert "SendVlcCommand(" not in text
     assert 'ControlSend("{Space}", , "ahk_pid " pid1)' not in text
+    assert 'args := "start-core-session"' in text
 
 
 def test_controller_delegates_core_media_launch_and_waits_for_mfp_window_afterward():
@@ -89,30 +98,32 @@ def test_controller_delegates_core_media_launch_and_waits_for_mfp_window_afterwa
     assert core_launch < core_result < mfp_wait < position_all
 
 
-def test_controller_delegates_f_mode_execution_to_python_runtime_flow():
+def test_controller_delegates_f_mode_execution_to_python_dispatch():
     text = _windows_bridge_text()
 
-    assert 'RunWindowsBridgeRuntimeFlowAction(args)' in text
-    assert 'BuildRuntimeFlowResultPath() {' in text
-    assert 'LoadWindowsBridgeRuntimeFlowResult(path) {' in text
-    assert 'args := "toggle-fmode"' in text
+    assert 'DispatchBridgeCommand("fmode_toggle")' in text
+    assert 'RunWindowsBridgeRuntimeFlowAction(' not in text
+    assert 'BuildRuntimeFlowResultPath() {' not in text
+    assert 'LoadWindowsBridgeRuntimeFlowResult(' not in text
+    assert 'args := "toggle-fmode"' not in text
     assert 'BuildPrimaryPlaylistPaths(fMode)' not in text
     assert 'BuildSatellitePlaylistPaths(sourceSpec, fMode)' not in text
     assert 'WriteFModePlaylists(enabled)' not in text
     assert 'ReplaceVlcPlaylistFromFile(' not in text
 
 
-def test_controller_dashboard_wires_existing_actions_into_click_targets():
+def test_controller_dashboard_dispatches_all_commands_via_python():
     text = _windows_bridge_text()
 
-    assert "ToggleRobotHandEnabled()" in text
-    assert "QueueRobotHandOffsetQuarterCycle()" in text
-    assert "HandlePrevAction()" in text
-    assert "HandleNextAction()" in text
-    assert "ToggleLock(2)" in text
-    assert "ToggleLock(3)" in text
-    assert "Discard(2)" in text
-    assert "Discard(3)" in text
+    assert "DispatchBridgeCommand(action)" in text
+    assert "ToggleRobotHandEnabled()" not in text
+    assert "QueueRobotHandOffsetQuarterCycle()" not in text
+    assert "HandlePrevAction()" not in text
+    assert "HandleNextAction()" not in text
+    assert "ToggleLock(2)" not in text
+    assert "ToggleLock(3)" not in text
+    assert "Discard(2)" not in text
+    assert "Discard(3)" not in text
 
 
 def test_controller_dashboard_no_longer_polls_broker_or_mfp_status_in_ahk():
@@ -146,10 +157,10 @@ def test_controller_no_longer_reads_legacy_runtime_modules_from_manifest():
     assert 'CONTROLLER_OMNIPAUSE_MODULE := RequireManifestValue("modules", "controller_omnipause_module")' not in text
 
 
-def test_controller_reads_windows_bridge_lock_module_from_manifest():
+def test_controller_no_longer_reads_lock_module_from_manifest():
     text = _windows_bridge_text()
 
-    assert 'WINDOWS_BRIDGE_LOCK_MODULE := RequireManifestValue("modules", "windows_bridge_lock_module")' in text
+    assert 'WINDOWS_BRIDGE_LOCK_MODULE' not in text
 
 
 def test_controller_reads_windows_bridge_window_layout_module_from_manifest():
@@ -158,10 +169,11 @@ def test_controller_reads_windows_bridge_window_layout_module_from_manifest():
     assert 'WINDOWS_BRIDGE_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "windows_bridge_window_layout_module")' in text
 
 
-def test_controller_reads_windows_bridge_vlc_actions_module_from_manifest():
+def test_controller_no_longer_reads_vlc_actions_module_from_manifest():
     text = _windows_bridge_text()
 
-    assert 'WINDOWS_BRIDGE_VLC_ACTIONS_MODULE := RequireManifestValue("modules", "windows_bridge_vlc_actions_module")' in text
+    assert 'WINDOWS_BRIDGE_VLC_ACTIONS_MODULE' not in text
+    assert 'RunWindowsBridgeVlcAction(' not in text
 
 
 def test_controller_reads_windows_bridge_random_favs_browser_module_from_manifest():
@@ -181,49 +193,50 @@ def test_controller_reads_windows_bridge_startup_module_from_manifest():
     assert 'BuildStartupResultPath() {' in text
 
 
-def test_controller_reads_windows_bridge_dashboard_bridge_module_from_manifest():
+def test_controller_no_longer_reads_dashboard_bridge_module_from_manifest():
     text = _windows_bridge_text()
 
-    assert 'WINDOWS_BRIDGE_DASHBOARD_BRIDGE_MODULE := RequireManifestValue("modules", "windows_bridge_dashboard_bridge_module")' in text
-    assert 'RunWindowsBridgeDashboardBridgeAction(args) {' in text
-    assert 'cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_DASHBOARD_BRIDGE_MODULE . " " . args' in text
+    assert 'WINDOWS_BRIDGE_DASHBOARD_BRIDGE_MODULE' not in text
+    assert 'RunWindowsBridgeDashboardBridgeAction(' not in text
 
 
-def test_controller_dashboard_update_does_not_shadow_robot_hand_enabled_helper():
+def test_controller_dashboard_update_is_handled_by_dispatch_channel():
     text = _windows_bridge_text()
 
-    assert 'robotHandEnabledNow := RobotHandEnabled()' in text
-    assert 'primaryUsesRobotHand := robotHandMode && robotHandEnabledNow' in text
-    assert 'mfpAlive := pidM && ProcessExist(pidM)' in text
-    assert 'RunWindowsBridgeDashboardBridgeAction(args)' in text
+    assert 'UpdateFunTimeDashboard()' not in text
+    assert 'RunWindowsBridgeDashboardBridgeAction(' not in text
+    assert '. " --dashboard-state-file " . Q(DASHBOARD_STATE_FILE)' in text
+    assert '. " --dashboard-enabled " . (DASHBOARD_ENABLED ? "1" : "0")' in text
+    assert '. " --mfp-alive " . (mfpAlive ? "1" : "0")' in text
 
 
-def test_controller_only_activates_robot_hand_window_on_transition():
+def test_controller_dispatch_executes_window_ops_from_python_result():
     text = _windows_bridge_text()
 
-    assert "ApplyRobotHandPlanWindowState(plan) {" in text
-    assert 'if (isTransition) {' in text
-    assert 'try WinActivate("Robot Hand")' in text
+    assert "DispatchBridgeCommand(cmd) {" in text
+    assert "Critical" in text[text.index("DispatchBridgeCommand(cmd) {"):text.index("DispatchBridgeCommand(cmd) {") + 100]
+    assert 'case "set_topmost":' in text
+    assert 'case "activate":' in text
+    assert 'case "suspend_hotkeys":' in text
+    assert 'case "unsuspend_hotkeys":' in text
+    assert 'case "send_key":' in text
+    assert "ApplyRobotHandPlanWindowState(" not in text
 
 
 def test_controller_dashboard_no_longer_repositions_or_refreshes_on_a_timer():
     text = _windows_bridge_text()
 
-    update_start = text.index("UpdateFunTimeDashboard() {")
-    snapshot_fn_start = text.index("\nEffectiveRobotHandModeState(", update_start)
-    update_block = text[update_start:snapshot_fn_start]
-
-    assert "GetFunTimeDashboardRect(&x, &y, &w, &h)" not in update_block
+    assert "UpdateFunTimeDashboard() {" not in text
+    assert "GetFunTimeDashboardRect(&x, &y, &w, &h)" not in text
     assert 'SetTimer(UpdateFunTimeDashboard, 500)' not in text
-    assert 'args := "--output-file " . Q(DASHBOARD_STATE_FILE)' in update_block
-    assert 'RunWindowsBridgeDashboardBridgeAction(args)' in update_block
 
 
 def test_controller_dashboard_snapshot_writer_is_delegated_to_python():
     text = _windows_bridge_text()
 
     assert "WriteDashboardStateSnapshot(" not in text
-    assert 'RunWindowsBridgeDashboardBridgeAction(args)' in text
+    assert 'RunWindowsBridgeDashboardBridgeAction(' not in text
+    assert '. " --dashboard-state-file " . Q(DASHBOARD_STATE_FILE)' in text
 
 
 def test_controller_dashboard_export_is_raw_runtime_state_only():
@@ -248,17 +261,41 @@ def test_controller_restores_random_favs_browser_launch_spec_helpers():
     assert 'if (!RANDOM_FAVS_BROWSER_ENABLED)' in text
 
 
-def test_controller_delegates_startup_broker_restart_and_browser_manifest_prep_to_python():
+def test_controller_delegates_startup_to_python_via_manifest():
     text = _windows_bridge_text()
 
     assert 'args := "start-core-session"' in text
     assert 'args := "launch-ui-companions"' in text
-    assert '. " --config " . Q(CONFIG_PATH)' in text
-    assert '. " --random-favs-browser-manifest-file " . Q(RANDOM_FAVS_BROWSER_MANIFEST_FILE)' in text
-    assert '. " --enabled-file " . Q(ROBOT_HAND_ENABLED_FILE)' in text
-    assert '. " --paused-file " . Q(ROBOT_HAND_PAUSED_FILE)' in text
-    assert '. " --audio-paused-file " . Q(AUDIO_PAUSED_FILE)' in text
+    assert '. " --manifest " . Q(WINDOWS_BRIDGE_MANIFEST_PATH)' in text
+    assert '. " --result-file " . Q(coreResultPath)' in text
     assert '. " --result-file " . Q(uiResultPath)' in text
+
+    # Extract the start-core-session and launch-ui-companions arg blocks
+    core_start = text.index('args := "start-core-session"')
+    core_end = text.index("RunWindowsBridgeStartupAction(args)", core_start)
+    core_block = text[core_start:core_end]
+
+    ui_start = text.index('args := "launch-ui-companions"')
+    ui_end = text.index("RunWindowsBridgeStartupAction(args)", ui_start)
+    ui_block = text[ui_start:ui_end]
+
+    # start-core-session only needs --manifest and --result-file
+    assert "--config" not in core_block
+    assert "--random-favs-browser-manifest-file" not in core_block
+    assert "--enabled-file" not in core_block
+    assert "--vlc-exe" not in core_block
+    assert "--password" not in core_block
+
+    # launch-ui-companions only needs --manifest + runtime-only values
+    assert "--python-exe" not in ui_block
+    assert "--dashboard-module" not in ui_block
+    assert "--robot-hand-module" not in ui_block
+    assert "--audio-module" not in ui_block
+    assert "--clips-folder" not in ui_block
+    assert "--audio-folder" not in ui_block
+    assert "--config" not in ui_block
+    assert "--dashboard-enabled" not in ui_block
+
     assert "RestartBroker() {" not in text
 
 
@@ -290,6 +327,11 @@ def test_controller_launches_primary_mfp_and_satellites_via_startup_helper():
     assert 'pidM := RunApp(MFP_EXE, "")' not in text
     assert text.count('pid2 := RunVLC(') == 0
     assert text.count('pid3 := RunVLC(') == 0
+    # Dead function definitions removed
+    assert 'RunApp(' not in text
+    assert 'RunVLC(' not in text
+    assert 'RunDetached(' not in text
+    assert 'WriteRawStateFile(' not in text
 
 
 def test_controller_launches_dashboard_via_startup_helper_after_window_layout_is_known():
@@ -301,8 +343,7 @@ def test_controller_launches_dashboard_via_startup_helper_after_window_layout_is
     ui_result = text.index('pidD := startupResult["dashboard_pid"]', ui_launch)
 
     assert get_layout < robot_rect < ui_launch < ui_result
-    assert '. " --dashboard-module " . Q(DASHBOARD_MODULE)' in text
-    assert '. " --windows-bridge-manifest-path " . Q(WINDOWS_BRIDGE_MANIFEST_PATH)' in text
+    assert '. " --manifest " . Q(WINDOWS_BRIDGE_MANIFEST_PATH)' in text
     assert '. " --dashboard-x " . dashboardX' in text
     assert '. " --dashboard-y " . dashboardY' in text
     assert '. " --dashboard-width " . dashboardW' in text
@@ -313,21 +354,14 @@ def test_controller_launches_dashboard_via_startup_helper_after_window_layout_is
     assert '. " --robot-height " . rh' in text
 
 
-def test_controller_processes_python_dashboard_commands_from_state_file():
+def test_controller_processes_python_dashboard_commands_via_dispatch():
     text = _windows_bridge_text()
 
     assert "ProcessDashboardCommand() {" in text
     assert 'action := Trim(FileRead(DASHBOARD_CMD_FILE, "UTF-8"))' in text
     assert 'FileDelete(DASHBOARD_CMD_FILE)' in text
-    assert 'case "portrait_prev":' in text
-    assert 'case "portrait_lock":' in text
-    assert 'case "primary_prev":' in text
-    assert 'case "quarter_button":' in text
-    assert 'case "landscape_trash":' in text
-    assert 'case "link_toggle":' in text
-    assert 'case "omnipause_toggle":' in text
-    assert 'case "fmode_toggle":' in text
-    assert 'case "robot_toggle":' in text
+    assert "DispatchBridgeCommand(action)" in text
+    assert 'case "portrait_prev":' not in text
 
 
 def test_controller_shutdown_closes_python_dashboard_process():
@@ -339,52 +373,59 @@ def test_controller_shutdown_closes_python_dashboard_process():
     assert "for pid in [pid1, pid2, pid3, pidM, pidD, pidR, pidA]" in text
 
 
-def test_controller_delegates_lock_execution_to_python_app():
+def test_controller_no_longer_keeps_lock_helpers_in_ahk():
     text = _windows_bridge_text()
 
-    assert 'RunWindowsBridgeLockAction(action, which, locked, currentPath, planPath, extraArgs := "")' in text
-    assert 'LoadLockActionPlan(path)' in text
-    assert 'plan := RunWindowsBridgeLockAction("apply-toggle-lock", which, currentLocked, currentPath, planPath' in text
-    assert 'plan := RunWindowsBridgeLockAction("apply-discard", which, currentLocked, src, planPath' in text
-    assert 'plan := RunWindowsBridgeLockAction("apply-cancel-lock", which, currentLocked, "", planPath' in text
-    assert 'SetRepeatMode(port, plan["repeat_mode"])' not in text
-    assert 'EnsureInFavs(currentPath)' not in text
-    assert 'RemoveFromFavs(src)' not in text
-    assert 'MoveToWeird(src)' not in text
+    assert 'RunWindowsBridgeLockAction(' not in text
+    assert 'LoadLockActionPlan(' not in text
+    assert 'BuildLockPlanPath(' not in text
+    assert 'DispatchBridgeCommand("portrait_lock")' in text
+    assert 'DispatchBridgeCommand("landscape_lock")' in text
 
 
-def test_controller_delegates_robot_hand_runtime_flow_to_python_helper():
+def test_controller_delegates_robot_hand_sync_to_python_dispatch():
     text = _windows_bridge_text()
 
-    assert 'RunWindowsBridgeRuntimeFlowAction(args)' in text
-    assert 'LoadWindowsBridgeRuntimeFlowResult(path)' in text
-    assert 'args := "sync-robot-hand"' in text
-    assert 'args := "toggle-robot-hand-enabled"' in text
-    assert '--mode-state-file ' in text
-    assert '--enabled-file ' in text
-    assert '--paused-file ' in text
-    assert '--audio-paused-file ' in text
-    assert 'modeState := EffectiveRobotHandModeState()' not in text
-    assert 'EnforceRobotHandOutputs(active, isTransition := false) {' not in text
+    sync_start = text.index("SyncRobotHandState() {")
+    sync_end = text.index("\n}", sync_start) + 2
+    sync_block = text[sync_start:sync_end]
+
+    assert 'DispatchBridgeCommand("sync_robot_hand")' in sync_block
+    assert 'UpdateFunTimeDashboard()' not in sync_block
+    assert 'args := "sync-robot-hand"' not in text
+    assert 'args := "toggle-robot-hand-enabled"' not in text
+    assert 'ToggleRobotHandEnabled() {' not in text
+    assert 'EnforceRobotHandOutputs(' not in text
     assert 'SetRobotHandPaused(' not in text
     assert 'SetRobotHandAudioPaused(' not in text
 
-    sync_start = text.index("SyncRobotHandState() {")
-    toggle_start = text.index("ToggleRobotHandEnabled() {", sync_start)
-    sync_block = text[sync_start:toggle_start]
-    assert 'UpdateFunTimeDashboard()' in sync_block
 
-
-def test_controller_delegates_omnipause_state_decisions_to_python_plan():
+def test_controller_uses_dispatch_tracked_robot_hand_mode_not_file_readers():
     text = _windows_bridge_text()
 
-    assert 'RunWindowsBridgeRuntimeFlowAction(args)' in text
-    assert 'LoadWindowsBridgeRuntimeFlowResult(path)' in text
-    assert 'args := "build-omnipause-toggle"' in text
-    assert 'args := "apply-enter-omnipause"' in text
-    assert 'args := "apply-leave-omnipause"' in text
-    assert '--robot-hand-paused-file ' in text
-    assert '--audio-paused-file ' in text
+    assert 'EffectiveRobotHandModeState() {' not in text
+    assert 'RobotHandModeState() {' not in text
+    assert 'RobotHandEnabled() {' not in text
+    assert 'ROBOT_HAND_MODE_FILE' not in text
+    assert 'ROBOT_HAND_ENABLED_FILE' not in text
+    assert 'if (robotHandMode)' in text
+
+
+def test_controller_delegates_omnipause_state_decisions_to_python():
+    text = _windows_bridge_text()
+
+    assert 'HandleOmniPauseToggle()' in text
+    assert 'DispatchBridgeCommand("omnipause_toggle")' in text
+    assert 'DispatchBridgeCommand("enter_omnipause")' in text
+    assert 'DispatchBridgeCommand("leave_omnipause_skip_primary")' in text
+    assert 'RunWindowsBridgeRuntimeFlowAction(' not in text
+    assert 'LoadWindowsBridgeRuntimeFlowResult(' not in text
+    assert 'args := "build-omnipause-toggle"' not in text
+    assert '\nOmniPauseToggle() {' not in text
+    assert 'args := "apply-enter-omnipause"' not in text
+    assert 'args := "apply-leave-omnipause"' not in text
+    assert 'EnterOmniPause() {' not in text
+    assert 'LeaveOmniPause(' not in text
 
 
 def test_controller_does_not_keep_temporary_focus_debug_monitoring():
@@ -434,34 +475,40 @@ def test_controller_delegates_window_layout_planning_to_python_plan():
     assert 'for section in ["portrait", "primary", "landscape", "mfp", "dashboard", "random_favs_browser", "robot_hand"] {' in text
 
 
-def test_controller_delegates_write_side_vlc_actions_to_python():
+def test_controller_no_longer_keeps_vlc_action_helpers_in_ahk():
     text = _windows_bridge_text()
 
-    assert 'RunWindowsBridgeVlcAction(args) {' in text
-    assert 'cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_VLC_ACTIONS_MODULE . " " . args' in text
-    assert 'args := "send-command"' in text
-    assert 'args := "ensure-playback-state"' in text
-    assert 'args := "set-repeat-mode"' in text
-    assert 'args := "replace-playlist"' not in text
+    assert 'RunWindowsBridgeVlcAction(' not in text
+    assert 'WINDOWS_BRIDGE_VLC_ACTIONS_MODULE' not in text
+    assert 'args := "send-command"' not in text
+    assert 'args := "ensure-playback-state"' not in text
+    assert 'args := "set-repeat-mode"' not in text
     assert "SendVlcInputCommand(" not in text
     assert "GetRepeatMode(" not in text
 
 
-def test_controller_delegates_current_file_path_and_http_wait_to_python():
+def test_controller_no_longer_keeps_vlc_query_helpers_in_ahk():
     text = _windows_bridge_text()
 
-    assert 'BuildVlcQueryOutputPath(prefix) {' in text
-    assert 'args := "wait-for-http"' in text
-    assert 'args := "current-file-path"' in text
-    assert 'return Trim(FileRead(outputPath, "UTF-8"))' in text
+    assert 'BuildVlcQueryOutputPath(' not in text
+    assert 'args := "wait-for-http"' not in text
+    assert 'args := "current-file-path"' not in text
     assert "DecodeFileUri(" not in text
     assert "UrlDecode(" not in text
 
 
-def test_controller_no_longer_keeps_raw_vlc_command_sender_in_ahk():
+def test_controller_no_longer_keeps_any_vlc_command_sender_in_ahk():
     text = _windows_bridge_text()
 
     assert "VlcHttpCmd(port, cmd) {" not in text
-    assert 'SendVlcCommand(port, cmd) {' in text
+    assert "SendVlcCommand(" not in text
+
+
+def test_controller_uses_hidden_wait_to_suppress_loading_cursor():
+    text = _windows_bridge_text()
+
+    assert "RunHiddenWait(cmdLine, workDir" in text
+    assert "STARTF_FORCEOFFFEEDBACK" in text
+    assert 'RunWait(' not in text
 
 

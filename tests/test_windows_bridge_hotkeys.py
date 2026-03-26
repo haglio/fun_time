@@ -34,23 +34,23 @@ def test_all_fun_time_action_hotkeys_are_global():
     assert "#HotIf IsOurWindow()" not in text
 
     for hotkey in (
-        "[::HandlePrevAction()",
-        "SC01A::HandlePrevAction()",
-        "]::HandleNextAction()",
-        "SC01B::HandleNextAction()",
-        "r::ToggleRobotHandEnabled()",
-        "$f::ToggleFMode()",
+        "[::{",
+        "SC01A::{",
+        "]::{",
+        "SC01B::{",
+        "r::{",
+        "$f::{",
         "\\::{",
         "-::try ControlSend(\"!{Left}\", , \"ahk_pid \" pid1)",
         "=::try ControlSend(\"!{Right}\", , \"ahk_pid \" pid1)",
         "Left::{",
         "Right::{",
-        "Up::Discard(2)",
-        "Down::ToggleLock(2)",
+        "Up::{",
+        "Down::{",
         "a::{",
         "d::{",
-        "w::Discard(3)",
-        "s::ToggleLock(3)",
+        "w::{",
+        "s::{",
     ):
         assert hotkey in text
 
@@ -63,83 +63,71 @@ def test_only_escape_and_shutdown_are_suspend_exempt():
     suspend_exempt_block = text[suspend_exempt_start:suspend_exempt_end]
 
     assert "^!q::ShutdownAll()" in suspend_exempt_block
-    assert "Esc::OmniPauseToggle()" in suspend_exempt_block
+    assert 'HandleOmniPauseToggle()' in suspend_exempt_block
 
     for hotkey in (
-        "[::HandlePrevAction()",
-        "]::HandleNextAction()",
-        "r::ToggleRobotHandEnabled()",
-        "$f::ToggleFMode()",
+        "[::{",
+        "]::{",
+        "r::{",
+        "$f::{",
         "\\::{",
-        "Down::ToggleLock(2)",
-        "s::ToggleLock(3)",
+        "Down::{",
+        "s::{",
     ):
         assert hotkey not in suspend_exempt_block
 
 
-def test_omnipause_toggle_no_longer_depends_on_active_window():
+def test_omnipause_toggle_dispatched_via_python_with_window_ops():
     text = _windows_bridge_text()
 
-    toggle_start = text.index("OmniPauseToggle() {")
-    enter_start = text.index("EnterOmniPause() {", toggle_start)
-    toggle_block = text[toggle_start:enter_start]
+    assert '\nOmniPauseToggle() {' not in text
+    assert 'HandleOmniPauseToggle() {' in text
 
-    assert 'args := "build-omnipause-toggle"' in toggle_block
-    assert 'RunWindowsBridgeRuntimeFlowAction(args)' in toggle_block
-    assert 'if (plan["action"] = "enter")' in toggle_block
-    assert "LeaveOmniPause()" in toggle_block
-    assert "IsOurWindow()" not in toggle_block
+    handler_start = text.index("HandleOmniPauseToggle() {")
+    handler_end = text.index("\n}", handler_start) + 2
+    handler_block = text[handler_start:handler_end]
+
+    assert 'DispatchBridgeCommand("omnipause_toggle")' in handler_block
+    assert 'WinSetAlwaysOnTop(false, "ahk_pid " pid)' in handler_block
+    assert 'WinSetAlwaysOnTop(true, "ahk_pid " pid2)' in handler_block
+    assert 'WinSetAlwaysOnTop(true, "ahk_pid " pid3)' in handler_block
+    assert 'WinSetAlwaysOnTop(true, "ahk_pid " pidM)' in handler_block
+    assert 'SyncRobotHandState()' in handler_block
 
 
-def test_omnipause_non_window_side_effects_are_applied_via_python_helper():
+def test_omnipause_enter_leave_use_dispatch_channel_not_old_protocol():
     text = _windows_bridge_text()
 
-    enter_start = text.index("EnterOmniPause() {")
-    leave_start = text.index("LeaveOmniPause(", enter_start)
-    enter_block = text[enter_start:leave_start]
-    leave_end = text.index("StartWindowsBridge() {", leave_start)
-    leave_block = text[leave_start:leave_end]
-
-    assert 'args := "apply-enter-omnipause"' in enter_block
-    assert 'RunWindowsBridgeRuntimeFlowAction(args)' in enter_block
-    assert 'SendVlcCommand(VLC2_PORT, "pl_pause")' not in enter_block
-    assert 'SetRobotHandPaused(true)' not in enter_block
-    assert 'EnsurePrimaryVlcPlayback(false)' not in enter_block
-
-    assert 'args := "apply-leave-omnipause"' in leave_block
-    assert 'RunWindowsBridgeRuntimeFlowAction(args)' in leave_block
-    assert 'SendVlcCommand(VLC2_PORT, "pl_pause")' not in leave_block
-    assert 'SetRobotHandPaused(false)' not in leave_block
-    assert 'EnsurePrimaryVlcPlayback(true)' not in leave_block
+    assert 'DispatchBridgeCommand("enter_omnipause")' in text
+    assert 'DispatchBridgeCommand("leave_omnipause_skip_primary")' in text
+    assert 'EnterOmniPause() {' not in text
+    assert 'LeaveOmniPause(' not in text
+    assert 'RunWindowsBridgeRuntimeFlowAction(' not in text
+    assert 'args := "apply-enter-omnipause"' not in text
+    assert 'args := "apply-leave-omnipause"' not in text
+    assert 'SendVlcCommand(VLC2_PORT, "pl_pause")' not in text
+    assert 'SetRobotHandPaused(true)' not in text
+    assert 'EnsurePrimaryVlcPlayback(false)' not in text
 
 
 def test_omnipause_still_restores_topmost_for_robot_hand_and_media_windows():
     text = _windows_bridge_text()
 
-    assert 'try WinSetAlwaysOnTop(false, "Robot Hand")' in text
-    assert 'for pid in [pid1, pid2, pid3, pidM, pidD] {' in text
     assert 'try WinSetAlwaysOnTop(false, "ahk_pid " pid)' in text
     assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pid1)' in text
     assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pidD)' in text
     assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pid2)' in text
     assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pid3)' in text
     assert 'try WinSetAlwaysOnTop(true, "ahk_pid " pidM)' in text
-    assert 'try WinSetAlwaysOnTop(true, "Robot Hand")' in text
 
 
 def test_status_indicator_shows_robot_hand_and_f_mode_state():
     text = _windows_bridge_text()
 
-    assert 'LABEL_PRIMARY_VLC := "Non-AI VLC"' in text
-    assert 'LABEL_PRIMARY_ROBOT := "Non-AI Robot Hand"' in text
-    assert 'LABEL_PORTRAIT_VLC := "Portrait AI VLC"' in text
-    assert 'LABEL_LANDSCAPE_VLC := "Landscape AI VLC"' in text
-    assert 'LABEL_OSR2 := "OSR2"' in text
-    assert 'LABEL_MFP := "MFP"' in text
-    assert 'LABEL_BROKER := "Broker"' in text
-    assert 'LABEL_CONTROLLER := "Controller"' in text
-    assert 'LABEL_F_MODE := "F-Mode"' in text
-    assert 'args := "--output-file " . Q(DASHBOARD_STATE_FILE)' in text
+    # Labels moved to Python — no longer defined in AHK
+    assert 'LABEL_PRIMARY_VLC' not in text
+    assert 'LABEL_BROKER' not in text
+    assert 'LABEL_F_MODE' not in text
     assert '. " --f-mode-enabled " . (fModeEnabled ? "1" : "0")' in text
 
 
@@ -214,17 +202,14 @@ def test_dashboard_does_not_include_hover_tip_workaround():
     assert '"hover_tip"' not in text
 
 
-def test_dashboard_exports_controller_state_snapshot_for_python_bridge():
+def test_dashboard_state_is_written_by_dispatch_channel():
     text = _windows_bridge_text()
 
-    assert 'RunWindowsBridgeDashboardBridgeAction(args)' in text
-    assert 'args := "--output-file " . Q(DASHBOARD_STATE_FILE)' in text
-    assert '. " --robot-link-enabled " . (robotHandEnabledNow ? "1" : "0")' in text
-    assert '. " --osr2-mode " . (osr2Auto ? "auto" : "controlled")' in text
+    assert 'RunWindowsBridgeDashboardBridgeAction(' not in text
+    assert 'UpdateFunTimeDashboard()' not in text
+    assert '. " --dashboard-state-file " . Q(DASHBOARD_STATE_FILE)' in text
+    assert '. " --dashboard-enabled " . (DASHBOARD_ENABLED ? "1" : "0")' in text
     assert '. " --mfp-alive " . (mfpAlive ? "1" : "0")' in text
-    assert '. " --primary-uses-robot-hand " . (primaryUsesRobotHand ? "1" : "0")' in text
-    assert '. " --portrait-locked " . (locked2 ? "1" : "0")' in text
-    assert '. " --landscape-locked " . (locked3 ? "1" : "0")' in text
 
 
 def test_dashboard_no_longer_caches_broker_and_mfp_status_probes_in_ahk():
@@ -248,9 +233,10 @@ def test_dashboard_snapshot_writer_logic_is_no_longer_inline_in_ahk():
 def test_dashboard_uses_smaller_font_for_status_chips_and_keeps_title_in_bottom_left():
     text = _windows_bridge_text()
 
-    assert 'LABEL_BROKER := "Broker"' in text
-    assert 'LABEL_CONTROLLER := "Controller"' in text
-    assert 'LABEL_F_MODE := "F-Mode"' in text
+    # Status chip labels are now Python-only — not in AHK
+    assert 'LABEL_BROKER' not in text
+    assert 'LABEL_CONTROLLER' not in text
+    assert 'LABEL_F_MODE' not in text
 
 
 def test_dashboard_preview_mfp_box_uses_tall_portraitish_ratio():
@@ -300,29 +286,24 @@ def test_primary_f_mode_funscript_path_logic_is_no_longer_in_controller():
 def test_controller_no_longer_parses_vlc_playlist_xml_in_ahk():
     text = _windows_bridge_text()
 
-    assert 'args := "current-file-path"' in text
-    assert 'args := "wait-for-http"' in text
+    assert 'args := "current-file-path"' not in text
+    assert 'args := "wait-for-http"' not in text
     assert 'RegExMatch(xml, "i)uri=' not in text
     assert "DecodeFileUri(" not in text
     assert "UrlDecode(" not in text
 
 
-def test_robot_hand_sync_non_window_side_effects_are_applied_via_python_helper():
+def test_robot_hand_sync_dispatched_via_python():
     text = _windows_bridge_text()
 
     sync_start = text.index("SyncRobotHandState() {")
-    toggle_start = text.index("ToggleRobotHandEnabled() {", sync_start)
-    sync_block = text[sync_start:toggle_start]
+    sync_end = text.index("\n}", sync_start) + 2
+    sync_block = text[sync_start:sync_end]
 
-    assert 'args := "sync-robot-hand"' in sync_block
-    assert 'RunWindowsBridgeRuntimeFlowAction(args)' in sync_block
-    assert '--enabled-file ' in sync_block
-    assert '--mode-state-file ' in sync_block
-    assert '--paused-file ' in sync_block
-    assert '--audio-paused-file ' in sync_block
-    assert 'EnsurePrimaryVlcPlayback(' not in sync_block
-    assert 'SetRobotHandPaused(' not in sync_block
-    assert 'SetRobotHandAudioPaused(' not in sync_block
-    assert 'ApplyRobotHandPlanWindowState(plan)' in sync_block
+    assert 'DispatchBridgeCommand("sync_robot_hand")' in sync_block
+    assert 'UpdateFunTimeDashboard()' not in sync_block
+    assert 'ToggleRobotHandEnabled() {' not in text
+    assert 'ApplyRobotHandPlanWindowState(' not in text
+    assert 'EnsurePrimaryVlcPlayback(' not in text
 
 

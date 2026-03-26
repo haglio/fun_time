@@ -223,6 +223,8 @@ def apply_leave_omnipause(
     robot_hand_mode_on: bool,
     skip_primary_resume: bool,
     primary_port: int,
+    portrait_port: int,
+    landscape_port: int,
     password: str,
     robot_hand_paused_file: str | Path,
     audio_paused_file: str | Path,
@@ -235,6 +237,10 @@ def apply_leave_omnipause(
     )
     write_flag_file(robot_hand_paused_file, False)
     write_flag_file(audio_paused_file, False)
+    if not ensure_playback_state(portrait_port, password, should_play=True):
+        raise RuntimeError("Portrait VLC failed to resume from omnipause")
+    if not ensure_playback_state(landscape_port, password, should_play=True):
+        raise RuntimeError("Landscape VLC failed to resume from omnipause")
     if plan.resume_primary_playback and not ensure_playback_state(primary_port, password, should_play=True):
         raise RuntimeError("Primary VLC failed to resume from omnipause")
     return OmniPauseFlowResult(

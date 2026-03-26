@@ -1,0 +1,434 @@
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import patch
+
+from fun_time.bridge_command_dispatch import (
+    BridgeState,
+    BridgeConfig,
+    WindowOp,
+    dispatch_command,
+)
+
+
+def _make_config(tmp_path: Path) -> BridgeConfig:
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    favs_file = tmp_path / "favs.csv"
+    favs_file.write_text("local_file,web_url\n", encoding="utf-8")
+    weird_dir = tmp_path / "weird"
+    weird_dir.mkdir(exist_ok=True)
+    return BridgeConfig(
+        primary_port=8090,
+        portrait_port=8091,
+        landscape_port=8092,
+        vlc_password="pw",
+        favs_file=favs_file,
+        weird_dir=weird_dir,
+        state_dir=state_dir,
+        primary_sources=str(tmp_path / "primary"),
+        portrait_sources=str(tmp_path / "portrait"),
+        landscape_sources=str(tmp_path / "landscape"),
+        robot_hand_enabled_file=state_dir / "robot_hand_enabled.txt",
+        robot_hand_mode_file=state_dir / "robot_hand_mode.txt",
+        robot_hand_cmd_file=state_dir / "robot_hand_cmd.txt",
+        robot_hand_paused_file=state_dir / "robot_hand_paused.txt",
+        audio_paused_file=state_dir / "audio_paused.txt",
+        dashboard_state_file=state_dir / "dashboard_state.ini",
+    )
+
+
+def _make_state(**overrides) -> BridgeState:
+    defaults = dict(
+        locked2=False,
+        locked3=False,
+        robot_hand_mode=False,
+        f_mode_enabled=False,
+        omni_paused=False,
+    )
+    defaults.update(overrides)
+    return BridgeState(**defaults)
+
+
+# --- portrait_lock ---
+
+
+def test_portrait_lock_toggles_lock_on(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+
+    with (
+        patch("fun_time.bridge_command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
+        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.bridge_command_dispatch.ensure_in_favs"),
+        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True),
+    ):
+        new_state, ops = dispatch_command("portrait_lock", state, config)
+
+    assert new_state.locked2 is True
+    assert new_state.locked3 is False
+
+
+def test_portrait_lock_toggles_lock_off(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=True)
+
+    with (
+        patch("fun_time.bridge_command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
+        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True),
+    ):
+        new_state, ops = dispatch_command("portrait_lock", state, config)
+
+    assert new_state.locked2 is False
+
+
+# --- landscape_lock ---
+
+
+def test_landscape_lock_toggles_lock_on(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked3=False)
+
+    with (
+        patch("fun_time.bridge_command_dispatch.get_current_file_path", return_value="C:\\clips\\landscape.mp4"),
+        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.bridge_command_dispatch.ensure_in_favs"),
+        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True),
+    ):
+        new_state, ops = dispatch_command("landscape_lock", state, config)
+
+    assert new_state.locked3 is True
+
+
+# --- portrait_trash ---
+
+
+def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=True)
+
+    with (
+        patch("fun_time.bridge_command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
+        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.bridge_command_dispatch.remove_from_favs"),
+        patch("fun_time.bridge_command_dispatch.move_to_weird"),
+        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True),
+    ):
+        new_state, ops = dispatch_command("portrait_trash", state, config)
+
+    assert new_state.locked2 is False
+
+
+# --- portrait_prev / portrait_next ---
+
+
+def test_portrait_prev_cancels_lock_and_sends_prev(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=True)
+
+    with (
+        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
+    ):
+        new_state, ops = dispatch_command("portrait_prev", state, config)
+
+    assert new_state.locked2 is False
+    mock_cmd.assert_called_with(8091, "pl_previous", "pw")
+
+
+def test_portrait_next_sends_next(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+
+    with (
+        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
+    ):
+        new_state, ops = dispatch_command("portrait_next", state, config)
+
+    mock_cmd.assert_called_with(8091, "pl_next", "pw")
+
+
+# --- landscape_prev / landscape_next ---
+
+
+def test_landscape_prev_cancels_lock_and_sends_prev(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked3=True)
+
+    with (
+        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
+    ):
+        new_state, ops = dispatch_command("landscape_prev", state, config)
+
+    assert new_state.locked3 is False
+    mock_cmd.assert_called_with(8092, "pl_previous", "pw")
+
+
+# --- primary_prev / primary_next ---
+
+
+def test_primary_prev_sends_prev_command_to_robot_hand_when_in_robot_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
+    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(robot_hand_mode=True)
+
+    new_state, ops = dispatch_command("primary_prev", state, config)
+
+    assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "PREV"
+
+
+def test_primary_next_sends_next_command_to_robot_hand_when_in_robot_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
+    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(robot_hand_mode=True)
+
+    new_state, ops = dispatch_command("primary_next", state, config)
+
+    assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "NEXT"
+
+
+def test_primary_prev_sends_keystroke_when_not_in_robot_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(robot_hand_mode=False)
+
+    new_state, ops = dispatch_command("primary_prev", state, config)
+
+    assert any(op.op == "send_key" and op.key == "p" for op in ops)
+
+
+def test_primary_next_sends_keystroke_when_not_in_robot_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(robot_hand_mode=False)
+
+    new_state, ops = dispatch_command("primary_next", state, config)
+
+    assert any(op.op == "send_key" and op.key == "n" for op in ops)
+
+
+# --- quarter_button ---
+
+
+def test_quarter_button_writes_robot_hand_offset_command(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state()
+
+    new_state, ops = dispatch_command("quarter_button", state, config)
+
+    assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "OFFSET_QUARTER_CYCLE"
+
+
+# --- omnipause_toggle ---
+
+
+def test_omnipause_toggle_enters_pause_from_unpaused(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=False)
+    playback_calls: list[tuple[int, str, bool]] = []
+
+    def track_playback(port, password, should_play):
+        playback_calls.append((port, password, should_play))
+        return True
+
+    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", side_effect=track_playback):
+        new_state, ops = dispatch_command("omnipause_toggle", state, config)
+
+    assert new_state.omni_paused is True
+    assert any(op.op == "suspend_hotkeys" for op in ops)
+    paused_ports = [c[0] for c in playback_calls if not c[2]]
+    assert config.portrait_port in paused_ports
+    assert config.landscape_port in paused_ports
+    assert config.primary_port in paused_ports
+
+
+def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=True)
+    playback_calls: list[tuple[int, str, bool]] = []
+
+    def track_playback(port, password, should_play):
+        playback_calls.append((port, password, should_play))
+        return True
+
+    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", side_effect=track_playback):
+        new_state, ops = dispatch_command("omnipause_toggle", state, config)
+
+    assert new_state.omni_paused is False
+    assert any(op.op == "unsuspend_hotkeys" for op in ops)
+    resumed_ports = [c[0] for c in playback_calls if c[2]]
+    assert config.portrait_port in resumed_ports
+    assert config.landscape_port in resumed_ports
+    assert config.primary_port in resumed_ports
+
+
+# --- fmode_toggle ---
+
+
+def test_fmode_toggle_enables_from_disabled(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(f_mode_enabled=False)
+
+    with (
+        patch("fun_time.bridge_command_dispatch.apply_toggle_fmode") as mock_fmode,
+    ):
+        mock_fmode.return_value = type("R", (), {
+            "success": True,
+            "next_f_mode_enabled": True,
+            "next_locked2": False,
+            "next_locked3": False,
+            "log_message": "F-mode hotkey: enabled",
+        })()
+        new_state, ops = dispatch_command("fmode_toggle", state, config)
+
+    assert new_state.f_mode_enabled is True
+    assert new_state.locked2 is False
+    assert new_state.locked3 is False
+
+
+# --- robot_toggle / link_toggle ---
+
+
+def test_robot_toggle_delegates_to_runtime_flow(tmp_path: Path):
+    config = _make_config(tmp_path)
+    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
+    state = _make_state(robot_hand_mode=False)
+
+    with (
+        patch("fun_time.bridge_command_dispatch.apply_toggle_robot_hand_enabled") as mock_toggle,
+    ):
+        mock_toggle.return_value = type("R", (), {
+            "next_robot_hand_mode": False,
+            "current_enabled": False,
+            "enforce_outputs": False,
+            "enforce_active": False,
+            "is_transition": False,
+            "log_message": "Robot Hand: disabled",
+        })()
+        new_state, ops = dispatch_command("robot_toggle", state, config)
+
+    assert mock_toggle.called
+
+
+def test_link_toggle_is_alias_for_robot_toggle(tmp_path: Path):
+    config = _make_config(tmp_path)
+    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
+    state = _make_state()
+
+    with (
+        patch("fun_time.bridge_command_dispatch.apply_toggle_robot_hand_enabled") as mock_toggle,
+    ):
+        mock_toggle.return_value = type("R", (), {
+            "next_robot_hand_mode": False,
+            "current_enabled": False,
+            "enforce_outputs": False,
+            "enforce_active": False,
+            "is_transition": False,
+            "log_message": "",
+        })()
+        dispatch_command("link_toggle", state, config)
+
+    assert mock_toggle.called
+
+
+# --- unknown command ---
+
+
+def test_sync_robot_hand_skips_when_omni_paused(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=True)
+
+    new_state, ops = dispatch_command("sync_robot_hand", state, config)
+
+    assert new_state == state
+    assert ops == []
+
+
+def test_sync_robot_hand_transitions_to_robot_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
+    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(robot_hand_mode=False, omni_paused=False)
+
+    with (
+        patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", return_value=True),
+    ):
+        new_state, ops = dispatch_command("sync_robot_hand", state, config)
+
+    assert new_state.robot_hand_mode is True
+
+
+def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=False)
+    playback_calls: list[tuple[int, str, bool]] = []
+
+    def track_playback(port, password, should_play):
+        playback_calls.append((port, password, should_play))
+        return True
+
+    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", side_effect=track_playback):
+        new_state, ops = dispatch_command("enter_omnipause", state, config)
+
+    assert new_state.omni_paused is True
+    assert any(op.op == "suspend_hotkeys" for op in ops)
+    paused_ports = [c[0] for c in playback_calls if not c[2]]
+    assert config.portrait_port in paused_ports
+    assert config.landscape_port in paused_ports
+    assert config.primary_port in paused_ports
+
+
+def test_enter_omnipause_adds_robot_hand_topmost_op_when_in_robot_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=False, robot_hand_mode=True)
+
+    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", return_value=True):
+        new_state, ops = dispatch_command("enter_omnipause", state, config)
+
+    assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is False for op in ops)
+
+
+def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=True)
+    playback_calls: list[tuple[int, str, bool]] = []
+
+    def track_playback(port, password, should_play):
+        playback_calls.append((port, password, should_play))
+        return True
+
+    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", side_effect=track_playback):
+        new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
+
+    assert new_state.omni_paused is False
+    assert any(op.op == "unsuspend_hotkeys" for op in ops)
+    resumed_ports = [c[0] for c in playback_calls if c[2]]
+    assert config.portrait_port in resumed_ports
+    assert config.landscape_port in resumed_ports
+    assert config.primary_port not in resumed_ports
+
+
+def test_leave_omnipause_skip_primary_adds_robot_hand_ops_when_in_robot_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=True, robot_hand_mode=True)
+
+    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", return_value=True):
+        new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
+
+    assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is True for op in ops)
+    assert any(op.op == "activate" and op.title == "Robot Hand" for op in ops)
+
+
+# --- unknown command ---
+
+
+def test_unknown_command_returns_unchanged_state(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state()
+
+    new_state, ops = dispatch_command("bogus_command", state, config)
+
+    assert new_state == state
+    assert ops == []

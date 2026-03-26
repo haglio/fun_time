@@ -105,7 +105,9 @@ class FunTimeIntegrationSession:
             if predicate():
                 return
             time.sleep(0.2)
-        raise AssertionError(f"Timed out waiting for {description}")
+        raise AssertionError(
+            f"Timed out waiting for {description}\n{self._log_tail()}"
+        )
 
     def wait_for_log(self, needle: str, timeout: float = 10.0) -> str:
         deadline = time.time() + timeout
@@ -114,7 +116,9 @@ class FunTimeIntegrationSession:
             if needle in text:
                 return text
             time.sleep(0.2)
-        raise AssertionError(f"Did not find log line containing {needle!r}")
+        raise AssertionError(
+            f"Did not find log line containing {needle!r}\n{self._log_tail()}"
+        )
 
     def wait_for_new_log(self, needle: str, timeout: float = 10.0) -> str:
         deadline = time.time() + timeout
@@ -123,7 +127,9 @@ class FunTimeIntegrationSession:
             if needle in chunk:
                 return chunk
             time.sleep(0.2)
-        raise AssertionError(f"Did not find new log line containing {needle!r}")
+        raise AssertionError(
+            f"Did not find new log line containing {needle!r}\n{self._log_tail()}"
+        )
 
     def wait_for_any_log(self, needles: list[str], timeout: float = 10.0) -> str:
         deadline = time.time() + timeout
@@ -133,7 +139,16 @@ class FunTimeIntegrationSession:
                 if needle in text:
                     return needle
             time.sleep(0.2)
-        raise AssertionError(f"Did not find any log line containing one of {needles!r}")
+        raise AssertionError(
+            f"Did not find any log line containing one of {needles!r}\n{self._log_tail()}"
+        )
+
+    def _log_tail(self, lines: int = 30) -> str:
+        text = self._read_windows_bridge_log()
+        if not text:
+            return "[windows bridge log is empty or missing]"
+        tail = "\n".join(text.splitlines()[-lines:])
+        return f"--- last {lines} log lines ---\n{tail}\n--- end ---"
 
     def _read_windows_bridge_log(self) -> str:
         if not self.windows_bridge_log.exists():

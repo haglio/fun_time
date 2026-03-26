@@ -179,22 +179,18 @@ class TestControllerManifest:
     def test_windows_bridge_lock_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["modules"]["windows_bridge_lock_module"] == "fun_time.windows_bridge_lock_app"
+        assert "windows_bridge_lock_module" not in result["modules"]
 
-    def test_windows_bridge_runtime_flow_module_name_included(self, cfg_path: Path):
+    def test_removed_modules_are_not_in_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["modules"]["windows_bridge_runtime_flow_module"] == "fun_time.windows_bridge_runtime_flow_app"
+        assert "windows_bridge_runtime_flow_module" not in result["modules"]
+        assert "windows_bridge_vlc_actions_module" not in result["modules"]
 
     def test_windows_bridge_window_layout_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, "pw")
         assert result["modules"]["windows_bridge_window_layout_module"] == "fun_time.windows_bridge_window_layout_app"
-
-    def test_windows_bridge_vlc_actions_module_name_included(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["modules"]["windows_bridge_vlc_actions_module"] == "fun_time.windows_bridge_vlc_actions_app"
 
     def test_windows_bridge_random_favs_browser_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -206,10 +202,10 @@ class TestControllerManifest:
         result = build_windows_bridge_manifest(cfg, "pw")
         assert result["modules"]["windows_bridge_startup_module"] == "fun_time.windows_bridge_startup_app"
 
-    def test_windows_bridge_dashboard_bridge_module_name_included(self, cfg_path: Path):
+    def test_dashboard_bridge_module_removed_from_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["modules"]["windows_bridge_dashboard_bridge_module"] == "fun_time.windows_bridge_dashboard_bridge_app"
+        assert "windows_bridge_dashboard_bridge_module" not in result["modules"]
 
     def test_random_favs_browser_paths_included(self, cfg_factory):
         cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
@@ -231,13 +227,13 @@ class TestControllerManifest:
         assert parser["controller"]["vlc_pass"] == "pw"
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
-        assert parser["modules"]["windows_bridge_lock_module"] == "fun_time.windows_bridge_lock_app"
-        assert parser["modules"]["windows_bridge_runtime_flow_module"] == "fun_time.windows_bridge_runtime_flow_app"
+        assert "windows_bridge_lock_module" not in parser["modules"]
+        assert "windows_bridge_runtime_flow_module" not in parser["modules"]
         assert parser["modules"]["windows_bridge_window_layout_module"] == "fun_time.windows_bridge_window_layout_app"
-        assert parser["modules"]["windows_bridge_vlc_actions_module"] == "fun_time.windows_bridge_vlc_actions_app"
+        assert "windows_bridge_vlc_actions_module" not in parser["modules"]
         assert parser["modules"]["windows_bridge_random_favs_browser_module"] == "fun_time.windows_bridge_random_favs_browser_app"
         assert parser["modules"]["windows_bridge_startup_module"] == "fun_time.windows_bridge_startup_app"
-        assert parser["modules"]["windows_bridge_dashboard_bridge_module"] == "fun_time.windows_bridge_dashboard_bridge_app"
+        assert "windows_bridge_dashboard_bridge_module" not in parser["modules"]
         assert parser["commands"]["robot_hand_enabled_file"] == str(cfg.robot_hand_enabled_file)
         assert parser["commands"]["robot_hand_paused_file"] == str(cfg.robot_hand_paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
