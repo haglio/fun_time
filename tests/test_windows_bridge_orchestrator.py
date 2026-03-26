@@ -151,6 +151,67 @@ class TestMinimizeAllWindows:
         mock_minimize.assert_not_called()
 
 
+class TestHotkeySuspendDuringIntegration:
+    def test_writes_suspend_command_during_integration(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+
+        def fake_sequence(**kwargs):
+            return _fake_startup_result()
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator._minimize_all_windows"):
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=state_dir,
+                project_dir=tmp_path,
+            )
+
+        ahk_cmd_file = state_dir / "ahk_cmd.txt"
+        assert ahk_cmd_file.read_text(encoding="utf-8") == "suspend_hotkeys"
+
+    def test_no_suspend_command_outside_integration(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+
+        def fake_sequence(**kwargs):
+            return _fake_startup_result()
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=state_dir,
+                project_dir=tmp_path,
+            )
+
+        ahk_cmd_file = state_dir / "ahk_cmd.txt"
+        assert not ahk_cmd_file.exists()
+
+
 class TestRunPythonOrchestratedBridge:
     def test_runs_startup_then_launches_ahk_then_shuts_down(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())

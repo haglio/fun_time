@@ -190,6 +190,11 @@ def run_python_orchestrated_bridge(
     logger.info("Launching AHK hotkey script: %s", " ".join(command))
     ahk_proc = subprocess.Popen(command, cwd=project_dir)
 
+    ahk_cmd_file = state_dir / "ahk_cmd.txt"
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
+        ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
+        logger.info("Suspended hotkeys for integration test run")
+
     try:
         exit_code = ahk_proc.wait()
     except KeyboardInterrupt:
