@@ -37,7 +37,6 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "windows_bridge_window_layout_module": "fun_time.windows_bridge_window_layout_app",
             "windows_bridge_random_favs_browser_module": "fun_time.windows_bridge_random_favs_browser_app",
             "windows_bridge_startup_module": "fun_time.windows_bridge_startup_app",
-            "bridge_command_dispatch_module": "fun_time.bridge_command_dispatch_app",
         },
         "commands": {
             "robot_hand_mode_file": str(config.robot_hand_mode_file),
