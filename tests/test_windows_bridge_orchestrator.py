@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import configparser
+from pathlib import Path
+from unittest.mock import patch, MagicMock, call
+
+import pytest
+
+from fun_time.config import load_config
+from fun_time.windows_bridge_manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
+from fun_time.windows_bridge_orchestrator import (
+    write_pids_file,
+    run_python_orchestrated_bridge,
+)
+from fun_time.windows_bridge_sequencer import StartupResult
+from fun_time.windows_bridge_window_layout import WindowLayoutPlan, WindowRect
+
+
+def _fake_plan() -> WindowLayoutPlan:
+    r = WindowRect(0, 0, 100, 100)
+    return WindowLayoutPlan(
+        portrait=r, primary=r, landscape=r, mfp=r,
+        dashboard=r, random_favs_browser=r, robot_hand=r,
+    )
+
+
+def _fake_startup_result() -> StartupResult:
+    return StartupResult(
+        primary_pid=100,
+        mfp_pid=200,
+        portrait_pid=300,
+        landscape_pid=400,
+        dashboard_pid=500,
+        robot_hand_pid=600,
+        audio_pid=700,
+        layout_plan=_fake_plan(),
+    )
+
+
+class TestWritePidsFile:
+    def test_writes_all_pids(self, tmp_path):
+        result = _fake_startup_result()
+        pids_path = tmp_path / "pids.ini"
+        write_pids_file(pids_path, result)
+
+        parser = configparser.ConfigParser()
+        parser.read(str(pids_path), encoding="utf-8")
+
+        assert parser.getint("pids", "primary_pid") == 100
+        assert parser.getint("pids", "mfp_pid") == 200
+        assert parser.getint("pids", "portrait_pid") == 300
+        assert parser.getint("pids", "landscape_pid") == 400
+        assert parser.getint("pids", "dashboard_pid") == 500
+        assert parser.getint("pids", "robot_hand_pid") == 600
+        assert parser.getint("pids", "audio_pid") == 700
+
+
+class TestRunPythonOrchestratedBridge:
+    def test_runs_startup_then_launches_ahk_then_shuts_down(self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        # Track call order
+        calls: list[str] = []
+
+        def fake_sequence(**kwargs):
+            calls.append("startup_sequence")
+            return _fake_startup_result()
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            calls.append("launch_ahk")
+            return fake_ahk_proc
+
+        killed_pids: list[int] = []
+
+        def fake_kill_tree(pid):
+            killed_pids.append(pid)
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=fake_kill_tree):
+
+            code = run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe=str(tmp_path / "ahk.exe"),
+                hotkey_script=str(tmp_path / "hotkeys.ahk"),
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        assert calls == ["startup_sequence", "launch_ahk"]
+        assert code == 0
+
+        # Should have killed all 7 child processes
+        assert 100 in killed_pids  # primary
+        assert 200 in killed_pids  # mfp
+        assert 300 in killed_pids  # portrait
+        assert 400 in killed_pids  # landscape
+        assert 500 in killed_pids  # dashboard
+        assert 600 in killed_pids  # robot_hand
+        assert 700 in killed_pids  # audio
+
+    def test_passes_manifest_and_pids_file_to_ahk(self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        launched_cmd: list[str] = []
+
+        def fake_sequence(**kwargs):
+            return _fake_startup_result()
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            launched_cmd.extend(cmd)
+            return fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="C:\\ahk.exe",
+                hotkey_script="C:\\hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        assert launched_cmd[0] == "C:\\ahk.exe"
+        assert launched_cmd[1] == "C:\\hotkeys.ahk"
+        assert launched_cmd[2] == str(manifest_path)
+        # 4th arg is pids file path
+        assert launched_cmd[3].endswith(".ini")
