@@ -30,16 +30,21 @@ from .windows_bridge_win32 import (
 logger = logging.getLogger(__name__)
 
 
-def poll_dashboard_command(cmd_file: Path) -> str | None:
-    """Read and delete the dashboard command file, returning the command or None."""
+def poll_dashboard_commands(cmd_file: Path) -> list[str]:
+    """Read and delete the dashboard command file, returning all queued commands."""
     if not cmd_file.exists():
-        return None
+        return []
     try:
-        text = cmd_file.read_text(encoding="utf-8").strip()
-        cmd_file.unlink()
+        # Rename atomically then read — any concurrent writes create a new file
+        tmp = cmd_file.with_suffix(".processing")
+        cmd_file.rename(tmp)
+        text = tmp.read_text(encoding="utf-8").strip()
+        tmp.unlink()
     except OSError:
-        return None
-    return text or None
+        return []
+    if not text:
+        return []
+    return [line.strip() for line in text.splitlines() if line.strip()]
 
 
 def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
@@ -155,9 +160,8 @@ class DispatchLoopRunner:
         if shared is not None:
             self.state = shared
 
-        # Dashboard command
-        cmd = poll_dashboard_command(self.dashboard_cmd_file)
-        if cmd:
+        # Dashboard commands (may be multiple if queued by rapid hotkey presses)
+        for cmd in poll_dashboard_commands(self.dashboard_cmd_file):
             if cmd == "omnipause_toggle":
                 self._handle_omnipause_toggle()
             elif cmd == "open_file_dialog":

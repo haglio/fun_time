@@ -9,7 +9,7 @@ from fun_time.bridge_command_dispatch import BridgeState, WindowOp
 
 # These imports will fail until the module exists (red step)
 from fun_time.windows_bridge_dispatch_loop import (
-    poll_dashboard_command,
+    poll_dashboard_commands,
     execute_window_ops,
     write_shared_state,
     read_shared_state,
@@ -17,38 +17,58 @@ from fun_time.windows_bridge_dispatch_loop import (
 )
 
 
-class TestPollDashboardCommand:
+class TestPollDashboardCommands:
     def test_reads_and_deletes_command_file(self, tmp_path):
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_next", encoding="utf-8")
 
-        result = poll_dashboard_command(cmd_file)
+        result = poll_dashboard_commands(cmd_file)
 
-        assert result == "portrait_next"
+        assert result == ["portrait_next"]
         assert not cmd_file.exists()
 
-    def test_returns_none_when_file_missing(self, tmp_path):
+    def test_returns_empty_when_file_missing(self, tmp_path):
         cmd_file = tmp_path / "dashboard_cmd.txt"
 
-        result = poll_dashboard_command(cmd_file)
+        result = poll_dashboard_commands(cmd_file)
 
-        assert result is None
+        assert result == []
 
-    def test_returns_none_for_empty_file(self, tmp_path):
+    def test_returns_empty_for_empty_file(self, tmp_path):
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("", encoding="utf-8")
 
-        result = poll_dashboard_command(cmd_file)
+        result = poll_dashboard_commands(cmd_file)
 
-        assert result is None
+        assert result == []
 
     def test_strips_whitespace(self, tmp_path):
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("  landscape_lock  \n", encoding="utf-8")
 
-        result = poll_dashboard_command(cmd_file)
+        result = poll_dashboard_commands(cmd_file)
 
-        assert result == "landscape_lock"
+        assert result == ["landscape_lock"]
+
+    def test_reads_multiple_commands(self, tmp_path):
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("primary_next\nprimary_next\nportrait_prev\n", encoding="utf-8")
+
+        result = poll_dashboard_commands(cmd_file)
+
+        assert result == ["primary_next", "primary_next", "portrait_prev"]
+
+    def test_concurrent_write_does_not_lose_new_commands(self, tmp_path):
+        """Rename-then-read ensures writes during processing go to a new file."""
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("first_command\n", encoding="utf-8")
+
+        result = poll_dashboard_commands(cmd_file)
+
+        assert result == ["first_command"]
+        # A new write after polling should work — file was deleted, not held open
+        cmd_file.write_text("second_command\n", encoding="utf-8")
+        assert cmd_file.exists()
 
 
 class TestExecuteWindowOps:

@@ -23,19 +23,16 @@ class TestStructure:
         assert "WINDOWS_BRIDGE_MANIFEST_PATH := A_Args[1]" in text
         assert "PIDS_FILE_PATH := A_Args[2]" in text
 
-    def test_reads_pids_from_file_not_startup(self):
+    def test_reads_primary_pid_from_file(self):
         text = _hotkeys_text()
         assert 'IniRead(PIDS_FILE_PATH, "pids",' in text
-        assert "StartWindowsBridge" not in text
 
     def test_no_startup_orchestration(self):
         text = _hotkeys_text()
         assert "start-core-session" not in text
         assert "launch-ui-companions" not in text
         assert "PositionAll" not in text
-        assert "SetTopMost" not in text
         assert "GetLogicalMonitorRects" not in text
-        assert "GetMonitorRect" not in text
 
     def test_no_included_files(self):
         text = _hotkeys_text()
@@ -47,11 +44,17 @@ class TestStructure:
         assert "ShutdownAll" not in text
         assert "TryClosePid" not in text
         assert "TryKillPid" not in text
-        assert "ForceKillPid" not in text
+
+    def test_no_subprocess_dispatch(self):
+        """All dispatch goes through Python's background dispatch loop."""
+        text = _hotkeys_text()
+        assert "RunHiddenWait" not in text
+        assert "DispatchBridgeCommand" not in text
+        assert "CreateProcessW" not in text
 
 
 class TestHotkeyBindings:
-    def test_all_hotkeys_present(self):
+    def test_all_hotkeys_queue_commands(self):
         text = _hotkeys_text()
         expected_commands = [
             "primary_prev", "primary_next",
@@ -61,11 +64,15 @@ class TestHotkeyBindings:
             "landscape_prev", "landscape_next", "landscape_trash", "landscape_lock",
         ]
         for cmd in expected_commands:
-            assert f'DispatchBridgeCommand("{cmd}")' in text, f"Missing hotkey dispatch for {cmd}"
+            assert f'QueueCommand("{cmd}")' in text, f"Missing hotkey queue for {cmd}"
 
-    def test_escape_writes_omnipause_to_cmd_file(self):
+    def test_omnipause_queued(self):
         text = _hotkeys_text()
-        assert 'FileAppend("omnipause_toggle", DASHBOARD_CMD_FILE' in text
+        assert 'QueueCommand("omnipause_toggle")' in text
+
+    def test_open_file_dialog_queued(self):
+        text = _hotkeys_text()
+        assert 'QueueCommand("open_file_dialog")' in text
 
     def test_ctrl_alt_q_exits(self):
         text = _hotkeys_text()
@@ -76,39 +83,35 @@ class TestHotkeyBindings:
         assert "#SuspendExempt true" in text
 
 
-class TestDispatchPattern:
-    def test_dispatch_command_present(self):
+class TestCommandQueue:
+    def test_queue_command_function_present(self):
         text = _hotkeys_text()
-        assert "DispatchBridgeCommand(cmd) {" in text
-        assert "Critical" in text
+        assert "QueueCommand(cmd) {" in text
+        assert "DASHBOARD_CMD_FILE" in text
 
-    def test_dispatch_calls_python(self):
+    def test_appends_with_newline(self):
         text = _hotkeys_text()
-        assert "BRIDGE_COMMAND_DISPATCH_MODULE" in text
-        assert "RunHiddenWait" in text
-
-    def test_dispatch_reads_state_from_result(self):
-        text = _hotkeys_text()
-        for state_key in ["locked2", "locked3", "robot_hand_mode", "f_mode_enabled", "omni_paused"]:
-            assert f'"state", "{state_key}"' in text
-
-    def test_dispatch_executes_window_ops(self):
-        text = _hotkeys_text()
-        for op in ["set_topmost", "activate", "show", "hide", "suspend_hotkeys", "unsuspend_hotkeys", "send_key"]:
-            assert f'case "{op}"' in text
+        assert 'cmd . "`n"' in text
 
 
-class TestTimers:
+class TestAhkCommands:
     def test_ahk_command_poll_timer(self):
         text = _hotkeys_text()
         assert "SetTimer(ProcessAhkCommand, 150)" in text
 
-    def test_dashboard_and_sync_moved_to_python(self):
+    def test_handles_suspend_and_unsuspend(self):
         text = _hotkeys_text()
-        assert "ProcessDashboardCommand" not in text
-        assert "SyncRobotHandState" not in text
+        assert '"suspend_hotkeys"' in text
+        assert '"unsuspend_hotkeys"' in text
+        assert "Suspend true" in text
+        assert "Suspend false" in text
 
     def test_reads_shared_state(self):
         text = _hotkeys_text()
         assert "ReadSharedState()" in text
         assert "SHARED_STATE_FILE" in text
+
+    def test_reads_only_robot_hand_mode(self):
+        """AHK only needs robotHandMode for the backslash hotkey branching."""
+        text = _hotkeys_text()
+        assert "robotHandMode" in text
