@@ -141,14 +141,6 @@ def apply_toggle_fmode(
         state_dir=Path(state_dir),
         enabled=target_enabled,
     )
-    if not plan.success:
-        return FModeFlowResult(
-            success=False,
-            next_f_mode_enabled=f_mode_enabled,
-            next_locked2=False,
-            next_locked3=False,
-            log_message="F-mode toggle aborted because one or more playlists would be empty",
-        )
     if not replace_playlist_from_file(primary_port, password, plan.primary_playlist_path):
         logger.warning("Primary VLC failed to load F-mode playlist")
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):

@@ -13,7 +13,6 @@ PLAYLIST_LANDSCAPE = "landscape_vlc_playlist"
 @dataclass(frozen=True)
 class FModePlaylistPlan:
     success: bool
-    failure_reason: str
     primary_count: int
     portrait_count: int
     landscape_count: int
@@ -147,24 +146,11 @@ def build_fmode_playlists(
     portrait_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
     landscape_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
 
-    if not primary_paths or not portrait_paths or not landscape_paths:
-        return FModePlaylistPlan(
-            success=False,
-            failure_reason="empty_playlist",
-            primary_count=len(primary_paths),
-            portrait_count=len(portrait_paths),
-            landscape_count=len(landscape_paths),
-            primary_playlist_path=primary_playlist_path,
-            portrait_playlist_path=portrait_playlist_path,
-            landscape_playlist_path=landscape_playlist_path,
-        )
-
     write_playlist_file(primary_playlist_path, primary_paths)
     write_playlist_file(portrait_playlist_path, portrait_paths)
     write_playlist_file(landscape_playlist_path, landscape_paths)
     return FModePlaylistPlan(
         success=True,
-        failure_reason="",
         primary_count=len(primary_paths),
         portrait_count=len(portrait_paths),
         landscape_count=len(landscape_paths),

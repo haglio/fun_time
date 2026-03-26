@@ -92,27 +92,3 @@ def test_build_fmode_playlists_writes_named_m3u_files(tmp_path: Path):
     assert str(primary_video) in (state_dir / "primary_vlc_playlist.m3u").read_text(encoding="utf-8")
 
 
-def test_build_fmode_playlists_reports_empty_filtered_playlist(tmp_path: Path):
-    primary_root = tmp_path / "videos" / "videos" / "primary"
-    portrait_root = tmp_path / "portrait"
-    landscape_root = tmp_path / "landscape"
-    for root in (primary_root, portrait_root, landscape_root):
-        root.mkdir(parents=True)
-    (primary_root / "main.mp4").write_text("x", encoding="utf-8")
-    (portrait_root / "portrait.mp4").write_text("x", encoding="utf-8")
-    (landscape_root / "landscape.mp4").write_text("x", encoding="utf-8")
-    favs_file = tmp_path / "favs.csv"
-    favs_file.write_text("local_file,web_url\r\n", encoding="utf-8")
-
-    plan = build_fmode_playlists(
-        primary_sources=str(primary_root),
-        portrait_sources=str(portrait_root),
-        landscape_sources=str(landscape_root),
-        favs_file=favs_file,
-        state_dir=tmp_path / "state",
-        enabled=True,
-        rng=random.Random(1),
-    )
-
-    assert plan.success is False
-    assert plan.failure_reason == "empty_playlist"

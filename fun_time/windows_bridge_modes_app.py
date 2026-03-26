@@ -8,8 +8,6 @@ from .windows_bridge_modes import build_fmode_playlists
 from .windows_bridge_vlc_actions import replace_playlist_from_file
 
 
-EMPTY_PLAYLIST_EXIT_CODE = 3
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run Fun Time controller mode actions.")
@@ -38,9 +36,6 @@ def main(argv: list[str] | None = None) -> int:
         state_dir=Path(args.state_dir),
         enabled=args.enabled.strip() not in {"", "0", "false", "False"},
     )
-    if not plan.success:
-        return EMPTY_PLAYLIST_EXIT_CODE
-
     if args.action == "write-fmode-playlists":
         return 0
     if args.action != "apply-fmode":
