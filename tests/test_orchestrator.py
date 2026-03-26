@@ -255,8 +255,7 @@ class TestValidateConfig:
         for p in (cfg.paths.vlc_exe, cfg.paths.mfp_exe, cfg.paths.ahk_exe, cfg.paths.python_exe):
             p.touch()
         # Create AHK scripts
-        (cfg.project_dir / "windows_bridge.ahk").touch()
-        (cfg.project_dir / "windows_bridge.ahk").touch()
+        (cfg.project_dir / "windows_bridge_hotkeys.ahk").touch()
         # Create Python entry points
         broker_py = cfg.project_dir / "fun_time" / "broker_app.py"
         broker_py.parent.mkdir(parents=True, exist_ok=True)
@@ -477,18 +476,18 @@ class TestRunController:
 
         with patch("fun_time.orchestrator.resolve_vlc_http_password", return_value="pw-from-config"), \
              patch("fun_time.orchestrator.write_windows_bridge_manifest", return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME) as writer, \
-             patch("fun_time.orchestrator.subprocess.run") as run:
-            run.return_value.returncode = 0
+             patch("fun_time.orchestrator.run_python_orchestrated_bridge", return_value=0) as bridge:
             result = run_windows_bridge(cfg, logger)
 
         assert result == 0
         writer.assert_called_once_with(cfg, "pw-from-config")
-        command = run.call_args.args[0]
-        assert command == [
-            str(cfg.paths.ahk_exe),
-            str(cfg.project_dir / "windows_bridge.ahk"),
-            str(cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME),
-        ]
+        bridge.assert_called_once()
+        call_kwargs = bridge.call_args.kwargs
+        assert call_kwargs["manifest_path"] == cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        assert call_kwargs["ahk_exe"] == str(cfg.paths.ahk_exe)
+        assert call_kwargs["hotkey_script"] == str(cfg.project_dir / "windows_bridge_hotkeys.ahk")
+        assert call_kwargs["state_dir"] == cfg.paths.state_dir
+        assert call_kwargs["project_dir"] == cfg.project_dir
 
 
 def subprocess_result(*, stdout: str, returncode: int):
