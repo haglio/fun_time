@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import math
+import os
 import socket
 import time
 from dataclasses import dataclass, field
@@ -227,6 +228,9 @@ def main(argv: list[str] | None = None) -> int:
     paused_file = Path(args.paused_file)
 
     pygame.mixer.init()
+    if os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
+        pygame.mixer.music.set_volume(0)
+        logger.info("Audio muted (FUN_TIME_MUTE_AUDIO=1)")
     logger.info("Audio companion listening on %s:%s", args.host, args.port)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
