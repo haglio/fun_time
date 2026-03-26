@@ -72,7 +72,10 @@ Log("Hotkey script started with PIDs: primary=" . pid1 . " mfp=" . pidM . " port
 
 #SuspendExempt true
 ^!q::ExitApp()
-Esc::HandleOmniPauseToggle()
+Esc::{
+    try FileDelete(DASHBOARD_CMD_FILE)
+    FileAppend("omnipause_toggle", DASHBOARD_CMD_FILE, "UTF-8")
+}
 #SuspendExempt false
 
 [::DispatchBridgeCommand("primary_prev")
@@ -117,9 +120,7 @@ ProcessAhkCommand() {
     }
     if (action = "")
         return
-    if (action = "omnipause_toggle") {
-        HandleOmniPauseToggle()
-    } else if (action = "suspend_hotkeys") {
+    if (action = "suspend_hotkeys") {
         Suspend true
     } else if (action = "unsuspend_hotkeys") {
         Suspend false
@@ -136,23 +137,6 @@ ReadSharedState() {
         robotHandMode := IniRead(SHARED_STATE_FILE, "state", "robot_hand_mode", "0") = "1"
         fModeEnabled := IniRead(SHARED_STATE_FILE, "state", "f_mode_enabled", "0") = "1"
         omniPaused := IniRead(SHARED_STATE_FILE, "state", "omni_paused", "0") = "1"
-    }
-}
-
-HandleOmniPauseToggle() {
-    global omniPaused, pid1, pid2, pid3, pidM, pidD, robotHandMode
-    wasOmniPaused := omniPaused
-    DispatchBridgeCommand("omnipause_toggle")
-    if (!wasOmniPaused) {
-        for pid in [pid1, pid2, pid3, pidM, pidD]
-            try WinSetAlwaysOnTop(false, "ahk_pid " pid)
-    } else {
-        if (!robotHandMode)
-            try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
-        try WinSetAlwaysOnTop(true, "ahk_pid " pidD)
-        try WinSetAlwaysOnTop(true, "ahk_pid " pid2)
-        try WinSetAlwaysOnTop(true, "ahk_pid " pid3)
-        try WinSetAlwaysOnTop(true, "ahk_pid " pidM)
     }
 }
 

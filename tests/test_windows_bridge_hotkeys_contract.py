@@ -63,9 +63,9 @@ class TestHotkeyBindings:
         for cmd in expected_commands:
             assert f'DispatchBridgeCommand("{cmd}")' in text, f"Missing hotkey dispatch for {cmd}"
 
-    def test_escape_calls_omnipause_toggle(self):
+    def test_escape_writes_omnipause_to_cmd_file(self):
         text = _hotkeys_text()
-        assert "Esc::HandleOmniPauseToggle()" in text
+        assert 'FileAppend("omnipause_toggle", DASHBOARD_CMD_FILE' in text
 
     def test_ctrl_alt_q_exits(self):
         text = _hotkeys_text()
