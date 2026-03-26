@@ -29,6 +29,17 @@ def tmp_path() -> Path:
         shutil.rmtree(path, ignore_errors=True)
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _cleanup_tmp_root():
+    """Remove TMP_ROOT after the session if it exists and is empty."""
+    yield
+    try:
+        if TMP_ROOT.is_dir() and not any(TMP_ROOT.iterdir()):
+            TMP_ROOT.rmdir()
+    except OSError:
+        pass
+
+
 def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
     """Write a minimal valid config JSON to tmp_path and return the path."""
     # Create stub directories / files that config validation expects.
