@@ -11,6 +11,7 @@ from pathlib import Path
 from .config import load_config
 from .broker_ports import ensure_mfp_serial_port, ensure_mfp_vlc_endpoint
 from .windows_bridge_manifest import write_windows_bridge_manifest
+from .windows_bridge_orchestrator import run_python_orchestrated_bridge
 from .logging_utils import configure_logging, install_exception_logging
 from . import orchestrator_broker
 
@@ -55,7 +56,7 @@ def validate_config(config) -> None:
         require_dir(landscape_dir)
     require_dir(config.paths.clips_dir)
     require_dir(config.paths.audio_dir)
-    require_file(config.project_dir / "windows_bridge.ahk")
+    require_file(config.project_dir / "windows_bridge_hotkeys.ahk")
     require_file(config.project_dir / "scripts" / "run_broker_service.ps1")
     require_file(config.project_dir / "fun_time" / "broker_app.py")
     require_file(config.project_dir / "fun_time" / "robot_hand" / "app.py")
@@ -213,16 +214,22 @@ def resolve_vlc_http_password() -> str:
 
 
 def run_windows_bridge(config, logger) -> int:
-    ahk_script = config.project_dir / "windows_bridge.ahk"
     vlc_http_pass = resolve_vlc_http_password()
     manifest_path = write_windows_bridge_manifest(config, vlc_http_pass)
-    command = [str(config.paths.ahk_exe), str(ahk_script), str(manifest_path)]
-    logger.info("Launching AutoHotkey Windows bridge using config %s", config.config_path)
+    hotkey_script = config.project_dir / "windows_bridge_hotkeys.ahk"
+
+    logger.info("Launching Python-orchestrated Windows bridge using config %s", config.config_path)
     logger.info("VLC HTTP ports: portrait=%s landscape=%s", config.controller.vlc2_http_port, config.controller.vlc3_http_port)
 
-    result = subprocess.run(command, cwd=config.project_dir, check=False)
-    logger.info("Windows bridge exited with code %s", result.returncode)
-    return result.returncode
+    exit_code = run_python_orchestrated_bridge(
+        manifest_path=manifest_path,
+        ahk_exe=str(config.paths.ahk_exe),
+        hotkey_script=str(hotkey_script),
+        state_dir=config.paths.state_dir,
+        project_dir=config.project_dir,
+    )
+    logger.info("Windows bridge exited with code %s", exit_code)
+    return exit_code
 
 
 def main(argv: list[str] | None = None) -> int:
