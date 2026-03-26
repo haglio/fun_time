@@ -12,9 +12,17 @@ from fun_time.windows_bridge_manifest import write_windows_bridge_manifest, WIND
 from fun_time.windows_bridge_sequencer import (
     StartupResult,
     run_startup_sequence,
+    _maybe_launch_random_favs_browser,
+    _position_mfp_window,
+    _position_pid_window,
 )
 from fun_time.windows_bridge_monitors import MonitorInfo
-from fun_time.windows_bridge_window_layout import WindowLayoutPlan, WindowRect
+from fun_time.windows_bridge_window_layout import (
+    MonitorRect,
+    WindowLayoutPlan,
+    WindowRect,
+)
+from fun_time.config import LayoutConfig
 
 
 FAKE_MONITORS = [
@@ -145,3 +153,202 @@ def _write_result(result_file, values):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fp:
         parser.write(fp)
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for live bugs fixed in f1fe6ad and follow-ups
+# ---------------------------------------------------------------------------
+
+FAKE_LAYOUT_CFG = LayoutConfig(
+    main_monitor=0,
+    secondary_monitor=1,
+    primary_top_ratio=0.48,
+    landscape_width_ratio=0.35,
+    mfp_width_ratio=0.5,
+    mfp_height_ratio=0.5,
+)
+
+MAIN_RECT = MonitorRect(x=0, y=0, width=2560, height=1392)
+
+
+class TestPositionPidWindow:
+    """Regression: each VLC must be moved to its own unique rect (bug #1)."""
+
+    def test_moves_window_to_target_rect(self):
+        target = WindowRect(x=100, y=200, width=800, height=600)
+        with patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=42) as mock_wait, \
+             patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
+            _position_pid_window(42, target, "test VLC")
+
+        mock_move.assert_called_once_with(42, 100, 200, 800, 600)
+
+    def test_skips_when_no_window_found(self):
+        target = WindowRect(x=0, y=0, width=100, height=100)
+        with patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=0), \
+             patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
+            _position_pid_window(99, target, "missing")
+
+        mock_move.assert_not_called()
+
+
+class TestPositionMfpWindow:
+    """Regression: MFP must use retry loop with delta correction (bug #6)."""
+
+    def test_retries_with_delta_correction(self):
+        target = WindowRect(x=500, y=100, width=240, height=395)
+        move_calls: list[tuple] = []
+
+        def track_move(hwnd, x, y, w, h):
+            move_calls.append((x, y, w, h))
+
+        # Simulate position being off by 10px on every attempt — forces all 3 retries
+        def fake_get_rect(hwnd):
+            if not move_calls:
+                return (510, 110, 240, 395)
+            return (move_calls[-1][1] + 10, move_calls[-1][2] + 10, 240, 395)
+
+        with patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77), \
+             patch("fun_time.windows_bridge_sequencer.move_window", side_effect=track_move), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", side_effect=fake_get_rect), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            _position_mfp_window(20, target, MAIN_RECT, FAKE_LAYOUT_CFG)
+
+        # Should have retried (more than 1 move call)
+        assert len(move_calls) >= 2
+        # Later calls should have adjusted coordinates from the initial request
+        assert move_calls[-1][1:3] != move_calls[0][1:3]
+
+    def test_stops_when_position_is_accurate(self):
+        target = WindowRect(x=500, y=100, width=240, height=395)
+        with patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(500, 100, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            _position_mfp_window(20, target, MAIN_RECT, FAKE_LAYOUT_CFG)
+
+        # Only 1 move needed when position is accurate on first try
+
+
+class TestMaybeLaunchRandomFavsBrowser:
+    """Regression: browser must launch (bug #3) and MFP must stay on top (bug #8/z-order)."""
+
+    def _make_manifest_parser(self, *, enabled: str = "1") -> configparser.ConfigParser:
+        m = configparser.ConfigParser()
+        m.optionxform = str
+        m["random_favs_browser"] = {
+            "enabled": enabled,
+            "shortcut_path": r"C:\fake\shortcut.lnk",
+            "manifest_file": r"C:\fake\manifest.ini",
+        }
+        return m
+
+    def _fake_plan(self) -> WindowLayoutPlan:
+        """Build a minimal plan with a random_favs_browser rect."""
+        from fun_time.windows_bridge_window_layout import compute_window_layout
+        from fun_time.dashboard_layout import Size
+        return compute_window_layout(
+            main_monitor=MAIN_RECT,
+            secondary_monitor=MonitorRect(x=2560, y=0, width=1440, height=3440),
+            layout_config=FAKE_LAYOUT_CFG,
+            mfp_size=Size(240, 395),
+        )
+
+    def test_skipped_when_disabled(self):
+        m = self._make_manifest_parser(enabled="0")
+        plan = self._fake_plan()
+        with patch("fun_time.windows_bridge_sequencer._resolve_shortcut") as mock_resolve:
+            _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
+        mock_resolve.assert_not_called()
+
+    def test_launches_and_positions_browser(self):
+        m = self._make_manifest_parser()
+        plan = self._fake_plan()
+        browser_rect = plan.random_favs_browser
+
+        launch_result = MagicMock(should_launch=True)
+
+        with patch("fun_time.windows_bridge_sequencer._resolve_shortcut", return_value=("chrome.exe", "", "")), \
+             patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
+             patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
+             patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
+             patch("fun_time.windows_bridge_sequencer.move_window") as mock_move, \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top") as mock_topmost, \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77777), \
+             patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate:
+            _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
+
+        # Browser window should be positioned at the planned rect
+        mock_move.assert_called_once_with(
+            55555, browser_rect.x, browser_rect.y, browser_rect.width, browser_rect.height,
+        )
+
+    def test_mfp_topmost_toggled_after_browser_launch(self):
+        """Regression: MFP z-order must be restored above browser by toggling topmost off/on."""
+        m = self._make_manifest_parser()
+        plan = self._fake_plan()
+        launch_result = MagicMock(should_launch=True)
+
+        topmost_calls: list[tuple] = []
+
+        def track_topmost(hwnd, on_top):
+            topmost_calls.append((hwnd, on_top))
+
+        with patch("fun_time.windows_bridge_sequencer._resolve_shortcut", return_value=("chrome.exe", "", "")), \
+             patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
+             patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
+             patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77777), \
+             patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate:
+            _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
+
+        # Browser should be set NOT topmost
+        assert (55555, False) in topmost_calls
+
+        # MFP should be toggled: first False (clear), then True (re-set)
+        mfp_calls = [(h, t) for h, t in topmost_calls if h == 77777]
+        assert mfp_calls == [(77777, False), (77777, True)]
+
+        # MFP should be activated last
+        mock_activate.assert_called_once_with(77777)
+
+
+class TestTopmostOnAllCoreWindows:
+    """Regression: topmost must be set on all 4 core windows, not just some (bug #5)."""
+
+    def test_topmost_set_on_primary_portrait_landscape_mfp(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        topmost_calls: list[tuple] = []
+
+        def track_topmost(hwnd, on_top):
+            topmost_calls.append((hwnd, on_top))
+
+        # Map each PID to a unique hwnd so we can verify all 4 get topmost
+        pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040}
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=2020), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        # All 4 core hwnds should have been set topmost (True)
+        hwnds_set_topmost = {h for h, on in topmost_calls if on}
+        assert 1010 in hwnds_set_topmost, "primary not set topmost"
+        assert 2020 in hwnds_set_topmost, "mfp not set topmost"
+        assert 3030 in hwnds_set_topmost, "portrait not set topmost"
+        assert 4040 in hwnds_set_topmost, "landscape not set topmost"

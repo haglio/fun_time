@@ -343,9 +343,11 @@ def _maybe_launch_random_favs_browser(
     move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height)
     set_always_on_top(new_hwnd, False)
 
-    # Restore MFP topmost
+    # Restore MFP above browser — toggle topmost off/on to force z-order
+    # recalculation (re-setting topmost on an already-topmost window is a no-op)
     mfp_hwnd = find_window_by_pid(mfp_pid)
     if mfp_hwnd:
+        set_always_on_top(mfp_hwnd, False)
         set_always_on_top(mfp_hwnd, True)
         activate_window(mfp_hwnd)
 
