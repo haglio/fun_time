@@ -6,16 +6,22 @@ in Python: core session launch, window positioning, UI companion launch.
 from __future__ import annotations
 
 import configparser
+import ctypes
+import ctypes.wintypes
+import logging
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from .config import LayoutConfig
 from .dashboard_layout import Size
-from .windows_bridge_monitors import enumerate_monitors
+from .windows_bridge_monitors import enumerate_monitors, get_logical_monitor_rects
+from .windows_bridge_random_favs_browser import launch_random_favs_browser
 from .windows_bridge_startup import start_core_session, launch_ui_companions
 from .windows_bridge_win32 import (
     activate_window,
+    find_window_by_pid,
     get_window_rect,
     move_window,
     set_always_on_top,
@@ -24,8 +30,11 @@ from .windows_bridge_win32 import (
 from .windows_bridge_window_layout import (
     MonitorRect,
     WindowLayoutPlan,
+    WindowRect,
     compute_window_layout,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -94,49 +103,51 @@ def run_startup_sequence(
     mfp_pid = core_pids["mfp_pid"]
     portrait_pid = core_pids["portrait_pid"]
     landscape_pid = core_pids["landscape_pid"]
+    logger.info(
+        "Core session launched: primary=%d mfp=%d portrait=%d landscape=%d",
+        primary_pid, mfp_pid, portrait_pid, landscape_pid,
+    )
 
     # --- Phase 2: Wait for MFP window and position everything ---
     mfp_hwnd = wait_for_window(mfp_pid, timeout_s=15.0)
     if not mfp_hwnd:
         raise RuntimeError(f"MFP window did not appear (pid={mfp_pid})")
     time.sleep(5.0)
-
-    # Get MFP actual size for layout computation
-    _, _, mfp_w, mfp_h = get_window_rect(mfp_hwnd)
-    if mfp_w <= 0 or mfp_h <= 0:
-        # Fall back to config-based estimate
-        layout_cfg = _layout_config_from_manifest(m)
-        monitors = enumerate_monitors()
-        from .windows_bridge_monitors import get_logical_monitor_rects
-        main_rect, _ = get_logical_monitor_rects(
-            monitors, main_index=layout_cfg.main_monitor, secondary_index=layout_cfg.secondary_monitor,
-        )
-        landscape_w = int(main_rect.width * layout_cfg.landscape_width_ratio)
-        left_w = main_rect.width - landscape_w
-        mfp_w = int(left_w * layout_cfg.mfp_width_ratio)
-        mfp_h = int(main_rect.height * layout_cfg.mfp_height_ratio)
+    logger.info("MFP window ready")
 
     layout_cfg = _layout_config_from_manifest(m)
     monitors = enumerate_monitors()
+    main_rect, secondary_rect = get_logical_monitor_rects(
+        monitors, main_index=layout_cfg.main_monitor, secondary_index=layout_cfg.secondary_monitor,
+    )
+
+    # Get MFP actual size for layout computation
+    mfp_w, mfp_h = _get_mfp_size(mfp_hwnd, main_rect, layout_cfg)
+
     plan = compute_window_layout(
-        main_monitor=_main_monitor_rect(monitors, layout_cfg),
-        secondary_monitor=_secondary_monitor_rect(monitors, layout_cfg),
+        main_monitor=main_rect,
+        secondary_monitor=secondary_rect,
         layout_config=layout_cfg,
         mfp_size=Size(mfp_w, mfp_h),
     )
 
     # Position core windows
-    _position_pid_window(portrait_pid, plan.portrait)
-    _position_pid_window(primary_pid, plan.primary)
-    _position_pid_window(landscape_pid, plan.landscape)
-    _position_mfp_window(mfp_hwnd, plan.mfp)
+    _position_pid_window(portrait_pid, plan.portrait, "portrait VLC")
+    _position_pid_window(primary_pid, plan.primary, "primary VLC")
+    _position_pid_window(landscape_pid, plan.landscape, "landscape VLC")
+    _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg)
+    logger.info("Core windows positioned")
 
     # Set topmost on core windows
     for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
-        hwnd = wait_for_window(pid, timeout_s=2.0)
+        hwnd = find_window_by_pid(pid)
         if hwnd:
             set_always_on_top(hwnd, True)
             activate_window(hwnd)
+    logger.info("Topmost set on core windows")
+
+    # --- Phase 2.5: Launch Random Favs Browser ---
+    _maybe_launch_random_favs_browser(m, plan, mfp_pid)
 
     # --- Phase 3: Launch UI companions ---
     time.sleep(1.2)
@@ -189,27 +200,197 @@ def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
     )
 
 
-def _main_monitor_rect(monitors: list, layout_cfg: LayoutConfig) -> MonitorRect:
-    from .windows_bridge_monitors import get_logical_monitor_rects
-    main, _ = get_logical_monitor_rects(
-        monitors, main_index=layout_cfg.main_monitor, secondary_index=layout_cfg.secondary_monitor,
+def _get_mfp_size(
+    mfp_hwnd: int, main_rect: MonitorRect, layout_cfg: LayoutConfig,
+) -> tuple[int, int]:
+    """Get the actual MFP window size, falling back to a config-based estimate."""
+    _, _, w, h = get_window_rect(mfp_hwnd)
+    if w > 0 and h > 0:
+        return w, h
+    landscape_w = int(main_rect.width * layout_cfg.landscape_width_ratio)
+    left_w = main_rect.width - landscape_w
+    return (
+        int(left_w * layout_cfg.mfp_width_ratio),
+        int(main_rect.height * layout_cfg.mfp_height_ratio),
     )
-    return main
 
 
-def _secondary_monitor_rect(monitors: list, layout_cfg: LayoutConfig) -> MonitorRect:
-    from .windows_bridge_monitors import get_logical_monitor_rects
-    _, secondary = get_logical_monitor_rects(
-        monitors, main_index=layout_cfg.main_monitor, secondary_index=layout_cfg.secondary_monitor,
-    )
-    return secondary
-
-
-def _position_pid_window(pid: int, rect) -> None:
+def _position_pid_window(pid: int, rect: WindowRect, label: str) -> None:
+    """Wait for a visible window belonging to *pid* and move it."""
     hwnd = wait_for_window(pid, timeout_s=10.0)
     if hwnd:
         move_window(hwnd, rect.x, rect.y, rect.width, rect.height)
+        logger.info("Positioned %s (pid=%d hwnd=%d) at %d,%d %dx%d",
+                     label, pid, hwnd, rect.x, rect.y, rect.width, rect.height)
+    else:
+        logger.warning("Could not find window for %s (pid=%d)", label, pid)
 
 
-def _position_mfp_window(hwnd: int, target_rect) -> None:
-    move_window(hwnd, target_rect.x, target_rect.y, target_rect.width, target_rect.height)
+def _position_mfp_window(
+    mfp_pid: int, target: WindowRect, main_rect: MonitorRect, layout_cfg: LayoutConfig,
+) -> None:
+    """Position MFP with a retry loop and delta correction.
+
+    Replicates AHK's ``PositionMfpWindow`` which retries up to 3 times,
+    adjusting for the difference between requested and actual position.
+    """
+    hwnd = find_window_by_pid(mfp_pid)
+    if not hwnd:
+        logger.warning("Could not find MFP window for positioning")
+        return
+
+    move_x, move_y = target.x, target.y
+    move_w, move_h = target.width, target.height
+
+    for attempt in range(3):
+        move_window(hwnd, move_x, move_y, move_w, move_h)
+        time.sleep(0.08)
+
+        actual_x, actual_y, actual_w, actual_h = get_window_rect(hwnd)
+
+        # Recompute the plan using the actual MFP size
+        plan = compute_window_layout(
+            main_monitor=main_rect,
+            secondary_monitor=MonitorRect(0, 0, 1, 1),  # not used for MFP
+            layout_config=layout_cfg,
+            mfp_size=Size(actual_w, actual_h),
+        )
+
+        delta_x = plan.mfp.x - actual_x
+        delta_y = plan.mfp.y - actual_y
+        if abs(delta_x) <= 1 and abs(delta_y) <= 1:
+            break
+        move_x += delta_x
+        move_y += delta_y
+        move_w = actual_w
+        move_h = actual_h
+
+    logger.info("Positioned MFP (pid=%d) at %d,%d", mfp_pid, actual_x, actual_y)
+
+
+def _resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
+    """Resolve a Windows .lnk shortcut, returning (target, work_dir, args).
+
+    Uses the COM IShellLink interface via ctypes.
+    """
+    try:
+        import win32com.client  # type: ignore[import-untyped]
+        shell = win32com.client.Dispatch("WScript.Shell")
+        link = shell.CreateShortcut(shortcut_path)
+        return link.TargetPath, link.WorkingDirectory, link.Arguments
+    except Exception:
+        pass
+
+    # Fallback: use PowerShell
+    try:
+        ps_script = (
+            f"$s = (New-Object -ComObject WScript.Shell).CreateShortcut('{shortcut_path}'); "
+            f"Write-Output $s.TargetPath; Write-Output $s.WorkingDirectory; Write-Output $s.Arguments"
+        )
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", ps_script],
+            capture_output=True, text=True, check=False,
+        )
+        lines = result.stdout.strip().splitlines()
+        if len(lines) >= 3:
+            return lines[0], lines[1], lines[2]
+        if len(lines) >= 1:
+            return lines[0], lines[1] if len(lines) > 1 else "", ""
+    except Exception:
+        pass
+
+    return "", "", ""
+
+
+def _maybe_launch_random_favs_browser(
+    m: configparser.ConfigParser,
+    plan: WindowLayoutPlan,
+    mfp_pid: int,
+) -> None:
+    """Launch the Random Favs Browser if enabled, position it, and restore MFP topmost."""
+    if m["random_favs_browser"]["enabled"] != "1":
+        return
+
+    shortcut_path = m["random_favs_browser"]["shortcut_path"]
+    manifest_file = m["random_favs_browser"]["manifest_file"]
+
+    target, work_dir, args = _resolve_shortcut(shortcut_path)
+    if not target:
+        logger.warning("Random Favs Browser skipped: could not resolve shortcut %s", shortcut_path)
+        return
+
+    # Take a Chrome window snapshot before launch
+    before_hwnds = _get_chrome_window_hwnds()
+
+    result = launch_random_favs_browser(
+        manifest_file,
+        shortcut_target=target,
+        shortcut_work_dir=work_dir,
+        shortcut_args=args,
+    )
+    if not result.should_launch:
+        logger.info("Random Favs Browser skipped: launch plan was empty")
+        return
+
+    # Wait for a new Chrome window to appear
+    new_hwnd = _wait_for_new_chrome_window(before_hwnds, timeout_ms=8000)
+    if not new_hwnd:
+        logger.warning("Random Favs Browser skipped: no new Chrome window appeared")
+        return
+
+    # Position the browser window
+    rect = plan.random_favs_browser
+    move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height)
+    set_always_on_top(new_hwnd, False)
+
+    # Restore MFP topmost
+    mfp_hwnd = find_window_by_pid(mfp_pid)
+    if mfp_hwnd:
+        set_always_on_top(mfp_hwnd, True)
+        activate_window(mfp_hwnd)
+
+    logger.info("Random Favs Browser positioned")
+
+
+def _get_chrome_window_hwnds() -> set[int]:
+    """Get the set of visible Chrome window handles."""
+    hwnds: set[int] = set()
+
+    _user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+
+    WNDENUMPROC = ctypes.WINFUNCTYPE(
+        ctypes.wintypes.BOOL,
+        ctypes.wintypes.HWND,
+        ctypes.wintypes.LPARAM,
+    )
+
+    def callback(hwnd: int, _lparam: int) -> bool:
+        if not _user32.IsWindowVisible(hwnd):
+            return True
+        # Check process name via PID
+        pid = ctypes.wintypes.DWORD()
+        _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        # Check title is non-empty
+        title_len = _user32.GetWindowTextLengthW(hwnd)
+        if title_len > 0:
+            # Get the window class name to identify Chrome
+            class_name = ctypes.create_unicode_buffer(256)
+            _user32.GetClassNameW(hwnd, class_name, 256)
+            if "Chrome" in class_name.value:
+                hwnds.add(hwnd)
+        return True
+
+    _user32.EnumWindows(WNDENUMPROC(callback), 0)
+    return hwnds
+
+
+def _wait_for_new_chrome_window(before: set[int], timeout_ms: int = 8000) -> int:
+    """Wait for a new Chrome window that wasn't in the 'before' set."""
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        current = _get_chrome_window_hwnds()
+        new_windows = current - before
+        if new_windows:
+            return next(iter(new_windows))
+        time.sleep(0.2)
+    return 0

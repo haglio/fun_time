@@ -29,20 +29,31 @@ WNDENUMPROC = ctypes.WINFUNCTYPE(
 
 
 def find_window_by_pid(pid: int) -> int:
-    """Find a visible top-level window belonging to *pid*. Returns 0 if not found."""
-    found: int = 0
+    """Find a visible top-level window belonging to *pid*. Returns 0 if not found.
+
+    Matches AHK's ``DetectHiddenWindows False`` behavior: only considers
+    windows that are visible (``IsWindowVisible``) and have a non-empty title.
+    This avoids grabbing internal surfaces like Direct3D rendering windows.
+    """
+    best: int = 0
 
     def callback(hwnd: int, _lparam: int) -> bool:
-        nonlocal found
+        nonlocal best
         window_pid = ctypes.wintypes.DWORD()
         _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
-        if window_pid.value == pid:
-            found = hwnd
-            return False  # stop enumeration
-        return True
+        if window_pid.value != pid:
+            return True
+        if not _user32.IsWindowVisible(hwnd):
+            return True
+        # Check for non-empty title (skip internal/unnamed windows)
+        title_len = _user32.GetWindowTextLengthW(hwnd)
+        if title_len <= 0:
+            return True
+        best = hwnd
+        return False  # stop enumeration
 
     _user32.EnumWindows(WNDENUMPROC(callback), 0)
-    return found
+    return best
 
 
 def wait_for_window(pid: int, timeout_s: float = 15.0) -> int:

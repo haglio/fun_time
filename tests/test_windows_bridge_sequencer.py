@@ -53,13 +53,14 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=fake_launch_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=99999), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(side_effect=[0, 0, 0, 0])
+            mock_time.monotonic = MagicMock(return_value=0)
 
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
@@ -92,13 +93,14 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=track_move), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(side_effect=[0, 0, 0, 0])
+            mock_time.monotonic = MagicMock(return_value=0)
 
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
@@ -119,13 +121,14 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(side_effect=[0, 0, 0, 0])
+            mock_time.monotonic = MagicMock(return_value=0)
 
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
