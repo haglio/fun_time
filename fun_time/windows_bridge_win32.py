@@ -17,8 +17,22 @@ SWP_NOACTIVATE = 0x0010
 SWP_NOZORDER = 0x0004
 SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
-HWND_TOPMOST = -1
-HWND_NOTOPMOST = -2
+HWND_TOPMOST = ctypes.wintypes.HWND(-1)
+HWND_NOTOPMOST = ctypes.wintypes.HWND(-2)
+
+# Declare argtypes so ctypes passes HWND parameters as 64-bit pointers.
+# Without this, ctypes defaults to c_int (32-bit) for Python ints, which
+# corrupts the sentinel HWND_TOPMOST/HWND_NOTOPMOST values on 64-bit.
+_user32.SetWindowPos.argtypes = [
+    ctypes.wintypes.HWND,   # hWnd
+    ctypes.wintypes.HWND,   # hWndInsertAfter
+    ctypes.c_int,           # X
+    ctypes.c_int,           # Y
+    ctypes.c_int,           # cx
+    ctypes.c_int,           # cy
+    ctypes.wintypes.UINT,   # uFlags
+]
+_user32.SetWindowPos.restype = ctypes.wintypes.BOOL
 
 
 WNDENUMPROC = ctypes.WINFUNCTYPE(

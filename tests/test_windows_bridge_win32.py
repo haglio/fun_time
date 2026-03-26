@@ -164,8 +164,13 @@ class TestSendAltKeyToWindow:
 
 
 class TestConstants:
-    def test_hwnd_topmost_value(self):
-        assert HWND_TOPMOST == -1
+    def test_hwnd_topmost_is_64bit_pointer(self):
+        import ctypes
+        assert isinstance(HWND_TOPMOST, ctypes.c_void_p)
+        # Must be 0xFFFFFFFFFFFFFFFF on 64-bit, not truncated 0xFFFFFFFF
+        assert HWND_TOPMOST.value == (2**64 - 1)
 
-    def test_hwnd_notopmost_value(self):
-        assert HWND_NOTOPMOST == -2
+    def test_hwnd_notopmost_is_64bit_pointer(self):
+        import ctypes
+        assert isinstance(HWND_NOTOPMOST, ctypes.c_void_p)
+        assert HWND_NOTOPMOST.value == (2**64 - 2)
