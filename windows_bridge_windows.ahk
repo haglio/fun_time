@@ -26,11 +26,14 @@ OpenPrimaryVlcFileDialog() {
 }
 
 OpenPrimaryVlcFileDialogWithManagedOmniPause() {
-    global pid1, omniPaused
+    global pid1, pid2, pid3, pidM, pidD, omniPaused, robotHandMode
 
     shouldLeaveOmniPause := !omniPaused
-    if (shouldLeaveOmniPause)
-        EnterOmniPause()
+    if (shouldLeaveOmniPause) {
+        DispatchBridgeCommand("enter_omnipause")
+        for pid in [pid1, pid2, pid3, pidM, pidD]
+            try WinSetAlwaysOnTop(false, "ahk_pid " pid)
+    }
 
     try {
         OpenPrimaryVlcFileDialog()
@@ -41,8 +44,16 @@ OpenPrimaryVlcFileDialogWithManagedOmniPause() {
                 WinWaitClose(dialogSpec)
         }
     } finally {
-        if (shouldLeaveOmniPause)
-            LeaveOmniPause(true)
+        if (shouldLeaveOmniPause) {
+            DispatchBridgeCommand("leave_omnipause_skip_primary")
+            if (!robotHandMode)
+                try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
+            try WinSetAlwaysOnTop(true, "ahk_pid " pidD)
+            try WinSetAlwaysOnTop(true, "ahk_pid " pid2)
+            try WinSetAlwaysOnTop(true, "ahk_pid " pid3)
+            try WinSetAlwaysOnTop(true, "ahk_pid " pidM)
+            SyncRobotHandState()
+        }
     }
 }
 

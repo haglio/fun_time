@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fun_time.windows_bridge_runtime_flow import (
     apply_enter_omnipause,
+    apply_leave_omnipause,
     apply_sync_robot_hand,
     apply_toggle_fmode,
     build_omnipause_toggle,
@@ -128,3 +129,63 @@ def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypat
     assert paused_file.read_text(encoding="utf-8") == "1"
     assert audio_paused_file.read_text(encoding="utf-8") == "1"
     assert calls == [(9002, "pw", False), (9003, "pw", False), (9001, "pw", False)]
+
+
+def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_path: Path):
+    paused_file = tmp_path / "robot_paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    paused_file.write_text("1", encoding="utf-8")
+    audio_paused_file.write_text("1", encoding="utf-8")
+    calls: list[tuple[int, str, bool]] = []
+
+    monkeypatch.setattr(
+        "fun_time.windows_bridge_runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
+    )
+
+    result = apply_leave_omnipause(
+        omni_paused=True,
+        robot_hand_mode_on=False,
+        skip_primary_resume=False,
+        primary_port=9001,
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+        robot_hand_paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+    )
+
+    assert result.action == "leave"
+    assert result.next_omni_paused is False
+    assert paused_file.read_text(encoding="utf-8") == "0"
+    assert audio_paused_file.read_text(encoding="utf-8") == "0"
+    assert calls == [(9002, "pw", True), (9003, "pw", True), (9001, "pw", True)]
+
+
+def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monkeypatch, tmp_path: Path):
+    paused_file = tmp_path / "robot_paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    paused_file.write_text("1", encoding="utf-8")
+    audio_paused_file.write_text("1", encoding="utf-8")
+    calls: list[tuple[int, str, bool]] = []
+
+    monkeypatch.setattr(
+        "fun_time.windows_bridge_runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
+    )
+
+    result = apply_leave_omnipause(
+        omni_paused=True,
+        robot_hand_mode_on=True,
+        skip_primary_resume=False,
+        primary_port=9001,
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+        robot_hand_paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+    )
+
+    assert result.action == "leave"
+    assert result.next_omni_paused is False
+    assert calls == [(9002, "pw", True), (9003, "pw", True)]

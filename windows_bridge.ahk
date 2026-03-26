@@ -12,43 +12,17 @@ if (A_Args.Length < 1) {
 }
 
 WINDOWS_BRIDGE_MANIFEST_PATH := A_Args[1]
-VLC_EXE := RequireManifestValue("executables", "vlc_exe")
-MFP_EXE := RequireManifestValue("executables", "mfp_exe")
-PRIMARY_VLC_SOURCES := RequireManifestValue("media", "primary_vlc_sources")
-PORTRAIT_DIR := RequireManifestValue("media", "portrait_dirs")
-LANDSCAPE_DIR := RequireManifestValue("media", "landscape_dirs")
-WEIRD_DIR := RequireManifestValue("media", "weird_dir")
-FAVS_FILE := RequireManifestValue("media", "favs_file")
-PRIMARY_VLC_PORT := RequireManifestValue("controller", "primary_vlc_port")
-VLC2_PORT := RequireManifestValue("controller", "vlc2_port")
-VLC3_PORT := RequireManifestValue("controller", "vlc3_port")
 VLC_PASS := RequireManifestValue("controller", "vlc_pass")
 ROBOT_HAND_PY := RequireManifestValue("executables", "python_exe")
-ROBOT_HAND_MODULE := RequireManifestValue("modules", "robot_hand_module")
-DASHBOARD_MODULE := RequireManifestValue("modules", "dashboard_module")
-WINDOWS_BRIDGE_LOCK_MODULE := RequireManifestValue("modules", "windows_bridge_lock_module")
 WINDOWS_BRIDGE_WINDOW_LAYOUT_MODULE := RequireManifestValue("modules", "windows_bridge_window_layout_module")
-WINDOWS_BRIDGE_VLC_ACTIONS_MODULE := RequireManifestValue("modules", "windows_bridge_vlc_actions_module")
 WINDOWS_BRIDGE_RANDOM_FAVS_BROWSER_MODULE := RequireManifestValue("modules", "windows_bridge_random_favs_browser_module")
 WINDOWS_BRIDGE_STARTUP_MODULE := RequireManifestValue("modules", "windows_bridge_startup_module")
-WINDOWS_BRIDGE_DASHBOARD_BRIDGE_MODULE := RequireManifestValue("modules", "windows_bridge_dashboard_bridge_module")
-WINDOWS_BRIDGE_RUNTIME_FLOW_MODULE := RequireManifestValue("modules", "windows_bridge_runtime_flow_module")
-ROBOT_HAND_CLIPS := RequireManifestValue("media", "robot_hand_clips")
-ROBOT_HAND_AUDIO_MODULE := RequireManifestValue("modules", "audio_module")
-ROBOT_HAND_AUDIO := RequireManifestValue("media", "robot_hand_audio")
-ROBOT_HAND_MODE_FILE := RequireManifestValue("commands", "robot_hand_mode_file")
-ROBOT_HAND_CMD_FILE := RequireManifestValue("commands", "robot_hand_cmd_file")
-ROBOT_HAND_ENABLED_FILE := RequireManifestValue("commands", "robot_hand_enabled_file")
-ROBOT_HAND_PAUSED_FILE := RequireManifestValue("commands", "robot_hand_paused_file")
-BROKER_CMD_FILE := RequireManifestValue("commands", "broker_cmd_file")
-AUDIO_CMD_FILE := RequireManifestValue("commands", "audio_cmd_file")
-AUDIO_PAUSED_FILE := RequireManifestValue("commands", "audio_paused_file")
+BRIDGE_COMMAND_DISPATCH_MODULE := RequireManifestValue("modules", "bridge_command_dispatch_module")
 DASHBOARD_STATE_FILE := RequireManifestValue("commands", "dashboard_state_file")
 DASHBOARD_CMD_FILE := RequireManifestValue("commands", "dashboard_cmd_file")
 DASHBOARD_ENABLED := RequireManifestValue("dashboard", "enabled") = "1"
 MAIN_MONITOR := RequireManifestValue("layout", "main_monitor")
 SECONDARY_MONITOR := RequireManifestValue("layout", "secondary_monitor")
-PRIMARY_TOP_RATIO := RequireManifestValue("layout", "primary_top_ratio")
 LANDSCAPE_WIDTH_RATIO := RequireManifestValue("layout", "landscape_width_ratio")
 MFP_WIDTH_RATIO := RequireManifestValue("layout", "mfp_width_ratio")
 MFP_HEIGHT_RATIO := RequireManifestValue("layout", "mfp_height_ratio")
@@ -60,9 +34,6 @@ CONFIG_PATH := RequireManifestValue("runtime", "config_path")
 PROJECT_DIR := RequireManifestValue("runtime", "project_dir")
 ICON_PATH := PROJECT_DIR . "\icon.ico"
 STATE_DIR := GetParentDir(WINDOWS_BRIDGE_LOG_FILE)
-
-; IMPORTANT: VLC web interface commonly uses BLANK username + password.
-VLC_USER := ""
 
 locked2 := false
 locked3 := false
@@ -78,26 +49,6 @@ pidM := 0
 pidD := 0
 pidR := 0
 pidA := 0
-LABEL_PRIMARY_VLC := "Non-AI VLC"
-LABEL_PRIMARY_ROBOT := "Non-AI Robot Hand"
-LABEL_PORTRAIT_VLC := "Portrait AI VLC"
-LABEL_LANDSCAPE_VLC := "Landscape AI VLC"
-LABEL_OSR2 := "OSR2"
-LABEL_MFP := "MFP"
-LABEL_BROKER := "Broker"
-LABEL_CONTROLLER := "Controller"
-LABEL_F_MODE := "F-Mode"
-
-COLOR_BG := "20262C"
-COLOR_PANEL := "2A3038"
-COLOR_TEXT := "F4F7FA"
-COLOR_MUTED := "AEB7C2"
-COLOR_ACTIVE := "1F6F52"
-COLOR_ACTIVE_ALT := "2C8A65"
-COLOR_DISABLED := "6C1F1F"
-COLOR_WARNING := "8A6A2C"
-COLOR_LINK_ON := "3A7AFE"
-COLOR_LINK_OFF := "7C8694"
 
 Q(s) => Format('"{1}"', s)
 
@@ -135,33 +86,6 @@ Log(msg) {
     }
 }
 
-WriteRawStateFile(path, text) {
-    SplitPath(path, , &dirPath)
-    if (dirPath != "")
-        DirCreate(dirPath)
-
-    tries := 0
-    while (tries < 8) {
-        file := ""
-        try {
-            file := FileOpen(path, "w", "UTF-8-RAW")
-            if (!file)
-                throw Error("Failed to open state file: " . path)
-            file.Write(text)
-            file.Close()
-            return
-        } catch {
-            try {
-                if (IsObject(file))
-                    file.Close()
-            }
-            Sleep 30
-            tries += 1
-        }
-    }
-    throw Error("Failed to write state file after retries: " . path)
-}
-
 RequireManifestValue(section, key) {
     global WINDOWS_BRIDGE_MANIFEST_PATH
     missing := "__missing__"
@@ -173,60 +97,49 @@ RequireManifestValue(section, key) {
     return value
 }
 
-RunApp(exe, args) {
-    global PROJECT_DIR
-    cmd := Q(exe)
-    if (args != "")
-        cmd .= " " . args
-    Run(cmd, PROJECT_DIR, , &pid)
-    return pid
-}
+RunHiddenWait(cmdLine, workDir := "") {
+    ; Launch a hidden subprocess WITHOUT triggering the Windows "app starting"
+    ; cursor.  AHK's built-in RunWait always causes the hourglass/spinner
+    ; because it does not set STARTF_FORCEOFFFEEDBACK.  Since the sync timer
+    ; launches Python every 200 ms, the cursor flickers non-stop without this.
+    static STARTF_USESHOWWINDOW     := 0x00000001
+    static STARTF_FORCEOFFFEEDBACK  := 0x00000080
+    static SW_HIDE                  := 0
+    static CREATE_NO_WINDOW         := 0x08000000
+    static INFINITE                 := 0xFFFFFFFF
 
-RunVLC(args, mediaPath) {
-    mediaArgs := ""
-    for pathPart in StrSplit(mediaPath, "|") {
-        pathTrimmed := Trim(pathPart)
-        if (pathTrimmed != "")
-            mediaArgs .= " " . Q(pathTrimmed)
-    }
-    cmd := Q(VLC_EXE) . " " . args . mediaArgs
-    Run(cmd, , , &pid)
-    return pid
-}
+    siSize := 104       ; sizeof(STARTUPINFOW) on x64
+    si := Buffer(siSize, 0)
+    NumPut("UInt",   siSize,                                           si, 0)   ; cb
+    NumPut("UInt",   STARTF_USESHOWWINDOW | STARTF_FORCEOFFFEEDBACK,   si, 60)  ; dwFlags
+    NumPut("UShort", SW_HIDE,                                          si, 64)  ; wShowWindow
 
-RunDetached(cmdLine) {
-    Run(cmdLine, , , &pid)
-    return pid
-}
+    pi := Buffer(24, 0) ; sizeof(PROCESS_INFORMATION) on x64
 
-RunWindowsBridgeLockAction(action, which, locked, currentPath, planPath, extraArgs := "") {
-    global ROBOT_HAND_PY, WINDOWS_BRIDGE_LOCK_MODULE, PROJECT_DIR
-    args := action
-        . " --which " . which
-        . " --locked " . (locked ? "1" : "0")
-        . " --current-path " . Q(currentPath)
-        . " --plan-file " . Q(planPath)
-    if (extraArgs != "")
-        args .= " " . extraArgs
-    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_LOCK_MODULE . " " . args
-    if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
-        return ""
-    return LoadLockActionPlan(planPath)
-}
+    if !DllCall("kernel32\CreateProcessW"
+        , "Ptr",  0              ; lpApplicationName
+        , "Str",  cmdLine        ; lpCommandLine (mutable copy)
+        , "Ptr",  0              ; lpProcessAttributes
+        , "Ptr",  0              ; lpThreadAttributes
+        , "Int",  0              ; bInheritHandles
+        , "UInt", CREATE_NO_WINDOW
+        , "Ptr",  0              ; lpEnvironment
+        , "Str",  workDir        ; lpCurrentDirectory
+        , "Ptr",  si
+        , "Ptr",  pi
+        , "Int")
+        return -1
 
-LoadLockActionPlan(path) {
-    if !FileExist(path)
-        return ""
-    plan := Map()
-    plan["next_locked"] := IniRead(path, "plan", "next_locked", "0") = "1"
-    plan["repeat_mode"] := IniRead(path, "plan", "repeat_mode", "")
-    plan["ensure_in_favs"] := IniRead(path, "plan", "ensure_in_favs", "0") = "1"
-    plan["remove_from_favs"] := IniRead(path, "plan", "remove_from_favs", "0") = "1"
-    plan["advance_playlist"] := IniRead(path, "plan", "advance_playlist", "0") = "1"
-    plan["move_to_weird"] := IniRead(path, "plan", "move_to_weird", "0") = "1"
-    plan["log_message"] := IniRead(path, "plan", "log_message", "")
-    try FileDelete(path)
-    return plan
+    hProcess := NumGet(pi, 0, "Ptr")
+    hThread  := NumGet(pi, 8, "Ptr")
+
+    DllCall("kernel32\WaitForSingleObject", "Ptr", hProcess, "UInt", INFINITE)
+
+    exitCode := 0
+    DllCall("kernel32\GetExitCodeProcess", "Ptr", hProcess, "UIntP", &exitCode)
+    DllCall("kernel32\CloseHandle", "Ptr", hThread)
+    DllCall("kernel32\CloseHandle", "Ptr", hProcess)
+    return exitCode
 }
 
 LoadStartupActionResult(path) {
@@ -244,23 +157,11 @@ LoadStartupActionResult(path) {
     return result
 }
 
-BuildLockPlanPath(which) {
-    global STATE_DIR
-    return STATE_DIR . "\lock_action_plan_" . which . ".ini"
-}
-
 BuildStartupResultPath() {
     global STATE_DIR
     static counter := 0
     counter += 1
     return STATE_DIR . "\startup_action_result_" . A_TickCount . "_" . counter . ".ini"
-}
-
-BuildRuntimeFlowResultPath() {
-    global STATE_DIR
-    static counter := 0
-    counter += 1
-    return STATE_DIR . "\runtime_flow_result_" . A_TickCount . "_" . counter . ".ini"
 }
 
 BuildWindowLayoutPlanPath() {
@@ -270,18 +171,19 @@ BuildWindowLayoutPlanPath() {
     return STATE_DIR . "\window_layout_plan_" . A_TickCount . "_" . counter . ".ini"
 }
 
-BuildVlcQueryOutputPath(prefix) {
+BuildBridgeDispatchResultPath() {
     global STATE_DIR
     static counter := 0
     counter += 1
-    return STATE_DIR . "\" . prefix . "_" . A_TickCount . "_" . counter . ".txt"
+    return STATE_DIR . "\bridge_dispatch_result_" . A_TickCount . "_" . counter . ".ini"
 }
 
 RunWindowsBridgeWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {
     global ROBOT_HAND_PY, WINDOWS_BRIDGE_WINDOW_LAYOUT_MODULE, PROJECT_DIR
-    global PRIMARY_TOP_RATIO, LANDSCAPE_WIDTH_RATIO, MFP_WIDTH_RATIO, MFP_HEIGHT_RATIO
+    global WINDOWS_BRIDGE_MANIFEST_PATH
 
     args := "write-plan"
+        . " --manifest " . Q(WINDOWS_BRIDGE_MANIFEST_PATH)
         . " --main-x " . mainRect["x"]
         . " --main-y " . mainRect["y"]
         . " --main-width " . mainRect["w"]
@@ -290,41 +192,19 @@ RunWindowsBridgeWindowLayout(mainRect, secondaryRect, mfpW, mfpH, planPath) {
         . " --secondary-y " . secondaryRect["y"]
         . " --secondary-width " . secondaryRect["w"]
         . " --secondary-height " . secondaryRect["h"]
-        . " --primary-top-ratio " . PRIMARY_TOP_RATIO
-        . " --landscape-width-ratio " . LANDSCAPE_WIDTH_RATIO
-        . " --mfp-width-ratio " . MFP_WIDTH_RATIO
-        . " --mfp-height-ratio " . MFP_HEIGHT_RATIO
         . " --mfp-width " . mfpW
         . " --mfp-height " . mfpH
         . " --plan-file " . Q(planPath)
     cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_WINDOW_LAYOUT_MODULE . " " . args
-    if (RunWait(cmd, PROJECT_DIR, "Hide") != 0)
+    if (RunHiddenWait(cmd, PROJECT_DIR) != 0)
         return ""
     return LoadWindowLayoutPlan(planPath)
-}
-
-RunWindowsBridgeVlcAction(args) {
-    global ROBOT_HAND_PY, WINDOWS_BRIDGE_VLC_ACTIONS_MODULE, PROJECT_DIR
-    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_VLC_ACTIONS_MODULE . " " . args
-    return RunWait(cmd, PROJECT_DIR, "Hide")
 }
 
 RunWindowsBridgeStartupAction(args) {
     global ROBOT_HAND_PY, WINDOWS_BRIDGE_STARTUP_MODULE, PROJECT_DIR
     cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_STARTUP_MODULE . " " . args
-    return RunWait(cmd, PROJECT_DIR, "Hide")
-}
-
-RunWindowsBridgeDashboardBridgeAction(args) {
-    global ROBOT_HAND_PY, WINDOWS_BRIDGE_DASHBOARD_BRIDGE_MODULE, PROJECT_DIR
-    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_DASHBOARD_BRIDGE_MODULE . " " . args
-    return RunWait(cmd, PROJECT_DIR, "Hide")
-}
-
-RunWindowsBridgeRuntimeFlowAction(args) {
-    global ROBOT_HAND_PY, WINDOWS_BRIDGE_RUNTIME_FLOW_MODULE, PROJECT_DIR
-    cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_RUNTIME_FLOW_MODULE . " " . args
-    return RunWait(cmd, PROJECT_DIR, "Hide")
+    return RunHiddenWait(cmd, PROJECT_DIR)
 }
 
 LaunchRandomFavsBrowserViaPython(manifestPath, shortcutTarget, shortcutWorkDir, shortcutArgs) {
@@ -336,7 +216,7 @@ LaunchRandomFavsBrowserViaPython(manifestPath, shortcutTarget, shortcutWorkDir, 
         . " --shortcut-work-dir " . Q(shortcutWorkDir)
         . " --shortcut-args-b64 " . Q(encodedShortcutArgs)
     cmd := Q(ROBOT_HAND_PY) . " -m " . WINDOWS_BRIDGE_RANDOM_FAVS_BROWSER_MODULE . " " . args
-    exitCode := RunWait(cmd, PROJECT_DIR, "Hide")
+    exitCode := RunHiddenWait(cmd, PROJECT_DIR)
     if (exitCode = 0)
         return true
     if (exitCode != 3)
@@ -360,27 +240,6 @@ LoadWindowLayoutPlan(path) {
     return plan
 }
 
-LoadWindowsBridgeRuntimeFlowResult(path) {
-    if !FileExist(path)
-        return ""
-    result := Map()
-    result["action"] := IniRead(path, "result", "action", "")
-    result["next_omni_paused"] := IniRead(path, "result", "next_omni_paused", "0") = "1"
-    result["robot_hand_branch"] := IniRead(path, "result", "robot_hand_branch", "0") = "1"
-    result["next_robot_hand_mode"] := IniRead(path, "result", "next_robot_hand_mode", "0") = "1"
-    result["current_enabled"] := IniRead(path, "result", "current_enabled", "0") = "1"
-    result["enforce_outputs"] := IniRead(path, "result", "enforce_outputs", "0") = "1"
-    result["enforce_active"] := IniRead(path, "result", "enforce_active", "0") = "1"
-    result["is_transition"] := IniRead(path, "result", "is_transition", "0") = "1"
-    result["success"] := IniRead(path, "result", "success", "0") = "1"
-    result["next_f_mode_enabled"] := IniRead(path, "result", "next_f_mode_enabled", "0") = "1"
-    result["next_locked2"] := IniRead(path, "result", "next_locked2", "0") = "1"
-    result["next_locked3"] := IniRead(path, "result", "next_locked3", "0") = "1"
-    result["log_message"] := IniRead(path, "result", "log_message", "")
-    try FileDelete(path)
-    return result
-}
-
 TryClosePid(pid) {
     if (!pid)
         return
@@ -396,7 +255,7 @@ TryKillPid(pid) {
 ForceKillPid(pid) {
     if (!pid)
         return
-    try RunWait(A_ComSpec . " /c taskkill /PID " . pid . " /T /F", , "Hide")
+    try RunHiddenWait(A_ComSpec . " /c taskkill /PID " . pid . " /T /F")
 }
 
 GetMonitorRect(index) {
@@ -454,21 +313,38 @@ StartWindowsBridge()
 
 #SuspendExempt true
 ^!q::ShutdownAll()
-Esc::OmniPauseToggle()
+Esc::{
+    HandleOmniPauseToggle()
+
+}
 #SuspendExempt false
 
-[::HandlePrevAction()
-SC01A::HandlePrevAction()
+[::{
+    DispatchBridgeCommand("primary_prev")
+}
+SC01A::{
+    DispatchBridgeCommand("primary_prev")
+}
 
-]::HandleNextAction()
-SC01B::HandleNextAction()
+]::{
+    DispatchBridgeCommand("primary_next")
+}
+SC01B::{
+    DispatchBridgeCommand("primary_next")
+}
 
-r::ToggleRobotHandEnabled()
-$f::ToggleFMode()
+r::{
+    DispatchBridgeCommand("robot_toggle")
+
+}
+$f::{
+    DispatchBridgeCommand("fmode_toggle")
+
+}
 
 \::{
-    if (EffectiveRobotHandModeState() = "1") {
-        QueueRobotHandOffsetQuarterCycle()
+    if (robotHandMode) {
+        DispatchBridgeCommand("quarter_button")
     } else {
         ; Managed file-open flow: pause globally while browsing, then resume without
         ; toggling primary VLC playback so newly selected media keeps playing.
@@ -479,26 +355,38 @@ $f::ToggleFMode()
 -::try ControlSend("!{Left}", , "ahk_pid " pid1)
 =::try ControlSend("!{Right}", , "ahk_pid " pid1)
 Left::{
-    CancelLock(2)
-    SendVlcCommand(VLC2_PORT, "pl_previous")
+    DispatchBridgeCommand("portrait_prev")
+
 }
 Right::{
-    CancelLock(2)
-    SendVlcCommand(VLC2_PORT, "pl_next")
+    DispatchBridgeCommand("portrait_next")
+
 }
-Up::Discard(2)
-Down::ToggleLock(2)
+Up::{
+    DispatchBridgeCommand("portrait_trash")
+
+}
+Down::{
+    DispatchBridgeCommand("portrait_lock")
+
+}
 
 a::{
-    CancelLock(3)
-    SendVlcCommand(VLC3_PORT, "pl_previous")
+    DispatchBridgeCommand("landscape_prev")
+
 }
 d::{
-    CancelLock(3)
-    SendVlcCommand(VLC3_PORT, "pl_next")
+    DispatchBridgeCommand("landscape_next")
+
 }
-w::Discard(3)
-s::ToggleLock(3)
+w::{
+    DispatchBridgeCommand("landscape_trash")
+
+}
+s::{
+    DispatchBridgeCommand("landscape_lock")
+
+}
 
 ; =====================================================================
 ; ========================= IMPLEMENTATION ============================

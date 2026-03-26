@@ -70,6 +70,7 @@ def validate_config(config) -> None:
     require_file(config.project_dir / "fun_time" / "windows_bridge_startup_app.py")
     require_file(config.project_dir / "fun_time" / "windows_bridge_dashboard_bridge_app.py")
     require_file(config.project_dir / "fun_time" / "windows_bridge_runtime_flow_app.py")
+    require_file(config.project_dir / "fun_time" / "bridge_command_dispatch_app.py")
 
 
 def is_broker_running() -> bool:

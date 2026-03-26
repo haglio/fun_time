@@ -235,6 +235,72 @@ def test_main_dispatches_seed_robot_hand_state(monkeypatch):
     assert recorded["audio"] == "state\\audio_paused.txt"
 
 
+def test_start_core_session_reads_from_manifest(monkeypatch, cfg_factory, tmp_path):
+    from fun_time.windows_bridge_manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
+    from fun_time.config import load_config
+
+    recorded: dict[str, object] = {}
+
+    def fake_start(**kwargs) -> None:
+        recorded.update(kwargs)
+
+    monkeypatch.setattr("fun_time.windows_bridge_startup_app.start_core_session", fake_start)
+
+    cfg = load_config(cfg_factory())
+    manifest_path = write_windows_bridge_manifest(
+        cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+    )
+    result_file = tmp_path / "result.ini"
+
+    code = main([
+        "start-core-session",
+        "--manifest", str(manifest_path),
+        "--result-file", str(result_file),
+    ])
+
+    assert code == 0
+    assert recorded["result_file"] == str(result_file)
+    assert recorded["password"] == "testpw"
+    assert recorded["primary_port"] == cfg.controller.primary_vlc_http_port
+    assert recorded["vlc_exe"] == str(cfg.paths.vlc_exe)
+
+
+def test_launch_ui_companions_reads_from_manifest(monkeypatch, cfg_factory, tmp_path):
+    from fun_time.windows_bridge_manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
+    from fun_time.config import load_config
+
+    recorded: dict[str, object] = {}
+
+    def fake_launch(**kwargs) -> None:
+        recorded.update(kwargs)
+
+    monkeypatch.setattr("fun_time.windows_bridge_startup_app.launch_ui_companions", fake_launch)
+
+    cfg = load_config(cfg_factory())
+    manifest_path = write_windows_bridge_manifest(
+        cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+    )
+    result_file = tmp_path / "result.ini"
+
+    code = main([
+        "launch-ui-companions",
+        "--manifest", str(manifest_path),
+        "--result-file", str(result_file),
+        "--mfp-pid", "1234",
+        "--dashboard-x", "10", "--dashboard-y", "20",
+        "--dashboard-width", "100", "--dashboard-height", "50",
+        "--robot-x", "30", "--robot-y", "40",
+        "--robot-width", "200", "--robot-height", "300",
+    ])
+
+    assert code == 0
+    assert recorded["mfp_pid"] == 1234
+    assert recorded["dashboard_x"] == 10
+    assert recorded["robot_width"] == 200
+    assert recorded["result_file"] == str(result_file)
+    assert recorded["python_exe"] == str(cfg.paths.python_exe)
+
+
 def test_main_dispatches_start_core_session(monkeypatch):
     recorded: dict[str, object] = {}
 

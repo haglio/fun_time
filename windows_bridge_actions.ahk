@@ -1,5 +1,5 @@
 ProcessDashboardCommand() {
-    global DASHBOARD_CMD_FILE, VLC2_PORT, VLC3_PORT
+    global DASHBOARD_CMD_FILE
     if !FileExist(DASHBOARD_CMD_FILE)
         return
     try {
@@ -10,61 +10,102 @@ ProcessDashboardCommand() {
     }
     if (action = "")
         return
-    switch action {
-        case "portrait_prev":
-            CancelLock(2), SendVlcCommand(VLC2_PORT, "pl_previous")
-        case "portrait_next":
-            CancelLock(2), SendVlcCommand(VLC2_PORT, "pl_next")
-        case "portrait_lock":
-            ToggleLock(2)
-        case "portrait_trash":
-            Discard(2)
-        case "primary_prev":
-            HandlePrevAction()
-        case "primary_next":
-            HandleNextAction()
-        case "quarter_button":
-            QueueRobotHandOffsetQuarterCycle()
-        case "landscape_prev":
-            CancelLock(3), SendVlcCommand(VLC3_PORT, "pl_previous")
-        case "landscape_next":
-            CancelLock(3), SendVlcCommand(VLC3_PORT, "pl_next")
-        case "landscape_lock":
-            ToggleLock(3)
-        case "landscape_trash":
-            Discard(3)
-        case "link_toggle":
-            ToggleRobotHandEnabled()
-        case "omnipause_toggle":
-            OmniPauseToggle()
-        case "fmode_toggle":
-            ToggleFMode()
-        case "robot_toggle":
-            ToggleRobotHandEnabled()
-    }
-}
-
-QueueRobotHandOffsetQuarterCycle() {
-    global ROBOT_HAND_CMD_FILE
-    WriteRawStateFile(ROBOT_HAND_CMD_FILE, "OFFSET_QUARTER_CYCLE")
-}
-
-HandlePrevAction() {
-    global ROBOT_HAND_CMD_FILE, pid1
-    if (EffectiveRobotHandModeState() = "1") {
-        WriteRawStateFile(ROBOT_HAND_CMD_FILE, "PREV")
+    if (action = "omnipause_toggle") {
+        HandleOmniPauseToggle()
     } else {
-        SendToPid(pid1, "p")
+        DispatchBridgeCommand(action)
     }
 }
 
-HandleNextAction() {
-    global ROBOT_HAND_CMD_FILE, pid1
-    if (EffectiveRobotHandModeState() = "1") {
-        WriteRawStateFile(ROBOT_HAND_CMD_FILE, "NEXT")
+HandleOmniPauseToggle() {
+    global omniPaused, pid1, pid2, pid3, pidM, pidD, robotHandMode
+    wasOmniPaused := omniPaused
+    DispatchBridgeCommand("omnipause_toggle")
+    if (!wasOmniPaused) {
+        ; Entering omnipause — remove topmost from all media windows
+        for pid in [pid1, pid2, pid3, pidM, pidD]
+            try WinSetAlwaysOnTop(false, "ahk_pid " pid)
     } else {
-        SendToPid(pid1, "n")
+        ; Leaving omnipause — restore topmost for media windows
+        if (!robotHandMode)
+            try WinSetAlwaysOnTop(true, "ahk_pid " pid1)
+        try WinSetAlwaysOnTop(true, "ahk_pid " pidD)
+        try WinSetAlwaysOnTop(true, "ahk_pid " pid2)
+        try WinSetAlwaysOnTop(true, "ahk_pid " pid3)
+        try WinSetAlwaysOnTop(true, "ahk_pid " pidM)
+        SyncRobotHandState()
     }
+}
+
+DispatchBridgeCommand(cmd) {
+    Critical  ; Prevent timer threads (e.g. SyncRobotHandState) from interrupting mid-dispatch
+    global ROBOT_HAND_PY, BRIDGE_COMMAND_DISPATCH_MODULE, PROJECT_DIR, CONFIG_PATH, VLC_PASS
+    global DASHBOARD_ENABLED, DASHBOARD_STATE_FILE
+    global locked2, locked3, robotHandMode, fModeEnabled, omniPaused
+    global pid1, pidM
+
+    mfpAlive := pidM && ProcessExist(pidM)
+    resultPath := BuildBridgeDispatchResultPath()
+    args := Q(cmd)
+        . " --result-file " . Q(resultPath)
+        . " --config-path " . Q(CONFIG_PATH)
+        . " --vlc-password " . Q(VLC_PASS)
+        . " --locked2 " . (locked2 ? "1" : "0")
+        . " --locked3 " . (locked3 ? "1" : "0")
+        . " --robot-hand-mode " . (robotHandMode ? "1" : "0")
+        . " --f-mode-enabled " . (fModeEnabled ? "1" : "0")
+        . " --omni-paused " . (omniPaused ? "1" : "0")
+        . " --dashboard-state-file " . Q(DASHBOARD_STATE_FILE)
+        . " --dashboard-enabled " . (DASHBOARD_ENABLED ? "1" : "0")
+        . " --mfp-alive " . (mfpAlive ? "1" : "0")
+    pythonCmd := Q(ROBOT_HAND_PY) . " -m " . BRIDGE_COMMAND_DISPATCH_MODULE . " " . args
+    if (RunHiddenWait(pythonCmd, PROJECT_DIR) != 0)
+        return
+    if !FileExist(resultPath)
+        return
+
+    locked2 := IniRead(resultPath, "state", "locked2", "0") = "1"
+    locked3 := IniRead(resultPath, "state", "locked3", "0") = "1"
+    robotHandMode := IniRead(resultPath, "state", "robot_hand_mode", "0") = "1"
+    fModeEnabled := IniRead(resultPath, "state", "f_mode_enabled", "0") = "1"
+    omniPaused := IniRead(resultPath, "state", "omni_paused", "0") = "1"
+
+    logMsg := IniRead(resultPath, "state", "log_message", "")
+    if (logMsg != "")
+        Log(logMsg)
+
+    opCount := IniRead(resultPath, "ops", "count", "0") + 0
+    Loop opCount {
+        section := "op_" . (A_Index - 1)
+        op := IniRead(resultPath, section, "op", "")
+        title := IniRead(resultPath, section, "title", "")
+        key := IniRead(resultPath, section, "key", "")
+        value := IniRead(resultPath, section, "value", "1") = "1"
+
+        switch op {
+            case "set_topmost":
+                if (title != "")
+                    try WinSetAlwaysOnTop(value, title)
+            case "activate":
+                if (title != "")
+                    try WinActivate(title)
+            case "show":
+                if (title != "")
+                    try WinShow(title)
+            case "hide":
+                if (title != "")
+                    try WinHide(title)
+            case "suspend_hotkeys":
+                Suspend true
+            case "unsuspend_hotkeys":
+                Suspend false
+            case "send_key":
+                if (key != "")
+                    SendToPid(pid1, key)
+        }
+    }
+
+    try FileDelete(resultPath)
 }
 
 Base64EncodeUtf8(s) {
@@ -76,146 +117,3 @@ Base64EncodeUtf8(s) {
     DllCall("Crypt32\CryptBinaryToStringW", "Ptr", buf.Ptr, "UInt", byteLen, "UInt", 0x1, "Ptr", out.Ptr, "UIntP", &outChars)
     return StrGet(out, outChars, "UTF-16")
 }
-
-VlcHttpReq(port, path, &status := 0) {
-    status := 0
-    try {
-        req := ComObject("WinHttp.WinHttpRequest.5.1")
-        url := "http://127.0.0.1:" . port . path
-        req.Open("GET", url, false)
-
-        cred := VLC_USER . ":" . VLC_PASS
-        auth := "Basic " . Base64EncodeUtf8(cred)
-        req.SetRequestHeader("Authorization", auth)
-
-        req.Send()
-        status := req.Status
-        return req.ResponseText
-    } catch {
-        return ""
-    }
-}
-
-WaitForHttp(port, timeoutMs := 5000) {
-    global VLC_PASS
-    args := "wait-for-http"
-        . " --port " . port
-        . " --password " . Q(VLC_PASS)
-        . " --timeout-ms " . timeoutMs
-    if (RunWindowsBridgeVlcAction(args) = 0)
-        return true
-    Log("VLC HTTP interface failed to come up on port " . port)
-    MsgBox("VLC HTTP interface did not come up on port " . port . "`nControls for that player will not work until this is resolved.", "fun_time", "Icon!")
-    return false
-}
-
-SendVlcCommand(port, cmd) {
-    global VLC_PASS
-    args := "send-command"
-        . " --port " . port
-        . " --password " . Q(VLC_PASS)
-        . " --command " . cmd
-    return RunWindowsBridgeVlcAction(args) = 0
-}
-
-EnsurePrimaryVlcPlayback(shouldPlay) {
-    global PRIMARY_VLC_PORT, VLC_PASS
-    args := "ensure-playback-state"
-        . " --port " . PRIMARY_VLC_PORT
-        . " --password " . Q(VLC_PASS)
-        . " --should-play " . (shouldPlay ? "1" : "0")
-    if (RunWindowsBridgeVlcAction(args) = 0)
-        return true
-    Log("Primary VLC failed to reach playback state " . (shouldPlay ? "playing" : "paused"))
-    return false
-}
-
-SetRepeatMode(port, target) {
-    global VLC_PASS
-    args := "set-repeat-mode"
-        . " --port " . port
-        . " --password " . Q(VLC_PASS)
-        . " --target " . target
-    return RunWindowsBridgeVlcAction(args) = 0
-}
-
-CancelLock(which) {
-    global locked2, locked3, VLC_PASS
-    port := (which = 2) ? VLC2_PORT : VLC3_PORT
-    currentLocked := (which = 2) ? locked2 : locked3
-    planPath := BuildLockPlanPath(which)
-    extraArgs := "--port " . port
-        . " --password " . Q(VLC_PASS)
-    plan := RunWindowsBridgeLockAction("apply-cancel-lock", which, currentLocked, "", planPath, extraArgs)
-    if !IsObject(plan)
-        return
-    if (which = 2)
-        locked2 := plan["next_locked"]
-    else
-        locked3 := plan["next_locked"]
-    UpdateFunTimeDashboard()
-}
-
-GetCurrentFilePath(port) {
-    global VLC_PASS
-    outputPath := BuildVlcQueryOutputPath("vlc_current_file")
-    args := "current-file-path"
-        . " --port " . port
-        . " --password " . Q(VLC_PASS)
-        . " --output-file " . Q(outputPath)
-    if (RunWindowsBridgeVlcAction(args) != 0)
-        return ""
-    try {
-        if !FileExist(outputPath)
-            return ""
-        return Trim(FileRead(outputPath, "UTF-8"))
-    } finally {
-        try FileDelete(outputPath)
-    }
-}
-
-Discard(which) {
-    global locked2, locked3, FAVS_FILE, WEIRD_DIR, VLC_PASS
-    port := (which = 2) ? VLC2_PORT : VLC3_PORT
-    src := GetCurrentFilePath(port)
-    currentLocked := (which = 2) ? locked2 : locked3
-    planPath := BuildLockPlanPath(which)
-    extraArgs := "--port " . port
-        . " --password " . Q(VLC_PASS)
-        . " --favs-file " . Q(FAVS_FILE)
-        . " --weird-dir " . Q(WEIRD_DIR)
-    plan := RunWindowsBridgeLockAction("apply-discard", which, currentLocked, src, planPath, extraArgs)
-    if !IsObject(plan)
-        return
-
-    if (which = 2)
-        locked2 := plan["next_locked"]
-    else
-        locked3 := plan["next_locked"]
-    if (plan["log_message"] != "")
-        Log(plan["log_message"])
-    UpdateFunTimeDashboard()
-}
-
-ToggleLock(which) {
-    global locked2, locked3, FAVS_FILE, VLC_PASS
-    port := (which = 2) ? VLC2_PORT : VLC3_PORT
-    currentLocked := (which = 2) ? locked2 : locked3
-    currentPath := GetCurrentFilePath(port)
-    planPath := BuildLockPlanPath(which)
-    extraArgs := "--port " . port
-        . " --password " . Q(VLC_PASS)
-        . " --favs-file " . Q(FAVS_FILE)
-    plan := RunWindowsBridgeLockAction("apply-toggle-lock", which, currentLocked, currentPath, planPath, extraArgs)
-    if !IsObject(plan)
-        return
-
-    if (which = 2)
-        locked2 := plan["next_locked"]
-    else
-        locked3 := plan["next_locked"]
-    if (plan["log_message"] != "")
-        Log(plan["log_message"])
-    UpdateFunTimeDashboard()
-}
-
