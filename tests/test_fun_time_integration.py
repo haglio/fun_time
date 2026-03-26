@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import shutil
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -105,6 +106,90 @@ def test_fun_time_robot_hand_mode_file_flow(shared_integration_session: FunTimeI
 
     shared_integration_session.write_robot_hand_mode(False)
     shared_integration_session.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
+
+
+@pytest.mark.integration
+def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
+    shared_integration_session.write_dashboard_command("landscape_lock")
+    shared_integration_session.wait_for_new_log("Locked landscape VLC", timeout=12)
+
+    shared_integration_session.write_dashboard_command("landscape_lock")
+    shared_integration_session.wait_for_new_log("Unlocked landscape VLC", timeout=12)
+
+
+@pytest.mark.integration
+def test_fun_time_portrait_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
+    shared_integration_session.write_dashboard_command("portrait_lock")
+    shared_integration_session.wait_for_new_log("Locked portrait VLC", timeout=12)
+
+    shared_integration_session.write_dashboard_command("portrait_next")
+    time.sleep(1.5)
+
+    shared_integration_session.write_dashboard_command("portrait_lock")
+    shared_integration_session.wait_for_new_log("Locked portrait VLC", timeout=12)
+
+    shared_integration_session.write_dashboard_command("portrait_lock")
+    shared_integration_session.wait_for_new_log("Unlocked portrait VLC", timeout=12)
+
+
+@pytest.mark.integration
+def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
+    shared_integration_session.write_dashboard_command("landscape_lock")
+    shared_integration_session.wait_for_new_log("Locked landscape VLC", timeout=12)
+
+    shared_integration_session.write_dashboard_command("landscape_next")
+    time.sleep(1.5)
+
+    shared_integration_session.write_dashboard_command("landscape_lock")
+    shared_integration_session.wait_for_new_log("Locked landscape VLC", timeout=12)
+
+    shared_integration_session.write_dashboard_command("landscape_lock")
+    shared_integration_session.wait_for_new_log("Unlocked landscape VLC", timeout=12)
+
+
+@pytest.mark.integration
+def test_fun_time_omnipause_while_robot_hand_mode(shared_integration_session: FunTimeIntegrationSession):
+    shared_integration_session.write_robot_hand_mode(True)
+    shared_integration_session.wait_for_new_log("Entering Robot Hand mode", timeout=12)
+
+    shared_integration_session.write_dashboard_command("omnipause_toggle")
+    shared_integration_session.wait_for_new_log("OmniPause: entering", timeout=12)
+    shared_integration_session.wait_until(
+        lambda: shared_integration_session.config.robot_hand_paused_file.read_text(encoding="utf-8") == "1",
+        timeout=12,
+        description="Robot Hand paused file to flip on",
+    )
+
+    shared_integration_session.write_dashboard_command("omnipause_toggle")
+    shared_integration_session.wait_for_new_log("OmniPause: leaving", timeout=12)
+    shared_integration_session.wait_until(
+        lambda: shared_integration_session.config.robot_hand_paused_file.read_text(encoding="utf-8") == "0",
+        timeout=12,
+        description="Robot Hand paused file to flip off",
+    )
+
+    shared_integration_session.write_robot_hand_mode(False)
+    shared_integration_session.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
+
+
+@pytest.mark.integration
+def test_fun_time_landscape_trash_updates_temp_state(isolated_integration_session: FunTimeIntegrationSession):
+    isolated_integration_session.write_dashboard_command("landscape_trash")
+    chunk = isolated_integration_session.wait_for_new_log("Discarding from player 3:", timeout=12)
+    match = re.search(r"Discarding from player 3:\s*(.+)", chunk)
+    assert match, "Expected discard log chunk to include the discarded landscape path"
+    trashed_path = Path(match.group(1).strip()).resolve()
+
+    isolated_integration_session.wait_until(
+        lambda: not isolated_integration_session.favs_contains(trashed_path),
+        timeout=12,
+        description="landscape sample to be removed from integration favs.csv",
+    )
+    isolated_integration_session.wait_until(
+        lambda: any(p.name == trashed_path.name for p in isolated_integration_session.weird_dir.iterdir()),
+        timeout=12,
+        description="landscape sample to be moved into the integration weird dir",
+    )
 
 
 @pytest.mark.integration
