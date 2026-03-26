@@ -51,7 +51,7 @@ If `bash test.sh` fails in PowerShell because Git Bash cannot create its signal 
 13. Prefer reusable launch diagnostics over one-off guesses.
     When a launch/startup issue is hard to see from tests alone, improve the repo's ability to inspect it: add or update targeted logging, state markers, or a local smoke/inspection script so future agents can verify the same class of problem with less guesswork.
 14. Do not parallelize live Windows bridge launches.
-    `windows_bridge.ahk` still runs under `#SingleInstance Force`, so real startup checks, integration runs, smoke runs, and direct AHK launch validations must be executed sequentially. Parallel live launches can evict each other and create false-negative runtime signals.
+    `windows_bridge_hotkeys.ahk` still runs under `#SingleInstance Force`, so real startup checks, integration runs, smoke runs, and direct AHK launch validations must be executed sequentially. Parallel live launches can evict each other and create false-negative runtime signals.
 
 ## Architecture Escalation
 
@@ -71,9 +71,9 @@ If an executable script has become a concentration point:
 5. In refactor plans, include at least one step that reduces the executable script's responsibility instead of only reorganizing code around it.
 6. When an extraction changes the truthful boundary, rename the surviving bridge/module in the same pass so the codebase vocabulary keeps up with the architecture.
 7. Treat executable script syntax as a separate validation concern.
-   When changing `windows_bridge.ahk`, `controller.ahk`, `.ps1`, `.vbs`, shell wrappers, or other directly executed script files, do not rely only on text-based Python tests. Reuse an existing in-repo quoting/style pattern when possible, add a regression test for the intended contract, and run at least one syntax/startup-focused validation step before handoff so the script still opens cleanly.
+   When changing `windows_bridge_hotkeys.ahk`, `.ps1`, `.vbs`, shell wrappers, or other directly executed script files, do not rely only on text-based Python tests. Reuse an existing in-repo quoting/style pattern when possible, add a regression test for the intended contract, and run at least one syntax/startup-focused validation step before handoff so the script still opens cleanly.
 8. Escalate when executable-script scope starts expanding into product/UI work.
-   If a change would substantially increase the size or responsibility of `windows_bridge.ahk`, `controller.ahk`, or another executable script, pause and document the tradeoff before continuing. Prefer extracting logic into Python/modules or a dedicated UI surface when the work is no longer "glue code", especially for stateful dashboards, layout-heavy UI, or multi-step interaction flows.
+   If a change would substantially increase the size or responsibility of `windows_bridge_hotkeys.ahk` or another executable script, pause and document the tradeoff before continuing. Prefer extracting logic into Python/modules or a dedicated UI surface when the work is no longer "glue code", especially for stateful dashboards, layout-heavy UI, or multi-step interaction flows.
 
 ## Current Repo-Specific Gotchas
 
