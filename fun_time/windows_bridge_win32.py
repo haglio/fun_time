@@ -84,6 +84,46 @@ def activate_window(hwnd: int) -> None:
     _user32.SetForegroundWindow(hwnd)
 
 
+def find_window_by_title(title: str) -> int:
+    """Find a visible window whose title contains *title*. Returns 0 if not found."""
+    best: int = 0
+    buf = ctypes.create_unicode_buffer(256)
+
+    def callback(hwnd: int, _lparam: int) -> bool:
+        nonlocal best
+        if not _user32.IsWindowVisible(hwnd):
+            return True
+        _user32.GetWindowTextW(hwnd, buf, 256)
+        if title in buf.value:
+            best = hwnd
+            return False
+        return True
+
+    _user32.EnumWindows(WNDENUMPROC(callback), 0)
+    return best
+
+
+SW_SHOW = 5
+SW_HIDE = 0
+
+
+def show_window(hwnd: int) -> None:
+    """Show a window (WinShow equivalent)."""
+    _user32.ShowWindow(hwnd, SW_SHOW)
+
+
+def hide_window(hwnd: int) -> None:
+    """Hide a window (WinHide equivalent)."""
+    _user32.ShowWindow(hwnd, SW_HIDE)
+
+
+def send_key_to_window(hwnd: int, key: str) -> None:
+    """Send a single character keystroke to a window via PostMessage."""
+    WM_CHAR = 0x0102
+    for ch in key:
+        _user32.PostMessageW(hwnd, WM_CHAR, ord(ch), 0)
+
+
 def get_window_rect(hwnd: int) -> tuple[int, int, int, int]:
     """Return (x, y, width, height) for a window."""
     rect = ctypes.wintypes.RECT()

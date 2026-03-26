@@ -1,15 +1,21 @@
 """Python orchestrator for the Windows bridge.
 
 Runs the full startup sequence, launches the minimal AHK hotkey script,
-waits for it to exit, then shuts down all child processes.
+starts the background dispatch loop, waits for AHK to exit, then shuts
+down all child processes.
 """
 from __future__ import annotations
 
 import configparser
 import logging
 import subprocess
+import threading
 from pathlib import Path
 
+from .windows_bridge_dispatch_loop import (
+    DispatchLoopRunner,
+    build_bridge_config_from_manifest,
+)
 from .windows_bridge_sequencer import StartupResult, run_startup_sequence
 
 logger = logging.getLogger(__name__)
@@ -95,6 +101,26 @@ def run_python_orchestrated_bridge(
     pids_file = state_dir / "bridge_pids.ini"
     write_pids_file(pids_file, result)
 
+    # Start background dispatch loop (dashboard polling + robot hand sync)
+    manifest = configparser.ConfigParser()
+    manifest.optionxform = str
+    manifest.read(str(manifest_path), encoding="utf-8")
+    bridge_config = build_bridge_config_from_manifest(manifest)
+    dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
+
+    dispatch_runner = DispatchLoopRunner(
+        config=bridge_config,
+        dashboard_cmd_file=Path(manifest["commands"]["dashboard_cmd_file"]),
+        shared_state_file=state_dir / "shared_bridge_state.ini",
+        ahk_cmd_file=state_dir / "ahk_cmd.txt",
+        primary_pid=result.primary_pid,
+        mfp_pid=result.mfp_pid,
+        dashboard_enabled=dashboard_enabled,
+    )
+    dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
+    dispatch_thread.start()
+    logger.info("Background dispatch loop started")
+
     command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file)]
     logger.info("Launching AHK hotkey script: %s", " ".join(command))
     ahk_proc = subprocess.Popen(command, cwd=project_dir)
@@ -105,6 +131,8 @@ def run_python_orchestrated_bridge(
         logger.info("Interrupted — shutting down")
         exit_code = 1
     finally:
+        dispatch_runner.stop()
+        dispatch_thread.join(timeout=2.0)
         logger.info("AHK exited — shutting down child processes")
         _shutdown_children(result)
 

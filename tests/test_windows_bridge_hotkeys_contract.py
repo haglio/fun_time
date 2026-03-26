@@ -99,10 +99,16 @@ class TestDispatchPattern:
 
 
 class TestTimers:
-    def test_dashboard_command_poll_timer(self):
+    def test_ahk_command_poll_timer(self):
         text = _hotkeys_text()
-        assert "SetTimer(ProcessDashboardCommand, 150)" in text
+        assert "SetTimer(ProcessAhkCommand, 150)" in text
 
-    def test_robot_hand_sync_timer(self):
+    def test_dashboard_and_sync_moved_to_python(self):
         text = _hotkeys_text()
-        assert "SetTimer(SyncRobotHandState, 200)" in text
+        assert "ProcessDashboardCommand" not in text
+        assert "SyncRobotHandState" not in text
+
+    def test_reads_shared_state(self):
+        text = _hotkeys_text()
+        assert "ReadSharedState()" in text
+        assert "SHARED_STATE_FILE" in text
