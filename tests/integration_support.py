@@ -107,27 +107,6 @@ class FunTimeIntegrationSession:
             time.sleep(0.2)
         raise AssertionError(f"Timed out waiting for {description}")
 
-    def send_hotkey(self, keys: str) -> None:
-        script = (
-            "#Requires AutoHotkey v2.0\n"
-            "SetKeyDelay 50, 50\n"
-            f'SendEvent "{keys}"\n'
-        )
-        fd, script_path_raw = tempfile.mkstemp(suffix=".ahk")
-        os.close(fd)
-        script_path = Path(script_path_raw)
-        try:
-            script_path.write_text(script, encoding="utf-8")
-            subprocess.run(
-                [str(self.config.paths.ahk_exe), str(script_path)],
-                cwd=self.config.project_dir,
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        finally:
-            script_path.unlink(missing_ok=True)
-
     def wait_for_log(self, needle: str, timeout: float = 10.0) -> str:
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -217,6 +196,10 @@ def build_integration_config(tmp_path: Path) -> Path:
     config_path = integration_root / "fun_time_integration_config.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
     return config_path
+
+
+def build_integration_temp_root() -> Path:
+    return Path(tempfile.mkdtemp(prefix="fun_time_integration_")).resolve()
 
 
 def _link_primary_samples(real_config, dest_dir: Path) -> list[Path]:
