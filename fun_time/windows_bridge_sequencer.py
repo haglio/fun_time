@@ -9,6 +9,7 @@ import configparser
 import ctypes
 import ctypes.wintypes
 import logging
+import os
 import subprocess
 import time
 from dataclasses import dataclass
@@ -139,11 +140,13 @@ def run_startup_sequence(
     logger.info("Core windows positioned")
 
     # Set topmost on core windows
+    skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
         hwnd = find_window_by_pid(pid)
         if hwnd:
             set_always_on_top(hwnd, True)
-            activate_window(hwnd)
+            if not skip_activate:
+                activate_window(hwnd)
     logger.info("Topmost set on core windows")
 
     # --- Phase 2.5: Launch Random Favs Browser ---

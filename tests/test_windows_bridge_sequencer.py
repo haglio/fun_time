@@ -352,3 +352,62 @@ class TestTopmostOnAllCoreWindows:
         assert 2020 in hwnds_set_topmost, "mfp not set topmost"
         assert 3030 in hwnds_set_topmost, "portrait not set topmost"
         assert 4040 in hwnds_set_topmost, "landscape not set topmost"
+
+
+class TestNoActivateWindowDuringIntegration:
+    """During integration tests, activate_window must be skipped to avoid focus stealing."""
+
+    def test_skips_activate_window_in_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040}
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=2020), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate, \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        # activate_window should NOT have been called for the 4 core windows
+        core_hwnds = {1010, 2020, 3030, 4040}
+        activated_hwnds = {c.args[0] for c in mock_activate.call_args_list}
+        assert not (activated_hwnds & core_hwnds), \
+            f"activate_window called on core windows during integration: {activated_hwnds & core_hwnds}"
+
+    def test_activates_windows_outside_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040}
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=2020), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate, \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        # activate_window SHOULD have been called on core windows in normal mode
+        core_hwnds = {1010, 2020, 3030, 4040}
+        activated_hwnds = {c.args[0] for c in mock_activate.call_args_list}
+        assert core_hwnds & activated_hwnds, "activate_window was not called on any core windows in normal mode"
