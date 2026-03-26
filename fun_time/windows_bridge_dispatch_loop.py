@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import configparser
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -200,7 +201,10 @@ class DispatchLoopRunner:
         new_state, ops = dispatch_command(command, self.state, self.config)
         self.state = new_state
         remaining = execute_window_ops(ops, self.primary_pid)
+        suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
+            if suppress_unsuspend and op.op == "unsuspend_hotkeys":
+                continue
             self.ahk_cmd_file.write_text(op.op, encoding="utf-8")
         write_shared_state(self.shared_state_file, self.state)
         if self.dashboard_enabled:

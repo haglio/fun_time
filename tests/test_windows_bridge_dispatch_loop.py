@@ -275,6 +275,34 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "suspend_hotkeys"
 
+    def test_dispatch_suppresses_unsuspend_during_integration(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
+
+        unsuspend_op = WindowOp(op="unsuspend_hotkeys")
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[unsuspend_op]):
+            mock_dispatch.return_value = (runner.state, [unsuspend_op])
+            runner._dispatch("some_command")
+
+        assert not ahk_cmd_file.exists()
+
+    def test_dispatch_allows_unsuspend_outside_integration(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
+
+        unsuspend_op = WindowOp(op="unsuspend_hotkeys")
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[unsuspend_op]):
+            mock_dispatch.return_value = (runner.state, [unsuspend_op])
+            runner._dispatch("some_command")
+
+        assert ahk_cmd_file.read_text(encoding="utf-8") == "unsuspend_hotkeys"
+
     def test_syncs_robot_hand_periodically(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         # Set _last_sync far in the past so the interval is exceeded
