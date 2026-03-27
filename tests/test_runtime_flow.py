@@ -128,7 +128,8 @@ def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypat
     assert result.next_omni_paused is True
     assert paused_file.read_text(encoding="utf-8") == "1"
     assert audio_paused_file.read_text(encoding="utf-8") == "1"
-    assert calls == [(9002, "pw", False), (9003, "pw", False), (9001, "pw", False)]
+    # Calls happen in parallel, so order is non-deterministic
+    assert sorted(calls) == sorted([(9002, "pw", False), (9003, "pw", False), (9001, "pw", False)])
 
 
 def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_path: Path):
@@ -159,7 +160,8 @@ def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_p
     assert result.next_omni_paused is False
     assert paused_file.read_text(encoding="utf-8") == "0"
     assert audio_paused_file.read_text(encoding="utf-8") == "0"
-    assert calls == [(9002, "pw", True), (9003, "pw", True), (9001, "pw", True)]
+    # Calls happen in parallel, so order is non-deterministic
+    assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True), (9001, "pw", True)])
 
 
 def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monkeypatch, tmp_path: Path):
@@ -188,4 +190,5 @@ def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monk
 
     assert result.action == "leave"
     assert result.next_omni_paused is False
-    assert calls == [(9002, "pw", True), (9003, "pw", True)]
+    # Calls happen in parallel, so order is non-deterministic
+    assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True)])
