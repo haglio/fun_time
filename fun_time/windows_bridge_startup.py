@@ -272,7 +272,7 @@ def launch_core_apps(
     launch_kwargs = _no_activate_kwargs()
 
     primary_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat"),
+        _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat", mute=hide_windows),
         cwd=project_dir,
         **launch_kwargs,
     )
@@ -286,12 +286,12 @@ def launch_core_apps(
     mfp_proc = subprocess.Popen([mfp_exe], cwd=project_dir, **launch_kwargs)
 
     portrait_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, portrait_sources, portrait_port, password, repeat_mode="loop"),
+        _build_vlc_launch_command(vlc_exe, portrait_sources, portrait_port, password, repeat_mode="loop", mute=hide_windows),
         cwd=project_dir,
         **launch_kwargs,
     )
     landscape_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, landscape_sources, landscape_port, password, repeat_mode="loop"),
+        _build_vlc_launch_command(vlc_exe, landscape_sources, landscape_port, password, repeat_mode="loop", mute=hide_windows),
         cwd=project_dir,
         **launch_kwargs,
     )
@@ -325,7 +325,7 @@ def launch_core_apps(
 
 
 
-def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: str, *, repeat_mode: str) -> list[str]:
+def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: str, *, repeat_mode: str, mute: bool = False) -> list[str]:
     command = [
         vlc_exe,
         "--no-one-instance",
@@ -339,7 +339,7 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
         "--http-password",
         password,
     ]
-    if os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
+    if mute or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         command.extend(["--volume", "0"])
     if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
         command.append("--no-video")
