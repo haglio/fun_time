@@ -325,7 +325,7 @@ The broker sits between them using the matching `CNCB*` side.
 
 MultiFunPlayer stores its selected serial device in:
 
-- `C:\Program Files\MultiFunPlayer-1.33.9-patreon\MultiFunPlayer.config.json`
+- `C:\Program Files\MultiFunPlayer-1.34.2-patreon\MultiFunPlayer.config.json`
 
 Look for:
 
@@ -369,7 +369,7 @@ The important runtime expectations are:
 
 If MFP stops loading scripts for the primary VLC, check:
 
-- `C:\Program Files\MultiFunPlayer-1.33.9-patreon\MultiFunPlayer.config.json`
+- `C:\Program Files\MultiFunPlayer-1.34.2-patreon\MultiFunPlayer.config.json`
 - `MediaSource.VLC.Endpoint` should match Fun Time's primary VLC port, currently `127.0.0.1:8090`
 - `%APPDATA%\vlc\vlcrc` should contain the HTTP password that both VLC and MFP expect
 
@@ -595,7 +595,7 @@ Check:
 - broker log shows which broker-side port it chose
 - OSR2 is still on `COM4`
 - scheduled task `FunTime Robot Hand Broker` is present and running (`Get-ScheduledTask -TaskName "FunTime Robot Hand Broker"`)
-- `C:\Program Files\MultiFunPlayer-1.33.9-patreon\MultiFunPlayer.config.json` does not still point at an old dead `CNCA*` device
+- `C:\Program Files\MultiFunPlayer-1.34.2-patreon\MultiFunPlayer.config.json` does not still point at an old dead `CNCA*` device
 
 ### Robot Hand never appears
 
