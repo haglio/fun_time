@@ -291,49 +291,50 @@ def test_fmode_toggle_enables_from_disabled(tmp_path: Path):
 # --- robot_toggle / link_toggle ---
 
 
-def test_robot_toggle_delegates_to_runtime_flow(tmp_path: Path):
+def test_robot_toggle_disables_and_hides_when_enabled_and_mode_on(tmp_path: Path):
     config = _make_config(tmp_path)
     config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-    state = _make_state(robot_hand_mode=False)
+    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(robot_hand_mode=True)
 
-    with (
-        patch("fun_time.command_dispatch.apply_toggle_robot_hand_enabled") as mock_toggle,
-    ):
-        mock_toggle.return_value = type("R", (), {
-            "next_robot_hand_mode": False,
-            "current_enabled": False,
-            "enforce_outputs": False,
-            "enforce_active": False,
-            "is_transition": False,
-            "log_message": "Robot Hand: disabled",
-        })()
+    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("robot_toggle", state, config)
 
-    assert mock_toggle.called
+    assert new_state.robot_hand_mode is False
+    assert config.robot_hand_enabled_file.read_text(encoding="utf-8") == "0"
+    assert any(op.op == "hide" and op.title == "Robot Hand" for op in ops)
+
+
+def test_robot_toggle_enables_and_shows_when_disabled_and_mode_state_on(tmp_path: Path):
+    config = _make_config(tmp_path)
+    config.robot_hand_enabled_file.write_text("0", encoding="utf-8")
+    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(robot_hand_mode=False)
+
+    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
+        new_state, ops = dispatch_command("robot_toggle", state, config)
+
+    assert new_state.robot_hand_mode is True
+    assert config.robot_hand_enabled_file.read_text(encoding="utf-8") == "1"
+    assert any(op.op == "show" and op.title == "Robot Hand" for op in ops)
+    assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is True for op in ops)
 
 
 def test_link_toggle_is_alias_for_robot_toggle(tmp_path: Path):
+    """link_toggle and robot_toggle produce identical state transitions."""
     config = _make_config(tmp_path)
     config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-    state = _make_state()
+    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(robot_hand_mode=True)
 
-    with (
-        patch("fun_time.command_dispatch.apply_toggle_robot_hand_enabled") as mock_toggle,
-    ):
-        mock_toggle.return_value = type("R", (), {
-            "next_robot_hand_mode": False,
-            "current_enabled": False,
-            "enforce_outputs": False,
-            "enforce_active": False,
-            "is_transition": False,
-            "log_message": "",
-        })()
-        dispatch_command("link_toggle", state, config)
+    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
+        new_state, ops = dispatch_command("link_toggle", state, config)
 
-    assert mock_toggle.called
+    assert new_state.robot_hand_mode is False
+    assert config.robot_hand_enabled_file.read_text(encoding="utf-8") == "0"
 
 
-# --- unknown command ---
+# --- sync_robot_hand ---
 
 
 def test_sync_robot_hand_skips_when_omni_paused(tmp_path: Path):

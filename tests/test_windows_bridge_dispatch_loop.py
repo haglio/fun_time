@@ -243,16 +243,21 @@ class TestDispatchLoopRunner:
         assert "portrait_next" in commands
         assert not cmd_file.exists()
 
-    def test_dispatches_omnipause_in_python(self, tmp_path):
+    def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omnipause_toggle", encoding="utf-8")
 
-        with patch.object(runner, "_handle_omnipause_toggle") as mock_handle:
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner.tick()
 
-        mock_handle.assert_called_once()
+        assert runner.state.omni_paused is True
+        loaded = read_shared_state(tmp_path / "shared_state.ini")
+        assert loaded is not None
+        assert loaded.omni_paused is True
 
     def test_backslash_key_dispatches_quarter_button_in_robot_hand_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
@@ -269,19 +274,23 @@ class TestDispatchLoopRunner:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "quarter_button" in commands
 
-    def test_backslash_key_opens_file_dialog_when_not_robot_hand_mode(self, tmp_path):
+    def test_backslash_key_enters_omnipause_when_not_in_robot_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         runner.state = BridgeState(robot_hand_mode=False)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch.object(runner, "_handle_open_file_dialog") as mock_handle:
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=0):
             runner.tick()
-            import time as _time
-            _time.sleep(0.1)
+            import time
+            time.sleep(0.15)  # background thread needs a moment
 
-        mock_handle.assert_called_once()
+        assert runner.state.omni_paused is False  # leaves omnipause after dialog closes
 
     def test_dispatch_forwards_remaining_ops_to_ahk(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
