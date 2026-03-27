@@ -17,9 +17,6 @@ from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
 
 
-def integration_enabled() -> bool:
-    return os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-
 
 class FunTimeIntegrationSession:
     def __init__(self, config_path: Path):
