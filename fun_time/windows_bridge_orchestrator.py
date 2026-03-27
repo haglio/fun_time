@@ -11,9 +11,11 @@ import datetime
 import logging
 import os
 import subprocess
+import sys
 import threading
 from pathlib import Path
 
+from .startup_progress import NullProgress, StartupProgress
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -78,6 +80,11 @@ def _minimize_all_windows(result: StartupResult) -> None:
         if hwnd:
             minimize_window(hwnd)
     logger.info("Minimized all windows for integration test run")
+
+
+# Number of progress steps reported by run_startup_sequence.
+# In hide_windows mode there's an extra "Positioning windows..." step at the end.
+_STARTUP_PROGRESS_STEPS = 8
 
 
 def _shutdown_children(result: StartupResult) -> None:
@@ -149,6 +156,21 @@ def run_python_orchestrated_bridge(
     project_dir = Path(project_dir)
 
     integration_mode = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
+    show_loading = not integration_mode
+
+    # --- Launch loading screen (normal mode only) ---
+    loading_proc = None
+    progress_file = state_dir / "startup_progress.txt"
+    if show_loading:
+        progress = StartupProgress(progress_file, total_steps=_STARTUP_PROGRESS_STEPS)
+        python_exe = sys.executable
+        loading_proc = subprocess.Popen(
+            [python_exe, "-m", "fun_time.loading_screen", str(progress_file)],
+        )
+        logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
+    else:
+        progress = NullProgress()
+
     saved_foreground = 0
     if integration_mode:
         saved_foreground = get_foreground_window()
@@ -160,6 +182,8 @@ def run_python_orchestrated_bridge(
         result = run_startup_sequence(
             manifest_path=manifest_path,
             state_dir=state_dir,
+            progress=progress,
+            hide_windows=show_loading,
         )
     finally:
         if integration_mode:
@@ -170,6 +194,18 @@ def run_python_orchestrated_bridge(
         result.primary_pid, result.mfp_pid, result.portrait_pid, result.landscape_pid,
         result.dashboard_pid, result.robot_hand_pid, result.audio_pid,
     )
+
+    # --- Close loading screen (normal mode only) ---
+    # The sequencer already positioned all windows in Phase 4 (the reveal).
+    if show_loading:
+        progress.finish()
+        if loading_proc:
+            try:
+                loading_proc.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                loading_proc.kill()
+                logger.warning("Loading screen did not exit, killed")
+        progress_file.unlink(missing_ok=True)
 
     if integration_mode:
         _minimize_all_windows(result)

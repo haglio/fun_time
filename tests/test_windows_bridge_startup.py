@@ -126,6 +126,7 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
         landscape_port=8092,
         password="pw",
         result_file=result_file,
+        hide_windows=False,
     )
 
 
@@ -268,6 +269,83 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
     assert parser.get("result", "mfp_pid") == "202"
     assert parser.get("result", "portrait_pid") == "303"
     assert parser.get("result", "landscape_pid") == "404"
+
+
+def test_launch_core_apps_launches_minimized_when_hide_windows_true(tmp_path: Path):
+    """When hide_windows=True, VLC and MFP launch with SW_SHOWMINNOACTIVE to prevent flash."""
+    result_file = tmp_path / "core_apps.ini"
+
+    class FakeProc:
+        _counter = 0
+        def __init__(self, *_args, **_kwargs):
+            FakeProc._counter += 1
+            self.pid = FakeProc._counter * 100
+
+    FakeProc._counter = 0
+    popen_kwargs_list: list[dict] = []
+
+    def capturing_popen(*args, **kwargs):
+        popen_kwargs_list.append(kwargs)
+        return FakeProc()
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=capturing_popen), \
+         patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True), \
+         patch("fun_time.windows_bridge_startup.set_repeat_mode", return_value=True), \
+         patch("fun_time.windows_bridge_startup.vlc_http_cmd", return_value=True), \
+         patch("fun_time.windows_bridge_startup.time.sleep"):
+        launch_core_apps(
+            project_dir=tmp_path,
+            vlc_exe="vlc.exe",
+            mfp_exe="mfp.exe",
+            primary_sources="a",
+            portrait_sources="b",
+            landscape_sources="c",
+            primary_port=8090,
+            portrait_port=8091,
+            landscape_port=8092,
+            password="pw",
+            result_file=result_file,
+            hide_windows=True,
+        )
+
+    # All 4 launches should use SW_SHOWMINNOACTIVE (7) to prevent flash
+    import subprocess as sp
+    for i, kw in enumerate(popen_kwargs_list):
+        si = kw.get("startupinfo")
+        assert si is not None, f"Launch {i} missing startupinfo"
+        assert si.wShowWindow == 7, f"Launch {i} wShowWindow={si.wShowWindow}, expected 7 (SW_SHOWMINNOACTIVE)"
+
+
+def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
+    """start_core_session forwards hide_windows to launch_core_apps."""
+    result_file = tmp_path / "core_session.ini"
+
+    with patch("fun_time.windows_bridge_startup.restart_broker"), patch(
+        "fun_time.windows_bridge_startup.seed_robot_hand_state"
+    ), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
+        start_core_session(
+            project_dir=tmp_path,
+            config_path="cfg.json",
+            random_favs_browser_manifest_file=tmp_path / "m.txt",
+            enabled_file=tmp_path / "e.txt",
+            paused_file=tmp_path / "p.txt",
+            audio_paused_file=tmp_path / "a.txt",
+            vlc_exe="vlc.exe",
+            mfp_exe="mfp.exe",
+            primary_sources="a",
+            portrait_sources="b",
+            landscape_sources="c",
+            primary_port=8090,
+            portrait_port=8091,
+            landscape_port=8092,
+            password="pw",
+            result_file=result_file,
+            hide_windows=True,
+        )
+
+    assert launch.call_args.kwargs["hide_windows"] is True
 
 
 def test_build_vlc_launch_command_includes_volume_zero_when_mute_env_set(monkeypatch):
