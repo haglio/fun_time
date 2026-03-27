@@ -157,22 +157,25 @@ All 20 tests pass with default hypothesis settings (100 examples per test).
 
 ---
 
-## Phase 5: TEST SUITE OVERHAUL — Coverage
+## Phase 5: TEST SUITE OVERHAUL — Coverage ✅ (mostly)
 
-### 5A. Fill critical coverage gaps
+### 5A. Fill critical coverage gaps ✅
 
-Source modules with zero test coverage, in priority order:
+All modules on the original list now have test files:
+- `robot_hand/engine.py` — 6 tests covering phase advance, BPM smoothing, sync pulse, dt clamping
+- `robot_hand/refresh_controller.py` — 6 tests
+- `robot_hand/clip_loader.py` — 5 tests
+- `robot_hand/clip_renderer.py` — 3 tests
+- `robot_hand/clip_selection.py` — 5 tests
+- `robot_hand/lifecycle.py` — 5 tests
+- `robot_hand/notifier.py` — 4 tests
+- `robot_hand/video.py` — 11 tests
+- `dashboard_actions.py` — constants only, no logic to test
 
-1. `orchestrator_broker.py` — broker lifecycle (critical path)
-2. `robot_hand/engine.py` — BPM/phase math (pure functions, easy to test)
-3. `robot_hand/refresh_controller.py` — main refresh loop
-4. `robot_hand/clip_loader.py` — background clip loading
-5. `robot_hand/clip_renderer.py` — frame rendering
-6. `robot_hand/clip_selection.py` — clip switching logic
-7. `robot_hand/lifecycle.py` — event binding and shutdown
-8. `robot_hand/notifier.py` — UDP notification
-9. `robot_hand/video.py` — video file I/O
-10. `dashboard_actions.py` — trivial constants, low priority
+Remaining untested but no action needed:
+- `orchestrator_broker.py` — dead code (functions duplicated in `orchestrator.py`; only constants/kwargs used)
+- `manifest.py` — tested indirectly via `test_orchestrator.py::TestControllerManifest`
+- `robot_hand/app.py` — tkinter entry point / wiring
 
 ### 5B. Expand integration test suite
 
