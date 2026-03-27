@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -196,14 +197,21 @@ def apply_enter_omnipause(
         robot_hand_mode_on=robot_hand_mode_on,
         skip_primary_resume=False,
     )
-    if not ensure_playback_state(portrait_port, password, should_play=False):
-        logger.warning("Portrait VLC failed to pause for omnipause")
-    if not ensure_playback_state(landscape_port, password, should_play=False):
-        logger.warning("Landscape VLC failed to pause for omnipause")
     write_flag_file(robot_hand_paused_file, True)
     write_flag_file(audio_paused_file, True)
-    if not ensure_playback_state(primary_port, password, should_play=False):
-        logger.warning("Primary VLC failed to pause for omnipause")
+    vlc_targets = [
+        (portrait_port, "Portrait"),
+        (landscape_port, "Landscape"),
+        (primary_port, "Primary"),
+    ]
+    with ThreadPoolExecutor(max_workers=len(vlc_targets)) as pool:
+        futures = {
+            pool.submit(ensure_playback_state, port, password, should_play=False): label
+            for port, label in vlc_targets
+        }
+        for fut in futures:
+            if not fut.result():
+                logger.warning("%s VLC failed to pause for omnipause", futures[fut])
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
@@ -232,12 +240,20 @@ def apply_leave_omnipause(
     )
     write_flag_file(robot_hand_paused_file, False)
     write_flag_file(audio_paused_file, False)
-    if not ensure_playback_state(portrait_port, password, should_play=True):
-        logger.warning("Portrait VLC failed to resume from omnipause")
-    if not ensure_playback_state(landscape_port, password, should_play=True):
-        logger.warning("Landscape VLC failed to resume from omnipause")
-    if plan.resume_primary_playback and not ensure_playback_state(primary_port, password, should_play=True):
-        logger.warning("Primary VLC failed to resume from omnipause")
+    vlc_targets = [
+        (portrait_port, "Portrait"),
+        (landscape_port, "Landscape"),
+    ]
+    if plan.resume_primary_playback:
+        vlc_targets.append((primary_port, "Primary"))
+    with ThreadPoolExecutor(max_workers=len(vlc_targets)) as pool:
+        futures = {
+            pool.submit(ensure_playback_state, port, password, should_play=True): label
+            for port, label in vlc_targets
+        }
+        for fut in futures:
+            if not fut.result():
+                logger.warning("%s VLC failed to resume from omnipause", futures[fut])
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
