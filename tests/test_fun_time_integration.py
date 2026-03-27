@@ -221,6 +221,46 @@ def test_fun_time_omnipause_while_robot_hand_mode(shared_integration_session: Fu
 
 
 @pytest.mark.integration
+def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: FunTimeIntegrationSession):
+    """Verify vlc_nudge_next/prev actually seek VLC's primary player by ~10 seconds.
+
+    Must run before isolated-session tests (trash), whose teardown kills all
+    recent VLC processes and would leave the shared session's VLC dead.
+    """
+    s = shared_integration_session
+    port, password = _read_vlc_config_from_manifest(s)
+
+    # Seek to 30s so there's room to nudge both directions without hitting 0 or end.
+    # Retry until VLC reports a position near 30s — the seek + HTTP response can lag.
+    vlc_http_cmd(port, "seek&val=30", password)
+    result: list[float] = []
+    s.wait_until(
+        lambda: (t := get_playback_time(port, password)) is not None and t >= 25 and (result.append(t) or True),
+        timeout=5,
+        description="VLC to reach seek position (~30s)",
+    )
+    before = result[0]
+
+    # --- nudge forward ---
+    s.write_dashboard_command("vlc_nudge_next")
+    s.wait_until(
+        lambda: (t := get_playback_time(port, password)) is not None and t >= before + 7,
+        timeout=5,
+        description="VLC playback time to advance ~10s after nudge forward",
+    )
+    after_forward = get_playback_time(port, password)
+    assert after_forward is not None
+
+    # --- nudge backward ---
+    s.write_dashboard_command("vlc_nudge_prev")
+    s.wait_until(
+        lambda: (t := get_playback_time(port, password)) is not None and t <= after_forward - 7,
+        timeout=5,
+        description="VLC playback time to retreat ~10s after nudge backward",
+    )
+
+
+@pytest.mark.integration
 def test_fun_time_landscape_trash_updates_temp_state(isolated_integration_session: FunTimeIntegrationSession):
     isolated_integration_session.write_dashboard_command("landscape_trash")
     chunk = isolated_integration_session.wait_for_new_log("Discarding from player 3:", timeout=12)
@@ -257,37 +297,5 @@ def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session
         lambda: any(p.name == trashed_path.name for p in isolated_integration_session.weird_dir.iterdir()),
         timeout=12,
         description="portrait sample to be moved into the integration weird dir",
-    )
-
-
-@pytest.mark.integration
-def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: FunTimeIntegrationSession):
-    """Verify vlc_nudge_next/prev actually seek VLC's primary player by ~10 seconds."""
-    s = shared_integration_session
-    port, password = _read_vlc_config_from_manifest(s)
-
-    # Seek to 30s so there's room to nudge both directions without hitting 0 or end.
-    vlc_http_cmd(port, "seek&val=30", password)
-    time.sleep(0.5)
-
-    before = get_playback_time(port, password)
-    assert before is not None, "Could not read VLC playback time before nudge"
-
-    # --- nudge forward ---
-    s.write_dashboard_command("vlc_nudge_next")
-    s.wait_until(
-        lambda: (t := get_playback_time(port, password)) is not None and t >= before + 7,
-        timeout=5,
-        description="VLC playback time to advance ~10s after nudge forward",
-    )
-    after_forward = get_playback_time(port, password)
-    assert after_forward is not None
-
-    # --- nudge backward ---
-    s.write_dashboard_command("vlc_nudge_prev")
-    s.wait_until(
-        lambda: (t := get_playback_time(port, password)) is not None and t <= after_forward - 7,
-        timeout=5,
-        description="VLC playback time to retreat ~10s after nudge backward",
     )
 
