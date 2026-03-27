@@ -202,12 +202,12 @@ def dispatch_command(
     if command == "sync_robot_hand":
         return _dispatch_sync_robot_hand(state, config)
 
-    if command == "vlc_chapter_prev":
-        ops.append(WindowOp(op="send_alt_key", vk=0x25))  # VK_LEFT
+    if command == "vlc_nudge_prev":
+        ops.append(WindowOp(op="send_vk", vk=0x25))  # VK_LEFT
         return state, ops
 
-    if command == "vlc_chapter_next":
-        ops.append(WindowOp(op="send_alt_key", vk=0x27))  # VK_RIGHT
+    if command == "vlc_nudge_next":
+        ops.append(WindowOp(op="send_vk", vk=0x27))  # VK_RIGHT
         return state, ops
 
     return state, ops

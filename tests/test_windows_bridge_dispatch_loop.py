@@ -154,10 +154,10 @@ class TestExecuteWindowOps:
         mock_send.assert_called_once_with(99, "p")
         assert remaining == []
 
-    def test_send_alt_key_uses_pid(self):
-        ops = [WindowOp(op="send_alt_key", vk=0x25)]  # VK_LEFT
+    def test_send_vk_uses_pid(self):
+        ops = [WindowOp(op="send_vk", vk=0x25)]  # VK_LEFT
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=99), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_alt_key_to_window") as mock_send:
+             patch("fun_time.windows_bridge_dispatch_loop.send_vk_to_window") as mock_send:
             remaining = execute_window_ops(ops, primary_pid=42)
 
         mock_send.assert_called_once_with(99, 0x25)

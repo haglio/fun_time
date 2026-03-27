@@ -178,14 +178,12 @@ def send_key_to_window(hwnd: int, key: str) -> None:
         _user32.PostMessageW(hwnd, WM_KEYUP, vk, 0)
 
 
-WM_SYSKEYDOWN = 0x0104
-WM_SYSKEYUP = 0x0105
-
-
-def send_alt_key_to_window(hwnd: int, vk: int) -> None:
-    """Send an Alt+key combo to a window via PostMessage (WM_SYSKEYDOWN/UP)."""
-    _user32.PostMessageW(hwnd, WM_SYSKEYDOWN, vk, 0)
-    _user32.PostMessageW(hwnd, WM_SYSKEYUP, vk, 0)
+def send_vk_to_window(hwnd: int, vk: int) -> None:
+    """Send a virtual-key code to a window via PostMessage (WM_KEYDOWN/UP)."""
+    WM_KEYDOWN = 0x0100
+    WM_KEYUP = 0x0101
+    _user32.PostMessageW(hwnd, WM_KEYDOWN, vk, 0)
+    _user32.PostMessageW(hwnd, WM_KEYUP, vk, 0)
 
 
 def get_window_rect(hwnd: int) -> tuple[int, int, int, int]:

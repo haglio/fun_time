@@ -59,7 +59,7 @@ class TestHotkeyBindings:
             "primary_prev", "primary_next",
             "robot_toggle", "fmode_toggle",
             "backslash_key",
-            "vlc_chapter_prev", "vlc_chapter_next",
+            "vlc_nudge_prev", "vlc_nudge_next",
             "portrait_prev", "portrait_next", "portrait_trash", "portrait_lock",
             "landscape_prev", "landscape_next", "landscape_trash", "landscape_lock",
         ]
