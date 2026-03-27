@@ -86,6 +86,20 @@ def get_repeat_mode(port: int, password: str) -> str | None:
     return "off"
 
 
+def get_playback_time(port: int, password: str) -> float | None:
+    """Return VLC's current playback position in seconds, or None on error."""
+    status, xml = vlc_http_req(port, "/requests/status.xml", password)
+    if status != 200 or not xml:
+        return None
+    match = re.search(r"<time>([^<]+)</time>", xml)
+    if not match:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
+
+
 def get_playback_state(port: int, password: str) -> str | None:
     status, xml = vlc_http_req(port, "/requests/status.xml", password)
     if status != 200 or not xml:

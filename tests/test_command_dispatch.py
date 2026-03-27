@@ -422,6 +422,31 @@ def test_leave_omnipause_skip_primary_adds_robot_hand_ops_when_in_robot_mode(tmp
     assert any(op.op == "activate" and op.title == "Robot Hand" for op in ops)
 
 
+# --- vlc nudge ---
+
+
+def test_vlc_nudge_prev_sends_vk_left(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state()
+
+    new_state, ops = dispatch_command("vlc_nudge_prev", state, config)
+
+    assert len(ops) == 1
+    assert ops[0].op == "send_vk"
+    assert ops[0].vk == 0x25  # VK_LEFT
+
+
+def test_vlc_nudge_next_sends_vk_right(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state()
+
+    new_state, ops = dispatch_command("vlc_nudge_next", state, config)
+
+    assert len(ops) == 1
+    assert ops[0].op == "send_vk"
+    assert ops[0].vk == 0x27  # VK_RIGHT
+
+
 # --- unknown command ---
 
 

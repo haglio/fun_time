@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import configparser
 import re
 import shutil
 import sys
@@ -8,11 +9,24 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.vlc_actions import get_playback_time, vlc_http_cmd
+
 from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
 )
+
+
+def _read_vlc_config_from_manifest(session: FunTimeIntegrationSession) -> tuple[int, str]:
+    """Return (primary_vlc_port, vlc_password) from the runtime manifest."""
+    manifest_path = session.config.paths.state_dir / "windows_bridge_launch.ini"
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(str(manifest_path), encoding="utf-8")
+    port = int(parser["controller"]["primary_vlc_port"])
+    password = parser["controller"]["vlc_pass"]
+    return port, password
 
 
 pytestmark = pytest.mark.skipif(
@@ -243,5 +257,37 @@ def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session
         lambda: any(p.name == trashed_path.name for p in isolated_integration_session.weird_dir.iterdir()),
         timeout=12,
         description="portrait sample to be moved into the integration weird dir",
+    )
+
+
+@pytest.mark.integration
+def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: FunTimeIntegrationSession):
+    """Verify vlc_nudge_next/prev actually seek VLC's primary player by ~10 seconds."""
+    s = shared_integration_session
+    port, password = _read_vlc_config_from_manifest(s)
+
+    # Seek to 30s so there's room to nudge both directions without hitting 0 or end.
+    vlc_http_cmd(port, "seek&val=30", password)
+    time.sleep(0.5)
+
+    before = get_playback_time(port, password)
+    assert before is not None, "Could not read VLC playback time before nudge"
+
+    # --- nudge forward ---
+    s.write_dashboard_command("vlc_nudge_next")
+    s.wait_until(
+        lambda: (t := get_playback_time(port, password)) is not None and t >= before + 7,
+        timeout=5,
+        description="VLC playback time to advance ~10s after nudge forward",
+    )
+    after_forward = get_playback_time(port, password)
+    assert after_forward is not None
+
+    # --- nudge backward ---
+    s.write_dashboard_command("vlc_nudge_prev")
+    s.wait_until(
+        lambda: (t := get_playback_time(port, password)) is not None and t <= after_forward - 7,
+        timeout=5,
+        description="VLC playback time to retreat ~10s after nudge backward",
     )
 

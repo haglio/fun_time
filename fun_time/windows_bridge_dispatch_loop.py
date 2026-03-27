@@ -21,7 +21,7 @@ from .win32 import (
     find_window_by_pid,
     find_window_by_title,
     hide_window,
-    send_alt_key_to_window,
+    send_vk_to_window,
     send_ctrl_o_to_window,
     send_key_to_window,
     set_always_on_top,
@@ -65,10 +65,10 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
                 send_key_to_window(hwnd, op.key)
             continue
 
-        if op.op == "send_alt_key":
+        if op.op == "send_vk":
             hwnd = find_window_by_pid(primary_pid)
             if hwnd:
-                send_alt_key_to_window(hwnd, op.vk)
+                send_vk_to_window(hwnd, op.vk)
             continue
 
         if op.title:

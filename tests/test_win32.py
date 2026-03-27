@@ -15,7 +15,7 @@ from fun_time.win32 import (
     minimize_window,
     send_ctrl_o,
     send_ctrl_o_to_window,
-    send_alt_key_to_window,
+    send_vk_to_window,
     wait_for_window_close,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
@@ -165,20 +165,20 @@ class TestWaitForWindowClose:
             wait_for_window_close(55555, timeout_s=0.05)
 
 
-class TestSendAltKeyToWindow:
-    def test_posts_syskeydown_and_syskeyup(self):
+class TestSendVkToWindow:
+    def test_posts_keydown_and_keyup(self):
         with patch("fun_time.win32._user32") as mock:
-            send_alt_key_to_window(12345, 0x25)  # VK_LEFT
+            send_vk_to_window(12345, 0x25)  # VK_LEFT
 
         calls = mock.PostMessageW.call_args_list
         assert len(calls) == 2
-        # First call: WM_SYSKEYDOWN (0x0104)
+        # First call: WM_KEYDOWN (0x0100)
         assert calls[0][0][0] == 12345
-        assert calls[0][0][1] == 0x0104
+        assert calls[0][0][1] == 0x0100
         assert calls[0][0][2] == 0x25
-        # Second call: WM_SYSKEYUP (0x0105)
+        # Second call: WM_KEYUP (0x0101)
         assert calls[1][0][0] == 12345
-        assert calls[1][0][1] == 0x0105
+        assert calls[1][0][1] == 0x0101
         assert calls[1][0][2] == 0x25
 
 
