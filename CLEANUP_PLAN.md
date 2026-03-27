@@ -187,16 +187,13 @@ Integration tests are now always-on for Windows (good). Consider adding:
 
 ## Phase 6: ARCHITECTURE IMPROVEMENTS
 
-### 6A. `dashboard_app.py` (508 lines) — extract widget logic
+### 6A. `dashboard_app.py` (508 lines) — DEFERRED (quarantine, don't polish)
 
-Largest source file. Split into:
-- `dashboard_widgets.py` — custom widget creation and rendering
-- `dashboard_events.py` — button click handlers, polling logic
-- Keep `dashboard_app.py` as the thin entry point
+The dashboard is unverified and may be rewritten. It's already well-quarantined: runs as a separate subprocess, imports only from dashboard_* modules and shared layout geometry. No extraction needed — keep it isolated and don't invest in internal cleanup until the UI direction is settled.
 
-### 6B. `robot_hand/app.py` (214 lines) — extract initialization
+### 6B. `robot_hand/app.py` (214 lines) — DEFERRED
 
-Heavy initialization logic creates 10+ controller objects. Extract a `robot_hand/factory.py` or `robot_hand/wiring.py` that builds the controller graph, keeping `app.py` as just the entry point.
+Nice-to-have factory extraction, but not high-leverage. The wiring is stable and tested indirectly through the subsystem tests.
 
 ### 6C. `robot_hand/runtime_commands.py` — clean up polymorphic accessors ✅
 
