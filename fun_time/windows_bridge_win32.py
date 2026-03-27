@@ -13,6 +13,7 @@ _user32 = ctypes.windll.user32  # type: ignore[attr-defined]
 
 # Constants
 SW_RESTORE = 9
+SW_SHOWNOACTIVATE = 4
 SWP_NOACTIVATE = 0x0010
 SWP_NOZORDER = 0x0004
 SWP_NOMOVE = 0x0002
@@ -81,9 +82,13 @@ def wait_for_window(pid: int, timeout_s: float = 15.0) -> int:
     return 0
 
 
-def move_window(hwnd: int, x: int, y: int, w: int, h: int) -> None:
-    """Restore and reposition a window (WinRestore + WinMove equivalent)."""
-    _user32.ShowWindow(hwnd, SW_RESTORE)
+def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = True) -> None:
+    """Restore and reposition a window (WinRestore + WinMove equivalent).
+
+    When *activate* is False the window is shown without stealing focus
+    (uses SW_SHOWNOACTIVATE instead of SW_RESTORE).
+    """
+    _user32.ShowWindow(hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE)
     _user32.SetWindowPos(hwnd, 0, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE)
 
 

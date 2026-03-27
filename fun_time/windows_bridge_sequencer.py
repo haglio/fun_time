@@ -133,14 +133,12 @@ def run_startup_sequence(
     )
 
     # Position core windows
-    _position_pid_window(portrait_pid, plan.portrait, "portrait VLC")
-    _position_pid_window(primary_pid, plan.primary, "primary VLC")
-    _position_pid_window(landscape_pid, plan.landscape, "landscape VLC")
-    _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg)
-    logger.info("Core windows positioned")
-
-    # Set topmost on core windows
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
+    _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=not skip_activate)
+    _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=not skip_activate)
+    _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=not skip_activate)
+    _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg, activate=not skip_activate)
+    logger.info("Core windows positioned")
     for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
         hwnd = find_window_by_pid(pid)
         if hwnd:
@@ -218,11 +216,11 @@ def _get_mfp_size(
     )
 
 
-def _position_pid_window(pid: int, rect: WindowRect, label: str) -> None:
+def _position_pid_window(pid: int, rect: WindowRect, label: str, *, activate: bool = True) -> None:
     """Wait for a visible window belonging to *pid* and move it."""
     hwnd = wait_for_window(pid, timeout_s=10.0)
     if hwnd:
-        move_window(hwnd, rect.x, rect.y, rect.width, rect.height)
+        move_window(hwnd, rect.x, rect.y, rect.width, rect.height, activate=activate)
         logger.info("Positioned %s (pid=%d hwnd=%d) at %d,%d %dx%d",
                      label, pid, hwnd, rect.x, rect.y, rect.width, rect.height)
     else:
@@ -231,6 +229,7 @@ def _position_pid_window(pid: int, rect: WindowRect, label: str) -> None:
 
 def _position_mfp_window(
     mfp_pid: int, target: WindowRect, main_rect: MonitorRect, layout_cfg: LayoutConfig,
+    *, activate: bool = True,
 ) -> None:
     """Position MFP with a retry loop and delta correction.
 
@@ -246,7 +245,7 @@ def _position_mfp_window(
     move_w, move_h = target.width, target.height
 
     for attempt in range(3):
-        move_window(hwnd, move_x, move_y, move_w, move_h)
+        move_window(hwnd, move_x, move_y, move_w, move_h, activate=activate)
         time.sleep(0.08)
 
         actual_x, actual_y, actual_w, actual_h = get_window_rect(hwnd)
@@ -343,7 +342,8 @@ def _maybe_launch_random_favs_browser(
 
     # Position the browser window
     rect = plan.random_favs_browser
-    move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height)
+    no_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
+    move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height, activate=not no_activate)
     set_always_on_top(new_hwnd, False)
 
     # Restore MFP above browser — toggle topmost off/on to force z-order
@@ -352,7 +352,7 @@ def _maybe_launch_random_favs_browser(
     if mfp_hwnd:
         set_always_on_top(mfp_hwnd, False)
         set_always_on_top(mfp_hwnd, True)
-        if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+        if not no_activate:
             activate_window(mfp_hwnd)
 
     logger.info("Random Favs Browser positioned")

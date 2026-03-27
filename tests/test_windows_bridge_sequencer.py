@@ -91,7 +91,7 @@ class TestRunStartupSequence:
         move_calls: list[tuple] = []
         topmost_calls: list[tuple] = []
 
-        def track_move(hwnd, x, y, w, h):
+        def track_move(hwnd, x, y, w, h, **_kw):
             move_calls.append((hwnd, x, y, w, h))
 
         def track_topmost(hwnd, on_top):
@@ -180,7 +180,7 @@ class TestPositionPidWindow:
              patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
             _position_pid_window(42, target, "test VLC")
 
-        mock_move.assert_called_once_with(42, 100, 200, 800, 600)
+        mock_move.assert_called_once_with(42, 100, 200, 800, 600, activate=True)
 
     def test_skips_when_no_window_found(self):
         target = WindowRect(x=0, y=0, width=100, height=100)
@@ -198,7 +198,7 @@ class TestPositionMfpWindow:
         target = WindowRect(x=500, y=100, width=240, height=395)
         move_calls: list[tuple] = []
 
-        def track_move(hwnd, x, y, w, h):
+        def track_move(hwnd, x, y, w, h, **_kw):
             move_calls.append((x, y, w, h))
 
         # Simulate position being off by 10px on every attempt — forces all 3 retries
@@ -282,6 +282,7 @@ class TestMaybeLaunchRandomFavsBrowser:
         # Browser window should be positioned at the planned rect
         mock_move.assert_called_once_with(
             55555, browser_rect.x, browser_rect.y, browser_rect.width, browser_rect.height,
+            activate=True,
         )
 
     def test_mfp_topmost_toggled_after_browser_launch(self):

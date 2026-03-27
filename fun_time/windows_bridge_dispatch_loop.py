@@ -81,9 +81,11 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
         if op.op == "set_topmost":
             set_always_on_top(hwnd, op.value)
         elif op.op == "activate":
-            activate_window(hwnd)
+            if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+                activate_window(hwnd)
         elif op.op == "show":
-            show_window(hwnd)
+            if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+                show_window(hwnd)
         elif op.op == "hide":
             hide_window(hwnd)
 
