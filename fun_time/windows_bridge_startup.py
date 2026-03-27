@@ -7,9 +7,27 @@ import subprocess
 import time
 from pathlib import Path
 
+import sys
+
 from .windows_bridge_vlc_actions import set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
+
+
+def _no_activate_kwargs() -> dict:
+    """Return Popen kwargs that show the window without stealing focus.
+
+    Uses SW_SHOWNOACTIVATE (4) so GUI apps open visible but don't take
+    foreground focus.  Only applied during integration test runs.
+    """
+    if sys.platform != "win32":
+        return {}
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+        return {}
+    si = subprocess.STARTUPINFO()
+    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    si.wShowWindow = 4  # SW_SHOWNOACTIVATE
+    return {"startupinfo": si}
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
@@ -251,21 +269,24 @@ def launch_core_apps(
     primary_proc = subprocess.Popen(
         _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat"),
         cwd=project_dir,
+        **_no_activate_kwargs(),
     )
     if not wait_for_http(primary_port, password, 7000):
         raise RuntimeError("Primary VLC HTTP did not come up")
     time.sleep(0.3)
     vlc_http_cmd(primary_port, "pl_next", password)
 
-    mfp_proc = subprocess.Popen([mfp_exe], cwd=project_dir)
+    mfp_proc = subprocess.Popen([mfp_exe], cwd=project_dir, **_no_activate_kwargs())
 
     portrait_proc = subprocess.Popen(
         _build_vlc_launch_command(vlc_exe, portrait_sources, portrait_port, password, repeat_mode="loop"),
         cwd=project_dir,
+        **_no_activate_kwargs(),
     )
     landscape_proc = subprocess.Popen(
         _build_vlc_launch_command(vlc_exe, landscape_sources, landscape_port, password, repeat_mode="loop"),
         cwd=project_dir,
+        **_no_activate_kwargs(),
     )
 
     if not wait_for_http(portrait_port, password, 7000):
