@@ -9,7 +9,7 @@ from pathlib import Path
 
 import sys
 
-from .windows_bridge_vlc_actions import set_repeat_mode, vlc_http_cmd, wait_for_http
+from .vlc_actions import set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
 

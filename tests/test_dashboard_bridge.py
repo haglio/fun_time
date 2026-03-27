@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.windows_bridge_dashboard_bridge import build_dashboard_snapshot_text, write_dashboard_snapshot
+from fun_time.dashboard_bridge import build_dashboard_snapshot_text, write_dashboard_snapshot
 
 
 def test_build_dashboard_snapshot_text_matches_bridge_contract():

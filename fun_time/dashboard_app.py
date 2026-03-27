@@ -12,7 +12,7 @@ import tkinter as tk
 
 from fun_time.config import LayoutConfig
 from fun_time.windows_bridge_manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.windows_bridge_vlc_actions import get_current_file_path, vlc_http_req
+from fun_time.vlc_actions import get_current_file_path, vlc_http_req
 from fun_time.dashboard_actions import (
     LANDSCAPE_LOCK,
     LANDSCAPE_NEXT,
