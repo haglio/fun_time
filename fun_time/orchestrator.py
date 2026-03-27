@@ -61,7 +61,6 @@ def validate_config(config) -> None:
     require_file(config.project_dir / "fun_time" / "broker_app.py")
     require_file(config.project_dir / "fun_time" / "robot_hand" / "app.py")
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
-    require_file(config.project_dir / "fun_time" / "media_actions_app.py")
 
 
 
