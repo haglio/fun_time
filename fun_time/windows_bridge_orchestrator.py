@@ -19,7 +19,14 @@ from .windows_bridge_dispatch_loop import (
     build_bridge_config_from_manifest,
 )
 from .windows_bridge_sequencer import StartupResult, run_startup_sequence
-from .windows_bridge_win32 import find_window_by_pid, get_foreground_window, minimize_window, activate_window
+from .windows_bridge_win32 import (
+    activate_window,
+    find_window_by_pid,
+    get_foreground_window,
+    lock_set_foreground_window,
+    minimize_window,
+    unlock_set_foreground_window,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -142,13 +149,22 @@ def run_python_orchestrated_bridge(
     project_dir = Path(project_dir)
 
     integration_mode = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-    saved_foreground = get_foreground_window() if integration_mode else 0
+    saved_foreground = 0
+    if integration_mode:
+        saved_foreground = get_foreground_window()
+        lock_set_foreground_window()
+        logger.info("Locked foreground window (hwnd=%d) for integration startup", saved_foreground)
 
     logger.info("Running startup sequence")
-    result = run_startup_sequence(
-        manifest_path=manifest_path,
-        state_dir=state_dir,
-    )
+    try:
+        result = run_startup_sequence(
+            manifest_path=manifest_path,
+            state_dir=state_dir,
+        )
+    finally:
+        if integration_mode:
+            unlock_set_foreground_window()
+
     logger.info(
         "Startup complete: primary=%d mfp=%d portrait=%d landscape=%d dashboard=%d robot_hand=%d audio=%d",
         result.primary_pid, result.mfp_pid, result.portrait_pid, result.landscape_pid,
