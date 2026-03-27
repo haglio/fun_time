@@ -374,3 +374,12 @@ def test_build_vlc_launch_command_omits_no_video_outside_integration(monkeypatch
     cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat")
     assert "--no-video" not in cmd
 
+
+def test_build_vlc_launch_command_includes_volume_zero_when_mute_for_loading(monkeypatch):
+    """VLC must start pre-muted during loading (hide_windows=True) so no
+    audio blips before the HTTP mute command arrives."""
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat", mute=True)
+    idx = cmd.index("--volume")
+    assert cmd[idx + 1] == "0"
+
