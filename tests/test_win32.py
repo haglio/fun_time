@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from fun_time.windows_bridge_win32 import (
+from fun_time.win32 import (
     wait_for_window,
     move_window,
     set_always_on_top,
@@ -30,17 +30,17 @@ from fun_time.windows_bridge_win32 import (
 
 class TestWaitForWindow:
     def test_returns_hwnd_immediately_if_found(self):
-        with patch("fun_time.windows_bridge_win32.find_window_by_pid", return_value=12345):
+        with patch("fun_time.win32.find_window_by_pid", return_value=12345):
             assert wait_for_window(42, timeout_s=5.0) == 12345
 
     def test_returns_zero_on_timeout(self):
-        with patch("fun_time.windows_bridge_win32.find_window_by_pid", return_value=0):
+        with patch("fun_time.win32.find_window_by_pid", return_value=0):
             assert wait_for_window(42, timeout_s=0.05) == 0
 
     def test_retries_until_found(self):
         attempts = [0, 0, 99999]
 
-        with patch("fun_time.windows_bridge_win32.find_window_by_pid", side_effect=attempts):
+        with patch("fun_time.win32.find_window_by_pid", side_effect=attempts):
             assert wait_for_window(42, timeout_s=5.0) == 99999
 
 
@@ -54,7 +54,7 @@ class TestMoveWindow:
         def fake_setpos(hwnd, insert_after, x, y, w, h, flags):
             calls.append(("SetWindowPos", (hwnd, insert_after, x, y, w, h, flags)))
 
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             mock.ShowWindow.side_effect = fake_show
             mock.SetWindowPos.side_effect = fake_setpos
             move_window(111, 10, 20, 800, 600)
@@ -65,7 +65,7 @@ class TestMoveWindow:
 
 class TestSetAlwaysOnTop:
     def test_sets_topmost(self):
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             set_always_on_top(111, True)
 
         args = mock.SetWindowPos.call_args[0]
@@ -73,7 +73,7 @@ class TestSetAlwaysOnTop:
         assert args[1] == HWND_TOPMOST
 
     def test_clears_topmost(self):
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             set_always_on_top(111, False)
 
         args = mock.SetWindowPos.call_args[0]
@@ -82,7 +82,7 @@ class TestSetAlwaysOnTop:
 
 class TestActivateWindow:
     def test_calls_set_foreground(self):
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             activate_window(111)
 
         mock.SetForegroundWindow.assert_called_once_with(111)
@@ -90,7 +90,7 @@ class TestActivateWindow:
 
 class TestSendCtrlO:
     def test_calls_send_input_with_four_key_events(self):
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             mock.SendInput.return_value = 4
             send_ctrl_o()
 
@@ -101,7 +101,7 @@ class TestSendCtrlO:
 
 class TestSendCtrlOToWindow:
     def test_injects_dummy_input_activates_and_sends_ctrl_o(self):
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             mock.SendInput.return_value = 1
             send_ctrl_o_to_window(12345)
 
@@ -132,7 +132,7 @@ class TestFindDialogByPid:
         def fake_get_pid(hwnd, pid_ptr):
             pid_ptr._obj.value = 100
 
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             mock.EnumWindows.side_effect = fake_enum
             mock.GetClassNameW.side_effect = fake_get_class
             mock.GetWindowThreadProcessId.side_effect = fake_get_pid
@@ -142,7 +142,7 @@ class TestFindDialogByPid:
         assert result == 55555
 
     def test_returns_zero_on_timeout(self):
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             mock.EnumWindows.return_value = True  # no windows found
             result = find_dialog_by_pid(100, timeout_s=0.05)
 
@@ -153,21 +153,21 @@ class TestWaitForWindowClose:
     def test_returns_when_window_destroyed(self):
         calls = [True, True, False]  # window exists, exists, gone
 
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             mock.IsWindow.side_effect = calls
             wait_for_window_close(55555, timeout_s=1.0)
 
         assert mock.IsWindow.call_count == 3
 
     def test_returns_on_timeout(self):
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             mock.IsWindow.return_value = True  # window never closes
             wait_for_window_close(55555, timeout_s=0.05)
 
 
 class TestSendAltKeyToWindow:
     def test_posts_syskeydown_and_syskeyup(self):
-        with patch("fun_time.windows_bridge_win32._user32") as mock:
+        with patch("fun_time.win32._user32") as mock:
             send_alt_key_to_window(12345, 0x25)  # VK_LEFT
 
         calls = mock.PostMessageW.call_args_list
@@ -184,7 +184,7 @@ class TestSendAltKeyToWindow:
 
 class TestMinimizeWindow:
     def test_calls_show_window_with_sw_minimize(self):
-        with patch("fun_time.windows_bridge_win32._user32") as mock_user32:
+        with patch("fun_time.win32._user32") as mock_user32:
             minimize_window(99999)
         mock_user32.ShowWindow.assert_called_once_with(99999, SW_MINIMIZE)
 
