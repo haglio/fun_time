@@ -256,8 +256,6 @@ class TestValidateConfig:
         rh_py.touch()
         ac_py = cfg.project_dir / "fun_time" / "audio_companion_app.py"
         ac_py.touch()
-        media_actions_py = cfg.project_dir / "fun_time" / "media_actions_app.py"
-        media_actions_py.touch()
         return cfg
 
     def test_raises_when_vlc_exe_missing(self, cfg_path: Path, tmp_path: Path):
