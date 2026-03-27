@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -237,46 +238,44 @@ def build_integration_temp_root() -> Path:
 
 
 def _link_primary_samples(real_config, dest_dir: Path) -> list[Path]:
-    selected: list[Path] = []
+    candidates: list[tuple[Path, Path]] = []  # (candidate, source_root)
     for source_root in real_config.paths.primary_vlc_dirs:
         for candidate in source_root.rglob("*"):
             if candidate.suffix.lower() not in VIDEO_EXTENSIONS or not candidate.is_file():
                 continue
             if has_matching_funscript(str(candidate), str(source_root)):
-                relative_video = candidate.relative_to(Path(source_root))
-                target = dest_dir / relative_video
-                target.parent.mkdir(parents=True, exist_ok=True)
-                _safe_link(candidate, target)
-                mirrored = Path(build_mirrored_funscript_path(str(candidate), str(source_root)))
-                if mirrored.exists():
-                    temp_mirrored_root = Path(str(dest_dir).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\"))
-                    mirrored_dest = (temp_mirrored_root / relative_video).with_suffix(".funscript")
-                    mirrored_dest.parent.mkdir(parents=True, exist_ok=True)
-                    _safe_link(mirrored, mirrored_dest)
-                selected.append(target)
-                break
-        if selected:
-            break
-    if not selected:
+                candidates.append((candidate, source_root))
+    if not candidates:
         raise FileNotFoundError("Could not find a primary video with a matching funscript for integration config")
-    return selected
+    candidate, source_root = random.choice(candidates)
+    relative_video = candidate.relative_to(Path(source_root))
+    target = dest_dir / relative_video
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _safe_link(candidate, target)
+    mirrored = Path(build_mirrored_funscript_path(str(candidate), str(source_root)))
+    if mirrored.exists():
+        temp_mirrored_root = Path(str(dest_dir).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\"))
+        mirrored_dest = (temp_mirrored_root / relative_video).with_suffix(".funscript")
+        mirrored_dest.parent.mkdir(parents=True, exist_ok=True)
+        _safe_link(mirrored, mirrored_dest)
+    return [target]
 
 
 def _link_sample_files(source_dirs: tuple[Path, ...], dest_dir: Path, *, count: int) -> list[Path]:
-    selected: list[Path] = []
+    candidates: list[Path] = []
     for source_dir in source_dirs:
         for candidate in source_dir.rglob("*"):
             if candidate.suffix.lower() not in VIDEO_EXTENSIONS or not candidate.is_file():
                 continue
-            target = dest_dir / candidate.name
-            if target.exists():
-                continue
-            _safe_link(candidate, target)
-            selected.append(target)
-            if len(selected) >= count:
-                return selected
-    if len(selected) < count:
+            candidates.append(candidate)
+    if len(candidates) < count:
         raise FileNotFoundError(f"Could not find {count} sample media files in {source_dirs}")
+    chosen = random.sample(candidates, count)
+    selected: list[Path] = []
+    for candidate in chosen:
+        target = dest_dir / candidate.name
+        _safe_link(candidate, target)
+        selected.append(target)
     return selected
 
 
