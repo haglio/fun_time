@@ -229,6 +229,8 @@ def run_startup_sequence(
                 collected_hwnds.append(hwnd)
         logger.info("Topmost set on core windows")
 
+        progress.advance("Finalizing...")
+
     return StartupResult(
         primary_pid=primary_pid,
         mfp_pid=mfp_pid,

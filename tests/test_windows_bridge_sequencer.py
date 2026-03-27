@@ -428,6 +428,51 @@ class TestNoActivateWindowDuringIntegration:
 class TestProgressReporting:
     """run_startup_sequence reports progress via the callback."""
 
+    def test_hide_windows_advance_count_matches_total_steps(self, cfg_factory, tmp_path):
+        """In hide_windows mode the number of advance() calls must equal
+        _STARTUP_PROGRESS_STEPS so the progress bar reaches 100%.
+        """
+        from fun_time.windows_bridge_orchestrator import _STARTUP_PROGRESS_STEPS
+
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        advance_messages: list[str] = []
+
+        class TrackingProgress:
+            def advance(self, message: str) -> None:
+                advance_messages.append(message)
+            def finish(self) -> None:
+                pass
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                progress=TrackingProgress(),
+                hide_windows=True,
+            )
+
+        assert len(advance_messages) == _STARTUP_PROGRESS_STEPS, (
+            f"hide_windows fires {len(advance_messages)} steps "
+            f"but _STARTUP_PROGRESS_STEPS={_STARTUP_PROGRESS_STEPS} — "
+            f"progress bar reaches {100 * len(advance_messages) // _STARTUP_PROGRESS_STEPS}%"
+        )
+
     def test_advance_called_for_each_startup_step(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
