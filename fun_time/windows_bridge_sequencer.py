@@ -352,7 +352,8 @@ def _maybe_launch_random_favs_browser(
     if mfp_hwnd:
         set_always_on_top(mfp_hwnd, False)
         set_always_on_top(mfp_hwnd, True)
-        activate_window(mfp_hwnd)
+        if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+            activate_window(mfp_hwnd)
 
     logger.info("Random Favs Browser positioned")
 

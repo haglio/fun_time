@@ -379,11 +379,9 @@ class TestNoActivateWindowDuringIntegration:
             mock_time.monotonic = MagicMock(return_value=0)
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        # activate_window should NOT have been called for the 4 core windows
-        core_hwnds = {1010, 2020, 3030, 4040}
-        activated_hwnds = {c.args[0] for c in mock_activate.call_args_list}
-        assert not (activated_hwnds & core_hwnds), \
-            f"activate_window called on core windows during integration: {activated_hwnds & core_hwnds}"
+        # activate_window should NOT have been called at all during integration
+        assert mock_activate.call_count == 0, \
+            f"activate_window called during integration: {mock_activate.call_args_list}"
 
     def test_activates_windows_outside_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
