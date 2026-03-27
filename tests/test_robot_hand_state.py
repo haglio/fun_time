@@ -170,3 +170,63 @@ class TestUdpReader:
         stop.set()
         t.join(timeout=2.0)
         assert not t.is_alive()
+
+    def test_bind_retries_on_port_conflict(self):
+        """udp_reader retries binding when the port is initially occupied."""
+        state = SharedState()
+        port = _free_udp_port()
+
+        # Occupy the port
+        blocker = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        blocker.bind(("127.0.0.1", port))
+
+        stop = threading.Event()
+        logger = logging.getLogger("test.udp_reader")
+        t = threading.Thread(
+            target=udp_reader,
+            args=("127.0.0.1", port, state, stop, logger),
+            daemon=True,
+        )
+        t.start()
+
+        # Release the port after a short delay so retry can succeed
+        time.sleep(0.3)
+        blocker.close()
+
+        # Wait for the reader to bind and become operational
+        time.sleep(1.0)
+        try:
+            _send(port, "SHOW")
+            time.sleep(0.2)
+            assert state.visible is True
+        finally:
+            stop.set()
+            t.join(timeout=2.0)
+
+    def test_bind_failure_sets_error(self):
+        """udp_reader sets state.error when all bind retries are exhausted."""
+        state = SharedState()
+        port = _free_udp_port()
+
+        # Occupy the port for the entire duration — don't release it
+        blocker = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        blocker.bind(("127.0.0.1", port))
+
+        stop = threading.Event()
+        logger = logging.getLogger("test.udp_reader")
+        t = threading.Thread(
+            target=udp_reader,
+            args=("127.0.0.1", port, state, stop, logger),
+            daemon=True,
+        )
+        t.start()
+        try:
+            # Wait for all retries to exhaust (0.5 + 1.0 + 2.0 = 3.5s + final attempt)
+            t.join(timeout=8.0)
+            assert state.error is not None
+            assert "10048" in state.error or "address" in state.error.lower()
+        finally:
+            stop.set()
+            blocker.close()
+            t.join(timeout=2.0)

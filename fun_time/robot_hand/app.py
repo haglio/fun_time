@@ -69,8 +69,17 @@ def main(argv: list[str] | None = None) -> int:
     fault_fp = enable_faulthandler(config.log_file("robot_hand_crash"))
     args = build_parser(config).parse_args(argv)
 
+    logger.info("Robot Hand starting (pid=%d)", __import__("os").getpid())
     try:
-        return run_listener(args, config, logger)
+        rc = run_listener(args, config, logger)
+        logger.info("Robot Hand exiting normally (rc=%d)", rc)
+        return rc
+    except KeyboardInterrupt:
+        logger.info("Robot Hand interrupted by user")
+        return 0
+    except Exception:
+        logger.critical("Robot Hand crashed in main", exc_info=True)
+        raise
     finally:
         try:
             fault_fp.close()

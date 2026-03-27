@@ -20,13 +20,33 @@ class SharedState:
     error: str | None = None
 
 
+_BIND_RETRY_DELAYS = (0.5, 1.0, 2.0)
+
+
 def udp_reader(host: str, port: int, state: SharedState, stop_event: threading.Event, logger: logging.Logger) -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((host, port))
-    sock.settimeout(0.2)
-    logger.info("Robot Hand UDP listener bound on %s:%s", host, port)
-
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
+        bound = False
+        for attempt, delay in enumerate(_BIND_RETRY_DELAYS, 1):
+            try:
+                sock.bind((host, port))
+                bound = True
+                break
+            except OSError as exc:
+                logger.warning(
+                    "UDP bind attempt %d failed on %s:%s: %s — retrying in %.1fs",
+                    attempt, host, port, exc, delay,
+                )
+                if stop_event.wait(delay):
+                    return
+        if not bound:
+            # Final attempt — let it raise if it still fails
+            sock.bind((host, port))
+
+        sock.settimeout(0.2)
+        logger.info("Robot Hand UDP listener bound on %s:%s", host, port)
+
         while not stop_event.is_set():
             try:
                 data, _addr = sock.recvfrom(4096)
