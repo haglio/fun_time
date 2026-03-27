@@ -15,7 +15,9 @@ import sys
 import threading
 from pathlib import Path
 
+from .runtime_flow import read_flag_file
 from .startup_progress import NullProgress, StartupProgress
+from .vlc_actions import ensure_playback_state
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -31,6 +33,18 @@ from .win32 import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def should_start_in_robot_hand_mode(
+    broker_mode_file: str | Path,
+    shutdown_mode_file: str | Path,
+) -> bool:
+    """Check whether Robot Hand should be active at startup.
+
+    Returns True if either the broker's live mode file or the previous
+    session's shutdown file indicates auto mode was (or is) on.
+    """
+    return read_flag_file(broker_mode_file, False) or read_flag_file(shutdown_mode_file, False)
 
 
 def write_pids_file(path: Path, result: StartupResult) -> None:
@@ -83,8 +97,8 @@ def _minimize_all_windows(result: StartupResult) -> None:
 
 
 # Number of progress steps reported by run_startup_sequence.
-# In hide_windows mode there's an extra "Positioning windows..." step at the end.
-_STARTUP_PROGRESS_STEPS = 8
+# Number of progress steps in hide_windows mode (the only mode with a loading screen).
+_STARTUP_PROGRESS_STEPS = 7
 
 
 def _shutdown_children(result: StartupResult) -> None:
@@ -250,6 +264,18 @@ def run_python_orchestrated_bridge(
         dashboard_pid=result.dashboard_pid,
         dashboard_enabled=dashboard_enabled,
     )
+    # If the OSR2 is in auto mode (detected by the broker during startup, or
+    # persisted from the previous session's shutdown), pause Primary VLC now
+    # so Robot Hand is the active device from the start.
+    if should_start_in_robot_hand_mode(
+        bridge_config.robot_hand_mode_file,
+        state_dir / "robot_hand_mode_at_shutdown.txt",
+    ):
+        primary_port = int(manifest["controller"]["primary_vlc_port"])
+        password = manifest["controller"]["vlc_pass"]
+        ensure_playback_state(primary_port, password, should_play=False)
+        logger.info("Auto mode detected at startup — pausing Primary VLC for Robot Hand")
+
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()
     logger.info("Background dispatch loop started")
