@@ -22,7 +22,7 @@ from .windows_bridge_win32 import (
     find_window_by_title,
     hide_window,
     send_alt_key_to_window,
-    send_ctrl_o,
+    send_ctrl_o_to_window,
     send_key_to_window,
     set_always_on_top,
     show_window,
@@ -37,10 +37,12 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
     if not cmd_file.exists():
         return []
     try:
-        # Rename atomically then read — any concurrent writes create a new file
+        # Atomically move then read — any concurrent writes create a new file.
+        # replace() is used instead of rename() because on Windows rename()
+        # fails if the target already exists (e.g. stale .processing from a crash).
         tmp = cmd_file.with_suffix(".processing")
-        cmd_file.rename(tmp)
-        text = tmp.read_text(encoding="utf-8").strip()
+        cmd_file.replace(tmp)
+        text = tmp.read_text(encoding="utf-8-sig").strip()
         tmp.unlink()
     except OSError:
         return []
@@ -275,13 +277,12 @@ class DispatchLoopRunner:
         try:
             primary_hwnd = find_window_by_pid(self.primary_pid)
             if primary_hwnd:
-                activate_window(primary_hwnd)
-                time.sleep(0.05)
-            send_ctrl_o()
+                send_ctrl_o_to_window(primary_hwnd)
 
             if should_manage_omnipause:
                 dialog_hwnd = find_dialog_by_pid(self.primary_pid, timeout_s=1.0)
                 if dialog_hwnd:
+                    activate_window(dialog_hwnd)
                     wait_for_window_close(dialog_hwnd)
         finally:
             if should_manage_omnipause:
