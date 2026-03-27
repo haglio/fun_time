@@ -148,8 +148,7 @@ def plan_window_layout(
     """Compute window layout from live monitor list and config.
 
     ``monitors`` is a list of ``MonitorInfo`` from ``windows_bridge_monitors``.
-    This is the direct-call equivalent of shelling out to
-    ``windows_bridge_window_layout_app.py``.
+    This is called directly by the dispatch loop.
     """
     from .windows_bridge_monitors import get_logical_monitor_rects
 

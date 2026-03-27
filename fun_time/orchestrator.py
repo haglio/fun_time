@@ -62,15 +62,6 @@ def validate_config(config) -> None:
     require_file(config.project_dir / "fun_time" / "robot_hand" / "app.py")
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
     require_file(config.project_dir / "fun_time" / "media_actions_app.py")
-    require_file(config.project_dir / "fun_time" / "windows_bridge_modes_app.py")
-    require_file(config.project_dir / "fun_time" / "windows_bridge_lock_app.py")
-    require_file(config.project_dir / "fun_time" / "windows_bridge_robot_hand_app.py")
-    require_file(config.project_dir / "fun_time" / "windows_bridge_omnipause_app.py")
-    require_file(config.project_dir / "fun_time" / "windows_bridge_window_layout_app.py")
-    require_file(config.project_dir / "fun_time" / "windows_bridge_random_favs_browser_app.py")
-    require_file(config.project_dir / "fun_time" / "windows_bridge_startup_app.py")
-    require_file(config.project_dir / "fun_time" / "windows_bridge_dashboard_bridge_app.py")
-    require_file(config.project_dir / "fun_time" / "windows_bridge_runtime_flow_app.py")
 
 
 
