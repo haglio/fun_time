@@ -19,7 +19,7 @@ from .windows_bridge_dispatch_loop import (
     build_bridge_config_from_manifest,
 )
 from .windows_bridge_sequencer import StartupResult, run_startup_sequence
-from .windows_bridge_win32 import (
+from .win32 import (
     activate_window,
     find_window_by_pid,
     get_foreground_window,
