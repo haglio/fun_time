@@ -8,7 +8,7 @@ from unittest.mock import patch, MagicMock, call
 import pytest
 
 from fun_time.config import load_config
-from fun_time.windows_bridge_manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
+from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_sequencer import (
     StartupResult,
     run_startup_sequence,
@@ -17,7 +17,7 @@ from fun_time.windows_bridge_sequencer import (
     _position_pid_window,
 )
 from fun_time.monitors import MonitorInfo
-from fun_time.windows_bridge_window_layout import (
+from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
     WindowRect,
@@ -246,7 +246,7 @@ class TestMaybeLaunchRandomFavsBrowser:
 
     def _fake_plan(self) -> WindowLayoutPlan:
         """Build a minimal plan with a random_favs_browser rect."""
-        from fun_time.windows_bridge_window_layout import compute_window_layout
+        from fun_time.window_layout import compute_window_layout
         from fun_time.dashboard_layout import Size
         return compute_window_layout(
             main_monitor=MAIN_RECT,

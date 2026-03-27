@@ -7,14 +7,14 @@ from unittest.mock import patch, MagicMock, call
 import pytest
 
 from fun_time.config import load_config
-from fun_time.windows_bridge_manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
+from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
     _minimize_all_windows,
     write_pids_file,
     run_python_orchestrated_bridge,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
-from fun_time.windows_bridge_window_layout import WindowLayoutPlan, WindowRect
+from fun_time.window_layout import WindowLayoutPlan, WindowRect
 
 
 def _fake_plan() -> WindowLayoutPlan:

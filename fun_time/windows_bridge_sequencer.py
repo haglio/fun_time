@@ -28,7 +28,7 @@ from .win32 import (
     set_always_on_top,
     wait_for_window,
 )
-from .windows_bridge_window_layout import (
+from .window_layout import (
     MonitorRect,
     WindowLayoutPlan,
     WindowRect,

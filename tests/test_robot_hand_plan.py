@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fun_time.windows_bridge_robot_hand import build_robot_hand_plan
+from fun_time.robot_hand_plan import build_robot_hand_plan
 
 
 def test_sync_state_enters_robot_hand_mode_when_effective_mode_turns_on():

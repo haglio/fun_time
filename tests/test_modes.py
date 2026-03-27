@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from fun_time.windows_bridge_modes import (
+from fun_time.modes import (
     build_fmode_playlists,
     build_mirrored_funscript_path,
     build_primary_playlist_paths,
