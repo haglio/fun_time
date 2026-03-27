@@ -103,6 +103,11 @@ def activate_window(hwnd: int) -> None:
     _user32.SetForegroundWindow(hwnd)
 
 
+def get_foreground_window() -> int:
+    """Return the HWND of the current foreground window (0 if none)."""
+    return _user32.GetForegroundWindow() or 0
+
+
 def find_window_by_title(title: str) -> int:
     """Find a visible window whose title contains *title*. Returns 0 if not found."""
     best: int = 0
