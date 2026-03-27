@@ -101,18 +101,22 @@ class ClipLoadController:
             protected_paths={self.current_clip_path_getter()},
         )
 
-    def _loader_thread_fn(self, path: Path, request_id: int) -> None:
+    def _decode_thread_fn(self, path: Path, request_id: int, state, log_error) -> None:
         try:
             frames = self.decode_clip(path)
-            self.load_state.record_success(path, frames, request_id)
+            state.record_success(path, frames, request_id)
         except Exception as exc:
-            self.logger.exception("Failed to decode clip %s", path)
-            self.load_state.record_error(path, str(exc), request_id)
+            log_error(path, exc)
+            state.record_error(path, str(exc), request_id)
+
+    def _loader_thread_fn(self, path: Path, request_id: int) -> None:
+        self._decode_thread_fn(
+            path, request_id, self.load_state,
+            lambda p, e: self.logger.exception("Failed to decode clip %s", p),
+        )
 
     def _prefetch_thread_fn(self, path: Path, request_id: int) -> None:
-        try:
-            frames = self.decode_clip(path)
-            self.prefetch_state.record_success(path, frames, request_id)
-        except Exception as exc:
-            self.logger.warning("Prefetch decode failed for %s: %s", path, exc)
-            self.prefetch_state.record_error(path, str(exc), request_id)
+        self._decode_thread_fn(
+            path, request_id, self.prefetch_state,
+            lambda p, e: self.logger.warning("Prefetch decode failed for %s: %s", p, e),
+        )
