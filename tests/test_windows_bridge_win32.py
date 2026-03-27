@@ -14,6 +14,7 @@ from fun_time.windows_bridge_win32 import (
     find_dialog_by_pid,
     minimize_window,
     send_ctrl_o,
+    send_ctrl_o_to_window,
     send_alt_key_to_window,
     wait_for_window_close,
     HWND_TOPMOST,
@@ -96,6 +97,22 @@ class TestSendCtrlO:
         mock.SendInput.assert_called_once()
         args = mock.SendInput.call_args[0]
         assert args[0] == 4  # four key events: ctrl down, o down, o up, ctrl up
+
+
+class TestSendCtrlOToWindow:
+    def test_injects_dummy_input_activates_and_sends_ctrl_o(self):
+        with patch("fun_time.windows_bridge_win32._user32") as mock:
+            mock.SendInput.return_value = 1
+            send_ctrl_o_to_window(12345)
+
+        # SetForegroundWindow must target the given hwnd
+        mock.SetForegroundWindow.assert_called_once_with(12345)
+        # SendInput called twice: once for dummy mouse move, once for Ctrl+O
+        assert mock.SendInput.call_count == 2
+        # First call: 1 input event (dummy mouse move)
+        assert mock.SendInput.call_args_list[0][0][0] == 1
+        # Second call: 4 key events (Ctrl down, O down, O up, Ctrl up)
+        assert mock.SendInput.call_args_list[1][0][0] == 4
 
 
 class TestFindDialogByPid:

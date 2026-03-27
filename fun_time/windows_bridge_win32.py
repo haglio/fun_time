@@ -138,10 +138,17 @@ def minimize_window(hwnd: int) -> None:
 
 
 def send_key_to_window(hwnd: int, key: str) -> None:
-    """Send a single character keystroke to a window via PostMessage."""
-    WM_CHAR = 0x0102
+    """Send a single keystroke to a window via PostMessage (WM_KEYDOWN/UP).
+
+    Uses WM_KEYDOWN + WM_KEYUP rather than WM_CHAR so that applications
+    which only process key-down events (e.g. VLC media shortcuts) respond.
+    """
+    WM_KEYDOWN = 0x0100
+    WM_KEYUP = 0x0101
     for ch in key:
-        _user32.PostMessageW(hwnd, WM_CHAR, ord(ch), 0)
+        vk = ord(ch.upper())
+        _user32.PostMessageW(hwnd, WM_KEYDOWN, vk, 0)
+        _user32.PostMessageW(hwnd, WM_KEYUP, vk, 0)
 
 
 WM_SYSKEYDOWN = 0x0104
@@ -179,14 +186,46 @@ class KEYBDINPUT(ctypes.Structure):
     ]
 
 
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", ctypes.wintypes.LONG),
+        ("dy", ctypes.wintypes.LONG),
+        ("mouseData", ctypes.wintypes.DWORD),
+        ("dwFlags", ctypes.wintypes.DWORD),
+        ("time", ctypes.wintypes.DWORD),
+        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+    ]
+
+
 class INPUT(ctypes.Structure):
     class _INPUT_UNION(ctypes.Union):
-        _fields_ = [("ki", KEYBDINPUT)]
+        _fields_ = [("ki", KEYBDINPUT), ("mi", MOUSEINPUT)]
 
     _fields_ = [
         ("type", ctypes.wintypes.DWORD),
         ("union", _INPUT_UNION),
     ]
+
+
+INPUT_MOUSE = 0
+MOUSEEVENTF_MOVE = 0x0001
+
+
+def send_ctrl_o_to_window(hwnd: int) -> None:
+    """Bring *hwnd* to the foreground and send Ctrl+O via SendInput.
+
+    A no-op mouse-move is injected first so that the calling thread becomes
+    the "last input sender", which satisfies the SetForegroundWindow security
+    check when called from a background thread.
+    """
+    # No-op mouse move — makes our thread the "last input sender"
+    inp = INPUT()
+    inp.type = INPUT_MOUSE
+    inp.union.mi.dwFlags = MOUSEEVENTF_MOVE
+    _user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+    _user32.SetForegroundWindow(hwnd)
+    time.sleep(0.05)
+    send_ctrl_o()
 
 
 def send_ctrl_o() -> None:

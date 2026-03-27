@@ -158,11 +158,21 @@ def run_python_orchestrated_bridge(
     pids_file = state_dir / "bridge_pids.ini"
     write_pids_file(pids_file, result)
 
+    # Clean stale state files from previous sessions so the dispatch loop
+    # starts fresh (e.g. omni_paused=True left over from a crash).
     # Start background dispatch loop (dashboard polling + robot hand sync)
     manifest = configparser.ConfigParser()
     manifest.optionxform = str
     manifest.read(str(manifest_path), encoding="utf-8")
     bridge_config = build_bridge_config_from_manifest(manifest)
+    dashboard_cmd_file = Path(manifest["commands"]["dashboard_cmd_file"])
+    for stale in (
+        state_dir / "shared_bridge_state.ini",
+        state_dir / "ahk_cmd.txt",
+        dashboard_cmd_file,
+        dashboard_cmd_file.with_suffix(".processing"),
+    ):
+        stale.unlink(missing_ok=True)
     dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
 
     # Route dispatch log messages to the windows bridge log file so they

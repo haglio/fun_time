@@ -76,7 +76,7 @@ s::QueueCommand("landscape_lock")
 
 QueueCommand(cmd) {
     global DASHBOARD_CMD_FILE
-    FileAppend(cmd . "`n", DASHBOARD_CMD_FILE, "UTF-8")
+    FileAppend(cmd . "`n", DASHBOARD_CMD_FILE, "UTF-8-RAW")
 }
 
 ProcessAhkCommand() {
@@ -119,7 +119,7 @@ RequireManifestValue(section, key) {
 Log(msg) {
     global WINDOWS_BRIDGE_LOG_FILE
     try {
-        FileAppend(FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n", WINDOWS_BRIDGE_LOG_FILE, "UTF-8")
+        FileAppend(FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n", WINDOWS_BRIDGE_LOG_FILE, "UTF-8-RAW")
     }
 }
 
