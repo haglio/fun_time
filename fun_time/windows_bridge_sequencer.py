@@ -172,7 +172,7 @@ def run_startup_sequence(
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("Launching browser...")
-    _maybe_launch_random_favs_browser(m, plan, mfp_pid)
+    _maybe_launch_random_favs_browser(m, plan, mfp_pid, hide_windows=hide_windows)
 
     # --- Phase 3: Launch UI companions ---
     progress.advance("Launching companions...")
@@ -360,6 +360,8 @@ def _maybe_launch_random_favs_browser(
     m: configparser.ConfigParser,
     plan: WindowLayoutPlan,
     mfp_pid: int,
+    *,
+    hide_windows: bool = False,
 ) -> None:
     """Launch the Random Favs Browser if enabled, position it, and restore MFP topmost."""
     if m["random_favs_browser"]["enabled"] != "1":
@@ -399,13 +401,15 @@ def _maybe_launch_random_favs_browser(
     set_always_on_top(new_hwnd, False)
 
     # Restore MFP above browser — toggle topmost off/on to force z-order
-    # recalculation (re-setting topmost on an already-topmost window is a no-op)
-    mfp_hwnd = find_window_by_pid(mfp_pid)
-    if mfp_hwnd:
-        set_always_on_top(mfp_hwnd, False)
-        set_always_on_top(mfp_hwnd, True)
-        if not no_activate:
-            activate_window(mfp_hwnd)
+    # recalculation (re-setting topmost on an already-topmost window is a no-op).
+    # Skip during loading screen: Phase 4 handles z-order after the overlay closes.
+    if not hide_windows:
+        mfp_hwnd = find_window_by_pid(mfp_pid)
+        if mfp_hwnd:
+            set_always_on_top(mfp_hwnd, False)
+            set_always_on_top(mfp_hwnd, True)
+            if not no_activate:
+                activate_window(mfp_hwnd)
 
     logger.info("Random Favs Browser positioned")
 
