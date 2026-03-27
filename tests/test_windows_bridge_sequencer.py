@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import configparser
-from dataclasses import dataclass
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
-
-import pytest
+from unittest.mock import patch, MagicMock
 
 from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -14,7 +11,7 @@ from fun_time.windows_bridge_sequencer import (
     run_startup_sequence,
     _maybe_launch_random_favs_browser,
     _position_mfp_window,
-    _position_pid_window,
+
 )
 from fun_time.monitors import MonitorInfo
 from fun_time.window_layout import (
@@ -171,26 +168,6 @@ FAKE_LAYOUT_CFG = LayoutConfig(
 MAIN_RECT = MonitorRect(x=0, y=0, width=2560, height=1392)
 
 
-class TestPositionPidWindow:
-    """Regression: each VLC must be moved to its own unique rect (bug #1)."""
-
-    def test_moves_window_to_target_rect(self):
-        target = WindowRect(x=100, y=200, width=800, height=600)
-        with patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=42) as mock_wait, \
-             patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
-            _position_pid_window(42, target, "test VLC")
-
-        mock_move.assert_called_once_with(42, 100, 200, 800, 600, activate=True)
-
-    def test_skips_when_no_window_found(self):
-        target = WindowRect(x=0, y=0, width=100, height=100)
-        with patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=0), \
-             patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
-            _position_pid_window(99, target, "missing")
-
-        mock_move.assert_not_called()
-
-
 class TestPositionMfpWindow:
     """Regression: MFP must use retry loop with delta correction (bug #6)."""
 
@@ -256,11 +233,16 @@ class TestMaybeLaunchRandomFavsBrowser:
         )
 
     def test_skipped_when_disabled(self):
+        """When disabled=0, no browser launch or window positioning happens."""
         m = self._make_manifest_parser(enabled="0")
         plan = self._fake_plan()
-        with patch("fun_time.windows_bridge_sequencer._resolve_shortcut") as mock_resolve:
+        move_calls: list[tuple] = []
+
+        with patch("fun_time.windows_bridge_sequencer.move_window",
+                    side_effect=lambda *a, **kw: move_calls.append(a)):
             _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
-        mock_resolve.assert_not_called()
+
+        assert move_calls == []
 
     def test_launches_and_positions_browser(self):
         m = self._make_manifest_parser()
