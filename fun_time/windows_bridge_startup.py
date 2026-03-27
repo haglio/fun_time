@@ -280,7 +280,7 @@ def launch_core_apps(
         raise RuntimeError("Primary VLC HTTP did not come up")
     time.sleep(0.3)
     vlc_http_cmd(primary_port, "pl_next", password)
-    if hide_windows:
+    if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         vlc_http_cmd(primary_port, "volume&val=0", password)
 
     mfp_proc = subprocess.Popen([mfp_exe], cwd=project_dir, **launch_kwargs)
@@ -306,11 +306,11 @@ def launch_core_apps(
 
     time.sleep(0.25)
     vlc_http_cmd(portrait_port, "pl_next", password)
-    if hide_windows:
+    if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         vlc_http_cmd(portrait_port, "volume&val=0", password)
     time.sleep(0.15)
     vlc_http_cmd(landscape_port, "pl_next", password)
-    if hide_windows:
+    if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         vlc_http_cmd(landscape_port, "volume&val=0", password)
 
     _write_result_file(
