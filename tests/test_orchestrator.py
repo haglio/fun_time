@@ -187,25 +187,16 @@ class TestControllerManifest:
         assert "windows_bridge_runtime_flow_module" not in result["modules"]
         assert "windows_bridge_vlc_actions_module" not in result["modules"]
 
-    def test_windows_bridge_window_layout_module_name_included(self, cfg_path: Path):
+    def test_dead_app_modules_absent_from_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["modules"]["windows_bridge_window_layout_module"] == "fun_time.windows_bridge_window_layout_app"
-
-    def test_windows_bridge_random_favs_browser_module_name_included(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["modules"]["windows_bridge_random_favs_browser_module"] == "fun_time.windows_bridge_random_favs_browser_app"
-
-    def test_windows_bridge_startup_module_name_included(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["modules"]["windows_bridge_startup_module"] == "fun_time.windows_bridge_startup_app"
-
-    def test_dashboard_bridge_module_removed_from_manifest(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
-        assert "windows_bridge_dashboard_bridge_module" not in result["modules"]
+        for dead_key in (
+            "windows_bridge_window_layout_module",
+            "windows_bridge_random_favs_browser_module",
+            "windows_bridge_startup_module",
+            "windows_bridge_dashboard_bridge_module",
+        ):
+            assert dead_key not in result["modules"]
 
     def test_random_favs_browser_paths_included(self, cfg_factory):
         cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
@@ -229,10 +220,10 @@ class TestControllerManifest:
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
         assert "windows_bridge_lock_module" not in parser["modules"]
         assert "windows_bridge_runtime_flow_module" not in parser["modules"]
-        assert parser["modules"]["windows_bridge_window_layout_module"] == "fun_time.windows_bridge_window_layout_app"
+        assert "windows_bridge_window_layout_module" not in parser["modules"]
         assert "windows_bridge_vlc_actions_module" not in parser["modules"]
-        assert parser["modules"]["windows_bridge_random_favs_browser_module"] == "fun_time.windows_bridge_random_favs_browser_app"
-        assert parser["modules"]["windows_bridge_startup_module"] == "fun_time.windows_bridge_startup_app"
+        assert "windows_bridge_random_favs_browser_module" not in parser["modules"]
+        assert "windows_bridge_startup_module" not in parser["modules"]
         assert "windows_bridge_dashboard_bridge_module" not in parser["modules"]
         assert parser["commands"]["robot_hand_enabled_file"] == str(cfg.robot_hand_enabled_file)
         assert parser["commands"]["robot_hand_paused_file"] == str(cfg.robot_hand_paused_file)
@@ -267,22 +258,6 @@ class TestValidateConfig:
         ac_py.touch()
         media_actions_py = cfg.project_dir / "fun_time" / "media_actions_app.py"
         media_actions_py.touch()
-        controller_modes_py = cfg.project_dir / "fun_time" / "windows_bridge_modes_app.py"
-        controller_modes_py.touch()
-        controller_lock_py = cfg.project_dir / "fun_time" / "windows_bridge_lock_app.py"
-        controller_lock_py.touch()
-        controller_robot_hand_py = cfg.project_dir / "fun_time" / "windows_bridge_robot_hand_app.py"
-        controller_robot_hand_py.touch()
-        controller_omnipause_py = cfg.project_dir / "fun_time" / "windows_bridge_omnipause_app.py"
-        controller_omnipause_py.touch()
-        controller_window_layout_py = cfg.project_dir / "fun_time" / "windows_bridge_window_layout_app.py"
-        controller_window_layout_py.touch()
-        controller_random_favs_browser_py = cfg.project_dir / "fun_time" / "windows_bridge_random_favs_browser_app.py"
-        controller_random_favs_browser_py.touch()
-        controller_startup_py = cfg.project_dir / "fun_time" / "windows_bridge_startup_app.py"
-        controller_startup_py.touch()
-        controller_dashboard_bridge_py = cfg.project_dir / "fun_time" / "windows_bridge_dashboard_bridge_app.py"
-        controller_dashboard_bridge_py.touch()
         return cfg
 
     def test_raises_when_vlc_exe_missing(self, cfg_path: Path, tmp_path: Path):
