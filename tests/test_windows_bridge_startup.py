@@ -383,3 +383,25 @@ def test_build_vlc_launch_command_includes_volume_zero_when_mute_for_loading(mon
     idx = cmd.index("--volume")
     assert cmd[idx + 1] == "0"
 
+
+def test_build_vlc_launch_command_includes_start_paused_when_muted(monkeypatch):
+    """VLC must start paused when muted so the audio pipeline doesn't open
+    until pl_next is called — --volume 0 alone still lets VLC auto-play
+    and can produce a split-second blip."""
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat", mute=True)
+    assert "--start-paused" in cmd
+
+
+def test_build_vlc_launch_command_includes_start_paused_when_mute_env_set(monkeypatch):
+    """Integration tests also need --start-paused to avoid audio blips."""
+    monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
+    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat")
+    assert "--start-paused" in cmd
+
+
+def test_build_vlc_launch_command_omits_start_paused_in_normal_mode(monkeypatch):
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat")
+    assert "--start-paused" not in cmd
+
