@@ -12,13 +12,12 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
-    integration_enabled,
 )
 
 
 pytestmark = pytest.mark.skipif(
-    sys.platform != "win32" or not integration_enabled(),
-    reason="Fun Time integration tests are opt-in and require a real Windows runtime",
+    sys.platform != "win32",
+    reason="Fun Time integration tests require Windows",
 )
 
 
