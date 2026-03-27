@@ -45,10 +45,6 @@ Runtime state:
 - `state/audio_paused.txt`
 - `state/*.log`
 
-Tooling:
-
-- `fun_time/robot_hand/clipper/` — CLI helper module for preparing files into `clips/` and `audio/`
-
 Local runtime data:
 
 - `favs.csv` — favorites CSV written when a satellite VLC is locked
@@ -244,17 +240,7 @@ Use the `Fun Time` shortcut / taskbar launcher, which calls:
 
 ### Clipper way
 
-Use the `Clipper` shortcut at `fun_time/robot_hand/clipper/Clipper.lnk`.
-
-- It follows the same launcher chain as Fun Time: `cmd.exe` -> `wscript.exe` -> `fun_time/robot_hand/clipper/launch_clipper.vbs`
-- The VBS runs `python -m fun_time.robot_hand.clipper` from project root
-
-Clipper exit prompt behavior:
-
-- `Tab` cycles the pending exit action
-- `Enter` confirms the currently outlined exit action
-- `Esc` always cancels the exit prompt
-- the selected action is shown with a highlighted border instead of a filled button
+Clipper has been extracted to its own project at `../clipper`. See that project for usage details.
 
 ### Validation run
 
@@ -726,7 +712,3 @@ bash test.sh -k clipper
 | `tests/test_orchestrator.py` | `fun_time.orchestrator` — arg parsing, path checks, controller arg building |
 | `tests/test_robot_hand_state.py` | `fun_time.robot_hand.state` — `SharedState` defaults, UDP message parsing |
 | `tests/test_robot_hand_video.py` | `fun_time.robot_hand.video` — `scan_clips`, supported extensions |
-| `tests/test_clipper_utils.py` | `fun_time.robot_hand.clipper.utils` — timestamp parsing, name sanitization, atomic JSON write |
-| `tests/test_clipper_state.py` | `fun_time.robot_hand.clipper.state` — `VideoState` properties, mark-in/out, timeline mapping |
-| `tests/test_clipper_paths.py` | `fun_time.robot_hand.clipper.paths` — path constants, key bindings, `ensure_runtime_dirs` |
-| `tests/test_clipper_export.py` | `fun_time.robot_hand.clipper.export` — ffmpeg clock parsing, output validation, progress tracking |
