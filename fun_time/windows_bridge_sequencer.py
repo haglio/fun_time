@@ -215,6 +215,7 @@ def run_startup_sequence(
         password = m["controller"]["vlc_pass"]
         for port in [primary_port, portrait_port, landscape_port]:
             vlc_http_cmd(port, "volume&val=256", password)
+            vlc_http_cmd(port, "pl_play", password)
 
         _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=False)
         _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=False)
