@@ -299,6 +299,36 @@ class TestMaybeLaunchRandomFavsBrowser:
         # MFP should be activated last
         mock_activate.assert_called_once_with(77777)
 
+    def test_skips_mfp_topmost_when_hide_windows(self):
+        """During loading screen (hide_windows=True), the browser launch must
+        NOT set MFP topmost — doing so makes MFP punch through the overlay.
+        Phase 4 handles z-order after the loading screen closes.
+        """
+        m = self._make_manifest_parser()
+        plan = self._fake_plan()
+        launch_result = MagicMock(should_launch=True)
+
+        topmost_calls: list[tuple] = []
+
+        def track_topmost(hwnd, on_top):
+            topmost_calls.append((hwnd, on_top))
+
+        with patch("fun_time.windows_bridge_sequencer._resolve_shortcut", return_value=("chrome.exe", "", "")), \
+             patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
+             patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
+             patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77777), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"):
+            _maybe_launch_random_favs_browser(m, plan, mfp_pid=20, hide_windows=True)
+
+        # MFP must NOT be set topmost during loading screen
+        mfp_topmost_calls = [(h, t) for h, t in topmost_calls if h == 77777 and t is True]
+        assert mfp_topmost_calls == [], (
+            f"MFP was set topmost during hide_windows mode: {topmost_calls}"
+        )
+
 
 class TestTopmostOnAllCoreWindows:
     """Regression: topmost must be set on all 4 core windows, not just some (bug #5)."""
