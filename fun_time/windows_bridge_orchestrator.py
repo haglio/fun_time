@@ -117,13 +117,13 @@ class _AppendOnWriteHandler(logging.Handler):
 
 
 def _add_dispatch_file_handler(log_path: Path) -> None:
-    """Add a file handler to the bridge_command_dispatch logger.
+    """Add a file handler to the command_dispatch logger.
 
     This ensures log messages from Python-dispatched commands appear in the
     windows bridge log file — the same file AHK writes to.
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    dispatch_logger = logging.getLogger("fun_time.bridge_command_dispatch")
+    dispatch_logger = logging.getLogger("fun_time.command_dispatch")
     dispatch_logger.setLevel(logging.INFO)
     dispatch_logger.addHandler(_AppendOnWriteHandler(log_path))
 

@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.bridge_command_dispatch import BridgeState, WindowOp
+from fun_time.command_dispatch import BridgeState, WindowOp
 
 
 # These imports will fail until the module exists (red step)
@@ -196,7 +196,7 @@ class TestSharedState:
 
 class TestDispatchLoopRunner:
     def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.bridge_command_dispatch import BridgeConfig
+        from fun_time.command_dispatch import BridgeConfig
 
         config = BridgeConfig(
             primary_port=9090,
@@ -379,7 +379,7 @@ class TestHandleOmniPauseToggle:
     """Tests for omnipause toggle moved from AHK to Python."""
 
     def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.bridge_command_dispatch import BridgeConfig
+        from fun_time.command_dispatch import BridgeConfig
 
         config = BridgeConfig(
             primary_port=9090,
@@ -474,7 +474,7 @@ class TestHandleOpenFileDialog:
     """
 
     def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.bridge_command_dispatch import BridgeConfig
+        from fun_time.command_dispatch import BridgeConfig
 
         config = BridgeConfig(
             primary_port=9090,

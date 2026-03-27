@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .media_actions import ensure_in_favs, move_to_weird, remove_from_favs
 from .lock import build_lock_plan
-from .windows_bridge_runtime_flow import (
+from .runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_sync_robot_hand,

@@ -12,9 +12,9 @@ import threading
 import time
 from pathlib import Path
 
-from .bridge_command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
+from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
 from .dashboard_bridge import write_dashboard_snapshot
-from .windows_bridge_runtime_flow import read_flag_file
+from .runtime_flow import read_flag_file
 from .win32 import (
     activate_window,
     find_dialog_by_pid,
