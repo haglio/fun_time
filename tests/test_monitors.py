@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from fun_time.windows_bridge_monitors import (
+from fun_time.monitors import (
     MonitorInfo,
     get_logical_monitor_rects,
 )

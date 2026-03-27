@@ -17,7 +17,7 @@ from pathlib import Path
 
 from .config import LayoutConfig
 from .dashboard_layout import Size
-from .windows_bridge_monitors import enumerate_monitors, get_logical_monitor_rects
+from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
 from .windows_bridge_startup import start_core_session, launch_ui_companions
 from .windows_bridge_win32 import (
