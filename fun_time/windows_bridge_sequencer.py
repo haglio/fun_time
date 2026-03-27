@@ -130,11 +130,6 @@ def run_startup_sequence(
     mfp_hwnd = wait_for_window(mfp_pid, timeout_s=15.0)
     if not mfp_hwnd:
         raise RuntimeError(f"MFP window did not appear (pid={mfp_pid})")
-    if hide_windows:
-        # Move MFP offscreen — ShowWindow(SW_SHOWNOACTIVATE) un-minimizes it
-        # (if it honored the minimize hint) and SetWindowPos immediately moves
-        # it to x=-32000 so GetWindowRect returns the real window size.
-        move_window(mfp_hwnd, -32000, 0, 1, 1, activate=False)
     time.sleep(5.0)
     logger.info("MFP window ready")
 

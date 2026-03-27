@@ -271,8 +271,8 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
     assert parser.get("result", "landscape_pid") == "404"
 
 
-def test_launch_core_apps_launches_minimized_when_hide_windows_true(tmp_path: Path):
-    """When hide_windows=True, VLC and MFP launch with SW_SHOWMINNOACTIVE to prevent flash."""
+def test_launch_core_apps_mutes_vlc_when_hide_windows_true(tmp_path: Path):
+    """When hide_windows=True, VLC instances are muted via HTTP after pl_next."""
     result_file = tmp_path / "core_apps.ini"
 
     class FakeProc:
@@ -282,16 +282,16 @@ def test_launch_core_apps_launches_minimized_when_hide_windows_true(tmp_path: Pa
             self.pid = FakeProc._counter * 100
 
     FakeProc._counter = 0
-    popen_kwargs_list: list[dict] = []
+    http_commands: list[tuple[int, str]] = []
 
-    def capturing_popen(*args, **kwargs):
-        popen_kwargs_list.append(kwargs)
-        return FakeProc()
+    def tracking_vlc_http_cmd(port, cmd, pw):
+        http_commands.append((port, cmd))
+        return True
 
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=capturing_popen), \
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=lambda *a, **kw: FakeProc()), \
          patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True), \
          patch("fun_time.windows_bridge_startup.set_repeat_mode", return_value=True), \
-         patch("fun_time.windows_bridge_startup.vlc_http_cmd", return_value=True), \
+         patch("fun_time.windows_bridge_startup.vlc_http_cmd", side_effect=tracking_vlc_http_cmd), \
          patch("fun_time.windows_bridge_startup.time.sleep"):
         launch_core_apps(
             project_dir=tmp_path,
@@ -308,12 +308,11 @@ def test_launch_core_apps_launches_minimized_when_hide_windows_true(tmp_path: Pa
             hide_windows=True,
         )
 
-    # All 4 launches should use SW_SHOWMINNOACTIVE (7) to prevent flash
-    import subprocess as sp
-    for i, kw in enumerate(popen_kwargs_list):
-        si = kw.get("startupinfo")
-        assert si is not None, f"Launch {i} missing startupinfo"
-        assert si.wShowWindow == 7, f"Launch {i} wShowWindow={si.wShowWindow}, expected 7 (SW_SHOWMINNOACTIVE)"
+    # Each VLC should get pl_next followed by volume mute
+    mute_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "volume&val=0"]
+    assert len(mute_cmds) == 3, f"Expected 3 mute commands, got {mute_cmds}"
+    muted_ports = {port for port, _ in mute_cmds}
+    assert muted_ports == {8090, 8091, 8092}
 
 
 def test_start_core_session_passes_hide_windows_through(tmp_path: Path):

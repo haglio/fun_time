@@ -12,24 +12,6 @@ import sys
 from .vlc_actions import set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
-from .win32 import move_window, wait_for_window
-
-
-def _minimized_kwargs() -> dict:
-    """Return Popen kwargs that launch the process minimized and inactive.
-
-    Uses SW_SHOWMINNOACTIVE (7) so the window is created minimized to the
-    taskbar without activation.  The window manager still allocates a
-    rendering surface (D3D11 swap chain works) but no rectangle appears
-    on the desktop — eliminating the brief flash that SW_SHOWNOACTIVATE
-    causes before the window can be moved offscreen.
-    """
-    if sys.platform != "win32":
-        return {}
-    si = subprocess.STARTUPINFO()
-    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    si.wShowWindow = 7  # SW_SHOWMINNOACTIVE
-    return {"startupinfo": si}
 
 
 def _no_activate_kwargs() -> dict:
@@ -287,7 +269,7 @@ def launch_core_apps(
     vlc_exe = str(vlc_exe)
     mfp_exe = str(mfp_exe)
 
-    launch_kwargs = _minimized_kwargs() if hide_windows else _no_activate_kwargs()
+    launch_kwargs = _no_activate_kwargs()
 
     primary_proc = subprocess.Popen(
         _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat"),
@@ -296,8 +278,6 @@ def launch_core_apps(
     )
     if not wait_for_http(primary_port, password, 7000):
         raise RuntimeError("Primary VLC HTTP did not come up")
-    if hide_windows:
-        _move_pid_offscreen(primary_proc.pid)
     time.sleep(0.3)
     vlc_http_cmd(primary_port, "pl_next", password)
     if hide_windows:
@@ -320,9 +300,6 @@ def launch_core_apps(
         raise RuntimeError("Portrait VLC HTTP did not come up")
     if not wait_for_http(landscape_port, password, 7000):
         raise RuntimeError("Landscape VLC HTTP did not come up")
-    if hide_windows:
-        _move_pid_offscreen(portrait_proc.pid)
-        _move_pid_offscreen(landscape_proc.pid)
 
     set_repeat_mode(portrait_port, password, "all")
     set_repeat_mode(landscape_port, password, "all")
@@ -346,21 +323,6 @@ def launch_core_apps(
         },
     )
 
-
-def _move_pid_offscreen(pid: int) -> None:
-    """Find a window by PID and move it offscreen.
-
-    Belt-and-suspenders for ``_minimized_kwargs``: VLC ignores
-    ``SW_SHOWMINNOACTIVE`` and shows its window anyway.  Moving offscreen
-    immediately after HTTP is ready catches it.  ``move_window`` with
-    ``activate=False`` calls ``ShowWindow(SW_SHOWNOACTIVATE)`` first,
-    which also un-minimizes windows that honored the hint (like MFP),
-    then ``SetWindowPos`` moves to x=-32000 in the same thread — the
-    gap is microseconds, so no visible flash.
-    """
-    hwnd = wait_for_window(pid, timeout_s=5.0)
-    if hwnd:
-        move_window(hwnd, -32000, 0, 1, 1, activate=False)
 
 
 def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: str, *, repeat_mode: str) -> list[str]:

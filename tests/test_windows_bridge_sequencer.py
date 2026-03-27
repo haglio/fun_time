@@ -466,8 +466,8 @@ class TestProgressReporting:
         assert result.primary_pid == 10
 
 
-class TestMinimizedStartup:
-    """When hide_windows=True, windows launch minimized and batch-position after UI companions."""
+class TestLoadingScreenStartup:
+    """When hide_windows=True, positioning is deferred until after UI companions launch."""
 
     def test_defers_positioning_and_collects_hwnds(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -499,7 +499,7 @@ class TestMinimizedStartup:
                 hide_windows=True,
             )
 
-        # Windows should be positioned (move_window restores from minimized)
+        # Windows should be positioned at final locations during Phase 4
         positioned_hwnds = {hwnd for hwnd, x, y, w, h in move_calls}
         assert 1010 in positioned_hwnds or 2020 in positioned_hwnds, "Core windows should be positioned"
 
