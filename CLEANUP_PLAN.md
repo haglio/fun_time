@@ -198,25 +198,25 @@ Largest source file. Split into:
 
 Heavy initialization logic creates 10+ controller objects. Extract a `robot_hand/factory.py` or `robot_hand/wiring.py` that builds the controller graph, keeping `app.py` as just the entry point.
 
-### 6C. `robot_hand/runtime_commands.py` — clean up polymorphic accessors
+### 6C. `robot_hand/runtime_commands.py` — clean up polymorphic accessors ✅
 
-`get_engine_phase()` / `set_engine_phase()` handle both dataclass and dict, suggesting backward-compat code. Verify if the dict path is still used. If not, simplify to dataclass-only.
+Dict path was dead code — production always uses `PlaybackEngine` dataclass. Removed `get_engine_phase()`, `set_engine_phase()`, simplified `get_engine_estimated_bpm()` to dataclass-only. Inlined phase access in `apply_runtime_command`. Updated all tests to use `PlaybackEngine`.
 
 ---
 
 ## Phase 7: POLISH (opportunistic)
 
-### 7A. Consistent error handling
+### 7A. Consistent error handling ✅
 
-One bare `except: pass` in `windows_bridge_dispatch_loop.py` `_update_dashboard()`. Consider at minimum logging the exception.
+The bare `except: pass` was already fixed in a prior refactor — now `except Exception:` with `logger.exception()`.
 
-### 7B. `robot_hand/clip_loader.py` — deduplicate loader/prefetch threads
+### 7B. `robot_hand/clip_loader.py` — deduplicate loader/prefetch threads ✅
 
-`_loader_thread_fn()` and `_prefetch_thread_fn()` are nearly identical. Extract shared logic.
+Extracted `_decode_thread_fn()` shared helper. `_loader_thread_fn` and `_prefetch_thread_fn` are now thin wrappers that pass their state object and logging lambda.
 
 ### 7C. Consistent `__all__` exports
 
-Some modules define `__all__`, most don't. Either adopt it everywhere or nowhere.
+Some modules define `__all__`, most don't. Either adopt it everywhere or nowhere. Low priority — defer.
 
 ---
 
