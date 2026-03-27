@@ -147,10 +147,10 @@ def plan_window_layout(
 ) -> WindowLayoutPlan:
     """Compute window layout from live monitor list and config.
 
-    ``monitors`` is a list of ``MonitorInfo`` from ``windows_bridge_monitors``.
+    ``monitors`` is a list of ``MonitorInfo`` from ``monitors``.
     This is called directly by the dispatch loop.
     """
-    from .windows_bridge_monitors import get_logical_monitor_rects
+    from .monitors import get_logical_monitor_rects
 
     main_rect, secondary_rect = get_logical_monitor_rects(
         monitors,

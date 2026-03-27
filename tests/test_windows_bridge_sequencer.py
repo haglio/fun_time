@@ -16,7 +16,7 @@ from fun_time.windows_bridge_sequencer import (
     _position_mfp_window,
     _position_pid_window,
 )
-from fun_time.windows_bridge_monitors import MonitorInfo
+from fun_time.monitors import MonitorInfo
 from fun_time.windows_bridge_window_layout import (
     MonitorRect,
     WindowLayoutPlan,

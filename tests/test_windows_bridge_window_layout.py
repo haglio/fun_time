@@ -11,7 +11,7 @@ from fun_time.windows_bridge_window_layout import (
     plan_window_layout,
     write_window_layout_plan,
 )
-from fun_time.windows_bridge_monitors import MonitorInfo
+from fun_time.monitors import MonitorInfo
 from fun_time import load_config
 
 
