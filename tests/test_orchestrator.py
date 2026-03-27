@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fun_time.windows_bridge_manifest import (
+from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     build_windows_bridge_manifest,
     write_windows_bridge_manifest,

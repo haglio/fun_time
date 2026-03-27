@@ -6,7 +6,7 @@ from fun_time.monitors import (
     MonitorInfo,
     get_logical_monitor_rects,
 )
-from fun_time.windows_bridge_window_layout import MonitorRect
+from fun_time.window_layout import MonitorRect
 
 
 def _mi(x: int, y: int, w: int, h: int) -> MonitorInfo:

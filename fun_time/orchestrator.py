@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .config import load_config
 from .broker_ports import ensure_mfp_serial_port, ensure_mfp_vlc_endpoint
-from .windows_bridge_manifest import write_windows_bridge_manifest
+from .manifest import write_windows_bridge_manifest
 from .windows_bridge_orchestrator import run_python_orchestrated_bridge
 from .logging_utils import configure_logging, install_exception_logging
 from . import orchestrator_broker

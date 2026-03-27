@@ -6,9 +6,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from .windows_bridge_modes import build_fmode_playlists
+from .modes import build_fmode_playlists
 from .omnipause import build_omnipause_plan
-from .windows_bridge_robot_hand import build_robot_hand_plan
+from .robot_hand_plan import build_robot_hand_plan
 from .vlc_actions import ensure_playback_state, replace_playlist_from_file
 
 

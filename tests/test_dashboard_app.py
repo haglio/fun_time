@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.windows_bridge_manifest import write_windows_bridge_manifest
+from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.dashboard_app import (
     COLOR_DISABLED,
     COLOR_ACTIVE_ALT,

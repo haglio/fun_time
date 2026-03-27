@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.windows_bridge_window_layout import (
+from fun_time.window_layout import (
     MonitorRect,
     Size,
     compute_dashboard_size,

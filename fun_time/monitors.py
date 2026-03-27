@@ -10,7 +10,7 @@ import ctypes
 import ctypes.wintypes
 from dataclasses import dataclass
 
-from .windows_bridge_window_layout import MonitorRect
+from .window_layout import MonitorRect
 
 
 @dataclass(frozen=True)

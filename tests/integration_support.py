@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from fun_time.config import load_config
-from fun_time.windows_bridge_modes import build_mirrored_funscript_path, has_matching_funscript
+from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 
 
