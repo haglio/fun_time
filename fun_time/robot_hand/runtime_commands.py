@@ -1,32 +1,17 @@
 from __future__ import annotations
 
+from .engine import PlaybackEngine
+
 
 QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
 LEGACY_QUARTER_CYCLE_OFFSET_COMMAND = "NUDGE25"
 
 
-def get_engine_phase(engine) -> float:
-    if isinstance(engine, dict):
-        return float(engine["phase"])
-    return float(engine.phase)
+def get_engine_estimated_bpm(engine: PlaybackEngine) -> float | None:
+    return None if engine.estimated_bpm is None else float(engine.estimated_bpm)
 
 
-def set_engine_phase(engine, value: float) -> None:
-    if isinstance(engine, dict):
-        engine["phase"] = value
-    else:
-        engine.phase = value
-
-
-def get_engine_estimated_bpm(engine) -> float | None:
-    if isinstance(engine, dict):
-        value = engine.get("estimated_bpm")
-    else:
-        value = engine.estimated_bpm
-    return None if value is None else float(value)
-
-
-def apply_runtime_command(command, *, engine, rh_paused, step_clip) -> bool:
+def apply_runtime_command(command, *, engine: PlaybackEngine, rh_paused, step_clip) -> bool:
     if not command:
         return False
 
@@ -36,7 +21,7 @@ def apply_runtime_command(command, *, engine, rh_paused, step_clip) -> bool:
     elif normalized == "NEXT":
         step_clip(1)
     elif normalized in {QUARTER_CYCLE_OFFSET_COMMAND, LEGACY_QUARTER_CYCLE_OFFSET_COMMAND}:
-        set_engine_phase(engine, (get_engine_phase(engine) + 0.25) % 1.0)
+        engine.phase = (engine.phase + 0.25) % 1.0
     elif normalized == "PAUSE":
         rh_paused["value"] = True
     elif normalized == "RESUME":
