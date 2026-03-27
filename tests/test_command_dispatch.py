@@ -381,14 +381,26 @@ def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
     assert config.primary_port in paused_ports
 
 
-def test_enter_omnipause_adds_robot_hand_topmost_op_when_in_robot_mode(tmp_path: Path):
+def test_enter_omnipause_does_not_remove_robot_hand_topmost(tmp_path: Path):
+    """Robot Hand should stay topmost during omnipause — only pause playback."""
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False, robot_hand_mode=True)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("enter_omnipause", state, config)
 
-    assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is False for op in ops)
+    assert not any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is False for op in ops)
+
+
+def test_omnipause_toggle_enter_does_not_remove_robot_hand_topmost(tmp_path: Path):
+    """Esc (omnipause toggle) should pause Robot Hand, not remove its topmost."""
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=False, robot_hand_mode=True)
+
+    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
+        new_state, ops = dispatch_command("omnipause_toggle", state, config)
+
+    assert not any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is False for op in ops)
 
 
 def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):

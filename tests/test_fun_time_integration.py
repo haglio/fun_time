@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import os
 import re
 import shutil
 import sys
@@ -16,6 +17,15 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
 )
+
+
+def _is_pid_alive(pid: int) -> bool:
+    """Check whether a process with the given PID is still running."""
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ProcessLookupError):
+        return False
 
 
 def _read_vlc_config_from_manifest(session: FunTimeIntegrationSession) -> tuple[int, str]:
@@ -218,6 +228,47 @@ def test_fun_time_omnipause_while_robot_hand_mode(shared_integration_session: Fu
 
     shared_integration_session.write_robot_hand_mode(False)
     shared_integration_session.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
+
+
+@pytest.mark.integration
+def test_fun_time_omnipause_does_not_kill_robot_hand(shared_integration_session: FunTimeIntegrationSession):
+    """Regression: omnipause must pause Robot Hand, not close it.
+
+    The old AHK HandleOmniPauseToggle never removed Robot Hand's topmost
+    flag.  When omnipause was ported to Python, an explicit
+    set_topmost(Robot Hand, False) was added by mistake, causing the
+    window to fall behind other windows (appearing "closed").  Verify the
+    Robot Hand process survives an omnipause round-trip while in robot
+    hand mode.
+    """
+    s = shared_integration_session
+    rh_pid = s.read_robot_hand_pid()
+    assert _is_pid_alive(rh_pid), "Robot Hand should be alive before test"
+
+    s.write_robot_hand_mode(True)
+    s.wait_for_new_log("Entering Robot Hand mode", timeout=12)
+
+    s.write_dashboard_command("omnipause_toggle")
+    s.wait_for_new_log("OmniPause: entering", timeout=12)
+    s.wait_until(
+        lambda: s.config.robot_hand_paused_file.read_text(encoding="utf-8") == "1",
+        timeout=12,
+        description="Robot Hand paused file to flip on",
+    )
+
+    # Robot Hand must still be running — omnipause should pause, not close.
+    assert _is_pid_alive(rh_pid), (
+        "Robot Hand process died during omnipause — "
+        "Esc should pause Robot Hand, not close it"
+    )
+
+    s.write_dashboard_command("omnipause_toggle")
+    s.wait_for_new_log("OmniPause: leaving", timeout=12)
+
+    assert _is_pid_alive(rh_pid), "Robot Hand should survive leaving omnipause"
+
+    s.write_robot_hand_mode(False)
+    s.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
 
 
 @pytest.mark.integration

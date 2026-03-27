@@ -233,8 +233,6 @@ def _dispatch_omnipause_toggle(
             audio_paused_file=config.audio_paused_file,
         )
         state = replace(state, omni_paused=result.next_omni_paused)
-        if result.robot_hand_branch:
-            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
         ops.append(WindowOp(op="suspend_hotkeys"))
     else:
         result = apply_leave_omnipause(
@@ -273,8 +271,6 @@ def _dispatch_enter_omnipause(
         audio_paused_file=config.audio_paused_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
-    if result.robot_hand_branch:
-        ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
     ops.append(WindowOp(op="suspend_hotkeys"))
     if result.log_message:
         logger.info(result.log_message)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import configparser
 import json
 import os
 import random
@@ -53,6 +54,14 @@ class FunTimeIntegrationSession:
     @property
     def robot_hand_enabled_file(self) -> Path:
         return self.config.robot_hand_enabled_file
+
+    def read_robot_hand_pid(self) -> int:
+        """Read the Robot Hand PID from the bridge pids file."""
+        pids_file = self.config.paths.state_dir / "bridge_pids.ini"
+        parser = configparser.ConfigParser()
+        parser.optionxform = str
+        parser.read(str(pids_file), encoding="utf-8")
+        return int(parser["pids"]["robot_hand_pid"])
 
     def start(self, wait_seconds: float = 45.0) -> None:
         self._kill_recent_runtime_processes()
