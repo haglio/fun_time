@@ -113,40 +113,47 @@ Multiple modules write configparser INI files with identical boilerplate (create
 
 This is the highest-value long-term investment.
 
-### 4A. Audit and delete low-value mock-only tests
+### 4A. Audit and delete low-value mock-only tests ✅
 
-Tests that only assert `mock.called` or `mock.assert_called_once_with(exact_args)` without verifying any state change or observable output are net-negative. They lock in implementation details and provide false confidence. Identify and delete these.
+Audited all 52 test files. Deleted 7 pure mock-only tests from priority modules:
+- `test_command_dispatch.py`: 2 tests (robot_toggle/link_toggle delegation)
+- `test_windows_bridge_dispatch_loop.py`: 2 tests (omnipause/file dialog routing)
+- `test_windows_bridge_sequencer.py`: 3 tests (position_pid_window, rfb disabled)
 
-**Criteria for deletion**: If removing the test and introducing a bug in the production code would NOT cause any test to fail, the test is low-value.
+Non-priority modules (orchestrator, audio_companion, startup) were audited and **kept** — their mock assertions test IO-bound code (subprocess, pygame, Win32) where mocks ARE the observable output. The 4A criteria applies to logic modules with real state, not IO wrappers.
 
-### 4B. Replace mock-heavy tests with behavior tests
+### 4B. Replace mock-heavy tests with behavior tests ✅ (priority modules)
 
-For core logic modules, write integration-style tests that wire real objects together. The `test_broker_com.py` pattern (FakeSerialPort wiring real protocol + session) is the gold standard in this codebase. Priority modules:
+Replaced the 7 deleted mock-only tests with 6 behavior tests that assert real state:
+- `test_command_dispatch.py`: 3 new tests verify state changes, file contents, and window ops
+- `test_windows_bridge_dispatch_loop.py`: 2 new tests verify runner.state + shared state file
+- `test_windows_bridge_sequencer.py`: 1 new test verifies no move_window calls when disabled
 
-1. `bridge_command_dispatch.py` — command dispatch state machine
-2. `windows_bridge_runtime_flow.py` — omnipause/fmode/robot transitions
-3. `windows_bridge_dispatch_loop.py` — dispatch loop coordination
-4. `windows_bridge_sequencer.py` — startup sequence
+Core logic modules already at gold standard (no work needed):
+- `test_lock.py`, `test_omnipause.py`, `test_modes.py` — pure state-driven, zero mocks
+- `test_runtime_flow.py` — monkeypatch + captured calls, zero mock assertions
+- `test_broker_com.py` — FakeSerialPort + real wiring (reference implementation)
 
-### 4C. Add mutation testing (mutmut)
+### 4C. Add mutation testing (mutmut) — BLOCKED
 
-Install mutmut and run against core logic modules to verify tests catch real bugs:
-- `bridge_command_dispatch.py`
-- `windows_bridge_runtime_flow.py`
-- `windows_bridge_lock.py`
-- `windows_bridge_omnipause.py`
-- `windows_bridge_modes.py`
+mutmut does not support native Windows (requires WSL). mutatest also fails on Windows + Python 3.14. Deferred until WSL is available or a Windows-compatible mutation tester emerges.
+
+Target modules when unblocked:
+- `command_dispatch.py`
+- `runtime_flow.py`
+- `lock.py`
+- `omnipause.py`
+- `modes.py`
 - `broker_protocol.py`
 
-Use mutation survival rate to identify which tests need strengthening.
+### 4D. Add property-based testing (hypothesis) ✅
 
-### 4D. Add property-based testing (hypothesis)
+Added 20 property-based tests in `test_property_based.py` using hypothesis:
+- `broker_protocol.py`: `parse_auto_transition`, `RE_BPM`, `RE_STROKE` fuzz — never crash on arbitrary strings
+- `vlc_actions.py`: `decode_file_uri` fuzz + XML parsing regexes — never crash, correct empty returns
+- `media_actions.py`: `csv_escape` invariants (always quoted, internal quotes doubled), `to_file_uri` prefix, `make_web_url_from_path` site routing
 
-Prime candidates for generative/fuzz testing:
-- `config.py` — fuzz JSON config loading with arbitrary structures
-- `broker_protocol.py` — fuzz serial message parsing
-- `windows_bridge_vlc_actions.py` — fuzz HTTP response parsing
-- `media_actions.py` — fuzz CSV manipulation
+All 20 tests pass with default hypothesis settings (100 examples per test).
 
 ---
 
