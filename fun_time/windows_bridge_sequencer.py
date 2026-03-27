@@ -12,12 +12,14 @@ import logging
 import os
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import LayoutConfig
 from .dashboard_layout import Size
 from .monitors import enumerate_monitors, get_logical_monitor_rects
+from .startup_progress import NullProgress, ProgressReporter
+from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
 from .windows_bridge_startup import start_core_session, launch_ui_companions
 from .win32 import (
@@ -48,6 +50,7 @@ class StartupResult:
     robot_hand_pid: int
     audio_pid: int
     layout_plan: WindowLayoutPlan
+    core_hwnds: list[int] = field(default_factory=list)
 
 
 def _read_manifest(path: str | Path) -> configparser.ConfigParser:
@@ -72,14 +75,26 @@ def run_startup_sequence(
     *,
     manifest_path: str | Path,
     state_dir: str | Path,
+    progress: ProgressReporter | None = None,
+    hide_windows: bool = False,
 ) -> StartupResult:
-    """Run the full startup sequence, returning all PIDs and the layout plan."""
+    """Run the full startup sequence, returning all PIDs and the layout plan.
+
+    When *hide_windows* is True, VLC windows are moved offscreen during
+    launch (preserving D3D11 init) and all positioning is deferred to the
+    end so everything appears at once.  The window handles are returned
+    in ``StartupResult.core_hwnds``.
+    """
+    if progress is None:
+        progress = NullProgress()
+
     manifest_path = Path(manifest_path)
     state_dir = Path(state_dir)
     state_dir.mkdir(parents=True, exist_ok=True)
     m = _read_manifest(manifest_path)
 
     # --- Phase 1: Launch core media stack ---
+    progress.advance("Preparing services...")
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     start_core_session(
         project_dir=m["runtime"]["project_dir"],
@@ -98,6 +113,7 @@ def run_startup_sequence(
         landscape_port=int(m["controller"]["vlc3_port"]),
         password=m["controller"]["vlc_pass"],
         result_file=str(core_result_file),
+        hide_windows=hide_windows,
     )
     core_pids = _read_result_pids(core_result_file)
     primary_pid = core_pids["primary_pid"]
@@ -109,13 +125,20 @@ def run_startup_sequence(
         primary_pid, mfp_pid, portrait_pid, landscape_pid,
     )
 
-    # --- Phase 2: Wait for MFP window and position everything ---
+    # --- Phase 2: Wait for MFP window and compute layout ---
+    progress.advance("Waiting for media player window...")
     mfp_hwnd = wait_for_window(mfp_pid, timeout_s=15.0)
     if not mfp_hwnd:
         raise RuntimeError(f"MFP window did not appear (pid={mfp_pid})")
+    if hide_windows:
+        # Move MFP offscreen — ShowWindow(SW_SHOWNOACTIVATE) un-minimizes it
+        # (if it honored the minimize hint) and SetWindowPos immediately moves
+        # it to x=-32000 so GetWindowRect returns the real window size.
+        move_window(mfp_hwnd, -32000, 0, 1, 1, activate=False)
     time.sleep(5.0)
     logger.info("MFP window ready")
 
+    progress.advance("Computing window layout...")
     layout_cfg = _layout_config_from_manifest(m)
     monitors = enumerate_monitors()
     main_rect, secondary_rect = get_logical_monitor_rects(
@@ -132,25 +155,32 @@ def run_startup_sequence(
         mfp_size=Size(mfp_w, mfp_h),
     )
 
-    # Position core windows
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-    _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=not skip_activate)
-    _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=not skip_activate)
-    _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=not skip_activate)
-    _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg, activate=not skip_activate)
-    logger.info("Core windows positioned")
-    for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
-        hwnd = find_window_by_pid(pid)
-        if hwnd:
-            set_always_on_top(hwnd, True)
-            if not skip_activate:
-                activate_window(hwnd)
-    logger.info("Topmost set on core windows")
+
+    if not hide_windows:
+        # --- Normal mode: position immediately ---
+        progress.advance("Positioning windows...")
+        _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=not skip_activate)
+        _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=not skip_activate)
+        _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=not skip_activate)
+        _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg, activate=not skip_activate)
+        logger.info("Core windows positioned")
+
+        progress.advance("Finalizing window layout...")
+        for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
+            hwnd = find_window_by_pid(pid)
+            if hwnd:
+                set_always_on_top(hwnd, True)
+                if not skip_activate:
+                    activate_window(hwnd)
+        logger.info("Topmost set on core windows")
 
     # --- Phase 2.5: Launch Random Favs Browser ---
+    progress.advance("Launching browser...")
     _maybe_launch_random_favs_browser(m, plan, mfp_pid)
 
     # --- Phase 3: Launch UI companions ---
+    progress.advance("Launching companions...")
     time.sleep(1.2)
 
     dashboard_enabled = m["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
@@ -178,6 +208,32 @@ def run_startup_sequence(
     )
     ui_pids = _read_result_pids(ui_result_file)
 
+    # --- Phase 4 (loading screen only): batch-position everything at once ---
+    collected_hwnds: list[int] = []
+    if hide_windows:
+        progress.advance("Positioning windows...")
+
+        # Restore VLC audio (muted in launch_core_apps during loading)
+        primary_port = int(m["controller"]["primary_vlc_port"])
+        portrait_port = int(m["controller"]["vlc2_port"])
+        landscape_port = int(m["controller"]["vlc3_port"])
+        password = m["controller"]["vlc_pass"]
+        for port in [primary_port, portrait_port, landscape_port]:
+            vlc_http_cmd(port, "volume&val=256", password)
+
+        _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=False)
+        _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=False)
+        _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=False)
+        _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg, activate=False)
+        logger.info("Core windows positioned (deferred reveal)")
+
+        for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
+            hwnd = find_window_by_pid(pid)
+            if hwnd:
+                set_always_on_top(hwnd, True)
+                collected_hwnds.append(hwnd)
+        logger.info("Topmost set on core windows")
+
     return StartupResult(
         primary_pid=primary_pid,
         mfp_pid=mfp_pid,
@@ -187,6 +243,7 @@ def run_startup_sequence(
         robot_hand_pid=ui_pids["robot_hand_pid"],
         audio_pid=ui_pids["audio_pid"],
         layout_plan=plan,
+        core_hwnds=collected_hwnds,
     )
 
 

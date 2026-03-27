@@ -228,8 +228,13 @@ class TestRunPythonOrchestratedBridge:
 
         fake_ahk_proc = MagicMock()
         fake_ahk_proc.wait.return_value = 0
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.return_value = 0
 
         def fake_popen(cmd, **kwargs):
+            if "loading_screen" in str(cmd):
+                calls.append("launch_loading")
+                return fake_loading_proc
             calls.append("launch_ahk")
             return fake_ahk_proc
 
@@ -250,7 +255,7 @@ class TestRunPythonOrchestratedBridge:
                 project_dir=tmp_path,
             )
 
-        assert calls == ["startup_sequence", "launch_ahk"]
+        assert calls == ["launch_loading", "startup_sequence", "launch_ahk"]
         assert code == 0
 
         # Should have killed all 7 child processes
@@ -268,16 +273,20 @@ class TestRunPythonOrchestratedBridge:
             cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
-        launched_cmd: list[str] = []
+        popen_cmds: list[list] = []
 
         def fake_sequence(**kwargs):
             return _fake_startup_result()
 
         fake_ahk_proc = MagicMock()
         fake_ahk_proc.wait.return_value = 0
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.return_value = 0
 
         def fake_popen(cmd, **kwargs):
-            launched_cmd.extend(cmd)
+            popen_cmds.append(list(cmd))
+            if "loading_screen" in str(cmd):
+                return fake_loading_proc
             return fake_ahk_proc
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
@@ -292,8 +301,87 @@ class TestRunPythonOrchestratedBridge:
                 project_dir=tmp_path,
             )
 
-        assert launched_cmd[0] == "C:\\ahk.exe"
-        assert launched_cmd[1] == "C:\\hotkeys.ahk"
-        assert launched_cmd[2] == str(manifest_path)
-        # 4th arg is pids file path
-        assert launched_cmd[3].endswith(".ini")
+        # Find the AHK launch command (not the loading screen one)
+        ahk_cmd = [c for c in popen_cmds if "ahk.exe" in str(c)][0]
+        assert ahk_cmd[0] == "C:\\ahk.exe"
+        assert ahk_cmd[1] == "C:\\hotkeys.ahk"
+        assert ahk_cmd[2] == str(manifest_path)
+        assert ahk_cmd[3].endswith(".ini")
+
+
+class TestLoadingScreenLifecycle:
+    """Loading screen is launched in normal mode and skipped in integration mode."""
+
+    def test_loading_screen_launched_in_normal_mode(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        result_with_hwnds = StartupResult(
+            primary_pid=100, mfp_pid=200, portrait_pid=300, landscape_pid=400,
+            dashboard_pid=500, robot_hand_pid=600, audio_pid=700,
+            layout_plan=_fake_plan(),
+            core_hwnds=[1010, 2020, 3030, 4040],
+        )
+
+        popen_calls: list[list] = []
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            popen_calls.append(cmd)
+            if "loading_screen" in str(cmd):
+                return fake_loading_proc
+            return fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=result_with_hwnds), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        # Loading screen subprocess should have been launched
+        loading_cmd = [c for c in popen_calls if "loading_screen" in str(c)]
+        assert len(loading_cmd) == 1, "Loading screen subprocess not launched"
+
+    def test_loading_screen_skipped_in_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        popen_calls: list[list] = []
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            popen_calls.append(cmd)
+            return fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator._minimize_all_windows"):
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        # No loading screen subprocess should have been launched
+        loading_cmds = [c for c in popen_calls if "loading_screen" in str(c)]
+        assert len(loading_cmds) == 0, "Loading screen launched in integration mode"

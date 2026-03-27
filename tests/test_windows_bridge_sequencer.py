@@ -20,6 +20,7 @@ from fun_time.window_layout import (
     WindowRect,
 )
 from fun_time.config import LayoutConfig
+from fun_time.startup_progress import NullProgress
 
 
 FAKE_MONITORS = [
@@ -392,3 +393,150 @@ class TestNoActivateWindowDuringIntegration:
         core_hwnds = {1010, 2020, 3030, 4040}
         activated_hwnds = {c.args[0] for c in mock_activate.call_args_list}
         assert core_hwnds & activated_hwnds, "activate_window was not called on any core windows in normal mode"
+
+
+class TestProgressReporting:
+    """run_startup_sequence reports progress via the callback."""
+
+    def test_advance_called_for_each_startup_step(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        advance_messages: list[str] = []
+
+        class TrackingProgress:
+            def advance(self, message: str) -> None:
+                advance_messages.append(message)
+            def finish(self) -> None:
+                pass
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                progress=TrackingProgress(),
+            )
+
+        # Should have progress steps for each major milestone
+        assert len(advance_messages) >= 7, f"Only {len(advance_messages)} progress steps reported"
+        # Verify key milestones are reported
+        messages_text = " ".join(advance_messages)
+        assert "services" in messages_text.lower()
+        assert "window" in messages_text.lower()
+        assert "companion" in messages_text.lower()
+
+    def test_null_progress_accepted_silently(self, cfg_factory, tmp_path):
+        """NullProgress should work as a no-op."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            result = run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                progress=NullProgress(),
+            )
+
+        assert result.primary_pid == 10
+
+
+class TestMinimizedStartup:
+    """When hide_windows=True, windows launch minimized and batch-position after UI companions."""
+
+    def test_defers_positioning_and_collects_hwnds(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040}
+        move_calls: list[tuple] = []
+
+        def track_move(hwnd, x, y, w, h, **kw):
+            move_calls.append((hwnd, x, y, w, h))
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window", side_effect=track_move), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate, \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            result = run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                hide_windows=True,
+            )
+
+        # Windows should be positioned (move_window restores from minimized)
+        positioned_hwnds = {hwnd for hwnd, x, y, w, h in move_calls}
+        assert 1010 in positioned_hwnds or 2020 in positioned_hwnds, "Core windows should be positioned"
+
+        # activate_window should not be called in loading screen mode
+        mock_activate.assert_not_called()
+
+        # core_hwnds should contain the window handles
+        assert set(result.core_hwnds) == {1010, 2020, 3030, 4040}
+
+    def test_passes_hide_windows_to_start_core_session(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        core_kwargs = {}
+
+        def capture_core(**kwargs):
+            core_kwargs.update(kwargs)
+            _write_result(kwargs["result_file"], core_pids)
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=capture_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                hide_windows=True,
+            )
+
+        assert core_kwargs["hide_windows"] is True
