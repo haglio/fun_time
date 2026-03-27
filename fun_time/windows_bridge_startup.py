@@ -341,6 +341,8 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
     ]
     if os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         command.extend(["--volume", "0"])
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
+        command.append("--no-video")
     if repeat_mode == "repeat":
         command.append("--repeat")
     elif repeat_mode == "loop":
