@@ -20,6 +20,8 @@ SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
 HWND_TOPMOST = ctypes.wintypes.HWND(-1)
 HWND_NOTOPMOST = ctypes.wintypes.HWND(-2)
+LSFW_LOCK = 1
+LSFW_UNLOCK = 2
 
 # Declare argtypes so ctypes passes HWND parameters as 64-bit pointers.
 # Without this, ctypes defaults to c_int (32-bit) for Python ints, which
@@ -106,6 +108,21 @@ def activate_window(hwnd: int) -> None:
 def get_foreground_window() -> int:
     """Return the HWND of the current foreground window (0 if none)."""
     return _user32.GetForegroundWindow() or 0
+
+
+def lock_set_foreground_window() -> None:
+    """Prevent other processes from stealing foreground via SetForegroundWindow.
+
+    Calls from other processes will flash the taskbar button instead of
+    actually activating their window.  Call unlock_set_foreground_window()
+    to release.
+    """
+    _user32.LockSetForegroundWindow(LSFW_LOCK)
+
+
+def unlock_set_foreground_window() -> None:
+    """Re-allow SetForegroundWindow calls from other processes."""
+    _user32.LockSetForegroundWindow(LSFW_UNLOCK)
 
 
 def find_window_by_title(title: str) -> int:
