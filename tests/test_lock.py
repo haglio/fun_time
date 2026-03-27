@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fun_time.windows_bridge_lock import build_lock_plan
+from fun_time.lock import build_lock_plan
 
 
 def test_toggle_lock_locks_and_favorites_when_unlocked():

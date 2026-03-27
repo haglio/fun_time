@@ -7,9 +7,9 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 from .windows_bridge_modes import build_fmode_playlists
-from .windows_bridge_omnipause import build_omnipause_plan
+from .omnipause import build_omnipause_plan
 from .windows_bridge_robot_hand import build_robot_hand_plan
-from .windows_bridge_vlc_actions import ensure_playback_state, replace_playlist_from_file
+from .vlc_actions import ensure_playback_state, replace_playlist_from_file
 
 
 def read_flag_file(path: str | Path, default: bool) -> bool:

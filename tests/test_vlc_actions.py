@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import fun_time.windows_bridge_vlc_actions as vlc_actions
+import fun_time.vlc_actions as vlc_actions
 
 
 def test_get_repeat_mode_reads_one_from_repeat_xml(monkeypatch):

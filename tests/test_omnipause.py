@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fun_time.windows_bridge_omnipause import build_omnipause_plan
+from fun_time.omnipause import build_omnipause_plan
 
 
 def test_toggle_enters_omnipause_when_not_already_paused():

@@ -11,7 +11,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .media_actions import ensure_in_favs, move_to_weird, remove_from_favs
-from .windows_bridge_lock import build_lock_plan
+from .lock import build_lock_plan
 from .windows_bridge_runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
@@ -22,7 +22,7 @@ from .windows_bridge_runtime_flow import (
     read_flag_file,
     write_flag_file,
 )
-from .windows_bridge_vlc_actions import (
+from .vlc_actions import (
     ensure_playback_state,
     get_current_file_path,
     set_repeat_mode,
