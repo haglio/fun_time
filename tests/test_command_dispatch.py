@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.bridge_command_dispatch import (
+from fun_time.command_dispatch import (
     BridgeState,
     BridgeConfig,
     WindowOp,
@@ -58,10 +58,10 @@ def test_portrait_lock_toggles_lock_on(tmp_path: Path):
     state = _make_state(locked2=False)
 
     with (
-        patch("fun_time.bridge_command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
-        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.bridge_command_dispatch.ensure_in_favs"),
-        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True),
+        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.ensure_in_favs"),
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
     ):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
@@ -74,9 +74,9 @@ def test_portrait_lock_toggles_lock_off(tmp_path: Path):
     state = _make_state(locked2=True)
 
     with (
-        patch("fun_time.bridge_command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
-        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True),
+        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
     ):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
@@ -91,10 +91,10 @@ def test_landscape_lock_toggles_lock_on(tmp_path: Path):
     state = _make_state(locked3=False)
 
     with (
-        patch("fun_time.bridge_command_dispatch.get_current_file_path", return_value="C:\\clips\\landscape.mp4"),
-        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.bridge_command_dispatch.ensure_in_favs"),
-        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True),
+        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\landscape.mp4"),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.ensure_in_favs"),
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
     ):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
@@ -109,11 +109,11 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
     state = _make_state(locked2=True)
 
     with (
-        patch("fun_time.bridge_command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
-        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.bridge_command_dispatch.remove_from_favs"),
-        patch("fun_time.bridge_command_dispatch.move_to_weird"),
-        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True),
+        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.remove_from_favs"),
+        patch("fun_time.command_dispatch.move_to_weird"),
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
     ):
         new_state, ops = dispatch_command("portrait_trash", state, config)
 
@@ -128,8 +128,8 @@ def test_portrait_prev_cancels_lock_and_sends_prev(tmp_path: Path):
     state = _make_state(locked2=True)
 
     with (
-        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
     ):
         new_state, ops = dispatch_command("portrait_prev", state, config)
 
@@ -142,7 +142,7 @@ def test_portrait_next_sends_next(tmp_path: Path):
     state = _make_state(locked2=False)
 
     with (
-        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
     ):
         new_state, ops = dispatch_command("portrait_next", state, config)
 
@@ -157,8 +157,8 @@ def test_landscape_prev_cancels_lock_and_sends_prev(tmp_path: Path):
     state = _make_state(locked3=True)
 
     with (
-        patch("fun_time.bridge_command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.bridge_command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
     ):
         new_state, ops = dispatch_command("landscape_prev", state, config)
 
@@ -233,7 +233,7 @@ def test_omnipause_toggle_enters_pause_from_unpaused(tmp_path: Path):
         playback_calls.append((port, password, should_play))
         return True
 
-    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", side_effect=track_playback):
+    with patch("fun_time.runtime_flow.ensure_playback_state", side_effect=track_playback):
         new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert new_state.omni_paused is True
@@ -253,7 +253,7 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
         playback_calls.append((port, password, should_play))
         return True
 
-    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", side_effect=track_playback):
+    with patch("fun_time.runtime_flow.ensure_playback_state", side_effect=track_playback):
         new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert new_state.omni_paused is False
@@ -272,7 +272,7 @@ def test_fmode_toggle_enables_from_disabled(tmp_path: Path):
     state = _make_state(f_mode_enabled=False)
 
     with (
-        patch("fun_time.bridge_command_dispatch.apply_toggle_fmode") as mock_fmode,
+        patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode,
     ):
         mock_fmode.return_value = type("R", (), {
             "success": True,
@@ -297,7 +297,7 @@ def test_robot_toggle_delegates_to_runtime_flow(tmp_path: Path):
     state = _make_state(robot_hand_mode=False)
 
     with (
-        patch("fun_time.bridge_command_dispatch.apply_toggle_robot_hand_enabled") as mock_toggle,
+        patch("fun_time.command_dispatch.apply_toggle_robot_hand_enabled") as mock_toggle,
     ):
         mock_toggle.return_value = type("R", (), {
             "next_robot_hand_mode": False,
@@ -318,7 +318,7 @@ def test_link_toggle_is_alias_for_robot_toggle(tmp_path: Path):
     state = _make_state()
 
     with (
-        patch("fun_time.bridge_command_dispatch.apply_toggle_robot_hand_enabled") as mock_toggle,
+        patch("fun_time.command_dispatch.apply_toggle_robot_hand_enabled") as mock_toggle,
     ):
         mock_toggle.return_value = type("R", (), {
             "next_robot_hand_mode": False,
@@ -353,7 +353,7 @@ def test_sync_robot_hand_transitions_to_robot_mode(tmp_path: Path):
     state = _make_state(robot_hand_mode=False, omni_paused=False)
 
     with (
-        patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", return_value=True),
+        patch("fun_time.runtime_flow.ensure_playback_state", return_value=True),
     ):
         new_state, ops = dispatch_command("sync_robot_hand", state, config)
 
@@ -369,7 +369,7 @@ def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
         playback_calls.append((port, password, should_play))
         return True
 
-    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", side_effect=track_playback):
+    with patch("fun_time.runtime_flow.ensure_playback_state", side_effect=track_playback):
         new_state, ops = dispatch_command("enter_omnipause", state, config)
 
     assert new_state.omni_paused is True
@@ -384,7 +384,7 @@ def test_enter_omnipause_adds_robot_hand_topmost_op_when_in_robot_mode(tmp_path:
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False, robot_hand_mode=True)
 
-    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", return_value=True):
+    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("enter_omnipause", state, config)
 
     assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is False for op in ops)
@@ -399,7 +399,7 @@ def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):
         playback_calls.append((port, password, should_play))
         return True
 
-    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", side_effect=track_playback):
+    with patch("fun_time.runtime_flow.ensure_playback_state", side_effect=track_playback):
         new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
 
     assert new_state.omni_paused is False
@@ -414,7 +414,7 @@ def test_leave_omnipause_skip_primary_adds_robot_hand_ops_when_in_robot_mode(tmp
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True, robot_hand_mode=True)
 
-    with patch("fun_time.windows_bridge_runtime_flow.ensure_playback_state", return_value=True):
+    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
 
     assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is True for op in ops)

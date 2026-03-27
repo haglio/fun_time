@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.windows_bridge_runtime_flow import (
+from fun_time.runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_sync_robot_hand,
@@ -21,7 +21,7 @@ def test_sync_robot_hand_reads_state_files_and_applies_playback(monkeypatch, tmp
     calls: list[tuple[int, str, bool]] = []
 
     monkeypatch.setattr(
-        "fun_time.windows_bridge_runtime_flow.ensure_playback_state",
+        "fun_time.runtime_flow.ensure_playback_state",
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
@@ -68,7 +68,7 @@ def test_toggle_fmode_replaces_playlists_and_returns_new_state(monkeypatch, tmp_
         playlist_calls.append((port, password, str(playlist_path), repeat_mode))
         return True
 
-    monkeypatch.setattr("fun_time.windows_bridge_runtime_flow.replace_playlist_from_file", fake_replace)
+    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", fake_replace)
 
     result = apply_toggle_fmode(
         f_mode_enabled=False,
@@ -109,7 +109,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypat
     calls: list[tuple[int, str, bool]] = []
 
     monkeypatch.setattr(
-        "fun_time.windows_bridge_runtime_flow.ensure_playback_state",
+        "fun_time.runtime_flow.ensure_playback_state",
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
@@ -139,7 +139,7 @@ def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_p
     calls: list[tuple[int, str, bool]] = []
 
     monkeypatch.setattr(
-        "fun_time.windows_bridge_runtime_flow.ensure_playback_state",
+        "fun_time.runtime_flow.ensure_playback_state",
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
@@ -170,7 +170,7 @@ def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monk
     calls: list[tuple[int, str, bool]] = []
 
     monkeypatch.setattr(
-        "fun_time.windows_bridge_runtime_flow.ensure_playback_state",
+        "fun_time.runtime_flow.ensure_playback_state",
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
