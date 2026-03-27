@@ -10,3 +10,7 @@ Before modifying any Win32 API call (ctypes, keyboard/mouse input, window manage
 4. **Map from symptoms.** If fixing a bug, write down the user-reported symptom, trace the execution path that produces it, and confirm the fix addresses that specific path — not a guess at a nearby path.
 
 If you cannot complete these steps, stop and say so. Do not submit a speculative fix.
+
+## Test permissions
+
+Running the project's unit test suite is ALWAYS allowed. Never ask for permission to run tests. Just run them.
