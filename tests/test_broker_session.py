@@ -29,9 +29,14 @@ class FakeAutoMode:
         self.set_enabled_calls.append((sock, value))
 
 
-def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0):
+def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0, activity_file=None, time_time=None):
     auto_mode = FakeAutoMode(active=auto_active)
     logger = MagicMock()
+    kwargs = {}
+    if activity_file is not None:
+        kwargs["activity_file"] = activity_file
+    if time_time is not None:
+        kwargs["time_time"] = time_time
     session = BrokerSerialSession(
         serial_factory=MagicMock(),
         virtual_port="COM15",
@@ -48,6 +53,7 @@ def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0):
         consume_command=lambda _path: None,
         read_robot_hand_enabled=lambda _path: True,
         monotonic=monotonic,
+        **kwargs,
     )
     return session, auto_mode, logger
 
@@ -171,3 +177,65 @@ def test_forward_virtual_to_real_skips_writes_while_auto_is_active():
 
     assert real.writes == []
     assert retry_state.value is False
+
+
+def test_activity_file_written_on_real_rx(tmp_path):
+    activity = tmp_path / "broker_activity.txt"
+    wall_clock = [1000.0]
+    session, auto_mode, _logger = _build_session(
+        monotonic=lambda: 12.5,
+        activity_file=activity,
+        time_time=lambda: wall_clock[0],
+    )
+    session.activity_write_interval = 0.0  # no throttle for this test
+
+    session_stop = threading.Event()
+    retry_state = SessionRetryState()
+
+    class FakeReal:
+        def __init__(self):
+            self.in_waiting = 1
+
+        def read(self, _size):
+            session_stop.set()
+            return b"data\r\n"
+
+    class FakeVirt:
+        def write(self, _data):
+            pass
+
+    session.forward_real_to_virtual(FakeReal(), FakeVirt(), object(), session_stop, retry_state)
+
+    assert activity.exists()
+    assert float(activity.read_text(encoding="utf-8").strip()) == 1000.0
+
+
+def test_activity_file_throttled(tmp_path):
+    activity = tmp_path / "broker_activity.txt"
+    wall_clock = [1000.0]
+    session, _auto_mode, _logger = _build_session(
+        monotonic=lambda: 12.5,
+        activity_file=activity,
+        time_time=lambda: wall_clock[0],
+    )
+    session.activity_write_interval = 10.0
+
+    session._maybe_write_activity()
+    assert activity.exists()
+    first_write = activity.read_text(encoding="utf-8").strip()
+
+    # Advance only 5 seconds — should NOT rewrite
+    wall_clock[0] = 1005.0
+    session._maybe_write_activity()
+    assert activity.read_text(encoding="utf-8").strip() == first_write
+
+    # Advance past interval — should rewrite
+    wall_clock[0] = 1011.0
+    session._maybe_write_activity()
+    assert float(activity.read_text(encoding="utf-8").strip()) == 1011.0
+
+
+def test_no_activity_file_when_not_configured():
+    session, _auto_mode, _logger = _build_session()
+    # Should not raise even though activity_file is None
+    session._maybe_write_activity()
