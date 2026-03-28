@@ -70,8 +70,9 @@ def apply_sync_robot_hand(
     if plan.enforce_outputs:
         write_flag_file(paused_file, not plan.enforce_active)
         write_flag_file(audio_paused_file, not plan.enforce_active)
-        if not ensure_playback_state(primary_port, password, should_play=not plan.enforce_active):
-            logger.warning("Primary VLC failed to reach desired Robot Hand sync playback state")
+        if plan.is_transition:
+            if not ensure_playback_state(primary_port, password, should_play=not plan.enforce_active):
+                logger.warning("Primary VLC failed to reach desired Robot Hand sync playback state")
     return RobotHandFlowResult(
         next_robot_hand_mode=plan.next_robot_hand_mode,
         current_enabled=enabled,
