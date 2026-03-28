@@ -165,6 +165,7 @@ class DispatchLoopRunner:
         self._last_sync = 0.0
         self._stop = threading.Event()
         self._file_dialog_lock = threading.Lock()
+        self._robot_hand_activate_pending = False
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync robot hand."""
@@ -200,7 +201,27 @@ class DispatchLoopRunner:
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
             if not self.state.omni_paused:
+                prev_mode = self.state.robot_hand_mode
                 self._dispatch("sync_robot_hand")
+                if self.state.robot_hand_mode and not prev_mode:
+                    self._robot_hand_activate_pending = True
+
+        self._try_robot_hand_activate()
+
+    def _try_robot_hand_activate(self) -> None:
+        if not self._robot_hand_activate_pending:
+            return
+        if not self.state.robot_hand_mode:
+            self._robot_hand_activate_pending = False
+            return
+        hwnd = find_window_by_title("Robot Hand")
+        if not hwnd:
+            return
+        show_window(hwnd)
+        set_always_on_top(hwnd, True)
+        if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+            activate_window(hwnd)
+        self._robot_hand_activate_pending = False
 
     def _dispatch(self, command: str) -> None:
         new_state, ops = dispatch_command(command, self.state, self.config)
