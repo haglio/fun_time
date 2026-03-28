@@ -68,21 +68,35 @@ def test_replace_playlist_from_file_fails_when_playlist_missing(tmp_path: Path):
 
 
 # --- vlc_nav_step ---
+#
+# The XML below matches the actual VLC 3.x jstree format verified against a real
+# VLC instance.  Container nodes (root, Playlist folder) have no uri= attribute.
+# Media items use id="plid_N" (numeric suffix only is passed to pl_play&id=N).
 
 _PLAYLIST_XML = """\
 <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
-<node name="root" id="1" ro="rw">
- <node name="Playlist" id="2" ro="rw">
-  <leaf name="a.mp4" id="3" uri="file:///C:/a.mp4" current="current" duration="120000" ro="rw"/>
-  <leaf name="b.mp4" id="4" uri="file:///C:/b.mp4" duration="90000" ro="rw"/>
-  <leaf name="c.mp4" id="5" uri="file:///C:/c.mp4" duration="60000" ro="rw"/>
- </node>
-</node>
+<root>
+<item id="plid_0" name="" ro="rw"><content><name></name></content>\
+<item id="plid_1" name="Playlist" ro="ro"><content><name>Playlist</name></content>\
+<item id="plid_3" uri="file:///C:/a.mp4" name="a.mp4" current="current" ro="rw" duration="120000"><content><name>a.mp4</name></content></item>\
+<item id="plid_4" uri="file:///C:/b.mp4" name="b.mp4" ro="rw" duration="90000"><content><name>b.mp4</name></content></item>\
+<item id="plid_5" uri="file:///C:/c.mp4" name="c.mp4" ro="rw" duration="60000"><content><name>c.mp4</name></content></item>\
+</item></item>
+</root>
 """
+
+# Same playlist but with the last item (plid_5) as current
+_PLAYLIST_XML_LAST_CURRENT = _PLAYLIST_XML.replace(
+    'id="plid_3" uri="file:///C:/a.mp4" name="a.mp4" current="current"',
+    'id="plid_3" uri="file:///C:/a.mp4" name="a.mp4"',
+).replace(
+    'id="plid_5" uri="file:///C:/c.mp4" name="c.mp4" ro="rw"',
+    'id="plid_5" uri="file:///C:/c.mp4" name="c.mp4" current="current" ro="rw"',
+)
 
 
 def test_vlc_nav_step_prev_calls_pl_play_with_prev_item_id(monkeypatch):
-    """prev on item 3 (index 0) should wrap to item 5 (last)."""
+    """prev on plid_3 (first item) should wrap to plid_5 (last)."""
     calls: list[str] = []
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
@@ -94,7 +108,7 @@ def test_vlc_nav_step_prev_calls_pl_play_with_prev_item_id(monkeypatch):
 
 
 def test_vlc_nav_step_next_calls_pl_play_with_next_item_id(monkeypatch):
-    """next on item 3 (index 0) should go to item 4."""
+    """next on plid_3 (first item, current) should go to plid_4."""
     calls: list[str] = []
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
@@ -106,22 +120,28 @@ def test_vlc_nav_step_next_calls_pl_play_with_next_item_id(monkeypatch):
 
 
 def test_vlc_nav_step_next_wraps_at_end(monkeypatch):
-    """next on last item (id=5) should wrap to first item (id=3)."""
-    xml = _PLAYLIST_XML.replace('id="3" uri', 'id="3" uri').replace(
-        'id="5" uri="file:///C:/c.mp4" duration="60000" ro="rw"',
-        'id="5" uri="file:///C:/c.mp4" current="current" duration="60000" ro="rw"',
-    ).replace(
-        'id="3" uri="file:///C:/a.mp4" current="current"',
-        'id="3" uri="file:///C:/a.mp4"',
-    )
+    """next on last item (plid_5, current) should wrap to first item (plid_3)."""
     calls: list[str] = []
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML_LAST_CURRENT))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
 
     result = vlc_actions.vlc_nav_step(8090, "pw", "next")
 
     assert result is True
     assert calls == ["pl_play&id=3"]
+
+
+def test_vlc_nav_step_container_nodes_not_counted_as_items(monkeypatch):
+    """Container nodes (plid_0 root, plid_1 Playlist folder) must not appear
+    in the navigation sequence — only media items with a uri= attribute should."""
+    calls: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+
+    vlc_actions.vlc_nav_step(8090, "pw", "next")
+
+    # Container plid_0 and plid_1 must not appear as navigation targets
+    assert calls == ["pl_play&id=4"]  # not plid_0 or plid_1
 
 
 def test_vlc_nav_step_returns_false_when_vlc_unreachable(monkeypatch):

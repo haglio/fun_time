@@ -21,6 +21,7 @@ from fun_time.vlc_actions import (
     get_current_file_path,
     vlc_http_cmd,
     vlc_http_req,
+    vlc_nav_step,
     wait_for_http,
 )
 
@@ -140,3 +141,40 @@ def test_playlist_wraps_around(vlc_with_playlist):
     # The key test: go back should return
     _prev()
     assert _current() == start
+
+
+# --- vlc_nav_step (ID-based navigation) ---
+# These tests exercise the actual navigation path used by Fun Time hotkeys.
+# vlc_nav_step reads the live jstree, resolves the current item by plid_N ID,
+# and issues pl_play&id=N.  If _parse_playlist_ids fails to parse the real
+# VLC jstree format these tests will catch it immediately.
+
+
+def test_vlc_nav_step_next_advances_video(vlc_with_playlist):
+    before = _current()
+    ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
+    time.sleep(0.3)
+    after = _current()
+    assert ok is True, "vlc_nav_step returned False — check _parse_playlist_ids"
+    assert after != before, f"vlc_nav_step next did not change video (still {before})"
+
+
+def test_vlc_nav_step_prev_goes_back(vlc_with_playlist):
+    before = _current()
+    ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
+    time.sleep(0.3)
+    after = _current()
+    assert ok is True, "vlc_nav_step returned False — check _parse_playlist_ids"
+    assert after != before, f"vlc_nav_step prev did not change video (still {before})"
+
+
+def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
+    start = _current()
+    ok_next = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
+    time.sleep(0.3)
+    assert ok_next is True, "vlc_nav_step next returned False"
+    assert _current() != start
+    ok_prev = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
+    time.sleep(0.3)
+    assert ok_prev is True, "vlc_nav_step prev returned False"
+    assert _current() == start, f"next+prev did not return to start: expected {start}, got {_current()}"
