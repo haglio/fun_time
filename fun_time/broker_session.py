@@ -31,7 +31,10 @@ class BrokerSerialSession:
         read_robot_hand_enabled,
         monotonic=time.monotonic,
         sleep=time.sleep,
+        activity_file: Path | None = None,
+        activity_write_interval: float = 10.0,
         is_retryable_error=None,
+        time_time=time.time,
     ):
         self.serial_factory = serial_factory
         self.virtual_port = virtual_port
@@ -50,7 +53,11 @@ class BrokerSerialSession:
         self.monotonic = monotonic
         self.sleep = sleep
         self.is_retryable_error = is_retryable_error or (lambda _exc: False)
+        self.activity_file = activity_file
+        self.activity_write_interval = activity_write_interval
+        self.time_time = time_time
         self.last_real_rx_time = 0.0
+        self._last_activity_write: float = 0.0
         self.poll_interval_seconds = 0.05
 
     def run(self, udp_sock) -> bool:
@@ -103,6 +110,7 @@ class BrokerSerialSession:
                     continue
 
                 self.last_real_rx_time = self.monotonic()
+                self._maybe_write_activity()
                 virt.write(data)
 
                 buf.extend(data)
@@ -165,3 +173,16 @@ class BrokerSerialSession:
             return
         self.logger.warning("AUTO stale timeout reached after %.2fs", self.auto_stale_timeout)
         self.auto_mode.set_auto(udp_sock, False)
+
+    def _maybe_write_activity(self) -> None:
+        if self.activity_file is None:
+            return
+        now = self.time_time()
+        if now - self._last_activity_write < self.activity_write_interval:
+            return
+        self._last_activity_write = now
+        try:
+            self.activity_file.parent.mkdir(parents=True, exist_ok=True)
+            self.activity_file.write_text(str(now), encoding="utf-8")
+        except Exception:
+            self.logger.exception("Failed to write activity file %s", self.activity_file)
