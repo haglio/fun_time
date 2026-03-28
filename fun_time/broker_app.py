@@ -109,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
     robot_hand_enabled = read_robot_hand_enabled(robot_hand_enabled_file)
     stop_event = threading.Event()
     broker_paused = threading.Event()
+    dispatch_udp_port = config.broker.dispatch_udp_port
     auto_mode = BrokerAutoController(
         state_file=state_file,
         udp_host=args.udp_host,
@@ -117,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         write_mode=write_mode,
         udp_send=udp_send,
         enabled=robot_hand_enabled,
+        auto_udp_targets=[(args.udp_host, dispatch_udp_port)],
     )
     session = BrokerSerialSession(
         serial_factory=serial.Serial,
