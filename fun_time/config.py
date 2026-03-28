@@ -119,7 +119,6 @@ class RandomFavsBrowserConfig:
     shortcut_path: Path
     user_data_dir: Path
     profile_name: str
-    bookmarks_folder_name: str
     open_count: int
     lazy_load: bool
 
@@ -306,7 +305,6 @@ def _load_random_favs_browser_config(browser_raw: dict[str, Any] | None) -> Rand
         shortcut_path=_resolve_path(PROJECT_DIR, str(browser_values.get("shortcut_path", "Blair Chrome.lnk"))),
         user_data_dir=_resolve_path(PROJECT_DIR, str(browser_values.get("user_data_dir", default_user_data_dir))),
         profile_name=str(browser_values.get("profile_name", "Blair")),
-        bookmarks_folder_name=str(browser_values.get("bookmarks_folder_name", "Fun Time Favs")),
         open_count=int(browser_values.get("open_count", 10)),
         lazy_load=bool(browser_values.get("lazy_load", False)),
     )

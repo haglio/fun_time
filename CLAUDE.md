@@ -2,6 +2,8 @@
 
 Shared rules are in the global `~/.claude/CLAUDE.md`. This file contains only fun_time-specific overrides.
 
+**Keep this file short.** No redundancy with the global CLAUDE.md. One bullet per rule. If editing this file, remove or consolidate — never just append.
+
 ## Test commands
 
 Unit tests (run freely, no permission needed):
@@ -38,12 +40,9 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 `windows_bridge_hotkeys.ahk` runs under `#SingleInstance Force`. Startup checks, integration runs, and AHK launch validations must be executed sequentially — parallel launches can evict each other.
 
-## Never use `cd` in Bash commands
-
-The working directory is already the project root. **Never** prepend `cd "C:\path\to\suite-root\projects\fun_time" &&` or any `cd` to Bash commands. Run `git status`, `.venv/Scripts/python.exe -m pytest`, etc. directly. The `cd` prefix defeats the user's pre-approved permissions, forcing manual approval of every command.
-
 ## Repo-specific gotchas
 
+- **Never use `cd` in Bash commands.** Working dir is already the project root. `cd` prefix defeats pre-approved permissions.
 - Broker startup flows through `launch_broker_tray.vbs`, not directly to `scripts/run_broker_service.ps1`.
 - Random Favs Browser tab opening is sensitive to window focus — preserve explicit Chrome window targeting.
 - The test environment is the project `.venv`, not system Python or Conda.

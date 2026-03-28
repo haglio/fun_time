@@ -158,7 +158,7 @@ class TestLoadConfig:
                     "shortcut_path": "chrome.exe",
                     "user_data_dir": "chrome_data",
                     "profile_name": "Blair",
-                    "bookmarks_folder_name": "Fun Time Favs",
+
                     "open_count": 7,
                 }
             }
@@ -169,6 +169,7 @@ class TestLoadConfig:
         assert cfg.random_favs_browser.user_data_dir.name == "chrome_data"
         assert cfg.random_favs_browser.open_count == 7
         assert cfg.random_favs_browser.lazy_load is False
+        assert not hasattr(cfg.random_favs_browser, "bookmarks_folder_name")
 
     def test_loads_random_favs_browser_lazy_load(self, cfg_factory):
         path = cfg_factory(
@@ -178,7 +179,7 @@ class TestLoadConfig:
                     "shortcut_path": "chrome.exe",
                     "user_data_dir": "chrome_data",
                     "profile_name": "Blair",
-                    "bookmarks_folder_name": "Fun Time Favs",
+
                     "open_count": 7,
                     "lazy_load": True,
                 }
@@ -195,7 +196,7 @@ class TestLoadConfig:
                     "shortcut_path": "chrome.exe",
                     "user_data_dir": "chrome_data",
                     "profile_name": "Blair",
-                    "bookmarks_folder_name": "Fun Time Favs",
+
                     "open_count": 7,
                 }
             }
