@@ -199,6 +199,30 @@ def vlc_nav_step(port: int, password: str, direction: str) -> bool:
     return vlc_http_cmd(port, f"pl_play&id={target_id}", password)
 
 
+def vlc_advance_and_remove(port: int, password: str) -> bool:
+    """Advance to the next playlist item and remove the current one.
+
+    Used during discard: plays the next item by explicit ID (not pl_next,
+    which is unreliable after manual pl_play navigation), then deletes
+    the discarded item from VLC's playlist so it can't be navigated to.
+
+    For a single-item playlist, only the delete is issued (no advance).
+    """
+    status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
+    if status != 200 or not xml:
+        return False
+    all_ids, current_id = _parse_playlist_ids(xml)
+    if not all_ids or current_id < 0 or current_id not in all_ids:
+        logger.warning("vlc_advance_and_remove: could not resolve playlist position")
+        return False
+    idx = all_ids.index(current_id)
+    if len(all_ids) > 1:
+        next_id = all_ids[(idx + 1) % len(all_ids)]
+        vlc_http_cmd(port, f"pl_play&id={next_id}", password)
+    vlc_http_cmd(port, f"pl_delete&id={current_id}", password)
+    return True
+
+
 def replace_playlist_from_file(
     port: int,
     password: str,

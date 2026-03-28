@@ -113,11 +113,35 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
         patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
         patch("fun_time.command_dispatch.remove_from_favs"),
         patch("fun_time.command_dispatch.move_to_weird"),
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
+        patch("fun_time.command_dispatch.vlc_advance_and_remove", return_value=True),
     ):
         new_state, ops = dispatch_command("portrait_trash", state, config)
 
     assert new_state.locked2 is False
+
+
+def test_portrait_trash_uses_advance_and_remove_not_pl_next(tmp_path: Path):
+    """Discard must use vlc_advance_and_remove (ID-based advance + playlist
+    cleanup) instead of pl_next, which is unreliable after manual navigation."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+    advance_calls: list[tuple] = []
+    http_cmds: list[str] = []
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.remove_from_favs"),
+        patch("fun_time.command_dispatch.move_to_weird"),
+        patch("fun_time.command_dispatch.vlc_advance_and_remove",
+              side_effect=lambda p, pw: advance_calls.append((p, pw)) or True),
+        patch("fun_time.command_dispatch.vlc_http_cmd",
+              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
+    ):
+        dispatch_command("portrait_trash", state, config)
+
+    assert advance_calls == [(8091, "pw")], "discard must call vlc_advance_and_remove"
+    assert "pl_next" not in http_cmds, "discard must not use pl_next"
 
 
 # --- portrait_prev / portrait_next ---
