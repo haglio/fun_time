@@ -30,7 +30,9 @@ catch {
     New-Item -ItemType Directory -Path $startupDir -Force | Out-Null
 
     $startupVbs = Join-Path $startupDir 'FunTime Robot Hand Broker.vbs'
-    Copy-Item -Path $trayLauncherPath -Destination $startupVbs -Force
+    $trayScript = Join-Path $projectRoot 'scripts\broker_tray.ps1'
+    $vbsContent = "Set shell = CreateObject(""WScript.Shell"")`r`nshell.Run ""powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """"$trayScript"""""", 0, False"
+    Set-Content -Path $startupVbs -Value $vbsContent -Encoding ASCII
 
     Write-Warning "Scheduled Task installation failed (likely permissions)."
     Write-Host "Installed Startup-folder launcher instead: $startupVbs"
