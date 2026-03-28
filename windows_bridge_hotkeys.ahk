@@ -71,6 +71,7 @@ a::QueueCommand("landscape_prev")
 d::QueueCommand("landscape_next")
 w::QueueCommand("landscape_trash")
 s::QueueCommand("landscape_lock")
+'::QueueCommand("clipper_save")
 
 ; -------------------- CORE FUNCTIONS --------------------
 
