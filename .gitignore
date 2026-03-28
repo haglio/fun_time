@@ -3,6 +3,9 @@ state/
 
 favs.csv
 
+# Claude Code ephemeral worktrees
+.claude/worktrees/
+
 .venv/
 __pycache__/
 **/__pycache__/
