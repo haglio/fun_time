@@ -405,6 +405,30 @@ def test_sync_robot_hand_transitions_to_robot_mode(tmp_path: Path):
     assert new_state.robot_hand_mode is True
 
 
+def test_first_sync_tick_enters_robot_hand_when_broker_detected_auto_mode(tmp_path: Path):
+    """Startup auto-detect: if the broker has already written mode file = '1'
+    by the time the dispatch loop starts, the first sync tick naturally enters
+    Robot Hand mode — no special startup check needed."""
+    config = _make_config(tmp_path)
+    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
+    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+    # Initial state: fresh startup, robot_hand_mode=False (default)
+    state = _make_state(robot_hand_mode=False, omni_paused=False)
+    vlc_calls: list[tuple[int, str, bool]] = []
+
+    with patch(
+        "fun_time.runtime_flow.ensure_playback_state",
+        side_effect=lambda port, password, should_play: vlc_calls.append((port, password, should_play)) or True,
+    ):
+        new_state, ops = dispatch_command("sync_robot_hand", state, config)
+
+    assert new_state.robot_hand_mode is True
+    assert vlc_calls == [(config.primary_port, config.vlc_password, False)]
+    assert any(op.op == "show" and op.title == "Robot Hand" for op in ops)
+    assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is True for op in ops)
+    assert any(op.op == "activate" and op.title == "Robot Hand" for op in ops)
+
+
 def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
