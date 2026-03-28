@@ -229,3 +229,107 @@ def test_vlc_advance_and_remove_single_item_playlist(monkeypatch):
 
     assert result is True
     assert calls == ["pl_delete&id=3"]
+
+
+# --- Error/edge-case coverage ---
+
+
+def test_vlc_http_req_returns_zero_on_connection_error(monkeypatch):
+    def _raise(*args, **kwargs):
+        raise ConnectionRefusedError("refused")
+    monkeypatch.setattr(vlc_actions.urllib.request, "urlopen", _raise)
+    status, body = vlc_actions.vlc_http_req(9999, "/requests/status.xml", "pw")
+    assert status == 0
+    assert body == ""
+
+
+def test_get_current_file_path_returns_empty_on_http_failure(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
+    assert vlc_actions.get_current_file_path(8080, "pw") == ""
+
+
+def test_get_current_file_path_handles_reversed_attribute_order(monkeypatch):
+    xml = '<leaf current="current" uri="file:///C:/clips/test.mp4"></leaf>'
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
+    assert vlc_actions.get_current_file_path(8080, "pw") == r"C:\clips\test.mp4"
+
+
+def test_get_current_file_path_returns_empty_when_no_current_item(monkeypatch):
+    xml = '<leaf uri="file:///C:/clips/test.mp4"></leaf>'
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
+    assert vlc_actions.get_current_file_path(8080, "pw") == ""
+
+
+def test_get_repeat_mode_returns_off_when_tags_missing(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<root></root>"))
+    assert vlc_actions.get_repeat_mode(8080, "pw") == "off"
+
+
+def test_get_playback_time_returns_none_on_http_failure(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
+    assert vlc_actions.get_playback_time(8080, "pw") is None
+
+
+def test_get_playback_time_returns_none_when_time_tag_missing(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<root></root>"))
+    assert vlc_actions.get_playback_time(8080, "pw") is None
+
+
+def test_get_playback_time_returns_none_on_non_numeric_value(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<time>not_a_number</time>"))
+    assert vlc_actions.get_playback_time(8080, "pw") is None
+
+
+def test_get_playback_time_returns_float_on_success(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<time>42.5</time>"))
+    assert vlc_actions.get_playback_time(8080, "pw") == 42.5
+
+
+def test_get_playback_state_returns_none_on_http_failure(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
+    assert vlc_actions.get_playback_state(8080, "pw") is None
+
+
+def test_ensure_playback_state_returns_false_when_state_is_none(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: None)
+    assert vlc_actions.ensure_playback_state(8080, "pw", True, sleep_fn=lambda _: None) is False
+
+
+def test_ensure_playback_state_returns_false_when_retries_exhausted(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: "paused")
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: True)
+    assert vlc_actions.ensure_playback_state(8080, "pw", True, sleep_fn=lambda _: None) is False
+
+
+def test_wait_for_http_returns_false_on_timeout(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
+    assert vlc_actions.wait_for_http(8080, "pw", 0, sleep_fn=lambda _: None) is False
+
+
+def test_replace_playlist_from_file_succeeds_without_repeat_mode(monkeypatch, tmp_path: Path):
+    playlist = tmp_path / "playlist.m3u"
+    playlist.write_text("#EXTM3U\n", encoding="utf-8")
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: True)
+    monkeypatch.setattr(vlc_actions, "send_vlc_input_command", lambda port, cmd, path, pw: True)
+    assert vlc_actions.replace_playlist_from_file(8080, "pw", playlist, sleep_fn=lambda _: None) is True
+
+
+def test_vlc_nav_step_returns_false_when_playlist_empty(monkeypatch):
+    xml = '<root><item id="plid_0" name="" ro="rw"><content><name></name></content></item></root>'
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
+    assert vlc_actions.vlc_nav_step(8090, "pw", "next") is False
+
+
+def test_send_vlc_input_command_encodes_file_uri(monkeypatch, tmp_path: Path):
+    test_file = tmp_path / "clip.mp4"
+    test_file.write_text("x", encoding="utf-8")
+    captured_paths: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (captured_paths.append(path), (200, ""))[1])
+    vlc_actions.send_vlc_input_command(8080, "in_play", str(test_file), "pw")
+    assert "file%3A" in captured_paths[0] or "in_play" in captured_paths[0]
+
+
+def test_set_repeat_mode_returns_false_when_retries_exhausted(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "get_repeat_mode", lambda port, password: "off")
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: True)
+    assert vlc_actions.set_repeat_mode(8080, "pw", "all", sleep_fn=lambda _: None) is False
