@@ -130,6 +130,8 @@ def dispatch_command(
     command: str,
     state: BridgeState,
     config: BridgeConfig,
+    *,
+    auto_mode_on: bool = False,
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Dispatch a dashboard/hotkey command, returning updated state and window operations."""
     ops: list[WindowOp] = []
@@ -200,7 +202,7 @@ def dispatch_command(
         return _dispatch_robot_toggle(state, config, ops)
 
     if command == "sync_robot_hand":
-        return _dispatch_sync_robot_hand(state, config)
+        return _dispatch_sync_robot_hand(state, config, auto_mode_on=auto_mode_on)
 
     if command == "vlc_nudge_prev":
         ops.append(WindowOp(op="send_vk", vk=0x25))  # VK_LEFT
@@ -357,7 +359,7 @@ def _dispatch_robot_toggle(
 
 
 def _dispatch_sync_robot_hand(
-    state: BridgeState, config: BridgeConfig
+    state: BridgeState, config: BridgeConfig, *, auto_mode_on: bool = False,
 ) -> tuple[BridgeState, list[WindowOp]]:
     if state.omni_paused:
         return state, []
@@ -366,7 +368,7 @@ def _dispatch_sync_robot_hand(
         robot_hand_mode_on=state.robot_hand_mode,
         omni_paused=state.omni_paused,
         enabled_file=config.robot_hand_enabled_file,
-        mode_state_file=config.robot_hand_mode_file,
+        mode_state_on=auto_mode_on,
         paused_file=config.robot_hand_paused_file,
         audio_paused_file=config.audio_paused_file,
         primary_port=config.primary_port,
