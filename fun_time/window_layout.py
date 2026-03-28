@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import configparser
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -138,55 +137,3 @@ def compute_left_partition_stack(
         height=mfp_size.height,
     )
     return dashboard, mfp
-
-
-def plan_window_layout(
-    monitors: list,
-    layout_config: LayoutConfig,
-    mfp_size: Size,
-) -> WindowLayoutPlan:
-    """Compute window layout from live monitor list and config.
-
-    ``monitors`` is a list of ``MonitorInfo`` from ``monitors``.
-    This is called directly by the dispatch loop.
-    """
-    from .monitors import get_logical_monitor_rects
-
-    main_rect, secondary_rect = get_logical_monitor_rects(
-        monitors,
-        main_index=layout_config.main_monitor,
-        secondary_index=layout_config.secondary_monitor,
-    )
-    return compute_window_layout(
-        main_monitor=main_rect,
-        secondary_monitor=secondary_rect,
-        layout_config=layout_config,
-        mfp_size=mfp_size,
-    )
-
-
-def write_window_layout_plan(path: Path, plan: WindowLayoutPlan) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser.read_dict(
-        {
-            section: {
-                "x": str(rect.x),
-                "y": str(rect.y),
-                "width": str(rect.width),
-                "height": str(rect.height),
-            }
-            for section, rect in {
-                "portrait": plan.portrait,
-                "primary": plan.primary,
-                "landscape": plan.landscape,
-                "mfp": plan.mfp,
-                "dashboard": plan.dashboard,
-                "random_favs_browser": plan.random_favs_browser,
-                "robot_hand": plan.robot_hand,
-            }.items()
-        }
-    )
-    with path.open("w", encoding="utf-8") as fp:
-        parser.write(fp)

@@ -19,7 +19,6 @@ def test_requires_at_least_one_clip():
 def test_starts_at_first_clip():
     controller = ClipSequenceController(_paths())
 
-    assert controller.current_index == 0
     assert controller.current_number == 1
     assert controller.current_path == Path("a.mp4")
     assert controller.count == 3

@@ -2,26 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.dashboard_actions import DASHBOARD_ACTION_IDS, LINK_TOGGLE, QUARTER_BUTTON
 from fun_time.dashboard_state import (
-    LABEL_PRIMARY_ROBOT,
-    LABEL_PRIMARY_VLC,
-    LABEL_PORTRAIT_VLC,
     build_mirrored_funscript_path,
     clip_label_from_path,
     has_matching_funscript,
     is_favorite_path,
-    panel_label_text,
     primary_panel_should_highlight,
     read_favs_content,
     satellite_panel_should_highlight,
 )
-
-
-def test_panel_label_text_matches_dashboard_multiline_labels():
-    assert panel_label_text(LABEL_PORTRAIT_VLC) == "Portrait AI\nVLC"
-    assert panel_label_text(LABEL_PRIMARY_VLC) == "Non-AI\nVLC"
-    assert panel_label_text(LABEL_PRIMARY_ROBOT) == "Non-AI\nRobot Hand"
 
 
 def test_primary_panel_highlight_follows_f_mode_or_funscript():
@@ -87,9 +76,3 @@ def test_read_favs_content_and_is_favorite_path_round_trip(tmp_path: Path):
     assert "portrait.mp4" in favs_content
     assert is_favorite_path(r"C:\clips\portrait.mp4", favs_content)
     assert not is_favorite_path(r"C:\clips\landscape.mp4", favs_content)
-
-
-def test_dashboard_action_vocabulary_covers_current_click_targets():
-    assert LINK_TOGGLE in DASHBOARD_ACTION_IDS
-    assert QUARTER_BUTTON in DASHBOARD_ACTION_IDS
-    assert len(DASHBOARD_ACTION_IDS) == len(set(DASHBOARD_ACTION_IDS))

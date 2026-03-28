@@ -10,7 +10,6 @@ from fun_time.media_actions import (
     make_web_url_from_path,
     move_to_weird,
     remove_from_favs,
-    run_media_action,
 )
 
 
@@ -72,30 +71,3 @@ def test_move_to_weird_moves_file_and_avoids_name_collisions(tmp_path: Path):
     assert dest_dup == weird_dir / "clip__dup2.mp4"
     assert dest.read_text(encoding="utf-8") == "a"
     assert dest_dup.read_text(encoding="utf-8") == "b"
-
-
-def test_run_media_action_dispatches_supported_actions(tmp_path: Path):
-    favs = tmp_path / "favs.csv"
-    weird_dir = tmp_path / "weird"
-    source = tmp_path / "odd.mp4"
-    source.write_text("x", encoding="utf-8")
-    full_path = str(source)
-
-    ensure_in_favs(favs, full_path)
-    result = run_media_action("remove-from-favs", favs_file=favs, weird_dir=weird_dir, path=full_path)
-    assert result == "removed-from-favs"
-    assert "odd.mp4" not in favs.read_text(encoding="utf-8")
-
-    source.write_text("x", encoding="utf-8")
-    result = run_media_action("move-to-weird", favs_file=favs, weird_dir=weird_dir, path=full_path)
-    assert result == "moved-to-weird"
-    assert (weird_dir / "odd.mp4").exists()
-
-
-def test_run_media_action_rejects_unknown_action(tmp_path: Path):
-    try:
-        run_media_action("nope", favs_file=tmp_path / "favs.csv", weird_dir=tmp_path / "weird", path="x")
-    except ValueError as exc:
-        assert "Unsupported media action" in str(exc)
-    else:
-        raise AssertionError("expected ValueError")

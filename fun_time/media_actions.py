@@ -104,16 +104,3 @@ def move_to_weird(weird_dir: Path, source: Path, *, destination_name: str | None
         duplicate_index += 1
     source.replace(destination)
     return destination
-
-
-def run_media_action(action: str, *, favs_file: Path, weird_dir: Path, path: str) -> str:
-    if action == "ensure-in-favs":
-        ensure_in_favs(favs_file, path)
-        return "added-to-favs"
-    if action == "remove-from-favs":
-        remove_from_favs(favs_file, path)
-        return "removed-from-favs"
-    if action == "move-to-weird":
-        move_to_weird(weird_dir, Path(path))
-        return "moved-to-weird"
-    raise ValueError(f"Unsupported media action: {action}")
