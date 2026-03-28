@@ -32,9 +32,6 @@ def write_flag_file(path: str | Path, value: bool) -> None:
 @dataclass(frozen=True)
 class RobotHandFlowResult:
     next_robot_hand_mode: bool
-    current_enabled: bool
-    enforce_outputs: bool
-    enforce_active: bool
     is_transition: bool
     log_message: str
 
@@ -68,16 +65,13 @@ def apply_sync_robot_hand(
         mode_state_on=mode_state_on,
         omni_paused=omni_paused,
     )
-    if plan.enforce_outputs:
-        write_flag_file(paused_file, not plan.enforce_active)
-        write_flag_file(audio_paused_file, not plan.enforce_active)
-        if not ensure_playback_state(primary_port, password, should_play=not plan.enforce_active):
+    if plan.is_transition:
+        write_flag_file(paused_file, not plan.target_active)
+        write_flag_file(audio_paused_file, not plan.target_active)
+        if not ensure_playback_state(primary_port, password, should_play=not plan.target_active):
             logger.warning("Primary VLC failed to reach desired Robot Hand sync playback state")
     return RobotHandFlowResult(
-        next_robot_hand_mode=plan.next_robot_hand_mode,
-        current_enabled=enabled,
-        enforce_outputs=plan.enforce_outputs,
-        enforce_active=plan.enforce_active,
+        next_robot_hand_mode=plan.target_active,
         is_transition=plan.is_transition,
         log_message=plan.log_message,
     )
@@ -105,16 +99,13 @@ def apply_toggle_robot_hand_enabled(
     )
     if plan.write_enabled:
         write_flag_file(enabled_file, plan.enabled_value)
-    if plan.enforce_outputs:
-        write_flag_file(paused_file, not plan.enforce_active)
-        write_flag_file(audio_paused_file, not plan.enforce_active)
-        if not ensure_playback_state(primary_port, password, should_play=not plan.enforce_active):
+    if plan.is_transition:
+        write_flag_file(paused_file, not plan.target_active)
+        write_flag_file(audio_paused_file, not plan.target_active)
+        if not ensure_playback_state(primary_port, password, should_play=not plan.target_active):
             logger.warning("Primary VLC failed to reach desired Robot Hand toggle playback state")
     return RobotHandFlowResult(
-        next_robot_hand_mode=plan.next_robot_hand_mode,
-        current_enabled=plan.enabled_value if plan.write_enabled else enabled,
-        enforce_outputs=plan.enforce_outputs,
-        enforce_active=plan.enforce_active,
+        next_robot_hand_mode=plan.target_active,
         is_transition=plan.is_transition,
         log_message=plan.log_message,
     )
