@@ -13,6 +13,7 @@ class FakeAutoMode:
         self.handle_line_calls: list[str] = []
         self.set_auto_calls: list[tuple[object, bool, str | None]] = []
         self.set_enabled_calls: list[tuple[object, bool]] = []
+        self.last_auto_evidence_time = 0.0
 
     @property
     def is_active(self) -> bool:
@@ -101,6 +102,18 @@ def test_maybe_disable_stale_auto_skips_when_paused_or_not_stale():
     session, auto_mode, logger = _build_session(auto_active=True, monotonic=lambda: 10.0)
     session.broker_paused.set()
     session.last_real_rx_time = 1.0
+
+    session.maybe_disable_stale_auto(object())
+
+    assert auto_mode.set_auto_calls == []
+    logger.warning.assert_not_called()
+
+
+def test_stale_timeout_skipped_when_auto_evidence_is_fresh():
+    """BPM/stroke evidence time prevents stale timeout even if last_real_rx_time is old."""
+    session, auto_mode, logger = _build_session(auto_active=True, monotonic=lambda: 10.0)
+    session.last_real_rx_time = 1.0  # old — would normally trigger timeout
+    auto_mode.last_auto_evidence_time = 9.5  # recent evidence
 
     session.maybe_disable_stale_auto(object())
 

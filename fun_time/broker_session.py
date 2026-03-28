@@ -161,7 +161,13 @@ class BrokerSerialSession:
             return
         if not self.last_real_rx_time:
             return
-        if self.monotonic() - self.last_real_rx_time <= self.auto_stale_timeout:
+        now = self.monotonic()
+        # BPM/stroke messages are direct evidence of auto mode.  As long
+        # as they keep arriving, auto mode is genuinely active regardless
+        # of whether raw serial data has stopped.
+        evidence_time = self.auto_mode.last_auto_evidence_time
+        freshest = max(self.last_real_rx_time, evidence_time)
+        if now - freshest <= self.auto_stale_timeout:
             return
         self.logger.warning("AUTO stale timeout reached after %.2fs", self.auto_stale_timeout)
         self.auto_mode.set_auto(udp_sock, False)

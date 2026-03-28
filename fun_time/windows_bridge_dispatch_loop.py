@@ -148,6 +148,8 @@ class DispatchLoopRunner:
         dashboard_pid: int = 0,
         dashboard_enabled: bool,
         sync_interval_ms: int = 200,
+        auto_mode_source=None,
+        initial_robot_hand_mode: bool = False,
     ) -> None:
         self.config = config
         self.dashboard_cmd_file = dashboard_cmd_file
@@ -160,10 +162,11 @@ class DispatchLoopRunner:
         self.dashboard_pid = dashboard_pid
         self.dashboard_enabled = dashboard_enabled
         self.sync_interval_s = sync_interval_ms / 1000
-        self.state = BridgeState()
+        self.state = BridgeState(robot_hand_mode=initial_robot_hand_mode)
         self._last_sync = 0.0
         self._stop = threading.Event()
         self._file_dialog_lock = threading.Lock()
+        self._auto_mode_source = auto_mode_source
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync robot hand."""
@@ -201,8 +204,16 @@ class DispatchLoopRunner:
             if not self.state.omni_paused:
                 self._dispatch("sync_robot_hand")
 
+    def _get_auto_mode_on(self) -> bool:
+        if self._auto_mode_source is not None:
+            return self._auto_mode_source.auto_active
+        return read_flag_file(self.config.robot_hand_mode_file, False)
+
     def _dispatch(self, command: str) -> None:
-        new_state, ops = dispatch_command(command, self.state, self.config)
+        new_state, ops = dispatch_command(
+            command, self.state, self.config,
+            auto_mode_on=self._get_auto_mode_on(),
+        )
         self.state = new_state
         remaining = execute_window_ops(ops, self.primary_pid)
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"

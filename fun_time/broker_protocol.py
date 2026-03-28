@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import socket
 import threading
+import time
 from pathlib import Path
 
 
@@ -33,6 +34,7 @@ class BrokerAutoController:
         write_mode,
         udp_send,
         enabled: bool = True,
+        auto_udp_targets: list[tuple[str, int]] | None = None,
     ):
         self.state_file = state_file
         self.udp_host = udp_host
@@ -43,6 +45,9 @@ class BrokerAutoController:
         self._lock = threading.Lock()
         self._auto_active = False
         self._enabled = enabled
+        self.auto_udp_targets = auto_udp_targets or []
+        self.last_auto_evidence_time = 0.0
+        self._monotonic = time.monotonic
 
     @property
     def is_active(self) -> bool:
@@ -54,9 +59,14 @@ class BrokerAutoController:
             effective_active = self._auto_active and self._enabled
 
         mode_text = mode_value if mode_value is not None else ("1" if effective_active else "0")
+        auto_msg = f"AUTO {1 if effective_active else 0}"
         self.write_mode(self.state_file, mode_text, self.logger)
-        self.udp_send(sock, self.udp_host, self.udp_port, f"AUTO {1 if effective_active else 0}")
+        # Primary target (Robot Hand app) gets AUTO + SHOW/HIDE
+        self.udp_send(sock, self.udp_host, self.udp_port, auto_msg)
         self.udp_send(sock, self.udp_host, self.udp_port, "SHOW" if effective_active else "HIDE")
+        # Extra targets (dispatch loop) get AUTO only
+        for host, port in self.auto_udp_targets:
+            self.udp_send(sock, host, port, auto_msg)
 
     def set_auto(self, sock: socket.socket, value: bool, mode_value: str | None = None) -> None:
         with self._lock:
@@ -90,12 +100,22 @@ class BrokerAutoController:
             self.set_auto(sock, False)
 
         stroke_match = RE_STROKE.search(line)
+        bpm_match = RE_BPM.search(line)
+
+        # BPM and stroke messages are exclusive to auto mode.  If the
+        # OSR2 was already in auto mode before MFP started, there is no
+        # transition message — only these pattern messages.  Use them to
+        # infer that auto mode is active.
+        if stroke_match or bpm_match:
+            self.last_auto_evidence_time = self._monotonic()
+            if not self.is_active:
+                self.set_auto(sock, True)
+
         if stroke_match:
             self.udp_send(sock, self.udp_host, self.udp_port, f"STROKE {stroke_match.group(1).strip()}")
             self.udp_send(sock, self.udp_host, self.udp_port, f"PATTERN {stroke_match.group(2)}")
             self.udp_send(sock, self.udp_host, self.udp_port, "SYNC")
 
-        bpm_match = RE_BPM.search(line)
         if bpm_match:
             self.udp_send(sock, self.udp_host, self.udp_port, f"BPM {bpm_match.group(1)}")
             self.udp_send(sock, self.udp_host, self.udp_port, f"BEATS {bpm_match.group(2)}")
