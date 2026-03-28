@@ -269,10 +269,16 @@ def launch_core_apps(
     vlc_exe = str(vlc_exe)
     mfp_exe = str(mfp_exe)
 
+    # Playlist files live in the state directory so they persist across launches
+    # and can be inspected for debugging.  They keep the VLC command lines well
+    # under Windows' 32 767-character limit even with hundreds of video files.
+    state_dir = project_dir / "state"
+
     launch_kwargs = _no_activate_kwargs()
 
     primary_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat", mute=hide_windows),
+        _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat", mute=hide_windows,
+                                   playlist_path=state_dir / "vlc_primary_playlist.m3u"),
         cwd=project_dir,
         **launch_kwargs,
     )
@@ -286,12 +292,14 @@ def launch_core_apps(
     mfp_proc = subprocess.Popen([mfp_exe], cwd=project_dir, **launch_kwargs)
 
     portrait_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, portrait_sources, portrait_port, password, repeat_mode="loop", mute=hide_windows),
+        _build_vlc_launch_command(vlc_exe, portrait_sources, portrait_port, password, repeat_mode="loop", mute=hide_windows,
+                                   playlist_path=state_dir / "vlc_portrait_playlist.m3u"),
         cwd=project_dir,
         **launch_kwargs,
     )
     landscape_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, landscape_sources, landscape_port, password, repeat_mode="loop", mute=hide_windows),
+        _build_vlc_launch_command(vlc_exe, landscape_sources, landscape_port, password, repeat_mode="loop", mute=hide_windows,
+                                   playlist_path=state_dir / "vlc_landscape_playlist.m3u"),
         cwd=project_dir,
         **launch_kwargs,
     )
@@ -325,7 +333,7 @@ def launch_core_apps(
 
 
 
-def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: str, *, repeat_mode: str, mute: bool = False) -> list[str]:
+def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: str, *, repeat_mode: str, mute: bool = False, playlist_path: Path | None = None) -> list[str]:
     command = [
         vlc_exe,
         "--no-one-instance",
@@ -361,7 +369,16 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
         else:
             sources_list.append(source)
     random.shuffle(sources_list)
-    command.extend(sources_list)
+    if playlist_path is not None and sources_list:
+        # Write sources to an .m3u playlist file and pass the file to VLC.
+        # This keeps the command line well under Windows' 32 767-character limit
+        # when there are hundreds of video files.
+        playlist_path = Path(playlist_path)
+        playlist_path.parent.mkdir(parents=True, exist_ok=True)
+        playlist_path.write_text("\n".join(sources_list) + "\n", encoding="utf-8")
+        command.append(str(playlist_path))
+    else:
+        command.extend(sources_list)
     return command
 
 
