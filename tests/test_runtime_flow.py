@@ -11,7 +11,7 @@ from fun_time.runtime_flow import (
 )
 
 
-def test_sync_robot_hand_reads_state_files_and_applies_playback(monkeypatch, tmp_path: Path):
+def test_sync_entering_transition_pauses_primary_and_writes_files(monkeypatch, tmp_path: Path):
     enabled_file = tmp_path / "enabled.txt"
     mode_state_file = tmp_path / "mode.txt"
     paused_file = tmp_path / "paused.txt"
@@ -37,9 +37,139 @@ def test_sync_robot_hand_reads_state_files_and_applies_playback(monkeypatch, tmp
     )
 
     assert result.next_robot_hand_mode is True
-    assert result.enforce_active is True
+    assert result.is_transition is True
     assert paused_file.read_text(encoding="utf-8") == "0"
     assert audio_paused_file.read_text(encoding="utf-8") == "0"
+    assert calls == [(8123, "pw", False)]
+
+
+def test_sync_leaving_transition_resumes_primary_and_writes_files(monkeypatch, tmp_path: Path):
+    enabled_file = tmp_path / "enabled.txt"
+    mode_state_file = tmp_path / "mode.txt"
+    paused_file = tmp_path / "paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    enabled_file.write_text("1", encoding="utf-8")
+    mode_state_file.write_text("0", encoding="utf-8")
+    calls: list[tuple[int, str, bool]] = []
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
+    )
+
+    result = apply_sync_robot_hand(
+        robot_hand_mode_on=True,
+        omni_paused=False,
+        enabled_file=enabled_file,
+        mode_state_file=mode_state_file,
+        paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        primary_port=8123,
+        password="pw",
+    )
+
+    assert result.next_robot_hand_mode is False
+    assert result.is_transition is True
+    assert paused_file.read_text(encoding="utf-8") == "1"
+    assert audio_paused_file.read_text(encoding="utf-8") == "1"
+    assert calls == [(8123, "pw", True)]
+
+
+def test_sync_steady_state_does_not_call_vlc(monkeypatch, tmp_path: Path):
+    """THE KEY REGRESSION TEST: steady state must not call ensure_playback_state."""
+    enabled_file = tmp_path / "enabled.txt"
+    mode_state_file = tmp_path / "mode.txt"
+    paused_file = tmp_path / "paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    enabled_file.write_text("1", encoding="utf-8")
+    mode_state_file.write_text("1", encoding="utf-8")
+    calls: list[tuple[int, str, bool]] = []
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
+    )
+
+    result = apply_sync_robot_hand(
+        robot_hand_mode_on=True,
+        omni_paused=False,
+        enabled_file=enabled_file,
+        mode_state_file=mode_state_file,
+        paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        primary_port=8123,
+        password="pw",
+    )
+
+    assert result.next_robot_hand_mode is True
+    assert result.is_transition is False
+    assert calls == [], "Steady state must NOT call ensure_playback_state"
+    assert not paused_file.exists(), "Steady state must NOT write flag files"
+
+
+def test_toggle_disabling_resumes_primary(monkeypatch, tmp_path: Path):
+    from fun_time.runtime_flow import apply_toggle_robot_hand_enabled
+
+    enabled_file = tmp_path / "enabled.txt"
+    mode_state_file = tmp_path / "mode.txt"
+    paused_file = tmp_path / "paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    enabled_file.write_text("1", encoding="utf-8")
+    mode_state_file.write_text("1", encoding="utf-8")
+    calls: list[tuple[int, str, bool]] = []
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
+    )
+
+    result = apply_toggle_robot_hand_enabled(
+        robot_hand_mode_on=True,
+        omni_paused=False,
+        enabled_file=enabled_file,
+        mode_state_file=mode_state_file,
+        paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        primary_port=8123,
+        password="pw",
+    )
+
+    assert result.next_robot_hand_mode is False
+    assert result.is_transition is True
+    assert enabled_file.read_text(encoding="utf-8") == "0"
+    assert calls == [(8123, "pw", True)]
+
+
+def test_toggle_enabling_pauses_primary_when_auto_on(monkeypatch, tmp_path: Path):
+    from fun_time.runtime_flow import apply_toggle_robot_hand_enabled
+
+    enabled_file = tmp_path / "enabled.txt"
+    mode_state_file = tmp_path / "mode.txt"
+    paused_file = tmp_path / "paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    enabled_file.write_text("0", encoding="utf-8")
+    mode_state_file.write_text("1", encoding="utf-8")
+    calls: list[tuple[int, str, bool]] = []
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
+    )
+
+    result = apply_toggle_robot_hand_enabled(
+        robot_hand_mode_on=False,
+        omni_paused=False,
+        enabled_file=enabled_file,
+        mode_state_file=mode_state_file,
+        paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        primary_port=8123,
+        password="pw",
+    )
+
+    assert result.next_robot_hand_mode is True
+    assert result.is_transition is True
+    assert enabled_file.read_text(encoding="utf-8") == "1"
     assert calls == [(8123, "pw", False)]
 
 

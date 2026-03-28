@@ -355,16 +355,14 @@ def _dispatch_robot_toggle(
         password=config.vlc_password,
     )
     state = replace(state, robot_hand_mode=result.next_robot_hand_mode)
-    if result.enforce_outputs:
-        if result.enforce_active:
+    if result.is_transition:
+        if result.next_robot_hand_mode:
             ops.append(WindowOp(op="show", title="Robot Hand"))
-            if result.is_transition:
-                ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
-                ops.append(WindowOp(op="activate", title="Robot Hand"))
+            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
+            ops.append(WindowOp(op="activate", title="Robot Hand"))
         else:
-            if result.is_transition:
-                ops.append(WindowOp(op="hide", title="Robot Hand"))
-                ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
+            ops.append(WindowOp(op="hide", title="Robot Hand"))
+            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
@@ -387,16 +385,14 @@ def _dispatch_sync_robot_hand(
         password=config.vlc_password,
     )
     state = replace(state, robot_hand_mode=result.next_robot_hand_mode)
-    if result.enforce_outputs:
-        if result.enforce_active:
-            if result.is_transition:
-                ops.append(WindowOp(op="show", title="Robot Hand"))
-                ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
-                ops.append(WindowOp(op="activate", title="Robot Hand"))
+    if result.is_transition:
+        if result.next_robot_hand_mode:
+            ops.append(WindowOp(op="show", title="Robot Hand"))
+            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
+            ops.append(WindowOp(op="activate", title="Robot Hand"))
         else:
-            if result.is_transition:
-                ops.append(WindowOp(op="hide", title="Robot Hand"))
-                ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
+            ops.append(WindowOp(op="hide", title="Robot Hand"))
+            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
