@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.command_dispatch import BridgeState, WindowOp
+from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
 
 
 # These imports will fail until the module exists (red step)
@@ -708,6 +708,74 @@ class TestHandleOpenFileDialog:
         mock_find_dialog.assert_not_called()
         # Should still send Ctrl+O to the primary window
         mock_ctrl_o.assert_called_once_with(1001)
+
+    def test_navigates_dialog_to_primary_sources_directory(self, tmp_path):
+        """When the file dialog opens and primary_sources is set, navigate
+        the dialog to the first primary_sources directory."""
+        config = BridgeConfig(
+            primary_port=9090,
+            portrait_port=9091,
+            landscape_port=9092,
+            vlc_password="test",
+            favs_file=tmp_path / "favs.txt",
+            weird_dir=tmp_path / "weird",
+            state_dir=tmp_path,
+            primary_sources=r"C:\videos\2D\non_AI|C:\other",
+            portrait_sources="",
+            landscape_sources="",
+            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
+            robot_hand_mode_file=tmp_path / "rh_mode.txt",
+            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
+            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            audio_paused_file=tmp_path / "audio_paused.txt",
+            dashboard_state_file=tmp_path / "dashboard_state.ini",
+        )
+        runner = DispatchLoopRunner(
+            config=config,
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            shared_state_file=tmp_path / "shared_state.ini",
+            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            primary_pid=100,
+            mfp_pid=200,
+            portrait_pid=300,
+            landscape_pid=400,
+            dashboard_pid=500,
+            dashboard_enabled=False,
+        )
+        runner.state = BridgeState(omni_paused=False)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=9999), \
+             patch("fun_time.windows_bridge_dispatch_loop.wait_for_window_close"), \
+             patch("fun_time.windows_bridge_dispatch_loop.navigate_file_dialog_to_directory") as mock_nav:
+            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
+            runner._handle_open_file_dialog()
+
+        mock_nav.assert_called_once_with(r"C:\videos\2D\non_AI")
+
+    def test_skips_dialog_navigation_when_no_primary_sources(self, tmp_path):
+        """When primary_sources is empty, don't try to navigate."""
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=9999), \
+             patch("fun_time.windows_bridge_dispatch_loop.wait_for_window_close"), \
+             patch("fun_time.windows_bridge_dispatch_loop.navigate_file_dialog_to_directory") as mock_nav:
+            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
+            runner._handle_open_file_dialog()
+
+        mock_nav.assert_not_called()
 
     def test_forwards_suspend_and_unsuspend_via_dispatch(self, tmp_path, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
