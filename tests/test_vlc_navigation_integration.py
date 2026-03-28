@@ -60,14 +60,17 @@ def vlc_with_playlist():
          "--no-one-instance", "--extraintf", "http",
          "--http-host", "127.0.0.1",
          "--http-port", str(TEST_PORT), "--http-password", TEST_PASSWORD,
-         "--no-video", "--no-audio",
-         "--playlist-autostart", "--no-random", "--loop",
+         "--no-video", "--volume", "0", "--start-paused",
+         "--no-random", "--loop",
          ] + videos,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     if not wait_for_http(TEST_PORT, TEST_PASSWORD, timeout_ms=10000):
         proc.kill()
         pytest.skip("VLC HTTP did not start")
+    # Belt-and-suspenders: mute via HTTP too, then unpause.
+    vlc_http_cmd(TEST_PORT, "volume&val=0", TEST_PASSWORD)
+    vlc_http_cmd(TEST_PORT, "pl_play", TEST_PASSWORD)
     time.sleep(1.0)
     yield proc, videos
     proc.kill()
