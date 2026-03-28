@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import random
 from pathlib import Path
@@ -26,21 +27,35 @@ def resolve_profile_directory(user_data_dir: Path, profile_name: str) -> str:
     return ""
 
 
-def load_folder_urls(bookmarks_path: Path, folder_name: str) -> list[str]:
-    if not bookmarks_path.is_file():
+def extract_url_from_hyperlink(cell: str) -> str:
+    """Extract the URL from an ``=HYPERLINK("url";"text")`` formula cell.
+
+    If *cell* is not a HYPERLINK formula it is returned stripped as-is
+    (allowing plain URLs).
+    """
+    cell = cell.strip()
+    prefix = '=HYPERLINK("'
+    if not cell.startswith(prefix):
+        return cell
+    start = len(prefix)
+    end = cell.find('"', start)
+    if end == -1:
+        return ""
+    return cell[start:end]
+
+
+def load_favs_web_urls(favs_file: Path) -> list[str]:
+    """Read web URLs from the ``web_url`` column of *favs_file*."""
+    if not favs_file.is_file():
         return []
-
-    with bookmarks_path.open("r", encoding="utf-8") as fh:
-        data = json.load(fh)
-
-    roots = data.get("roots", {})
-    for root in roots.values():
-        if not isinstance(root, dict):
-            continue
-        found = _find_folder_urls(root, folder_name)
-        if found is not None:
-            return found
-    return []
+    urls: list[str] = []
+    with favs_file.open("r", encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            url = extract_url_from_hyperlink(row.get("web_url", ""))
+            if url:
+                urls.append(url)
+    return urls
 
 
 def choose_random_urls(urls: list[str], count: int, rng: random.Random | None = None) -> list[str]:
@@ -64,8 +79,7 @@ def build_manifest(config_path: str | Path | None = None) -> tuple[str, list[str
     if not profile_directory:
         return "", []
 
-    bookmarks_path = browser.user_data_dir / profile_directory / "Bookmarks"
-    urls = load_folder_urls(bookmarks_path, browser.bookmarks_folder_name)
+    urls = load_favs_web_urls(config.paths.favs_file)
     return profile_directory, choose_random_urls(urls, browser.open_count)
 
 
@@ -73,30 +87,6 @@ def write_manifest(output_path: Path, profile_directory: str, urls: list[str]) -
     output_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [profile_directory, *urls]
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def _find_folder_urls(node: dict, folder_name: str) -> list[str] | None:
-    if node.get("type") == "folder" and node.get("name") == folder_name:
-        children = node.get("children", [])
-        if not isinstance(children, list):
-            return []
-        urls: list[str] = []
-        for child in children:
-            if isinstance(child, dict) and child.get("type") == "url":
-                url = child.get("url")
-                if isinstance(url, str) and url:
-                    urls.append(url)
-        return urls
-
-    children = node.get("children", [])
-    if not isinstance(children, list):
-        return None
-    for child in children:
-        if isinstance(child, dict):
-            found = _find_folder_urls(child, folder_name)
-            if found is not None:
-                return found
-    return None
 
 
 def main(argv: list[str] | None = None) -> int:
