@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import socket
 import threading
+import time
 from pathlib import Path
 
 
@@ -45,6 +46,8 @@ class BrokerAutoController:
         self._auto_active = False
         self._enabled = enabled
         self.auto_udp_targets = auto_udp_targets or []
+        self.last_auto_evidence_time = 0.0
+        self._monotonic = time.monotonic
 
     @property
     def is_active(self) -> bool:
@@ -103,8 +106,10 @@ class BrokerAutoController:
         # OSR2 was already in auto mode before MFP started, there is no
         # transition message — only these pattern messages.  Use them to
         # infer that auto mode is active.
-        if (stroke_match or bpm_match) and not self.is_active:
-            self.set_auto(sock, True)
+        if stroke_match or bpm_match:
+            self.last_auto_evidence_time = self._monotonic()
+            if not self.is_active:
+                self.set_auto(sock, True)
 
         if stroke_match:
             self.udp_send(sock, self.udp_host, self.udp_port, f"STROKE {stroke_match.group(1).strip()}")
