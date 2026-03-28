@@ -81,13 +81,13 @@ def isolated_integration_session():
         shutil.rmtree(temp_root, ignore_errors=True)
 
 
-@pytest.mark.integration
+
 def test_fun_time_startup_runtime_smoke(shared_integration_session: FunTimeIntegrationSession):
     assert shared_integration_session.windows_bridge_log.exists()
     assert shared_integration_session.orchestrator_log.exists()
 
 
-@pytest.mark.integration
+
 def test_fun_time_portrait_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("portrait_lock")
     shared_integration_session.wait_for_new_log("Locked portrait VLC", timeout=12)
@@ -96,7 +96,7 @@ def test_fun_time_portrait_lock_unlock_flow(shared_integration_session: FunTimeI
     shared_integration_session.wait_for_new_log("Unlocked portrait VLC", timeout=12)
 
 
-@pytest.mark.integration
+
 def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("omnipause_toggle")
     shared_integration_session.wait_for_new_log("OmniPause: entering", timeout=12)
@@ -105,7 +105,7 @@ def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeInteg
     shared_integration_session.wait_for_new_log("OmniPause: leaving", timeout=12)
 
 
-@pytest.mark.integration
+
 def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("fmode_toggle")
     shared_integration_session.wait_for_new_log("F-mode hotkey: enabled", timeout=12)
@@ -114,7 +114,7 @@ def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrati
     shared_integration_session.wait_for_new_log("F-mode hotkey: disabled", timeout=12)
 
 
-@pytest.mark.integration
+
 def test_fun_time_robot_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
     assert shared_integration_session.robot_hand_enabled_file.read_text(encoding="utf-8") == "1"
     shared_integration_session.write_dashboard_command("robot_toggle")
@@ -132,7 +132,7 @@ def test_fun_time_robot_toggle_flow(shared_integration_session: FunTimeIntegrati
     )
 
 
-@pytest.mark.integration
+
 def test_fun_time_robot_hand_mode_file_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_robot_hand_mode(True)
     shared_integration_session.wait_for_new_log("Entering Robot Hand mode", timeout=12)
@@ -141,7 +141,7 @@ def test_fun_time_robot_hand_mode_file_flow(shared_integration_session: FunTimeI
     shared_integration_session.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
 
 
-@pytest.mark.integration
+
 def test_fun_time_robot_hand_active_playback(shared_integration_session: FunTimeIntegrationSession):
     """Entering Robot Hand mode with link enabled must unpause Robot Hand and audio."""
     s = shared_integration_session
@@ -176,7 +176,7 @@ def test_fun_time_robot_hand_active_playback(shared_integration_session: FunTime
     )
 
 
-@pytest.mark.integration
+
 def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("landscape_lock")
     shared_integration_session.wait_for_new_log("Locked landscape VLC", timeout=12)
@@ -185,7 +185,7 @@ def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTime
     shared_integration_session.wait_for_new_log("Unlocked landscape VLC", timeout=12)
 
 
-@pytest.mark.integration
+
 def test_fun_time_portrait_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("portrait_lock")
     shared_integration_session.wait_for_new_log("Locked portrait VLC", timeout=12)
@@ -200,7 +200,7 @@ def test_fun_time_portrait_next_cancels_lock(shared_integration_session: FunTime
     shared_integration_session.wait_for_new_log("Unlocked portrait VLC", timeout=12)
 
 
-@pytest.mark.integration
+
 def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("landscape_lock")
     shared_integration_session.wait_for_new_log("Locked landscape VLC", timeout=12)
@@ -215,7 +215,7 @@ def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTim
     shared_integration_session.wait_for_new_log("Unlocked landscape VLC", timeout=12)
 
 
-@pytest.mark.integration
+
 def test_fun_time_omnipause_while_robot_hand_mode(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_robot_hand_mode(True)
     shared_integration_session.wait_for_new_log("Entering Robot Hand mode", timeout=12)
@@ -240,7 +240,7 @@ def test_fun_time_omnipause_while_robot_hand_mode(shared_integration_session: Fu
     shared_integration_session.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
 
 
-@pytest.mark.integration
+
 def test_fun_time_omnipause_does_not_kill_robot_hand(shared_integration_session: FunTimeIntegrationSession):
     """Regression: omnipause must pause Robot Hand, not close it.
 
@@ -281,7 +281,7 @@ def test_fun_time_omnipause_does_not_kill_robot_hand(shared_integration_session:
     s.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
 
 
-@pytest.mark.integration
+
 def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: FunTimeIntegrationSession):
     """Verify vlc_nudge_next/prev actually seek VLC's primary player by ~10 seconds.
 
@@ -321,7 +321,7 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     )
 
 
-@pytest.mark.integration
+
 def test_fun_time_landscape_trash_updates_temp_state(isolated_integration_session: FunTimeIntegrationSession):
     isolated_integration_session.write_dashboard_command("landscape_trash")
     chunk = isolated_integration_session.wait_for_new_log("Discarding from player 3:", timeout=12)
@@ -341,7 +341,7 @@ def test_fun_time_landscape_trash_updates_temp_state(isolated_integration_sessio
     )
 
 
-@pytest.mark.integration
+
 def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session: FunTimeIntegrationSession):
     isolated_integration_session.write_dashboard_command("portrait_trash")
     chunk = isolated_integration_session.wait_for_new_log("Discarding from player 2:", timeout=12)
@@ -361,7 +361,7 @@ def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session
     )
 
 
-@pytest.mark.integration
+
 def test_fun_time_quit_cleans_up_processes():
     """The real quit path (AHK exit → orchestrator cleanup) must kill all child processes."""
     temp_root = build_integration_temp_root()
