@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import fun_time.vlc_actions as vlc_actions
 
 
@@ -73,32 +75,41 @@ def test_replace_playlist_from_file_fails_when_playlist_missing(tmp_path: Path):
 # VLC instance.  Container nodes (root, Playlist folder) have no uri= attribute.
 # Media items use id="plid_N" (numeric suffix only is passed to pl_play&id=N).
 
-_PLAYLIST_XML = """\
-<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
-<root>
-<item id="plid_0" name="" ro="rw"><content><name></name></content>\
-<item id="plid_1" name="Playlist" ro="ro"><content><name>Playlist</name></content>\
-<item id="plid_3" uri="file:///C:/a.mp4" name="a.mp4" current="current" ro="rw" duration="120000"><content><name>a.mp4</name></content></item>\
-<item id="plid_4" uri="file:///C:/b.mp4" name="b.mp4" ro="rw" duration="90000"><content><name>b.mp4</name></content></item>\
-<item id="plid_5" uri="file:///C:/c.mp4" name="c.mp4" ro="rw" duration="60000"><content><name>c.mp4</name></content></item>\
-</item></item>
-</root>
-"""
-
-# Same playlist but with the last item (plid_5) as current
-_PLAYLIST_XML_LAST_CURRENT = _PLAYLIST_XML.replace(
-    'id="plid_3" uri="file:///C:/a.mp4" name="a.mp4" current="current"',
-    'id="plid_3" uri="file:///C:/a.mp4" name="a.mp4"',
-).replace(
-    'id="plid_5" uri="file:///C:/c.mp4" name="c.mp4" ro="rw"',
-    'id="plid_5" uri="file:///C:/c.mp4" name="c.mp4" current="current" ro="rw"',
-)
+def _make_playlist_xml(items: list[tuple[int, Path, bool]]) -> str:
+    """Build VLC playlist XML from (plid, file_path, is_current) tuples."""
+    inner = ""
+    for plid, path, is_current in items:
+        uri = path.as_uri()
+        cur = ' current="current"' if is_current else ""
+        inner += (
+            f'<item id="plid_{plid}" uri="{uri}" name="{path.name}"{cur} ro="rw">'
+            f"<content><name>{path.name}</name></content></item>"
+        )
+    return (
+        '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>'
+        '<root><item id="plid_0" name="" ro="rw"><content><name></name></content>'
+        '<item id="plid_1" name="Playlist" ro="ro"><content><name>Playlist</name></content>'
+        f"{inner}</item></item></root>"
+    )
 
 
-def test_vlc_nav_step_prev_calls_pl_play_with_prev_item_id(monkeypatch):
+@pytest.fixture()
+def three_videos(tmp_path):
+    """Create three video files and return (a, b, c) paths."""
+    a = tmp_path / "a.mp4"
+    b = tmp_path / "b.mp4"
+    c = tmp_path / "c.mp4"
+    for f in (a, b, c):
+        f.write_bytes(b"")
+    return a, b, c
+
+
+def test_vlc_nav_step_prev_calls_pl_play_with_prev_item_id(monkeypatch, three_videos):
     """prev on plid_3 (first item) should wrap to plid_5 (last)."""
+    a, b, c = three_videos
+    xml = _make_playlist_xml([(3, a, True), (4, b, False), (5, c, False)])
     calls: list[str] = []
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
 
     result = vlc_actions.vlc_nav_step(8090, "pw", "prev")
@@ -107,10 +118,12 @@ def test_vlc_nav_step_prev_calls_pl_play_with_prev_item_id(monkeypatch):
     assert calls == ["pl_play&id=5"]
 
 
-def test_vlc_nav_step_next_calls_pl_play_with_next_item_id(monkeypatch):
+def test_vlc_nav_step_next_calls_pl_play_with_next_item_id(monkeypatch, three_videos):
     """next on plid_3 (first item, current) should go to plid_4."""
+    a, b, c = three_videos
+    xml = _make_playlist_xml([(3, a, True), (4, b, False), (5, c, False)])
     calls: list[str] = []
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
 
     result = vlc_actions.vlc_nav_step(8090, "pw", "next")
@@ -119,10 +132,12 @@ def test_vlc_nav_step_next_calls_pl_play_with_next_item_id(monkeypatch):
     assert calls == ["pl_play&id=4"]
 
 
-def test_vlc_nav_step_next_wraps_at_end(monkeypatch):
+def test_vlc_nav_step_next_wraps_at_end(monkeypatch, three_videos):
     """next on last item (plid_5, current) should wrap to first item (plid_3)."""
+    a, b, c = three_videos
+    xml = _make_playlist_xml([(3, a, False), (4, b, False), (5, c, True)])
     calls: list[str] = []
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML_LAST_CURRENT))
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
 
     result = vlc_actions.vlc_nav_step(8090, "pw", "next")
@@ -131,11 +146,13 @@ def test_vlc_nav_step_next_wraps_at_end(monkeypatch):
     assert calls == ["pl_play&id=3"]
 
 
-def test_vlc_nav_step_container_nodes_not_counted_as_items(monkeypatch):
+def test_vlc_nav_step_container_nodes_not_counted_as_items(monkeypatch, three_videos):
     """Container nodes (plid_0 root, plid_1 Playlist folder) must not appear
     in the navigation sequence — only media items with a uri= attribute should."""
+    a, b, c = three_videos
+    xml = _make_playlist_xml([(3, a, True), (4, b, False), (5, c, False)])
     calls: list[str] = []
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
 
     vlc_actions.vlc_nav_step(8090, "pw", "next")
@@ -150,55 +167,66 @@ def test_vlc_nav_step_returns_false_when_vlc_unreachable(monkeypatch):
     assert vlc_actions.vlc_nav_step(8090, "pw", "next") is False
 
 
-# --- vlc_advance_and_remove_current ---
+# --- vlc_nav_step: playlist healing (skip dead entries) ---
 
 
-def test_advance_and_remove_plays_next_then_deletes_current(monkeypatch):
-    """Must pl_play the next item BEFORE pl_delete-ing the current one,
-    otherwise VLC loses its current playback position."""
-    calls: list[str] = []
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
-    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+def test_vlc_nav_step_next_skips_missing_file(monkeypatch, tmp_path):
+    """When the next item's file doesn't exist (moved to weird_dir),
+    vlc_nav_step should skip it and play the one after."""
+    a = tmp_path / "a.mp4"
+    b = tmp_path / "b.mp4"  # dead — not created
+    c = tmp_path / "c.mp4"
+    a.write_bytes(b"")
+    c.write_bytes(b"")
 
-    result = vlc_actions.vlc_advance_and_remove_current(8090, "pw")
-
-    assert result == 3  # returns the deleted item's ID
-    assert calls == ["pl_play&id=4", "pl_delete&id=3"]
-
-
-def test_advance_and_remove_wraps_at_end(monkeypatch):
-    calls: list[str] = []
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML_LAST_CURRENT))
-    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
-
-    result = vlc_actions.vlc_advance_and_remove_current(8090, "pw")
-
-    assert result == 5
-    assert calls == ["pl_play&id=3", "pl_delete&id=5"]
-
-
-def test_advance_and_remove_returns_negative_one_on_failure(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
-
-    assert vlc_actions.vlc_advance_and_remove_current(8090, "pw") == -1
-
-
-def test_advance_and_remove_single_item_playlist(monkeypatch):
-    """With only one item, there's nothing to advance to — just delete it."""
-    xml = """\
-<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
-<root>
-<item id="plid_0" name="" ro="rw"><content><name></name></content>\
-<item id="plid_1" name="Playlist" ro="ro"><content><name>Playlist</name></content>\
-<item id="plid_3" uri="file:///C:/a.mp4" name="a.mp4" current="current" ro="rw" duration="120000"><content><name>a.mp4</name></content></item>\
-</item></item>
-</root>
-"""
+    xml = _make_playlist_xml([(3, a, True), (4, b, False), (5, c, False)])
     calls: list[str] = []
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
 
-    result = vlc_actions.vlc_advance_and_remove_current(8090, "pw")
+    result = vlc_actions.vlc_nav_step(8090, "pw", "next")
 
-    assert result == 3
-    assert calls == ["pl_delete&id=3"]  # no pl_play — nowhere to advance
+    assert result is True
+    assert "pl_play&id=5" in calls, "should skip dead plid_4 and play plid_5"
+    assert "pl_delete&id=4" in calls, "should clean up the dead entry"
+
+
+def test_vlc_nav_step_prev_skips_missing_file(monkeypatch, tmp_path):
+    """Going backward should also skip dead entries."""
+    a = tmp_path / "a.mp4"
+    b = tmp_path / "b.mp4"  # dead
+    c = tmp_path / "c.mp4"
+    a.write_bytes(b"")
+    c.write_bytes(b"")
+
+    xml = _make_playlist_xml([(3, a, False), (4, b, False), (5, c, True)])
+    calls: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+
+    result = vlc_actions.vlc_nav_step(8090, "pw", "prev")
+
+    assert result is True
+    assert "pl_play&id=3" in calls, "should skip dead plid_4 and play plid_3"
+    assert "pl_delete&id=4" in calls
+
+
+def test_vlc_nav_step_all_others_dead_returns_false(monkeypatch, tmp_path):
+    """If every item except current is dead, navigation should fail gracefully."""
+    a = tmp_path / "a.mp4"
+    b = tmp_path / "b.mp4"  # dead
+    c = tmp_path / "c.mp4"  # dead
+    a.write_bytes(b"")
+
+    xml = _make_playlist_xml([(3, a, True), (4, b, False), (5, c, False)])
+    calls: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+
+    result = vlc_actions.vlc_nav_step(8090, "pw", "next")
+
+    assert result is False
+    assert "pl_delete&id=4" in calls, "should still clean up dead entries"
+    assert "pl_delete&id=5" in calls
+
+

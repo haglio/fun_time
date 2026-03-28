@@ -178,3 +178,68 @@ def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
     time.sleep(0.3)
     assert ok_prev is True, "vlc_nav_step prev returned False"
     assert _current() == start, f"next+prev did not return to start: expected {start}, got {_current()}"
+
+
+# --- Playlist healing: skip dead entries ---
+
+
+def test_vlc_nav_step_skips_over_deleted_file(vlc_with_playlist):
+    """When a video file has been removed from disk (e.g. moved to weird_dir),
+    vlc_nav_step should skip over the dead playlist entry and play the next
+    live video instead of triggering a VLC error dialog."""
+    proc, videos = vlc_with_playlist
+    assert len(videos) >= 4, "need at least 4 videos for this test"
+
+    # Navigate to video[0]
+    # Use pl_play to go to a known starting point by finding its ID
+    from fun_time.vlc_actions import _parse_playlist_items, vlc_http_req
+    status, xml = vlc_http_req(TEST_PORT, "/requests/playlist_jstree.xml", TEST_PASSWORD)
+    assert status == 200
+    items, _ = _parse_playlist_items(xml)
+    assert len(items) >= 4
+
+    # Play the first item to establish a known position
+    first_id = items[0][0]
+    vlc_http_cmd(TEST_PORT, f"pl_play&id={first_id}", TEST_PASSWORD)
+    time.sleep(0.5)
+    start_path = _current()
+    assert start_path, "could not get starting video path"
+
+    # Identify what the NEXT video is (video[1]) — we'll delete it
+    ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
+    time.sleep(0.3)
+    assert ok
+    victim_path = _current()
+    assert victim_path != start_path
+
+    # Identify what's AFTER the victim (video[2]) — this is where healing should land
+    ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
+    time.sleep(0.3)
+    assert ok
+    expected_target = _current()
+    assert expected_target != victim_path
+
+    # Go back to start
+    vlc_http_cmd(TEST_PORT, f"pl_play&id={first_id}", TEST_PASSWORD)
+    time.sleep(0.5)
+    assert _current() == start_path
+
+    # Delete the victim file from disk (simulates move_to_weird)
+    victim = Path(victim_path)
+    assert victim.exists(), f"victim file missing before test: {victim_path}"
+    victim.rename(victim.with_suffix(".mp4.healing_test_backup"))
+    try:
+        # Navigate forward — should skip the dead entry and land on expected_target
+        ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
+        time.sleep(0.3)
+        assert ok is True, "vlc_nav_step should succeed by skipping the dead entry"
+        landed = _current()
+        assert landed == expected_target, (
+            f"Expected to skip dead entry and land on {expected_target}, "
+            f"but landed on {landed}"
+        )
+    finally:
+        # Restore the victim file
+        backup = victim.with_suffix(".mp4.healing_test_backup")
+        if backup.exists():
+            backup.rename(victim)
