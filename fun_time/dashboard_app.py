@@ -30,9 +30,6 @@ from fun_time.dashboard_actions import (
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
 from fun_time.dashboard_runtime import DashboardSnapshot, is_broker_heartbeat_fresh, load_dashboard_snapshot
 from fun_time.dashboard_state import (
-    LABEL_BROKER,
-    LABEL_CONTROLLER,
-    LABEL_F_MODE,
     LABEL_LANDSCAPE_VLC,
     LABEL_MFP,
     LABEL_OSR2,
@@ -51,7 +48,6 @@ from fun_time.dashboard_state import (
 COLOR_BG = "#20262C"
 COLOR_PANEL = "#2A3038"
 COLOR_TEXT = "#F4F7FA"
-COLOR_MUTED = "#AEB7C2"
 COLOR_LINK = "#3A7AFE"
 COLOR_ACTIVE = "#1F6F52"
 COLOR_ACTIVE_ALT = "#2C8A65"

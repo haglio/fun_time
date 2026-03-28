@@ -15,10 +15,6 @@ class ClipSequenceController:
         return len(self._clips)
 
     @property
-    def current_index(self) -> int:
-        return self._index
-
-    @property
     def current_number(self) -> int:
         return self._index + 1
 
