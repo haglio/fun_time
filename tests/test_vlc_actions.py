@@ -148,3 +148,38 @@ def test_vlc_nav_step_returns_false_when_vlc_unreachable(monkeypatch):
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
 
     assert vlc_actions.vlc_nav_step(8090, "pw", "next") is False
+
+
+# --- get_current_playlist_id ---
+
+
+def test_get_current_playlist_id_returns_current_item_id(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
+
+    assert vlc_actions.get_current_playlist_id(8090, "pw") == 3
+
+
+def test_get_current_playlist_id_returns_negative_one_on_failure(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
+
+    assert vlc_actions.get_current_playlist_id(8090, "pw") == -1
+
+
+def test_get_current_playlist_id_returns_negative_one_when_no_current(monkeypatch):
+    xml_no_current = _PLAYLIST_XML.replace('current="current" ', '')
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml_no_current))
+
+    assert vlc_actions.get_current_playlist_id(8090, "pw") == -1
+
+
+# --- vlc_delete_playlist_item ---
+
+
+def test_vlc_delete_playlist_item_sends_pl_delete_command(monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+
+    result = vlc_actions.vlc_delete_playlist_item(8090, "pw", 7)
+
+    assert result is True
+    assert calls == ["pl_delete&id=7"]

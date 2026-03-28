@@ -174,6 +174,20 @@ def _parse_playlist_ids(xml: str) -> tuple[list[int], int]:
     return all_ids, current_id
 
 
+def get_current_playlist_id(port: int, password: str) -> int:
+    """Return the VLC playlist ID of the currently playing item, or -1."""
+    status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
+    if status != 200 or not xml:
+        return -1
+    _all_ids, current_id = _parse_playlist_ids(xml)
+    return current_id
+
+
+def vlc_delete_playlist_item(port: int, password: str, item_id: int) -> bool:
+    """Remove a single item from VLC's playlist by its playlist ID."""
+    return vlc_http_cmd(port, f"pl_delete&id={item_id}", password)
+
+
 def vlc_nav_step(port: int, password: str, direction: str) -> bool:
     """Navigate to the previous or next playlist item via pl_play&id=N.
 
