@@ -20,12 +20,22 @@ from .integration_support import (
 
 
 def _is_pid_alive(pid: int) -> bool:
-    """Check whether a process with the given PID is still running."""
-    try:
-        os.kill(pid, 0)
-        return True
-    except (OSError, ProcessLookupError):
+    """Check whether a process with the given PID is still running.
+
+    On Windows, os.kill(pid, 0) can return True for zombie processes
+    whose kernel objects haven't been released.  GetExitCodeProcess
+    reliably distinguishes running (STILL_ACTIVE) from terminated.
+    """
+    import ctypes
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    STILL_ACTIVE = 259
+    handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
         return False
+    exit_code = ctypes.c_ulong()
+    ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+    ctypes.windll.kernel32.CloseHandle(handle)
+    return exit_code.value == STILL_ACTIVE
 
 
 def _read_vlc_config_from_manifest(session: FunTimeIntegrationSession) -> tuple[int, str]:
@@ -349,4 +359,35 @@ def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session
         timeout=12,
         description="portrait sample to be moved into the integration weird dir",
     )
+
+
+@pytest.mark.integration
+def test_fun_time_quit_cleans_up_processes():
+    """The real quit path (AHK exit → orchestrator cleanup) must kill all child processes."""
+    temp_root = build_integration_temp_root()
+    config_path = build_integration_config(temp_root)
+    session = FunTimeIntegrationSession(config_path)
+    try:
+        session.start()
+
+        child_pids = session.read_child_pids()
+        live_pids = {name: pid for name, pid in child_pids.items() if pid and _is_pid_alive(pid)}
+        assert live_pids, "Expected at least some child processes to be running after startup"
+
+        session.quit_gracefully(timeout=15.0)
+
+        assert session._proc.poll() is not None, "Orchestrator should have exited"
+
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            still_alive = {name: pid for name, pid in live_pids.items() if _is_pid_alive(pid)}
+            if not still_alive:
+                break
+            time.sleep(0.5)
+        assert not still_alive, (
+            f"Quit path failed to clean up processes: {still_alive}\n{session._log_tail()}"
+        )
+    finally:
+        session.stop()
+        shutil.rmtree(temp_root, ignore_errors=True)
 
