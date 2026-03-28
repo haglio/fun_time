@@ -198,7 +198,11 @@ def get_window_rect(hwnd: int) -> tuple[int, int, int, int]:
 INPUT_KEYBOARD = 1
 KEYEVENTF_KEYUP = 0x0002
 VK_CONTROL = 0x11
+VK_MENU = 0x12  # Alt key
+VK_RETURN = 0x0D
+VK_D = 0x44
 VK_O = 0x4F
+KEYEVENTF_UNICODE = 0x0004
 
 
 class KEYBDINPUT(ctypes.Structure):
@@ -266,6 +270,51 @@ def send_ctrl_o() -> None:
         inputs[i].union.ki.wVk = vk
         inputs[i].union.ki.dwFlags = flags
     _user32.SendInput(4, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+
+
+def navigate_file_dialog_to_directory(directory: str) -> None:
+    """Navigate the foreground file dialog to *directory* via the address bar.
+
+    Mechanism: Alt+D focuses the address bar in any modern Windows file dialog
+    (IFileDialog / Vista+). We then type the path using KEYEVENTF_UNICODE
+    events and press Enter to navigate.
+    """
+    # Alt+D — focus the address bar
+    alt_d = (INPUT * 4)()
+    for i, (vk, flags) in enumerate([
+        (VK_MENU, 0),
+        (VK_D, 0),
+        (VK_D, KEYEVENTF_KEYUP),
+        (VK_MENU, KEYEVENTF_KEYUP),
+    ]):
+        alt_d[i].type = INPUT_KEYBOARD
+        alt_d[i].union.ki.wVk = vk
+        alt_d[i].union.ki.dwFlags = flags
+    _user32.SendInput(4, ctypes.byref(alt_d), ctypes.sizeof(INPUT))
+    time.sleep(0.1)
+
+    # Type the directory path using Unicode events
+    chars = (INPUT * (len(directory) * 2))()
+    for j, ch in enumerate(directory):
+        chars[j * 2].type = INPUT_KEYBOARD
+        chars[j * 2].union.ki.wScan = ord(ch)
+        chars[j * 2].union.ki.dwFlags = KEYEVENTF_UNICODE
+        chars[j * 2 + 1].type = INPUT_KEYBOARD
+        chars[j * 2 + 1].union.ki.wScan = ord(ch)
+        chars[j * 2 + 1].union.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
+    _user32.SendInput(len(directory) * 2, ctypes.byref(chars), ctypes.sizeof(INPUT))
+    time.sleep(0.1)
+
+    # Enter — navigate to the directory
+    enter = (INPUT * 2)()
+    enter[0].type = INPUT_KEYBOARD
+    enter[0].union.ki.wVk = VK_RETURN
+    enter[0].union.ki.dwFlags = 0
+    enter[1].type = INPUT_KEYBOARD
+    enter[1].union.ki.wVk = VK_RETURN
+    enter[1].union.ki.dwFlags = KEYEVENTF_KEYUP
+    _user32.SendInput(2, ctypes.byref(enter), ctypes.sizeof(INPUT))
+    time.sleep(0.15)
 
 
 def find_dialog_by_pid(pid: int, timeout_s: float = 1.0) -> int:

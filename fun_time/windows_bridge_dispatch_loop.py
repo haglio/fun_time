@@ -21,6 +21,7 @@ from .win32 import (
     find_window_by_pid,
     find_window_by_title,
     hide_window,
+    navigate_file_dialog_to_directory,
     send_vk_to_window,
     send_ctrl_o_to_window,
     send_key_to_window,
@@ -288,6 +289,9 @@ class DispatchLoopRunner:
                 dialog_hwnd = find_dialog_by_pid(self.primary_pid, timeout_s=1.0)
                 if dialog_hwnd:
                     activate_window(dialog_hwnd)
+                    default_dir = self.config.primary_sources.split("|")[0] if self.config.primary_sources else ""
+                    if default_dir:
+                        navigate_file_dialog_to_directory(default_dir)
                     wait_for_window_close(dialog_hwnd)
         finally:
             if should_manage_omnipause:
