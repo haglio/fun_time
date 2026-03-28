@@ -174,18 +174,28 @@ def _parse_playlist_ids(xml: str) -> tuple[list[int], int]:
     return all_ids, current_id
 
 
-def get_current_playlist_id(port: int, password: str) -> int:
-    """Return the VLC playlist ID of the currently playing item, or -1."""
+def vlc_advance_and_remove_current(port: int, password: str) -> int:
+    """Advance to the next playlist item and remove the current one.
+
+    Reads the playlist once, explicitly plays the next item via
+    ``pl_play&id=N`` (so VLC has a definite current item), then deletes
+    the old entry.  This avoids the race where ``pl_next`` + ``pl_delete``
+    leaves VLC with no current item.
+
+    Returns the deleted item's playlist ID on success, or -1 on failure.
+    """
     status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
     if status != 200 or not xml:
         return -1
-    _all_ids, current_id = _parse_playlist_ids(xml)
+    all_ids, current_id = _parse_playlist_ids(xml)
+    if not all_ids or current_id < 0 or current_id not in all_ids:
+        return -1
+    idx = all_ids.index(current_id)
+    if len(all_ids) > 1:
+        next_id = all_ids[(idx + 1) % len(all_ids)]
+        vlc_http_cmd(port, f"pl_play&id={next_id}", password)
+    vlc_http_cmd(port, f"pl_delete&id={current_id}", password)
     return current_id
-
-
-def vlc_delete_playlist_item(port: int, password: str, item_id: int) -> bool:
-    """Remove a single item from VLC's playlist by its playlist ID."""
-    return vlc_http_cmd(port, f"pl_delete&id={item_id}", password)
 
 
 def vlc_nav_step(port: int, password: str, direction: str) -> bool:
