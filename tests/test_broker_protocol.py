@@ -81,6 +81,10 @@ def test_handle_line_sends_stroke_bpm_and_sync_messages():
         udp_send=lambda _sock, _host, _port, msg: sends.append(msg),
     )
 
+    # Pre-set auto active so BPM/stroke inference doesn't fire extra messages
+    controller.set_auto(object(), True)
+    sends.clear()
+
     controller.handle_line(object(), "StrokeName: Pull, PatternDuration: 2.0 bpm 120, beats 4 continue StrokeName:")
 
     assert sends == [
@@ -131,6 +135,66 @@ def test_set_auto_suppresses_robot_hand_when_disabled():
         (Path("mode.txt"), "0"),
     ]
     assert sends == ["AUTO 0", "HIDE", "AUTO 0", "HIDE"]
+
+
+def test_publish_sends_auto_to_extra_targets():
+    """AUTO messages should be sent to all auto_udp_targets in addition to the primary."""
+    sends: list[tuple[str, int, str]] = []
+    controller = BrokerAutoController(
+        state_file=Path("mode.txt"),
+        udp_host="127.0.0.1",
+        udp_port=9001,
+        logger=MagicMock(),
+        write_mode=lambda _path, _value, _logger: None,
+        udp_send=lambda _sock, host, port, msg: sends.append((host, port, msg)),
+        auto_udp_targets=[("127.0.0.1", 9002)],
+    )
+
+    controller.set_auto(object(), True)
+
+    # Primary target gets AUTO + SHOW
+    assert ("127.0.0.1", 9001, "AUTO 1") in sends
+    assert ("127.0.0.1", 9001, "SHOW") in sends
+    # Extra target gets AUTO only (not SHOW)
+    assert ("127.0.0.1", 9002, "AUTO 1") in sends
+    assert ("127.0.0.1", 9002, "SHOW") not in sends
+
+
+def test_stroke_bpm_only_sent_to_primary_target():
+    """STROKE/BPM/SYNC messages should NOT go to auto_udp_targets."""
+    sends: list[tuple[str, int, str]] = []
+    controller = BrokerAutoController(
+        state_file=Path("mode.txt"),
+        udp_host="127.0.0.1",
+        udp_port=9001,
+        logger=MagicMock(),
+        write_mode=lambda _path, _value, _logger: None,
+        udp_send=lambda _sock, host, port, msg: sends.append((host, port, msg)),
+        auto_udp_targets=[("127.0.0.1", 9002)],
+    )
+
+    controller.handle_line(object(), "StrokeName: Pull, PatternDuration: 2.0")
+
+    port_9002_msgs = [msg for h, p, msg in sends if p == 9002]
+    assert all("STROKE" not in m and "PATTERN" not in m and "SYNC" not in m for m in port_9002_msgs)
+
+
+def test_infer_auto_from_stroke_sends_to_extra_targets():
+    """BPM/stroke inference should send AUTO 1 to extra targets too."""
+    sends: list[tuple[str, int, str]] = []
+    controller = BrokerAutoController(
+        state_file=Path("mode.txt"),
+        udp_host="127.0.0.1",
+        udp_port=9001,
+        logger=MagicMock(),
+        write_mode=lambda _path, _value, _logger: None,
+        udp_send=lambda _sock, host, port, msg: sends.append((host, port, msg)),
+        auto_udp_targets=[("127.0.0.1", 9002)],
+    )
+
+    controller.handle_line(object(), "bpm 120, beats 4")
+
+    assert ("127.0.0.1", 9002, "AUTO 1") in sends
 
 
 def test_reenabling_robot_hand_restores_auto_visibility_when_auto_is_active():
