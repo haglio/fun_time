@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import base64
+import logging
 import re
 import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def vlc_http_req(port: int, path: str, password: str, user: str = "") -> tuple[int, str]:
@@ -17,7 +20,8 @@ def vlc_http_req(port: int, path: str, password: str, user: str = "") -> tuple[i
         with urllib.request.urlopen(request, timeout=5) as response:
             status = getattr(response, "status", 200)
             return status, response.read().decode("utf-8", errors="replace")
-    except Exception:
+    except Exception as exc:
+        logger.debug("vlc_http_req port=%s path=%s error=%r", port, path, exc)
         return 0, ""
 
 
@@ -143,6 +147,44 @@ def set_repeat_mode(
         vlc_http_cmd(port, "pl_repeat" if target == "one" else "pl_loop", password)
         sleep_fn(0.12)
     return False
+
+
+def _parse_playlist_ids(xml: str) -> tuple[list[int], int]:
+    """Return (ordered_ids, current_id) from a playlist_jstree.xml response.
+
+    Returns ([], -1) if the playlist cannot be parsed.
+    """
+    all_ids = [int(m) for m in re.findall(r'<leaf\b[^>]+\bid="(\d+)"', xml)]
+    current_match = re.search(r'<leaf\b[^>]+\bcurrent="current"[^>]+\bid="(\d+)"', xml)
+    if not current_match:
+        current_match = re.search(r'<leaf\b[^>]+\bid="(\d+)"[^>]+\bcurrent="current"', xml)
+    current_id = int(current_match.group(1)) if current_match else -1
+    return all_ids, current_id
+
+
+def vlc_nav_step(port: int, password: str, direction: str) -> bool:
+    """Navigate to the previous or next playlist item via pl_play&id=N.
+
+    Unlike pl_previous/pl_next, this bypasses VLC's restart-threshold
+    behavior (where pl_previous restarts the current track if you are
+    more than a few seconds in).  The target item is resolved from the
+    live playlist and played directly by ID.
+
+    direction: "prev" or "next"
+    """
+    status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
+    if status != 200 or not xml:
+        return False
+    all_ids, current_id = _parse_playlist_ids(xml)
+    if not all_ids or current_id < 0 or current_id not in all_ids:
+        logger.warning("vlc_nav_step: could not resolve playlist position (ids=%s current=%s)", all_ids, current_id)
+        return False
+    idx = all_ids.index(current_id)
+    if direction == "prev":
+        target_id = all_ids[(idx - 1) % len(all_ids)]
+    else:
+        target_id = all_ids[(idx + 1) % len(all_ids)]
+    return vlc_http_cmd(port, f"pl_play&id={target_id}", password)
 
 
 def replace_playlist_from_file(
