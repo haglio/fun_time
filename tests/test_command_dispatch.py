@@ -302,7 +302,9 @@ def test_robot_toggle_disables_and_hides_when_enabled_and_mode_on(tmp_path: Path
 
     assert new_state.robot_hand_mode is False
     assert config.robot_hand_enabled_file.read_text(encoding="utf-8") == "0"
-    assert any(op.op == "hide" and op.title == "Robot Hand" for op in ops)
+    # Robot Hand app manages its own visibility; dispatch only manages z-order
+    assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is False for op in ops)
+    assert not any(op.op == "hide" and op.title == "Robot Hand" for op in ops)
 
 
 def test_robot_toggle_enables_and_shows_when_disabled_and_mode_state_on(tmp_path: Path):
@@ -316,7 +318,8 @@ def test_robot_toggle_enables_and_shows_when_disabled_and_mode_state_on(tmp_path
 
     assert new_state.robot_hand_mode is True
     assert config.robot_hand_enabled_file.read_text(encoding="utf-8") == "1"
-    assert any(op.op == "show" and op.title == "Robot Hand" for op in ops)
+    # Robot Hand app manages its own visibility; dispatch only manages z-order
+    assert not any(op.op == "show" and op.title == "Robot Hand" for op in ops)
     assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is True for op in ops)
 
 
