@@ -53,14 +53,13 @@ def apply_sync_robot_hand(
     robot_hand_mode_on: bool,
     omni_paused: bool,
     enabled_file: str | Path,
-    mode_state_file: str | Path,
+    mode_state_on: bool,
     paused_file: str | Path,
     audio_paused_file: str | Path,
     primary_port: int,
     password: str,
 ) -> RobotHandFlowResult:
     enabled = read_flag_file(enabled_file, True)
-    mode_state_on = read_flag_file(mode_state_file, False)
     plan = build_robot_hand_plan(
         "sync-state",
         robot_hand_mode_on=robot_hand_mode_on,

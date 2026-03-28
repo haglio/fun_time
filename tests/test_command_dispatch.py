@@ -350,13 +350,12 @@ def test_sync_robot_hand_skips_when_omni_paused(tmp_path: Path):
 def test_sync_robot_hand_transitions_to_robot_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
     state = _make_state(robot_hand_mode=False, omni_paused=False)
 
     with (
         patch("fun_time.runtime_flow.ensure_playback_state", return_value=True),
     ):
-        new_state, ops = dispatch_command("sync_robot_hand", state, config)
+        new_state, ops = dispatch_command("sync_robot_hand", state, config, auto_mode_on=True)
 
     assert new_state.robot_hand_mode is True
 
