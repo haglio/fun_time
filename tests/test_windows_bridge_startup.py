@@ -251,8 +251,23 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
     assert popen.call_count == 4
     first_command = popen.call_args_list[0].args[0]
     assert first_command[:2] == ["vlc.exe", "--no-one-instance"]
-    assert "primary_a" in first_command
-    assert "primary_b" in first_command
+
+    # Sources are written to .m3u playlist files to stay under Windows' command-line
+    # length limit.  Check the playlist file rather than the command for source paths.
+    primary_playlist = tmp_path / "state" / "vlc_primary_playlist.m3u"
+    portrait_playlist = tmp_path / "state" / "vlc_portrait_playlist.m3u"
+    landscape_playlist = tmp_path / "state" / "vlc_landscape_playlist.m3u"
+    assert str(primary_playlist) in first_command
+    assert primary_playlist.exists()
+    primary_content = primary_playlist.read_text(encoding="utf-8")
+    assert "primary_a" in primary_content
+    assert "primary_b" in primary_content
+    assert portrait_playlist.exists()
+    assert landscape_playlist.exists()
+    landscape_content = landscape_playlist.read_text(encoding="utf-8")
+    assert "landscape_a" in landscape_content
+    assert "landscape_b" in landscape_content
+
     wait_http.assert_any_call(8090, "pw", 7000)
     wait_http.assert_any_call(8091, "pw", 7000)
     wait_http.assert_any_call(8092, "pw", 7000)
@@ -470,4 +485,33 @@ def test_build_vlc_launch_command_expands_directory_to_individual_files(tmp_path
     assert str(sub / "c.mp4") in cmd
     assert str(tmp_path) not in cmd  # directory itself must not appear
     assert not any("ignore.txt" in arg for arg in cmd)
+
+
+def test_build_vlc_launch_command_writes_playlist_file_when_playlist_path_given(tmp_path, monkeypatch):
+    """When playlist_path is provided, expanded sources must be written to that
+    file and only the playlist path added to the command (not individual file paths).
+    This is required to stay under Windows' 32 767-character command-line limit
+    when there are hundreds of video files."""
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    playlist_path = tmp_path / "out" / "test.m3u"
+
+    with patch("fun_time.windows_bridge_startup.random.shuffle", side_effect=lambda x: None):
+        cmd = _build_vlc_launch_command(
+            "vlc.exe", "a.mp4|b.mp4|c.mp4", 8090, "pw", repeat_mode="loop",
+            playlist_path=playlist_path,
+        )
+
+    # Playlist file path must appear in the command
+    assert str(playlist_path) in cmd
+    # Individual file paths must NOT appear in the command
+    assert "a.mp4" not in cmd
+    assert "b.mp4" not in cmd
+    assert "c.mp4" not in cmd
+    # Playlist file must exist and contain all sources
+    assert playlist_path.exists()
+    content = playlist_path.read_text(encoding="utf-8")
+    assert "a.mp4" in content
+    assert "b.mp4" in content
+    assert "c.mp4" in content
 
