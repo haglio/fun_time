@@ -213,7 +213,8 @@ class TestHotkeySuspendDuringIntegration:
 
 
 class TestRunPythonOrchestratedBridge:
-    def test_runs_startup_then_launches_ahk_then_shuts_down(self, cfg_factory, tmp_path):
+    def test_runs_startup_then_launches_ahk_then_shuts_down(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME

@@ -103,7 +103,8 @@ class TestExecuteWindowOps:
         mock_topmost.assert_called_once_with(12345, True)
         assert remaining == []
 
-    def test_activate_calls_win32(self):
+    def test_activate_calls_win32(self, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         ops = [WindowOp(op="activate", title="Robot Hand")]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
@@ -112,7 +113,8 @@ class TestExecuteWindowOps:
         mock_activate.assert_called_once_with(12345)
         assert remaining == []
 
-    def test_show_calls_win32(self):
+    def test_show_calls_win32(self, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         ops = [WindowOp(op="show", title="Robot Hand")]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
              patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show:
@@ -707,7 +709,8 @@ class TestHandleOpenFileDialog:
         # Should still send Ctrl+O to the primary window
         mock_ctrl_o.assert_called_once_with(1001)
 
-    def test_forwards_suspend_and_unsuspend_via_dispatch(self, tmp_path):
+    def test_forwards_suspend_and_unsuspend_via_dispatch(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         """Suspend/unsuspend reach AHK via _dispatch forwarding remaining ops."""
         runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
