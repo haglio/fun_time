@@ -149,8 +149,8 @@ def set_repeat_mode(
     return False
 
 
-def _parse_playlist_items(xml: str) -> tuple[list[tuple[int, str]], int]:
-    """Return ([(id, uri), ...], current_id) from a playlist_jstree.xml response.
+def _parse_playlist_ids(xml: str) -> tuple[list[int], int]:
+    """Return (ordered_ids, current_id) from a playlist_jstree.xml response.
 
     Returns ([], -1) if the playlist cannot be parsed.
 
@@ -159,20 +159,19 @@ def _parse_playlist_items(xml: str) -> tuple[list[tuple[int, str]], int]:
     and must be excluded from the navigation sequence.  The numeric suffix N
     is what VLC's ``pl_play&id=N`` command expects.
     """
-    items: list[tuple[int, str]] = []
+    all_ids: list[int] = []
     current_id = -1
     for attrs in re.findall(r'<item\b([^>]*)>', xml):
         if 'uri=' not in attrs:
             continue  # skip container nodes (no uri= means not a media item)
         id_m = re.search(r'\bid="plid_(\d+)"', attrs)
-        uri_m = re.search(r'\buri="([^"]*)"', attrs)
-        if not id_m or not uri_m:
+        if not id_m:
             continue
         item_id = int(id_m.group(1))
-        items.append((item_id, uri_m.group(1)))
+        all_ids.append(item_id)
         if 'current="current"' in attrs:
             current_id = item_id
-    return items, current_id
+    return all_ids, current_id
 
 
 def vlc_nav_step(port: int, password: str, direction: str) -> bool:
@@ -183,35 +182,21 @@ def vlc_nav_step(port: int, password: str, direction: str) -> bool:
     more than a few seconds in).  The target item is resolved from the
     live playlist and played directly by ID.
 
-    If the target item's file no longer exists on disk (e.g. moved to
-    weird_dir), it is deleted from VLC's playlist and the next candidate
-    in the same direction is tried.  This "playlist healing" prevents
-    VLC from showing error dialogs for missing files.
-
     direction: "prev" or "next"
     """
     status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
     if status != 200 or not xml:
         return False
-    items, current_id = _parse_playlist_items(xml)
-    ids = [item_id for item_id, _ in items]
-    if not ids or current_id < 0 or current_id not in ids:
-        logger.warning("vlc_nav_step: could not resolve playlist position (ids=%s current=%s)", ids, current_id)
+    all_ids, current_id = _parse_playlist_ids(xml)
+    if not all_ids or current_id < 0 or current_id not in all_ids:
+        logger.warning("vlc_nav_step: could not resolve playlist position (ids=%s current=%s)", all_ids, current_id)
         return False
-    idx = ids.index(current_id)
-    n = len(ids)
-    step = -1 if direction == "prev" else 1
-    for offset in range(1, n):
-        candidate_idx = (idx + step * offset) % n
-        candidate_id, candidate_uri = items[candidate_idx]
-        candidate_path = decode_file_uri(candidate_uri)
-        if candidate_path and not Path(candidate_path).exists():
-            logger.info("vlc_nav_step: skipping dead entry plid_%s (%s)", candidate_id, candidate_path)
-            vlc_http_cmd(port, f"pl_delete&id={candidate_id}", password)
-            continue
-        return vlc_http_cmd(port, f"pl_play&id={candidate_id}", password)
-    logger.warning("vlc_nav_step: all playlist items except current are dead")
-    return False
+    idx = all_ids.index(current_id)
+    if direction == "prev":
+        target_id = all_ids[(idx - 1) % len(all_ids)]
+    else:
+        target_id = all_ids[(idx + 1) % len(all_ids)]
+    return vlc_http_cmd(port, f"pl_play&id={target_id}", password)
 
 
 def replace_playlist_from_file(
