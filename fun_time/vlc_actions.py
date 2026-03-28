@@ -153,12 +153,24 @@ def _parse_playlist_ids(xml: str) -> tuple[list[int], int]:
     """Return (ordered_ids, current_id) from a playlist_jstree.xml response.
 
     Returns ([], -1) if the playlist cannot be parsed.
+
+    VLC 3.x uses ``<item id="plid_N" uri="...">`` for media items.
+    Container nodes (root node, "Playlist" folder) have no ``uri=`` attribute
+    and must be excluded from the navigation sequence.  The numeric suffix N
+    is what VLC's ``pl_play&id=N`` command expects.
     """
-    all_ids = [int(m) for m in re.findall(r'<leaf\b[^>]+\bid="(\d+)"', xml)]
-    current_match = re.search(r'<leaf\b[^>]+\bcurrent="current"[^>]+\bid="(\d+)"', xml)
-    if not current_match:
-        current_match = re.search(r'<leaf\b[^>]+\bid="(\d+)"[^>]+\bcurrent="current"', xml)
-    current_id = int(current_match.group(1)) if current_match else -1
+    all_ids: list[int] = []
+    current_id = -1
+    for attrs in re.findall(r'<item\b([^>]*)>', xml):
+        if 'uri=' not in attrs:
+            continue  # skip container nodes (no uri= means not a media item)
+        id_m = re.search(r'\bid="plid_(\d+)"', attrs)
+        if not id_m:
+            continue
+        item_id = int(id_m.group(1))
+        all_ids.append(item_id)
+        if 'current="current"' in attrs:
+            current_id = item_id
     return all_ids, current_id
 
 
