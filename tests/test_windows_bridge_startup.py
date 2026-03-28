@@ -437,3 +437,37 @@ def test_build_vlc_launch_command_shuffles_sources_in_python(monkeypatch):
     a_idx, b_idx, c_idx = cmd.index("a.mp4"), cmd.index("b.mp4"), cmd.index("c.mp4")
     assert c_idx < b_idx < a_idx, "Sources should appear in the shuffled (reversed) order"
 
+
+def test_build_vlc_launch_command_omits_start_paused_for_satellite_vlc_when_muted(monkeypatch):
+    """Satellite VLCs (loop mode) must not get --start-paused even when muted.
+    --volume 0 already prevents audio blips; --start-paused would cause every
+    subsequent playlist item to start paused (VLC applies the flag to every
+    item transition), producing a black screen after the first video ends."""
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="loop", mute=True)
+    assert "--start-paused" not in cmd
+
+
+def test_build_vlc_launch_command_expands_directory_to_individual_files(tmp_path, monkeypatch):
+    """Directory sources must be recursively expanded into individual .mp4 file
+    paths. This ensures every video is a leaf item in VLC's playlist so that
+    vlc_nav_step can resolve adjacent items by ID.  Without expansion VLC presents
+    the directory as a single folder node and vlc_nav_step finds no leaves."""
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (tmp_path / "a.mp4").touch()
+    (tmp_path / "b.mp4").touch()
+    (sub / "c.mp4").touch()
+    (tmp_path / "ignore.txt").touch()  # non-mp4 must be ignored
+
+    with patch("fun_time.windows_bridge_startup.random.shuffle", side_effect=lambda x: None):
+        cmd = _build_vlc_launch_command("vlc.exe", str(tmp_path), 8090, "pw", repeat_mode="loop")
+
+    assert str(tmp_path / "a.mp4") in cmd
+    assert str(tmp_path / "b.mp4") in cmd
+    assert str(sub / "c.mp4") in cmd
+    assert str(tmp_path) not in cmd  # directory itself must not appear
+    assert not any("ignore.txt" in arg for arg in cmd)
+

@@ -339,14 +339,27 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
         password,
     ]
     if mute or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
-        command.extend(["--volume", "0", "--start-paused"])
+        command.extend(["--volume", "0"])
+        if repeat_mode == "repeat":
+            # Primary VLC only: prevents the video from advancing during the
+            # loading screen so the user sees it from the beginning on reveal.
+            # Satellite VLCs (loop mode) must NOT get --start-paused: VLC
+            # applies it to every item transition, causing each video after the
+            # first to start paused and producing a black screen.
+            command.append("--start-paused")
     if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
         command.append("--no-video")
     if repeat_mode == "repeat":
         command.append("--repeat")
     elif repeat_mode == "loop":
         command.append("--loop")
-    sources_list = [part for part in sources.split("|") if part]
+    sources_list: list[str] = []
+    for source in [part for part in sources.split("|") if part]:
+        p = Path(source)
+        if p.is_dir():
+            sources_list.extend(str(f) for f in sorted(p.rglob("*.mp4")))
+        else:
+            sources_list.append(source)
     random.shuffle(sources_list)
     command.extend(sources_list)
     return command
