@@ -134,8 +134,6 @@ def dispatch_command(
     command: str,
     state: BridgeState,
     config: BridgeConfig,
-    *,
-    auto_mode_on: bool = False,
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Dispatch a dashboard/hotkey command, returning updated state and window operations."""
     ops: list[WindowOp] = []
@@ -208,7 +206,7 @@ def dispatch_command(
         return _dispatch_robot_toggle(state, config, ops)
 
     if command == "sync_robot_hand":
-        return _dispatch_sync_robot_hand(state, config, auto_mode_on=auto_mode_on)
+        return _dispatch_sync_robot_hand(state, config)
 
     if command == "vlc_nudge_prev":
         ops.append(WindowOp(op="send_vk", vk=0x25))  # VK_LEFT
@@ -356,21 +354,23 @@ def _dispatch_robot_toggle(
         password=config.vlc_password,
     )
     state = replace(state, robot_hand_mode=result.next_robot_hand_mode)
-    # Robot Hand app manages its own window visibility via UDP SHOW/HIDE
-    # from the broker.  We only manage z-order (topmost/activate) here.
-    if result.enforce_outputs and result.is_transition:
+    if result.enforce_outputs:
         if result.enforce_active:
-            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
-            ops.append(WindowOp(op="activate", title="Robot Hand"))
+            ops.append(WindowOp(op="show", title="Robot Hand"))
+            if result.is_transition:
+                ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
+                ops.append(WindowOp(op="activate", title="Robot Hand"))
         else:
-            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
+            if result.is_transition:
+                ops.append(WindowOp(op="hide", title="Robot Hand"))
+                ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
 
 
 def _dispatch_sync_robot_hand(
-    state: BridgeState, config: BridgeConfig, *, auto_mode_on: bool = False,
+    state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     if state.omni_paused:
         return state, []
@@ -379,20 +379,23 @@ def _dispatch_sync_robot_hand(
         robot_hand_mode_on=state.robot_hand_mode,
         omni_paused=state.omni_paused,
         enabled_file=config.robot_hand_enabled_file,
-        mode_state_on=auto_mode_on,
+        mode_state_file=config.robot_hand_mode_file,
         paused_file=config.robot_hand_paused_file,
         audio_paused_file=config.audio_paused_file,
         primary_port=config.primary_port,
         password=config.vlc_password,
     )
     state = replace(state, robot_hand_mode=result.next_robot_hand_mode)
-    # Robot Hand app manages its own window visibility via UDP SHOW/HIDE.
-    if result.enforce_outputs and result.is_transition:
+    if result.enforce_outputs:
         if result.enforce_active:
-            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
-            ops.append(WindowOp(op="activate", title="Robot Hand"))
+            if result.is_transition:
+                ops.append(WindowOp(op="show", title="Robot Hand"))
+                ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
+                ops.append(WindowOp(op="activate", title="Robot Hand"))
         else:
-            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
+            if result.is_transition:
+                ops.append(WindowOp(op="hide", title="Robot Hand"))
+                ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops

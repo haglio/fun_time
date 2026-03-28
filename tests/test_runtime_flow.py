@@ -13,9 +13,11 @@ from fun_time.runtime_flow import (
 
 def test_sync_robot_hand_reads_state_files_and_applies_playback(monkeypatch, tmp_path: Path):
     enabled_file = tmp_path / "enabled.txt"
+    mode_state_file = tmp_path / "mode.txt"
     paused_file = tmp_path / "paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     enabled_file.write_text("1", encoding="utf-8")
+    mode_state_file.write_text("1", encoding="utf-8")
     calls: list[tuple[int, str, bool]] = []
 
     monkeypatch.setattr(
@@ -27,7 +29,7 @@ def test_sync_robot_hand_reads_state_files_and_applies_playback(monkeypatch, tmp
         robot_hand_mode_on=False,
         omni_paused=False,
         enabled_file=enabled_file,
-        mode_state_on=True,
+        mode_state_file=mode_state_file,
         paused_file=paused_file,
         audio_paused_file=audio_paused_file,
         primary_port=8123,
