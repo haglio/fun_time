@@ -3,8 +3,8 @@ state/
 
 favs.csv
 
-# Claude Code ephemeral worktrees
-.claude/worktrees/
+# Claude Code local config
+.claude/
 
 .venv/
 __pycache__/
