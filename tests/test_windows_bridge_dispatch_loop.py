@@ -399,6 +399,104 @@ class TestDispatchLoopRunner:
         assert loaded.locked3 is True
 
 
+class TestRobotHandActivationRetry:
+    """When entering Robot Hand mode, the window may not be visible yet
+    (Robot Hand app hasn't processed UDP SHOW). The dispatch loop must
+    retry activation on subsequent ticks."""
+
+    def _make_runner(self, tmp_path, **kwargs):
+        from fun_time.command_dispatch import BridgeConfig
+
+        config = BridgeConfig(
+            primary_port=9090,
+            portrait_port=9091,
+            landscape_port=9092,
+            vlc_password="test",
+            favs_file=tmp_path / "favs.txt",
+            weird_dir=tmp_path / "weird",
+            state_dir=tmp_path,
+            primary_sources="",
+            portrait_sources="",
+            landscape_sources="",
+            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
+            robot_hand_mode_file=tmp_path / "rh_mode.txt",
+            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
+            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            audio_paused_file=tmp_path / "audio_paused.txt",
+            dashboard_state_file=tmp_path / "dashboard_state.ini",
+        )
+        return DispatchLoopRunner(
+            config=config,
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            shared_state_file=tmp_path / "shared_state.ini",
+            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            primary_pid=100,
+            mfp_pid=200,
+            dashboard_enabled=False,
+            **kwargs,
+        )
+
+    def test_retries_robot_hand_window_activation_on_next_tick(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=0)
+        runner.config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
+        runner.config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+        activate_calls = []
+
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window"):
+            runner.tick()  # transition tick — window not found
+
+        assert runner.state.robot_hand_mode is True
+
+        # Second tick: window now visible
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345) as mock_find, \
+             patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show, \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
+            runner.tick()
+
+        mock_find.assert_called_with("Robot Hand")
+        mock_show.assert_called_with(12345)
+        mock_topmost.assert_called_with(12345, True)
+        mock_activate.assert_called_with(12345)
+
+    def test_clears_pending_flag_after_successful_activation(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=0)
+        runner.config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
+        runner.config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window"):
+            runner.tick()  # transition tick — window not found
+
+        # Second tick: window found, activation succeeds
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
+            runner.tick()
+
+        mock_activate.assert_called_once()
+
+        # Third tick: no more activation attempts
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345) as mock_find, \
+             patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show, \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
+            runner.tick()
+
+        # find_window_by_title may be called for other ops, but show/topmost/activate
+        # should NOT be called for Robot Hand retry
+        mock_show.assert_not_called()
+        mock_topmost.assert_not_called()
+        mock_activate.assert_not_called()
+
+
 class TestHandleOmniPauseToggle:
     """Tests for omnipause toggle moved from AHK to Python."""
 
