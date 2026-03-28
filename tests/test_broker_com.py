@@ -285,9 +285,13 @@ class TestStrokeAndBpmFromSerial:
         runner.join(timeout=2.0)
 
         assert s.udp_messages == [
+            "AUTO 1",
+            "SHOW",
             "STROKE Twist",
             "PATTERN 1.5",
             "SYNC",
+            "AUTO 1",
+            "SHOW",
             "BPM 90",
             "BEATS 2",
             "SYNC",

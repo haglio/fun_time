@@ -91,12 +91,14 @@ class BrokerAutoController:
 
         stroke_match = RE_STROKE.search(line)
         if stroke_match:
+            self.set_auto(sock, True)
             self.udp_send(sock, self.udp_host, self.udp_port, f"STROKE {stroke_match.group(1).strip()}")
             self.udp_send(sock, self.udp_host, self.udp_port, f"PATTERN {stroke_match.group(2)}")
             self.udp_send(sock, self.udp_host, self.udp_port, "SYNC")
 
         bpm_match = RE_BPM.search(line)
         if bpm_match:
+            self.set_auto(sock, True)
             self.udp_send(sock, self.udp_host, self.udp_port, f"BPM {bpm_match.group(1)}")
             self.udp_send(sock, self.udp_host, self.udp_port, f"BEATS {bpm_match.group(2)}")
 

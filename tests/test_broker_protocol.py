@@ -70,6 +70,44 @@ def test_set_auto_skips_transition_log_when_value_is_unchanged():
     assert logger.info.call_count == 0
 
 
+def test_handle_line_infers_auto_mode_from_bpm_message():
+    """BPM messages are exclusive to auto mode — if we see one, auto mode is on."""
+    sends: list[str] = []
+    controller = BrokerAutoController(
+        state_file=Path("mode.txt"),
+        udp_host="127.0.0.1",
+        udp_port=9001,
+        logger=MagicMock(),
+        write_mode=lambda _path, _value, _logger: None,
+        udp_send=lambda _sock, _host, _port, msg: sends.append(msg),
+    )
+
+    controller.handle_line(object(), "bpm 120, beats 4")
+
+    assert controller.is_active is True
+    assert "AUTO 1" in sends
+    assert "SHOW" in sends
+
+
+def test_handle_line_infers_auto_mode_from_stroke_message():
+    """Stroke pattern messages are exclusive to auto mode."""
+    sends: list[str] = []
+    controller = BrokerAutoController(
+        state_file=Path("mode.txt"),
+        udp_host="127.0.0.1",
+        udp_port=9001,
+        logger=MagicMock(),
+        write_mode=lambda _path, _value, _logger: None,
+        udp_send=lambda _sock, _host, _port, msg: sends.append(msg),
+    )
+
+    controller.handle_line(object(), "StrokeName: Pull, PatternDuration: 2.0")
+
+    assert controller.is_active is True
+    assert "AUTO 1" in sends
+    assert "SHOW" in sends
+
+
 def test_handle_line_sends_stroke_bpm_and_sync_messages():
     sends: list[str] = []
     controller = BrokerAutoController(
@@ -84,9 +122,13 @@ def test_handle_line_sends_stroke_bpm_and_sync_messages():
     controller.handle_line(object(), "StrokeName: Pull, PatternDuration: 2.0 bpm 120, beats 4 continue StrokeName:")
 
     assert sends == [
+        "AUTO 1",
+        "SHOW",
         "STROKE Pull",
         "PATTERN 2.0",
         "SYNC",
+        "AUTO 1",
+        "SHOW",
         "BPM 120",
         "BEATS 4",
         "SYNC",
