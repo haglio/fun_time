@@ -89,6 +89,7 @@ class BrokerConfig:
     udp_host: str
     udp_port: int
     auto_stale_timeout: float
+    dispatch_udp_port: int = 50556
 
 
 @dataclass(frozen=True)
@@ -266,6 +267,7 @@ def _load_broker_config(broker_raw: dict[str, Any], source_path: Path) -> Broker
         udp_host=_require_typed_value(broker_raw, "udp_host", source_path, "config.broker", str),
         udp_port=_require_typed_value(broker_raw, "udp_port", source_path, "config.broker", int),
         auto_stale_timeout=_require_typed_value(broker_raw, "auto_stale_timeout", source_path, "config.broker", float),
+        dispatch_udp_port=broker_raw.get("dispatch_udp_port", 50556),
     )
 
 

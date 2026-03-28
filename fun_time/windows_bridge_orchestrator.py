@@ -15,7 +15,8 @@ import sys
 import threading
 from pathlib import Path
 
-from .runtime_flow import read_flag_file
+from .dispatch_udp import AutoModeReceiver
+from .runtime_flow import read_flag_file, write_flag_file
 from .startup_progress import NullProgress, StartupProgress
 from .vlc_actions import ensure_playback_state
 from .windows_bridge_dispatch_loop import (
@@ -36,15 +37,14 @@ logger = logging.getLogger(__name__)
 
 
 def should_start_in_robot_hand_mode(
-    broker_mode_file: str | Path,
     shutdown_mode_file: str | Path,
 ) -> bool:
     """Check whether Robot Hand should be active at startup.
 
-    Returns True if either the broker's live mode file or the previous
-    session's shutdown file indicates auto mode was (or is) on.
+    Returns True if the previous session ended in auto mode.
+    Live broker detection happens via UDP after the dispatch loop starts.
     """
-    return read_flag_file(broker_mode_file, False) or read_flag_file(shutdown_mode_file, False)
+    return read_flag_file(shutdown_mode_file, False)
 
 
 def write_pids_file(path: Path, result: StartupResult) -> None:
@@ -254,6 +254,26 @@ def run_python_orchestrated_bridge(
     wb_log_path = Path(manifest["runtime"]["windows_bridge_log_file"])
     _add_dispatch_file_handler(wb_log_path)
 
+    # Check shutdown persistence — if previous session ended in auto mode,
+    # start with Robot Hand active immediately (no waiting for broker).
+    shutdown_file = state_dir / "robot_hand_mode_at_shutdown.txt"
+    start_in_robot_hand = should_start_in_robot_hand_mode(shutdown_file)
+    if start_in_robot_hand:
+        primary_port = int(manifest["controller"]["primary_vlc_port"])
+        password = manifest["controller"]["vlc_pass"]
+        ensure_playback_state(primary_port, password, should_play=False)
+        logger.info("Auto mode detected at startup — pausing Primary VLC for Robot Hand")
+
+    # Start UDP listener for auto-mode signals from the broker.
+    # The broker sends AUTO 1/0 to this port; the dispatch loop reads
+    # from the receiver instead of polling robot_hand_mode.txt.
+    from .config import load_config as _load_config
+    _cfg = _load_config(manifest["runtime"]["config_path"])
+    auto_receiver = AutoModeReceiver(
+        port=_cfg.broker.dispatch_udp_port, initial=start_in_robot_hand,
+    )
+    auto_receiver.start()
+
     dispatch_runner = DispatchLoopRunner(
         config=bridge_config,
         dashboard_cmd_file=Path(manifest["commands"]["dashboard_cmd_file"]),
@@ -265,18 +285,9 @@ def run_python_orchestrated_bridge(
         landscape_pid=result.landscape_pid,
         dashboard_pid=result.dashboard_pid,
         dashboard_enabled=dashboard_enabled,
+        auto_mode_source=auto_receiver,
+        initial_robot_hand_mode=start_in_robot_hand,
     )
-    # If the OSR2 is in auto mode (detected by the broker during startup, or
-    # persisted from the previous session's shutdown), pause Primary VLC now
-    # so Robot Hand is the active device from the start.
-    if should_start_in_robot_hand_mode(
-        bridge_config.robot_hand_mode_file,
-        state_dir / "robot_hand_mode_at_shutdown.txt",
-    ):
-        primary_port = int(manifest["controller"]["primary_vlc_port"])
-        password = manifest["controller"]["vlc_pass"]
-        ensure_playback_state(primary_port, password, should_play=False)
-        logger.info("Auto mode detected at startup — pausing Primary VLC for Robot Hand")
 
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()
@@ -299,6 +310,9 @@ def run_python_orchestrated_bridge(
     finally:
         dispatch_runner.stop()
         dispatch_thread.join(timeout=2.0)
+        auto_receiver.stop()
+        # Persist robot hand mode for the next session's startup check.
+        write_flag_file(shutdown_file, dispatch_runner.state.robot_hand_mode)
         logger.info("AHK exited — shutting down child processes")
         _shutdown_children(result)
 
