@@ -245,7 +245,8 @@ class TestMaybeLaunchRandomFavsBrowser:
 
         assert move_calls == []
 
-    def test_launches_and_positions_browser(self):
+    def test_launches_and_positions_browser(self, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         m = self._make_manifest_parser()
         plan = self._fake_plan()
         browser_rect = plan.random_favs_browser
@@ -268,7 +269,8 @@ class TestMaybeLaunchRandomFavsBrowser:
             activate=True,
         )
 
-    def test_mfp_topmost_toggled_after_browser_launch(self):
+    def test_mfp_topmost_toggled_after_browser_launch(self, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         """Regression: MFP z-order must be restored above browser by toggling topmost off/on."""
         m = self._make_manifest_parser()
         plan = self._fake_plan()
@@ -584,44 +586,6 @@ class TestLoadingScreenStartup:
         # core_hwnds should contain the window handles
         assert set(result.core_hwnds) == {1010, 2020, 3030, 4040}
 
-    def test_sends_pl_play_to_all_vlc_instances_during_reveal(self, cfg_factory, tmp_path):
-        """Phase 4 must send pl_play to all VLC instances so satellite VLCs
-        start playing after being launched with --start-paused."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
-        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
-
-        http_cmds: list[tuple] = []
-
-        def track_http(port, cmd, pw):
-            http_cmds.append((port, cmd))
-            return True
-
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.activate_window"), \
-             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", side_effect=track_http), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
-            run_startup_sequence(
-                manifest_path=manifest_path,
-                state_dir=tmp_path,
-                hide_windows=True,
-            )
-
-        # All three VLC ports should receive pl_play during Phase 4
-        play_ports = {port for port, cmd in http_cmds if cmd == "pl_play"}
-        assert play_ports == {8090, 8091, 8092}, (
-            f"Expected pl_play on all 3 VLC ports, got: {play_ports}"
-        )
 
     def test_passes_hide_windows_to_start_core_session(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)

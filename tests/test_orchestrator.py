@@ -304,7 +304,8 @@ class TestBrokerHelpers:
              patch("fun_time.orchestrator.subprocess.run", return_value=completed):
             assert is_broker_tray_running() is True
 
-    def test_start_broker_launches_tray_launcher(self, cfg_path: Path):
+    def test_start_broker_launches_tray_launcher(self, cfg_path: Path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
@@ -335,7 +336,8 @@ class TestBrokerHelpers:
         assert command[:3] == [str(cfg.paths.python_exe), "-m", "fun_time.broker_app"]
         assert command[-2:] == ["--config", str(cfg.config_path)]
 
-    def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path):
+    def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
@@ -368,7 +370,8 @@ class TestBrokerHelpers:
         starter.assert_called_once_with(cfg, logger)
         sleeper.assert_called()
 
-    def test_ensure_broker_running_skips_start_when_present(self, cfg_path: Path):
+    def test_ensure_broker_running_skips_start_when_present(self, cfg_path: Path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
@@ -399,7 +402,8 @@ class TestBrokerHelpers:
         ensure_broker.assert_called_once()
         run_windows_bridge.assert_called_once()
 
-    def test_ensure_broker_running_starts_when_service_exists_but_tray_is_missing(self, cfg_path: Path):
+    def test_ensure_broker_running_starts_when_service_exists_but_tray_is_missing(self, cfg_path: Path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
@@ -415,7 +419,8 @@ class TestBrokerHelpers:
         starter.assert_called_once_with(cfg, logger)
         sleeper.assert_called_once()
 
-    def test_ensure_broker_running_starts_when_tray_exists_but_service_is_missing(self, cfg_path: Path):
+    def test_ensure_broker_running_starts_when_tray_exists_but_service_is_missing(self, cfg_path: Path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
