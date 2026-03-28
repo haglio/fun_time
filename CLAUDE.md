@@ -9,16 +9,16 @@ Unit tests (run freely, no permission needed):
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-The default `pytest` invocation excludes integration tests via markers.
+The default `pytest` invocation only runs unit tests. Integration tests live in `tests/integration/` and are excluded from the default collection.
 
 Integration tests (always ask permission first):
 ```powershell
-FUN_TIME_RUN_INTEGRATION=1 .\.venv\Scripts\python.exe -m pytest tests/test_vlc_navigation_integration.py tests/test_fun_time_integration.py -m "integration or not integration"
+FUN_TIME_RUN_INTEGRATION=1 .\.venv\Scripts\python.exe -m pytest tests/integration/
 ```
 
-**You must run ALL integration test files** — not just one. The command above includes both `test_vlc_navigation_integration.py` and `test_fun_time_integration.py`. The `-m` override is required because `pytest.ini` excludes the `integration` marker by default.
+**You must run ALL integration test files** — the command above runs everything in `tests/integration/`. `FUN_TIME_RUN_INTEGRATION=1` is required — without it, tests skip silently.
 
-**The suite is only green when every test passes with zero skips and zero deselected.** `FUN_TIME_RUN_INTEGRATION=1` is required — without it, tests skip silently. Skipped tests are NOT passing tests. Deselected tests are NOT passing tests. If the output shows any skips or deselections, stop and fix the invocation before committing.
+**The suite is only green when every test passes with zero skips and zero deselected.** Skipped tests are NOT passing tests. Deselected tests are NOT passing tests. If the output shows any skips or deselections, stop and fix the invocation before committing.
 
 Convenience wrapper (unit tests only): `bash test.sh`
 If `bash test.sh` fails because Git Bash cannot create its signal pipe, use the direct `.venv` command above.

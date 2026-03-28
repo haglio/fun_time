@@ -29,6 +29,7 @@ from .vlc_actions import (
     get_current_file_path,
     get_playback_time,
     set_repeat_mode,
+    vlc_advance_and_remove,
     vlc_http_cmd,
     vlc_nav_step,
 )
@@ -120,7 +121,7 @@ def _discard(which: int, state: BridgeState, config: BridgeConfig) -> BridgeStat
     if plan.remove_from_favs and current_path:
         remove_from_favs(config.favs_file, current_path)
     if plan.advance_playlist:
-        vlc_http_cmd(port, "pl_next", config.vlc_password)
+        vlc_advance_and_remove(port, config.vlc_password)
     if plan.move_to_weird and current_path:
         move_to_weird(config.weird_dir, Path(current_path))
     if plan.log_message:
