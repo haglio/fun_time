@@ -39,6 +39,7 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--robot-hand-enabled-file", default=str(config.robot_hand_enabled_file))
     ap.add_argument("--broker-cmd-file", default=str(config.broker_cmd_file))
     ap.add_argument("--heartbeat-file", default=str(config.broker_heartbeat_file))
+    ap.add_argument("--activity-file", default=str(config.broker_activity_file))
     return ap
 
 
@@ -118,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
         udp_send=udp_send,
         enabled=robot_hand_enabled,
     )
+    activity_file = Path(args.activity_file)
     session = BrokerSerialSession(
         serial_factory=serial.Serial,
         virtual_port=args.virtual_port,
@@ -135,6 +137,7 @@ def main(argv: list[str] | None = None) -> int:
         read_robot_hand_enabled=read_robot_hand_enabled,
         monotonic=time.monotonic,
         sleep=time.sleep,
+        activity_file=activity_file,
         is_retryable_error=is_retryable_serial_error,
     )
 
