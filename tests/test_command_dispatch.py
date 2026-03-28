@@ -120,6 +120,74 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
     assert new_state.locked2 is False
 
 
+# --- portrait_trash deletes ghost entry from VLC playlist ---
+
+
+def test_portrait_trash_deletes_discarded_item_from_vlc_playlist(tmp_path: Path):
+    """After moving a file to weird, the dead entry must be removed from VLC's
+    playlist so navigating back doesn't hit a missing file."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+    vlc_cmds: list[str] = []
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
+        patch("fun_time.command_dispatch.get_current_playlist_id", return_value=42),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.remove_from_favs"),
+        patch("fun_time.command_dispatch.move_to_weird"),
+        patch("fun_time.command_dispatch.vlc_http_cmd", side_effect=lambda p, cmd, pw: vlc_cmds.append(cmd) or True),
+        patch("fun_time.command_dispatch.vlc_delete_playlist_item", side_effect=lambda p, pw, item_id: vlc_cmds.append(f"DELETE:{item_id}") or True),
+    ):
+        new_state, ops = dispatch_command("portrait_trash", state, config)
+
+    assert "pl_next" in vlc_cmds, "must advance past the item before deleting it"
+    assert "DELETE:42" in vlc_cmds, "must delete the discarded item from VLC's playlist"
+    next_idx = vlc_cmds.index("pl_next")
+    delete_idx = vlc_cmds.index("DELETE:42")
+    assert next_idx < delete_idx, "advance must happen before delete"
+
+
+def test_landscape_trash_deletes_discarded_item_from_vlc_playlist(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked3=True)
+    vlc_cmds: list[str] = []
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\landscape.mp4"),
+        patch("fun_time.command_dispatch.get_current_playlist_id", return_value=99),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.remove_from_favs"),
+        patch("fun_time.command_dispatch.move_to_weird"),
+        patch("fun_time.command_dispatch.vlc_http_cmd", side_effect=lambda p, cmd, pw: vlc_cmds.append(cmd) or True),
+        patch("fun_time.command_dispatch.vlc_delete_playlist_item", side_effect=lambda p, pw, item_id: vlc_cmds.append(f"DELETE:{item_id}") or True),
+    ):
+        new_state, ops = dispatch_command("landscape_trash", state, config)
+
+    assert "DELETE:99" in vlc_cmds
+
+
+def test_portrait_trash_skips_delete_when_no_playlist_id(tmp_path: Path):
+    """If we can't determine the playlist ID, still discard but skip the delete."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+    vlc_cmds: list[str] = []
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
+        patch("fun_time.command_dispatch.get_current_playlist_id", return_value=-1),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.remove_from_favs"),
+        patch("fun_time.command_dispatch.move_to_weird"),
+        patch("fun_time.command_dispatch.vlc_http_cmd", side_effect=lambda p, cmd, pw: vlc_cmds.append(cmd) or True),
+        patch("fun_time.command_dispatch.vlc_delete_playlist_item", side_effect=lambda p, pw, item_id: vlc_cmds.append(f"DELETE:{item_id}") or True),
+    ):
+        new_state, ops = dispatch_command("portrait_trash", state, config)
+
+    assert "pl_next" in vlc_cmds
+    assert not any(cmd.startswith("DELETE:") for cmd in vlc_cmds)
+
+
 # --- portrait_prev / portrait_next ---
 
 
