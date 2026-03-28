@@ -120,7 +120,6 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
     assert new_state.locked2 is False
 
 
-
 # --- portrait_prev / portrait_next ---
 
 
