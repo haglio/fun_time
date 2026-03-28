@@ -7,6 +7,7 @@ from fun_time.windows_bridge_random_favs_browser import (
     build_random_favs_browser_launch_plan,
     launch_random_favs_browser,
     read_random_favs_browser_manifest,
+    tab_placeholder_path,
 )
 
 
@@ -88,3 +89,61 @@ def test_launch_random_favs_browser_uses_subprocess(tmp_path: Path, monkeypatch)
     assert plan.should_launch is True
     assert recorded["cmd"] == plan.cmd
     assert recorded["cwd"] == r"C:\Chrome"
+
+
+# --- Lazy-load placeholder tests ---
+
+
+def test_tab_placeholder_path_returns_existing_html_file():
+    path = tab_placeholder_path()
+    assert path.exists()
+    assert path.suffix == ".html"
+    content = path.read_text(encoding="utf-8")
+    assert "reload" in content.lower()
+
+
+def test_build_launch_plan_with_placeholder_wraps_urls(tmp_path: Path):
+    manifest_file = tmp_path / "browser_manifest.txt"
+    manifest_file.write_text(
+        "Profile 2\nhttps://example.com/1\nhttps://example.com/2\n",
+        encoding="utf-8",
+    )
+    placeholder = tmp_path / "placeholder.html"
+    placeholder.write_text("<html></html>", encoding="utf-8")
+
+    plan = build_random_favs_browser_launch_plan(
+        manifest_file,
+        shortcut_target=r"C:\Chrome\chrome.exe",
+        shortcut_work_dir=r"C:\Chrome",
+        shortcut_args="",
+        placeholder_path=placeholder,
+    )
+
+    assert plan.should_launch is True
+    # Raw URLs must NOT appear as direct arguments
+    assert '"https://example.com/1"' not in plan.cmd
+    assert '"https://example.com/2"' not in plan.cmd
+    # Instead, file:// URIs pointing to the placeholder must appear
+    assert "file:///" in plan.cmd
+    assert "placeholder.html" in plan.cmd
+    assert "url=https%3A%2F%2Fexample.com%2F1" in plan.cmd
+    assert "url=https%3A%2F%2Fexample.com%2F2" in plan.cmd
+
+
+def test_build_launch_plan_without_placeholder_uses_raw_urls(tmp_path: Path):
+    """Backward compat: no placeholder_path means direct URL loading."""
+    manifest_file = tmp_path / "browser_manifest.txt"
+    manifest_file.write_text(
+        "Profile 2\nhttps://example.com/1\n",
+        encoding="utf-8",
+    )
+
+    plan = build_random_favs_browser_launch_plan(
+        manifest_file,
+        shortcut_target=r"C:\Chrome\chrome.exe",
+        shortcut_work_dir=r"C:\Chrome",
+        shortcut_args="",
+    )
+
+    assert '"https://example.com/1"' in plan.cmd
+    assert "file:///" not in plan.cmd

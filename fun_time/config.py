@@ -121,6 +121,7 @@ class RandomFavsBrowserConfig:
     profile_name: str
     bookmarks_folder_name: str
     open_count: int
+    lazy_load: bool
 
 
 @dataclass(frozen=True)
@@ -303,6 +304,7 @@ def _load_random_favs_browser_config(browser_raw: dict[str, Any] | None) -> Rand
         profile_name=str(browser_values.get("profile_name", "Blair")),
         bookmarks_folder_name=str(browser_values.get("bookmarks_folder_name", "Fun Time Favs")),
         open_count=int(browser_values.get("open_count", 10)),
+        lazy_load=bool(browser_values.get("lazy_load", False)),
     )
 
 
