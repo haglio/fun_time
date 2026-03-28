@@ -150,36 +150,55 @@ def test_vlc_nav_step_returns_false_when_vlc_unreachable(monkeypatch):
     assert vlc_actions.vlc_nav_step(8090, "pw", "next") is False
 
 
-# --- get_current_playlist_id ---
+# --- vlc_advance_and_remove_current ---
 
 
-def test_get_current_playlist_id_returns_current_item_id(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
-
-    assert vlc_actions.get_current_playlist_id(8090, "pw") == 3
-
-
-def test_get_current_playlist_id_returns_negative_one_on_failure(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
-
-    assert vlc_actions.get_current_playlist_id(8090, "pw") == -1
-
-
-def test_get_current_playlist_id_returns_negative_one_when_no_current(monkeypatch):
-    xml_no_current = _PLAYLIST_XML.replace('current="current" ', '')
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml_no_current))
-
-    assert vlc_actions.get_current_playlist_id(8090, "pw") == -1
-
-
-# --- vlc_delete_playlist_item ---
-
-
-def test_vlc_delete_playlist_item_sends_pl_delete_command(monkeypatch):
+def test_advance_and_remove_plays_next_then_deletes_current(monkeypatch):
+    """Must pl_play the next item BEFORE pl_delete-ing the current one,
+    otherwise VLC loses its current playback position."""
     calls: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
 
-    result = vlc_actions.vlc_delete_playlist_item(8090, "pw", 7)
+    result = vlc_actions.vlc_advance_and_remove_current(8090, "pw")
 
-    assert result is True
-    assert calls == ["pl_delete&id=7"]
+    assert result == 3  # returns the deleted item's ID
+    assert calls == ["pl_play&id=4", "pl_delete&id=3"]
+
+
+def test_advance_and_remove_wraps_at_end(monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML_LAST_CURRENT))
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+
+    result = vlc_actions.vlc_advance_and_remove_current(8090, "pw")
+
+    assert result == 5
+    assert calls == ["pl_play&id=3", "pl_delete&id=5"]
+
+
+def test_advance_and_remove_returns_negative_one_on_failure(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
+
+    assert vlc_actions.vlc_advance_and_remove_current(8090, "pw") == -1
+
+
+def test_advance_and_remove_single_item_playlist(monkeypatch):
+    """With only one item, there's nothing to advance to — just delete it."""
+    xml = """\
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<root>
+<item id="plid_0" name="" ro="rw"><content><name></name></content>\
+<item id="plid_1" name="Playlist" ro="ro"><content><name>Playlist</name></content>\
+<item id="plid_3" uri="file:///C:/a.mp4" name="a.mp4" current="current" ro="rw" duration="120000"><content><name>a.mp4</name></content></item>\
+</item></item>
+</root>
+"""
+    calls: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+
+    result = vlc_actions.vlc_advance_and_remove_current(8090, "pw")
+
+    assert result == 3
+    assert calls == ["pl_delete&id=3"]  # no pl_play — nowhere to advance
