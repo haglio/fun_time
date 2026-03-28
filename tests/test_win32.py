@@ -13,18 +13,23 @@ from fun_time.win32 import (
     find_window_by_pid,
     find_dialog_by_pid,
     minimize_window,
+    navigate_file_dialog_to_directory,
     send_ctrl_o,
     send_ctrl_o_to_window,
     send_vk_to_window,
     wait_for_window_close,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
+    KEYEVENTF_KEYUP,
+    KEYEVENTF_UNICODE,
     SW_MINIMIZE,
     SW_RESTORE,
     SWP_NOZORDER,
     SWP_NOACTIVATE,
     SWP_NOMOVE,
     SWP_NOSIZE,
+    VK_MENU,
+    VK_RETURN,
 )
 
 
@@ -187,6 +192,63 @@ class TestMinimizeWindow:
         with patch("fun_time.win32._user32") as mock_user32:
             minimize_window(99999)
         mock_user32.ShowWindow.assert_called_once_with(99999, SW_MINIMIZE)
+
+
+class TestNavigateFileDialogToDirectory:
+    def test_sends_alt_d_then_types_path_then_enter(self):
+        """Alt+D focuses the address bar, then we type the path via
+        KEYEVENTF_UNICODE, then press Enter to navigate."""
+        with patch("fun_time.win32._user32") as mock:
+            mock.SendInput.return_value = 1
+            navigate_file_dialog_to_directory(r"C:\videos\clips")
+
+        calls = mock.SendInput.call_args_list
+        # Call 0: Alt+D (4 events: Alt down, D down, D up, Alt up)
+        assert calls[0][0][0] == 4
+        # Call 1: unicode characters for the path (2 events per char: down + up)
+        path = r"C:\videos\clips"
+        assert calls[1][0][0] == len(path) * 2
+        # Call 2: Enter key (2 events: down + up)
+        assert calls[2][0][0] == 2
+
+    def test_unicode_events_carry_correct_scan_codes(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.SendInput.return_value = 1
+            navigate_file_dialog_to_directory("AB")
+
+        # Second SendInput call has the unicode chars — byref wraps the array
+        char_call = mock.SendInput.call_args_list[1]
+        inputs = char_call[0][1]._obj
+        # First event: 'A' key down (KEYEVENTF_UNICODE, wScan=ord('A'))
+        assert inputs[0].union.ki.dwFlags == KEYEVENTF_UNICODE
+        assert inputs[0].union.ki.wScan == ord("A")
+        # Second event: 'A' key up
+        assert inputs[1].union.ki.dwFlags == KEYEVENTF_UNICODE | 0x0002  # KEYUP
+        assert inputs[1].union.ki.wScan == ord("A")
+
+    def test_alt_d_uses_correct_virtual_keys(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.SendInput.return_value = 1
+            navigate_file_dialog_to_directory("X")
+
+        alt_d_call = mock.SendInput.call_args_list[0]
+        inputs = alt_d_call[0][1]._obj
+        assert inputs[0].union.ki.wVk == VK_MENU     # Alt down
+        assert inputs[1].union.ki.wVk == 0x44         # D down
+        assert inputs[2].union.ki.wVk == 0x44         # D up
+        assert inputs[3].union.ki.wVk == VK_MENU      # Alt up
+
+    def test_enter_uses_correct_virtual_key(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.SendInput.return_value = 1
+            navigate_file_dialog_to_directory("X")
+
+        enter_call = mock.SendInput.call_args_list[2]
+        inputs = enter_call[0][1]._obj
+        assert inputs[0].union.ki.wVk == VK_RETURN
+        assert inputs[0].union.ki.dwFlags == 0  # key down
+        assert inputs[1].union.ki.wVk == VK_RETURN
+        assert inputs[1].union.ki.dwFlags == KEYEVENTF_KEYUP
 
 
 class TestConstants:
