@@ -57,11 +57,51 @@ class FunTimeIntegrationSession:
 
     def read_robot_hand_pid(self) -> int:
         """Read the Robot Hand PID from the bridge pids file."""
+        return self.read_child_pids()["robot_hand_pid"]
+
+    def read_child_pids(self) -> dict[str, int]:
+        """Read all child PIDs from bridge_pids.ini."""
         pids_file = self.config.paths.state_dir / "bridge_pids.ini"
         parser = configparser.ConfigParser()
         parser.optionxform = str
         parser.read(str(pids_file), encoding="utf-8")
-        return int(parser["pids"]["robot_hand_pid"])
+        return {key: int(val) for key, val in parser["pids"].items()}
+
+    def quit_gracefully(self, timeout: float = 15.0) -> int:
+        """Simulate the Ctrl+Alt+Q quit path by killing the AHK process.
+
+        Killing AHK is functionally identical to AHK's ExitApp() — both
+        cause ahk_proc.wait() to return, triggering the orchestrator's
+        finally block which calls _shutdown_children().
+
+        Returns the orchestrator process exit code.
+        """
+        if not self._proc or self._proc.poll() is not None:
+            raise RuntimeError("Orchestrator is not running")
+        orch_pid = self._proc.pid
+        ps = (
+            "Get-CimInstance Win32_Process | "
+            f"Where-Object {{ $_.ParentProcessId -eq {orch_pid} -and $_.Name -eq 'AutoHotkey64.exe' }} | "
+            "Select-Object -ExpandProperty ProcessId"
+        )
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", ps],
+            capture_output=True, text=True, check=False,
+        )
+        ahk_pids = [int(line.strip()) for line in result.stdout.strip().splitlines() if line.strip()]
+        if not ahk_pids:
+            raise RuntimeError("Could not find AHK child process of orchestrator")
+        for pid in ahk_pids:
+            subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, check=False)
+        try:
+            exit_code = self._proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise AssertionError(
+                f"Orchestrator did not exit within {timeout}s after AHK was killed\n{self._log_tail()}"
+            )
+        if hasattr(self, "_stderr_fh") and self._stderr_fh:
+            self._stderr_fh.close()
+        return exit_code
 
     def start(self, wait_seconds: float = 45.0) -> None:
         self._kill_recent_runtime_processes()

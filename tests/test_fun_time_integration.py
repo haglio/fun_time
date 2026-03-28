@@ -350,3 +350,34 @@ def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session
         description="portrait sample to be moved into the integration weird dir",
     )
 
+
+@pytest.mark.integration
+def test_fun_time_quit_cleans_up_processes():
+    """The real quit path (AHK exit → orchestrator cleanup) must kill all child processes."""
+    temp_root = build_integration_temp_root()
+    config_path = build_integration_config(temp_root)
+    session = FunTimeIntegrationSession(config_path)
+    try:
+        session.start()
+
+        child_pids = session.read_child_pids()
+        live_pids = {name: pid for name, pid in child_pids.items() if pid and _is_pid_alive(pid)}
+        assert live_pids, "Expected at least some child processes to be running after startup"
+
+        session.quit_gracefully(timeout=15.0)
+
+        assert session._proc.poll() is not None, "Orchestrator should have exited"
+
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            still_alive = {name: pid for name, pid in live_pids.items() if _is_pid_alive(pid)}
+            if not still_alive:
+                break
+            time.sleep(0.5)
+        assert not still_alive, (
+            f"Quit path failed to clean up processes: {still_alive}\n{session._log_tail()}"
+        )
+    finally:
+        session.stop()
+        shutil.rmtree(temp_root, ignore_errors=True)
+
