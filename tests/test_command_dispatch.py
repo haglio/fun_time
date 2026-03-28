@@ -123,47 +123,42 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
 # --- portrait_prev / portrait_next ---
 
 
-def test_portrait_prev_cancels_lock_and_sends_prev(tmp_path: Path):
+def test_portrait_prev_cancels_lock_and_calls_nav_step_prev(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=True)
+    nav_calls: list[tuple] = []
 
-    with (
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
-    ):
+    with patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
         new_state, ops = dispatch_command("portrait_prev", state, config)
 
     assert new_state.locked2 is False
-    mock_cmd.assert_called_with(8091, "pl_previous", "pw")
+    assert nav_calls == [(8091, "prev")]
 
 
-def test_portrait_next_sends_next(tmp_path: Path):
+def test_portrait_next_calls_nav_step_next(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
+    nav_calls: list[tuple] = []
 
-    with (
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
-    ):
-        new_state, ops = dispatch_command("portrait_next", state, config)
+    with patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
+        dispatch_command("portrait_next", state, config)
 
-    mock_cmd.assert_called_with(8091, "pl_next", "pw")
+    assert nav_calls == [(8091, "next")]
 
 
 # --- landscape_prev / landscape_next ---
 
 
-def test_landscape_prev_cancels_lock_and_sends_prev(tmp_path: Path):
+def test_landscape_prev_cancels_lock_and_calls_nav_step_prev(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked3=True)
+    nav_calls: list[tuple] = []
 
-    with (
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True) as mock_cmd,
-    ):
+    with patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
         new_state, ops = dispatch_command("landscape_prev", state, config)
 
     assert new_state.locked3 is False
-    mock_cmd.assert_called_with(8092, "pl_previous", "pw")
+    assert nav_calls == [(8092, "prev")]
 
 
 # --- primary_prev / primary_next ---
@@ -191,22 +186,26 @@ def test_primary_next_sends_next_command_to_robot_hand_when_in_robot_mode(tmp_pa
     assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
-def test_primary_prev_sends_keystroke_when_not_in_robot_mode(tmp_path: Path):
+def test_primary_prev_calls_vlc_nav_step_prev_when_not_in_robot_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
+    nav_calls: list[tuple] = []
 
-    new_state, ops = dispatch_command("primary_prev", state, config)
+    with patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
+        dispatch_command("primary_prev", state, config)
 
-    assert any(op.op == "send_key" and op.key == "p" for op in ops)
+    assert nav_calls == [(8090, "prev")], "primary_prev must use vlc_nav_step to avoid VLC restart-threshold behavior"
 
 
-def test_primary_next_sends_keystroke_when_not_in_robot_mode(tmp_path: Path):
+def test_primary_next_calls_vlc_nav_step_next_when_not_in_robot_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
+    nav_calls: list[tuple] = []
 
-    new_state, ops = dispatch_command("primary_next", state, config)
+    with patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
+        dispatch_command("primary_next", state, config)
 
-    assert any(op.op == "send_key" and op.key == "n" for op in ops)
+    assert nav_calls == [(8090, "next")], "primary_next must use vlc_nav_step to avoid VLC restart-threshold behavior"
 
 
 # --- quarter_button ---
@@ -470,3 +469,70 @@ def test_unknown_command_returns_unchanged_state(tmp_path: Path):
 
     assert new_state == state
     assert ops == []
+
+
+# --- clipper_save ---
+
+
+def test_clipper_save_calls_subprocess_when_not_in_robot_hand_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(robot_hand_mode=False)
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
+         patch("fun_time.command_dispatch.get_playback_time", return_value=42.5), \
+         patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
+         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+        mock_subprocess.run.return_value.returncode = 0
+        mock_subprocess.run.return_value.stdout = r"C:\clipper\sessions\test.json"
+        mock_subprocess.run.return_value.stderr = ""
+        new_state, ops = dispatch_command("clipper_save", state, config)
+
+    assert new_state == state
+    assert ops == []
+    mock_subprocess.run.assert_called_once()
+    call_args = mock_subprocess.run.call_args
+    cmd = call_args[0][0]
+    assert cmd[0] == "python"
+    assert "-m" in cmd
+    assert "clipper.create_session" in cmd
+    assert "--video" in cmd
+    assert r"C:\videos\test.mp4" in cmd
+    assert "--time" in cmd
+    assert "42.5" in cmd
+
+
+def test_clipper_save_noop_when_in_robot_hand_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
+    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(robot_hand_mode=False)
+
+    with patch("fun_time.command_dispatch.get_current_file_path") as mock_vlc, \
+         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+        new_state, ops = dispatch_command("clipper_save", state, config)
+
+    mock_vlc.assert_not_called()
+    mock_subprocess.run.assert_not_called()
+
+
+def test_clipper_save_skips_when_no_video_playing(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state()
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=""), \
+         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+        new_state, ops = dispatch_command("clipper_save", state, config)
+
+    mock_subprocess.run.assert_not_called()
+
+
+def test_clipper_save_skips_when_no_playback_time(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state()
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
+         patch("fun_time.command_dispatch.get_playback_time", return_value=None), \
+         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+        new_state, ops = dispatch_command("clipper_save", state, config)
+
+    mock_subprocess.run.assert_not_called()

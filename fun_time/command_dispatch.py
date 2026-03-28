@@ -7,6 +7,8 @@ instead of subprocess invocations via the plan-file protocol.
 from __future__ import annotations
 
 import logging
+import subprocess
+import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -25,8 +27,10 @@ from .runtime_flow import (
 from .vlc_actions import (
     ensure_playback_state,
     get_current_file_path,
+    get_playback_time,
     set_repeat_mode,
     vlc_http_cmd,
+    vlc_nav_step,
 )
 
 logger = logging.getLogger(__name__)
@@ -136,12 +140,12 @@ def dispatch_command(
 
     if command == "portrait_prev":
         state = _cancel_lock(2, state, config)
-        vlc_http_cmd(config.portrait_port, "pl_previous", config.vlc_password)
+        vlc_nav_step(config.portrait_port, config.vlc_password, "prev")
         return state, ops
 
     if command == "portrait_next":
         state = _cancel_lock(2, state, config)
-        vlc_http_cmd(config.portrait_port, "pl_next", config.vlc_password)
+        vlc_nav_step(config.portrait_port, config.vlc_password, "next")
         return state, ops
 
     if command == "portrait_lock":
@@ -154,12 +158,12 @@ def dispatch_command(
 
     if command == "landscape_prev":
         state = _cancel_lock(3, state, config)
-        vlc_http_cmd(config.landscape_port, "pl_previous", config.vlc_password)
+        vlc_nav_step(config.landscape_port, config.vlc_password, "prev")
         return state, ops
 
     if command == "landscape_next":
         state = _cancel_lock(3, state, config)
-        vlc_http_cmd(config.landscape_port, "pl_next", config.vlc_password)
+        vlc_nav_step(config.landscape_port, config.vlc_password, "next")
         return state, ops
 
     if command == "landscape_lock":
@@ -176,8 +180,10 @@ def dispatch_command(
             write_flag_file(config.robot_hand_cmd_file, False)
             config.robot_hand_cmd_file.write_text(cmd, encoding="utf-8")
         else:
-            key = "p" if command == "primary_prev" else "n"
-            ops.append(WindowOp(op="send_key", key=key, pid=0))
+            direction = "prev" if command == "primary_prev" else "next"
+            logger.info("nav: %s → vlc_nav_step(%s) on port %s", command, direction, config.primary_port)
+            ok = vlc_nav_step(config.primary_port, config.vlc_password, direction)
+            logger.info("nav: vlc_nav_step returned %s", ok)
         return state, ops
 
     if command == "quarter_button":
@@ -208,6 +214,11 @@ def dispatch_command(
 
     if command == "vlc_nudge_next":
         ops.append(WindowOp(op="send_vk", vk=0x27))  # VK_RIGHT
+        return state, ops
+
+    if command == "clipper_save":
+        if not _effective_robot_hand_mode(config):
+            _dispatch_clipper_save(config)
         return state, ops
 
     return state, ops
@@ -386,3 +397,42 @@ def _dispatch_sync_robot_hand(
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
+
+
+_CLIPPER_PROJECT_DIR = Path(__file__).resolve().parents[1].parent / "clipper"
+_CLIPPER_PYTHON = _CLIPPER_PROJECT_DIR / ".venv" / "Scripts" / "python.exe"
+
+
+def _clipper_python() -> str:
+    if _CLIPPER_PYTHON.is_file():
+        return str(_CLIPPER_PYTHON)
+    return sys.executable
+
+
+def _dispatch_clipper_save(config: BridgeConfig) -> None:
+    video_path = get_current_file_path(config.primary_port, config.vlc_password)
+    if not video_path:
+        logger.warning("clipper_save: no video playing in primary VLC")
+        return
+    playback_time = get_playback_time(config.primary_port, config.vlc_password)
+    if playback_time is None:
+        logger.warning("clipper_save: could not get playback time")
+        return
+    try:
+        result = subprocess.run(
+            [
+                _clipper_python(), "-m", "clipper.create_session",
+                "--video", video_path,
+                "--time", str(playback_time),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(_CLIPPER_PROJECT_DIR),
+        )
+        if result.returncode == 0:
+            logger.info("clipper_save: %s", result.stdout.strip())
+        else:
+            logger.warning("clipper_save failed: %s", result.stderr.strip())
+    except Exception as exc:
+        logger.warning("clipper_save error: %s", exc)
