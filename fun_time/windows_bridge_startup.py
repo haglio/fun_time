@@ -3,11 +3,11 @@ from __future__ import annotations
 import configparser
 import json
 import os
+import random
 import subprocess
+import sys
 import time
 from pathlib import Path
-
-import sys
 
 from .vlc_actions import set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
@@ -329,7 +329,6 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
     command = [
         vlc_exe,
         "--no-one-instance",
-        "--random",
         "--extraintf",
         "http",
         "--http-host",
@@ -347,7 +346,9 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
         command.append("--repeat")
     elif repeat_mode == "loop":
         command.append("--loop")
-    command.extend([part for part in sources.split("|") if part])
+    sources_list = [part for part in sources.split("|") if part]
+    random.shuffle(sources_list)
+    command.extend(sources_list)
     return command
 
 
