@@ -20,12 +20,22 @@ from .integration_support import (
 
 
 def _is_pid_alive(pid: int) -> bool:
-    """Check whether a process with the given PID is still running."""
-    try:
-        os.kill(pid, 0)
-        return True
-    except (OSError, ProcessLookupError):
+    """Check whether a process with the given PID is still running.
+
+    On Windows, os.kill(pid, 0) can return True for zombie processes
+    whose kernel objects haven't been released.  GetExitCodeProcess
+    reliably distinguishes running (STILL_ACTIVE) from terminated.
+    """
+    import ctypes
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    STILL_ACTIVE = 259
+    handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
         return False
+    exit_code = ctypes.c_ulong()
+    ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+    ctypes.windll.kernel32.CloseHandle(handle)
+    return exit_code.value == STILL_ACTIVE
 
 
 def _read_vlc_config_from_manifest(session: FunTimeIntegrationSession) -> tuple[int, str]:

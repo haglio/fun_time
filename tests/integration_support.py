@@ -78,21 +78,8 @@ class FunTimeIntegrationSession:
         """
         if not self._proc or self._proc.poll() is not None:
             raise RuntimeError("Orchestrator is not running")
-        orch_pid = self._proc.pid
-        ps = (
-            "Get-CimInstance Win32_Process | "
-            f"Where-Object {{ $_.ParentProcessId -eq {orch_pid} -and $_.Name -eq 'AutoHotkey64.exe' }} | "
-            "Select-Object -ExpandProperty ProcessId"
-        )
-        result = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-Command", ps],
-            capture_output=True, text=True, check=False,
-        )
-        ahk_pids = [int(line.strip()) for line in result.stdout.strip().splitlines() if line.strip()]
-        if not ahk_pids:
-            raise RuntimeError("Could not find AHK child process of orchestrator")
-        for pid in ahk_pids:
-            subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, check=False)
+        ahk_cmd = self.config.paths.state_dir / "ahk_cmd.txt"
+        ahk_cmd.write_text("exit", encoding="utf-8")
         try:
             exit_code = self._proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
