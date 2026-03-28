@@ -168,6 +168,24 @@ class TestLoadConfig:
         assert cfg.random_favs_browser.shortcut_path.name == "chrome.exe"
         assert cfg.random_favs_browser.user_data_dir.name == "chrome_data"
         assert cfg.random_favs_browser.open_count == 7
+        assert cfg.random_favs_browser.lazy_load is False
+
+    def test_loads_random_favs_browser_lazy_load(self, cfg_factory):
+        path = cfg_factory(
+            {
+                "random_favs_browser": {
+                    "enabled": True,
+                    "shortcut_path": "chrome.exe",
+                    "user_data_dir": "chrome_data",
+                    "profile_name": "Blair",
+                    "bookmarks_folder_name": "Fun Time Favs",
+                    "open_count": 7,
+                    "lazy_load": True,
+                }
+            }
+        )
+        cfg = load_config(path)
+        assert cfg.random_favs_browser.lazy_load is True
 
     def test_legacy_chrome_overlay_section_still_loads_random_favs_browser_settings(self, cfg_factory):
         path = cfg_factory(

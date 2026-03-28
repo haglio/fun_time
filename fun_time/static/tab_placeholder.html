@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+    background: #1e1e2e;
+    color: #cdd6f4;
+  }
+  .container { text-align: center; max-width: 80vw; }
+  .hint { color: #6c7086; margin-bottom: 1em; }
+  a { color: #89b4fa; font-size: 1.1em; word-break: break-all; }
+</style>
+<script>
+(function() {
+  var url = new URLSearchParams(location.search).get('url');
+  if (!url) return;
+  var nav = performance.getEntriesByType('navigation')[0];
+  if (nav && nav.type === 'reload') {
+    location.replace(url);
+    return;
+  }
+  document.title = url;
+  document.addEventListener('DOMContentLoaded', function() {
+    var link = document.getElementById('target');
+    link.href = url;
+    link.textContent = url;
+  });
+})();
+</script>
+</head>
+<body>
+<div class="container">
+  <p class="hint">Press Ctrl+R to load, or click the link:</p>
+  <a id="target" href="#"></a>
+</div>
+</body>
+</html>

@@ -20,7 +20,7 @@ from .dashboard_layout import Size
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .startup_progress import NullProgress, ProgressReporter
 from .vlc_actions import vlc_http_cmd
-from .windows_bridge_random_favs_browser import launch_random_favs_browser
+from .windows_bridge_random_favs_browser import launch_random_favs_browser, tab_placeholder_path
 from .windows_bridge_startup import start_core_session, launch_ui_companions
 from .win32 import (
     activate_window,
@@ -381,11 +381,13 @@ def _maybe_launch_random_favs_browser(
     # Take a Chrome window snapshot before launch
     before_hwnds = _get_chrome_window_hwnds()
 
+    lazy_load = m["random_favs_browser"].get("lazy_load", "0") == "1"
     result = launch_random_favs_browser(
         manifest_file,
         shortcut_target=target,
         shortcut_work_dir=work_dir,
         shortcut_args=args,
+        placeholder_path=tab_placeholder_path() if lazy_load else None,
     )
     if not result.should_launch:
         logger.info("Random Favs Browser skipped: launch plan was empty")
