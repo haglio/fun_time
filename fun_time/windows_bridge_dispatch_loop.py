@@ -55,7 +55,7 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
     """Execute window operations via Python win32, returning any that need AHK."""
     remaining: list[WindowOp] = []
     for op in ops:
-        if op.op in ("suspend_hotkeys", "unsuspend_hotkeys"):
+        if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "tooltip"):
             remaining.append(op)
             continue
 
@@ -209,7 +209,10 @@ class DispatchLoopRunner:
         for op in remaining:
             if suppress_unsuspend and op.op == "unsuspend_hotkeys":
                 continue
-            self.ahk_cmd_file.write_text(op.op, encoding="utf-8")
+            if op.op == "tooltip":
+                self.ahk_cmd_file.write_text(f"tooltip {op.key}", encoding="utf-8")
+            else:
+                self.ahk_cmd_file.write_text(op.op, encoding="utf-8")
         write_shared_state(self.shared_state_file, self.state)
         if self.dashboard_enabled:
             self._update_dashboard()

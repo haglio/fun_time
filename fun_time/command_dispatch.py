@@ -218,7 +218,9 @@ def dispatch_command(
 
     if command == "clipper_save":
         if not _effective_robot_hand_mode(config):
-            _dispatch_clipper_save(config)
+            msg = _dispatch_clipper_save(config)
+            if msg:
+                ops.append(WindowOp(op="tooltip", key=msg))
         return state, ops
 
     return state, ops
@@ -409,15 +411,19 @@ def _clipper_python() -> str:
     return sys.executable
 
 
-def _dispatch_clipper_save(config: BridgeConfig) -> None:
+def _dispatch_clipper_save(config: BridgeConfig) -> str:
+    """Save a Clipper session for the current Primary VLC video.
+
+    Returns a short user-visible message on success, or empty string on failure.
+    """
     video_path = get_current_file_path(config.primary_port, config.vlc_password)
     if not video_path:
         logger.warning("clipper_save: no video playing in primary VLC")
-        return
+        return ""
     playback_time = get_playback_time(config.primary_port, config.vlc_password)
     if playback_time is None:
         logger.warning("clipper_save: could not get playback time")
-        return
+        return ""
     try:
         result = subprocess.run(
             [
@@ -431,8 +437,12 @@ def _dispatch_clipper_save(config: BridgeConfig) -> None:
             cwd=str(_CLIPPER_PROJECT_DIR),
         )
         if result.returncode == 0:
-            logger.info("clipper_save: %s", result.stdout.strip())
-        else:
-            logger.warning("clipper_save failed: %s", result.stderr.strip())
+            session_path = result.stdout.strip()
+            logger.info("clipper_save: %s", session_path)
+            name = Path(session_path).stem if session_path else "session"
+            return f"Clipper: {name}"
+        logger.warning("clipper_save failed: %s", result.stderr.strip())
+        return ""
     except Exception as exc:
         logger.warning("clipper_save error: %s", exc)
+        return ""

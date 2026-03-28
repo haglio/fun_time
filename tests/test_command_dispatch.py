@@ -488,7 +488,6 @@ def test_clipper_save_calls_subprocess_when_not_in_robot_hand_mode(tmp_path: Pat
         new_state, ops = dispatch_command("clipper_save", state, config)
 
     assert new_state == state
-    assert ops == []
     mock_subprocess.run.assert_called_once()
     call_args = mock_subprocess.run.call_args
     cmd = call_args[0][0]
@@ -499,6 +498,25 @@ def test_clipper_save_calls_subprocess_when_not_in_robot_hand_mode(tmp_path: Pat
     assert r"C:\videos\test.mp4" in cmd
     assert "--time" in cmd
     assert "42.5" in cmd
+    assert len(ops) == 1
+    assert ops[0].op == "tooltip"
+    assert ops[0].key  # non-empty message
+
+
+def test_clipper_save_no_tooltip_on_failure(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(robot_hand_mode=False)
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
+         patch("fun_time.command_dispatch.get_playback_time", return_value=42.5), \
+         patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
+         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+        mock_subprocess.run.return_value.returncode = 1
+        mock_subprocess.run.return_value.stdout = ""
+        mock_subprocess.run.return_value.stderr = "ffprobe failed"
+        new_state, ops = dispatch_command("clipper_save", state, config)
+
+    assert ops == []
 
 
 def test_clipper_save_noop_when_in_robot_hand_mode(tmp_path: Path):

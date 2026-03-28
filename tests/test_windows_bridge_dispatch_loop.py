@@ -334,6 +334,19 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "unsuspend_hotkeys"
 
+    def test_dispatch_writes_tooltip_with_message_to_ahk_cmd_file(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
+
+        tooltip_op = WindowOp(op="tooltip", key="Clipper: MyVideo")
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[tooltip_op]):
+            mock_dispatch.return_value = (runner.state, [tooltip_op])
+            runner._dispatch("some_command")
+
+        assert ahk_cmd_file.read_text(encoding="utf-8") == "tooltip Clipper: MyVideo"
+
     def test_syncs_robot_hand_periodically(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         # Set _last_sync far in the past so the interval is exceeded

@@ -96,7 +96,18 @@ ProcessAhkCommand() {
         Suspend true
     } else if (action = "unsuspend_hotkeys") {
         Suspend false
+    } else if (SubStr(action, 1, 8) = "tooltip ") {
+        ShowBriefTooltip(SubStr(action, 9))
     }
+}
+
+ShowBriefTooltip(msg) {
+    ToolTip(msg)
+    SetTimer(ClearBriefTooltip, -1500)
+}
+
+ClearBriefTooltip() {
+    ToolTip()
 }
 
 ; -------------------- UTILITIES --------------------
