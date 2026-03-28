@@ -27,10 +27,9 @@ from .runtime_flow import (
 from .vlc_actions import (
     ensure_playback_state,
     get_current_file_path,
-    get_current_playlist_id,
     get_playback_time,
     set_repeat_mode,
-    vlc_delete_playlist_item,
+    vlc_advance_and_remove_current,
     vlc_http_cmd,
     vlc_nav_step,
 )
@@ -116,18 +115,15 @@ def _discard(which: int, state: BridgeState, config: BridgeConfig) -> BridgeStat
     port = config.portrait_port if which == 2 else config.landscape_port
     locked = state.locked2 if which == 2 else state.locked3
     current_path = get_current_file_path(port, config.vlc_password)
-    doomed_id = get_current_playlist_id(port, config.vlc_password)
     plan = build_lock_plan("discard", which=which, locked=locked, current_path=current_path)
     if plan.repeat_mode:
         set_repeat_mode(port, config.vlc_password, plan.repeat_mode)
     if plan.remove_from_favs and current_path:
         remove_from_favs(config.favs_file, current_path)
     if plan.advance_playlist:
-        vlc_http_cmd(port, "pl_next", config.vlc_password)
+        vlc_advance_and_remove_current(port, config.vlc_password)
     if plan.move_to_weird and current_path:
         move_to_weird(config.weird_dir, Path(current_path))
-    if doomed_id >= 0:
-        vlc_delete_playlist_item(port, config.vlc_password, doomed_id)
     if plan.log_message:
         logger.info(plan.log_message)
     if which == 2:
