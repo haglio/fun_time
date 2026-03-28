@@ -474,3 +474,60 @@ def subprocess_result(*, stdout: str, returncode: int):
     mock.returncode = returncode
     return mock
 
+
+# --- vlc_http_password_from_vlcrc ---
+
+
+class TestVlcHttpPasswordFromVlcrc:
+    def test_reads_password_from_vlcrc(self, tmp_path: Path, monkeypatch):
+        vlcrc = tmp_path / "vlc" / "vlcrc"
+        vlcrc.parent.mkdir(parents=True)
+        vlcrc.write_text("# comment\n\nhttp-password=mysecret\n", encoding="utf-8")
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        assert vlc_http_password_from_vlcrc() == "mysecret"
+
+    def test_returns_none_when_appdata_unset(self, monkeypatch):
+        monkeypatch.delenv("APPDATA", raising=False)
+        assert vlc_http_password_from_vlcrc() is None
+
+    def test_returns_none_when_vlcrc_missing(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        assert vlc_http_password_from_vlcrc() is None
+
+    def test_returns_none_when_no_password_line(self, tmp_path: Path, monkeypatch):
+        vlcrc = tmp_path / "vlc" / "vlcrc"
+        vlcrc.parent.mkdir(parents=True)
+        vlcrc.write_text("# just comments\nsome-other-setting=value\n", encoding="utf-8")
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        assert vlc_http_password_from_vlcrc() is None
+
+    def test_skips_comment_and_blank_lines(self, tmp_path: Path, monkeypatch):
+        vlcrc = tmp_path / "vlc" / "vlcrc"
+        vlcrc.parent.mkdir(parents=True)
+        vlcrc.write_text("# http-password=wrong\n\nhttp-password=correct\n", encoding="utf-8")
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        assert vlc_http_password_from_vlcrc() == "correct"
+
+    def test_returns_none_for_empty_password_value(self, tmp_path: Path, monkeypatch):
+        vlcrc = tmp_path / "vlc" / "vlcrc"
+        vlcrc.parent.mkdir(parents=True)
+        vlcrc.write_text("http-password=\n", encoding="utf-8")
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        assert vlc_http_password_from_vlcrc() is None
+
+
+# --- main() --check flag ---
+
+
+class TestMainCheckFlag:
+    def test_main_check_returns_zero_without_launching_bridge(self, cfg_path: Path):
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.orchestrator.ensure_runtime_files"), \
+             patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.run_windows_bridge") as run_bridge:
+            result = main(["--config", str(cfg_path), "--check"])
+
+        assert result == 0
+        run_bridge.assert_not_called()
+
