@@ -284,11 +284,7 @@ class TestStrokeAndBpmFromSerial:
         s.stop_event.set()
         runner.join(timeout=2.0)
 
-        # Stroke message triggers auto-mode inference (AUTO 1 + SHOW)
-        # since BPM/stroke messages are exclusive to auto mode.
         assert s.udp_messages == [
-            "AUTO 1",
-            "SHOW",
             "STROKE Twist",
             "PATTERN 1.5",
             "SYNC",

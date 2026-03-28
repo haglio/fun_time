@@ -5,7 +5,6 @@ import json
 import os
 import random
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
@@ -101,14 +100,6 @@ class FunTimeIntegrationSession:
         self.dashboard_cmd_file.write_text(action, encoding="utf-8")
 
     def write_robot_hand_mode(self, enabled: bool) -> None:
-        # Send AUTO message via UDP to the dispatch loop's listener.
-        # The dispatch loop reads auto-mode state from UDP, not the file.
-        dispatch_udp_port = self.config.broker.dispatch_udp_port
-        msg = f"AUTO {1 if enabled else 0}"
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(msg.encode("utf-8"), ("127.0.0.1", dispatch_udp_port))
-        sock.close()
-        # Also write the file for backward compatibility / diagnostics.
         self.robot_hand_mode_file.parent.mkdir(parents=True, exist_ok=True)
         self.robot_hand_mode_file.write_text("1" if enabled else "0", encoding="utf-8")
 

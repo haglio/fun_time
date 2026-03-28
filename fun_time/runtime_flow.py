@@ -53,13 +53,14 @@ def apply_sync_robot_hand(
     robot_hand_mode_on: bool,
     omni_paused: bool,
     enabled_file: str | Path,
-    mode_state_on: bool,
+    mode_state_file: str | Path,
     paused_file: str | Path,
     audio_paused_file: str | Path,
     primary_port: int,
     password: str,
 ) -> RobotHandFlowResult:
     enabled = read_flag_file(enabled_file, True)
+    mode_state_on = read_flag_file(mode_state_file, False)
     plan = build_robot_hand_plan(
         "sync-state",
         robot_hand_mode_on=robot_hand_mode_on,
@@ -70,9 +71,8 @@ def apply_sync_robot_hand(
     if plan.enforce_outputs:
         write_flag_file(paused_file, not plan.enforce_active)
         write_flag_file(audio_paused_file, not plan.enforce_active)
-        if plan.is_transition:
-            if not ensure_playback_state(primary_port, password, should_play=not plan.enforce_active):
-                logger.warning("Primary VLC failed to reach desired Robot Hand sync playback state")
+        if not ensure_playback_state(primary_port, password, should_play=not plan.enforce_active):
+            logger.warning("Primary VLC failed to reach desired Robot Hand sync playback state")
     return RobotHandFlowResult(
         next_robot_hand_mode=plan.next_robot_hand_mode,
         current_enabled=enabled,
