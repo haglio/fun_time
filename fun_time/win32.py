@@ -10,6 +10,8 @@ import ctypes.wintypes
 import time
 
 _user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+_comdlg32 = ctypes.windll.comdlg32  # type: ignore[attr-defined]
+_ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
 
 # Constants
 SW_RESTORE = 9
@@ -193,163 +195,72 @@ def get_window_rect(hwnd: int) -> tuple[int, int, int, int]:
     return rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top
 
 
-# --- SendInput structures for keyboard simulation ---
+# --- File Open Dialog (GetOpenFileNameW) ---
 
-INPUT_KEYBOARD = 1
-KEYEVENTF_KEYUP = 0x0002
-VK_CONTROL = 0x11
-VK_MENU = 0x12  # Alt key
-VK_RETURN = 0x0D
-VK_D = 0x44
-VK_O = 0x4F
-KEYEVENTF_UNICODE = 0x0004
+OFN_FILEMUSTEXIST = 0x00001000
+OFN_PATHMUSTEXIST = 0x00000800
+OFN_NOCHANGEDIR = 0x00000008
+COINIT_APARTMENTTHREADED = 0x2
+
+_VIDEO_FILTER = (
+    "Video Files\0"
+    "*.mp4;*.mkv;*.avi;*.wmv;*.mov;*.flv;*.webm;*.m4v;*.ts;*.mpg;*.mpeg\0"
+    "All Files\0*.*\0"
+)
 
 
-class KEYBDINPUT(ctypes.Structure):
+class OPENFILENAMEW(ctypes.Structure):
     _fields_ = [
-        ("wVk", ctypes.wintypes.WORD),
-        ("wScan", ctypes.wintypes.WORD),
-        ("dwFlags", ctypes.wintypes.DWORD),
-        ("time", ctypes.wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+        ("lStructSize", ctypes.wintypes.DWORD),
+        ("hwndOwner", ctypes.wintypes.HWND),
+        ("hInstance", ctypes.wintypes.HINSTANCE),
+        ("lpstrFilter", ctypes.wintypes.LPCWSTR),
+        ("lpstrCustomFilter", ctypes.wintypes.LPWSTR),
+        ("nMaxCustFilter", ctypes.wintypes.DWORD),
+        ("nFilterIndex", ctypes.wintypes.DWORD),
+        ("lpstrFile", ctypes.wintypes.LPWSTR),
+        ("nMaxFile", ctypes.wintypes.DWORD),
+        ("lpstrFileTitle", ctypes.wintypes.LPWSTR),
+        ("nMaxFileTitle", ctypes.wintypes.DWORD),
+        ("lpstrInitialDir", ctypes.wintypes.LPCWSTR),
+        ("lpstrTitle", ctypes.wintypes.LPCWSTR),
+        ("Flags", ctypes.wintypes.DWORD),
+        ("nFileOffset", ctypes.wintypes.WORD),
+        ("nFileExtension", ctypes.wintypes.WORD),
+        ("lpstrDefExt", ctypes.wintypes.LPCWSTR),
+        ("lCustData", ctypes.c_void_p),
+        ("lpfnHook", ctypes.c_void_p),
+        ("lpTemplateName", ctypes.wintypes.LPCWSTR),
+        ("pvReserved", ctypes.c_void_p),
+        ("dwReserved", ctypes.wintypes.DWORD),
+        ("FlagsEx", ctypes.wintypes.DWORD),
     ]
 
 
-class MOUSEINPUT(ctypes.Structure):
-    _fields_ = [
-        ("dx", ctypes.wintypes.LONG),
-        ("dy", ctypes.wintypes.LONG),
-        ("mouseData", ctypes.wintypes.DWORD),
-        ("dwFlags", ctypes.wintypes.DWORD),
-        ("time", ctypes.wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
-    ]
+def show_open_file_dialog(initial_dir: str, owner_hwnd: int = 0) -> str | None:
+    """Show a native Windows file-open dialog starting at *initial_dir*.
 
+    Uses GetOpenFileNameW which, on Vista+, renders as a modern IFileDialog
+    with lpstrInitialDir mapped to IFileDialog::SetFolder — so the dialog
+    opens at the correct directory from the first frame (no address-bar jank).
 
-class INPUT(ctypes.Structure):
-    class _INPUT_UNION(ctypes.Union):
-        _fields_ = [("ki", KEYBDINPUT), ("mi", MOUSEINPUT)]
-
-    _fields_ = [
-        ("type", ctypes.wintypes.DWORD),
-        ("union", _INPUT_UNION),
-    ]
-
-
-INPUT_MOUSE = 0
-MOUSEEVENTF_MOVE = 0x0001
-
-
-def send_ctrl_o_to_window(hwnd: int) -> None:
-    """Bring *hwnd* to the foreground and send Ctrl+O via SendInput.
-
-    A no-op mouse-move is injected first so that the calling thread becomes
-    the "last input sender", which satisfies the SetForegroundWindow security
-    check when called from a background thread.
+    Returns the selected file path, or None if the user cancelled.
     """
-    # No-op mouse move — makes our thread the "last input sender"
-    inp = INPUT()
-    inp.type = INPUT_MOUSE
-    inp.union.mi.dwFlags = MOUSEEVENTF_MOVE
-    _user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
-    _user32.SetForegroundWindow(hwnd)
-    time.sleep(0.05)
-    send_ctrl_o()
+    _ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
+    try:
+        buf = ctypes.create_unicode_buffer(1024)
+        ofn = OPENFILENAMEW()
+        ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
+        ofn.hwndOwner = owner_hwnd
+        ofn.lpstrFilter = _VIDEO_FILTER
+        ofn.nFilterIndex = 1
+        ofn.lpstrFile = ctypes.cast(buf, ctypes.wintypes.LPWSTR)
+        ofn.nMaxFile = 1024
+        ofn.lpstrInitialDir = initial_dir
+        ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR
 
-
-def send_ctrl_o() -> None:
-    """Send Ctrl+O via SendInput (requires target window to be foreground)."""
-    inputs = (INPUT * 4)()
-    for i, (vk, flags) in enumerate([
-        (VK_CONTROL, 0),
-        (VK_O, 0),
-        (VK_O, KEYEVENTF_KEYUP),
-        (VK_CONTROL, KEYEVENTF_KEYUP),
-    ]):
-        inputs[i].type = INPUT_KEYBOARD
-        inputs[i].union.ki.wVk = vk
-        inputs[i].union.ki.dwFlags = flags
-    _user32.SendInput(4, ctypes.byref(inputs), ctypes.sizeof(INPUT))
-
-
-def navigate_file_dialog_to_directory(directory: str) -> None:
-    """Navigate the foreground file dialog to *directory* via the address bar.
-
-    Mechanism: Alt+D focuses the address bar in any modern Windows file dialog
-    (IFileDialog / Vista+). We then type the path using KEYEVENTF_UNICODE
-    events and press Enter to navigate.
-    """
-    # Alt+D — focus the address bar
-    alt_d = (INPUT * 4)()
-    for i, (vk, flags) in enumerate([
-        (VK_MENU, 0),
-        (VK_D, 0),
-        (VK_D, KEYEVENTF_KEYUP),
-        (VK_MENU, KEYEVENTF_KEYUP),
-    ]):
-        alt_d[i].type = INPUT_KEYBOARD
-        alt_d[i].union.ki.wVk = vk
-        alt_d[i].union.ki.dwFlags = flags
-    _user32.SendInput(4, ctypes.byref(alt_d), ctypes.sizeof(INPUT))
-    time.sleep(0.1)
-
-    # Type the directory path using Unicode events
-    chars = (INPUT * (len(directory) * 2))()
-    for j, ch in enumerate(directory):
-        chars[j * 2].type = INPUT_KEYBOARD
-        chars[j * 2].union.ki.wScan = ord(ch)
-        chars[j * 2].union.ki.dwFlags = KEYEVENTF_UNICODE
-        chars[j * 2 + 1].type = INPUT_KEYBOARD
-        chars[j * 2 + 1].union.ki.wScan = ord(ch)
-        chars[j * 2 + 1].union.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
-    _user32.SendInput(len(directory) * 2, ctypes.byref(chars), ctypes.sizeof(INPUT))
-    time.sleep(0.1)
-
-    # Enter — navigate to the directory
-    enter = (INPUT * 2)()
-    enter[0].type = INPUT_KEYBOARD
-    enter[0].union.ki.wVk = VK_RETURN
-    enter[0].union.ki.dwFlags = 0
-    enter[1].type = INPUT_KEYBOARD
-    enter[1].union.ki.wVk = VK_RETURN
-    enter[1].union.ki.dwFlags = KEYEVENTF_KEYUP
-    _user32.SendInput(2, ctypes.byref(enter), ctypes.sizeof(INPUT))
-    time.sleep(0.15)
-
-
-def find_dialog_by_pid(pid: int, timeout_s: float = 1.0) -> int:
-    """Find a dialog window (class #32770) belonging to *pid*. Returns 0 on timeout."""
-    deadline = time.monotonic() + timeout_s
-    class_buf = ctypes.create_unicode_buffer(256)
-
-    while time.monotonic() < deadline:
-        found: int = 0
-
-        def callback(hwnd: int, _lparam: int) -> bool:
-            nonlocal found
-            if not _user32.IsWindowVisible(hwnd):
-                return True
-            window_pid = ctypes.wintypes.DWORD()
-            _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
-            if window_pid.value != pid:
-                return True
-            _user32.GetClassNameW(hwnd, class_buf, 256)
-            if class_buf.value == "#32770":
-                found = hwnd
-                return False
-            return True
-
-        _user32.EnumWindows(WNDENUMPROC(callback), 0)
-        if found:
-            return found
-        time.sleep(0.1)
-    return 0
-
-
-def wait_for_window_close(hwnd: int, timeout_s: float = 300.0) -> None:
-    """Block until *hwnd* is destroyed or timeout."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        if not _user32.IsWindow(hwnd):
-            return
-        time.sleep(0.1)
+        if _comdlg32.GetOpenFileNameW(ctypes.byref(ofn)):
+            return buf.value or None
+        return None
+    finally:
+        _ole32.CoUninitialize()
