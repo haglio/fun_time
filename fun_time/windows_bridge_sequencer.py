@@ -224,7 +224,9 @@ def run_startup_sequence(
         _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg, activate=False)
         logger.info("Core windows positioned (deferred reveal)")
 
-        # Set topmost on RFB first so MFP (set after) starts above it
+        # Set topmost on RFB first — within the topmost z-band the last
+        # window to receive SetWindowPos(HWND_TOPMOST) goes to the front,
+        # so RFB must be set before everything that should appear above it.
         if rfb_hwnd:
             set_always_on_top(rfb_hwnd, True)
         for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
@@ -232,6 +234,15 @@ def run_startup_sequence(
             if hwnd:
                 set_always_on_top(hwnd, True)
                 collected_hwnds.append(hwnd)
+        # Re-assert Dashboard topmost — it set its own -topmost in Phase 3
+        # but that was before RFB's topmost was set, so Dashboard is now
+        # below RFB.  Toggling it ensures Dashboard ends up above RFB.
+        dashboard_pid = ui_pids["dashboard_pid"]
+        if dashboard_pid:
+            dash_hwnd = find_window_by_pid(dashboard_pid)
+            if dash_hwnd:
+                set_always_on_top(dash_hwnd, False)
+                set_always_on_top(dash_hwnd, True)
         logger.info("Topmost set on core windows")
 
         progress.advance("Finalizing...")
