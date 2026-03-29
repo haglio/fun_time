@@ -10,6 +10,7 @@ favs.csv
 __pycache__/
 **/__pycache__/
 *.py[cod]
+.coverage
 .pytest_cache/
 .hypothesis/
 .tmp-pytest-*/
