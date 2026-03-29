@@ -124,6 +124,7 @@ def _discard(which: int, state: BridgeState, config: BridgeConfig) -> BridgeStat
         vlc_advance_and_remove(port, config.vlc_password)
     if plan.move_to_weird and current_path:
         move_to_weird(config.weird_dir, Path(current_path))
+    ensure_playback_state(port, config.vlc_password, should_play=True)
     if plan.log_message:
         logger.info(plan.log_message)
     if which == 2:
@@ -142,11 +143,13 @@ def dispatch_command(
     if command == "portrait_prev":
         state = _cancel_lock(2, state, config)
         vlc_nav_step(config.portrait_port, config.vlc_password, "prev")
+        ensure_playback_state(config.portrait_port, config.vlc_password, should_play=True)
         return state, ops
 
     if command == "portrait_next":
         state = _cancel_lock(2, state, config)
         vlc_nav_step(config.portrait_port, config.vlc_password, "next")
+        ensure_playback_state(config.portrait_port, config.vlc_password, should_play=True)
         return state, ops
 
     if command == "portrait_lock":
@@ -160,11 +163,13 @@ def dispatch_command(
     if command == "landscape_prev":
         state = _cancel_lock(3, state, config)
         vlc_nav_step(config.landscape_port, config.vlc_password, "prev")
+        ensure_playback_state(config.landscape_port, config.vlc_password, should_play=True)
         return state, ops
 
     if command == "landscape_next":
         state = _cancel_lock(3, state, config)
         vlc_nav_step(config.landscape_port, config.vlc_password, "next")
+        ensure_playback_state(config.landscape_port, config.vlc_password, should_play=True)
         return state, ops
 
     if command == "landscape_lock":
@@ -185,6 +190,7 @@ def dispatch_command(
             logger.info("nav: %s → vlc_nav_step(%s) on port %s", command, direction, config.primary_port)
             ok = vlc_nav_step(config.primary_port, config.vlc_password, direction)
             logger.info("nav: vlc_nav_step returned %s", ok)
+            ensure_playback_state(config.primary_port, config.vlc_password, should_play=True)
         return state, ops
 
     if command == "quarter_button":

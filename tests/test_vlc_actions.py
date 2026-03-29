@@ -175,7 +175,7 @@ def test_vlc_advance_and_remove_plays_next_then_deletes_current(monkeypatch):
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML_MID_CURRENT))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
 
-    result = vlc_actions.vlc_advance_and_remove(8090, "pw")
+    result = vlc_actions.vlc_advance_and_remove(8090, "pw", sleep_fn=lambda _: None)
 
     assert result is True
     assert calls == ["pl_play&id=5", "pl_delete&id=4"]
@@ -187,7 +187,7 @@ def test_vlc_advance_and_remove_wraps_at_end(monkeypatch):
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML_LAST_CURRENT))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
 
-    result = vlc_actions.vlc_advance_and_remove(8090, "pw")
+    result = vlc_actions.vlc_advance_and_remove(8090, "pw", sleep_fn=lambda _: None)
 
     assert result is True
     assert calls == ["pl_play&id=3", "pl_delete&id=5"]
@@ -199,10 +199,33 @@ def test_vlc_advance_and_remove_from_first_item(monkeypatch):
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
 
-    result = vlc_actions.vlc_advance_and_remove(8090, "pw")
+    result = vlc_actions.vlc_advance_and_remove(8090, "pw", sleep_fn=lambda _: None)
 
     assert result is True
     assert calls == ["pl_play&id=4", "pl_delete&id=3"]
+
+
+def test_vlc_advance_and_remove_sleeps_between_play_and_delete(monkeypatch):
+    """Must sleep between pl_play and pl_delete so VLC can transition to the
+    new item before the old one is removed — prevents black screen / stopped state."""
+    calls_with_timing: list[tuple[str, bool]] = []
+    did_sleep = [False]
+
+    def track_cmd(port, cmd, pw):
+        calls_with_timing.append((cmd, did_sleep[0]))
+        return True
+
+    def track_sleep(seconds):
+        did_sleep[0] = True
+
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML_MID_CURRENT))
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", track_cmd)
+
+    vlc_actions.vlc_advance_and_remove(8090, "pw", sleep_fn=track_sleep)
+
+    # pl_play should happen before sleep, pl_delete should happen after sleep
+    assert calls_with_timing[0] == ("pl_play&id=5", False), "pl_play must happen before sleep"
+    assert calls_with_timing[1] == ("pl_delete&id=4", True), "pl_delete must happen after sleep"
 
 
 def test_vlc_advance_and_remove_returns_false_when_unreachable(monkeypatch):

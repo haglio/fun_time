@@ -196,15 +196,28 @@ def vlc_nav_step(port: int, password: str, direction: str) -> bool:
         target_id = all_ids[(idx - 1) % len(all_ids)]
     else:
         target_id = all_ids[(idx + 1) % len(all_ids)]
+    logger.info(
+        "vlc_nav_step port=%s dir=%s playlist_len=%d idx=%d/%d current_id=%d target_id=%d",
+        port, direction, len(all_ids), idx, len(all_ids) - 1, current_id, target_id,
+    )
     return vlc_http_cmd(port, f"pl_play&id={target_id}", password)
 
 
-def vlc_advance_and_remove(port: int, password: str) -> bool:
+def vlc_advance_and_remove(
+    port: int,
+    password: str,
+    *,
+    sleep_fn=time.sleep,
+) -> bool:
     """Advance to the next playlist item and remove the current one.
 
     Used during discard: plays the next item by explicit ID (not pl_next,
     which is unreliable after manual pl_play navigation), then deletes
     the discarded item from VLC's playlist so it can't be navigated to.
+
+    A short delay between play and delete gives VLC time to transition
+    to the new item before the old one is removed, preventing VLC from
+    entering a stopped/black-screen state.
 
     For a single-item playlist, only the delete is issued (no advance).
     """
@@ -219,6 +232,7 @@ def vlc_advance_and_remove(port: int, password: str) -> bool:
     if len(all_ids) > 1:
         next_id = all_ids[(idx + 1) % len(all_ids)]
         vlc_http_cmd(port, f"pl_play&id={next_id}", password)
+        sleep_fn(0.15)
     vlc_http_cmd(port, f"pl_delete&id={current_id}", password)
     return True
 
