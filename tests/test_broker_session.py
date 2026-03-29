@@ -235,6 +235,38 @@ def test_activity_file_throttled(tmp_path):
     assert float(activity.read_text(encoding="utf-8").strip()) == 1011.0
 
 
+def test_activity_file_written_on_virtual_tx(tmp_path):
+    """Activity file is written when data flows from virtual port to real device."""
+    activity = tmp_path / "broker_activity.txt"
+    wall_clock = [1000.0]
+    session, _auto_mode, _logger = _build_session(
+        auto_active=False,
+        activity_file=activity,
+        time_time=lambda: wall_clock[0],
+    )
+    session.activity_write_interval = 0.0  # no throttle
+
+    session_stop = threading.Event()
+    retry_state = SessionRetryState()
+
+    class FakeVirt:
+        def __init__(self):
+            self.in_waiting = 1
+
+        def read(self, _size):
+            session_stop.set()
+            return b"L0P100\n"
+
+    class FakeReal:
+        def write(self, _data):
+            pass
+
+    session.forward_virtual_to_real(FakeVirt(), FakeReal(), session_stop, retry_state)
+
+    assert activity.exists()
+    assert float(activity.read_text(encoding="utf-8").strip()) == 1000.0
+
+
 def test_no_activity_file_when_not_configured():
     session, _auto_mode, _logger = _build_session()
     # Should not raise even though activity_file is None
