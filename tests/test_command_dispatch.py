@@ -120,6 +120,26 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
     assert new_state.locked2 is False
 
 
+def test_portrait_trash_ensures_playback_after_discard(tmp_path: Path):
+    """After discarding, VLC must be confirmed playing to prevent black screen."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+    playback_calls: list[tuple[int, str, bool]] = []
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.remove_from_favs"),
+        patch("fun_time.command_dispatch.move_to_weird"),
+        patch("fun_time.command_dispatch.vlc_advance_and_remove", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state",
+              side_effect=lambda p, pw, should_play: playback_calls.append((p, pw, should_play)) or True),
+    ):
+        dispatch_command("portrait_trash", state, config)
+
+    assert (config.portrait_port, config.vlc_password, True) in playback_calls
+
+
 def test_portrait_trash_uses_advance_and_remove_not_pl_next(tmp_path: Path):
     """Discard must use vlc_advance_and_remove (ID-based advance + playlist
     cleanup) instead of pl_next, which is unreliable after manual navigation."""
@@ -168,6 +188,53 @@ def test_portrait_next_calls_nav_step_next(tmp_path: Path):
         dispatch_command("portrait_next", state, config)
 
     assert nav_calls == [(8091, "next")]
+
+
+def test_portrait_prev_ensures_playback_after_nav(tmp_path: Path):
+    """Navigation must ensure VLC is actually playing after pl_play, to prevent
+    black screen / stopped state on item transitions."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+    playback_calls: list[tuple[int, str, bool]] = []
+
+    with (
+        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state",
+              side_effect=lambda p, pw, should_play: playback_calls.append((p, pw, should_play)) or True),
+    ):
+        dispatch_command("portrait_prev", state, config)
+
+    assert (config.portrait_port, config.vlc_password, True) in playback_calls
+
+
+def test_landscape_next_ensures_playback_after_nav(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked3=False)
+    playback_calls: list[tuple[int, str, bool]] = []
+
+    with (
+        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state",
+              side_effect=lambda p, pw, should_play: playback_calls.append((p, pw, should_play)) or True),
+    ):
+        dispatch_command("landscape_next", state, config)
+
+    assert (config.landscape_port, config.vlc_password, True) in playback_calls
+
+
+def test_primary_next_ensures_playback_after_nav_when_not_in_robot_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(robot_hand_mode=False)
+    playback_calls: list[tuple[int, str, bool]] = []
+
+    with (
+        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state",
+              side_effect=lambda p, pw, should_play: playback_calls.append((p, pw, should_play)) or True),
+    ):
+        dispatch_command("primary_next", state, config)
+
+    assert (config.primary_port, config.vlc_password, True) in playback_calls
 
 
 # --- landscape_prev / landscape_next ---
