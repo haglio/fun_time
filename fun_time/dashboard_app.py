@@ -442,7 +442,6 @@ def build_dashboard_window(
     root.title("Fun Time Dashboard")
     root.configure(bg=COLOR_BG)
     root.resizable(False, False)
-    root.overrideredirect(True)
     root.attributes("-topmost", True)
     canvas = tk.Canvas(root, bg=COLOR_BG, highlightthickness=0, bd=0)
     canvas.pack()
