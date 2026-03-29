@@ -10,8 +10,8 @@ import ctypes.wintypes
 import time
 
 _user32 = ctypes.windll.user32  # type: ignore[attr-defined]
-_comdlg32 = ctypes.windll.comdlg32  # type: ignore[attr-defined]
 _ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
+_shell32 = ctypes.windll.shell32  # type: ignore[attr-defined]
 
 # Constants
 SW_RESTORE = 9
@@ -195,72 +195,135 @@ def get_window_rect(hwnd: int) -> tuple[int, int, int, int]:
     return rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top
 
 
-# --- File Open Dialog (GetOpenFileNameW) ---
+# --- File Open Dialog (COM IFileOpenDialog) ---
 
-OFN_FILEMUSTEXIST = 0x00001000
-OFN_PATHMUSTEXIST = 0x00000800
-OFN_NOCHANGEDIR = 0x00000008
+import uuid
+
 COINIT_APARTMENTTHREADED = 0x2
-
-_VIDEO_FILTER = (
-    "Video Files\0"
-    "*.mp4;*.mkv;*.avi;*.wmv;*.mov;*.flv;*.webm;*.m4v;*.ts;*.mpg;*.mpeg\0"
-    "All Files\0*.*\0"
-)
+CLSCTX_ALL = 0x17
+SIGDN_FILESYSPATH = 0x80058000
 
 
-class OPENFILENAMEW(ctypes.Structure):
+class GUID(ctypes.Structure):
     _fields_ = [
-        ("lStructSize", ctypes.wintypes.DWORD),
-        ("hwndOwner", ctypes.wintypes.HWND),
-        ("hInstance", ctypes.wintypes.HINSTANCE),
-        ("lpstrFilter", ctypes.wintypes.LPCWSTR),
-        ("lpstrCustomFilter", ctypes.wintypes.LPWSTR),
-        ("nMaxCustFilter", ctypes.wintypes.DWORD),
-        ("nFilterIndex", ctypes.wintypes.DWORD),
-        ("lpstrFile", ctypes.wintypes.LPWSTR),
-        ("nMaxFile", ctypes.wintypes.DWORD),
-        ("lpstrFileTitle", ctypes.wintypes.LPWSTR),
-        ("nMaxFileTitle", ctypes.wintypes.DWORD),
-        ("lpstrInitialDir", ctypes.wintypes.LPCWSTR),
-        ("lpstrTitle", ctypes.wintypes.LPCWSTR),
-        ("Flags", ctypes.wintypes.DWORD),
-        ("nFileOffset", ctypes.wintypes.WORD),
-        ("nFileExtension", ctypes.wintypes.WORD),
-        ("lpstrDefExt", ctypes.wintypes.LPCWSTR),
-        ("lCustData", ctypes.c_void_p),
-        ("lpfnHook", ctypes.c_void_p),
-        ("lpTemplateName", ctypes.wintypes.LPCWSTR),
-        ("pvReserved", ctypes.c_void_p),
-        ("dwReserved", ctypes.wintypes.DWORD),
-        ("FlagsEx", ctypes.wintypes.DWORD),
+        ("Data1", ctypes.c_ulong),
+        ("Data2", ctypes.c_ushort),
+        ("Data3", ctypes.c_ushort),
+        ("Data4", ctypes.c_ubyte * 8),
     ]
+
+
+def _make_guid(s: str) -> GUID:
+    u = uuid.UUID(s)
+    return GUID(u.time_low, u.time_mid, u.time_hi_version,
+                (ctypes.c_ubyte * 8)(*u.bytes[8:]))
+
+
+class COMDLG_FILTERSPEC(ctypes.Structure):
+    _fields_ = [
+        ("pszName", ctypes.wintypes.LPCWSTR),
+        ("pszSpec", ctypes.wintypes.LPCWSTR),
+    ]
+
+
+CLSID_FileOpenDialog = _make_guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")
+IID_IFileOpenDialog = _make_guid("d57c7288-d4ad-4768-be02-9d969532d960")
+IID_IShellItem = _make_guid("43826d1e-e718-42ee-bc55-a1e261c37bfe")
+
+# IFileOpenDialog vtable indices (IUnknown + IModalWindow + IFileDialog + IFileOpenDialog)
+_VTBL_RELEASE = 2
+_VTBL_SHOW = 3
+_VTBL_SET_FILE_TYPES = 4
+_VTBL_SET_FOLDER = 12
+_VTBL_GET_RESULT = 20
+# IShellItem vtable indices
+_VTBL_GET_DISPLAY_NAME = 5
+
+
+def _vtbl_call(obj_addr: int, index: int, restype: type, *argtypes: type):
+    """Build a callable for COM vtable method at *index*. Caller passes 'this' as first arg."""
+    vtbl = ctypes.c_void_p.from_address(obj_addr).value
+    func_ptr = ctypes.c_void_p.from_address(
+        vtbl + index * ctypes.sizeof(ctypes.c_void_p)
+    ).value
+    return ctypes.WINFUNCTYPE(restype, ctypes.c_void_p, *argtypes)(func_ptr)
+
+
+def _release(obj_addr: int) -> None:
+    _vtbl_call(obj_addr, _VTBL_RELEASE, ctypes.c_ulong)(obj_addr)
 
 
 def show_open_file_dialog(initial_dir: str, owner_hwnd: int = 0) -> str | None:
     """Show a native Windows file-open dialog starting at *initial_dir*.
 
-    Uses GetOpenFileNameW which, on Vista+, renders as a modern IFileDialog
-    with lpstrInitialDir mapped to IFileDialog::SetFolder — so the dialog
-    opens at the correct directory from the first frame (no address-bar jank).
+    Uses COM IFileOpenDialog with SetFolder (not SetDefaultFolder) so the
+    dialog always opens at the specified directory, ignoring Windows' MRU
+    cache.  The owner_hwnd parameter positions the dialog near that window.
 
     Returns the selected file path, or None if the user cancelled.
     """
     _ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
     try:
-        buf = ctypes.create_unicode_buffer(1024)
-        ofn = OPENFILENAMEW()
-        ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
-        ofn.hwndOwner = owner_hwnd
-        ofn.lpstrFilter = _VIDEO_FILTER
-        ofn.nFilterIndex = 1
-        ofn.lpstrFile = ctypes.cast(buf, ctypes.wintypes.LPWSTR)
-        ofn.nMaxFile = 1024
-        ofn.lpstrInitialDir = initial_dir
-        ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR
-
-        if _comdlg32.GetOpenFileNameW(ctypes.byref(ofn)):
-            return buf.value or None
-        return None
+        return _show_ifile_dialog(initial_dir, owner_hwnd)
     finally:
         _ole32.CoUninitialize()
+
+
+def _show_ifile_dialog(initial_dir: str, owner_hwnd: int) -> str | None:
+    dialog = ctypes.c_void_p()
+    hr = _ole32.CoCreateInstance(
+        ctypes.byref(CLSID_FileOpenDialog), None, CLSCTX_ALL,
+        ctypes.byref(IID_IFileOpenDialog), ctypes.byref(dialog),
+    )
+    if hr != 0:
+        return None
+    try:
+        # Set initial folder (always forces, ignores MRU)
+        if initial_dir:
+            folder = ctypes.c_void_p()
+            hr = _shell32.SHCreateItemFromParsingName(
+                initial_dir, None, ctypes.byref(IID_IShellItem), ctypes.byref(folder),
+            )
+            if hr == 0:
+                _vtbl_call(dialog.value, _VTBL_SET_FOLDER,
+                           ctypes.HRESULT, ctypes.c_void_p)(dialog.value, folder.value)
+                _release(folder.value)
+
+        # Set video file filters
+        specs = (COMDLG_FILTERSPEC * 2)(
+            COMDLG_FILTERSPEC("Video Files",
+                              "*.mp4;*.mkv;*.avi;*.wmv;*.mov;*.flv;*.webm;*.m4v;*.ts;*.mpg;*.mpeg"),
+            COMDLG_FILTERSPEC("All Files", "*.*"),
+        )
+        _vtbl_call(dialog.value, _VTBL_SET_FILE_TYPES,
+                   ctypes.HRESULT, ctypes.c_uint,
+                   ctypes.POINTER(COMDLG_FILTERSPEC))(dialog.value, 2, specs)
+
+        # Show (blocks until user selects or cancels)
+        hr = _vtbl_call(dialog.value, _VTBL_SHOW,
+                        ctypes.HRESULT, ctypes.wintypes.HWND)(dialog.value, owner_hwnd)
+        if hr != 0:
+            return None
+
+        # Get selected file path
+        result = ctypes.c_void_p()
+        hr = _vtbl_call(dialog.value, _VTBL_GET_RESULT,
+                        ctypes.HRESULT, ctypes.POINTER(ctypes.c_void_p))(
+            dialog.value, ctypes.byref(result))
+        if hr != 0:
+            return None
+        try:
+            path_ptr = ctypes.wintypes.LPWSTR()
+            hr = _vtbl_call(result.value, _VTBL_GET_DISPLAY_NAME,
+                            ctypes.HRESULT, ctypes.c_int,
+                            ctypes.POINTER(ctypes.wintypes.LPWSTR))(
+                result.value, SIGDN_FILESYSPATH, ctypes.byref(path_ptr))
+            if hr != 0:
+                return None
+            path = path_ptr.value
+            _ole32.CoTaskMemFree(path_ptr)
+            return path
+        finally:
+            _release(result.value)
+    finally:
+        _release(dialog.value)
