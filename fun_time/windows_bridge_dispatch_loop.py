@@ -148,6 +148,7 @@ class DispatchLoopRunner:
         landscape_pid: int = 0,
         dashboard_pid: int = 0,
         dashboard_enabled: bool,
+        rfb_hwnd: int = 0,
         sync_interval_ms: int = 200,
     ) -> None:
         self.config = config
@@ -160,6 +161,7 @@ class DispatchLoopRunner:
         self.landscape_pid = landscape_pid
         self.dashboard_pid = dashboard_pid
         self.dashboard_enabled = dashboard_enabled
+        self.rfb_hwnd = rfb_hwnd
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
@@ -266,6 +268,8 @@ class DispatchLoopRunner:
             hwnd = find_window_by_pid(pid)
             if hwnd:
                 set_always_on_top(hwnd, False)
+        if self.rfb_hwnd:
+            set_always_on_top(self.rfb_hwnd, False)
 
     def _restore_all_topmost(self) -> None:
         robot_hand_mode = self.state.robot_hand_mode
@@ -275,6 +279,8 @@ class DispatchLoopRunner:
             hwnd = find_window_by_pid(pid)
             if hwnd:
                 set_always_on_top(hwnd, True)
+        if self.rfb_hwnd:
+            set_always_on_top(self.rfb_hwnd, True)
 
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows."""
