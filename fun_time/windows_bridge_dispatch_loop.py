@@ -15,7 +15,7 @@ from pathlib import Path
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
 from .dashboard_bridge import write_dashboard_snapshot
 from .runtime_flow import read_flag_file
-from .vlc_actions import send_vlc_input_command
+from .vlc_actions import send_vlc_input_command, vlc_http_cmd
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -310,7 +310,8 @@ class DispatchLoopRunner:
 
         try:
             default_dir = self.config.primary_sources.split("|")[0] if self.config.primary_sources else ""
-            selected = show_open_file_dialog(default_dir or "")
+            primary_hwnd = find_window_by_pid(self.primary_pid)
+            selected = show_open_file_dialog(default_dir or "", owner_hwnd=primary_hwnd)
             if selected:
                 send_vlc_input_command(
                     self.config.primary_port,
@@ -318,6 +319,7 @@ class DispatchLoopRunner:
                     selected,
                     self.config.vlc_password,
                 )
+                vlc_http_cmd(self.config.primary_port, "pl_play", self.config.vlc_password)
         finally:
             if should_manage_omnipause:
                 self._dispatch("leave_omnipause_skip_primary")

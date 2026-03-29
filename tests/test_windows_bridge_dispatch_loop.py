@@ -750,16 +750,19 @@ class TestHandleOpenFileDialog:
         )
         runner.state = BridgeState(omni_paused=False)
 
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
+             patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI")
+        mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI", owner_hwnd=1001)
 
     def test_sends_selected_file_to_vlc_via_http(self, tmp_path):
         """When user selects a file, it's sent to VLC via HTTP in_play."""
@@ -800,11 +803,13 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc:
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc, \
+             patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd") as mock_http:
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         mock_vlc.assert_called_once_with(9090, "in_play", r"C:\videos\movie.mp4", "test")
+        mock_http.assert_called_once_with(9090, "pl_play", "test")
 
     def test_does_not_send_to_vlc_on_cancel(self, tmp_path):
         """When user cancels the dialog, no HTTP command is sent."""
@@ -816,11 +821,13 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc:
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc, \
+             patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd") as mock_http:
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         mock_vlc.assert_not_called()
+        mock_http.assert_not_called()
 
     def test_restores_topmost_in_finally(self, tmp_path):
         runner = self._make_runner(tmp_path)
@@ -889,7 +896,7 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d: (call_log.append("dialog"), None)[-1]), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d, **kw: (call_log.append("dialog"), None)[-1]), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
@@ -903,17 +910,19 @@ class TestHandleOpenFileDialog:
         runner.state = BridgeState(omni_paused=True)
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
+             patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd"):
             runner._handle_open_file_dialog()
 
         # Should not dispatch enter/leave omnipause
         mock_dispatch.assert_not_called()
         # Should not touch topmost
         mock_topmost.assert_not_called()
-        # Should still show the file dialog
-        mock_dialog.assert_called_once()
+        # Should still show the file dialog with primary hwnd
+        mock_dialog.assert_called_once_with("", owner_hwnd=1001)
 
     def test_shows_dialog_with_empty_dir_when_no_primary_sources(self, tmp_path):
         """When primary_sources is empty, dialog opens with empty initial dir."""
@@ -929,7 +938,7 @@ class TestHandleOpenFileDialog:
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        mock_dialog.assert_called_once_with("")
+        mock_dialog.assert_called_once_with("", owner_hwnd=0)
 
     def test_forwards_suspend_and_unsuspend_via_dispatch(self, tmp_path, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
