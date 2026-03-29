@@ -13,12 +13,8 @@ from fun_time.win32 import (
     find_window_by_pid,
     minimize_window,
     send_vk_to_window,
-    show_open_file_dialog,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
-    OFN_FILEMUSTEXIST,
-    OFN_NOCHANGEDIR,
-    OFN_PATHMUSTEXIST,
     SW_MINIMIZE,
     SW_RESTORE,
     SWP_NOZORDER,
@@ -125,87 +121,3 @@ class TestConstants:
         assert HWND_NOTOPMOST.value == (2**64 - 2)
 
 
-class TestShowOpenFileDialog:
-    def _get_ofn(self, mock_comdlg):
-        """Extract the OPENFILENAMEW struct from the mocked call."""
-        return mock_comdlg.GetOpenFileNameW.call_args[0][0]._obj
-
-    def test_sets_initial_directory(self):
-        """lpstrInitialDir is set to the provided directory."""
-        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
-             patch("fun_time.win32._ole32"):
-            mock_comdlg.GetOpenFileNameW.return_value = 0
-            show_open_file_dialog(r"C:\videos\clips")
-
-        ofn = self._get_ofn(mock_comdlg)
-        assert ofn.lpstrInitialDir == r"C:\videos\clips"
-
-    def test_returns_none_on_cancel(self):
-        """Returns None when the user cancels the dialog."""
-        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
-             patch("fun_time.win32._ole32"):
-            mock_comdlg.GetOpenFileNameW.return_value = 0
-            result = show_open_file_dialog(r"C:\videos")
-
-        assert result is None
-
-    def test_returns_selected_file_path(self):
-        """Returns the file path when the user selects a file."""
-        import ctypes as ct
-        from fun_time.win32 import OPENFILENAMEW
-
-        def fake_get_open(ofn_ref):
-            ofn = ofn_ref._obj
-            # Read the raw pointer address from the lpstrFile field
-            ptr_addr = ct.addressof(ofn) + OPENFILENAMEW.lpstrFile.offset
-            buf_addr = ct.c_void_p.from_address(ptr_addr).value
-            path_bytes = r"C:\videos\movie.mp4".encode("utf-16-le") + b"\x00\x00"
-            ct.memmove(buf_addr, path_bytes, len(path_bytes))
-            return 1
-
-        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
-             patch("fun_time.win32._ole32"):
-            mock_comdlg.GetOpenFileNameW.side_effect = fake_get_open
-            result = show_open_file_dialog(r"C:\videos")
-
-        assert result == r"C:\videos\movie.mp4"
-
-    def test_sets_correct_flags(self):
-        """Must set FILEMUSTEXIST, PATHMUSTEXIST, NOCHANGEDIR."""
-        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
-             patch("fun_time.win32._ole32"):
-            mock_comdlg.GetOpenFileNameW.return_value = 0
-            show_open_file_dialog(r"C:\videos")
-
-        ofn = self._get_ofn(mock_comdlg)
-        assert ofn.Flags & OFN_FILEMUSTEXIST
-        assert ofn.Flags & OFN_PATHMUSTEXIST
-        assert ofn.Flags & OFN_NOCHANGEDIR
-
-    def test_has_video_file_filter(self):
-        """Filter string starts with the video file filter label."""
-        import ctypes as ct
-        from fun_time.win32 import OPENFILENAMEW, _VIDEO_FILTER
-
-        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
-             patch("fun_time.win32._ole32"):
-            mock_comdlg.GetOpenFileNameW.return_value = 0
-            show_open_file_dialog(r"C:\videos")
-
-        ofn = self._get_ofn(mock_comdlg)
-        # lpstrFilter is c_wchar_p which truncates at first null; read raw memory
-        ptr_addr = ct.addressof(ofn) + OPENFILENAMEW.lpstrFilter.offset
-        str_addr = ct.c_void_p.from_address(ptr_addr).value
-        raw = ct.wstring_at(str_addr, len(_VIDEO_FILTER))
-        assert "*.mp4" in raw
-        assert "*.mkv" in raw
-
-    def test_initializes_and_uninitializes_com(self):
-        """COM is initialized (STA) before the dialog and cleaned up after."""
-        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
-             patch("fun_time.win32._ole32") as mock_ole:
-            mock_comdlg.GetOpenFileNameW.return_value = 0
-            show_open_file_dialog(r"C:\videos")
-
-        mock_ole.CoInitializeEx.assert_called_once()
-        mock_ole.CoUninitialize.assert_called_once()
