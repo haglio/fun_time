@@ -11,25 +11,20 @@ from fun_time.win32 import (
     activate_window,
     get_window_rect,
     find_window_by_pid,
-    find_dialog_by_pid,
     minimize_window,
-    navigate_file_dialog_to_directory,
-    send_ctrl_o,
-    send_ctrl_o_to_window,
     send_vk_to_window,
-    wait_for_window_close,
+    show_open_file_dialog,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
-    KEYEVENTF_KEYUP,
-    KEYEVENTF_UNICODE,
+    OFN_FILEMUSTEXIST,
+    OFN_NOCHANGEDIR,
+    OFN_PATHMUSTEXIST,
     SW_MINIMIZE,
     SW_RESTORE,
     SWP_NOZORDER,
     SWP_NOACTIVATE,
     SWP_NOMOVE,
     SWP_NOSIZE,
-    VK_MENU,
-    VK_RETURN,
 )
 
 
@@ -93,83 +88,6 @@ class TestActivateWindow:
         mock.SetForegroundWindow.assert_called_once_with(111)
 
 
-class TestSendCtrlO:
-    def test_calls_send_input_with_four_key_events(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.SendInput.return_value = 4
-            send_ctrl_o()
-
-        mock.SendInput.assert_called_once()
-        args = mock.SendInput.call_args[0]
-        assert args[0] == 4  # four key events: ctrl down, o down, o up, ctrl up
-
-
-class TestSendCtrlOToWindow:
-    def test_injects_dummy_input_activates_and_sends_ctrl_o(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.SendInput.return_value = 1
-            send_ctrl_o_to_window(12345)
-
-        # SetForegroundWindow must target the given hwnd
-        mock.SetForegroundWindow.assert_called_once_with(12345)
-        # SendInput called twice: once for dummy mouse move, once for Ctrl+O
-        assert mock.SendInput.call_count == 2
-        # First call: 1 input event (dummy mouse move)
-        assert mock.SendInput.call_args_list[0][0][0] == 1
-        # Second call: 4 key events (Ctrl down, O down, O up, Ctrl up)
-        assert mock.SendInput.call_args_list[1][0][0] == 4
-
-
-class TestFindDialogByPid:
-    def test_finds_dialog_window(self):
-        def fake_enum(callback, _lparam):
-            # Simulate a dialog window with class #32770 belonging to pid 100
-            callback(55555, 0)
-            return True
-
-        def fake_get_class(hwnd, buf, size):
-            if hwnd == 55555:
-                for i, c in enumerate("#32770"):
-                    buf[i] = c
-                buf[len("#32770")] = "\x00"
-            return len("#32770")
-
-        def fake_get_pid(hwnd, pid_ptr):
-            pid_ptr._obj.value = 100
-
-        with patch("fun_time.win32._user32") as mock:
-            mock.EnumWindows.side_effect = fake_enum
-            mock.GetClassNameW.side_effect = fake_get_class
-            mock.GetWindowThreadProcessId.side_effect = fake_get_pid
-            mock.IsWindowVisible.return_value = True
-            result = find_dialog_by_pid(100, timeout_s=0.1)
-
-        assert result == 55555
-
-    def test_returns_zero_on_timeout(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.EnumWindows.return_value = True  # no windows found
-            result = find_dialog_by_pid(100, timeout_s=0.05)
-
-        assert result == 0
-
-
-class TestWaitForWindowClose:
-    def test_returns_when_window_destroyed(self):
-        calls = [True, True, False]  # window exists, exists, gone
-
-        with patch("fun_time.win32._user32") as mock:
-            mock.IsWindow.side_effect = calls
-            wait_for_window_close(55555, timeout_s=1.0)
-
-        assert mock.IsWindow.call_count == 3
-
-    def test_returns_on_timeout(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.IsWindow.return_value = True  # window never closes
-            wait_for_window_close(55555, timeout_s=0.05)
-
-
 class TestSendVkToWindow:
     def test_posts_keydown_and_keyup(self):
         with patch("fun_time.win32._user32") as mock:
@@ -194,63 +112,6 @@ class TestMinimizeWindow:
         mock_user32.ShowWindow.assert_called_once_with(99999, SW_MINIMIZE)
 
 
-class TestNavigateFileDialogToDirectory:
-    def test_sends_alt_d_then_types_path_then_enter(self):
-        """Alt+D focuses the address bar, then we type the path via
-        KEYEVENTF_UNICODE, then press Enter to navigate."""
-        with patch("fun_time.win32._user32") as mock:
-            mock.SendInput.return_value = 1
-            navigate_file_dialog_to_directory(r"C:\videos\clips")
-
-        calls = mock.SendInput.call_args_list
-        # Call 0: Alt+D (4 events: Alt down, D down, D up, Alt up)
-        assert calls[0][0][0] == 4
-        # Call 1: unicode characters for the path (2 events per char: down + up)
-        path = r"C:\videos\clips"
-        assert calls[1][0][0] == len(path) * 2
-        # Call 2: Enter key (2 events: down + up)
-        assert calls[2][0][0] == 2
-
-    def test_unicode_events_carry_correct_scan_codes(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.SendInput.return_value = 1
-            navigate_file_dialog_to_directory("AB")
-
-        # Second SendInput call has the unicode chars — byref wraps the array
-        char_call = mock.SendInput.call_args_list[1]
-        inputs = char_call[0][1]._obj
-        # First event: 'A' key down (KEYEVENTF_UNICODE, wScan=ord('A'))
-        assert inputs[0].union.ki.dwFlags == KEYEVENTF_UNICODE
-        assert inputs[0].union.ki.wScan == ord("A")
-        # Second event: 'A' key up
-        assert inputs[1].union.ki.dwFlags == KEYEVENTF_UNICODE | 0x0002  # KEYUP
-        assert inputs[1].union.ki.wScan == ord("A")
-
-    def test_alt_d_uses_correct_virtual_keys(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.SendInput.return_value = 1
-            navigate_file_dialog_to_directory("X")
-
-        alt_d_call = mock.SendInput.call_args_list[0]
-        inputs = alt_d_call[0][1]._obj
-        assert inputs[0].union.ki.wVk == VK_MENU     # Alt down
-        assert inputs[1].union.ki.wVk == 0x44         # D down
-        assert inputs[2].union.ki.wVk == 0x44         # D up
-        assert inputs[3].union.ki.wVk == VK_MENU      # Alt up
-
-    def test_enter_uses_correct_virtual_key(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.SendInput.return_value = 1
-            navigate_file_dialog_to_directory("X")
-
-        enter_call = mock.SendInput.call_args_list[2]
-        inputs = enter_call[0][1]._obj
-        assert inputs[0].union.ki.wVk == VK_RETURN
-        assert inputs[0].union.ki.dwFlags == 0  # key down
-        assert inputs[1].union.ki.wVk == VK_RETURN
-        assert inputs[1].union.ki.dwFlags == KEYEVENTF_KEYUP
-
-
 class TestConstants:
     def test_hwnd_topmost_is_64bit_pointer(self):
         import ctypes
@@ -262,3 +123,89 @@ class TestConstants:
         import ctypes
         assert isinstance(HWND_NOTOPMOST, ctypes.c_void_p)
         assert HWND_NOTOPMOST.value == (2**64 - 2)
+
+
+class TestShowOpenFileDialog:
+    def _get_ofn(self, mock_comdlg):
+        """Extract the OPENFILENAMEW struct from the mocked call."""
+        return mock_comdlg.GetOpenFileNameW.call_args[0][0]._obj
+
+    def test_sets_initial_directory(self):
+        """lpstrInitialDir is set to the provided directory."""
+        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
+             patch("fun_time.win32._ole32"):
+            mock_comdlg.GetOpenFileNameW.return_value = 0
+            show_open_file_dialog(r"C:\videos\clips")
+
+        ofn = self._get_ofn(mock_comdlg)
+        assert ofn.lpstrInitialDir == r"C:\videos\clips"
+
+    def test_returns_none_on_cancel(self):
+        """Returns None when the user cancels the dialog."""
+        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
+             patch("fun_time.win32._ole32"):
+            mock_comdlg.GetOpenFileNameW.return_value = 0
+            result = show_open_file_dialog(r"C:\videos")
+
+        assert result is None
+
+    def test_returns_selected_file_path(self):
+        """Returns the file path when the user selects a file."""
+        import ctypes as ct
+        from fun_time.win32 import OPENFILENAMEW
+
+        def fake_get_open(ofn_ref):
+            ofn = ofn_ref._obj
+            # Read the raw pointer address from the lpstrFile field
+            ptr_addr = ct.addressof(ofn) + OPENFILENAMEW.lpstrFile.offset
+            buf_addr = ct.c_void_p.from_address(ptr_addr).value
+            path_bytes = r"C:\videos\movie.mp4".encode("utf-16-le") + b"\x00\x00"
+            ct.memmove(buf_addr, path_bytes, len(path_bytes))
+            return 1
+
+        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
+             patch("fun_time.win32._ole32"):
+            mock_comdlg.GetOpenFileNameW.side_effect = fake_get_open
+            result = show_open_file_dialog(r"C:\videos")
+
+        assert result == r"C:\videos\movie.mp4"
+
+    def test_sets_correct_flags(self):
+        """Must set FILEMUSTEXIST, PATHMUSTEXIST, NOCHANGEDIR."""
+        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
+             patch("fun_time.win32._ole32"):
+            mock_comdlg.GetOpenFileNameW.return_value = 0
+            show_open_file_dialog(r"C:\videos")
+
+        ofn = self._get_ofn(mock_comdlg)
+        assert ofn.Flags & OFN_FILEMUSTEXIST
+        assert ofn.Flags & OFN_PATHMUSTEXIST
+        assert ofn.Flags & OFN_NOCHANGEDIR
+
+    def test_has_video_file_filter(self):
+        """Filter string starts with the video file filter label."""
+        import ctypes as ct
+        from fun_time.win32 import OPENFILENAMEW, _VIDEO_FILTER
+
+        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
+             patch("fun_time.win32._ole32"):
+            mock_comdlg.GetOpenFileNameW.return_value = 0
+            show_open_file_dialog(r"C:\videos")
+
+        ofn = self._get_ofn(mock_comdlg)
+        # lpstrFilter is c_wchar_p which truncates at first null; read raw memory
+        ptr_addr = ct.addressof(ofn) + OPENFILENAMEW.lpstrFilter.offset
+        str_addr = ct.c_void_p.from_address(ptr_addr).value
+        raw = ct.wstring_at(str_addr, len(_VIDEO_FILTER))
+        assert "*.mp4" in raw
+        assert "*.mkv" in raw
+
+    def test_initializes_and_uninitializes_com(self):
+        """COM is initialized (STA) before the dialog and cleaned up after."""
+        with patch("fun_time.win32._comdlg32") as mock_comdlg, \
+             patch("fun_time.win32._ole32") as mock_ole:
+            mock_comdlg.GetOpenFileNameW.return_value = 0
+            show_open_file_dialog(r"C:\videos")
+
+        mock_ole.CoInitializeEx.assert_called_once()
+        mock_ole.CoUninitialize.assert_called_once()
