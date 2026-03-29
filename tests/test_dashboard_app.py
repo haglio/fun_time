@@ -10,6 +10,7 @@ from fun_time.dashboard_app import (
     DashboardLaunchGeometry,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
+    build_dashboard_window,
     hydrate_dashboard_snapshot,
     load_dashboard_app_config,
     resolve_logical_monitor_sizes,
@@ -224,6 +225,20 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
     fills = {item.rect: item.fill for item in scene.rects}
     assert fills[preview_layout.broker_panel] == COLOR_DISABLED
     assert fills[preview_layout.mfp_panel] == COLOR_DISABLED
+
+
+def test_dashboard_window_has_standard_decorations(cfg_path: Path):
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        root = build_dashboard_window(app_config)
+
+    try:
+        assert not root.overrideredirect()
+    finally:
+        root.destroy()
 
 
 def test_dashboard_app_hydrates_live_vlc_state(cfg_path: Path):
