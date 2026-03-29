@@ -444,6 +444,17 @@ class TestDispatchLoopRunner:
         assert loaded is not None
         assert loaded.locked3 is True
 
+    def test_quit_command_writes_exit_to_ahk(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("quit", encoding="utf-8")
+        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
+
+        runner.tick()
+
+        assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
+
 
 class TestRobotHandActivationRetry:
     """When entering Robot Hand mode, the window may not be visible yet

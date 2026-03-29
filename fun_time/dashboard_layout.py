@@ -48,6 +48,8 @@ class DashboardPreviewLayout:
     landscape_trash: Rect
     osr2_panel: Rect
     link_toggle: Rect
+    quit_button: Rect
+    omnipause_button: Rect
     broker_panel: Rect
     controller_panel: Rect
     fmode_panel: Rect
@@ -92,7 +94,15 @@ def compute_dashboard_preview_layout(
     portrait_y = right_inner_y
     primary_y = right_inner_y + portrait_h + stack_gap
 
+    toolbar_button_w = 24
+    toolbar_button_h = 20
+    toolbar_gap = 6
+    toolbar_y_offset = toolbar_button_h + toolbar_gap
+
     main_y = portrait_y + (portrait_h - left_h) // 2
+    quit_button_x = main_x
+    omnipause_button_x = main_x + toolbar_button_w + toolbar_gap
+    toolbar_y = main_y - toolbar_y_offset
     preview_bottom = max(main_y + left_h, secondary_y + right_h, primary_y + primary_h)
 
     main_inner_x = main_x + inner_pad
@@ -160,6 +170,8 @@ def compute_dashboard_preview_layout(
         landscape_lock=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y + 20, 30, 16),
         osr2_panel=Rect(osr2_x, osr2_y, osr2_w, osr2_h),
         link_toggle=Rect(link_x, link_y, link_w, 18),
+        quit_button=Rect(quit_button_x, toolbar_y, toolbar_button_w, toolbar_button_h),
+        omnipause_button=Rect(omnipause_button_x, toolbar_y, toolbar_button_w, toolbar_button_h),
         broker_panel=Rect(status_row_x, status_strip_y + 3, status_chip_size, status_chip_size),
         controller_panel=Rect(status_row_x + status_chip_size + status_chip_gap, status_strip_y + 3, status_chip_size, status_chip_size),
         fmode_panel=Rect(status_row_x + (status_chip_size + status_chip_gap) * 2, status_strip_y + 3, status_chip_size, status_chip_size),

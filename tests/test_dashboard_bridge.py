@@ -25,6 +25,8 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "mode=auto\n"
         "[mfp]\n"
         "alive=1\n"
+        "[omnipause]\n"
+        "active=0\n"
         "[primary]\n"
         "uses_robot_hand=0\n"
         "locked=0\n"
@@ -33,6 +35,21 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "[landscape]\n"
         "locked=0\n"
     )
+
+
+def test_build_dashboard_snapshot_text_includes_omnipause_state():
+    text = build_dashboard_snapshot_text(
+        f_mode_enabled=False,
+        robot_link_enabled=True,
+        osr2_mode="controlled",
+        mfp_alive=False,
+        primary_uses_robot_hand=False,
+        portrait_locked=False,
+        landscape_locked=False,
+        omni_paused=True,
+    )
+
+    assert "[omnipause]\nactive=1\n" in text
 
 
 def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_path: Path):

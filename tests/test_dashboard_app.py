@@ -5,8 +5,10 @@ from unittest.mock import patch
 
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.dashboard_app import (
+    COLOR_ACTIVE,
     COLOR_DISABLED,
     COLOR_ACTIVE_ALT,
+    COLOR_PANEL,
     DashboardLaunchGeometry,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
@@ -99,6 +101,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
         osr2_mode="auto",
         mfp_alive=True,
         primary_responsive=True,
+        omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot(str(portrait_path), True),
         landscape=DashboardPanelSnapshot(str(landscape_path), False),
@@ -147,6 +150,7 @@ def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path:
         osr2_mode="controlled",
         mfp_alive=False,
         primary_responsive=False,
+        omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False),
         landscape=DashboardPanelSnapshot("", False),
@@ -210,6 +214,7 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
         osr2_mode="controlled",
         mfp_alive=True,
         primary_responsive=True,
+        omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False),
         landscape=DashboardPanelSnapshot("", False),
@@ -252,6 +257,7 @@ def test_dashboard_app_hydrates_live_vlc_state(cfg_path: Path):
         osr2_mode="controlled",
         mfp_alive=True,
         primary_responsive=False,
+        omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", True),
         landscape=DashboardPanelSnapshot("", False),
@@ -270,3 +276,91 @@ def test_dashboard_app_hydrates_live_vlc_state(cfg_path: Path):
     assert hydrated.landscape.path == "landscape.mp4"
     assert hydrated.primary_responsive is True
     assert hydrated.mfp_alive is False
+
+
+def test_dashboard_scene_has_quit_and_omnipause_actions(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+
+    scene = build_dashboard_scene(preview_layout)
+
+    action_ids = [action for action, _rect in scene.actions]
+    assert "quit" in action_ids
+    assert "omnipause_toggle" in action_ids
+
+
+def test_dashboard_scene_quit_and_omnipause_buttons_are_above_main_monitor(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+
+    assert preview_layout.quit_button.y + preview_layout.quit_button.height <= preview_layout.main_monitor.y
+    assert preview_layout.omnipause_button.y + preview_layout.omnipause_button.height <= preview_layout.main_monitor.y
+    assert preview_layout.quit_button.x < preview_layout.omnipause_button.x
+
+
+def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=True,
+        primary_uses_robot_hand=False,
+        osr2_mode="controlled",
+        mfp_alive=False,
+        primary_responsive=False,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False),
+        landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(preview_layout, snapshot)
+
+    omnipause_texts = [item for item in scene.texts if item.rect == preview_layout.omnipause_button]
+    assert len(omnipause_texts) == 1
+    assert omnipause_texts[0].text == "\u23F8"  # pause icon
+    omnipause_rects = [item for item in scene.rects if item.rect == preview_layout.omnipause_button]
+    assert omnipause_rects[0].fill == COLOR_PANEL
+
+
+def test_dashboard_scene_omnipause_button_shows_play_icon_when_paused(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=True,
+        primary_uses_robot_hand=False,
+        osr2_mode="controlled",
+        mfp_alive=False,
+        primary_responsive=False,
+        omni_paused=True,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False),
+        landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(preview_layout, snapshot)
+
+    omnipause_texts = [item for item in scene.texts if item.rect == preview_layout.omnipause_button]
+    assert len(omnipause_texts) == 1
+    assert omnipause_texts[0].text == "\u25B6"  # play icon
+    omnipause_rects = [item for item in scene.rects if item.rect == preview_layout.omnipause_button]
+    assert omnipause_rects[0].fill == COLOR_ACTIVE
