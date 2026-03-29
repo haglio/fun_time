@@ -4,7 +4,6 @@ from pathlib import Path
 
 from fun_time.dashboard_state import (
     build_mirrored_funscript_path,
-    clip_label_from_path,
     has_matching_funscript,
     is_favorite_path,
     primary_panel_should_highlight,
@@ -35,11 +34,6 @@ def test_satellite_panel_highlight_follows_f_mode_or_favorite():
     assert satellite_panel_should_highlight(f_mode_enabled=True, is_favorite=False)
     assert satellite_panel_should_highlight(f_mode_enabled=False, is_favorite=True)
     assert not satellite_panel_should_highlight(f_mode_enabled=False, is_favorite=False)
-
-
-def test_clip_label_from_path_uses_filename_or_none():
-    assert clip_label_from_path("") == "(none)"
-    assert clip_label_from_path(r"C:\clips\demo-primary.mp4") == "demo-primary.mp4"
 
 
 def test_build_mirrored_funscript_path_maps_videos_tree_into_scripts_tree(tmp_path: Path):
