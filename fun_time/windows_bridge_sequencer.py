@@ -51,6 +51,7 @@ class StartupResult:
     audio_pid: int
     layout_plan: WindowLayoutPlan
     core_hwnds: list[int] = field(default_factory=list)
+    rfb_hwnd: int = 0
 
 
 def _read_manifest(path: str | Path) -> configparser.ConfigParser:
@@ -172,7 +173,7 @@ def run_startup_sequence(
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("Launching browser...")
-    _maybe_launch_random_favs_browser(m, plan, mfp_pid, hide_windows=hide_windows)
+    rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, mfp_pid, hide_windows=hide_windows)
 
     # --- Phase 3: Launch UI companions ---
     progress.advance("Launching companions...")
@@ -242,6 +243,7 @@ def run_startup_sequence(
         audio_pid=ui_pids["audio_pid"],
         layout_plan=plan,
         core_hwnds=collected_hwnds,
+        rfb_hwnd=rfb_hwnd,
     )
 
 
@@ -365,10 +367,14 @@ def _maybe_launch_random_favs_browser(
     mfp_pid: int,
     *,
     hide_windows: bool = False,
-) -> None:
-    """Launch the Random Favs Browser if enabled, position it, and restore MFP topmost."""
+) -> int:
+    """Launch the Random Favs Browser if enabled, position it, and restore MFP topmost.
+
+    Returns the browser window handle (0 if not launched).  The handle is
+    needed so the dispatch loop can include RFB in omnipause topmost management.
+    """
     if m["random_favs_browser"]["enabled"] != "1":
-        return
+        return 0
 
     shortcut_path = m["random_favs_browser"]["shortcut_path"]
     manifest_file = m["random_favs_browser"]["manifest_file"]
@@ -376,7 +382,7 @@ def _maybe_launch_random_favs_browser(
     target, work_dir, args = _resolve_shortcut(shortcut_path)
     if not target:
         logger.warning("Random Favs Browser skipped: could not resolve shortcut %s", shortcut_path)
-        return
+        return 0
 
     # Take a Chrome window snapshot before launch
     before_hwnds = _get_chrome_window_hwnds()
@@ -391,19 +397,21 @@ def _maybe_launch_random_favs_browser(
     )
     if not result.should_launch:
         logger.info("Random Favs Browser skipped: launch plan was empty")
-        return
+        return 0
 
     # Wait for a new Chrome window to appear
     new_hwnd = _wait_for_new_chrome_window(before_hwnds, timeout_ms=8000)
     if not new_hwnd:
         logger.warning("Random Favs Browser skipped: no new Chrome window appeared")
-        return
+        return 0
 
     # Position the browser window
     rect = plan.random_favs_browser
     no_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height, activate=not no_activate)
-    set_always_on_top(new_hwnd, False)
+    # RFB is topmost so clicking it raises it above MFP/Dashboard within the
+    # topmost z-band.  MFP's topmost is re-asserted below to start above RFB.
+    set_always_on_top(new_hwnd, True)
 
     # Restore MFP above browser — toggle topmost off/on to force z-order
     # recalculation (re-setting topmost on an already-topmost window is a no-op).
@@ -417,6 +425,7 @@ def _maybe_launch_random_favs_browser(
                 activate_window(mfp_hwnd)
 
     logger.info("Random Favs Browser positioned")
+    return new_hwnd
 
 
 def _get_chrome_window_hwnds() -> set[int]:

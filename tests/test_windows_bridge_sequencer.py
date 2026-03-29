@@ -241,9 +241,10 @@ class TestMaybeLaunchRandomFavsBrowser:
 
         with patch("fun_time.windows_bridge_sequencer.move_window",
                     side_effect=lambda *a, **kw: move_calls.append(a)):
-            _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
+            rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
 
         assert move_calls == []
+        assert rfb_hwnd == 0
 
     def test_launches_and_positions_browser(self, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
@@ -261,13 +262,15 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77777), \
              patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate:
-            _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
+            rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
 
         # Browser window should be positioned at the planned rect
         mock_move.assert_called_once_with(
             55555, browser_rect.x, browser_rect.y, browser_rect.width, browser_rect.height,
             activate=True,
         )
+        # Should return the browser hwnd for topmost management
+        assert rfb_hwnd == 55555
 
     def test_mfp_topmost_toggled_after_browser_launch(self, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
@@ -291,10 +294,11 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate:
             _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
 
-        # Browser should be set NOT topmost
-        assert (55555, False) in topmost_calls
+        # Browser should be set topmost so clicking it raises above MFP/Dashboard
+        assert (55555, True) in topmost_calls
 
         # MFP should be toggled: first False (clear), then True (re-set)
+        # so it starts above the browser in the topmost z-band
         mfp_calls = [(h, t) for h, t in topmost_calls if h == 77777]
         assert mfp_calls == [(77777, False), (77777, True)]
 
