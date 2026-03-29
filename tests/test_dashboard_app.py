@@ -119,8 +119,9 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     texts = {item.text for item in scene.texts}
     fills = {item.rect: item.fill for item in scene.rects}
     assert "Broken Link" in texts
-    assert "Non-AI VLC\nprimary.mp4" in texts
-    assert "Portrait AI VLC\nportrait.mp4" in texts
+    assert "Non-AI VLC" in texts
+    assert "Portrait AI VLC" in texts
+    assert not any(".mp4" in item.text for item in scene.texts)
     assert fills[preview_layout.primary_panel] == COLOR_ACTIVE_ALT
     assert fills[preview_layout.portrait_panel] == COLOR_ACTIVE_ALT
     assert any(action == "portrait_lock" for action, _rect in scene.actions)
