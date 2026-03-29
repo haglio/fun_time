@@ -176,7 +176,10 @@ class DispatchLoopRunner:
 
         # Dashboard commands (may be multiple if queued by rapid hotkey presses)
         for cmd in poll_dashboard_commands(self.dashboard_cmd_file):
-            if cmd == "omnipause_toggle":
+            if cmd == "quit":
+                self.ahk_cmd_file.write_text("exit", encoding="utf-8")
+                continue
+            elif cmd == "omnipause_toggle":
                 self._handle_omnipause_toggle()
             elif cmd == "open_file_dialog":
                 threading.Thread(
@@ -252,6 +255,7 @@ class DispatchLoopRunner:
                 primary_uses_robot_hand=self.state.robot_hand_mode and robot_link_enabled,
                 portrait_locked=self.state.locked2,
                 landscape_locked=self.state.locked3,
+                omni_paused=self.state.omni_paused,
             )
         except Exception:
             pass

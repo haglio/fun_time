@@ -12,6 +12,7 @@ def build_dashboard_snapshot_text(
     primary_uses_robot_hand: bool,
     portrait_locked: bool,
     landscape_locked: bool,
+    omni_paused: bool = False,
 ) -> str:
     return (
         "[fmode]\n"
@@ -22,6 +23,8 @@ def build_dashboard_snapshot_text(
         f"mode={osr2_mode}\n"
         "[mfp]\n"
         f"alive={'1' if mfp_alive else '0'}\n"
+        "[omnipause]\n"
+        f"active={'1' if omni_paused else '0'}\n"
         "[primary]\n"
         f"uses_robot_hand={'1' if primary_uses_robot_hand else '0'}\n"
         "locked=0\n"
@@ -55,6 +58,7 @@ def write_dashboard_snapshot(
     primary_uses_robot_hand: bool,
     portrait_locked: bool,
     landscape_locked: bool,
+    omni_paused: bool = False,
 ) -> bool:
     path = Path(output_file)
     text = build_dashboard_snapshot_text(
@@ -65,6 +69,7 @@ def write_dashboard_snapshot(
         primary_uses_robot_hand=primary_uses_robot_hand,
         portrait_locked=portrait_locked,
         landscape_locked=landscape_locked,
+        omni_paused=omni_paused,
     )
     if _read_existing_snapshot(path) == text:
         return False

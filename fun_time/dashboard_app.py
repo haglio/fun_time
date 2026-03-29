@@ -19,6 +19,7 @@ from fun_time.dashboard_actions import (
     LANDSCAPE_PREV,
     LANDSCAPE_TRASH,
     LINK_TOGGLE,
+    OMNIPAUSE_TOGGLE,
     PORTRAIT_LOCK,
     PORTRAIT_NEXT,
     PORTRAIT_PREV,
@@ -26,6 +27,7 @@ from fun_time.dashboard_actions import (
     PRIMARY_NEXT,
     PRIMARY_PREV,
     QUARTER_BUTTON,
+    QUIT_BUTTON,
 )
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
 from fun_time.dashboard_runtime import DashboardSnapshot, is_broker_heartbeat_fresh, load_dashboard_snapshot
@@ -297,7 +299,13 @@ def build_dashboard_scene(
         portrait_lock_fill = COLOR_ACTIVE if snapshot.portrait.locked else COLOR_PANEL
         landscape_lock_fill = COLOR_ACTIVE if snapshot.landscape.locked else COLOR_PANEL
 
+    omni_paused = snapshot is not None and snapshot.omni_paused
+    omnipause_icon = "\u25B6" if omni_paused else "\u23F8"
+    omnipause_fill = COLOR_ACTIVE if omni_paused else COLOR_PANEL
+
     rects = (
+        DashboardRectItem(layout.quit_button, fill=COLOR_DISABLED),
+        DashboardRectItem(layout.omnipause_button, fill=omnipause_fill),
         DashboardRectItem(layout.main_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.secondary_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.main_status_strip, fill=COLOR_PANEL),
@@ -323,6 +331,8 @@ def build_dashboard_scene(
         DashboardRectItem(layout.fmode_panel, fill=fmode_fill),
     )
     texts = (
+        DashboardTextItem("\u23FB", layout.quit_button, font=("Segoe UI Symbol", 10, "bold")),
+        DashboardTextItem(omnipause_icon, layout.omnipause_button, font=("Segoe UI Symbol", 10, "bold")),
         DashboardTextItem("Fun Time", layout.title, anchor="w"),
         DashboardTextItem(mfp_label, layout.mfp_panel),
         DashboardTextItem(landscape_label, layout.landscape_panel),
@@ -351,6 +361,8 @@ def build_dashboard_scene(
         rects=rects,
         texts=texts,
         actions=(
+            (QUIT_BUTTON, layout.quit_button),
+            (OMNIPAUSE_TOGGLE, layout.omnipause_button),
             (PORTRAIT_PREV, layout.portrait_prev),
             (PORTRAIT_NEXT, layout.portrait_next),
             (PORTRAIT_LOCK, layout.portrait_lock),

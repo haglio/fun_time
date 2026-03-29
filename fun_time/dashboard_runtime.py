@@ -28,6 +28,7 @@ class DashboardSnapshot:
     osr2_mode: str
     mfp_alive: bool
     primary_responsive: bool
+    omni_paused: bool
     primary: DashboardPanelSnapshot
     portrait: DashboardPanelSnapshot
     landscape: DashboardPanelSnapshot
@@ -51,6 +52,7 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
         mfp_alive=_read_bool(parser, "mfp", "alive"),
         primary_responsive=_read_bool(parser, "primary", "responsive"),
+        omni_paused=_read_bool(parser, "omnipause", "active"),
         primary=_read_panel(parser, "primary"),
         portrait=_read_panel(parser, "portrait"),
         landscape=_read_panel(parser, "landscape"),

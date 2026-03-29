@@ -138,6 +138,70 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
     assert snapshot.window.width == 0
 
 
+def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
+    snapshot_file = tmp_path / "dashboard_state.ini"
+    snapshot_file.write_text(
+        "\n".join(
+            [
+                "[fmode]",
+                "enabled=0",
+                "[robot_link]",
+                "enabled=1",
+                "[osr2]",
+                "mode=auto",
+                "[mfp]",
+                "alive=0",
+                "[omnipause]",
+                "active=1",
+                "[primary]",
+                "uses_robot_hand=0",
+                "locked=0",
+                "[portrait]",
+                "locked=0",
+                "[landscape]",
+                "locked=0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = load_dashboard_snapshot(snapshot_file)
+
+    assert snapshot is not None
+    assert snapshot.omni_paused is True
+
+
+def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
+    snapshot_file = tmp_path / "dashboard_state.ini"
+    snapshot_file.write_text(
+        "\n".join(
+            [
+                "[fmode]",
+                "enabled=0",
+                "[robot_link]",
+                "enabled=1",
+                "[osr2]",
+                "mode=auto",
+                "[mfp]",
+                "alive=0",
+                "[primary]",
+                "uses_robot_hand=0",
+                "locked=0",
+                "[portrait]",
+                "locked=0",
+                "[landscape]",
+                "locked=0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = load_dashboard_snapshot(snapshot_file)
+
+    assert snapshot is not None
+    assert snapshot.omni_paused is False
+
+
 def test_broker_heartbeat_is_fresh_when_recent(tmp_path: Path):
     heartbeat_file = tmp_path / "broker_heartbeat.txt"
     heartbeat_file.write_text("100.0", encoding="utf-8")
