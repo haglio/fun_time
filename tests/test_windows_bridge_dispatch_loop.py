@@ -245,8 +245,8 @@ class TestDispatchLoopRunner:
         assert "portrait_next" in commands
         assert not cmd_file.exists()
 
-    def test_omnipause_removes_rfb_topmost(self, tmp_path):
-        """RFB hwnd must be included in omnipause topmost removal."""
+    def test_omnipause_removes_rfb_topmost_before_others(self, tmp_path):
+        """RFB must be removed before MFP/Dashboard so it stays below them."""
         runner = self._make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=99999)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -258,12 +258,14 @@ class TestDispatchLoopRunner:
             topmost_calls.append((hwnd, on_top))
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost):
             runner.tick()
 
-        # RFB topmost should have been removed (set to False)
-        assert (99999, False) in topmost_calls
+        removals = [(h, t) for h, t in topmost_calls if t is False]
+        assert removals[0] == (99999, False), (
+            f"RFB must be the first window removed, got: {removals}"
+        )
 
     def test_omnipause_restores_rfb_topmost_before_others(self, tmp_path):
         """RFB must be restored before MFP/Dashboard so it ends up below them."""
