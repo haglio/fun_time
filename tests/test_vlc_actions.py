@@ -333,3 +333,22 @@ def test_set_repeat_mode_returns_false_when_retries_exhausted(monkeypatch):
     monkeypatch.setattr(vlc_actions, "get_repeat_mode", lambda port, password: "off")
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: True)
     assert vlc_actions.set_repeat_mode(8080, "pw", "all", sleep_fn=lambda _: None) is False
+
+
+# --- restore_vlc_volume ---
+
+
+def test_restore_vlc_volume_sends_volume_256(monkeypatch):
+    commands: list[tuple[int, str]] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: commands.append((port, cmd)) or True)
+
+    vlc_actions.restore_vlc_volume(8090, "pw")
+
+    assert commands == [(8090, "volume&val=256")]
+
+
+def test_restore_vlc_volume_ignores_errors(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: False)
+
+    # Should not raise
+    vlc_actions.restore_vlc_volume(8090, "pw")
