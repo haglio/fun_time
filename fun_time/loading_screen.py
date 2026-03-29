@@ -14,6 +14,10 @@ import time
 import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
 
 
 def parse_progress(text: str) -> tuple[int, int, str, bool]:
@@ -32,6 +36,26 @@ def parse_progress(text: str) -> tuple[int, int, str, bool]:
         return int(step_str), int(total_str), message, False
     except (ValueError, IndexError):
         return 0, 1, "", False
+
+
+ICON_DISPLAY_SIZE = 128
+
+
+def load_icon_image(ico_path: Path, size: int) -> PILImage | None:
+    """Load an ICO file and return an RGBA PIL Image resized to *size* x *size*.
+
+    Returns ``None`` if the file is missing or Pillow is unavailable.
+    """
+    try:
+        from PIL import Image
+
+        img = Image.open(ico_path)
+        # Pick the largest available icon (256x256 in our ICO) then
+        # high-quality downsample to the requested display size.
+        img = img.resize((size, size), Image.LANCZOS)
+        return img.convert("RGBA")
+    except Exception:
+        return None
 
 
 POLL_MS = 200
@@ -94,6 +118,20 @@ class LoadingScreen:
         primary_cx = self._root.winfo_screenwidth() // 2 - vx
         primary_cy = self._root.winfo_screenheight() // 2 - vy
         frame.place(x=primary_cx, y=primary_cy, anchor=tk.CENTER)
+
+        # Icon above the title — loaded from icon.ico at the project root.
+        self._icon_photo = None  # prevent GC of PhotoImage
+        ico_path = Path(__file__).resolve().parent.parent / "icon.ico"
+        icon_img = load_icon_image(ico_path, ICON_DISPLAY_SIZE)
+        if icon_img is not None:
+            try:
+                from PIL import ImageTk
+
+                self._icon_photo = ImageTk.PhotoImage(icon_img)
+                icon_label = tk.Label(frame, image=self._icon_photo, bg=BG)
+                icon_label.pack(pady=(0, 12))
+            except Exception:
+                pass
 
         title_label = tk.Label(
             frame,
