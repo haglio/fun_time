@@ -134,6 +134,7 @@ class BrokerSerialSession:
                     continue
                 if not self.auto_mode.is_active:
                     real.write(data)
+                    self._maybe_write_activity()
             except Exception as exc:
                 self.logger.exception("VIRT->REAL error")
                 retry_state.value = self.is_retryable_error(exc)
