@@ -270,6 +270,11 @@ class DispatchLoopRunner:
             set_always_on_top(self.rfb_hwnd, False)
 
     def _restore_all_topmost(self) -> None:
+        # Restore RFB first — within the topmost z-band the last window to
+        # receive HWND_TOPMOST goes to the front, so RFB must be set before
+        # MFP and Dashboard to end up below them.
+        if self.rfb_hwnd:
+            set_always_on_top(self.rfb_hwnd, True)
         robot_hand_mode = self.state.robot_hand_mode
         for pid in self._all_pids:
             if pid == self.primary_pid and robot_hand_mode:
@@ -277,8 +282,6 @@ class DispatchLoopRunner:
             hwnd = find_window_by_pid(pid)
             if hwnd:
                 set_always_on_top(hwnd, True)
-        if self.rfb_hwnd:
-            set_always_on_top(self.rfb_hwnd, True)
 
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows."""
