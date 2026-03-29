@@ -28,10 +28,6 @@ def satellite_panel_should_highlight(*, f_mode_enabled: bool, is_favorite: bool)
     return is_favorite
 
 
-def clip_label_from_path(path: str) -> str:
-    return Path(path).name if path else "(none)"
-
-
 def build_mirrored_funscript_path(video_path: str, primary_sources: str) -> str:
     video = Path(video_path)
     for source_part in primary_sources.split("|"):

@@ -38,7 +38,6 @@ from fun_time.dashboard_state import (
     LABEL_PORTRAIT_VLC,
     LABEL_PRIMARY_ROBOT,
     LABEL_PRIMARY_VLC,
-    clip_label_from_path,
     has_matching_funscript,
     is_favorite_path,
     primary_panel_should_highlight,
@@ -273,9 +272,9 @@ def build_dashboard_scene(
         broker_running = is_broker_heartbeat_fresh(broker_heartbeat_file) if broker_heartbeat_file is not None else False
         mfp_connected = snapshot.mfp_alive and snapshot.primary_responsive and broker_running
         primary_label_name = LABEL_PRIMARY_ROBOT if snapshot.primary_uses_robot_hand else LABEL_PRIMARY_VLC
-        primary_label = f"{primary_label_name}\n{clip_label_from_path('' if snapshot.primary_uses_robot_hand else snapshot.primary.path)}"
-        portrait_label = f"{LABEL_PORTRAIT_VLC}\n{clip_label_from_path(snapshot.portrait.path)}"
-        landscape_label = f"{LABEL_LANDSCAPE_VLC}\n{clip_label_from_path(snapshot.landscape.path)}"
+        primary_label = primary_label_name
+        portrait_label = LABEL_PORTRAIT_VLC
+        landscape_label = LABEL_LANDSCAPE_VLC
         osr2_label = f"{LABEL_OSR2}\n{snapshot.osr2_mode}"
         mfp_label = f"{LABEL_MFP}\n{'connected' if mfp_connected else 'disconnected'}"
         link_label = "Robot Link" if snapshot.robot_link_enabled else "Broken Link"
