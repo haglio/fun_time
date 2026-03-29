@@ -283,11 +283,10 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=0):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             runner.tick()
             import time
             time.sleep(0.15)  # background thread needs a moment
@@ -637,9 +636,9 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=0):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
@@ -661,9 +660,9 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=0):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
@@ -672,144 +671,8 @@ class TestHandleOpenFileDialog:
         removed_hwnds = {h for h, _ in removed}
         assert removed_hwnds == {1001, 2001, 3001, 4001, 5001}
 
-    def test_sends_ctrl_o_to_primary_window(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window") as mock_ctrl_o, \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=0):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
-            runner._handle_open_file_dialog()
-
-        mock_ctrl_o.assert_called_once_with(1001)
-
-    def test_waits_for_dialog_when_entered_omnipause(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate, \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=9999) as mock_find_dialog, \
-             patch("fun_time.windows_bridge_dispatch_loop.wait_for_window_close") as mock_wait_close:
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
-            runner._handle_open_file_dialog()
-
-        mock_find_dialog.assert_called_once_with(100, timeout_s=1.0)
-        mock_activate.assert_any_call(9999)
-        mock_wait_close.assert_called_once_with(9999)
-
-    def test_restores_topmost_in_finally(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False)
-
-        topmost_calls = []
-
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
-
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=0):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
-            runner._handle_open_file_dialog()
-
-        dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "leave_omnipause_skip_primary" in dispatched
-
-        # All 5 windows should have topmost restored (True) at the end
-        restored = [(h, v) for h, v in topmost_calls if v]
-        restored_hwnds = {h for h, _ in restored}
-        assert restored_hwnds == {1001, 2001, 3001, 4001, 5001}
-
-    def test_skips_primary_topmost_in_robot_hand_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False, robot_hand_mode=True)
-
-        topmost_calls = []
-
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
-
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=0):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True, robot_hand_mode=True), [])
-            runner._handle_open_file_dialog()
-
-        # Primary (1001) should NOT be restored to topmost in robot_hand_mode
-        restored = [(h, v) for h, v in topmost_calls if v]
-        restored_hwnds = {h for h, _ in restored}
-        assert 1001 not in restored_hwnds
-        assert {2001, 3001, 4001, 5001} <= restored_hwnds
-
-    def test_topmost_removed_before_ctrl_o(self, tmp_path):
-        """PostMessage sends directly to VLC's message queue, so topmost
-        removal can happen first without breaking Ctrl+O delivery.
-        """
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False)
-
-        call_log: list[str] = []
-
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window", side_effect=lambda h: call_log.append("ctrl_o_to_window")), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=0):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
-            runner._handle_open_file_dialog()
-
-        # topmost removal happens before ctrl_o (in _remove_all_topmost before send_ctrl_o_to_window)
-        assert "ctrl_o_to_window" in call_log
-        first_remove = next(i for i, c in enumerate(call_log) if c == "topmost_False")
-        assert first_remove < call_log.index("ctrl_o_to_window")
-
-    def test_skips_omnipause_when_already_paused(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window") as mock_ctrl_o, \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid") as mock_find_dialog, \
-             patch("fun_time.windows_bridge_dispatch_loop.wait_for_window_close"):
-            runner._handle_open_file_dialog()
-
-        # Should not dispatch enter/leave omnipause
-        mock_dispatch.assert_not_called()
-        # Should not touch topmost
-        mock_topmost.assert_not_called()
-        # Should not wait for dialog
-        mock_find_dialog.assert_not_called()
-        # Should still send Ctrl+O to the primary window
-        mock_ctrl_o.assert_called_once_with(1001)
-
-    def test_navigates_dialog_to_primary_sources_directory(self, tmp_path):
-        """When the file dialog opens and primary_sources is set, navigate
-        the dialog to the first primary_sources directory."""
+    def test_shows_file_dialog_with_primary_sources_dir(self, tmp_path):
+        """Shows our own file dialog with the first primary_sources directory."""
         config = BridgeConfig(
             primary_port=9090,
             portrait_port=9091,
@@ -844,36 +707,184 @@ class TestHandleOpenFileDialog:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=9999), \
-             patch("fun_time.windows_bridge_dispatch_loop.wait_for_window_close"), \
-             patch("fun_time.windows_bridge_dispatch_loop.navigate_file_dialog_to_directory") as mock_nav:
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        mock_nav.assert_called_once_with(r"C:\videos\2D\non_AI")
+        mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI")
 
-    def test_skips_dialog_navigation_when_no_primary_sources(self, tmp_path):
-        """When primary_sources is empty, don't try to navigate."""
+    def test_sends_selected_file_to_vlc_via_http(self, tmp_path):
+        """When user selects a file, it's sent to VLC via HTTP in_play."""
+        config = BridgeConfig(
+            primary_port=9090,
+            portrait_port=9091,
+            landscape_port=9092,
+            vlc_password="test",
+            favs_file=tmp_path / "favs.txt",
+            weird_dir=tmp_path / "weird",
+            state_dir=tmp_path,
+            primary_sources=r"C:\videos",
+            portrait_sources="",
+            landscape_sources="",
+            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
+            robot_hand_mode_file=tmp_path / "rh_mode.txt",
+            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
+            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            audio_paused_file=tmp_path / "audio_paused.txt",
+            dashboard_state_file=tmp_path / "dashboard_state.ini",
+        )
+        runner = DispatchLoopRunner(
+            config=config,
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            shared_state_file=tmp_path / "shared_state.ini",
+            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            primary_pid=100,
+            mfp_pid=200,
+            portrait_pid=300,
+            landscape_pid=400,
+            dashboard_pid=500,
+            dashboard_enabled=False,
+        )
+        runner.state = BridgeState(omni_paused=False)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc:
+            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
+            runner._handle_open_file_dialog()
+
+        mock_vlc.assert_called_once_with(9090, "in_play", r"C:\videos\movie.mp4", "test")
+
+    def test_does_not_send_to_vlc_on_cancel(self, tmp_path):
+        """When user cancels the dialog, no HTTP command is sent."""
         runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=9999), \
-             patch("fun_time.windows_bridge_dispatch_loop.wait_for_window_close"), \
-             patch("fun_time.windows_bridge_dispatch_loop.navigate_file_dialog_to_directory") as mock_nav:
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc:
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        mock_nav.assert_not_called()
+        mock_vlc.assert_not_called()
+
+    def test_restores_topmost_in_finally(self, tmp_path):
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False)
+
+        topmost_calls = []
+
+        def track_topmost(hwnd, on_top):
+            topmost_calls.append((hwnd, on_top))
+
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
+            runner._handle_open_file_dialog()
+
+        dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
+        assert "leave_omnipause_skip_primary" in dispatched
+
+        # All 5 windows should have topmost restored (True) at the end
+        restored = [(h, v) for h, v in topmost_calls if v]
+        restored_hwnds = {h for h, _ in restored}
+        assert restored_hwnds == {1001, 2001, 3001, 4001, 5001}
+
+    def test_skips_primary_topmost_in_robot_hand_mode(self, tmp_path):
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False, robot_hand_mode=True)
+
+        topmost_calls = []
+
+        def track_topmost(hwnd, on_top):
+            topmost_calls.append((hwnd, on_top))
+
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+            mock_dispatch.return_value = (BridgeState(omni_paused=True, robot_hand_mode=True), [])
+            runner._handle_open_file_dialog()
+
+        # Primary (1001) should NOT be restored to topmost in robot_hand_mode
+        restored = [(h, v) for h, v in topmost_calls if v]
+        restored_hwnds = {h for h, _ in restored}
+        assert 1001 not in restored_hwnds
+        assert {2001, 3001, 4001, 5001} <= restored_hwnds
+
+    def test_topmost_removed_before_dialog(self, tmp_path):
+        """Topmost removal happens before showing the file dialog."""
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False)
+
+        call_log: list[str] = []
+
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d: (call_log.append("dialog"), None)[-1]), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
+            runner._handle_open_file_dialog()
+
+        assert "dialog" in call_log
+        first_remove = next(i for i, c in enumerate(call_log) if c == "topmost_False")
+        assert first_remove < call_log.index("dialog")
+
+    def test_skips_omnipause_when_already_paused(self, tmp_path):
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+            runner._handle_open_file_dialog()
+
+        # Should not dispatch enter/leave omnipause
+        mock_dispatch.assert_not_called()
+        # Should not touch topmost
+        mock_topmost.assert_not_called()
+        # Should still show the file dialog
+        mock_dialog.assert_called_once()
+
+    def test_shows_dialog_with_empty_dir_when_no_primary_sources(self, tmp_path):
+        """When primary_sources is empty, dialog opens with empty initial dir."""
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
+            runner._handle_open_file_dialog()
+
+        mock_dialog.assert_called_once_with("")
 
     def test_forwards_suspend_and_unsuspend_via_dispatch(self, tmp_path, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
@@ -881,7 +892,6 @@ class TestHandleOpenFileDialog:
         runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
-
 
         suspend_op = WindowOp(op="suspend_hotkeys")
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
@@ -899,10 +909,10 @@ class TestHandleOpenFileDialog:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_dialog_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
              patch.object(Path, "write_text", capture_write):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
@@ -916,21 +926,12 @@ class TestHandleOpenFileDialog:
         runner.state = BridgeState(omni_paused=True)  # fast path — no omnipause
 
         import threading
-        call_count = 0
-        barrier = threading.Barrier(2, timeout=2.0)
 
-        original_handle = None
-
-        def slow_handle():
-            nonlocal call_count
-            call_count += 1
-            barrier.wait()  # block until both threads reach here
-
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_ctrl_o_to_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
-            # Replace the method with a slow version to test locking
+        with patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             original_handle = runner._handle_open_file_dialog
+
+            barrier = threading.Barrier(2, timeout=2.0)
 
             # Start first call in background
             t1 = threading.Thread(target=original_handle)
@@ -948,8 +949,7 @@ class TestHandleOpenFileDialog:
             t1.join(timeout=2.0)
             t2.join(timeout=2.0)
 
-        # The lock should prevent truly concurrent execution — we'll verify
-        # via a _file_dialog_lock attribute existing
+        # The lock should prevent truly concurrent execution
         assert hasattr(runner, "_file_dialog_lock")
 
     def test_open_file_dialog_routed_from_tick(self, tmp_path):

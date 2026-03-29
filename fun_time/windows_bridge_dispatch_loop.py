@@ -15,19 +15,17 @@ from pathlib import Path
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
 from .dashboard_bridge import write_dashboard_snapshot
 from .runtime_flow import read_flag_file
+from .vlc_actions import send_vlc_input_command
 from .win32 import (
     activate_window,
-    find_dialog_by_pid,
     find_window_by_pid,
     find_window_by_title,
     hide_window,
-    navigate_file_dialog_to_directory,
     send_vk_to_window,
-    send_ctrl_o_to_window,
     send_key_to_window,
     set_always_on_top,
+    show_open_file_dialog,
     show_window,
-    wait_for_window_close,
 )
 
 logger = logging.getLogger(__name__)
@@ -302,18 +300,15 @@ class DispatchLoopRunner:
             self._remove_all_topmost()
 
         try:
-            primary_hwnd = find_window_by_pid(self.primary_pid)
-            if primary_hwnd:
-                send_ctrl_o_to_window(primary_hwnd)
-
-            if should_manage_omnipause:
-                dialog_hwnd = find_dialog_by_pid(self.primary_pid, timeout_s=1.0)
-                if dialog_hwnd:
-                    activate_window(dialog_hwnd)
-                    default_dir = self.config.primary_sources.split("|")[0] if self.config.primary_sources else ""
-                    if default_dir:
-                        navigate_file_dialog_to_directory(default_dir)
-                    wait_for_window_close(dialog_hwnd)
+            default_dir = self.config.primary_sources.split("|")[0] if self.config.primary_sources else ""
+            selected = show_open_file_dialog(default_dir or "")
+            if selected:
+                send_vlc_input_command(
+                    self.config.primary_port,
+                    "in_play",
+                    selected,
+                    self.config.vlc_password,
+                )
         finally:
             if should_manage_omnipause:
                 self._dispatch("leave_omnipause_skip_primary")
