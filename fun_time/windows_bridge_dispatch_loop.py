@@ -262,12 +262,15 @@ class DispatchLoopRunner:
                 self.mfp_pid, self.dashboard_pid]
 
     def _remove_all_topmost(self) -> None:
+        # Remove RFB first — the last HWND_NOTOPMOST call wins z-position
+        # in the non-topmost band, so RFB must be removed before MFP/Dashboard
+        # to preserve relative order (RFB below both).
+        if self.rfb_hwnd:
+            set_always_on_top(self.rfb_hwnd, False)
         for pid in self._all_pids:
             hwnd = find_window_by_pid(pid)
             if hwnd:
                 set_always_on_top(hwnd, False)
-        if self.rfb_hwnd:
-            set_always_on_top(self.rfb_hwnd, False)
 
     def _restore_all_topmost(self) -> None:
         # Restore RFB first — within the topmost z-band the last window to
