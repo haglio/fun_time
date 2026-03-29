@@ -329,10 +329,15 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.activate_window"):
             _maybe_launch_random_favs_browser(m, plan, mfp_pid=20, hide_windows=True)
 
-        # MFP must NOT be set topmost during loading screen
+        # Neither MFP nor RFB must be set topmost during loading screen —
+        # doing so punches through the overlay.  Phase 4 handles z-order.
         mfp_topmost_calls = [(h, t) for h, t in topmost_calls if h == 77777 and t is True]
         assert mfp_topmost_calls == [], (
             f"MFP was set topmost during hide_windows mode: {topmost_calls}"
+        )
+        rfb_topmost_calls = [(h, t) for h, t in topmost_calls if h == 55555 and t is True]
+        assert rfb_topmost_calls == [], (
+            f"RFB was set topmost during hide_windows mode: {topmost_calls}"
         )
 
     def test_passes_placeholder_path_when_lazy_load_enabled(self, monkeypatch):

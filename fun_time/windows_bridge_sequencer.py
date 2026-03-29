@@ -224,6 +224,9 @@ def run_startup_sequence(
         _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg, activate=False)
         logger.info("Core windows positioned (deferred reveal)")
 
+        # Set topmost on RFB first so MFP (set after) starts above it
+        if rfb_hwnd:
+            set_always_on_top(rfb_hwnd, True)
         for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
             hwnd = find_window_by_pid(pid)
             if hwnd:
@@ -409,9 +412,14 @@ def _maybe_launch_random_favs_browser(
     rect = plan.random_favs_browser
     no_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height, activate=not no_activate)
-    # RFB is topmost so clicking it raises it above MFP/Dashboard within the
-    # topmost z-band.  MFP's topmost is re-asserted below to start above RFB.
-    set_always_on_top(new_hwnd, True)
+
+    # Skip topmost during loading screen — setting it now would punch through
+    # the overlay.  Phase 4 sets topmost on all windows after the overlay closes.
+    if not hide_windows:
+        # RFB is topmost so clicking it raises it above MFP/Dashboard within
+        # the topmost z-band.  MFP's topmost is re-asserted below to start
+        # above RFB.
+        set_always_on_top(new_hwnd, True)
 
     # Restore MFP above browser — toggle topmost off/on to force z-order
     # recalculation (re-setting topmost on an already-topmost window is a no-op).
