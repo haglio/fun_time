@@ -28,9 +28,7 @@ from .runtime_flow import (
 from .vlc_actions import (
     ensure_playback_state,
     get_current_file_path,
-    get_playback_state,
     get_playback_time,
-    get_repeat_mode,
     set_repeat_mode,
     vlc_advance_and_remove,
     vlc_http_cmd,
@@ -190,25 +188,12 @@ def dispatch_command(
             config.robot_hand_cmd_file.write_text(cmd, encoding="utf-8")
         else:
             direction = "prev" if command == "primary_prev" else "next"
-            port = config.primary_port
-            pw = config.vlc_password
-            state_before = get_playback_state(port, pw)
-            repeat_before = get_repeat_mode(port, pw)
-            logger.info("PRIMARY_NAV: before: state=%s repeat=%s", state_before, repeat_before)
-            nav_ok = vlc_nav_step(port, pw, direction)
-            logger.info("PRIMARY_NAV: vlc_nav_step(%s) returned %s", direction, nav_ok)
-            for delay_ms in (50, 100, 150):
-                time.sleep(0.05)
-                state_after = get_playback_state(port, pw)
-                logger.info("PRIMARY_NAV: after +%dms: state=%s", delay_ms, state_after)
-            # pl_play is a TOGGLE — only send when NOT playing.
-            if state_after != "playing":
-                logger.info("PRIMARY_NAV: sending pl_play (state was %s)", state_after)
-                vlc_http_cmd(port, "pl_play", pw)
-                state_final = get_playback_state(port, pw)
-                logger.info("PRIMARY_NAV: after pl_play: state=%s", state_final)
-            else:
-                logger.info("PRIMARY_NAV: already playing, skipping pl_play")
+            vlc_nav_step(config.primary_port, config.vlc_password, direction)
+            # VLC in repeat-one mode always transitions to paused after
+            # pl_play&id=N, but with variable timing (50ms to >1s).
+            # pl_forceresume always resumes — no toggle, no timing race.
+            time.sleep(0.15)
+            vlc_http_cmd(config.primary_port, "pl_forceresume", config.vlc_password)
         return state, ops
 
     if command == "quarter_button":
