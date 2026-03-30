@@ -367,6 +367,27 @@ def test_fmode_toggle_enables_from_disabled(tmp_path: Path):
     assert new_state.locked3 is False
 
 
+def test_fmode_panel_click_dispatches_as_fmode_toggle(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(f_mode_enabled=False)
+
+    with (
+        patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode,
+    ):
+        mock_fmode.return_value = type("R", (), {
+            "success": True,
+            "next_f_mode_enabled": True,
+            "next_locked2": False,
+            "next_locked3": False,
+            "log_message": "F-mode hotkey: enabled",
+        })()
+        new_state, ops = dispatch_command("fmode_panel", state, config)
+
+    assert new_state.f_mode_enabled is True
+    assert new_state.locked2 is False
+    assert new_state.locked3 is False
+
+
 # --- robot_toggle / link_toggle ---
 
 
