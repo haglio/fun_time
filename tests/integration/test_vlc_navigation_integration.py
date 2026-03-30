@@ -28,7 +28,7 @@ from fun_time.vlc_actions import (
     vlc_nav_step,
     wait_for_http,
 )
-from fun_time.windows_bridge_startup import _build_vlc_launch_command
+from fun_time.windows_bridge_startup import _build_vlc_launch_command, _no_activate_kwargs
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows only"),
@@ -65,9 +65,14 @@ def vlc_with_playlist():
         VLC_EXE, sources, TEST_PORT, TEST_PASSWORD,
         repeat_mode="loop", mute=True,
     )
+    # --vout none suppresses VLC's video window (prevents focus stealing
+    # on playlist transitions) without changing playback state behavior
+    # the way --no-video does.
+    cmd.insert(1, "--vout=none")
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        **_no_activate_kwargs(),
     )
     if not wait_for_http(TEST_PORT, TEST_PASSWORD, timeout_ms=10000):
         proc.kill()
@@ -277,9 +282,11 @@ def vlc_repeat_one():
         VLC_EXE, sources, REPEAT_PORT, TEST_PASSWORD,
         repeat_mode="repeat", mute=True,
     )
+    cmd.insert(1, "--vout=none")
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        **_no_activate_kwargs(),
     )
     if not wait_for_http(REPEAT_PORT, TEST_PASSWORD, timeout_ms=10000):
         proc.kill()
