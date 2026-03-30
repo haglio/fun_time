@@ -30,6 +30,7 @@ from .vlc_actions import (
     get_current_file_path,
     get_playback_state,
     get_playback_time,
+    get_repeat_mode,
     set_repeat_mode,
     vlc_advance_and_remove,
     vlc_http_cmd,
@@ -189,15 +190,25 @@ def dispatch_command(
             config.robot_hand_cmd_file.write_text(cmd, encoding="utf-8")
         else:
             direction = "prev" if command == "primary_prev" else "next"
-            vlc_nav_step(config.primary_port, config.vlc_password, direction)
-            # VLC in repeat-one mode pauses after pl_play&id=N transitions.
-            # Must wait for VLC to finish transitioning, then check state.
-            # Without the delay, get_playback_state reads stale state (old
-            # item still "playing") and skips the pl_play recovery.
-            # pl_play is a TOGGLE — only send it when VLC is NOT playing.
-            time.sleep(0.15)
-            if get_playback_state(config.primary_port, config.vlc_password) != "playing":
-                vlc_http_cmd(config.primary_port, "pl_play", config.vlc_password)
+            port = config.primary_port
+            pw = config.vlc_password
+            state_before = get_playback_state(port, pw)
+            repeat_before = get_repeat_mode(port, pw)
+            logger.info("PRIMARY_NAV: before: state=%s repeat=%s", state_before, repeat_before)
+            nav_ok = vlc_nav_step(port, pw, direction)
+            logger.info("PRIMARY_NAV: vlc_nav_step(%s) returned %s", direction, nav_ok)
+            for delay_ms in (50, 100, 150):
+                time.sleep(0.05)
+                state_after = get_playback_state(port, pw)
+                logger.info("PRIMARY_NAV: after +%dms: state=%s", delay_ms, state_after)
+            # pl_play is a TOGGLE — only send when NOT playing.
+            if state_after != "playing":
+                logger.info("PRIMARY_NAV: sending pl_play (state was %s)", state_after)
+                vlc_http_cmd(port, "pl_play", pw)
+                state_final = get_playback_state(port, pw)
+                logger.info("PRIMARY_NAV: after pl_play: state=%s", state_final)
+            else:
+                logger.info("PRIMARY_NAV: already playing, skipping pl_play")
         return state, ops
 
     if command == "quarter_button":
