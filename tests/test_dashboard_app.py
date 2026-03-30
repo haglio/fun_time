@@ -666,6 +666,19 @@ def test_dashboard_scene_cable_press_lightens_color(cfg_path: Path):
     assert scene_pressed.lines[0].color == lighten_color(COLOR_CABLE)
 
 
+def test_dashboard_scene_chips_have_hover_texts(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    hover = {rect: text for rect, text in scene.hover_texts}
+    assert layout.broker_panel in hover
+    assert layout.controller_panel in hover
+    assert layout.fmode_panel in hover
+    assert "broker" in hover[layout.broker_panel].lower()
+    assert "controller" in hover[layout.controller_panel].lower()
+
+
 def test_dashboard_scene_default_cable_connected_without_snapshot(cfg_path: Path):
     layout = _make_layout(cfg_path)
 
