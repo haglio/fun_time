@@ -19,6 +19,7 @@ import pytest
 from fun_time.orchestrator import vlc_http_password_from_vlcrc
 from fun_time.vlc_actions import (
     get_current_file_path,
+    restore_vlc_volume,
     vlc_http_cmd,
     vlc_http_req,
     vlc_nav_step,
@@ -73,6 +74,7 @@ def vlc_with_playlist():
     vlc_http_cmd(TEST_PORT, "pl_play", TEST_PASSWORD)
     time.sleep(1.0)
     yield proc, videos
+    restore_vlc_volume(TEST_PORT, TEST_PASSWORD)
     proc.kill()
     proc.wait()
 

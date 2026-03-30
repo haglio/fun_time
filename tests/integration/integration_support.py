@@ -14,6 +14,8 @@ from pathlib import Path
 from fun_time.config import load_config
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
+from fun_time.orchestrator import vlc_http_password_from_vlcrc
+from fun_time.vlc_actions import restore_vlc_volume
 
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
@@ -78,6 +80,7 @@ class FunTimeIntegrationSession:
         """
         if not self._proc or self._proc.poll() is not None:
             raise RuntimeError("Orchestrator is not running")
+        self._restore_vlc_volumes()
         ahk_cmd = self.config.paths.state_dir / "ahk_cmd.txt"
         ahk_cmd.write_text("exit", encoding="utf-8")
         try:
@@ -112,6 +115,7 @@ class FunTimeIntegrationSession:
         self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
 
     def stop(self) -> None:
+        self._restore_vlc_volumes()
         if self._proc and self._proc.poll() is None:
             self._proc.terminate()
             try:
@@ -121,6 +125,18 @@ class FunTimeIntegrationSession:
         if hasattr(self, "_stderr_fh") and self._stderr_fh:
             self._stderr_fh.close()
         self._kill_recent_runtime_processes()
+
+    def _restore_vlc_volumes(self) -> None:
+        """Restore VLC volume on all ports so VLC doesn't persist muted state."""
+        password = vlc_http_password_from_vlcrc() or ""
+        if not password:
+            return
+        for port in (
+            self.config.controller.primary_vlc_http_port,
+            self.config.controller.vlc2_http_port,
+            self.config.controller.vlc3_http_port,
+        ):
+            restore_vlc_volume(port, password)
 
     def write_dashboard_command(self, action: str) -> None:
         self.dashboard_cmd_file.parent.mkdir(parents=True, exist_ok=True)

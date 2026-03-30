@@ -46,6 +46,11 @@ def vlc_http_cmd(port: int, command: str, password: str) -> bool:
     return status == 200
 
 
+def restore_vlc_volume(port: int, password: str) -> None:
+    """Restore VLC volume to max (256). Silently ignores errors."""
+    vlc_http_cmd(port, "volume&val=256", password)
+
+
 def send_vlc_input_command(port: int, command: str, full_path: str, password: str) -> bool:
     file_uri = Path(full_path).resolve().as_uri()
     encoded_uri = urllib.parse.quote(file_uri, safe="-_.~")
