@@ -27,6 +27,7 @@ from .runtime_flow import (
 from .vlc_actions import (
     ensure_playback_state,
     get_current_file_path,
+    get_playback_state,
     get_playback_time,
     set_repeat_mode,
     vlc_advance_and_remove,
@@ -188,7 +189,11 @@ def dispatch_command(
         else:
             direction = "prev" if command == "primary_prev" else "next"
             vlc_nav_step(config.primary_port, config.vlc_password, direction)
-            vlc_http_cmd(config.primary_port, "pl_play", config.vlc_password)
+            # pl_play is a TOGGLE (play↔pause).  Only send it when VLC
+            # is not already playing, otherwise it would pause the video
+            # that pl_play&id=N just started.
+            if get_playback_state(config.primary_port, config.vlc_password) != "playing":
+                vlc_http_cmd(config.primary_port, "pl_play", config.vlc_password)
         return state, ops
 
     if command == "quarter_button":
