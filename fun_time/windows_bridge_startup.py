@@ -348,13 +348,10 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
     ]
     if mute or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         command.extend(["--volume", "0"])
-        if repeat_mode == "repeat":
-            # Primary VLC only: prevents the video from advancing during the
-            # loading screen so the user sees it from the beginning on reveal.
-            # Satellite VLCs (loop mode) must NOT get --start-paused: VLC
-            # applies it to every item transition, causing each video after the
-            # first to start paused and producing a black screen.
-            command.append("--start-paused")
+        # --start-paused must NEVER be used: VLC re-applies it on every item
+        # transition, not just startup. This causes a black screen every time
+        # the user navigates.  Volume muting is sufficient for the loading
+        # screen — primary VLC (repeat-one) silently loops the first video.
     if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
         command.append("--no-video")
     # --no-random overrides VLC's saved vlcrc setting.  Without it, if the

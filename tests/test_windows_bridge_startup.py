@@ -399,26 +399,17 @@ def test_build_vlc_launch_command_includes_volume_zero_when_mute_for_loading(mon
     assert cmd[idx + 1] == "0"
 
 
-def test_build_vlc_launch_command_includes_start_paused_when_muted(monkeypatch):
-    """VLC must start paused when muted so the audio pipeline doesn't open
-    until pl_next is called — --volume 0 alone still lets VLC auto-play
-    and can produce a split-second blip."""
+def test_build_vlc_launch_command_never_includes_start_paused(monkeypatch):
+    """--start-paused must NEVER be used: VLC re-applies it on every item
+    transition, not just startup.  This causes a black screen every time
+    the user navigates.  Volume muting alone is sufficient."""
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat", mute=True)
-    assert "--start-paused" in cmd
-
-
-def test_build_vlc_launch_command_includes_start_paused_when_mute_env_set(monkeypatch):
-    """Integration tests also need --start-paused to avoid audio blips."""
-    monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
-    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat")
-    assert "--start-paused" in cmd
-
-
-def test_build_vlc_launch_command_omits_start_paused_in_normal_mode(monkeypatch):
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat")
-    assert "--start-paused" not in cmd
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    for repeat_mode in ("repeat", "loop"):
+        for mute in (True, False):
+            cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode=repeat_mode, mute=mute)
+            assert "--start-paused" not in cmd, \
+                f"--start-paused must never appear (repeat_mode={repeat_mode}, mute={mute})"
 
 
 def test_build_vlc_launch_command_never_includes_random(monkeypatch):
