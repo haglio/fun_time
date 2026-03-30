@@ -11,6 +11,7 @@ import glob
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from fun_time.vlc_actions import (
     _parse_playlist_ids,
     get_current_file_path,
     get_playback_state,
+    replace_playlist_from_file,
     restore_vlc_volume,
     set_repeat_mode,
     vlc_advance_and_remove,
@@ -62,9 +64,14 @@ def vlc_with_playlist():
         pytest.skip(f"Need 4 videos, found {len(videos)}")
 
     sources = "|".join(videos)
+    playlist_path = Path(tempfile.gettempdir()) / "fun_time_test_loop.m3u"
+    # Defer playlist: launch VLC empty, mute via HTTP, THEN load media.
+    # This eliminates the audio-leak race where VLC outputs a frame of
+    # audio before --volume 0 takes effect.
     cmd = _build_vlc_launch_command(
         VLC_EXE, sources, TEST_PORT, TEST_PASSWORD,
         repeat_mode="loop", mute=True,
+        playlist_path=playlist_path, defer_playlist=True,
     )
     proc = subprocess.Popen(
         cmd,
@@ -73,9 +80,8 @@ def vlc_with_playlist():
     if not wait_for_http(TEST_PORT, TEST_PASSWORD, timeout_ms=10000):
         proc.kill()
         pytest.skip("VLC HTTP did not start")
-    # Belt-and-suspenders: mute via HTTP too, then unpause.
     vlc_http_cmd(TEST_PORT, "volume&val=0", TEST_PASSWORD)
-    vlc_http_cmd(TEST_PORT, "pl_play", TEST_PASSWORD)
+    replace_playlist_from_file(TEST_PORT, TEST_PASSWORD, playlist_path)
     time.sleep(1.0)
     yield proc, videos
     restore_vlc_volume(TEST_PORT, TEST_PASSWORD)
@@ -275,9 +281,11 @@ def vlc_repeat_one():
         pytest.skip(f"Need 4 videos, found {len(videos)}")
 
     sources = "|".join(videos)
+    playlist_path = Path(tempfile.gettempdir()) / "fun_time_test_repeat.m3u"
     cmd = _build_vlc_launch_command(
         VLC_EXE, sources, REPEAT_PORT, TEST_PASSWORD,
         repeat_mode="repeat", mute=True,
+        playlist_path=playlist_path, defer_playlist=True,
     )
     proc = subprocess.Popen(
         cmd,
@@ -287,6 +295,7 @@ def vlc_repeat_one():
         proc.kill()
         pytest.skip("VLC HTTP did not start")
     vlc_http_cmd(REPEAT_PORT, "volume&val=0", TEST_PASSWORD)
+    replace_playlist_from_file(REPEAT_PORT, TEST_PASSWORD, playlist_path)
     vlc_http_cmd(REPEAT_PORT, "pl_next", TEST_PASSWORD)
     time.sleep(1.0)
     yield proc, videos

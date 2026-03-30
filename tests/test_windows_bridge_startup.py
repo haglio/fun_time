@@ -364,6 +364,74 @@ def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_p
         f"No playback commands allowed during loading screen: {playback_cmds}"
 
 
+def test_launch_core_apps_defers_playlist_when_mute_audio_env_set(tmp_path: Path, monkeypatch):
+    """When FUN_TIME_MUTE_AUDIO=1 and hide_windows=False, VLC instances must
+    still defer playlist loading to prevent audio-leak races.
+    Unlike hide_windows=True, VLC should NOT be paused after loading."""
+    monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
+    result_file = tmp_path / "core_apps.ini"
+
+    class FakeProc:
+        _counter = 0
+        def __init__(self, *_args, **_kwargs):
+            FakeProc._counter += 1
+            self.pid = FakeProc._counter * 100
+
+    FakeProc._counter = 0
+    http_commands: list[tuple[int, str]] = []
+    replace_calls: list[tuple[int, str, dict]] = []
+
+    def tracking_vlc_http_cmd(port, cmd, pw):
+        http_commands.append((port, cmd))
+        return True
+
+    def tracking_replace_playlist(port, pw, playlist_path, **kwargs):
+        replace_calls.append((port, str(playlist_path), kwargs))
+        return True
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=lambda *a, **kw: FakeProc()) as popen, \
+         patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True), \
+         patch("fun_time.windows_bridge_startup.set_repeat_mode", return_value=True), \
+         patch("fun_time.windows_bridge_startup.vlc_http_cmd", side_effect=tracking_vlc_http_cmd), \
+         patch("fun_time.windows_bridge_startup.replace_playlist_from_file", side_effect=tracking_replace_playlist), \
+         patch("fun_time.windows_bridge_startup.time.sleep"):
+        launch_core_apps(
+            project_dir=tmp_path,
+            vlc_exe="vlc.exe",
+            mfp_exe="mfp.exe",
+            primary_sources="a",
+            portrait_sources="b",
+            landscape_sources="c",
+            primary_port=8090,
+            portrait_port=8091,
+            landscape_port=8092,
+            password="pw",
+            result_file=result_file,
+            hide_windows=False,
+        )
+
+    # VLC commands must NOT contain .m3u playlist paths (deferred)
+    for call in popen.call_args_list:
+        cmd = call.args[0] if call.args else call.kwargs.get("args", [])
+        if isinstance(cmd, list) and cmd and cmd[0] == "vlc.exe":
+            assert not any(arg.endswith(".m3u") for arg in cmd), \
+                f"Playlist must not be on VLC command line when muting: {cmd}"
+
+    # Each VLC should get volume mute
+    mute_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "volume&val=0"]
+    assert len(mute_cmds) == 3, f"Expected 3 mute commands, got {mute_cmds}"
+
+    # Playlists must be loaded via HTTP — with enqueue_only=False so playback starts
+    assert len(replace_calls) == 3, f"Expected 3 playlist loads, got {replace_calls}"
+    for _, _, kwargs in replace_calls:
+        assert kwargs.get("enqueue_only") is False, \
+            f"enqueue_only must be False when hide_windows=False: {kwargs}"
+
+    # pl_next SHOULD be sent — normal startup behavior
+    next_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "pl_next"]
+    assert len(next_cmds) == 3, f"Expected 3 pl_next commands, got {next_cmds}"
+
+
 def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
     """start_core_session forwards hide_windows to launch_core_apps."""
     result_file = tmp_path / "core_session.ini"

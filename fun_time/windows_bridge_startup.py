@@ -279,40 +279,40 @@ def launch_core_apps(
 
     launch_kwargs = _no_activate_kwargs()
 
-    # When hide_windows is True (loading screen), defer playlist loading so
-    # VLC starts with nothing to play.  This eliminates the audio-leak race
-    # where VLC outputs a frame of audio before --volume 0 takes effect.
-    # The playlist is loaded via HTTP after volume is confirmed zero.
+    # Defer playlist loading whenever VLC is muted (not just during the loading
+    # screen).  This eliminates the audio-leak race where VLC outputs a frame
+    # of audio before --volume 0 takes effect.  The playlist is loaded via
+    # HTTP after volume is confirmed zero.
+    should_mute = hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
     primary_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat", mute=hide_windows,
-                                   playlist_path=primary_playlist, defer_playlist=hide_windows),
+        _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat", mute=should_mute,
+                                   playlist_path=primary_playlist, defer_playlist=should_mute),
         cwd=project_dir,
         **launch_kwargs,
     )
     if not wait_for_http(primary_port, password, 7000):
         raise RuntimeError("Primary VLC HTTP did not come up")
     time.sleep(0.3)
-    if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
+    if should_mute:
         vlc_http_cmd(primary_port, "volume&val=0", password)
-    if hide_windows:
-        # enqueue_only uses in_enqueue instead of in_play so VLC loads the
-        # playlist without starting playback.  The sequencer's Phase 4
-        # pl_play will start everything when the loading screen comes down.
-        replace_playlist_from_file(primary_port, password, primary_playlist, enqueue_only=True)
-    else:
+    if should_mute:
+        # enqueue_only during loading screen prevents playback; the
+        # sequencer's Phase 4 pl_play will start it when ready.
+        replace_playlist_from_file(primary_port, password, primary_playlist, enqueue_only=hide_windows)
+    if not hide_windows:
         vlc_http_cmd(primary_port, "pl_next", password)
 
     mfp_proc = subprocess.Popen([mfp_exe], cwd=project_dir, **launch_kwargs)
 
     portrait_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, portrait_sources, portrait_port, password, repeat_mode="loop", mute=hide_windows,
-                                   playlist_path=portrait_playlist, defer_playlist=hide_windows),
+        _build_vlc_launch_command(vlc_exe, portrait_sources, portrait_port, password, repeat_mode="loop", mute=should_mute,
+                                   playlist_path=portrait_playlist, defer_playlist=should_mute),
         cwd=project_dir,
         **launch_kwargs,
     )
     landscape_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, landscape_sources, landscape_port, password, repeat_mode="loop", mute=hide_windows,
-                                   playlist_path=landscape_playlist, defer_playlist=hide_windows),
+        _build_vlc_launch_command(vlc_exe, landscape_sources, landscape_port, password, repeat_mode="loop", mute=should_mute,
+                                   playlist_path=landscape_playlist, defer_playlist=should_mute),
         cwd=project_dir,
         **launch_kwargs,
     )
@@ -326,18 +326,18 @@ def launch_core_apps(
     set_repeat_mode(landscape_port, password, "all")
 
     time.sleep(0.25)
-    if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
+    if should_mute:
         vlc_http_cmd(portrait_port, "volume&val=0", password)
-    if hide_windows:
-        replace_playlist_from_file(portrait_port, password, portrait_playlist, enqueue_only=True)
-    else:
+    if should_mute:
+        replace_playlist_from_file(portrait_port, password, portrait_playlist, enqueue_only=hide_windows)
+    if not hide_windows:
         vlc_http_cmd(portrait_port, "pl_next", password)
     time.sleep(0.15)
-    if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
+    if should_mute:
         vlc_http_cmd(landscape_port, "volume&val=0", password)
-    if hide_windows:
-        replace_playlist_from_file(landscape_port, password, landscape_playlist, enqueue_only=True)
-    else:
+    if should_mute:
+        replace_playlist_from_file(landscape_port, password, landscape_playlist, enqueue_only=hide_windows)
+    if not hide_windows:
         vlc_http_cmd(landscape_port, "pl_next", password)
 
     _write_result_file(
