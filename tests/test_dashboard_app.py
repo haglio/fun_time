@@ -6,14 +6,16 @@ from unittest.mock import patch
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.dashboard_app import (
     COLOR_ACTIVE,
-    COLOR_DISABLED,
     COLOR_ACTIVE_ALT,
-    COLOR_LINK,
+    COLOR_CABLE,
+    COLOR_CABLE_DIM,
+    COLOR_DISABLED,
     COLOR_OSR2,
     COLOR_PANEL,
     COLOR_WARNING,
     ICON_LOCK,
     ICON_TRASH,
+    DashboardArcItem,
     DashboardLaunchGeometry,
     DashboardLineItem,
     DashboardOvalItem,
@@ -74,7 +76,7 @@ def test_dashboard_app_builds_scene_from_preview_layout(cfg_path: Path):
     assert scene.width == preview_layout.dashboard_width
     assert scene.height == preview_layout.dashboard_height
     assert any(item.text == "Fun Time" for item in scene.texts)
-    assert len(scene.lines) == 1, "Default scene should show connected cable"
+    assert len(scene.lines) == 2, "Default scene should show connected cable (two halves)"
 
 
 def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path):
@@ -599,28 +601,34 @@ def _make_layout(cfg_path: Path) -> DashboardPreviewLayout:
     )
 
 
-def test_dashboard_scene_cable_connected_when_robot_link_enabled(cfg_path: Path):
+def test_dashboard_scene_cable_connected_has_midpoint_node(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = _make_snapshot(robot_link_enabled=True)
 
     scene = build_dashboard_scene(layout, snapshot)
 
-    assert len(scene.lines) == 1, "Connected cable should be one continuous line"
-    assert len(scene.ovals) == 2, "Cable should have two connector dots"
+    # 2 line halves meeting at midpoint, 4 ovals (2 sockets + outer node + inner dot)
+    assert len(scene.lines) == 2, "Connected cable: left half + right half"
+    assert len(scene.ovals) == 4, "2 sockets + midpoint outer + midpoint inner"
+    assert len(scene.arcs) == 0
     assert not any(item.text in ("Robot Link", "Broken Link") for item in scene.texts)
-    assert scene.lines[0].color == COLOR_LINK
+    # Neutral gray, no color
+    assert scene.lines[0].color == COLOR_CABLE
+    assert scene.lines[1].color == COLOR_CABLE
 
 
-def test_dashboard_scene_cable_broken_when_robot_link_disabled(cfg_path: Path):
+def test_dashboard_scene_cable_broken_curls_apart(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = _make_snapshot(robot_link_enabled=False)
 
     scene = build_dashboard_scene(layout, snapshot)
 
-    assert len(scene.lines) == 2, "Broken cable should have two segments"
-    assert len(scene.ovals) == 2, "Broken cable should still have connector dots"
-    assert scene.lines[0].color == COLOR_DISABLED
-    assert scene.lines[1].color == COLOR_DISABLED
+    # 2 curling line fragments, 2 socket ovals, 2 half-circle arcs
+    assert len(scene.lines) == 2, "Broken cable: two curling fragments"
+    assert len(scene.ovals) == 2, "Only endpoint sockets (no midpoint node)"
+    assert len(scene.arcs) == 2, "Half-circle remnants of broken node"
+    assert scene.lines[0].color == COLOR_CABLE_DIM
+    assert scene.lines[0].smooth is True, "Broken fragments should use smooth curves"
 
 
 def test_dashboard_scene_cable_spans_osr2_to_primary(cfg_path: Path):
@@ -629,11 +637,11 @@ def test_dashboard_scene_cable_spans_osr2_to_primary(cfg_path: Path):
 
     scene = build_dashboard_scene(layout, snapshot)
 
-    line = scene.lines[0]
     osr2_right = layout.osr2_panel.x + layout.osr2_panel.width
     primary_left = layout.primary_panel.x
-    assert line.points[0][0] == osr2_right
-    assert line.points[-1][0] == primary_left
+    # Left half starts at OSR2, right half ends at Primary
+    assert scene.lines[0].points[0][0] == osr2_right
+    assert scene.lines[1].points[-1][0] == primary_left
 
 
 def test_dashboard_scene_cable_no_link_rect(cfg_path: Path):
@@ -654,8 +662,8 @@ def test_dashboard_scene_cable_press_lightens_color(cfg_path: Path):
         layout, snapshot, pressed_actions=frozenset({"link_toggle"}),
     )
 
-    assert scene_normal.lines[0].color == COLOR_LINK
-    assert scene_pressed.lines[0].color == lighten_color(COLOR_LINK)
+    assert scene_normal.lines[0].color == COLOR_CABLE
+    assert scene_pressed.lines[0].color == lighten_color(COLOR_CABLE)
 
 
 def test_dashboard_scene_default_cable_connected_without_snapshot(cfg_path: Path):
@@ -663,5 +671,5 @@ def test_dashboard_scene_default_cable_connected_without_snapshot(cfg_path: Path
 
     scene = build_dashboard_scene(layout)
 
-    assert len(scene.lines) == 1, "Default (no snapshot) should show connected cable"
-    assert scene.lines[0].color == COLOR_LINK
+    assert len(scene.lines) == 2, "Default (no snapshot) should show connected cable"
+    assert scene.lines[0].color == COLOR_CABLE
