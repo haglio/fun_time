@@ -8,6 +8,7 @@ from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
 
 
 # These imports will fail until the module exists (red step)
+from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     execute_window_ops,
@@ -454,6 +455,37 @@ class TestDispatchLoopRunner:
         runner.tick()
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
+
+    def test_dispatch_writes_last_press_to_dashboard_state(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.dashboard_enabled = True
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("portrait_lock", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        snapshot = load_dashboard_snapshot(tmp_path / "dashboard_state.ini")
+        assert snapshot is not None
+        assert snapshot.last_press_action == "portrait_lock"
+        assert snapshot.last_press_time > 0
+
+    def test_periodic_sync_does_not_set_last_press(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=0)
+        runner.dashboard_enabled = True
+        runner._last_sync = -999
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        snapshot = load_dashboard_snapshot(tmp_path / "dashboard_state.ini")
+        assert snapshot is not None
+        assert snapshot.last_press_action == ""
 
 
 class TestRobotHandActivationRetry:

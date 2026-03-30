@@ -13,8 +13,10 @@ def build_dashboard_snapshot_text(
     portrait_locked: bool,
     landscape_locked: bool,
     omni_paused: bool = False,
+    last_press_action: str = "",
+    last_press_time: float = 0.0,
 ) -> str:
-    return (
+    text = (
         "[fmode]\n"
         f"enabled={'1' if f_mode_enabled else '0'}\n"
         "[robot_link]\n"
@@ -33,6 +35,13 @@ def build_dashboard_snapshot_text(
         "[landscape]\n"
         f"locked={'1' if landscape_locked else '0'}\n"
     )
+    if last_press_action:
+        text += (
+            "[last_press]\n"
+            f"action={last_press_action}\n"
+            f"time={last_press_time}\n"
+        )
+    return text
 
 
 def _read_existing_snapshot(path: Path) -> str:
@@ -59,6 +68,8 @@ def write_dashboard_snapshot(
     portrait_locked: bool,
     landscape_locked: bool,
     omni_paused: bool = False,
+    last_press_action: str = "",
+    last_press_time: float = 0.0,
 ) -> bool:
     path = Path(output_file)
     text = build_dashboard_snapshot_text(
@@ -70,6 +81,8 @@ def write_dashboard_snapshot(
         portrait_locked=portrait_locked,
         landscape_locked=landscape_locked,
         omni_paused=omni_paused,
+        last_press_action=last_press_action,
+        last_press_time=last_press_time,
     )
     if _read_existing_snapshot(path) == text:
         return False
