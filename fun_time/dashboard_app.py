@@ -303,7 +303,6 @@ def build_dashboard_scene(
     mfp_label = LABEL_MFP
     cable_connected = True
     broker_chip = "b"
-    controller_chip = "c"
     fmode_chip = "f"
     primary_fill = COLOR_PANEL
     portrait_fill = COLOR_PANEL
@@ -311,7 +310,6 @@ def build_dashboard_scene(
     osr2_fill = COLOR_PANEL
     mfp_fill = COLOR_PANEL
     broker_fill = COLOR_PANEL
-    controller_fill = COLOR_ACTIVE
     fmode_fill = COLOR_PANEL
     portrait_lock_fill = COLOR_PANEL
     landscape_lock_fill = COLOR_PANEL
@@ -377,7 +375,6 @@ def build_dashboard_scene(
         DashboardRectItem(layout.landscape_lock, fill=_press_fill(landscape_lock_fill, LANDSCAPE_LOCK)),
         DashboardRectItem(layout.landscape_trash, fill=_press_fill(COLOR_PANEL, LANDSCAPE_TRASH)),
         DashboardRectItem(layout.broker_panel, fill=broker_fill),
-        DashboardRectItem(layout.controller_panel, fill=controller_fill),
         DashboardRectItem(layout.fmode_panel, fill=fmode_fill),
     )
     texts = (
@@ -401,7 +398,6 @@ def build_dashboard_scene(
         DashboardTextItem(ICON_LOCK, layout.landscape_lock, font=("Segoe UI Emoji", 9, "normal")),
         DashboardTextItem(ICON_TRASH, layout.landscape_trash, font=("Segoe UI Emoji", 9, "normal")),
         DashboardTextItem(broker_chip, layout.broker_panel, font=("Segoe UI", 7, "bold")),
-        DashboardTextItem(controller_chip, layout.controller_panel, font=("Segoe UI", 7, "bold")),
         DashboardTextItem(fmode_chip, layout.fmode_panel, font=("Segoe UI", 7, "bold")),
     )
     # Cable visual connecting OSR2 to Primary panel (schematic style)
