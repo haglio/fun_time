@@ -2,7 +2,6 @@ from __future__ import annotations
 
 
 BROKER_PANEL = "broker_panel"
-CONTROLLER_PANEL = "controller_panel"
 FMODE_PANEL = "fmode_panel"
 PORTRAIT_PREV = "portrait_prev"
 PORTRAIT_NEXT = "portrait_next"
