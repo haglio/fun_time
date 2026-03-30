@@ -53,7 +53,8 @@ from fun_time.dashboard_state import (
 COLOR_BG = "#20262C"
 COLOR_PANEL = "#2A3038"
 COLOR_TEXT = "#F4F7FA"
-COLOR_LINK = "#3A7AFE"
+COLOR_CABLE = "#A0A8B4"
+COLOR_CABLE_DIM = "#505860"
 COLOR_ACTIVE = "#1F6F52"
 COLOR_ACTIVE_ALT = "#2C8A65"
 COLOR_OSR2 = "#8A2C6A"
@@ -99,6 +100,7 @@ class DashboardLineItem:
     points: tuple[tuple[int, int], ...]
     color: str
     width: int = 2
+    smooth: bool = False
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,19 @@ class DashboardOvalItem:
     cy: int
     r: int
     fill: str
+    outline: str = ""
+    outline_width: int = 1
+
+
+@dataclass(frozen=True)
+class DashboardArcItem:
+    cx: int
+    cy: int
+    r: int
+    start: float
+    extent: float
+    outline: str
+    width: int = 1
 
 
 @dataclass(frozen=True)
@@ -134,6 +149,7 @@ class DashboardScene:
     actions: tuple[tuple[str, Rect], ...]
     lines: tuple[DashboardLineItem, ...] = ()
     ovals: tuple[DashboardOvalItem, ...] = ()
+    arcs: tuple[DashboardArcItem, ...] = ()
 
 
 def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
@@ -388,43 +404,72 @@ def build_dashboard_scene(
         DashboardTextItem(controller_chip, layout.controller_panel, font=("Segoe UI", 7, "bold")),
         DashboardTextItem(fmode_chip, layout.fmode_panel, font=("Segoe UI", 7, "bold")),
     )
-    # Cable visual connecting OSR2 to Primary panel
+    # Cable visual connecting OSR2 to Primary panel (schematic style)
     cable_y = layout.link_toggle.y + layout.link_toggle.height // 2
     cable_start_x = layout.osr2_panel.x + layout.osr2_panel.width
     cable_end_x = layout.primary_panel.x
-    cable_color = COLOR_LINK if cable_connected else COLOR_DISABLED
+    mid_x = (cable_start_x + cable_end_x) // 2
+    cable_color = COLOR_CABLE if cable_connected else COLOR_CABLE_DIM
     if LINK_TOGGLE in pressed_actions:
         cable_color = lighten_color(cable_color)
-    cable_width = 3
-    connector_r = 3
+    cable_w = 2
+    socket_r = 3
+    node_r = 4
+    dot_r = 2
+    arc_r = 3
+    cable_arcs: tuple[DashboardArcItem, ...] = ()
     if cable_connected:
+        # Two line halves meeting at midpoint node
         cable_lines: tuple[DashboardLineItem, ...] = (
             DashboardLineItem(
-                points=((cable_start_x, cable_y), (cable_end_x, cable_y)),
-                color=cable_color,
-                width=cable_width,
+                points=((cable_start_x, cable_y), (mid_x - node_r, cable_y)),
+                color=cable_color, width=cable_w,
             ),
+            DashboardLineItem(
+                points=((mid_x + node_r, cable_y), (cable_end_x, cable_y)),
+                color=cable_color, width=cable_w,
+            ),
+        )
+        # Sockets at endpoints + midpoint node (outer ring + inner dot)
+        cable_ovals: tuple[DashboardOvalItem, ...] = (
+            DashboardOvalItem(cx=cable_start_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
+            DashboardOvalItem(cx=cable_end_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
+            DashboardOvalItem(cx=mid_x, cy=cable_y, r=node_r, fill=COLOR_PANEL, outline=cable_color),
+            DashboardOvalItem(cx=mid_x, cy=cable_y, r=dot_r, fill=cable_color),
         )
     else:
-        mid_x = (cable_start_x + cable_end_x) // 2
-        gap = 6
-        kick = 5
+        # Two fragments curling apart at the break
+        curl = 6
+        gap = 8
         cable_lines = (
             DashboardLineItem(
-                points=((cable_start_x, cable_y), (mid_x - gap, cable_y), (mid_x - gap + kick, cable_y - kick)),
-                color=cable_color,
-                width=cable_width,
+                points=(
+                    (cable_start_x, cable_y),
+                    (mid_x - gap - 4, cable_y),
+                    (mid_x - gap, cable_y),
+                    (mid_x - gap + 2, cable_y - curl),
+                ),
+                color=cable_color, width=cable_w, smooth=True,
             ),
             DashboardLineItem(
-                points=((mid_x + gap - kick, cable_y + kick), (mid_x + gap, cable_y), (cable_end_x, cable_y)),
-                color=cable_color,
-                width=cable_width,
+                points=(
+                    (cable_end_x, cable_y),
+                    (mid_x + gap + 4, cable_y),
+                    (mid_x + gap, cable_y),
+                    (mid_x + gap - 2, cable_y + curl),
+                ),
+                color=cable_color, width=cable_w, smooth=True,
             ),
         )
-    cable_ovals = (
-        DashboardOvalItem(cx=cable_start_x, cy=cable_y, r=connector_r, fill=cable_color),
-        DashboardOvalItem(cx=cable_end_x, cy=cable_y, r=connector_r, fill=cable_color),
-    )
+        cable_ovals = (
+            DashboardOvalItem(cx=cable_start_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
+            DashboardOvalItem(cx=cable_end_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
+        )
+        # Half-circle remnants of broken midpoint node
+        cable_arcs = (
+            DashboardArcItem(cx=mid_x - gap + 2, cy=cable_y - curl, r=arc_r, start=270, extent=180, outline=cable_color),
+            DashboardArcItem(cx=mid_x + gap - 2, cy=cable_y + curl, r=arc_r, start=90, extent=180, outline=cable_color),
+        )
 
     return DashboardScene(
         width=layout.dashboard_width,
@@ -433,6 +478,7 @@ def build_dashboard_scene(
         texts=texts,
         lines=cable_lines,
         ovals=cable_ovals,
+        arcs=cable_arcs,
         actions=(
             (QUIT_BUTTON, layout.quit_button),
             (OMNIPAUSE_TOGGLE, layout.omnipause_button),
@@ -468,12 +514,23 @@ def render_dashboard_scene(canvas: tk.Canvas, scene: DashboardScene) -> None:
     for item in scene.lines:
         if len(item.points) >= 2:
             flat = [c for pt in item.points for c in pt]
-            canvas.create_line(*flat, fill=item.color, width=item.width, capstyle="round", joinstyle="round")
+            canvas.create_line(
+                *flat, fill=item.color, width=item.width,
+                capstyle="round", joinstyle="round", smooth=item.smooth,
+            )
     for item in scene.ovals:
+        outline = item.outline if item.outline else item.fill
         canvas.create_oval(
             item.cx - item.r, item.cy - item.r,
             item.cx + item.r, item.cy + item.r,
-            fill=item.fill, outline=item.fill,
+            fill=item.fill, outline=outline, width=item.outline_width,
+        )
+    for item in scene.arcs:
+        canvas.create_arc(
+            item.cx - item.r, item.cy - item.r,
+            item.cx + item.r, item.cy + item.r,
+            start=item.start, extent=item.extent,
+            style="arc", outline=item.outline, width=item.width,
         )
     for item in scene.texts:
         if item.rect.width == 0 and item.rect.height == 0:
