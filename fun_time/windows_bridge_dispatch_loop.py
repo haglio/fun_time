@@ -166,6 +166,12 @@ class DispatchLoopRunner:
         self._stop = threading.Event()
         self._file_dialog_lock = threading.Lock()
         self._robot_hand_activate_pending = False
+        self._last_press_action = ""
+        self._last_press_time = 0.0
+
+    _HOTKEY_TO_BUTTON = {
+        "robot_toggle": "link_toggle",
+    }
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync robot hand."""
@@ -176,6 +182,9 @@ class DispatchLoopRunner:
 
         # Dashboard commands (may be multiple if queued by rapid hotkey presses)
         for cmd in poll_dashboard_commands(self.dashboard_cmd_file):
+            button = self._HOTKEY_TO_BUTTON.get(cmd, cmd)
+            self._last_press_action = button
+            self._last_press_time = time.time()
             if cmd == "quit":
                 self.ahk_cmd_file.write_text("exit", encoding="utf-8")
                 continue
@@ -246,6 +255,10 @@ class DispatchLoopRunner:
         try:
             robot_link_enabled = read_flag_file(self.config.robot_hand_enabled_file, True)
             robot_hand_mode_on = read_flag_file(self.config.robot_hand_mode_file, False)
+            press_action = self._last_press_action
+            press_time = self._last_press_time
+            self._last_press_action = ""
+            self._last_press_time = 0.0
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
                 f_mode_enabled=self.state.f_mode_enabled,
@@ -256,6 +269,8 @@ class DispatchLoopRunner:
                 portrait_locked=self.state.locked2,
                 landscape_locked=self.state.locked3,
                 omni_paused=self.state.omni_paused,
+                last_press_action=press_action,
+                last_press_time=press_time,
             )
         except Exception:
             pass

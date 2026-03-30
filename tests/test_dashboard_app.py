@@ -9,11 +9,15 @@ from fun_time.dashboard_app import (
     COLOR_DISABLED,
     COLOR_ACTIVE_ALT,
     COLOR_PANEL,
+    COLOR_WARNING,
+    ICON_LOCK,
+    ICON_TRASH,
     DashboardLaunchGeometry,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
     build_dashboard_window,
     hydrate_dashboard_snapshot,
+    lighten_color,
     load_dashboard_app_config,
     resolve_logical_monitor_sizes,
     write_dashboard_command,
@@ -382,3 +386,86 @@ def test_dashboard_scene_omnipause_button_shows_play_icon_when_paused(cfg_path: 
     assert omnipause_texts[0].text == "\u25B6"  # play icon
     omnipause_rects = [item for item in scene.rects if item.rect == preview_layout.omnipause_button]
     assert omnipause_rects[0].fill == COLOR_ACTIVE
+
+
+def test_lighten_color_adds_to_each_channel():
+    assert lighten_color("#2A3038", 50) == "#5C626A"
+    assert lighten_color("#000000", 30) == "#1E1E1E"
+
+
+def test_lighten_color_caps_at_255():
+    assert lighten_color("#F0F0F0", 50) == "#FFFFFF"
+
+
+def test_dashboard_scene_lock_buttons_use_icon(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+
+    scene = build_dashboard_scene(preview_layout)
+
+    lock_texts = [
+        item for item in scene.texts
+        if item.rect in (preview_layout.portrait_lock, preview_layout.landscape_lock)
+    ]
+    assert len(lock_texts) == 2
+    for item in lock_texts:
+        assert item.text == ICON_LOCK, f"Expected lock icon, got '{item.text}'"
+
+
+def test_dashboard_scene_trash_buttons_use_icon(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+
+    scene = build_dashboard_scene(preview_layout)
+
+    trash_texts = [
+        item for item in scene.texts
+        if item.rect in (preview_layout.portrait_trash, preview_layout.landscape_trash)
+    ]
+    assert len(trash_texts) == 2
+    for item in trash_texts:
+        assert item.text == ICON_TRASH, f"Expected trash icon, got '{item.text}'"
+
+
+def test_dashboard_scene_trash_buttons_are_not_yellow(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+
+    scene = build_dashboard_scene(preview_layout)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[preview_layout.portrait_trash] != COLOR_WARNING
+    assert fills[preview_layout.landscape_trash] != COLOR_WARNING
+    assert fills[preview_layout.portrait_trash] == COLOR_PANEL
+    assert fills[preview_layout.landscape_trash] == COLOR_PANEL
+
+
+def test_dashboard_scene_pressed_button_has_lighter_fill(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+
+    scene_normal = build_dashboard_scene(preview_layout)
+    scene_pressed = build_dashboard_scene(preview_layout, pressed_actions=frozenset({"portrait_prev"}))
+
+    normal_fills = {item.rect: item.fill for item in scene_normal.rects}
+    pressed_fills = {item.rect: item.fill for item in scene_pressed.rects}
+    assert pressed_fills[preview_layout.portrait_prev] != normal_fills[preview_layout.portrait_prev]
+    assert pressed_fills[preview_layout.portrait_prev] == lighten_color(COLOR_PANEL)
+    # Non-pressed buttons should keep their normal fill
+    assert pressed_fills[preview_layout.portrait_next] == normal_fills[preview_layout.portrait_next]
