@@ -93,14 +93,27 @@ def _current() -> str:
     return get_current_file_path(TEST_PORT, TEST_PASSWORD)
 
 
+def _wait_for_change(before: str, port: int = TEST_PORT, timeout: float = 3.0) -> str:
+    """Poll until VLC reports a different current file."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        current = get_current_file_path(port, TEST_PASSWORD)
+        if current and current != before:
+            return current
+        time.sleep(0.1)
+    return get_current_file_path(port, TEST_PASSWORD)
+
+
 def _next():
+    before = _current()
     vlc_http_cmd(TEST_PORT, "pl_next", TEST_PASSWORD)
-    time.sleep(0.3)
+    _wait_for_change(before)
 
 
 def _prev():
+    before = _current()
     vlc_http_cmd(TEST_PORT, "pl_previous", TEST_PASSWORD)
-    time.sleep(0.3)
+    _wait_for_change(before)
 
 
 # --- Phase 2: Do VLC basics work? ---
@@ -168,8 +181,7 @@ def test_playlist_wraps_around(vlc_with_playlist):
 def test_vlc_nav_step_next_advances_video(vlc_with_playlist):
     before = _current()
     ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
-    time.sleep(0.3)
-    after = _current()
+    after = _wait_for_change(before)
     assert ok is True, "vlc_nav_step returned False — check _parse_playlist_ids"
     assert after != before, f"vlc_nav_step next did not change video (still {before})"
 
@@ -177,8 +189,7 @@ def test_vlc_nav_step_next_advances_video(vlc_with_playlist):
 def test_vlc_nav_step_prev_goes_back(vlc_with_playlist):
     before = _current()
     ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
-    time.sleep(0.3)
-    after = _current()
+    after = _wait_for_change(before)
     assert ok is True, "vlc_nav_step returned False — check _parse_playlist_ids"
     assert after != before, f"vlc_nav_step prev did not change video (still {before})"
 
@@ -186,13 +197,13 @@ def test_vlc_nav_step_prev_goes_back(vlc_with_playlist):
 def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
     start = _current()
     ok_next = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
-    time.sleep(0.3)
+    after_next = _wait_for_change(start)
     assert ok_next is True, "vlc_nav_step next returned False"
-    assert _current() != start
+    assert after_next != start
     ok_prev = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
-    time.sleep(0.3)
+    after_prev = _wait_for_change(after_next)
     assert ok_prev is True, "vlc_nav_step prev returned False"
-    assert _current() == start, f"next+prev did not return to start: expected {start}, got {_current()}"
+    assert after_prev == start, f"next+prev did not return to start: expected {start}, got {after_prev}"
 
 
 # --- vlc_advance_and_remove (discard path) ---
@@ -207,8 +218,9 @@ def test_advance_and_remove_plays_next_and_shrinks_playlist(vlc_with_playlist):
     ids_before, current_before = _parse_playlist_ids(xml_before)
     count_before = len(ids_before)
 
+    before_path = _current()
     ok = vlc_advance_and_remove(TEST_PORT, TEST_PASSWORD)
-    time.sleep(0.5)
+    _wait_for_change(before_path)
 
     _, xml_after = vlc_http_req(TEST_PORT, "/requests/playlist_jstree.xml", TEST_PASSWORD)
     ids_after, current_after = _parse_playlist_ids(xml_after)
@@ -222,13 +234,13 @@ def test_advance_and_remove_plays_next_and_shrinks_playlist(vlc_with_playlist):
 
 def test_advance_and_remove_preserves_navigation(vlc_with_playlist):
     """After vlc_advance_and_remove, vlc_nav_step must still work."""
+    before_remove = _current()
     vlc_advance_and_remove(TEST_PORT, TEST_PASSWORD)
-    time.sleep(0.3)
+    _wait_for_change(before_remove)
 
-    before = get_current_file_path(TEST_PORT, TEST_PASSWORD)
+    before = _current()
     ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
-    time.sleep(0.3)
-    after = get_current_file_path(TEST_PORT, TEST_PASSWORD)
+    after = _wait_for_change(before)
     assert ok is True, "vlc_nav_step failed after advance_and_remove"
     assert after != before, "nav should change video after advance_and_remove"
 
@@ -309,8 +321,7 @@ def test_repeat_one_nav_step_changes_video_and_keeps_playing(vlc_repeat_one):
     item but pause it, producing a black screen."""
     before = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
     ok = vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "next")
-    time.sleep(0.5)
-    after = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+    after = _wait_for_change(before, port=REPEAT_PORT)
     state = get_playback_state(REPEAT_PORT, TEST_PASSWORD)
     assert ok is True
     assert after != before, f"nav_step did not change video in repeat-one mode"
@@ -326,8 +337,7 @@ def test_repeat_one_nav_plays_after_every_transition(vlc_repeat_one):
     for i in range(3):
         before = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
         vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "next")
-        time.sleep(0.5)
-        after = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+        after = _wait_for_change(before, port=REPEAT_PORT)
         state = get_playback_state(REPEAT_PORT, TEST_PASSWORD)
         assert after != before, f"nav #{i+1}: video did not change"
         assert state == "playing", f"nav #{i+1}: VLC not playing (state={state})"
@@ -341,13 +351,8 @@ def test_repeat_one_prev_reverses_next(vlc_repeat_one):
     start = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
     assert start, "precondition: VLC must have a current file"
 
-    vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "next")
-    time.sleep(0.3)
-    vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "next")
-    time.sleep(0.3)
-    vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "prev")
-    time.sleep(0.3)
-    vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "prev")
-    time.sleep(0.3)
-    back = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
-    assert back == start, f"two prevs should return to start: expected {start}, got {back}"
+    pos = start
+    for direction in ("next", "next", "prev", "prev"):
+        vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, direction)
+        pos = _wait_for_change(pos, port=REPEAT_PORT)
+    assert pos == start, f"two prevs should return to start: expected {start}, got {pos}"
