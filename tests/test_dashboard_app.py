@@ -50,6 +50,53 @@ def test_dashboard_app_loads_layout_from_controller_manifest(cfg_path: Path, tmp
     assert app_config.vlc_password == "vlc-pass"
     assert app_config.dashboard_state_file == config.paths.state_dir / "dashboard_state.ini"
     assert app_config.dashboard_cmd_file == config.paths.state_dir / "dashboard_cmd.txt"
+    assert app_config.portrait_sources == "|".join(str(path) for path in config.paths.portrait_dirs)
+    assert app_config.landscape_sources == "|".join(str(path) for path in config.paths.landscape_dirs)
+
+
+def test_dashboard_highlights_primary_for_ai_video_with_funscript(cfg_path: Path):
+    """Primary panel should light green for an AI video with funscript when all sources are provided."""
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+    ai_root = config.paths.portrait_dirs[0]
+    ai_root.mkdir(parents=True, exist_ok=True)
+    ai_video = ai_root / "ai_clip.mp4"
+    ai_video.write_text("video", encoding="utf-8")
+    ai_funscript = Path(str(ai_root).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\")) / "ai_clip.funscript"
+    ai_funscript.parent.mkdir(parents=True, exist_ok=True)
+    ai_funscript.write_text("script", encoding="utf-8")
+    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
+    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat_file.write_text("100.0", encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=False,
+        primary_uses_robot_hand=False,
+        osr2_mode="manual",
+        mfp_alive=False,
+        primary_responsive=False,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot(str(ai_video), False),
+        portrait=DashboardPanelSnapshot("", False),
+        landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(10, 20, 300, 200),
+    )
+    all_sources = "|".join(str(p) for p in [*config.paths.primary_vlc_dirs, *config.paths.portrait_dirs, *config.paths.landscape_dirs])
+
+    scene = build_dashboard_scene(
+        preview_layout,
+        snapshot,
+        video_sources=all_sources,
+        favs_file=config.paths.favs_file,
+        broker_heartbeat_file=heartbeat_file,
+    )
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[preview_layout.primary_panel] == COLOR_ACTIVE_ALT
 
 
 def test_dashboard_app_resolves_landscape_monitor_as_logical_main_even_if_ids_are_swapped():
@@ -121,7 +168,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     scene = build_dashboard_scene(
         preview_layout,
         snapshot,
-        primary_sources="|".join(str(path) for path in config.paths.primary_vlc_dirs),
+        video_sources="|".join(str(path) for path in config.paths.primary_vlc_dirs),
         favs_file=favs_file,
         broker_heartbeat_file=heartbeat_file,
     )
@@ -165,7 +212,7 @@ def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
     scene = build_dashboard_scene(
         preview_layout,
         snapshot,
-        primary_sources="",
+        video_sources="",
         broker_heartbeat_file=heartbeat_file,
     )
 
@@ -196,7 +243,7 @@ def test_osr2_non_auto_uses_panel_color(cfg_path: Path):
         window=DashboardWindowSnapshot(10, 20, 300, 200),
     )
 
-    scene = build_dashboard_scene(preview_layout, snapshot, primary_sources="")
+    scene = build_dashboard_scene(preview_layout, snapshot, video_sources="")
 
     fills = {item.rect: item.fill for item in scene.rects}
     assert fills[preview_layout.osr2_panel] == COLOR_PANEL
@@ -229,7 +276,7 @@ def test_quarter_button_uses_osr2_pink_when_robot_hand(cfg_path: Path):
     scene = build_dashboard_scene(
         preview_layout,
         snapshot,
-        primary_sources="",
+        video_sources="",
         broker_heartbeat_file=heartbeat_file,
     )
 
@@ -673,10 +720,8 @@ def test_dashboard_scene_chips_have_hover_texts(cfg_path: Path):
 
     hover = {rect: text for rect, text in scene.hover_texts}
     assert layout.broker_panel in hover
-    assert layout.controller_panel in hover
     assert layout.fmode_panel in hover
     assert "broker" in hover[layout.broker_panel].lower()
-    assert "controller" in hover[layout.controller_panel].lower()
 
 
 def test_dashboard_scene_default_cable_connected_without_snapshot(cfg_path: Path):

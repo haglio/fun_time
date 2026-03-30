@@ -78,6 +78,8 @@ class DashboardAppConfig:
     layout: LayoutConfig
     manifest_path: Path
     primary_sources: str
+    portrait_sources: str
+    landscape_sources: str
     favs_file: Path
     primary_vlc_port: int
     portrait_vlc_port: int
@@ -171,6 +173,8 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         layout=layout,
         manifest_path=manifest_path,
         primary_sources=parser.get("media", "primary_vlc_sources", fallback=""),
+        portrait_sources=parser.get("media", "portrait_dirs", fallback=""),
+        landscape_sources=parser.get("media", "landscape_dirs", fallback=""),
         favs_file=Path(parser.get("media", "favs_file", fallback="favs.csv")),
         primary_vlc_port=parser.getint("controller", "primary_vlc_port", fallback=8090),
         portrait_vlc_port=parser.getint("controller", "vlc2_port", fallback=8091),
@@ -293,7 +297,7 @@ def build_dashboard_scene(
     layout: DashboardPreviewLayout,
     snapshot: DashboardSnapshot | None = None,
     *,
-    primary_sources: str = "",
+    video_sources: str = "",
     favs_file: Path | None = None,
     broker_heartbeat_file: Path | None = None,
     pressed_actions: frozenset[str] = frozenset(),
@@ -330,7 +334,7 @@ def build_dashboard_scene(
         primary_fill = COLOR_ACTIVE_ALT if primary_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
             primary_path=snapshot.primary.path,
-            has_matching_funscript=has_matching_funscript(snapshot.primary.path, primary_sources),
+            has_matching_funscript=has_matching_funscript(snapshot.primary.path, video_sources),
         ) else COLOR_PANEL
         portrait_fill = COLOR_ACTIVE_ALT if satellite_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
@@ -476,7 +480,6 @@ def build_dashboard_scene(
         texts=texts,
         hover_texts=(
             (layout.broker_panel, "Broker"),
-            (layout.controller_panel, "Controller"),
             (layout.fmode_panel, "F-Mode"),
         ),
         lines=cable_lines,
@@ -649,7 +652,7 @@ def build_dashboard_window(
         scene = build_dashboard_scene(
             preview_layout,
             snapshot,
-            primary_sources=app_config.primary_sources,
+            video_sources="|".join(filter(None, [app_config.primary_sources, app_config.portrait_sources, app_config.landscape_sources])),
             favs_file=app_config.favs_file,
             broker_heartbeat_file=app_config.broker_heartbeat_file,
             pressed_actions=pressed_actions,
