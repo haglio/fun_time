@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from .runtime_flow import (
 from .vlc_actions import (
     ensure_playback_state,
     get_current_file_path,
+    get_playback_state,
     get_playback_time,
     set_repeat_mode,
     vlc_advance_and_remove,
@@ -186,11 +188,16 @@ def dispatch_command(
             write_flag_file(config.robot_hand_cmd_file, False)
             config.robot_hand_cmd_file.write_text(cmd, encoding="utf-8")
         else:
-            # Send VLC keyboard shortcuts (p/n) instead of HTTP API
-            # pl_play&id=N.  VLC's keyboard handler manages playback
-            # transitions natively in repeat-one mode; the HTTP API does not.
-            key = "p" if command == "primary_prev" else "n"
-            ops.append(WindowOp(op="send_key", key=key))
+            direction = "prev" if command == "primary_prev" else "next"
+            vlc_nav_step(config.primary_port, config.vlc_password, direction)
+            # VLC in repeat-one mode pauses after pl_play&id=N transitions.
+            # Must wait for VLC to finish transitioning, then check state.
+            # Without the delay, get_playback_state reads stale state (old
+            # item still "playing") and skips the pl_play recovery.
+            # pl_play is a TOGGLE — only send it when VLC is NOT playing.
+            time.sleep(0.15)
+            if get_playback_state(config.primary_port, config.vlc_password) != "playing":
+                vlc_http_cmd(config.primary_port, "pl_play", config.vlc_password)
         return state, ops
 
     if command == "quarter_button":
