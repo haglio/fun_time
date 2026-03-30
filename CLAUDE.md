@@ -42,7 +42,7 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 ## Integration test fidelity
 
-- **Integration tests must exercise production code paths.** Never hand-craft setup (launch commands, config, initialization) that duplicates production logic — call the production function instead. A test that builds its own VLC command line instead of using `_build_vlc_launch_command` can pass while production is broken.
+- **Test configuration must derive from production code.** Integration tests may test individual components (not only end-to-end), but their configuration (launch commands, flags, init sequences) must come from the same production functions that real sessions use. Never hand-craft config that duplicates production logic — if the test builds its own VLC command line instead of calling `_build_vlc_launch_command`, it can pass while production is broken.
 
 ## Repo-specific gotchas
 
