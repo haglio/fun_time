@@ -46,10 +46,10 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
     (tmp_path / "state").mkdir(exist_ok=True)
     (tmp_path / "clips").mkdir(exist_ok=True)
     (tmp_path / "audio").mkdir(exist_ok=True)
-    (tmp_path / "portrait").mkdir(exist_ok=True)
-    (tmp_path / "landscape").mkdir(exist_ok=True)
+    (tmp_path / "videos" / "videos" / "portrait").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "videos" / "videos" / "landscape").mkdir(parents=True, exist_ok=True)
     (tmp_path / "weird").mkdir(exist_ok=True)
-    (tmp_path / "vlc_primary").mkdir(exist_ok=True)
+    (tmp_path / "videos" / "videos" / "vlc_primary").mkdir(parents=True, exist_ok=True)
 
     cfg: dict = {
         "paths": {
@@ -57,9 +57,9 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "mfp_exe": str(tmp_path / "mfp.exe"),
             "ahk_exe": str(tmp_path / "ahk.exe"),
             "python_exe": str(tmp_path / "python.exe"),
-            "primary_vlc_dirs": [str(tmp_path / "vlc_primary")],
-            "portrait_dir": str(tmp_path / "portrait"),
-            "landscape_dir": str(tmp_path / "landscape"),
+            "primary_vlc_dirs": [str(tmp_path / "videos" / "videos" / "vlc_primary")],
+            "portrait_dir": str(tmp_path / "videos" / "videos" / "portrait"),
+            "landscape_dir": str(tmp_path / "videos" / "videos" / "landscape"),
             "weird_dir": str(tmp_path / "weird"),
             "clips_dir": str(tmp_path / "clips"),
             "audio_dir": str(tmp_path / "audio"),

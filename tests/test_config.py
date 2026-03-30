@@ -207,7 +207,7 @@ class TestLoadConfig:
 
     def test_primary_vlc_dir_property(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.paths.primary_vlc_dir == (tmp_path / "vlc_primary").resolve()
+        assert cfg.paths.primary_vlc_dir == (tmp_path / "videos" / "videos" / "vlc_primary").resolve()
 
     def test_multiple_primary_vlc_dirs(self, tmp_path: Path, cfg_factory):
         extra = tmp_path / "vlc_extra"
