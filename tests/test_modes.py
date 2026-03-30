@@ -15,13 +15,10 @@ from fun_time.modes import (
 )
 
 
-def test_build_mirrored_funscript_path_uses_primary_source_mirror(tmp_path: Path):
-    source_root = tmp_path / "videos" / "videos" / "primary"
-    video_path = source_root / "folder" / "clip.mp4"
-    source_root.mkdir(parents=True)
-    video_path.parent.mkdir(parents=True, exist_ok=True)
+def test_build_mirrored_funscript_path_uses_video_path_directly(tmp_path: Path):
+    video_path = tmp_path / "videos" / "videos" / "primary" / "folder" / "clip.mp4"
 
-    result = build_mirrored_funscript_path(str(video_path), str(source_root))
+    result = build_mirrored_funscript_path(str(video_path))
 
     assert result == str(tmp_path / "videos" / "scripts" / "scripts" / "primary" / "folder" / "clip.funscript")
 
@@ -139,20 +136,8 @@ def test_collect_video_files_ignores_single_non_video_file(tmp_path: Path):
 # --- build_mirrored_funscript_path edge cases ---
 
 
-def test_build_mirrored_funscript_path_skips_empty_and_missing_source_parts(tmp_path: Path):
-    existing = tmp_path / "videos" / "videos" / "primary"
-    existing.mkdir(parents=True)
-    video = existing / "clip.mp4"
-    spec = f"|{tmp_path / 'nonexistent'}|{existing}"
-    result = build_mirrored_funscript_path(str(video), spec)
-    assert "clip.funscript" in result
-
-
-def test_build_mirrored_funscript_path_returns_empty_when_no_match(tmp_path: Path):
-    d = tmp_path / "videos" / "videos" / "primary"
-    d.mkdir(parents=True)
-    unrelated = tmp_path / "other" / "clip.mp4"
-    assert build_mirrored_funscript_path(str(unrelated), str(d)) == ""
+def test_build_mirrored_funscript_path_returns_empty_when_no_marker():
+    assert build_mirrored_funscript_path(r"C:\other\path\clip.mp4") == ""
 
 
 # --- read_favs_content / is_favorite_path edge cases ---

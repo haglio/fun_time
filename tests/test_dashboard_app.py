@@ -50,12 +50,10 @@ def test_dashboard_app_loads_layout_from_controller_manifest(cfg_path: Path, tmp
     assert app_config.vlc_password == "vlc-pass"
     assert app_config.dashboard_state_file == config.paths.state_dir / "dashboard_state.ini"
     assert app_config.dashboard_cmd_file == config.paths.state_dir / "dashboard_cmd.txt"
-    assert app_config.portrait_sources == "|".join(str(path) for path in config.paths.portrait_dirs)
-    assert app_config.landscape_sources == "|".join(str(path) for path in config.paths.landscape_dirs)
 
 
 def test_dashboard_highlights_primary_for_ai_video_with_funscript(cfg_path: Path):
-    """Primary panel should light green for an AI video with funscript when all sources are provided."""
+    """Primary panel should light green for an AI video with funscript — no source roots needed."""
     config = load_config(cfg_path)
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
@@ -85,12 +83,10 @@ def test_dashboard_highlights_primary_for_ai_video_with_funscript(cfg_path: Path
         landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(10, 20, 300, 200),
     )
-    all_sources = "|".join(str(p) for p in [*config.paths.primary_vlc_dirs, *config.paths.portrait_dirs, *config.paths.landscape_dirs])
 
     scene = build_dashboard_scene(
         preview_layout,
         snapshot,
-        video_sources=all_sources,
         favs_file=config.paths.favs_file,
         broker_heartbeat_file=heartbeat_file,
     )
@@ -168,7 +164,6 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     scene = build_dashboard_scene(
         preview_layout,
         snapshot,
-        video_sources="|".join(str(path) for path in config.paths.primary_vlc_dirs),
         favs_file=favs_file,
         broker_heartbeat_file=heartbeat_file,
     )
@@ -212,7 +207,6 @@ def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
     scene = build_dashboard_scene(
         preview_layout,
         snapshot,
-        video_sources="",
         broker_heartbeat_file=heartbeat_file,
     )
 
@@ -243,7 +237,7 @@ def test_osr2_non_auto_uses_panel_color(cfg_path: Path):
         window=DashboardWindowSnapshot(10, 20, 300, 200),
     )
 
-    scene = build_dashboard_scene(preview_layout, snapshot, video_sources="")
+    scene = build_dashboard_scene(preview_layout, snapshot)
 
     fills = {item.rect: item.fill for item in scene.rects}
     assert fills[preview_layout.osr2_panel] == COLOR_PANEL
@@ -276,7 +270,6 @@ def test_quarter_button_uses_osr2_pink_when_robot_hand(cfg_path: Path):
     scene = build_dashboard_scene(
         preview_layout,
         snapshot,
-        video_sources="",
         broker_heartbeat_file=heartbeat_file,
     )
 

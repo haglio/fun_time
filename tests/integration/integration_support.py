@@ -295,7 +295,7 @@ def _link_primary_samples(real_config, dest_dir: Path) -> list[Path]:
         for candidate in source_root.rglob("*"):
             if candidate.suffix.lower() not in VIDEO_EXTENSIONS or not candidate.is_file():
                 continue
-            if has_matching_funscript(str(candidate), str(source_root)):
+            if has_matching_funscript(str(candidate)):
                 candidates.append((candidate, source_root))
     if not candidates:
         raise FileNotFoundError("Could not find a primary video with a matching funscript for integration config")
@@ -304,7 +304,7 @@ def _link_primary_samples(real_config, dest_dir: Path) -> list[Path]:
     target = dest_dir / relative_video
     target.parent.mkdir(parents=True, exist_ok=True)
     _safe_link(candidate, target)
-    mirrored = Path(build_mirrored_funscript_path(str(candidate), str(source_root)))
+    mirrored = Path(build_mirrored_funscript_path(str(candidate)))
     if mirrored.exists():
         temp_mirrored_root = Path(str(dest_dir).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\"))
         mirrored_dest = (temp_mirrored_root / relative_video).with_suffix(".funscript")
