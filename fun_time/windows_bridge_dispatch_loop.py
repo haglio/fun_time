@@ -8,6 +8,7 @@ from __future__ import annotations
 import configparser
 import logging
 import os
+import socket
 import threading
 import time
 from pathlib import Path
@@ -166,8 +167,9 @@ class DispatchLoopRunner:
         self._stop = threading.Event()
         self._file_dialog_lock = threading.Lock()
         self._robot_hand_activate_pending = False
-        self._last_press_action = ""
-        self._last_press_time = 0.0
+        self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._press_port: int | None = None
+        self._press_port_file = config.state_dir / "dashboard_press_port.txt"
 
     _HOTKEY_TO_BUTTON = {
         "robot_toggle": "link_toggle",
@@ -183,8 +185,7 @@ class DispatchLoopRunner:
         # Dashboard commands (may be multiple if queued by rapid hotkey presses)
         for cmd in poll_dashboard_commands(self.dashboard_cmd_file):
             button = self._HOTKEY_TO_BUTTON.get(cmd, cmd)
-            self._last_press_action = button
-            self._last_press_time = time.time()
+            self._send_press(button)
             if cmd == "quit":
                 self.ahk_cmd_file.write_text("exit", encoding="utf-8")
                 continue
@@ -251,17 +252,22 @@ class DispatchLoopRunner:
         if self.dashboard_enabled:
             self._update_dashboard()
 
+    def _send_press(self, action: str) -> None:
+        if not self.dashboard_enabled:
+            return
+        try:
+            if self._press_port is None:
+                if self._press_port_file.exists():
+                    self._press_port = int(self._press_port_file.read_text(encoding="utf-8").strip())
+            if self._press_port is not None:
+                self._press_socket.sendto(action.encode("utf-8"), ("127.0.0.1", self._press_port))
+        except (OSError, ValueError):
+            pass
+
     def _update_dashboard(self) -> None:
         try:
             robot_link_enabled = read_flag_file(self.config.robot_hand_enabled_file, True)
             robot_hand_mode_on = read_flag_file(self.config.robot_hand_mode_file, False)
-            press_action = self._last_press_action
-            press_time = self._last_press_time
-            if press_action and time.time() - press_time > 0.6:
-                self._last_press_action = ""
-                self._last_press_time = 0.0
-                press_action = ""
-                press_time = 0.0
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
                 f_mode_enabled=self.state.f_mode_enabled,
@@ -272,8 +278,6 @@ class DispatchLoopRunner:
                 portrait_locked=self.state.locked2,
                 landscape_locked=self.state.locked3,
                 omni_paused=self.state.omni_paused,
-                last_press_action=press_action,
-                last_press_time=press_time,
             )
         except Exception:
             pass
