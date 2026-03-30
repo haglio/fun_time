@@ -46,7 +46,6 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 ## Repo-specific gotchas
 
-- **Never use `cd` in Bash commands.** Working dir is already the project root. `cd` prefix defeats pre-approved permissions.
 - Broker startup flows through `launch_broker_tray.vbs`, not directly to `scripts/run_broker_service.ps1`.
 - Random Favs Browser tab opening is sensitive to window focus — preserve explicit Chrome window targeting.
 - The test environment is the project `.venv`, not system Python or Conda.
