@@ -19,7 +19,9 @@ import pytest
 from fun_time.orchestrator import vlc_http_password_from_vlcrc
 from fun_time.vlc_actions import (
     get_current_file_path,
+    get_playback_state,
     restore_vlc_volume,
+    set_repeat_mode,
     vlc_http_cmd,
     vlc_http_req,
     vlc_nav_step,
@@ -183,3 +185,82 @@ def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
     time.sleep(0.3)
     assert ok_prev is True, "vlc_nav_step prev returned False"
     assert _current() == start, f"next+prev did not return to start: expected {start}, got {_current()}"
+
+
+# --- Primary VLC (repeat-one mode) navigation behavior ---
+# These tests discover how VLC actually behaves when navigating in repeat-one
+# mode, so we can build the production fix on verified behavior instead of
+# guessing.
+
+REPEAT_PORT = 18092
+
+
+@pytest.fixture(scope="module")
+def vlc_repeat_one():
+    """Start a VLC instance in repeat-one mode (like primary VLC)."""
+    videos = _find_test_videos(4)
+    if len(videos) < 4:
+        pytest.skip(f"Need 4 videos, found {len(videos)}")
+
+    sources = "|".join(videos)
+    cmd = _build_vlc_launch_command(
+        VLC_EXE, sources, REPEAT_PORT, TEST_PASSWORD,
+        repeat_mode="repeat", mute=True,
+    )
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    if not wait_for_http(REPEAT_PORT, TEST_PASSWORD, timeout_ms=10000):
+        proc.kill()
+        pytest.skip("VLC HTTP did not start")
+    vlc_http_cmd(REPEAT_PORT, "volume&val=0", TEST_PASSWORD)
+    vlc_http_cmd(REPEAT_PORT, "pl_next", TEST_PASSWORD)
+    time.sleep(1.0)
+    yield proc, videos
+    proc.kill()
+    proc.wait()
+
+
+def test_repeat_one_nav_step_changes_video(vlc_repeat_one):
+    """Verify vlc_nav_step works in repeat-one mode (changes the current item)."""
+    before = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+    ok = vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "next")
+    time.sleep(0.5)
+    after = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+    assert ok is True
+    assert after != before, f"nav_step did not change video in repeat-one mode"
+
+
+def test_repeat_one_nav_changes_video_multiple_times(vlc_repeat_one):
+    """Verify nav works reliably in repeat-one mode — each nav changes
+    the current video, and prev reverses next.
+
+    NOTE: VLC with --no-video (integration mode) cannot play in repeat-one
+    mode, so playback state cannot be tested here.  The --start-paused
+    removal must be verified manually in production (with video output).
+    """
+    vlc_http_cmd(REPEAT_PORT, "pl_play", TEST_PASSWORD)
+    time.sleep(0.5)
+
+    start = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+    assert start, "precondition: VLC must have a current file"
+
+    # Forward twice
+    vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "next")
+    time.sleep(0.3)
+    after1 = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+    assert after1 != start, "first next must change video"
+
+    vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "next")
+    time.sleep(0.3)
+    after2 = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+    assert after2 != after1, "second next must change video"
+
+    # Back twice — should return to start
+    vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "prev")
+    time.sleep(0.3)
+    vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "prev")
+    time.sleep(0.3)
+    back = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+    assert back == start, f"two prevs should return to start: expected {start}, got {back}"

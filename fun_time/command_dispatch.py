@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
-import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -189,11 +188,6 @@ def dispatch_command(
         else:
             direction = "prev" if command == "primary_prev" else "next"
             vlc_nav_step(config.primary_port, config.vlc_password, direction)
-            # VLC in repeat-one mode always transitions to paused after
-            # pl_play&id=N, but with variable timing (50ms to >1s).
-            # pl_forceresume always resumes — no toggle, no timing race.
-            time.sleep(0.15)
-            vlc_http_cmd(config.primary_port, "pl_forceresume", config.vlc_password)
         return state, ops
 
     if command == "quarter_button":
