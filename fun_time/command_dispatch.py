@@ -203,7 +203,7 @@ def dispatch_command(
     if command == "leave_omnipause_skip_primary":
         return _dispatch_leave_omnipause_skip_primary(state, config)
 
-    if command == "fmode_toggle":
+    if command in ("fmode_toggle", "fmode_panel"):
         return _dispatch_fmode_toggle(state, config)
 
     if command in ("robot_toggle", "link_toggle"):

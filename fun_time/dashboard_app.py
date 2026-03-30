@@ -22,6 +22,7 @@ from fun_time.dashboard_actions import (
     LANDSCAPE_NEXT,
     LANDSCAPE_PREV,
     LANDSCAPE_TRASH,
+    FMODE_PANEL,
     LINK_TOGGLE,
     OMNIPAUSE_TOGGLE,
     PORTRAIT_LOCK,
@@ -376,7 +377,7 @@ def build_dashboard_scene(
         DashboardRectItem(layout.landscape_lock, fill=_press_fill(landscape_lock_fill, LANDSCAPE_LOCK)),
         DashboardRectItem(layout.landscape_trash, fill=_press_fill(COLOR_PANEL, LANDSCAPE_TRASH)),
         DashboardRectItem(layout.broker_panel, fill=broker_fill),
-        DashboardRectItem(layout.fmode_panel, fill=fmode_fill),
+        DashboardRectItem(layout.fmode_panel, fill=_press_fill(fmode_fill, FMODE_PANEL)),
     )
     texts = (
         DashboardTextItem("\u23FB", layout.quit_button, font=("Segoe UI Symbol", 10, "bold")),
@@ -496,6 +497,7 @@ def build_dashboard_scene(
             (LANDSCAPE_LOCK, layout.landscape_lock),
             (LANDSCAPE_TRASH, layout.landscape_trash),
             (LINK_TOGGLE, layout.link_toggle),
+            (FMODE_PANEL, layout.fmode_panel),
         ),
     )
 
