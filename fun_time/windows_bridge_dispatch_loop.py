@@ -257,8 +257,11 @@ class DispatchLoopRunner:
             robot_hand_mode_on = read_flag_file(self.config.robot_hand_mode_file, False)
             press_action = self._last_press_action
             press_time = self._last_press_time
-            self._last_press_action = ""
-            self._last_press_time = 0.0
+            if press_action and time.time() - press_time > 0.6:
+                self._last_press_action = ""
+                self._last_press_time = 0.0
+                press_action = ""
+                press_time = 0.0
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
                 f_mode_enabled=self.state.f_mode_enabled,
