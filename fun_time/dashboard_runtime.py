@@ -33,8 +33,6 @@ class DashboardSnapshot:
     portrait: DashboardPanelSnapshot
     landscape: DashboardPanelSnapshot
     window: DashboardWindowSnapshot
-    last_press_action: str = ""
-    last_press_time: float = 0.0
 
 
 def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
@@ -59,8 +57,6 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         portrait=_read_panel(parser, "portrait"),
         landscape=_read_panel(parser, "landscape"),
         window=_read_window(parser),
-        last_press_action=parser.get("last_press", "action", fallback=""),
-        last_press_time=float(parser.get("last_press", "time", fallback="0.0")),
     )
 
 

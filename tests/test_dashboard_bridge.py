@@ -83,33 +83,3 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
     assert "uses_robot_hand=1" in text
 
 
-def test_build_dashboard_snapshot_text_includes_last_press():
-    text = build_dashboard_snapshot_text(
-        f_mode_enabled=False,
-        robot_link_enabled=True,
-        osr2_mode="controlled",
-        mfp_alive=False,
-        primary_uses_robot_hand=False,
-        portrait_locked=False,
-        landscape_locked=False,
-        last_press_action="portrait_lock",
-        last_press_time=1234567890.5,
-    )
-
-    assert "[last_press]\n" in text
-    assert "action=portrait_lock\n" in text
-    assert "time=1234567890.5\n" in text
-
-
-def test_build_dashboard_snapshot_text_omits_last_press_when_empty():
-    text = build_dashboard_snapshot_text(
-        f_mode_enabled=False,
-        robot_link_enabled=True,
-        osr2_mode="controlled",
-        mfp_alive=False,
-        primary_uses_robot_hand=False,
-        portrait_locked=False,
-        landscape_locked=False,
-    )
-
-    assert "[last_press]" not in text

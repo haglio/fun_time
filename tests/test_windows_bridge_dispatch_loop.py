@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -8,7 +9,6 @@ from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
 
 
 # These imports will fail until the module exists (red step)
-from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     execute_window_ops,
@@ -456,7 +456,14 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
 
-    def test_dispatch_writes_last_press_to_dashboard_state(self, tmp_path):
+    def test_sends_press_via_udp_on_button_command(self, tmp_path):
+        recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        recv_sock.bind(("127.0.0.1", 0))
+        recv_sock.settimeout(1.0)
+        port = recv_sock.getsockname()[1]
+        port_file = tmp_path / "dashboard_press_port.txt"
+        port_file.write_text(str(port), encoding="utf-8")
+
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner.dashboard_enabled = True
         runner._last_sync = float("inf")
@@ -468,41 +475,21 @@ class TestDispatchLoopRunner:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
-        snapshot = load_dashboard_snapshot(tmp_path / "dashboard_state.ini")
-        assert snapshot is not None
-        assert snapshot.last_press_action == "portrait_lock"
-        assert snapshot.last_press_time > 0
+        data, _ = recv_sock.recvfrom(256)
+        recv_sock.close()
+        assert data.decode("utf-8") == "portrait_lock"
 
-    def test_periodic_sync_does_not_set_last_press(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=0)
+    def test_udp_press_skipped_when_no_port_file(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner.dashboard_enabled = True
-        runner._last_sync = -999
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
-            mock_dispatch.return_value = (runner.state, [])
-            runner.tick()
-
-        snapshot = load_dashboard_snapshot(tmp_path / "dashboard_state.ini")
-        assert snapshot is not None
-        assert snapshot.last_press_action == ""
-
-    def test_periodic_sync_does_not_overwrite_recent_press(self, tmp_path):
-        """sync_robot_hand must not wipe a recent press from the state file."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=0)
-        runner.dashboard_enabled = True
-        runner._last_sync = -999
+        runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_lock", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
             mock_dispatch.return_value = (runner.state, [])
-            runner.tick()
-
-        snapshot = load_dashboard_snapshot(tmp_path / "dashboard_state.ini")
-        assert snapshot is not None
-        assert snapshot.last_press_action == "portrait_lock"
+            runner.tick()  # should not raise
 
 
 class TestRobotHandActivationRetry:

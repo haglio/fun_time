@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from dataclasses import replace
 import os
 from pathlib import Path
+import queue
+import socket
+import threading
 import time
 import tkinter as tk
 
@@ -480,6 +483,7 @@ def build_dashboard_window(
 
     _pressed: dict[str, float] = {}
     _last_snapshot: list[DashboardSnapshot | None] = [None]
+    _press_queue: queue.Queue[str] = queue.Queue()
 
     def _compute_pressed() -> frozenset[str]:
         now = time.monotonic()
@@ -508,16 +512,41 @@ def build_dashboard_window(
         _do_render(_last_snapshot[0], _compute_pressed())
         root.after(int(PRESS_FLASH_S * 1000) + 10, lambda: _do_render(_last_snapshot[0], _compute_pressed()))
 
+    def _handle_press_event(_event: object) -> None:
+        while True:
+            try:
+                action = _press_queue.get_nowait()
+                _pressed[action] = time.monotonic()
+            except queue.Empty:
+                break
+        _do_render(_last_snapshot[0], _compute_pressed())
+        root.after(int(PRESS_FLASH_S * 1000) + 10, lambda: _do_render(_last_snapshot[0], _compute_pressed()))
+
+    root.bind("<<Press>>", _handle_press_event)
+
+    press_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    press_sock.bind(("127.0.0.1", 0))
+    press_port = press_sock.getsockname()[1]
+    port_file = app_config.dashboard_state_file.parent / "dashboard_press_port.txt"
+    port_file.parent.mkdir(parents=True, exist_ok=True)
+    port_file.write_text(str(press_port), encoding="utf-8")
+
+    def _press_listener() -> None:
+        while True:
+            try:
+                data, _ = press_sock.recvfrom(256)
+                _press_queue.put(data.decode("utf-8").strip())
+                root.event_generate("<<Press>>", when="tail")
+            except OSError:
+                break
+
+    threading.Thread(target=_press_listener, daemon=True, name="press-listener").start()
+
     def refresh() -> None:
         snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
         if snapshot is not None:
             snapshot = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=mfp_pid)
-        pressed = _compute_pressed()
-        if snapshot is not None and snapshot.last_press_action:
-            elapsed = time.time() - snapshot.last_press_time
-            if 0 < elapsed < 0.6:
-                pressed = pressed | {snapshot.last_press_action}
-        _do_render(snapshot, pressed)
+        _do_render(snapshot, _compute_pressed())
         root.after(500, refresh)
 
     refresh()
