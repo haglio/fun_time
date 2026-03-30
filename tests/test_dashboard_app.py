@@ -172,7 +172,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     fills = {item.rect: item.fill for item in scene.rects}
     assert len(scene.lines) == 2, "Broken cable should have two segments"
     assert "Non-AI VLC" in texts
-    assert "Portrait AI VLC" in texts
+    assert "Portrait\nAI VLC" in texts
     assert not any(".mp4" in item.text for item in scene.texts)
     assert fills[preview_layout.primary_panel] == COLOR_ACTIVE_ALT
     assert fills[preview_layout.portrait_panel] == COLOR_ACTIVE_ALT
@@ -530,7 +530,7 @@ def test_dashboard_scene_omnipause_button_shows_play_icon_when_paused(cfg_path: 
     assert len(omnipause_texts) == 1
     assert omnipause_texts[0].text == "\u25B6"  # play icon
     omnipause_rects = [item for item in scene.rects if item.rect == preview_layout.omnipause_button]
-    assert omnipause_rects[0].fill == COLOR_ACTIVE
+    assert omnipause_rects[0].fill == COLOR_PANEL
 
 
 def test_lighten_color_adds_to_each_channel():
@@ -724,3 +724,185 @@ def test_dashboard_scene_default_cable_connected_without_snapshot(cfg_path: Path
 
     assert len(scene.lines) == 2, "Default (no snapshot) should show connected cable"
     assert scene.lines[0].color == COLOR_CABLE
+
+
+def test_osr2_highlights_green_when_funscript_playing(cfg_path: Path):
+    config = load_config(cfg_path)
+    layout = compute_dashboard_preview_layout(
+        Size(2560, 1392), Size(1440, 3440), config.controller.layout,
+    )
+    primary_root = config.paths.primary_vlc_dirs[0]
+    primary_root.mkdir(parents=True, exist_ok=True)
+    primary_path = primary_root / "vid.mp4"
+    primary_path.write_text("v", encoding="utf-8")
+    script_path = Path(
+        str(primary_root).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\")
+    ) / "vid.funscript"
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path.write_text("s", encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        primary=DashboardPanelSnapshot(str(primary_path), False),
+        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.primary_panel] == COLOR_ACTIVE_ALT
+    assert fills[layout.osr2_panel] == COLOR_ACTIVE_ALT
+
+
+def test_robot_hand_label_says_robot_hand():
+    from fun_time.dashboard_state import LABEL_PRIMARY_ROBOT
+    assert LABEL_PRIMARY_ROBOT == "Robot Hand"
+
+
+def test_quit_button_uses_neutral_grey(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.quit_button] == COLOR_PANEL
+
+
+def test_active_chips_and_locks_use_same_green_as_favs(cfg_path: Path):
+    import time as _time
+    config = load_config(cfg_path)
+    layout = compute_dashboard_preview_layout(
+        Size(2560, 1392), Size(1440, 3440), config.controller.layout,
+    )
+    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
+    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat_file.write_text(str(_time.time()), encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        osr2_mode="controlled", mfp_alive=True, primary_responsive=True, omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", True), landscape=DashboardPanelSnapshot("", True),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(layout, snapshot, broker_heartbeat_file=heartbeat_file)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.broker_panel] == COLOR_ACTIVE_ALT
+    assert fills[layout.portrait_lock] == COLOR_ACTIVE_ALT
+    assert fills[layout.landscape_lock] == COLOR_ACTIVE_ALT
+
+
+def test_mfp_and_osr2_labels_are_top_justified(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    mfp_texts = [item for item in scene.texts if item.rect == layout.mfp_panel]
+    osr2_texts = [item for item in scene.texts if item.rect == layout.osr2_panel]
+    assert mfp_texts[0].anchor == "n"
+    assert osr2_texts[0].anchor == "n"
+
+
+def test_osr2_controlled_with_funscript_shows_funscript_control(cfg_path: Path):
+    config = load_config(cfg_path)
+    layout = compute_dashboard_preview_layout(
+        Size(2560, 1392), Size(1440, 3440), config.controller.layout,
+    )
+    primary_root = config.paths.primary_vlc_dirs[0]
+    primary_root.mkdir(parents=True, exist_ok=True)
+    primary_path = primary_root / "vid.mp4"
+    primary_path.write_text("v", encoding="utf-8")
+    script_path = Path(
+        str(primary_root).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\")
+    ) / "vid.funscript"
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path.write_text("s", encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        primary=DashboardPanelSnapshot(str(primary_path), False),
+        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    texts = {item.text for item in scene.texts}
+    assert "OSR2\n(funscript\ncontrol)" in texts
+
+
+def test_osr2_controlled_without_funscript_shows_idle(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    texts = {item.text for item in scene.texts}
+    assert "OSR2\n(idle; no\nfunscript)" in texts
+
+
+def test_osr2_auto_mode_shows_parenthesized_auto(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot()
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    texts = {item.text for item in scene.texts}
+    assert "OSR2\n(auto)" in texts
+
+
+def test_portrait_label_is_split_across_two_lines(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    texts = {item.text for item in scene.texts}
+    assert "Portrait\nAI VLC" in texts
+    assert "Portrait AI VLC" not in texts
+
+
+def test_mfp_label_has_no_connection_status_text(cfg_path: Path):
+    config = load_config(cfg_path)
+    layout = compute_dashboard_preview_layout(
+        Size(2560, 1392), Size(1440, 3440), config.controller.layout,
+    )
+    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
+    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat_file.write_text("100.0", encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        osr2_mode="controlled", mfp_alive=True, primary_responsive=True, omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(layout, snapshot, broker_heartbeat_file=heartbeat_file)
+
+    mfp_texts = [item for item in scene.texts if item.rect == layout.mfp_panel]
+    assert len(mfp_texts) == 1
+    assert mfp_texts[0].text == "MFP"
+
+
+def test_omnipause_resume_button_is_not_green_when_paused(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=True,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.omnipause_button] == COLOR_PANEL

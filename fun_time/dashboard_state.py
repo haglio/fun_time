@@ -4,8 +4,8 @@ from pathlib import Path
 
 
 LABEL_PRIMARY_VLC = "Non-AI VLC"
-LABEL_PRIMARY_ROBOT = "Non-AI Robot Hand"
-LABEL_PORTRAIT_VLC = "Portrait AI VLC"
+LABEL_PRIMARY_ROBOT = "Robot Hand"
+LABEL_PORTRAIT_VLC = "Portrait\nAI VLC"
 LABEL_LANDSCAPE_VLC = "Landscape AI VLC"
 LABEL_OSR2 = "OSR2"
 LABEL_MFP = "MFP"
