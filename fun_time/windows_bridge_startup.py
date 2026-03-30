@@ -352,8 +352,6 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
         # transition, not just startup. This causes a black screen every time
         # the user navigates.  Volume muting is sufficient for the loading
         # screen — primary VLC (repeat-one) silently loops the first video.
-    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
-        command.append("--no-video")
     # --no-random overrides VLC's saved vlcrc setting.  Without it, if the
     # user ever toggled shuffle inside VLC, the preference persists across
     # launches and VLC advances to random items instead of sequentially,

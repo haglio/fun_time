@@ -376,15 +376,11 @@ def test_build_vlc_launch_command_omits_volume_when_mute_env_unset(monkeypatch):
     assert "--volume" not in cmd
 
 
-def test_build_vlc_launch_command_includes_no_video_during_integration(monkeypatch):
+def test_build_vlc_launch_command_never_includes_no_video(monkeypatch):
+    """--no-video changes VLC's playback behavior (e.g. repeat-one mode
+    enters 'stopped' instead of 'playing' after navigation). Integration
+    tests must run with real video output to match production behavior."""
     monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat")
-    assert "--no-video" in cmd
-
-
-def test_build_vlc_launch_command_omits_no_video_outside_integration(monkeypatch):
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
     cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat")
     assert "--no-video" not in cmd
