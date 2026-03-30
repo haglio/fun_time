@@ -441,6 +441,7 @@ def test_dashboard_scene_has_quit_and_omnipause_actions(cfg_path: Path):
     action_ids = [action for action, _rect in scene.actions]
     assert "quit" in action_ids
     assert "omnipause_toggle" in action_ids
+    assert "fmode_panel" in action_ids
 
 
 def test_dashboard_scene_quit_and_omnipause_buttons_are_above_main_monitor(cfg_path: Path):
