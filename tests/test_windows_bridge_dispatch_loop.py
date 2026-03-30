@@ -487,6 +487,23 @@ class TestDispatchLoopRunner:
         assert snapshot is not None
         assert snapshot.last_press_action == ""
 
+    def test_periodic_sync_does_not_overwrite_recent_press(self, tmp_path):
+        """sync_robot_hand must not wipe a recent press from the state file."""
+        runner = self._make_runner(tmp_path, sync_interval_ms=0)
+        runner.dashboard_enabled = True
+        runner._last_sync = -999
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("portrait_lock", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        snapshot = load_dashboard_snapshot(tmp_path / "dashboard_state.ini")
+        assert snapshot is not None
+        assert snapshot.last_press_action == "portrait_lock"
+
 
 class TestRobotHandActivationRetry:
     """When entering Robot Hand mode, the window may not be visible yet
