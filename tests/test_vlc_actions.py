@@ -386,20 +386,36 @@ def test_set_repeat_mode_returns_false_when_retries_exhausted(monkeypatch):
     assert vlc_actions.set_repeat_mode(8080, "pw", "all", sleep_fn=lambda _: None) is False
 
 
-# --- restore_vlc_volume ---
+# --- restore_vlcrc_volume ---
 
 
-def test_restore_vlc_volume_sends_volume_256(monkeypatch):
-    commands: list[tuple[int, str]] = []
-    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: commands.append((port, cmd)) or True)
+def test_restore_vlcrc_volume_patches_volume_line(tmp_path: Path, monkeypatch):
+    vlcrc = tmp_path / "vlc" / "vlcrc"
+    vlcrc.parent.mkdir(parents=True)
+    vlcrc.write_text("# VLC config\nvolume=0\nhttp-password=test\n", encoding="utf-8")
+    monkeypatch.setenv("APPDATA", str(tmp_path))
 
-    vlc_actions.restore_vlc_volume(8090, "pw")
+    vlc_actions.restore_vlcrc_volume(256)
 
-    assert commands == [(8090, "volume&val=256")]
+    text = vlcrc.read_text(encoding="utf-8")
+    assert "volume=256" in text
+    assert "volume=0" not in text
+    assert "http-password=test" in text
 
 
-def test_restore_vlc_volume_ignores_errors(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: False)
+def test_restore_vlcrc_volume_leaves_file_alone_when_no_volume_line(tmp_path: Path, monkeypatch):
+    vlcrc = tmp_path / "vlc" / "vlcrc"
+    vlcrc.parent.mkdir(parents=True)
+    original = "# VLC config\nhttp-password=test\n"
+    vlcrc.write_text(original, encoding="utf-8")
+    monkeypatch.setenv("APPDATA", str(tmp_path))
 
-    # Should not raise
-    vlc_actions.restore_vlc_volume(8090, "pw")
+    vlc_actions.restore_vlcrc_volume(256)
+
+    assert vlcrc.read_text(encoding="utf-8") == original
+
+
+def test_restore_vlcrc_volume_ignores_missing_vlcrc(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    # Should not raise even with no vlcrc file
+    vlc_actions.restore_vlcrc_volume(256)
