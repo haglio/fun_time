@@ -291,7 +291,7 @@ def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_p
     1. Launch with no media (defer_playlist) so there is nothing to hear
     2. Get muted via HTTP
     3. Have their playlist loaded via replace_playlist_from_file
-    4. Get pl_next to start playback
+    4. Get pl_pause so playback waits for the sequencer's Phase 4 reveal
     """
     result_file = tmp_path / "core_apps.ini"
 
@@ -356,11 +356,17 @@ def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_p
     for _, path in replaced_playlists:
         assert str(state_dir) in path
 
-    # pl_next must still be sent to each VLC (to start playback)
+    # VLC must be paused after playlist load (not left playing) so playback
+    # starts fresh when the sequencer's Phase 4 calls pl_play.
+    pause_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "pl_pause"]
+    assert len(pause_cmds) == 3, f"Expected 3 pause commands, got {pause_cmds}"
+    pause_ports = {port for port, _ in pause_cmds}
+    assert pause_ports == {8090, 8091, 8092}
+
+    # pl_next must NOT be sent — it would advance past the first item and
+    # the video would already be playing during the loading screen.
     next_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "pl_next"]
-    assert len(next_cmds) == 3
-    next_ports = {port for port, _ in next_cmds}
-    assert next_ports == {8090, 8091, 8092}
+    assert len(next_cmds) == 0, f"pl_next must not be sent when hide_windows=True: {next_cmds}"
 
 
 def test_start_core_session_passes_hide_windows_through(tmp_path: Path):

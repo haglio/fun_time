@@ -296,7 +296,12 @@ def launch_core_apps(
         vlc_http_cmd(primary_port, "volume&val=0", password)
     if hide_windows:
         replace_playlist_from_file(primary_port, password, primary_playlist)
-    vlc_http_cmd(primary_port, "pl_next", password)
+        # Pause immediately — replace_playlist_from_file's in_play auto-starts
+        # playback, but we want VLC idle until the sequencer's Phase 4 calls
+        # pl_play when the loading screen comes down.
+        vlc_http_cmd(primary_port, "pl_pause", password)
+    else:
+        vlc_http_cmd(primary_port, "pl_next", password)
 
     mfp_proc = subprocess.Popen([mfp_exe], cwd=project_dir, **launch_kwargs)
 
@@ -326,13 +331,17 @@ def launch_core_apps(
         vlc_http_cmd(portrait_port, "volume&val=0", password)
     if hide_windows:
         replace_playlist_from_file(portrait_port, password, portrait_playlist)
-    vlc_http_cmd(portrait_port, "pl_next", password)
+        vlc_http_cmd(portrait_port, "pl_pause", password)
+    else:
+        vlc_http_cmd(portrait_port, "pl_next", password)
     time.sleep(0.15)
     if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         vlc_http_cmd(landscape_port, "volume&val=0", password)
     if hide_windows:
         replace_playlist_from_file(landscape_port, password, landscape_playlist)
-    vlc_http_cmd(landscape_port, "pl_next", password)
+        vlc_http_cmd(landscape_port, "pl_pause", password)
+    else:
+        vlc_http_cmd(landscape_port, "pl_next", password)
 
     _write_result_file(
         result_file,
