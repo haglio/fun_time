@@ -27,7 +27,6 @@ from .runtime_flow import (
 from .vlc_actions import (
     ensure_playback_state,
     get_current_file_path,
-    get_playback_state,
     get_playback_time,
     set_repeat_mode,
     vlc_advance_and_remove,
@@ -187,13 +186,11 @@ def dispatch_command(
             write_flag_file(config.robot_hand_cmd_file, False)
             config.robot_hand_cmd_file.write_text(cmd, encoding="utf-8")
         else:
-            direction = "prev" if command == "primary_prev" else "next"
-            vlc_nav_step(config.primary_port, config.vlc_password, direction)
-            # pl_play is a TOGGLE (play↔pause).  Only send it when VLC
-            # is not already playing, otherwise it would pause the video
-            # that pl_play&id=N just started.
-            if get_playback_state(config.primary_port, config.vlc_password) != "playing":
-                vlc_http_cmd(config.primary_port, "pl_play", config.vlc_password)
+            # Send VLC keyboard shortcuts (p/n) instead of HTTP API
+            # pl_play&id=N.  VLC's keyboard handler manages playback
+            # transitions natively in repeat-one mode; the HTTP API does not.
+            key = "p" if command == "primary_prev" else "n"
+            ops.append(WindowOp(op="send_key", key=key))
         return state, ops
 
     if command == "quarter_button":
