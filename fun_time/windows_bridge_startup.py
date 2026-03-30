@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from .vlc_actions import set_repeat_mode, vlc_http_cmd, wait_for_http
+from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
 
@@ -273,33 +273,42 @@ def launch_core_apps(
     # and can be inspected for debugging.  They keep the VLC command lines well
     # under Windows' 32 767-character limit even with hundreds of video files.
     state_dir = project_dir / "state"
+    primary_playlist = state_dir / "vlc_primary_playlist.m3u"
+    portrait_playlist = state_dir / "vlc_portrait_playlist.m3u"
+    landscape_playlist = state_dir / "vlc_landscape_playlist.m3u"
 
     launch_kwargs = _no_activate_kwargs()
 
+    # When hide_windows is True (loading screen), defer playlist loading so
+    # VLC starts with nothing to play.  This eliminates the audio-leak race
+    # where VLC outputs a frame of audio before --volume 0 takes effect.
+    # The playlist is loaded via HTTP after volume is confirmed zero.
     primary_proc = subprocess.Popen(
         _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat", mute=hide_windows,
-                                   playlist_path=state_dir / "vlc_primary_playlist.m3u"),
+                                   playlist_path=primary_playlist, defer_playlist=hide_windows),
         cwd=project_dir,
         **launch_kwargs,
     )
     if not wait_for_http(primary_port, password, 7000):
         raise RuntimeError("Primary VLC HTTP did not come up")
     time.sleep(0.3)
-    vlc_http_cmd(primary_port, "pl_next", password)
     if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         vlc_http_cmd(primary_port, "volume&val=0", password)
+    if hide_windows:
+        replace_playlist_from_file(primary_port, password, primary_playlist)
+    vlc_http_cmd(primary_port, "pl_next", password)
 
     mfp_proc = subprocess.Popen([mfp_exe], cwd=project_dir, **launch_kwargs)
 
     portrait_proc = subprocess.Popen(
         _build_vlc_launch_command(vlc_exe, portrait_sources, portrait_port, password, repeat_mode="loop", mute=hide_windows,
-                                   playlist_path=state_dir / "vlc_portrait_playlist.m3u"),
+                                   playlist_path=portrait_playlist, defer_playlist=hide_windows),
         cwd=project_dir,
         **launch_kwargs,
     )
     landscape_proc = subprocess.Popen(
         _build_vlc_launch_command(vlc_exe, landscape_sources, landscape_port, password, repeat_mode="loop", mute=hide_windows,
-                                   playlist_path=state_dir / "vlc_landscape_playlist.m3u"),
+                                   playlist_path=landscape_playlist, defer_playlist=hide_windows),
         cwd=project_dir,
         **launch_kwargs,
     )
@@ -313,13 +322,17 @@ def launch_core_apps(
     set_repeat_mode(landscape_port, password, "all")
 
     time.sleep(0.25)
-    vlc_http_cmd(portrait_port, "pl_next", password)
     if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         vlc_http_cmd(portrait_port, "volume&val=0", password)
+    if hide_windows:
+        replace_playlist_from_file(portrait_port, password, portrait_playlist)
+    vlc_http_cmd(portrait_port, "pl_next", password)
     time.sleep(0.15)
-    vlc_http_cmd(landscape_port, "pl_next", password)
     if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         vlc_http_cmd(landscape_port, "volume&val=0", password)
+    if hide_windows:
+        replace_playlist_from_file(landscape_port, password, landscape_playlist)
+    vlc_http_cmd(landscape_port, "pl_next", password)
 
     _write_result_file(
         result_file,
@@ -333,7 +346,7 @@ def launch_core_apps(
 
 
 
-def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: str, *, repeat_mode: str, mute: bool = False, playlist_path: Path | None = None) -> list[str]:
+def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: str, *, repeat_mode: str, mute: bool = False, playlist_path: Path | None = None, defer_playlist: bool = False) -> list[str]:
     command = [
         vlc_exe,
         "--no-one-instance",
@@ -350,8 +363,9 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
         command.extend(["--volume", "0"])
         # --start-paused must NEVER be used: VLC re-applies it on every item
         # transition, not just startup. This causes a black screen every time
-        # the user navigates.  Volume muting is sufficient for the loading
-        # screen — primary VLC (repeat-one) silently loops the first video.
+        # the user navigates.  When defer_playlist is True the playlist is
+        # loaded via HTTP after muting, so there is nothing to hear even if
+        # --volume 0 has a startup race.
     # --no-random overrides VLC's saved vlcrc setting.  Without it, if the
     # user ever toggled shuffle inside VLC, the preference persists across
     # launches and VLC advances to random items instead of sequentially,
@@ -370,14 +384,16 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
             sources_list.append(source)
     random.shuffle(sources_list)
     if playlist_path is not None and sources_list:
-        # Write sources to an .m3u playlist file and pass the file to VLC.
-        # This keeps the command line well under Windows' 32 767-character limit
-        # when there are hundreds of video files.
+        # Always write the .m3u file — it is needed for later HTTP loading
+        # even when defer_playlist is True.  This keeps the command line well
+        # under Windows' 32 767-character limit when there are hundreds of
+        # video files.
         playlist_path = Path(playlist_path)
         playlist_path.parent.mkdir(parents=True, exist_ok=True)
         playlist_path.write_text("\n".join(sources_list) + "\n", encoding="utf-8")
-        command.append(str(playlist_path))
-    else:
+        if not defer_playlist:
+            command.append(str(playlist_path))
+    elif not defer_playlist:
         command.extend(sources_list)
     return command
 
