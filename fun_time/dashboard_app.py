@@ -323,13 +323,20 @@ def build_dashboard_scene(
         primary_label = primary_label_name
         portrait_label = LABEL_PORTRAIT_VLC
         landscape_label = LABEL_LANDSCAPE_VLC
-        osr2_label = f"{LABEL_OSR2}\n{snapshot.osr2_mode}"
-        mfp_label = f"{LABEL_MFP}\n{'connected' if mfp_connected else 'disconnected'}"
+        primary_funscript_exists = has_matching_funscript(snapshot.primary.path)
+        funscript_active = bool(snapshot.primary.path) and primary_funscript_exists
+        if snapshot.osr2_mode == "auto":
+            osr2_label = f"{LABEL_OSR2}\n(auto)"
+        elif funscript_active:
+            osr2_label = f"{LABEL_OSR2}\n(funscript\ncontrol)"
+        else:
+            osr2_label = f"{LABEL_OSR2}\n(idle; no\nfunscript)"
+        mfp_label = LABEL_MFP
         cable_connected = snapshot.robot_link_enabled
         primary_fill = COLOR_ACTIVE_ALT if primary_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
             primary_path=snapshot.primary.path,
-            has_matching_funscript=has_matching_funscript(snapshot.primary.path),
+            has_matching_funscript=primary_funscript_exists,
         ) else COLOR_PANEL
         portrait_fill = COLOR_ACTIVE_ALT if satellite_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
@@ -339,22 +346,27 @@ def build_dashboard_scene(
             f_mode_enabled=snapshot.f_mode_enabled,
             is_favorite=is_favorite_path(snapshot.landscape.path, favs_content),
         ) else COLOR_PANEL
-        osr2_fill = COLOR_OSR2 if snapshot.osr2_mode == "auto" else COLOR_PANEL
+        if funscript_active:
+            osr2_fill = COLOR_ACTIVE_ALT
+        elif snapshot.osr2_mode == "auto":
+            osr2_fill = COLOR_OSR2
+        else:
+            osr2_fill = COLOR_PANEL
         mfp_fill = COLOR_ACTIVE if mfp_connected else COLOR_DISABLED
-        broker_fill = COLOR_ACTIVE if broker_running else COLOR_DISABLED
+        broker_fill = COLOR_ACTIVE_ALT if broker_running else COLOR_DISABLED
         fmode_fill = COLOR_ACTIVE_ALT if snapshot.f_mode_enabled else COLOR_PANEL
-        portrait_lock_fill = COLOR_ACTIVE if snapshot.portrait.locked else COLOR_PANEL
-        landscape_lock_fill = COLOR_ACTIVE if snapshot.landscape.locked else COLOR_PANEL
+        portrait_lock_fill = COLOR_ACTIVE_ALT if snapshot.portrait.locked else COLOR_PANEL
+        landscape_lock_fill = COLOR_ACTIVE_ALT if snapshot.landscape.locked else COLOR_PANEL
 
     omni_paused = snapshot is not None and snapshot.omni_paused
     omnipause_icon = "\u25B6" if omni_paused else "\u23F8"
-    omnipause_fill = COLOR_ACTIVE if omni_paused else COLOR_PANEL
+    omnipause_fill = COLOR_PANEL
 
     def _press_fill(fill: str, action_id: str) -> str:
         return lighten_color(fill) if action_id in pressed_actions else fill
 
     rects = (
-        DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_DISABLED, QUIT_BUTTON)),
+        DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
         DashboardRectItem(layout.omnipause_button, fill=_press_fill(omnipause_fill, OMNIPAUSE_TOGGLE)),
         DashboardRectItem(layout.main_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.secondary_monitor, fill=COLOR_PANEL),
@@ -382,11 +394,11 @@ def build_dashboard_scene(
         DashboardTextItem("\u23FB", layout.quit_button, font=("Segoe UI Symbol", 10, "bold")),
         DashboardTextItem(omnipause_icon, layout.omnipause_button, font=("Segoe UI Symbol", 10, "bold")),
         DashboardTextItem("Fun Time", layout.title, anchor="w"),
-        DashboardTextItem(mfp_label, layout.mfp_panel),
+        DashboardTextItem(mfp_label, layout.mfp_panel, anchor="n"),
         DashboardTextItem(landscape_label, layout.landscape_panel, anchor="n"),
         DashboardTextItem(portrait_label, layout.portrait_panel, anchor="n"),
         DashboardTextItem(primary_label, layout.primary_panel, anchor="n"),
-        DashboardTextItem(osr2_label, layout.osr2_panel),
+        DashboardTextItem(osr2_label, layout.osr2_panel, anchor="n"),
         DashboardTextItem("<", layout.portrait_prev, font=("Segoe UI", 9, "bold")),
         DashboardTextItem(">", layout.portrait_next, font=("Segoe UI", 9, "bold")),
         DashboardTextItem(ICON_LOCK, layout.portrait_lock, font=("Segoe UI Emoji", 9, "normal")),
