@@ -8,6 +8,7 @@ from fun_time.dashboard_app import (
     COLOR_ACTIVE,
     COLOR_DISABLED,
     COLOR_ACTIVE_ALT,
+    COLOR_OSR2,
     COLOR_PANEL,
     COLOR_WARNING,
     ICON_LOCK,
@@ -130,6 +131,105 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     assert fills[preview_layout.portrait_panel] == COLOR_ACTIVE_ALT
     assert any(action == "portrait_lock" for action, _rect in scene.actions)
     assert any(action == "link_toggle" for action, _rect in scene.actions)
+
+
+def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
+    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat_file.write_text("100.0", encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=False,
+        primary_uses_robot_hand=False,
+        osr2_mode="auto",
+        mfp_alive=True,
+        primary_responsive=True,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot("C:\\clips\\primary.mp4", False),
+        portrait=DashboardPanelSnapshot("C:\\clips\\portrait.mp4", False),
+        landscape=DashboardPanelSnapshot("C:\\clips\\landscape.mp4", False),
+        window=DashboardWindowSnapshot(10, 20, 300, 200),
+    )
+
+    scene = build_dashboard_scene(
+        preview_layout,
+        snapshot,
+        primary_sources="",
+        broker_heartbeat_file=heartbeat_file,
+    )
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[preview_layout.osr2_panel] == COLOR_OSR2
+    assert COLOR_OSR2 != COLOR_ACTIVE
+    assert COLOR_OSR2 != COLOR_ACTIVE_ALT
+
+
+def test_osr2_non_auto_uses_panel_color(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=False,
+        primary_uses_robot_hand=False,
+        osr2_mode="controlled",
+        mfp_alive=False,
+        primary_responsive=False,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot("C:\\clips\\primary.mp4", False),
+        portrait=DashboardPanelSnapshot("C:\\clips\\portrait.mp4", False),
+        landscape=DashboardPanelSnapshot("C:\\clips\\landscape.mp4", False),
+        window=DashboardWindowSnapshot(10, 20, 300, 200),
+    )
+
+    scene = build_dashboard_scene(preview_layout, snapshot, primary_sources="")
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[preview_layout.osr2_panel] == COLOR_PANEL
+
+
+def test_quarter_button_uses_osr2_pink_when_robot_hand(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
+    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat_file.write_text("100.0", encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=False,
+        primary_uses_robot_hand=True,
+        osr2_mode="auto",
+        mfp_alive=True,
+        primary_responsive=True,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot("C:\\clips\\primary.mp4", False),
+        portrait=DashboardPanelSnapshot("C:\\clips\\portrait.mp4", False),
+        landscape=DashboardPanelSnapshot("C:\\clips\\landscape.mp4", False),
+        window=DashboardWindowSnapshot(10, 20, 300, 200),
+    )
+
+    scene = build_dashboard_scene(
+        preview_layout,
+        snapshot,
+        primary_sources="",
+        broker_heartbeat_file=heartbeat_file,
+    )
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[preview_layout.quarter_button] == COLOR_OSR2
 
 
 def test_dashboard_app_writes_commands_for_click_actions(tmp_path: Path):

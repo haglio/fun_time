@@ -53,6 +53,7 @@ COLOR_TEXT = "#F4F7FA"
 COLOR_LINK = "#3A7AFE"
 COLOR_ACTIVE = "#1F6F52"
 COLOR_ACTIVE_ALT = "#2C8A65"
+COLOR_OSR2 = "#8A2C6A"
 COLOR_DISABLED = "#6C1F1F"
 COLOR_WARNING = "#8A6A2C"
 
@@ -303,7 +304,7 @@ def build_dashboard_scene(
             f_mode_enabled=snapshot.f_mode_enabled,
             is_favorite=is_favorite_path(snapshot.landscape.path, favs_content),
         ) else COLOR_PANEL
-        osr2_fill = COLOR_ACTIVE if snapshot.osr2_mode == "auto" else COLOR_WARNING
+        osr2_fill = COLOR_OSR2 if snapshot.osr2_mode == "auto" else COLOR_PANEL
         mfp_fill = COLOR_ACTIVE if mfp_connected else COLOR_DISABLED
         broker_fill = COLOR_ACTIVE if broker_running else COLOR_DISABLED
         fmode_fill = COLOR_ACTIVE_ALT if snapshot.f_mode_enabled else COLOR_PANEL
