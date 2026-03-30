@@ -222,19 +222,32 @@ def test_landscape_next_ensures_playback_after_nav(tmp_path: Path):
     assert (config.landscape_port, config.vlc_password, True) in playback_calls
 
 
-def test_primary_next_ensures_playback_after_nav_when_not_in_robot_mode(tmp_path: Path):
+def test_primary_nav_sends_nav_step_then_pl_play(tmp_path: Path):
+    """Primary VLC navigation must: (1) vlc_nav_step to select the target item,
+    then (2) send a bare pl_play to unconditionally start playback.
+
+    No repeat-mode switching, no ensure_playback_state polling — just two
+    commands.  pl_play (without id) always starts playback of the current item
+    regardless of repeat mode, unlike pl_pause which is a toggle."""
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
-    playback_calls: list[tuple[int, str, bool]] = []
+    calls_in_order: list[str] = []
+
+    def track_nav(port, pw, direction):
+        calls_in_order.append(f"nav_step:{direction}")
+        return True
+
+    def track_cmd(port, cmd, pw):
+        calls_in_order.append(f"http_cmd:{cmd}")
+        return True
 
     with (
-        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state",
-              side_effect=lambda p, pw, should_play: playback_calls.append((p, pw, should_play)) or True),
+        patch("fun_time.command_dispatch.vlc_nav_step", side_effect=track_nav),
+        patch("fun_time.command_dispatch.vlc_http_cmd", side_effect=track_cmd),
     ):
         dispatch_command("primary_next", state, config)
 
-    assert (config.primary_port, config.vlc_password, True) in playback_calls
+    assert calls_in_order == ["nav_step:next", "http_cmd:pl_play"]
 
 
 # --- landscape_prev / landscape_next ---
@@ -277,51 +290,27 @@ def test_primary_next_sends_next_command_to_robot_hand_when_in_robot_mode(tmp_pa
     assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
-def test_primary_prev_calls_vlc_nav_step_prev_when_not_in_robot_mode(tmp_path: Path):
+def test_primary_prev_nav_sends_nav_step_then_pl_play(tmp_path: Path):
+    """Same as test_primary_nav_sends_nav_step_then_pl_play but for prev."""
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
-    nav_calls: list[tuple] = []
+    calls_in_order: list[str] = []
 
-    with patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
-        dispatch_command("primary_prev", state, config)
+    def track_nav(port, pw, direction):
+        calls_in_order.append(f"nav_step:{direction}")
+        return True
 
-    assert nav_calls == [(8090, "prev")], "primary_prev must use vlc_nav_step to avoid VLC restart-threshold behavior"
-
-
-def test_primary_next_calls_vlc_nav_step_next_when_not_in_robot_mode(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(robot_hand_mode=False)
-    nav_calls: list[tuple] = []
-
-    with patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
-        dispatch_command("primary_next", state, config)
-
-    assert nav_calls == [(8090, "next")], "primary_next must use vlc_nav_step to avoid VLC restart-threshold behavior"
-
-
-def test_primary_nav_switches_repeat_mode_around_navigation(tmp_path: Path):
-    """Primary VLC uses repeat-one mode, but VLC's pl_play&id=N stops playback
-    in repeat-one mode.  Navigation must switch to repeat-all before navigating
-    and switch back to repeat-one after, matching what _cancel_lock does for
-    satellites."""
-    config = _make_config(tmp_path)
-    state = _make_state(robot_hand_mode=False)
-    repeat_calls: list[tuple[int, str]] = []
+    def track_cmd(port, cmd, pw):
+        calls_in_order.append(f"http_cmd:{cmd}")
+        return True
 
     with (
-        patch("fun_time.command_dispatch.set_repeat_mode",
-              side_effect=lambda p, pw, mode, **kw: repeat_calls.append((p, mode)) or True),
-        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+        patch("fun_time.command_dispatch.vlc_nav_step", side_effect=track_nav),
+        patch("fun_time.command_dispatch.vlc_http_cmd", side_effect=track_cmd),
     ):
-        dispatch_command("primary_next", state, config)
+        dispatch_command("primary_prev", state, config)
 
-    assert (config.primary_port, "all") in repeat_calls, "must switch to repeat-all before navigating"
-    assert (config.primary_port, "one") in repeat_calls, "must restore repeat-one after navigating"
-    # "all" must come before "one"
-    all_idx = repeat_calls.index((config.primary_port, "all"))
-    one_idx = repeat_calls.index((config.primary_port, "one"))
-    assert all_idx < one_idx, "repeat-all must be set before repeat-one is restored"
+    assert calls_in_order == ["nav_step:prev", "http_cmd:pl_play"]
 
 
 # --- quarter_button ---
