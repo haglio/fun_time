@@ -218,3 +218,70 @@ def test_broker_heartbeat_is_stale_when_old_or_invalid(tmp_path: Path):
     assert is_broker_heartbeat_fresh(stale_file, max_age_seconds=3.0, now=104.0) is False
     assert is_broker_heartbeat_fresh(invalid_file, now=101.0) is False
     assert is_broker_heartbeat_fresh(tmp_path / "missing.txt", now=101.0) is False
+
+
+def test_load_dashboard_snapshot_reads_last_press(tmp_path: Path):
+    snapshot_file = tmp_path / "dashboard_state.ini"
+    snapshot_file.write_text(
+        "\n".join(
+            [
+                "[fmode]",
+                "enabled=0",
+                "[robot_link]",
+                "enabled=1",
+                "[osr2]",
+                "mode=auto",
+                "[mfp]",
+                "alive=0",
+                "[primary]",
+                "uses_robot_hand=0",
+                "locked=0",
+                "[portrait]",
+                "locked=0",
+                "[landscape]",
+                "locked=0",
+                "[last_press]",
+                "action=portrait_lock",
+                "time=1234567890.5",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = load_dashboard_snapshot(snapshot_file)
+
+    assert snapshot is not None
+    assert snapshot.last_press_action == "portrait_lock"
+    assert snapshot.last_press_time == 1234567890.5
+
+
+def test_load_dashboard_snapshot_defaults_last_press_to_empty(tmp_path: Path):
+    snapshot_file = tmp_path / "dashboard_state.ini"
+    snapshot_file.write_text(
+        "\n".join(
+            [
+                "[fmode]",
+                "enabled=0",
+                "[robot_link]",
+                "enabled=1",
+                "[osr2]",
+                "mode=auto",
+                "[mfp]",
+                "alive=0",
+                "[primary]",
+                "uses_robot_hand=0",
+                "locked=0",
+                "[portrait]",
+                "locked=0",
+                "[landscape]",
+                "locked=0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = load_dashboard_snapshot(snapshot_file)
+
+    assert snapshot is not None
+    assert snapshot.last_press_action == ""
+    assert snapshot.last_press_time == 0.0

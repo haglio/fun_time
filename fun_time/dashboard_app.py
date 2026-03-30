@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from dataclasses import replace
 import os
 from pathlib import Path
+import time
 import tkinter as tk
 
 from fun_time.config import LayoutConfig
@@ -54,6 +55,16 @@ COLOR_ACTIVE = "#1F6F52"
 COLOR_ACTIVE_ALT = "#2C8A65"
 COLOR_DISABLED = "#6C1F1F"
 COLOR_WARNING = "#8A6A2C"
+
+ICON_LOCK = "\U0001F512"
+ICON_TRASH = "\U0001F5D1"
+
+
+def lighten_color(hex_color: str, amount: int = 50) -> str:
+    r = min(255, int(hex_color[1:3], 16) + amount)
+    g = min(255, int(hex_color[3:5], 16) + amount)
+    b = min(255, int(hex_color[5:7], 16) + amount)
+    return f"#{r:02X}{g:02X}{b:02X}"
 
 
 @dataclass(frozen=True)
@@ -246,6 +257,7 @@ def build_dashboard_scene(
     primary_sources: str = "",
     favs_file: Path | None = None,
     broker_heartbeat_file: Path | None = None,
+    pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
     primary_label = LABEL_PRIMARY_VLC
     portrait_label = LABEL_PORTRAIT_VLC
@@ -302,9 +314,12 @@ def build_dashboard_scene(
     omnipause_icon = "\u25B6" if omni_paused else "\u23F8"
     omnipause_fill = COLOR_ACTIVE if omni_paused else COLOR_PANEL
 
+    def _press_fill(fill: str, action_id: str) -> str:
+        return lighten_color(fill) if action_id in pressed_actions else fill
+
     rects = (
-        DashboardRectItem(layout.quit_button, fill=COLOR_DISABLED),
-        DashboardRectItem(layout.omnipause_button, fill=omnipause_fill),
+        DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_DISABLED, QUIT_BUTTON)),
+        DashboardRectItem(layout.omnipause_button, fill=_press_fill(omnipause_fill, OMNIPAUSE_TOGGLE)),
         DashboardRectItem(layout.main_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.secondary_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.main_status_strip, fill=COLOR_PANEL),
@@ -313,18 +328,18 @@ def build_dashboard_scene(
         DashboardRectItem(layout.portrait_panel, fill=portrait_fill),
         DashboardRectItem(layout.primary_panel, fill=primary_fill),
         DashboardRectItem(layout.osr2_panel, fill=osr2_fill),
-        DashboardRectItem(layout.link_toggle, fill=COLOR_LINK, outline=COLOR_LINK),
-        DashboardRectItem(layout.portrait_prev, fill=COLOR_PANEL),
-        DashboardRectItem(layout.portrait_next, fill=COLOR_PANEL),
-        DashboardRectItem(layout.portrait_lock, fill=portrait_lock_fill),
-        DashboardRectItem(layout.portrait_trash, fill=COLOR_WARNING),
-        DashboardRectItem(layout.primary_prev, fill=COLOR_PANEL),
-        DashboardRectItem(layout.primary_next, fill=COLOR_PANEL),
-        DashboardRectItem(layout.quarter_button, fill=osr2_fill if snapshot is not None and snapshot.primary_uses_robot_hand else COLOR_PANEL),
-        DashboardRectItem(layout.landscape_prev, fill=COLOR_PANEL),
-        DashboardRectItem(layout.landscape_next, fill=COLOR_PANEL),
-        DashboardRectItem(layout.landscape_lock, fill=landscape_lock_fill),
-        DashboardRectItem(layout.landscape_trash, fill=COLOR_WARNING),
+        DashboardRectItem(layout.link_toggle, fill=_press_fill(COLOR_LINK, LINK_TOGGLE), outline=COLOR_LINK),
+        DashboardRectItem(layout.portrait_prev, fill=_press_fill(COLOR_PANEL, PORTRAIT_PREV)),
+        DashboardRectItem(layout.portrait_next, fill=_press_fill(COLOR_PANEL, PORTRAIT_NEXT)),
+        DashboardRectItem(layout.portrait_lock, fill=_press_fill(portrait_lock_fill, PORTRAIT_LOCK)),
+        DashboardRectItem(layout.portrait_trash, fill=_press_fill(COLOR_PANEL, PORTRAIT_TRASH)),
+        DashboardRectItem(layout.primary_prev, fill=_press_fill(COLOR_PANEL, PRIMARY_PREV)),
+        DashboardRectItem(layout.primary_next, fill=_press_fill(COLOR_PANEL, PRIMARY_NEXT)),
+        DashboardRectItem(layout.quarter_button, fill=_press_fill(osr2_fill if snapshot is not None and snapshot.primary_uses_robot_hand else COLOR_PANEL, QUARTER_BUTTON)),
+        DashboardRectItem(layout.landscape_prev, fill=_press_fill(COLOR_PANEL, LANDSCAPE_PREV)),
+        DashboardRectItem(layout.landscape_next, fill=_press_fill(COLOR_PANEL, LANDSCAPE_NEXT)),
+        DashboardRectItem(layout.landscape_lock, fill=_press_fill(landscape_lock_fill, LANDSCAPE_LOCK)),
+        DashboardRectItem(layout.landscape_trash, fill=_press_fill(COLOR_PANEL, LANDSCAPE_TRASH)),
         DashboardRectItem(layout.broker_panel, fill=broker_fill),
         DashboardRectItem(layout.controller_panel, fill=controller_fill),
         DashboardRectItem(layout.fmode_panel, fill=fmode_fill),
@@ -341,15 +356,15 @@ def build_dashboard_scene(
         DashboardTextItem(link_label, layout.link_toggle, color=COLOR_TEXT, font=("Segoe UI", 8, "bold")),
         DashboardTextItem("<", layout.portrait_prev, font=("Segoe UI", 9, "bold")),
         DashboardTextItem(">", layout.portrait_next, font=("Segoe UI", 9, "bold")),
-        DashboardTextItem("Lock", layout.portrait_lock, font=("Segoe UI", 8, "bold")),
-        DashboardTextItem("Trash", layout.portrait_trash, font=("Segoe UI", 8, "bold")),
+        DashboardTextItem(ICON_LOCK, layout.portrait_lock, font=("Segoe UI Emoji", 9, "normal")),
+        DashboardTextItem(ICON_TRASH, layout.portrait_trash, font=("Segoe UI Emoji", 9, "normal")),
         DashboardTextItem("<", layout.primary_prev, font=("Segoe UI", 9, "bold")),
         DashboardTextItem(">", layout.primary_next, font=("Segoe UI", 9, "bold")),
         DashboardTextItem("1/4", layout.quarter_button, font=("Segoe UI", 8, "bold")),
         DashboardTextItem("<", layout.landscape_prev, font=("Segoe UI", 9, "bold")),
         DashboardTextItem(">", layout.landscape_next, font=("Segoe UI", 9, "bold")),
-        DashboardTextItem("Lock", layout.landscape_lock, font=("Segoe UI", 8, "bold")),
-        DashboardTextItem("Trash", layout.landscape_trash, font=("Segoe UI", 8, "bold")),
+        DashboardTextItem(ICON_LOCK, layout.landscape_lock, font=("Segoe UI Emoji", 9, "normal")),
+        DashboardTextItem(ICON_TRASH, layout.landscape_trash, font=("Segoe UI Emoji", 9, "normal")),
         DashboardTextItem(broker_chip, layout.broker_panel, font=("Segoe UI", 7, "bold")),
         DashboardTextItem(controller_chip, layout.controller_panel, font=("Segoe UI", 7, "bold")),
         DashboardTextItem(fmode_chip, layout.fmode_panel, font=("Segoe UI", 7, "bold")),
@@ -427,7 +442,7 @@ def apply_dashboard_window_geometry(
     root.geometry(f"{snapshot.window.width}x{snapshot.window.height}+{snapshot.window.x}+{snapshot.window.y}")
 
 
-def bind_dashboard_actions(canvas: tk.Canvas, scene: DashboardScene, command_file: Path) -> None:
+def bind_dashboard_actions(canvas: tk.Canvas, scene: DashboardScene, on_action: object) -> None:
     for action_id, rect in scene.actions:
         tag = f"action:{action_id}"
         canvas.create_rectangle(
@@ -439,7 +454,10 @@ def bind_dashboard_actions(canvas: tk.Canvas, scene: DashboardScene, command_fil
             fill="",
             tags=(tag,),
         )
-        canvas.tag_bind(tag, "<Button-1>", lambda _event, action=action_id: write_dashboard_command(command_file, action))
+        canvas.tag_bind(tag, "<Button-1>", lambda _event, action=action_id: on_action(action))
+
+
+PRESS_FLASH_S = 0.2
 
 
 def build_dashboard_window(
@@ -459,20 +477,46 @@ def build_dashboard_window(
     canvas = tk.Canvas(root, bg=COLOR_BG, highlightthickness=0, bd=0)
     canvas.pack()
 
-    def refresh() -> None:
-        snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
-        if snapshot is not None:
-            snapshot = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=mfp_pid)
+    _pressed: dict[str, float] = {}
+    _last_snapshot: list[DashboardSnapshot | None] = [None]
+
+    def _compute_pressed() -> frozenset[str]:
+        now = time.monotonic()
+        active = frozenset(aid for aid, t in _pressed.items() if now - t < PRESS_FLASH_S)
+        for aid in [a for a, t in _pressed.items() if now - t >= PRESS_FLASH_S]:
+            del _pressed[aid]
+        return active
+
+    def _do_render(snapshot: DashboardSnapshot | None, pressed_actions: frozenset[str]) -> None:
+        _last_snapshot[0] = snapshot
         scene = build_dashboard_scene(
             preview_layout,
             snapshot,
             primary_sources=app_config.primary_sources,
             favs_file=app_config.favs_file,
             broker_heartbeat_file=app_config.broker_heartbeat_file,
+            pressed_actions=pressed_actions,
         )
         apply_dashboard_window_geometry(root, snapshot, scene, launch_geometry=launch_geometry)
         render_dashboard_scene(canvas, scene)
-        bind_dashboard_actions(canvas, scene, app_config.dashboard_cmd_file)
+        bind_dashboard_actions(canvas, scene, _on_action)
+
+    def _on_action(action_id: str) -> None:
+        _pressed[action_id] = time.monotonic()
+        write_dashboard_command(app_config.dashboard_cmd_file, action_id)
+        _do_render(_last_snapshot[0], _compute_pressed())
+        root.after(int(PRESS_FLASH_S * 1000) + 10, lambda: _do_render(_last_snapshot[0], _compute_pressed()))
+
+    def refresh() -> None:
+        snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
+        if snapshot is not None:
+            snapshot = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=mfp_pid)
+        pressed = _compute_pressed()
+        if snapshot is not None and snapshot.last_press_action:
+            elapsed = time.time() - snapshot.last_press_time
+            if 0 < elapsed < 0.6:
+                pressed = pressed | {snapshot.last_press_action}
+        _do_render(snapshot, pressed)
         root.after(500, refresh)
 
     refresh()
