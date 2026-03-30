@@ -286,8 +286,13 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
     assert parser.get("result", "landscape_pid") == "404"
 
 
-def test_launch_core_apps_mutes_vlc_when_hide_windows_true(tmp_path: Path):
-    """When hide_windows=True, VLC instances are muted via HTTP after pl_next."""
+def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_path: Path):
+    """When hide_windows=True, VLC instances must:
+    1. Launch with no media (defer_playlist) so there is nothing to hear
+    2. Get muted via HTTP
+    3. Have their playlist loaded via replace_playlist_from_file
+    4. Get pl_next to start playback
+    """
     result_file = tmp_path / "core_apps.ini"
 
     class FakeProc:
@@ -298,15 +303,21 @@ def test_launch_core_apps_mutes_vlc_when_hide_windows_true(tmp_path: Path):
 
     FakeProc._counter = 0
     http_commands: list[tuple[int, str]] = []
+    replaced_playlists: list[tuple[int, str]] = []
 
     def tracking_vlc_http_cmd(port, cmd, pw):
         http_commands.append((port, cmd))
         return True
 
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=lambda *a, **kw: FakeProc()), \
+    def tracking_replace_playlist(port, pw, playlist_path, **kwargs):
+        replaced_playlists.append((port, str(playlist_path)))
+        return True
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=lambda *a, **kw: FakeProc()) as popen, \
          patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True), \
          patch("fun_time.windows_bridge_startup.set_repeat_mode", return_value=True), \
          patch("fun_time.windows_bridge_startup.vlc_http_cmd", side_effect=tracking_vlc_http_cmd), \
+         patch("fun_time.windows_bridge_startup.replace_playlist_from_file", side_effect=tracking_replace_playlist) as replace_mock, \
          patch("fun_time.windows_bridge_startup.time.sleep"):
         launch_core_apps(
             project_dir=tmp_path,
@@ -323,11 +334,33 @@ def test_launch_core_apps_mutes_vlc_when_hide_windows_true(tmp_path: Path):
             hide_windows=True,
         )
 
-    # Each VLC should get pl_next followed by volume mute
+    # VLC commands must NOT contain .m3u playlist paths (deferred)
+    for call in popen.call_args_list:
+        cmd = call.args[0] if call.args else call.kwargs.get("args", [])
+        if isinstance(cmd, list) and cmd and cmd[0] == "vlc.exe":
+            assert not any(arg.endswith(".m3u") for arg in cmd), \
+                f"Playlist must not be on VLC command line when hide_windows=True: {cmd}"
+
+    # Each VLC should get volume mute
     mute_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "volume&val=0"]
     assert len(mute_cmds) == 3, f"Expected 3 mute commands, got {mute_cmds}"
     muted_ports = {port for port, _ in mute_cmds}
     assert muted_ports == {8090, 8091, 8092}
+
+    # Playlists must be loaded via HTTP after muting
+    assert len(replaced_playlists) == 3, f"Expected 3 playlist loads, got {replaced_playlists}"
+    loaded_ports = {port for port, _ in replaced_playlists}
+    assert loaded_ports == {8090, 8091, 8092}
+    # Playlist file paths must match the state directory
+    state_dir = tmp_path / "state"
+    for _, path in replaced_playlists:
+        assert str(state_dir) in path
+
+    # pl_next must still be sent to each VLC (to start playback)
+    next_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "pl_next"]
+    assert len(next_cmds) == 3
+    next_ports = {port for port, _ in next_cmds}
+    assert next_ports == {8090, 8091, 8092}
 
 
 def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
@@ -513,4 +546,43 @@ def test_build_vlc_launch_command_writes_playlist_file_when_playlist_path_given(
     assert "a.mp4" in content
     assert "b.mp4" in content
     assert "c.mp4" in content
+
+
+def test_build_vlc_launch_command_defers_playlist_when_requested(tmp_path, monkeypatch):
+    """When defer_playlist=True the .m3u file must still be written (needed for
+    later HTTP loading) but must NOT appear in the VLC command line.  This lets
+    VLC start with nothing to play, eliminating the audio-leak race during the
+    loading screen."""
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    playlist_path = tmp_path / "test.m3u"
+
+    with patch("fun_time.windows_bridge_startup.random.shuffle", side_effect=lambda x: None):
+        cmd = _build_vlc_launch_command(
+            "vlc.exe", "a.mp4|b.mp4", 8090, "pw", repeat_mode="repeat",
+            mute=True, playlist_path=playlist_path, defer_playlist=True,
+        )
+
+    # Playlist file must still be written to disk
+    assert playlist_path.exists()
+    content = playlist_path.read_text(encoding="utf-8")
+    assert "a.mp4" in content
+    assert "b.mp4" in content
+    # But the playlist path must NOT be in the VLC command
+    assert str(playlist_path) not in cmd
+
+
+def test_build_vlc_launch_command_does_not_defer_playlist_by_default(tmp_path, monkeypatch):
+    """Default behavior: playlist path IS included in the command."""
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    playlist_path = tmp_path / "test.m3u"
+
+    with patch("fun_time.windows_bridge_startup.random.shuffle", side_effect=lambda x: None):
+        cmd = _build_vlc_launch_command(
+            "vlc.exe", "a.mp4|b.mp4", 8090, "pw", repeat_mode="repeat",
+            playlist_path=playlist_path,
+        )
+
+    assert str(playlist_path) in cmd
 
