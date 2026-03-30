@@ -334,9 +334,9 @@ def build_dashboard_scene(
         DashboardTextItem(omnipause_icon, layout.omnipause_button, font=("Segoe UI Symbol", 10, "bold")),
         DashboardTextItem("Fun Time", layout.title, anchor="w"),
         DashboardTextItem(mfp_label, layout.mfp_panel),
-        DashboardTextItem(landscape_label, layout.landscape_panel),
-        DashboardTextItem(portrait_label, layout.portrait_panel),
-        DashboardTextItem(primary_label, layout.primary_panel),
+        DashboardTextItem(landscape_label, layout.landscape_panel, anchor="n"),
+        DashboardTextItem(portrait_label, layout.portrait_panel, anchor="n"),
+        DashboardTextItem(primary_label, layout.primary_panel, anchor="n"),
         DashboardTextItem(osr2_label, layout.osr2_panel),
         DashboardTextItem(link_label, layout.link_toggle, color=COLOR_TEXT, font=("Segoe UI", 8, "bold")),
         DashboardTextItem("<", layout.portrait_prev, font=("Segoe UI", 9, "bold")),
@@ -398,6 +398,8 @@ def render_dashboard_scene(canvas: tk.Canvas, scene: DashboardScene) -> None:
         y = item.rect.y + item.rect.height / 2
         if item.anchor == "w":
             x = item.rect.x
+        elif item.anchor == "n":
+            y = item.rect.y + 2
         canvas.create_text(x, y, text=item.text, fill=item.color, font=item.font, anchor=item.anchor)
 
 
