@@ -51,7 +51,6 @@ class DashboardPreviewLayout:
     quit_button: Rect
     omnipause_button: Rect
     broker_panel: Rect
-    controller_panel: Rect
     fmode_panel: Rect
 
 
@@ -173,6 +172,5 @@ def compute_dashboard_preview_layout(
         quit_button=Rect(quit_button_x, toolbar_y, toolbar_button_w, toolbar_button_h),
         omnipause_button=Rect(omnipause_button_x, toolbar_y, toolbar_button_w, toolbar_button_h),
         broker_panel=Rect(status_row_x, status_strip_y + 3, status_chip_size, status_chip_size),
-        controller_panel=Rect(status_row_x + status_chip_size + status_chip_gap, status_strip_y + 3, status_chip_size, status_chip_size),
-        fmode_panel=Rect(status_row_x + (status_chip_size + status_chip_gap) * 2, status_strip_y + 3, status_chip_size, status_chip_size),
+        fmode_panel=Rect(status_row_x + status_chip_size + status_chip_gap, status_strip_y + 3, status_chip_size, status_chip_size),
     )
