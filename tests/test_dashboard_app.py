@@ -8,12 +8,15 @@ from fun_time.dashboard_app import (
     COLOR_ACTIVE,
     COLOR_DISABLED,
     COLOR_ACTIVE_ALT,
+    COLOR_LINK,
     COLOR_OSR2,
     COLOR_PANEL,
     COLOR_WARNING,
     ICON_LOCK,
     ICON_TRASH,
     DashboardLaunchGeometry,
+    DashboardLineItem,
+    DashboardOvalItem,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
     build_dashboard_window,
@@ -24,7 +27,7 @@ from fun_time.dashboard_app import (
     write_dashboard_command,
 )
 from fun_time.dashboard_runtime import DashboardPanelSnapshot, DashboardSnapshot, DashboardWindowSnapshot
-from fun_time.dashboard_layout import Size, compute_dashboard_preview_layout
+from fun_time.dashboard_layout import DashboardPreviewLayout, Size, compute_dashboard_preview_layout
 from fun_time import load_config
 
 
@@ -71,7 +74,7 @@ def test_dashboard_app_builds_scene_from_preview_layout(cfg_path: Path):
     assert scene.width == preview_layout.dashboard_width
     assert scene.height == preview_layout.dashboard_height
     assert any(item.text == "Fun Time" for item in scene.texts)
-    assert any(item.text == "Robot Link" for item in scene.texts)
+    assert len(scene.lines) == 1, "Default scene should show connected cable"
 
 
 def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path):
@@ -123,7 +126,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
 
     texts = {item.text for item in scene.texts}
     fills = {item.rect: item.fill for item in scene.rects}
-    assert "Broken Link" in texts
+    assert len(scene.lines) == 2, "Broken cable should have two segments"
     assert "Non-AI VLC" in texts
     assert "Portrait AI VLC" in texts
     assert not any(".mp4" in item.text for item in scene.texts)
@@ -569,3 +572,96 @@ def test_dashboard_scene_pressed_button_has_lighter_fill(cfg_path: Path):
     assert pressed_fills[preview_layout.portrait_prev] == lighten_color(COLOR_PANEL)
     # Non-pressed buttons should keep their normal fill
     assert pressed_fills[preview_layout.portrait_next] == normal_fills[preview_layout.portrait_next]
+
+
+def _make_snapshot(*, robot_link_enabled: bool = True, primary_uses_robot_hand: bool = False) -> DashboardSnapshot:
+    return DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=robot_link_enabled,
+        primary_uses_robot_hand=primary_uses_robot_hand,
+        osr2_mode="auto",
+        mfp_alive=False,
+        primary_responsive=False,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False),
+        landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+
+def _make_layout(cfg_path: Path) -> DashboardPreviewLayout:
+    config = load_config(cfg_path)
+    return compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+
+
+def test_dashboard_scene_cable_connected_when_robot_link_enabled(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(robot_link_enabled=True)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    assert len(scene.lines) == 1, "Connected cable should be one continuous line"
+    assert len(scene.ovals) == 2, "Cable should have two connector dots"
+    assert not any(item.text in ("Robot Link", "Broken Link") for item in scene.texts)
+    assert scene.lines[0].color == COLOR_LINK
+
+
+def test_dashboard_scene_cable_broken_when_robot_link_disabled(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(robot_link_enabled=False)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    assert len(scene.lines) == 2, "Broken cable should have two segments"
+    assert len(scene.ovals) == 2, "Broken cable should still have connector dots"
+    assert scene.lines[0].color == COLOR_DISABLED
+    assert scene.lines[1].color == COLOR_DISABLED
+
+
+def test_dashboard_scene_cable_spans_osr2_to_primary(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(robot_link_enabled=True)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    line = scene.lines[0]
+    osr2_right = layout.osr2_panel.x + layout.osr2_panel.width
+    primary_left = layout.primary_panel.x
+    assert line.points[0][0] == osr2_right
+    assert line.points[-1][0] == primary_left
+
+
+def test_dashboard_scene_cable_no_link_rect(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(robot_link_enabled=True)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    assert not any(item.rect == layout.link_toggle for item in scene.rects)
+
+
+def test_dashboard_scene_cable_press_lightens_color(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(robot_link_enabled=True)
+
+    scene_normal = build_dashboard_scene(layout, snapshot)
+    scene_pressed = build_dashboard_scene(
+        layout, snapshot, pressed_actions=frozenset({"link_toggle"}),
+    )
+
+    assert scene_normal.lines[0].color == COLOR_LINK
+    assert scene_pressed.lines[0].color == lighten_color(COLOR_LINK)
+
+
+def test_dashboard_scene_default_cable_connected_without_snapshot(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    assert len(scene.lines) == 1, "Default (no snapshot) should show connected cable"
+    assert scene.lines[0].color == COLOR_LINK

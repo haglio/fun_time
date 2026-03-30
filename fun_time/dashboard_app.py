@@ -92,6 +92,21 @@ class DashboardLaunchGeometry:
 
 
 @dataclass(frozen=True)
+class DashboardLineItem:
+    points: tuple[tuple[int, int], ...]
+    color: str
+    width: int = 2
+
+
+@dataclass(frozen=True)
+class DashboardOvalItem:
+    cx: int
+    cy: int
+    r: int
+    fill: str
+
+
+@dataclass(frozen=True)
 class DashboardTextItem:
     text: str
     rect: Rect
@@ -114,6 +129,8 @@ class DashboardScene:
     rects: tuple[DashboardRectItem, ...]
     texts: tuple[DashboardTextItem, ...]
     actions: tuple[tuple[str, Rect], ...]
+    lines: tuple[DashboardLineItem, ...] = ()
+    ovals: tuple[DashboardOvalItem, ...] = ()
 
 
 def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
@@ -265,7 +282,7 @@ def build_dashboard_scene(
     landscape_label = LABEL_LANDSCAPE_VLC
     osr2_label = LABEL_OSR2
     mfp_label = LABEL_MFP
-    link_label = "Robot Link"
+    cable_connected = True
     broker_chip = "b"
     controller_chip = "c"
     fmode_chip = "f"
@@ -290,7 +307,7 @@ def build_dashboard_scene(
         landscape_label = LABEL_LANDSCAPE_VLC
         osr2_label = f"{LABEL_OSR2}\n{snapshot.osr2_mode}"
         mfp_label = f"{LABEL_MFP}\n{'connected' if mfp_connected else 'disconnected'}"
-        link_label = "Robot Link" if snapshot.robot_link_enabled else "Broken Link"
+        cable_connected = snapshot.robot_link_enabled
         primary_fill = COLOR_ACTIVE_ALT if primary_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
             primary_path=snapshot.primary.path,
@@ -329,7 +346,6 @@ def build_dashboard_scene(
         DashboardRectItem(layout.portrait_panel, fill=portrait_fill),
         DashboardRectItem(layout.primary_panel, fill=primary_fill),
         DashboardRectItem(layout.osr2_panel, fill=osr2_fill),
-        DashboardRectItem(layout.link_toggle, fill=_press_fill(COLOR_LINK, LINK_TOGGLE), outline=COLOR_LINK),
         DashboardRectItem(layout.portrait_prev, fill=_press_fill(COLOR_PANEL, PORTRAIT_PREV)),
         DashboardRectItem(layout.portrait_next, fill=_press_fill(COLOR_PANEL, PORTRAIT_NEXT)),
         DashboardRectItem(layout.portrait_lock, fill=_press_fill(portrait_lock_fill, PORTRAIT_LOCK)),
@@ -354,7 +370,6 @@ def build_dashboard_scene(
         DashboardTextItem(portrait_label, layout.portrait_panel, anchor="n"),
         DashboardTextItem(primary_label, layout.primary_panel, anchor="n"),
         DashboardTextItem(osr2_label, layout.osr2_panel),
-        DashboardTextItem(link_label, layout.link_toggle, color=COLOR_TEXT, font=("Segoe UI", 8, "bold")),
         DashboardTextItem("<", layout.portrait_prev, font=("Segoe UI", 9, "bold")),
         DashboardTextItem(">", layout.portrait_next, font=("Segoe UI", 9, "bold")),
         DashboardTextItem(ICON_LOCK, layout.portrait_lock, font=("Segoe UI Emoji", 9, "normal")),
@@ -370,11 +385,51 @@ def build_dashboard_scene(
         DashboardTextItem(controller_chip, layout.controller_panel, font=("Segoe UI", 7, "bold")),
         DashboardTextItem(fmode_chip, layout.fmode_panel, font=("Segoe UI", 7, "bold")),
     )
+    # Cable visual connecting OSR2 to Primary panel
+    cable_y = layout.link_toggle.y + layout.link_toggle.height // 2
+    cable_start_x = layout.osr2_panel.x + layout.osr2_panel.width
+    cable_end_x = layout.primary_panel.x
+    cable_color = COLOR_LINK if cable_connected else COLOR_DISABLED
+    if LINK_TOGGLE in pressed_actions:
+        cable_color = lighten_color(cable_color)
+    cable_width = 3
+    connector_r = 3
+    if cable_connected:
+        cable_lines: tuple[DashboardLineItem, ...] = (
+            DashboardLineItem(
+                points=((cable_start_x, cable_y), (cable_end_x, cable_y)),
+                color=cable_color,
+                width=cable_width,
+            ),
+        )
+    else:
+        mid_x = (cable_start_x + cable_end_x) // 2
+        gap = 6
+        kick = 5
+        cable_lines = (
+            DashboardLineItem(
+                points=((cable_start_x, cable_y), (mid_x - gap, cable_y), (mid_x - gap + kick, cable_y - kick)),
+                color=cable_color,
+                width=cable_width,
+            ),
+            DashboardLineItem(
+                points=((mid_x + gap - kick, cable_y + kick), (mid_x + gap, cable_y), (cable_end_x, cable_y)),
+                color=cable_color,
+                width=cable_width,
+            ),
+        )
+    cable_ovals = (
+        DashboardOvalItem(cx=cable_start_x, cy=cable_y, r=connector_r, fill=cable_color),
+        DashboardOvalItem(cx=cable_end_x, cy=cable_y, r=connector_r, fill=cable_color),
+    )
+
     return DashboardScene(
         width=layout.dashboard_width,
         height=layout.dashboard_height,
         rects=rects,
         texts=texts,
+        lines=cable_lines,
+        ovals=cable_ovals,
         actions=(
             (QUIT_BUTTON, layout.quit_button),
             (OMNIPAUSE_TOGGLE, layout.omnipause_button),
@@ -406,6 +461,16 @@ def render_dashboard_scene(canvas: tk.Canvas, scene: DashboardScene) -> None:
             outline=item.outline,
             fill=item.fill,
             width=1,
+        )
+    for item in scene.lines:
+        if len(item.points) >= 2:
+            flat = [c for pt in item.points for c in pt]
+            canvas.create_line(*flat, fill=item.color, width=item.width, capstyle="round", joinstyle="round")
+    for item in scene.ovals:
+        canvas.create_oval(
+            item.cx - item.r, item.cy - item.r,
+            item.cx + item.r, item.cy + item.r,
+            fill=item.fill, outline=item.fill,
         )
     for item in scene.texts:
         if item.rect.width == 0 and item.rect.height == 0:
