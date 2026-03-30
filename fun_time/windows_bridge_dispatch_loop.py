@@ -199,8 +199,10 @@ class DispatchLoopRunner:
                 ).start()
             elif cmd == "backslash_key":
                 if self.state.robot_hand_mode:
+                    self._send_press("quarter_button")
                     self._dispatch("quarter_button")
                 else:
+                    self._send_press("open_file_dialog")
                     threading.Thread(
                         target=self._handle_open_file_dialog,
                         daemon=True,
