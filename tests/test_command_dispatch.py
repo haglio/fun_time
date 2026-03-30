@@ -222,56 +222,27 @@ def test_landscape_next_ensures_playback_after_nav(tmp_path: Path):
     assert (config.landscape_port, config.vlc_password, True) in playback_calls
 
 
-def test_primary_nav_sends_pl_play_only_when_not_playing(tmp_path: Path):
-    """pl_play is a TOGGLE — if VLC is already playing after pl_play&id=N,
-    sending pl_play again would PAUSE it.  Must check state first and only
-    send pl_play when VLC is not playing."""
+def test_primary_next_sends_key_n_to_vlc_window(tmp_path: Path):
+    """Primary VLC navigation must send keyboard shortcuts (n/p) to VLC,
+    not HTTP API pl_play&id=N which doesn't handle repeat-one mode correctly.
+    VLC's keyboard handler manages playback transitions natively."""
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
-    http_cmds: list[str] = []
 
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
-        patch("fun_time.command_dispatch.get_playback_state", return_value="playing"),
-        patch("fun_time.command_dispatch.vlc_http_cmd",
-              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
-    ):
-        dispatch_command("primary_next", state, config)
+    new_state, ops = dispatch_command("primary_next", state, config)
 
-    assert "pl_play" not in http_cmds, "must NOT send pl_play when VLC is already playing"
+    assert any(op.op == "send_key" and op.key == "n" for op in ops), \
+        "primary_next must send 'n' key to VLC window"
 
 
-def test_primary_nav_sends_pl_play_when_stopped(tmp_path: Path):
-    """When pl_play&id=N leaves VLC stopped, send pl_play to start playback."""
+def test_primary_prev_sends_key_p_to_vlc_window(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
-    http_cmds: list[str] = []
 
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
-        patch("fun_time.command_dispatch.get_playback_state", return_value="stopped"),
-        patch("fun_time.command_dispatch.vlc_http_cmd",
-              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
-    ):
-        dispatch_command("primary_next", state, config)
+    new_state, ops = dispatch_command("primary_prev", state, config)
 
-    assert "pl_play" in http_cmds
-
-
-def test_primary_nav_sends_pl_play_when_paused(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(robot_hand_mode=False)
-    http_cmds: list[str] = []
-
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
-        patch("fun_time.command_dispatch.get_playback_state", return_value="paused"),
-        patch("fun_time.command_dispatch.vlc_http_cmd",
-              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
-    ):
-        dispatch_command("primary_prev", state, config)
-
-    assert "pl_play" in http_cmds
+    assert any(op.op == "send_key" and op.key == "p" for op in ops), \
+        "primary_prev must send 'p' key to VLC window"
 
 
 # --- landscape_prev / landscape_next ---
@@ -314,19 +285,18 @@ def test_primary_next_sends_next_command_to_robot_hand_when_in_robot_mode(tmp_pa
     assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
-def test_primary_prev_calls_vlc_nav_step(tmp_path: Path):
+def test_primary_nav_does_not_use_http_api(tmp_path: Path):
+    """Primary VLC must use keyboard shortcuts, not HTTP API, because
+    pl_play&id=N does not handle repeat-one mode correctly."""
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
     nav_calls: list[tuple] = []
 
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step",
-              side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True),
-        patch("fun_time.command_dispatch.get_playback_state", return_value="playing"),
-    ):
-        dispatch_command("primary_prev", state, config)
+    with patch("fun_time.command_dispatch.vlc_nav_step",
+               side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
+        dispatch_command("primary_next", state, config)
 
-    assert nav_calls == [(8090, "prev")]
+    assert nav_calls == [], "primary nav must NOT use vlc_nav_step"
 
 
 # --- quarter_button ---
