@@ -357,6 +357,11 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
             command.append("--start-paused")
     if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
         command.append("--no-video")
+    # --no-random overrides VLC's saved vlcrc setting.  Without it, if the
+    # user ever toggled shuffle inside VLC, the preference persists across
+    # launches and VLC advances to random items instead of sequentially,
+    # breaking vlc_nav_step's index-based prev/next navigation.
+    command.append("--no-random")
     if repeat_mode == "repeat":
         command.append("--repeat")
     elif repeat_mode == "loop":

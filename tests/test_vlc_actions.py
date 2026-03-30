@@ -41,6 +41,18 @@ def test_ensure_playback_state_toggles_pause_until_target(monkeypatch):
     assert commands == ["pl_pause", "pl_pause"]
 
 
+def test_ensure_playback_state_sends_pl_play_from_stopped(monkeypatch):
+    """When VLC is in 'stopped' state, pl_pause does nothing.
+    ensure_playback_state must send pl_play to transition from stopped to playing."""
+    states = iter(["stopped", "stopped", "playing"])
+    commands: list[str] = []
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: next(states))
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, command, password: commands.append(command) or True)
+
+    assert vlc_actions.ensure_playback_state(8080, "pw", True, sleep_fn=lambda _seconds: None) is True
+    assert commands == ["pl_play", "pl_play"], "must use pl_play (not pl_pause) from stopped state"
+
+
 def test_set_repeat_mode_toggles_loop_until_all(monkeypatch):
     modes = iter(["off", "off", "all"])
     commands: list[str] = []

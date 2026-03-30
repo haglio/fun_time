@@ -126,7 +126,10 @@ def ensure_playback_state(
             break
         if state == target:
             return True
-        vlc_http_cmd(port, "pl_pause", password)
+        if state == "stopped" and should_play:
+            vlc_http_cmd(port, "pl_play", password)
+        else:
+            vlc_http_cmd(port, "pl_pause", password)
         sleep_fn(0.12)
     return False
 

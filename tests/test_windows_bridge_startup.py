@@ -432,6 +432,18 @@ def test_build_vlc_launch_command_never_includes_random(monkeypatch):
         assert "--random" not in cmd, f"--random must not appear (repeat_mode={repeat_mode})"
 
 
+def test_build_vlc_launch_command_includes_no_random(monkeypatch):
+    """--no-random must always appear to override VLC's saved config (vlcrc).
+    Without it, if the user ever manually enabled shuffle in VLC, the setting
+    persists and VLC advances randomly instead of sequentially, breaking
+    prev/next navigation which relies on sequential playlist order."""
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    for repeat_mode in ("repeat", "loop"):
+        cmd = _build_vlc_launch_command("vlc.exe", "a.mp4|b.mp4", 8090, "pw", repeat_mode=repeat_mode)
+        assert "--no-random" in cmd, f"--no-random must appear to override saved vlcrc (repeat_mode={repeat_mode})"
+
+
 def test_build_vlc_launch_command_shuffles_sources_in_python(monkeypatch):
     """Sources must be shuffled by Python before being passed to VLC (not by VLC's
     --random flag), so the playlist insertion order is the playback order and
