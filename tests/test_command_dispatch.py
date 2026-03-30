@@ -222,26 +222,18 @@ def test_landscape_next_ensures_playback_after_nav(tmp_path: Path):
     assert (config.landscape_port, config.vlc_password, True) in playback_calls
 
 
-def test_primary_next_sends_nav_step_then_forceresume(tmp_path: Path):
-    """Primary VLC is in repeat-one mode, which always pauses on item
-    transitions (with variable timing: 50ms to >1s).  pl_forceresume
-    always resumes — no toggle problem, no timing race."""
+def test_primary_next_calls_vlc_nav_step(tmp_path: Path):
+    """Primary VLC navigation uses vlc_nav_step (pl_play&id=N).
+    With --start-paused removed, VLC auto-plays on item transitions."""
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
-    nav_calls: list[str] = []
-    http_cmds: list[str] = []
+    nav_calls: list[tuple] = []
 
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step",
-              side_effect=lambda p, pw, d: nav_calls.append(d) or True),
-        patch("fun_time.command_dispatch.vlc_http_cmd",
-              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
-        patch("fun_time.command_dispatch.time.sleep"),
-    ):
+    with patch("fun_time.command_dispatch.vlc_nav_step",
+               side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
         dispatch_command("primary_next", state, config)
 
-    assert nav_calls == ["next"]
-    assert "pl_forceresume" in http_cmds
+    assert nav_calls == [(config.primary_port, "next")]
 
 
 # --- landscape_prev / landscape_next ---
@@ -284,23 +276,16 @@ def test_primary_next_sends_next_command_to_robot_hand_when_in_robot_mode(tmp_pa
     assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
-def test_primary_prev_sends_nav_step_then_forceresume(tmp_path: Path):
+def test_primary_prev_calls_vlc_nav_step(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
-    nav_calls: list[str] = []
-    http_cmds: list[str] = []
+    nav_calls: list[tuple] = []
 
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step",
-              side_effect=lambda p, pw, d: nav_calls.append(d) or True),
-        patch("fun_time.command_dispatch.vlc_http_cmd",
-              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
-        patch("fun_time.command_dispatch.time.sleep"),
-    ):
+    with patch("fun_time.command_dispatch.vlc_nav_step",
+               side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
         dispatch_command("primary_prev", state, config)
 
-    assert nav_calls == ["prev"]
-    assert "pl_forceresume" in http_cmds
+    assert nav_calls == [(config.primary_port, "prev")]
 
 
 # --- quarter_button ---
