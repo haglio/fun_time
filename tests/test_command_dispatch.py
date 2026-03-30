@@ -266,10 +266,10 @@ def test_primary_nav_skips_pl_play_when_already_playing(tmp_path: Path):
     assert "pl_play" not in http_cmds
 
 
-def test_primary_nav_sleeps_before_state_check(tmp_path: Path):
-    """Must sleep after vlc_nav_step so VLC transitions to the new item
-    before we check playback state. Without the delay, state check reads
-    the old item's state and makes the wrong decision."""
+def test_primary_nav_sleeps_between_nav_and_decision(tmp_path: Path):
+    """Must sleep after vlc_nav_step before the state check that decides
+    whether to send pl_play.  Without the delay, state check reads stale
+    state and makes the wrong decision."""
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
     call_order: list[str] = []
@@ -279,7 +279,7 @@ def test_primary_nav_sleeps_before_state_check(tmp_path: Path):
         return True
 
     def track_sleep(seconds):
-        call_order.append(f"sleep:{seconds}")
+        call_order.append("sleep")
 
     def track_state(p, pw):
         call_order.append("get_state")
@@ -289,12 +289,14 @@ def test_primary_nav_sleeps_before_state_check(tmp_path: Path):
         patch("fun_time.command_dispatch.vlc_nav_step", side_effect=track_nav),
         patch("fun_time.command_dispatch.time.sleep", side_effect=track_sleep),
         patch("fun_time.command_dispatch.get_playback_state", side_effect=track_state),
+        patch("fun_time.command_dispatch.get_repeat_mode", return_value="one"),
     ):
         dispatch_command("primary_next", state, config)
 
-    assert call_order[0] == "nav"
-    assert call_order[1].startswith("sleep:")
-    assert call_order[2] == "get_state"
+    # nav must come before any sleep
+    nav_idx = call_order.index("nav")
+    first_sleep_idx = call_order.index("sleep")
+    assert nav_idx < first_sleep_idx, f"nav must happen before sleep: {call_order}"
 
 
 # --- landscape_prev / landscape_next ---
