@@ -187,10 +187,13 @@ def dispatch_command(
             config.robot_hand_cmd_file.write_text(cmd, encoding="utf-8")
         else:
             direction = "prev" if command == "primary_prev" else "next"
-            logger.info("nav: %s → vlc_nav_step(%s) on port %s", command, direction, config.primary_port)
-            ok = vlc_nav_step(config.primary_port, config.vlc_password, direction)
-            logger.info("nav: vlc_nav_step returned %s", ok)
+            # Primary VLC runs in repeat-one mode.  VLC's pl_play&id=N
+            # stops playback when repeat-one is active, so we must
+            # switch to repeat-all before navigating and restore after.
+            set_repeat_mode(config.primary_port, config.vlc_password, "all")
+            vlc_nav_step(config.primary_port, config.vlc_password, direction)
             ensure_playback_state(config.primary_port, config.vlc_password, should_play=True)
+            set_repeat_mode(config.primary_port, config.vlc_password, "one")
         return state, ops
 
     if command == "quarter_button":

@@ -40,6 +40,10 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 `windows_bridge_hotkeys.ahk` runs under `#SingleInstance Force`. Startup checks, integration runs, and AHK launch validations must be executed sequentially — parallel launches can evict each other.
 
+## Integration test fidelity
+
+- **Integration tests must exercise production code paths.** Never hand-craft setup (launch commands, config, initialization) that duplicates production logic — call the production function instead. A test that builds its own VLC command line instead of using `_build_vlc_launch_command` can pass while production is broken.
+
 ## Repo-specific gotchas
 
 - **Never use `cd` in Bash commands.** Working dir is already the project root. `cd` prefix defeats pre-approved permissions.

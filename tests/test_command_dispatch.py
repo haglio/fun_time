@@ -299,6 +299,31 @@ def test_primary_next_calls_vlc_nav_step_next_when_not_in_robot_mode(tmp_path: P
     assert nav_calls == [(8090, "next")], "primary_next must use vlc_nav_step to avoid VLC restart-threshold behavior"
 
 
+def test_primary_nav_switches_repeat_mode_around_navigation(tmp_path: Path):
+    """Primary VLC uses repeat-one mode, but VLC's pl_play&id=N stops playback
+    in repeat-one mode.  Navigation must switch to repeat-all before navigating
+    and switch back to repeat-one after, matching what _cancel_lock does for
+    satellites."""
+    config = _make_config(tmp_path)
+    state = _make_state(robot_hand_mode=False)
+    repeat_calls: list[tuple[int, str]] = []
+
+    with (
+        patch("fun_time.command_dispatch.set_repeat_mode",
+              side_effect=lambda p, pw, mode, **kw: repeat_calls.append((p, mode)) or True),
+        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        dispatch_command("primary_next", state, config)
+
+    assert (config.primary_port, "all") in repeat_calls, "must switch to repeat-all before navigating"
+    assert (config.primary_port, "one") in repeat_calls, "must restore repeat-one after navigating"
+    # "all" must come before "one"
+    all_idx = repeat_calls.index((config.primary_port, "all"))
+    one_idx = repeat_calls.index((config.primary_port, "one"))
+    assert all_idx < one_idx, "repeat-all must be set before repeat-one is restored"
+
+
 # --- quarter_button ---
 
 
