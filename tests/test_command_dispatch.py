@@ -222,32 +222,56 @@ def test_landscape_next_ensures_playback_after_nav(tmp_path: Path):
     assert (config.landscape_port, config.vlc_password, True) in playback_calls
 
 
-def test_primary_nav_sends_nav_step_then_pl_play(tmp_path: Path):
-    """Primary VLC navigation must: (1) vlc_nav_step to select the target item,
-    then (2) send a bare pl_play to unconditionally start playback.
-
-    No repeat-mode switching, no ensure_playback_state polling — just two
-    commands.  pl_play (without id) always starts playback of the current item
-    regardless of repeat mode, unlike pl_pause which is a toggle."""
+def test_primary_nav_sends_pl_play_only_when_not_playing(tmp_path: Path):
+    """pl_play is a TOGGLE — if VLC is already playing after pl_play&id=N,
+    sending pl_play again would PAUSE it.  Must check state first and only
+    send pl_play when VLC is not playing."""
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
-    calls_in_order: list[str] = []
-
-    def track_nav(port, pw, direction):
-        calls_in_order.append(f"nav_step:{direction}")
-        return True
-
-    def track_cmd(port, cmd, pw):
-        calls_in_order.append(f"http_cmd:{cmd}")
-        return True
+    http_cmds: list[str] = []
 
     with (
-        patch("fun_time.command_dispatch.vlc_nav_step", side_effect=track_nav),
-        patch("fun_time.command_dispatch.vlc_http_cmd", side_effect=track_cmd),
+        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
+        patch("fun_time.command_dispatch.get_playback_state", return_value="playing"),
+        patch("fun_time.command_dispatch.vlc_http_cmd",
+              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
     ):
         dispatch_command("primary_next", state, config)
 
-    assert calls_in_order == ["nav_step:next", "http_cmd:pl_play"]
+    assert "pl_play" not in http_cmds, "must NOT send pl_play when VLC is already playing"
+
+
+def test_primary_nav_sends_pl_play_when_stopped(tmp_path: Path):
+    """When pl_play&id=N leaves VLC stopped, send pl_play to start playback."""
+    config = _make_config(tmp_path)
+    state = _make_state(robot_hand_mode=False)
+    http_cmds: list[str] = []
+
+    with (
+        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
+        patch("fun_time.command_dispatch.get_playback_state", return_value="stopped"),
+        patch("fun_time.command_dispatch.vlc_http_cmd",
+              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
+    ):
+        dispatch_command("primary_next", state, config)
+
+    assert "pl_play" in http_cmds
+
+
+def test_primary_nav_sends_pl_play_when_paused(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(robot_hand_mode=False)
+    http_cmds: list[str] = []
+
+    with (
+        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
+        patch("fun_time.command_dispatch.get_playback_state", return_value="paused"),
+        patch("fun_time.command_dispatch.vlc_http_cmd",
+              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
+    ):
+        dispatch_command("primary_prev", state, config)
+
+    assert "pl_play" in http_cmds
 
 
 # --- landscape_prev / landscape_next ---
@@ -290,27 +314,19 @@ def test_primary_next_sends_next_command_to_robot_hand_when_in_robot_mode(tmp_pa
     assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
-def test_primary_prev_nav_sends_nav_step_then_pl_play(tmp_path: Path):
-    """Same as test_primary_nav_sends_nav_step_then_pl_play but for prev."""
+def test_primary_prev_calls_vlc_nav_step(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(robot_hand_mode=False)
-    calls_in_order: list[str] = []
-
-    def track_nav(port, pw, direction):
-        calls_in_order.append(f"nav_step:{direction}")
-        return True
-
-    def track_cmd(port, cmd, pw):
-        calls_in_order.append(f"http_cmd:{cmd}")
-        return True
+    nav_calls: list[tuple] = []
 
     with (
-        patch("fun_time.command_dispatch.vlc_nav_step", side_effect=track_nav),
-        patch("fun_time.command_dispatch.vlc_http_cmd", side_effect=track_cmd),
+        patch("fun_time.command_dispatch.vlc_nav_step",
+              side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True),
+        patch("fun_time.command_dispatch.get_playback_state", return_value="playing"),
     ):
         dispatch_command("primary_prev", state, config)
 
-    assert calls_in_order == ["nav_step:prev", "http_cmd:pl_play"]
+    assert nav_calls == [(8090, "prev")]
 
 
 # --- quarter_button ---
