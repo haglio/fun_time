@@ -324,6 +324,70 @@ class TestDispatchLoopRunner:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "quarter_button" in commands
 
+    def test_backslash_key_sends_quarter_button_press_in_robot_hand_mode(self, tmp_path):
+        recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        recv_sock.bind(("127.0.0.1", 0))
+        recv_sock.settimeout(1.0)
+        port = recv_sock.getsockname()[1]
+        port_file = tmp_path / "dashboard_press_port.txt"
+        port_file.write_text(str(port), encoding="utf-8")
+
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.dashboard_enabled = True
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(robot_hand_mode=True)
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("backslash_key", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        # Collect all UDP messages
+        messages = []
+        while True:
+            try:
+                data, _ = recv_sock.recvfrom(256)
+                messages.append(data.decode("utf-8"))
+            except OSError:
+                break
+        recv_sock.close()
+        assert "quarter_button" in messages
+
+    def test_backslash_key_sends_open_file_dialog_press_in_vlc_mode(self, tmp_path):
+        recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        recv_sock.bind(("127.0.0.1", 0))
+        recv_sock.settimeout(1.0)
+        port = recv_sock.getsockname()[1]
+        port_file = tmp_path / "dashboard_press_port.txt"
+        port_file.write_text(str(port), encoding="utf-8")
+
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.dashboard_enabled = True
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(robot_hand_mode=False)
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("backslash_key", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+            runner.tick()
+            import time as _time
+            _time.sleep(0.15)
+
+        messages = []
+        while True:
+            try:
+                data, _ = recv_sock.recvfrom(256)
+                messages.append(data.decode("utf-8"))
+            except OSError:
+                break
+        recv_sock.close()
+        assert "open_file_dialog" in messages
+
     def test_backslash_key_enters_omnipause_when_not_in_robot_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")

@@ -18,6 +18,7 @@ from fun_time.config import LayoutConfig
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.vlc_actions import get_current_file_path, vlc_http_req
 from fun_time.dashboard_actions import (
+    CLIPPER_SAVE,
     LANDSCAPE_LOCK,
     LANDSCAPE_NEXT,
     LANDSCAPE_PREV,
@@ -25,6 +26,7 @@ from fun_time.dashboard_actions import (
     FMODE_PANEL,
     LINK_TOGGLE,
     OMNIPAUSE_TOGGLE,
+    OPEN_FILE_DIALOG,
     PORTRAIT_LOCK,
     PORTRAIT_NEXT,
     PORTRAIT_PREV,
@@ -33,6 +35,8 @@ from fun_time.dashboard_actions import (
     PRIMARY_PREV,
     QUARTER_BUTTON,
     QUIT_BUTTON,
+    VLC_NUDGE_NEXT,
+    VLC_NUDGE_PREV,
 )
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
 from fun_time.dashboard_runtime import DashboardSnapshot, is_broker_heartbeat_fresh, load_dashboard_snapshot
@@ -382,7 +386,15 @@ def build_dashboard_scene(
         DashboardRectItem(layout.portrait_trash, fill=_press_fill(COLOR_PANEL, PORTRAIT_TRASH)),
         DashboardRectItem(layout.primary_prev, fill=_press_fill(COLOR_PANEL, PRIMARY_PREV)),
         DashboardRectItem(layout.primary_next, fill=_press_fill(COLOR_PANEL, PRIMARY_NEXT)),
-        DashboardRectItem(layout.quarter_button, fill=_press_fill(osr2_fill if snapshot is not None and snapshot.primary_uses_robot_hand else COLOR_PANEL, QUARTER_BUTTON)),
+        *(
+            (DashboardRectItem(layout.quarter_button, fill=_press_fill(osr2_fill, QUARTER_BUTTON)),)
+            if snapshot is not None and snapshot.primary_uses_robot_hand else (
+                DashboardRectItem(layout.vlc_nudge_prev, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_PREV)),
+                DashboardRectItem(layout.vlc_nudge_next, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_NEXT)),
+                DashboardRectItem(layout.open_file_dialog, fill=_press_fill(COLOR_PANEL, OPEN_FILE_DIALOG)),
+                DashboardRectItem(layout.clipper_save, fill=_press_fill(COLOR_PANEL, CLIPPER_SAVE)),
+            )
+        ),
         DashboardRectItem(layout.landscape_prev, fill=_press_fill(COLOR_PANEL, LANDSCAPE_PREV)),
         DashboardRectItem(layout.landscape_next, fill=_press_fill(COLOR_PANEL, LANDSCAPE_NEXT)),
         DashboardRectItem(layout.landscape_lock, fill=_press_fill(landscape_lock_fill, LANDSCAPE_LOCK)),
@@ -405,7 +417,15 @@ def build_dashboard_scene(
         DashboardTextItem(ICON_TRASH, layout.portrait_trash, font=("Segoe UI Emoji", 9, "normal")),
         DashboardTextItem("<", layout.primary_prev, font=("Segoe UI", 9, "bold")),
         DashboardTextItem(">", layout.primary_next, font=("Segoe UI", 9, "bold")),
-        DashboardTextItem("1/4", layout.quarter_button, font=("Segoe UI", 8, "bold")),
+        *(
+            (DashboardTextItem("1/4", layout.quarter_button, font=("Segoe UI", 8, "bold")),)
+            if snapshot is not None and snapshot.primary_uses_robot_hand else (
+                DashboardTextItem("\u2212", layout.vlc_nudge_prev, font=("Segoe UI", 9, "bold")),
+                DashboardTextItem("+", layout.vlc_nudge_next, font=("Segoe UI", 9, "bold")),
+                DashboardTextItem("\U0001F4C2", layout.open_file_dialog, font=("Segoe UI Emoji", 9, "normal")),
+                DashboardTextItem("[]", layout.clipper_save, font=("Segoe UI", 8, "bold")),
+            )
+        ),
         DashboardTextItem("<", layout.landscape_prev, font=("Segoe UI", 9, "bold")),
         DashboardTextItem(">", layout.landscape_next, font=("Segoe UI", 9, "bold")),
         DashboardTextItem(ICON_LOCK, layout.landscape_lock, font=("Segoe UI Emoji", 9, "normal")),
@@ -501,7 +521,15 @@ def build_dashboard_scene(
             (PORTRAIT_TRASH, layout.portrait_trash),
             (PRIMARY_PREV, layout.primary_prev),
             (PRIMARY_NEXT, layout.primary_next),
-            (QUARTER_BUTTON, layout.quarter_button),
+            *(
+                ((QUARTER_BUTTON, layout.quarter_button),)
+                if snapshot is not None and snapshot.primary_uses_robot_hand else (
+                    (VLC_NUDGE_PREV, layout.vlc_nudge_prev),
+                    (VLC_NUDGE_NEXT, layout.vlc_nudge_next),
+                    (OPEN_FILE_DIALOG, layout.open_file_dialog),
+                    (CLIPPER_SAVE, layout.clipper_save),
+                )
+            ),
             (LANDSCAPE_PREV, layout.landscape_prev),
             (LANDSCAPE_NEXT, layout.landscape_next),
             (LANDSCAPE_LOCK, layout.landscape_lock),

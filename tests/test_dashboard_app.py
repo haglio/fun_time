@@ -906,3 +906,96 @@ def test_omnipause_resume_button_is_not_green_when_paused(cfg_path: Path):
 
     fills = {item.rect: item.fill for item in scene.rects}
     assert fills[layout.omnipause_button] == COLOR_PANEL
+
+
+def test_vlc_mode_shows_vlc_buttons_not_quarter(cfg_path: Path):
+    """Non-AI VLC box should show file dialog, clipper, and nudge buttons — not 1/4."""
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_robot_hand=False)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    action_ids = [a for a, _r in scene.actions]
+    assert "open_file_dialog" in action_ids
+    assert "clipper_save" in action_ids
+    assert "vlc_nudge_prev" in action_ids
+    assert "vlc_nudge_next" in action_ids
+    assert "quarter_button" not in action_ids
+
+
+def test_robot_hand_mode_shows_quarter_not_vlc_buttons(cfg_path: Path):
+    """Robot Hand box should show 1/4 button only."""
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_robot_hand=True)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    action_ids = [a for a, _r in scene.actions]
+    assert "quarter_button" in action_ids
+    assert "open_file_dialog" not in action_ids
+    assert "clipper_save" not in action_ids
+    assert "vlc_nudge_prev" not in action_ids
+    assert "vlc_nudge_next" not in action_ids
+
+
+def test_default_scene_shows_vlc_buttons(cfg_path: Path):
+    """Default (no snapshot) is Non-AI VLC, so should show VLC buttons."""
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    action_ids = [a for a, _r in scene.actions]
+    assert "open_file_dialog" in action_ids
+    assert "quarter_button" not in action_ids
+
+
+def test_vlc_buttons_text_labels(cfg_path: Path):
+    """File dialog button shows folder icon, clipper shows [], nudge shows - and +."""
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_robot_hand=False)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    text_at = {item.rect: item.text for item in scene.texts}
+    assert text_at[layout.open_file_dialog] == "\U0001F4C2"
+    assert text_at[layout.clipper_save] == "[]"
+    assert text_at[layout.vlc_nudge_prev] == "\u2212"  # minus sign
+    assert text_at[layout.vlc_nudge_next] == "+"
+
+
+def test_vlc_nudge_buttons_are_adjacent_not_edge_justified(cfg_path: Path):
+    """Nudge buttons should be next to each other, centered — not at panel edges."""
+    layout = _make_layout(cfg_path)
+
+    gap = layout.vlc_nudge_next.x - (layout.vlc_nudge_prev.x + layout.vlc_nudge_prev.width)
+    assert gap <= 8, f"Nudge buttons should be adjacent (gap={gap})"
+    # Both should be roughly centered in the primary panel
+    panel_cx = layout.primary_panel.x + layout.primary_panel.width // 2
+    nudge_cx = (layout.vlc_nudge_prev.x + layout.vlc_nudge_next.x + layout.vlc_nudge_next.width) // 2
+    assert abs(panel_cx - nudge_cx) <= 2, "Nudge pair should be centered in panel"
+
+
+def test_vlc_buttons_light_up_when_pressed(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_robot_hand=False)
+
+    scene_normal = build_dashboard_scene(layout, snapshot)
+    scene_pressed = build_dashboard_scene(
+        layout, snapshot, pressed_actions=frozenset({"open_file_dialog", "clipper_save", "vlc_nudge_prev", "vlc_nudge_next"}),
+    )
+
+    normal_fills = {item.rect: item.fill for item in scene_normal.rects}
+    pressed_fills = {item.rect: item.fill for item in scene_pressed.rects}
+    for rect_name in ("open_file_dialog", "clipper_save", "vlc_nudge_prev", "vlc_nudge_next"):
+        rect = getattr(layout, rect_name)
+        assert pressed_fills[rect] == lighten_color(COLOR_PANEL), f"{rect_name} should light up"
+        assert pressed_fills[rect] != normal_fills[rect], f"{rect_name} pressed should differ from normal"
+
+
+def test_nudge_buttons_above_file_dialog_clipper_below(cfg_path: Path):
+    """Nudge buttons should be above the file dialog; clipper should be below."""
+    layout = _make_layout(cfg_path)
+
+    assert layout.vlc_nudge_prev.y + layout.vlc_nudge_prev.height <= layout.open_file_dialog.y
+    assert layout.vlc_nudge_next.y + layout.vlc_nudge_next.height <= layout.open_file_dialog.y
+    assert layout.open_file_dialog.y + layout.open_file_dialog.height <= layout.clipper_save.y
