@@ -337,6 +337,23 @@ def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_p
     assert omnipause_rects[0].fill == COLOR_PANEL
 
 
+def test_dashboard_scene_vlc_panel_labels_are_top_justified(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+
+    scene = build_dashboard_scene(preview_layout)
+
+    panel_rects = {preview_layout.landscape_panel, preview_layout.portrait_panel, preview_layout.primary_panel}
+    panel_labels = [item for item in scene.texts if item.rect in panel_rects]
+    assert len(panel_labels) == 3
+    for label in panel_labels:
+        assert label.anchor == "n", f"Expected anchor='n' for '{label.text}', got '{label.anchor}'"
+
+
 def test_dashboard_scene_omnipause_button_shows_play_icon_when_paused(cfg_path: Path):
     config = load_config(cfg_path)
     preview_layout = compute_dashboard_preview_layout(
