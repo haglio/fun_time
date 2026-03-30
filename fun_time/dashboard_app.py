@@ -693,8 +693,8 @@ def build_dashboard_window(
         )
         apply_dashboard_window_geometry(root, snapshot, scene, launch_geometry=launch_geometry)
         render_dashboard_scene(canvas, scene)
-        bind_dashboard_actions(canvas, scene, _on_action)
         bind_dashboard_hover_texts(canvas, scene)
+        bind_dashboard_actions(canvas, scene, _on_action)
 
     def _on_action(action_id: str) -> None:
         _pressed[action_id] = time.monotonic()
