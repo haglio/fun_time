@@ -290,8 +290,8 @@ def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_p
     """When hide_windows=True, VLC instances must:
     1. Launch with no media (defer_playlist) so there is nothing to hear
     2. Get muted via HTTP
-    3. Have their playlist loaded via replace_playlist_from_file
-    4. Get pl_pause so playback waits for the sequencer's Phase 4 reveal
+    3. Have their playlist enqueued (not played) via replace_playlist_from_file
+    4. NOT receive pl_next or pl_pause — VLC must be completely idle
     """
     result_file = tmp_path / "core_apps.ini"
 
@@ -303,21 +303,21 @@ def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_p
 
     FakeProc._counter = 0
     http_commands: list[tuple[int, str]] = []
-    replaced_playlists: list[tuple[int, str]] = []
+    replace_calls: list[tuple[int, str, dict]] = []
 
     def tracking_vlc_http_cmd(port, cmd, pw):
         http_commands.append((port, cmd))
         return True
 
     def tracking_replace_playlist(port, pw, playlist_path, **kwargs):
-        replaced_playlists.append((port, str(playlist_path)))
+        replace_calls.append((port, str(playlist_path), kwargs))
         return True
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=lambda *a, **kw: FakeProc()) as popen, \
          patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True), \
          patch("fun_time.windows_bridge_startup.set_repeat_mode", return_value=True), \
          patch("fun_time.windows_bridge_startup.vlc_http_cmd", side_effect=tracking_vlc_http_cmd), \
-         patch("fun_time.windows_bridge_startup.replace_playlist_from_file", side_effect=tracking_replace_playlist) as replace_mock, \
+         patch("fun_time.windows_bridge_startup.replace_playlist_from_file", side_effect=tracking_replace_playlist), \
          patch("fun_time.windows_bridge_startup.time.sleep"):
         launch_core_apps(
             project_dir=tmp_path,
@@ -347,26 +347,21 @@ def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_p
     muted_ports = {port for port, _ in mute_cmds}
     assert muted_ports == {8090, 8091, 8092}
 
-    # Playlists must be loaded via HTTP after muting
-    assert len(replaced_playlists) == 3, f"Expected 3 playlist loads, got {replaced_playlists}"
-    loaded_ports = {port for port, _ in replaced_playlists}
+    # Playlists must be enqueued (not played) via replace_playlist_from_file
+    assert len(replace_calls) == 3, f"Expected 3 playlist loads, got {replace_calls}"
+    loaded_ports = {port for port, _, _ in replace_calls}
     assert loaded_ports == {8090, 8091, 8092}
-    # Playlist file paths must match the state directory
     state_dir = tmp_path / "state"
-    for _, path in replaced_playlists:
+    for _, path, kwargs in replace_calls:
         assert str(state_dir) in path
+        assert kwargs.get("enqueue_only") is True, \
+            f"enqueue_only must be True to prevent playback during loading: {kwargs}"
 
-    # VLC must be paused after playlist load (not left playing) so playback
-    # starts fresh when the sequencer's Phase 4 calls pl_play.
-    pause_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "pl_pause"]
-    assert len(pause_cmds) == 3, f"Expected 3 pause commands, got {pause_cmds}"
-    pause_ports = {port for port, _ in pause_cmds}
-    assert pause_ports == {8090, 8091, 8092}
-
-    # pl_next must NOT be sent — it would advance past the first item and
-    # the video would already be playing during the loading screen.
-    next_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "pl_next"]
-    assert len(next_cmds) == 0, f"pl_next must not be sent when hide_windows=True: {next_cmds}"
+    # VLC must be completely idle — no pl_next, no pl_pause, no pl_play
+    playback_cmds = [(port, cmd) for port, cmd in http_commands
+                     if cmd in ("pl_next", "pl_pause", "pl_play")]
+    assert playback_cmds == [], \
+        f"No playback commands allowed during loading screen: {playback_cmds}"
 
 
 def test_start_core_session_passes_hide_windows_through(tmp_path: Path):

@@ -295,11 +295,10 @@ def launch_core_apps(
     if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         vlc_http_cmd(primary_port, "volume&val=0", password)
     if hide_windows:
-        replace_playlist_from_file(primary_port, password, primary_playlist)
-        # Pause immediately — replace_playlist_from_file's in_play auto-starts
-        # playback, but we want VLC idle until the sequencer's Phase 4 calls
-        # pl_play when the loading screen comes down.
-        vlc_http_cmd(primary_port, "pl_pause", password)
+        # enqueue_only uses in_enqueue instead of in_play so VLC loads the
+        # playlist without starting playback.  The sequencer's Phase 4
+        # pl_play will start everything when the loading screen comes down.
+        replace_playlist_from_file(primary_port, password, primary_playlist, enqueue_only=True)
     else:
         vlc_http_cmd(primary_port, "pl_next", password)
 
@@ -330,16 +329,14 @@ def launch_core_apps(
     if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         vlc_http_cmd(portrait_port, "volume&val=0", password)
     if hide_windows:
-        replace_playlist_from_file(portrait_port, password, portrait_playlist)
-        vlc_http_cmd(portrait_port, "pl_pause", password)
+        replace_playlist_from_file(portrait_port, password, portrait_playlist, enqueue_only=True)
     else:
         vlc_http_cmd(portrait_port, "pl_next", password)
     time.sleep(0.15)
     if hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
         vlc_http_cmd(landscape_port, "volume&val=0", password)
     if hide_windows:
-        replace_playlist_from_file(landscape_port, password, landscape_playlist)
-        vlc_http_cmd(landscape_port, "pl_pause", password)
+        replace_playlist_from_file(landscape_port, password, landscape_playlist, enqueue_only=True)
     else:
         vlc_http_cmd(landscape_port, "pl_next", password)
 

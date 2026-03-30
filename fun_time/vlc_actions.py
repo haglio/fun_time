@@ -251,6 +251,7 @@ def replace_playlist_from_file(
     playlist_path: str | Path,
     *,
     repeat_mode: str = "",
+    enqueue_only: bool = False,
     sleep_fn=time.sleep,
 ) -> bool:
     playlist = Path(playlist_path)
@@ -261,7 +262,8 @@ def replace_playlist_from_file(
     vlc_http_cmd(port, "pl_stop", password)
     sleep_fn(0.18)
 
-    if not send_vlc_input_command(port, "in_play", str(playlist), password):
+    input_cmd = "in_enqueue" if enqueue_only else "in_play"
+    if not send_vlc_input_command(port, input_cmd, str(playlist), password):
         return False
 
     if repeat_mode:

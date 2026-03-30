@@ -349,6 +349,22 @@ def test_replace_playlist_from_file_succeeds_without_repeat_mode(monkeypatch, tm
     assert vlc_actions.replace_playlist_from_file(8080, "pw", playlist, sleep_fn=lambda _: None) is True
 
 
+def test_replace_playlist_from_file_enqueues_without_playing(monkeypatch, tmp_path: Path):
+    """When enqueue_only=True, in_enqueue must be used instead of in_play so
+    VLC loads the playlist without starting playback.  This prevents MFP from
+    syncing funscripts while the loading screen is still visible."""
+    playlist = tmp_path / "playlist.m3u"
+    playlist.write_text("#EXTM3U\n", encoding="utf-8")
+    commands: list[str] = []
+    input_commands: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, command, password: commands.append(command) or True)
+    monkeypatch.setattr(vlc_actions, "send_vlc_input_command", lambda port, command, full_path, password: input_commands.append(command) or True)
+
+    assert vlc_actions.replace_playlist_from_file(8080, "pw", playlist, enqueue_only=True, sleep_fn=lambda _: None) is True
+    assert commands == ["pl_empty", "pl_stop"]
+    assert input_commands == ["in_enqueue"]
+
+
 def test_vlc_nav_step_returns_false_when_playlist_empty(monkeypatch):
     xml = '<root><item id="plid_0" name="" ro="rw"><content><name></name></content></item></root>'
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
