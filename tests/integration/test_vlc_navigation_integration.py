@@ -24,6 +24,7 @@ from fun_time.vlc_actions import (
     vlc_nav_step,
     wait_for_http,
 )
+from fun_time.windows_bridge_startup import _build_vlc_launch_command
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows only"),
@@ -55,14 +56,13 @@ def vlc_with_playlist():
     if len(videos) < 4:
         pytest.skip(f"Need 4 videos, found {len(videos)}")
 
+    sources = "|".join(videos)
+    cmd = _build_vlc_launch_command(
+        VLC_EXE, sources, TEST_PORT, TEST_PASSWORD,
+        repeat_mode="loop", mute=True,
+    )
     proc = subprocess.Popen(
-        [VLC_EXE,
-         "--no-one-instance", "--extraintf", "http",
-         "--http-host", "127.0.0.1",
-         "--http-port", str(TEST_PORT), "--http-password", TEST_PASSWORD,
-         "--no-video", "--volume", "0", "--start-paused",
-         "--no-random", "--loop",
-         ] + videos,
+        cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     if not wait_for_http(TEST_PORT, TEST_PASSWORD, timeout_ms=10000):
