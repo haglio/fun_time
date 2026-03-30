@@ -23,7 +23,7 @@ from fun_time.vlc_actions import (
     get_current_file_path,
     get_playback_state,
     replace_playlist_from_file,
-    restore_vlc_volume,
+    restore_vlcrc_volume,
     set_repeat_mode,
     vlc_advance_and_remove,
     vlc_http_cmd,
@@ -89,36 +89,38 @@ def vlc_with_playlist():
     replace_playlist_from_file(TEST_PORT, TEST_PASSWORD, playlist_path)
     time.sleep(1.0)
     yield proc, videos
-    restore_vlc_volume(TEST_PORT, TEST_PASSWORD)
+    # Kill first, then patch vlcrc — avoids the audio blast that
+    # restore_vlc_volume (HTTP) caused by setting volume=256 while playing.
     proc.kill()
     proc.wait()
+    restore_vlcrc_volume(256)
 
 
-def _current() -> str:
-    return get_current_file_path(TEST_PORT, TEST_PASSWORD)
+def _current(port: int = TEST_PORT) -> str:
+    return get_current_file_path(port, TEST_PASSWORD)
 
 
-def _wait_for_change(before: str, port: int = TEST_PORT, timeout: float = 3.0) -> str:
-    """Poll until VLC reports a different current file."""
+def _wait_for_item_change(port: int, before: str, timeout: float = 3.0) -> str:
+    """Poll until VLC's current item differs from *before*."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        current = get_current_file_path(port, TEST_PASSWORD)
-        if current and current != before:
-            return current
-        time.sleep(0.1)
+        after = get_current_file_path(port, TEST_PASSWORD)
+        if after and after != before:
+            return after
+        time.sleep(0.05)
     return get_current_file_path(port, TEST_PASSWORD)
 
 
 def _next():
     before = _current()
     vlc_http_cmd(TEST_PORT, "pl_next", TEST_PASSWORD)
-    _wait_for_change(before)
+    _wait_for_item_change(TEST_PORT, before)
 
 
 def _prev():
     before = _current()
     vlc_http_cmd(TEST_PORT, "pl_previous", TEST_PASSWORD)
-    _wait_for_change(before)
+    _wait_for_item_change(TEST_PORT, before)
 
 
 # --- Phase 2: Do VLC basics work? ---
@@ -186,29 +188,29 @@ def test_playlist_wraps_around(vlc_with_playlist):
 def test_vlc_nav_step_next_advances_video(vlc_with_playlist):
     before = _current()
     ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
-    after = _wait_for_change(before)
     assert ok is True, "vlc_nav_step returned False — check _parse_playlist_ids"
+    after = _wait_for_item_change(TEST_PORT, before)
     assert after != before, f"vlc_nav_step next did not change video (still {before})"
 
 
 def test_vlc_nav_step_prev_goes_back(vlc_with_playlist):
     before = _current()
     ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
-    after = _wait_for_change(before)
     assert ok is True, "vlc_nav_step returned False — check _parse_playlist_ids"
+    after = _wait_for_item_change(TEST_PORT, before)
     assert after != before, f"vlc_nav_step prev did not change video (still {before})"
 
 
 def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
     start = _current()
     ok_next = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
-    after_next = _wait_for_change(start)
     assert ok_next is True, "vlc_nav_step next returned False"
-    assert after_next != start
+    mid = _wait_for_item_change(TEST_PORT, start)
+    assert mid != start
     ok_prev = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
-    after_prev = _wait_for_change(after_next)
     assert ok_prev is True, "vlc_nav_step prev returned False"
-    assert after_prev == start, f"next+prev did not return to start: expected {start}, got {after_prev}"
+    _wait_for_item_change(TEST_PORT, mid)
+    assert _current() == start, f"next+prev did not return to start: expected {start}, got {_current()}"
 
 
 # --- vlc_advance_and_remove (discard path) ---
@@ -219,13 +221,13 @@ def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
 def test_advance_and_remove_plays_next_and_shrinks_playlist(vlc_with_playlist):
     """vlc_advance_and_remove must: play the next item, remove the old one,
     and leave VLC in a state where navigation still works."""
+    before_path = _current()
     _, xml_before = vlc_http_req(TEST_PORT, "/requests/playlist_jstree.xml", TEST_PASSWORD)
     ids_before, current_before = _parse_playlist_ids(xml_before)
     count_before = len(ids_before)
 
-    before_path = _current()
     ok = vlc_advance_and_remove(TEST_PORT, TEST_PASSWORD)
-    _wait_for_change(before_path)
+    _wait_for_item_change(TEST_PORT, before_path)
 
     _, xml_after = vlc_http_req(TEST_PORT, "/requests/playlist_jstree.xml", TEST_PASSWORD)
     ids_after, current_after = _parse_playlist_ids(xml_after)
@@ -241,12 +243,12 @@ def test_advance_and_remove_preserves_navigation(vlc_with_playlist):
     """After vlc_advance_and_remove, vlc_nav_step must still work."""
     before_remove = _current()
     vlc_advance_and_remove(TEST_PORT, TEST_PASSWORD)
-    _wait_for_change(before_remove)
+    _wait_for_item_change(TEST_PORT, before_remove)
 
     before = _current()
     ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
-    after = _wait_for_change(before)
     assert ok is True, "vlc_nav_step failed after advance_and_remove"
+    after = _wait_for_item_change(TEST_PORT, before)
     assert after != before, "nav should change video after advance_and_remove"
 
 
@@ -320,17 +322,19 @@ def vlc_repeat_one():
     yield proc, videos
     proc.kill()
     proc.wait()
+    restore_vlcrc_volume(256)
 
 
 def test_repeat_one_nav_step_changes_video_and_keeps_playing(vlc_repeat_one):
     """vlc_nav_step in repeat-one mode must change the video AND keep playing.
     This is the exact bug that --start-paused caused: VLC would load the new
     item but pause it, producing a black screen."""
-    before = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+    before = _current(REPEAT_PORT)
     ok = vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "next")
-    after = _wait_for_change(before, port=REPEAT_PORT)
-    state = get_playback_state(REPEAT_PORT, TEST_PASSWORD)
     assert ok is True
+    _wait_for_item_change(REPEAT_PORT, before)
+    after = _current(REPEAT_PORT)
+    state = get_playback_state(REPEAT_PORT, TEST_PASSWORD)
     assert after != before, f"nav_step did not change video in repeat-one mode"
     assert state == "playing", f"VLC must be playing after nav (state={state})"
 
@@ -342,9 +346,10 @@ def test_repeat_one_nav_plays_after_every_transition(vlc_repeat_one):
     time.sleep(0.5)
 
     for i in range(3):
-        before = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+        before = _current(REPEAT_PORT)
         vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "next")
-        after = _wait_for_change(before, port=REPEAT_PORT)
+        _wait_for_item_change(REPEAT_PORT, before)
+        after = _current(REPEAT_PORT)
         state = get_playback_state(REPEAT_PORT, TEST_PASSWORD)
         assert after != before, f"nav #{i+1}: video did not change"
         assert state == "playing", f"nav #{i+1}: VLC not playing (state={state})"
@@ -355,11 +360,11 @@ def test_repeat_one_prev_reverses_next(vlc_repeat_one):
     vlc_http_cmd(REPEAT_PORT, "pl_play", TEST_PASSWORD)
     time.sleep(0.5)
 
-    start = get_current_file_path(REPEAT_PORT, TEST_PASSWORD)
+    start = _current(REPEAT_PORT)
     assert start, "precondition: VLC must have a current file"
 
     pos = start
     for direction in ("next", "next", "prev", "prev"):
         vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, direction)
-        pos = _wait_for_change(pos, port=REPEAT_PORT)
+        pos = _wait_for_item_change(REPEAT_PORT, pos)
     assert pos == start, f"two prevs should return to start: expected {start}, got {pos}"
