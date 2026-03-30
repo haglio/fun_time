@@ -119,7 +119,7 @@ def compute_dashboard_preview_layout(
     mfp_preview_aspect = 0.67
     mfp_h = max(40, int(mfp_area_h * 0.92))
     mfp_w = min(mfp_max_w, round(mfp_h * mfp_preview_aspect))
-    status_strip_w = max(mfp_w, status_chip_size * 3 + status_chip_gap * 2 + 8)
+    status_strip_w = max(mfp_w, status_chip_size * 2 + status_chip_gap + 8)
     left_column_nudge = 2
     status_strip_x = main_inner_x + (left_strip_w - status_strip_w) // 2 - left_column_nudge
     mfp_x = main_inner_x + (left_strip_w - mfp_w) // 2 - left_column_nudge
@@ -140,7 +140,7 @@ def compute_dashboard_preview_layout(
     primary_button_y = primary_y + (primary_h - 22) // 2
     landscape_button_y = landscape_y + (main_inner_h - 22) // 2
     landscape_stack_y = landscape_y + (main_inner_h - 36) // 2
-    status_row_x = status_strip_x + (status_strip_w - (status_chip_size * 3 + status_chip_gap * 2)) // 2
+    status_row_x = status_strip_x + (status_strip_w - (status_chip_size * 2 + status_chip_gap)) // 2
 
     dashboard_w = secondary_x + right_w + outer_pad
     dashboard_h = max(preview_bottom, osr2_y + osr2_h, link_y + 18) + bottom_pad
