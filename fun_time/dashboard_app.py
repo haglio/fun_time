@@ -147,6 +147,7 @@ class DashboardScene:
     rects: tuple[DashboardRectItem, ...]
     texts: tuple[DashboardTextItem, ...]
     actions: tuple[tuple[str, Rect], ...]
+    hover_texts: tuple[tuple[Rect, str], ...] = ()
     lines: tuple[DashboardLineItem, ...] = ()
     ovals: tuple[DashboardOvalItem, ...] = ()
     arcs: tuple[DashboardArcItem, ...] = ()
@@ -472,6 +473,11 @@ def build_dashboard_scene(
         height=layout.dashboard_height,
         rects=rects,
         texts=texts,
+        hover_texts=(
+            (layout.broker_panel, "Broker"),
+            (layout.controller_panel, "Controller"),
+            (layout.fmode_panel, "F-Mode"),
+        ),
         lines=cable_lines,
         ovals=cable_ovals,
         arcs=cable_arcs,
@@ -579,6 +585,32 @@ def bind_dashboard_actions(canvas: tk.Canvas, scene: DashboardScene, on_action: 
         canvas.tag_bind(tag, "<Button-1>", lambda _event, action=action_id: on_action(action))
 
 
+def bind_dashboard_hover_texts(canvas: tk.Canvas, scene: DashboardScene) -> None:
+    tooltip_id: list[int | None] = [None]
+
+    def _show(event: object, text: str) -> None:
+        _hide(event)
+        tooltip_id[0] = canvas.create_text(
+            event.x + 10, event.y - 10,
+            text=text, fill="#FFFFFF", font=("Segoe UI", 8, "normal"), anchor="sw",
+        )
+
+    def _hide(_event: object) -> None:
+        if tooltip_id[0] is not None:
+            canvas.delete(tooltip_id[0])
+            tooltip_id[0] = None
+
+    for rect, text in scene.hover_texts:
+        tag = f"hover:{id(rect)}"
+        canvas.create_rectangle(
+            rect.x, rect.y,
+            rect.x + rect.width, rect.y + rect.height,
+            outline="", fill="", tags=(tag,),
+        )
+        canvas.tag_bind(tag, "<Enter>", lambda e, t=text: _show(e, t))
+        canvas.tag_bind(tag, "<Leave>", _hide)
+
+
 PRESS_FLASH_S = 0.2
 
 
@@ -623,6 +655,7 @@ def build_dashboard_window(
         apply_dashboard_window_geometry(root, snapshot, scene, launch_geometry=launch_geometry)
         render_dashboard_scene(canvas, scene)
         bind_dashboard_actions(canvas, scene, _on_action)
+        bind_dashboard_hover_texts(canvas, scene)
 
     def _on_action(action_id: str) -> None:
         _pressed[action_id] = time.monotonic()
