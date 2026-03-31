@@ -272,6 +272,7 @@ def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
         mfp_width_ratio=float(m["layout"]["mfp_width_ratio"]),
         mfp_height_ratio=float(m["layout"]["mfp_height_ratio"]),
         left_partition_top_ratio=float(m["layout"].get("left_partition_top_ratio", "0.0")),
+        left_partition_bottom_ratio=float(m["layout"].get("left_partition_bottom_ratio", "0.0")),
     )
 
 
