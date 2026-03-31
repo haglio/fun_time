@@ -188,13 +188,22 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
 
 
 def is_process_alive(pid: int) -> bool:
+    """Check whether *pid* refers to a running process.
+
+    Uses OpenProcess on Windows because os.kill(pid, 0) raises
+    WinError 87 (ERROR_INVALID_PARAMETER) for valid PIDs on
+    Python 3.14 / Windows 11.
+    """
     if pid <= 0:
         return False
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    return True
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    handle = ctypes.windll.kernel32.OpenProcess(
+        PROCESS_QUERY_LIMITED_INFORMATION, False, pid,
+    )
+    if handle:
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
+    return False
 
 
 def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, app_config: DashboardAppConfig, *, mfp_pid: int = 0) -> DashboardSnapshot:
@@ -746,30 +755,10 @@ def build_dashboard_window(
 
     threading.Thread(target=_press_listener, daemon=True, name="press-listener").start()
 
-    _diag_log = app_config.dashboard_state_file.parent / "dashboard_diag.log"
-    _diag_count = 0
-
     def refresh() -> None:
-        nonlocal _diag_count
         snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
         if snapshot is not None:
             snapshot = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=mfp_pid)
-        # Diagnostic: log the three MFP conditions every ~5 seconds (10 cycles)
-        _diag_count += 1
-        if snapshot is not None and _diag_count % 10 == 1:
-            broker_ok = is_broker_heartbeat_fresh(app_config.broker_heartbeat_file)
-            try:
-                import time as _t
-                _diag_log.write_text(
-                    f"mfp_pid={mfp_pid} mfp_alive={snapshot.mfp_alive} "
-                    f"primary_responsive={snapshot.primary_responsive} "
-                    f"broker_running={broker_ok} "
-                    f"heartbeat_file={app_config.broker_heartbeat_file} "
-                    f"ts={_t.time():.0f}\n",
-                    encoding="utf-8",
-                )
-            except OSError:
-                pass
         _do_render(snapshot, _compute_pressed())
         root.after(500, refresh)
 
