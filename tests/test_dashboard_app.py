@@ -19,12 +19,14 @@ from fun_time.dashboard_app import (
     DashboardLaunchGeometry,
     DashboardLineItem,
     DashboardOvalItem,
+    VlcHydration,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
     build_dashboard_window,
     hydrate_dashboard_snapshot,
     lighten_color,
     load_dashboard_app_config,
+    poll_vlc,
     resolve_logical_monitor_sizes,
     write_dashboard_command,
 )
@@ -371,12 +373,9 @@ def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
     assert fills[preview_layout.mfp_panel] == COLOR_ACTIVE
 
 
-def test_hydrate_sets_mfp_alive_true_for_current_process(cfg_path: Path, tmp_path: Path):
+def test_hydrate_sets_mfp_alive_true_for_current_process():
     """hydrate_dashboard_snapshot must set mfp_alive=True when given a valid PID."""
     import os
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
-    app_config = load_dashboard_app_config(manifest_path)
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
@@ -390,16 +389,13 @@ def test_hydrate_sets_mfp_alive_true_for_current_process(cfg_path: Path, tmp_pat
         landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(111, 222, 333, 444),
     )
-    # Use our own PID — guaranteed to be alive
-    hydrated = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=os.getpid())
+    vlc = VlcHydration()
+    hydrated = hydrate_dashboard_snapshot(snapshot, vlc, mfp_pid=os.getpid())
     assert hydrated.mfp_alive is True, f"is_process_alive({os.getpid()}) returned False"
 
 
-def test_hydrate_sets_mfp_alive_false_for_zero_pid(cfg_path: Path, tmp_path: Path):
+def test_hydrate_sets_mfp_alive_false_for_zero_pid():
     """hydrate_dashboard_snapshot with mfp_pid=0 must set mfp_alive=False."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
-    app_config = load_dashboard_app_config(manifest_path)
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
@@ -413,8 +409,8 @@ def test_hydrate_sets_mfp_alive_false_for_zero_pid(cfg_path: Path, tmp_path: Pat
         landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(111, 222, 333, 444),
     )
-    # mfp_pid=0 → mfp_alive must be False regardless of snapshot
-    hydrated = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=0)
+    vlc = VlcHydration()
+    hydrated = hydrate_dashboard_snapshot(snapshot, vlc, mfp_pid=0)
     assert hydrated.mfp_alive is False
 
 
@@ -467,10 +463,7 @@ def test_dashboard_window_has_standard_decorations(cfg_path: Path):
         root.destroy()
 
 
-def test_dashboard_app_hydrates_live_vlc_state(cfg_path: Path):
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
-    app_config = load_dashboard_app_config(manifest_path)
+def test_dashboard_app_hydrates_live_vlc_state():
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
@@ -484,19 +477,54 @@ def test_dashboard_app_hydrates_live_vlc_state(cfg_path: Path):
         landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(1, 2, 3, 4),
     )
+    vlc = VlcHydration(
+        primary_path="primary.mp4",
+        portrait_path="portrait.mp4",
+        landscape_path="landscape.mp4",
+        primary_responsive=True,
+    )
 
-    with (
-        patch("fun_time.dashboard_app.get_current_file_path", side_effect=["primary.mp4", "portrait.mp4", "landscape.mp4"]),
-        patch("fun_time.dashboard_app.vlc_http_req", return_value=(200, "<state>playing</state>")),
-        patch("fun_time.dashboard_app.is_process_alive", return_value=False),
-    ):
-        hydrated = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=123)
+    with patch("fun_time.dashboard_app.is_process_alive", return_value=False):
+        hydrated = hydrate_dashboard_snapshot(snapshot, vlc, mfp_pid=123)
 
     assert hydrated.primary.path == "primary.mp4"
     assert hydrated.portrait.path == "portrait.mp4"
     assert hydrated.landscape.path == "landscape.mp4"
     assert hydrated.primary_responsive is True
     assert hydrated.mfp_alive is False
+
+
+def test_poll_vlc_returns_vlc_hydration(cfg_path: Path, tmp_path: Path):
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
+    app_config = load_dashboard_app_config(manifest_path)
+
+    with (
+        patch("fun_time.dashboard_app.get_current_file_path", side_effect=["p.mp4", "po.mp4", "l.mp4"]),
+        patch("fun_time.dashboard_app.vlc_http_req", return_value=(200, "<state>playing</state>")),
+    ):
+        result = poll_vlc(app_config)
+
+    assert isinstance(result, VlcHydration)
+    assert result.primary_path == "p.mp4"
+    assert result.portrait_path == "po.mp4"
+    assert result.landscape_path == "l.mp4"
+    assert result.primary_responsive is True
+
+
+def test_poll_vlc_marks_unresponsive_on_vlc_failure(cfg_path: Path, tmp_path: Path):
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
+    app_config = load_dashboard_app_config(manifest_path)
+
+    with (
+        patch("fun_time.dashboard_app.get_current_file_path", return_value=""),
+        patch("fun_time.dashboard_app.vlc_http_req", return_value=(0, "")),
+    ):
+        result = poll_vlc(app_config)
+
+    assert result.primary_responsive is False
+    assert result.primary_path == ""
 
 
 def test_dashboard_scene_has_quit_and_omnipause_actions(cfg_path: Path):
