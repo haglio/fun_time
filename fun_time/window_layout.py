@@ -126,11 +126,13 @@ def compute_left_partition_stack(
 ) -> tuple[WindowRect, WindowRect]:
     landscape_width = int(main_monitor.width * clamp01(layout_config.landscape_width_ratio))
     left_width = main_monitor.width - landscape_width
+    top_margin = int(main_monitor.height * clamp01(layout_config.left_partition_top_ratio))
     dashboard_outer_h = dashboard_size.height + dashboard_chrome_height
-    gap_y = (main_monitor.height - dashboard_outer_h - mfp_size.height) // 3
+    usable_height = main_monitor.height - top_margin
+    gap_y = (usable_height - dashboard_outer_h - mfp_size.height) // 3
     dashboard = WindowRect(
         x=main_monitor.x + (left_width - dashboard_size.width) // 2,
-        y=main_monitor.y + gap_y,
+        y=main_monitor.y + top_margin + gap_y,
         width=dashboard_size.width,
         height=dashboard_size.height,
     )
