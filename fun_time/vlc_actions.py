@@ -209,25 +209,44 @@ def vlc_nav_step(port: int, password: str, direction: str) -> bool:
     more than a few seconds in).  The target item is resolved from the
     live playlist and played directly by ID.
 
+    Returns True only if the item actually changed — pl_play&id can be
+    silently ignored by VLC when jstree IDs are stale (e.g. after a
+    playlist wrap).  Retries once with fresh IDs if the first attempt
+    produces no change within 2 seconds.
+
     direction: "prev" or "next"
     """
-    status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
-    if status != 200 or not xml:
-        return False
-    all_ids, current_id = _parse_playlist_ids(xml)
-    if not all_ids or current_id < 0 or current_id not in all_ids:
-        logger.warning("vlc_nav_step: could not resolve playlist position (ids=%s current=%s)", all_ids, current_id)
-        return False
-    idx = all_ids.index(current_id)
-    if direction == "prev":
-        target_id = all_ids[(idx - 1) % len(all_ids)]
-    else:
-        target_id = all_ids[(idx + 1) % len(all_ids)]
-    logger.info(
-        "vlc_nav_step port=%s dir=%s playlist_len=%d idx=%d/%d current_id=%d target_id=%d",
-        port, direction, len(all_ids), idx, len(all_ids) - 1, current_id, target_id,
-    )
-    return vlc_http_cmd(port, f"pl_play&id={target_id}", password)
+    for attempt in range(2):
+        status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
+        if status != 200 or not xml:
+            return False
+        all_ids, current_id = _parse_playlist_ids(xml)
+        if not all_ids or current_id < 0 or current_id not in all_ids:
+            logger.warning("vlc_nav_step: could not resolve playlist position (ids=%s current=%s)", all_ids, current_id)
+            return False
+        idx = all_ids.index(current_id)
+        if direction == "prev":
+            target_id = all_ids[(idx - 1) % len(all_ids)]
+        else:
+            target_id = all_ids[(idx + 1) % len(all_ids)]
+        logger.info(
+            "vlc_nav_step port=%s dir=%s attempt=%d playlist_len=%d idx=%d/%d current_id=%d target_id=%d",
+            port, direction, attempt, len(all_ids), idx, len(all_ids) - 1, current_id, target_id,
+        )
+        current_path = get_current_file_path(port, password)
+        if not vlc_http_cmd(port, f"pl_play&id={target_id}", password):
+            return False
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if get_current_file_path(port, password) != current_path:
+                return True
+            time.sleep(0.05)
+        logger.warning(
+            "vlc_nav_step: no item change after pl_play&id=%d (attempt %d), %s",
+            target_id, attempt, "retrying with fresh jstree" if attempt == 0 else "giving up",
+        )
+        time.sleep(0.1)
+    return False
 
 
 def vlc_advance_and_remove(
