@@ -93,18 +93,10 @@ def shuffle_paths(paths: list[str], *, rng: random.Random | None = None) -> list
     return result
 
 
-def build_primary_playlist_paths(
-    primary_sources: str,
-    f_mode: bool,
-    *,
-    all_video_sources: str = "",
-    rng: random.Random | None = None,
-) -> list[str]:
+def build_primary_playlist_paths(primary_sources: str, f_mode: bool, *, rng: random.Random | None = None) -> list[str]:
+    files = collect_video_files(primary_sources)
     if not f_mode:
-        files = collect_video_files(primary_sources)
         return shuffle_paths(files, rng=rng)
-    sources = all_video_sources or primary_sources
-    files = collect_video_files(sources)
     filtered = [full_path for full_path in files if has_matching_funscript(full_path)]
     return shuffle_paths(filtered, rng=rng)
 
@@ -138,8 +130,7 @@ def build_fmode_playlists(
     enabled: bool,
     rng: random.Random | None = None,
 ) -> FModePlaylistPlan:
-    all_sources = "|".join(filter(None, [primary_sources, portrait_sources, landscape_sources]))
-    primary_paths = build_primary_playlist_paths(primary_sources, enabled, all_video_sources=all_sources, rng=rng)
+    primary_paths = build_primary_playlist_paths(primary_sources, enabled, rng=rng)
     portrait_paths = build_satellite_playlist_paths(portrait_sources, enabled, favs_file, rng=rng)
     landscape_paths = build_satellite_playlist_paths(landscape_sources, enabled, favs_file, rng=rng)
 
