@@ -742,10 +742,30 @@ def build_dashboard_window(
 
     threading.Thread(target=_press_listener, daemon=True, name="press-listener").start()
 
+    _diag_log = app_config.dashboard_state_file.parent / "dashboard_diag.log"
+    _diag_count = 0
+
     def refresh() -> None:
+        nonlocal _diag_count
         snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
         if snapshot is not None:
             snapshot = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=mfp_pid)
+        # Diagnostic: log the three MFP conditions every ~5 seconds (10 cycles)
+        _diag_count += 1
+        if snapshot is not None and _diag_count % 10 == 1:
+            broker_ok = is_broker_heartbeat_fresh(app_config.broker_heartbeat_file)
+            try:
+                import time as _t
+                _diag_log.write_text(
+                    f"mfp_pid={mfp_pid} mfp_alive={snapshot.mfp_alive} "
+                    f"primary_responsive={snapshot.primary_responsive} "
+                    f"broker_running={broker_ok} "
+                    f"heartbeat_file={app_config.broker_heartbeat_file} "
+                    f"ts={_t.time():.0f}\n",
+                    encoding="utf-8",
+                )
+            except OSError:
+                pass
         _do_render(snapshot, _compute_pressed())
         root.after(500, refresh)
 
