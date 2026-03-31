@@ -8,7 +8,7 @@ How it works:
 - At launch, it picks a random subset of 10 bookmark URLs.
 - It launches the project-local shortcut `Blair Chrome.lnk`.
 - It waits for the new Chrome window, sizes it to the full left third of the secondary monitor, and leaves MFP on top.
-- `Ctrl+Alt+Q` does not close Chrome windows opened this way.
+- `Ctrl+Alt+Q` closes the RFB Chrome window gracefully (sends WM_CLOSE to the captured hwnd).
 
 Current setup:
 
