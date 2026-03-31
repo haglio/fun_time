@@ -61,7 +61,6 @@ COLOR_PANEL = "#2A3038"
 COLOR_TEXT = "#F4F7FA"
 COLOR_CABLE = "#A0A8B4"
 COLOR_CABLE_DIM = "#505860"
-COLOR_ACTIVE = "#1F6F52"
 COLOR_ACTIVE_ALT = "#2C8A65"
 COLOR_OSR2 = "#8A2C6A"
 COLOR_DISABLED = "#6C1F1F"
@@ -389,7 +388,7 @@ def build_dashboard_scene(
             osr2_fill = COLOR_ACTIVE_ALT
         else:
             osr2_fill = COLOR_PANEL
-        mfp_fill = COLOR_ACTIVE if mfp_connected else COLOR_DISABLED
+        mfp_fill = COLOR_ACTIVE_ALT if mfp_connected else COLOR_DISABLED
         broker_fill = COLOR_ACTIVE_ALT if broker_running else COLOR_DISABLED
         fmode_fill = COLOR_ACTIVE_ALT if snapshot.f_mode_enabled else COLOR_PANEL
         portrait_lock_fill = COLOR_ACTIVE_ALT if snapshot.portrait.locked else COLOR_PANEL
