@@ -80,9 +80,13 @@ def write_heartbeat(path: Path, logger: logging.Logger) -> None:
         logger.exception("Failed to write broker heartbeat %s", path)
 
 
-def heartbeat_loop(path: Path, stop_event: threading.Event, logger: logging.Logger, sleep=time.sleep) -> None:
+def heartbeat_loop(
+    path: Path, stop_event: threading.Event, logger: logging.Logger,
+    sleep=time.sleep, connected: threading.Event | None = None,
+) -> None:
     while not stop_event.is_set():
-        write_heartbeat(path, logger)
+        if connected is None or connected.is_set():
+            write_heartbeat(path, logger)
         sleep(0.5)
 
 
@@ -140,10 +144,13 @@ def main(argv: list[str] | None = None) -> int:
 
     write_mode(state_file, "0", logger)
 
+    connected = threading.Event()
+    session.connected_event = connected
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     heartbeat_thread = start_daemon_thread(
         target=heartbeat_loop,
         args=(heartbeat_file, stop_event, logger),
+        kwargs={"connected": connected},
         name="broker-heartbeat",
     )
     logger.info("Starting broker: %s <-> %s", args.virtual_port, args.real_port)

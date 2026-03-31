@@ -844,7 +844,7 @@ def test_osr2_highlights_green_when_funscript_playing(cfg_path: Path):
 def test_osr2_auto_mode_stays_pink_even_with_funscript(cfg_path: Path):
     config = load_config(cfg_path)
     layout = compute_dashboard_preview_layout(
-        Size(2560, 1392), Size(1440, 3440), config.controller.layout,
+        Size(2560, 1392), Size(1440, 3440), config.layout,
     )
     primary_root = config.paths.primary_vlc_dirs[0]
     primary_root.mkdir(parents=True, exist_ok=True)
