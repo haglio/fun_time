@@ -152,6 +152,7 @@ def compute_dashboard_preview_layout(
     portrait_button_y = portrait_y + (portrait_h - 22) // 2
     portrait_stack_y = portrait_y + (portrait_h - 36) // 2
     primary_button_y = primary_y + (primary_h - 22) // 2
+    primary_center_y = primary_y + (primary_h - 16) // 2 + 8
     landscape_button_y = landscape_y + (main_inner_h - 22) // 2
     landscape_stack_y = landscape_y + (main_inner_h - 36) // 2
 
@@ -175,11 +176,11 @@ def compute_dashboard_preview_layout(
         portrait_lock=Rect(right_inner_x + (right_inner_w - 30) // 2, portrait_stack_y + 20, 30, 16),
         primary_prev=Rect(right_inner_x + 6, primary_button_y, 18, 22),
         primary_next=Rect(right_inner_x + right_inner_w - 24, primary_button_y, 18, 22),
-        quarter_button=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_y + (primary_h - 16) // 2, 28, 16),
-        open_file_dialog=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_y + (primary_h - 16) // 2, 28, 16),
-        clipper_save=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_y + (primary_h - 16) // 2 + 20, 28, 16),
-        vlc_nudge_prev=Rect(right_inner_x + (right_inner_w - 44) // 2, primary_y + (primary_h - 16) // 2 - 20, 20, 16),
-        vlc_nudge_next=Rect(right_inner_x + (right_inner_w - 44) // 2 + 24, primary_y + (primary_h - 16) // 2 - 20, 20, 16),
+        quarter_button=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_center_y, 28, 16),
+        open_file_dialog=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_center_y, 28, 16),
+        clipper_save=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_center_y + 20, 28, 16),
+        vlc_nudge_prev=Rect(right_inner_x + (right_inner_w - 44) // 2, primary_center_y - 20, 20, 16),
+        vlc_nudge_next=Rect(right_inner_x + (right_inner_w - 44) // 2 + 24, primary_center_y - 20, 20, 16),
         landscape_prev=Rect(landscape_x + 6, landscape_button_y, 18, 22),
         landscape_next=Rect(landscape_x + landscape_w - 24, landscape_button_y, 18, 22),
         landscape_trash=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y, 30, 16),
