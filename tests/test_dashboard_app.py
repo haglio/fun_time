@@ -447,6 +447,47 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
     assert fills[preview_layout.mfp_panel] == COLOR_RED
 
 
+def test_dashboard_launch_geometry_precedes_update_idletasks(cfg_path: Path):
+    """Regression: geometry must be applied before update_idletasks() so the
+    window never flashes at a default position during startup."""
+    import tkinter as tk
+
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    events: list[str] = []
+    orig_geo = tk.Wm.wm_geometry
+    orig_update = tk.Misc.update_idletasks
+
+    def spy_geometry(self, newGeometry=None):
+        if newGeometry is not None:
+            events.append("geometry")
+        return orig_geo(self, newGeometry)
+
+    def spy_update(self):
+        events.append("update_idletasks")
+        return orig_update(self)
+
+    with (
+        patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))),
+        patch.object(tk.Wm, "geometry", spy_geometry),
+        patch.object(tk.Misc, "update_idletasks", spy_update),
+    ):
+        root = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        first_update = events.index("update_idletasks")
+        geo_before = [i for i, e in enumerate(events) if e == "geometry" and i < first_update]
+        assert geo_before, (
+            f"geometry() must be called before first update_idletasks(); "
+            f"call log: {events}"
+        )
+    finally:
+        root.destroy()
+
+
 def test_dashboard_window_decorations_and_taskbar(cfg_path: Path):
     import ctypes
 
