@@ -18,6 +18,7 @@ from fun_time.config import LayoutConfig
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.vlc_actions import get_current_file_path, vlc_http_req
 from fun_time.dashboard_actions import (
+    BROKER_PANEL,
     CLIPPER_SAVE,
     LANDSCAPE_LOCK,
     LANDSCAPE_NEXT,
@@ -399,7 +400,7 @@ def build_dashboard_scene(
         DashboardRectItem(layout.landscape_next, fill=_press_fill(COLOR_PANEL, LANDSCAPE_NEXT)),
         DashboardRectItem(layout.landscape_lock, fill=_press_fill(landscape_lock_fill, LANDSCAPE_LOCK)),
         DashboardRectItem(layout.landscape_trash, fill=_press_fill(COLOR_PANEL, LANDSCAPE_TRASH)),
-        DashboardRectItem(layout.broker_panel, fill=broker_fill),
+        DashboardRectItem(layout.broker_panel, fill=_press_fill(broker_fill, BROKER_PANEL)),
         DashboardRectItem(layout.fmode_panel, fill=_press_fill(fmode_fill, FMODE_PANEL)),
     )
     texts = (
@@ -506,6 +507,8 @@ def build_dashboard_scene(
         rects=rects,
         texts=texts,
         hover_texts=(
+            (layout.quit_button, "Quit"),
+            (layout.omnipause_button, "Pause all"),
             (layout.broker_panel, "Broker"),
             (layout.fmode_panel, "F-Mode"),
         ),
@@ -535,6 +538,7 @@ def build_dashboard_scene(
             (LANDSCAPE_LOCK, layout.landscape_lock),
             (LANDSCAPE_TRASH, layout.landscape_trash),
             (LINK_TOGGLE, layout.link_toggle),
+            (BROKER_PANEL, layout.broker_panel),
             (FMODE_PANEL, layout.fmode_panel),
         ),
     )

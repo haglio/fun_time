@@ -529,7 +529,7 @@ def test_dashboard_scene_has_quit_and_omnipause_actions(cfg_path: Path):
     assert "fmode_panel" in action_ids
 
 
-def test_dashboard_scene_quit_and_omnipause_buttons_are_above_main_monitor(cfg_path: Path):
+def test_dashboard_scene_quit_and_omnipause_buttons_are_inside_status_strip(cfg_path: Path):
     config = load_config(cfg_path)
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
@@ -537,9 +537,23 @@ def test_dashboard_scene_quit_and_omnipause_buttons_are_above_main_monitor(cfg_p
         config.controller.layout,
     )
 
-    assert preview_layout.quit_button.y + preview_layout.quit_button.height <= preview_layout.main_monitor.y
-    assert preview_layout.omnipause_button.y + preview_layout.omnipause_button.height <= preview_layout.main_monitor.y
-    assert preview_layout.quit_button.x < preview_layout.omnipause_button.x
+    strip = preview_layout.main_status_strip
+    quit_b = preview_layout.quit_button
+    omni_b = preview_layout.omnipause_button
+
+    # Both buttons must be fully contained within the status strip
+    assert quit_b.x >= strip.x
+    assert quit_b.y >= strip.y
+    assert quit_b.x + quit_b.width <= strip.x + strip.width
+    assert quit_b.y + quit_b.height <= strip.y + strip.height
+    assert omni_b.x >= strip.x
+    assert omni_b.y >= strip.y
+    assert omni_b.x + omni_b.width <= strip.x + strip.width
+    assert omni_b.y + omni_b.height <= strip.y + strip.height
+    # Quit is left of omnipause
+    assert quit_b.x < omni_b.x
+    # Buttons are above the chip row (broker/fmode)
+    assert quit_b.y + quit_b.height <= preview_layout.broker_panel.y
 
 
 def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_path: Path):
