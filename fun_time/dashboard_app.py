@@ -664,10 +664,20 @@ def build_dashboard_window(
     preview_layout = compute_dashboard_preview_layout(main_monitor, secondary_monitor, app_config.layout)
 
     root = tk.Tk()
-    root.title("Fun Time Dashboard")
+    root.title("Fun Time")
+    root.iconbitmap(str(Path(__file__).resolve().parent.parent / "icon.ico"))
     root.configure(bg=COLOR_BG)
     root.resizable(False, False)
     root.attributes("-topmost", True)
+
+    # Remove minimize/maximize/close buttons, keep title bar.
+    root.update_idletasks()
+    _hwnd = int(root.frame(), 16)
+    _style = ctypes.windll.user32.GetWindowLongW(_hwnd, -16)  # GWL_STYLE
+    ctypes.windll.user32.SetWindowLongW(_hwnd, -16, _style & ~0x00080000)  # ~WS_SYSMENU
+    ctypes.windll.user32.SetWindowPos(
+        _hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0020,  # NOSIZE|NOMOVE|NOZORDER|FRAMECHANGED
+    )
     canvas = tk.Canvas(root, bg=COLOR_BG, highlightthickness=0, bd=0)
     canvas.pack()
 
