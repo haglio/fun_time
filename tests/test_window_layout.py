@@ -62,6 +62,25 @@ def test_compute_left_partition_stack_centers_dashboard_above_mfp(cfg_path: Path
     assert mfp.y == 752
 
 
+def test_compute_left_partition_stack_equal_visual_gaps_with_chrome(cfg_path: Path):
+    config = load_config(cfg_path)
+    chrome_h = 31  # typical Windows title bar + border
+
+    dashboard, mfp = compute_left_partition_stack(
+        main_monitor=MonitorRect(0, 0, 2560, 1392),
+        layout_config=config.controller.layout,
+        dashboard_size=Size(321, 266),
+        mfp_size=Size(240, 395),
+        dashboard_chrome_height=chrome_h,
+    )
+
+    gap_top = dashboard.y
+    gap_mid = mfp.y - (dashboard.y + dashboard.height + chrome_h)
+    gap_bot = 1392 - (mfp.y + mfp.height)
+    assert abs(gap_top - gap_mid) <= 1
+    assert abs(gap_top - gap_bot) <= 1
+
+
 def test_compute_dashboard_size_matches_preview_layout(cfg_path: Path):
     config = load_config(cfg_path)
 

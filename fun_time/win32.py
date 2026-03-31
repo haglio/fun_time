@@ -86,6 +86,19 @@ def wait_for_window(pid: int, timeout_s: float = 15.0) -> int:
     return 0
 
 
+def get_captioned_window_chrome_height() -> int:
+    """Return vertical non-client height for a captioned, non-resizable window.
+
+    Queries SM_CYCAPTION (title bar) and SM_CYFIXEDFRAME (dialog border) so
+    the layout engine can account for Tkinter window decorations.
+    """
+    SM_CYCAPTION = 4
+    SM_CYFIXEDFRAME = 8
+    caption = _user32.GetSystemMetrics(SM_CYCAPTION)
+    frame = _user32.GetSystemMetrics(SM_CYFIXEDFRAME)
+    return caption + 2 * frame
+
+
 def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = True) -> None:
     """Restore and reposition a window (WinRestore + WinMove equivalent).
 
