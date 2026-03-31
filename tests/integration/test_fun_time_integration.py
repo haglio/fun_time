@@ -44,8 +44,8 @@ def _read_vlc_config_from_manifest(session: FunTimeIntegrationSession) -> tuple[
     parser = configparser.ConfigParser()
     parser.optionxform = str
     parser.read(str(manifest_path), encoding="utf-8")
-    port = int(parser["controller"]["primary_vlc_port"])
-    password = parser["controller"]["vlc_pass"]
+    port = int(parser["vlc"]["primary_vlc_port"])
+    password = parser["vlc"]["vlc_pass"]
     return port, password
 
 
