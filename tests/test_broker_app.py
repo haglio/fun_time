@@ -95,3 +95,41 @@ def test_write_heartbeat_persists_current_timestamp(tmp_path: Path, broker_app_m
         broker_app_module.write_heartbeat(heartbeat_file, logger)
 
     assert heartbeat_file.read_text(encoding="utf-8") == "123.45"
+
+
+def test_heartbeat_loop_skips_write_when_connected_event_is_clear(tmp_path: Path, broker_app_module):
+    """Heartbeat must NOT be written while the serial session is disconnected."""
+    import threading
+    heartbeat_file = tmp_path / "broker_heartbeat.txt"
+    stop = threading.Event()
+    connected = threading.Event()
+    # connected is NOT set — simulates serial disconnection
+    ticks = []
+
+    def fake_sleep(s):
+        ticks.append(s)
+        if len(ticks) >= 3:
+            stop.set()
+
+    logger = logging.getLogger("test.broker")
+    broker_app_module.heartbeat_loop(heartbeat_file, stop, logger, sleep=fake_sleep, connected=connected)
+    assert not heartbeat_file.exists(), "heartbeat must not be written while disconnected"
+
+
+def test_heartbeat_loop_writes_when_connected_event_is_set(tmp_path: Path, broker_app_module):
+    """Heartbeat must be written while the serial session is connected."""
+    import threading
+    heartbeat_file = tmp_path / "broker_heartbeat.txt"
+    stop = threading.Event()
+    connected = threading.Event()
+    connected.set()
+    ticks = []
+
+    def fake_sleep(s):
+        ticks.append(s)
+        if len(ticks) >= 1:
+            stop.set()
+
+    logger = logging.getLogger("test.broker")
+    broker_app_module.heartbeat_loop(heartbeat_file, stop, logger, sleep=fake_sleep, connected=connected)
+    assert heartbeat_file.exists(), "heartbeat must be written while connected"
