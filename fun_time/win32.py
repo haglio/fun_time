@@ -97,16 +97,19 @@ def wait_for_window(pid: int, timeout_s: float = 15.0) -> int:
 
 
 def get_captioned_window_chrome_height() -> int:
-    """Return vertical non-client height for a captioned, non-resizable window.
+    """Return vertical non-client height for a Tkinter captioned window.
 
-    Queries SM_CYCAPTION (title bar) and SM_CYFIXEDFRAME (dialog border) so
-    the layout engine can account for Tkinter window decorations.
+    Tkinter uses WS_THICKFRAME even when resizable(False, False), so the
+    border metric is SM_CYFRAME + SM_CXPADDEDBORDER per side, not
+    SM_CYFIXEDFRAME.
     """
     SM_CYCAPTION = 4
-    SM_CYFIXEDFRAME = 8
+    SM_CYFRAME = 33
+    SM_CXPADDEDBORDER = 92
     caption = _user32.GetSystemMetrics(SM_CYCAPTION)
-    frame = _user32.GetSystemMetrics(SM_CYFIXEDFRAME)
-    return caption + 2 * frame
+    frame = _user32.GetSystemMetrics(SM_CYFRAME)
+    padded = _user32.GetSystemMetrics(SM_CXPADDEDBORDER)
+    return caption + 2 * (frame + padded)
 
 
 def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = True) -> None:
