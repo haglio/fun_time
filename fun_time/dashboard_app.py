@@ -705,10 +705,13 @@ def build_dashboard_window(
     root.attributes("-topmost", True)
 
     # Remove minimize/maximize/close buttons, keep title bar.
+    # Hide from taskbar via WS_EX_TOOLWINDOW (window is always-on-top, no need for taskbar entry).
     root.update_idletasks()
     _hwnd = int(root.frame(), 16)
     _style = ctypes.windll.user32.GetWindowLongW(_hwnd, -16)  # GWL_STYLE
     ctypes.windll.user32.SetWindowLongW(_hwnd, -16, _style & ~0x00080000)  # ~WS_SYSMENU
+    _ex = ctypes.windll.user32.GetWindowLongW(_hwnd, -20)  # GWL_EXSTYLE
+    ctypes.windll.user32.SetWindowLongW(_hwnd, -20, (_ex | 0x00000080) & ~0x00040000)  # +TOOLWINDOW -APPWINDOW
     ctypes.windll.user32.SetWindowPos(
         _hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0020,  # NOSIZE|NOMOVE|NOZORDER|FRAMECHANGED
     )
