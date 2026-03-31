@@ -74,11 +74,10 @@ class LayoutConfig:
 
 
 @dataclass(frozen=True)
-class ControllerConfig:
+class VlcConfig:
     primary_vlc_http_port: int
     vlc2_http_port: int
     vlc3_http_port: int
-    layout: LayoutConfig
 
 
 @dataclass(frozen=True)
@@ -128,7 +127,8 @@ class ProjectConfig:
     project_dir: Path
     config_path: Path
     paths: PathsConfig
-    controller: ControllerConfig
+    vlc: VlcConfig
+    layout: LayoutConfig
     broker: BrokerConfig
     robot_hand: RobotHandConfig
     audio_companion: AudioCompanionConfig
@@ -235,26 +235,24 @@ def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> Layout
     main_monitor = layout_raw.get("main_monitor")
     secondary_monitor = layout_raw.get("secondary_monitor")
     if main_monitor is None:
-        raise ValueError(f"Missing required config value: config.controller.layout.main_monitor (in {source_path})")
+        raise ValueError(f"Missing required config value: config.layout.main_monitor (in {source_path})")
     if secondary_monitor is None:
-        raise ValueError(f"Missing required config value: config.controller.layout.secondary_monitor (in {source_path})")
+        raise ValueError(f"Missing required config value: config.layout.secondary_monitor (in {source_path})")
     return LayoutConfig(
         main_monitor=int(main_monitor),
         secondary_monitor=int(secondary_monitor),
-        primary_top_ratio=_require_typed_value(layout_raw, "primary_top_ratio", source_path, "config.controller.layout", float),
-        landscape_width_ratio=_require_typed_value(layout_raw, "landscape_width_ratio", source_path, "config.controller.layout", float),
-        mfp_width_ratio=_require_typed_value(layout_raw, "mfp_width_ratio", source_path, "config.controller.layout", float),
-        mfp_height_ratio=_require_typed_value(layout_raw, "mfp_height_ratio", source_path, "config.controller.layout", float),
+        primary_top_ratio=_require_typed_value(layout_raw, "primary_top_ratio", source_path, "config.layout", float),
+        landscape_width_ratio=_require_typed_value(layout_raw, "landscape_width_ratio", source_path, "config.layout", float),
+        mfp_width_ratio=_require_typed_value(layout_raw, "mfp_width_ratio", source_path, "config.layout", float),
+        mfp_height_ratio=_require_typed_value(layout_raw, "mfp_height_ratio", source_path, "config.layout", float),
     )
 
 
-def _load_controller_config(controller_raw: dict[str, Any], source_path: Path) -> ControllerConfig:
-    layout_raw = _require_dict(controller_raw, "layout", source_path, "config.controller")
-    return ControllerConfig(
-        primary_vlc_http_port=_require_typed_value(controller_raw, "primary_vlc_http_port", source_path, "config.controller", int),
-        vlc2_http_port=_require_typed_value(controller_raw, "vlc2_http_port", source_path, "config.controller", int),
-        vlc3_http_port=_require_typed_value(controller_raw, "vlc3_http_port", source_path, "config.controller", int),
-        layout=_load_layout_config(layout_raw, source_path),
+def _load_vlc_config(vlc_raw: dict[str, Any], source_path: Path) -> VlcConfig:
+    return VlcConfig(
+        primary_vlc_http_port=_require_typed_value(vlc_raw, "primary_vlc_http_port", source_path, "config.vlc", int),
+        vlc2_http_port=_require_typed_value(vlc_raw, "vlc2_http_port", source_path, "config.vlc", int),
+        vlc3_http_port=_require_typed_value(vlc_raw, "vlc3_http_port", source_path, "config.vlc", int),
     )
 
 
@@ -314,7 +312,8 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         raw: dict[str, Any] = json.load(fp)
 
     paths_raw = _require_dict(raw, "paths", path)
-    controller_raw = _require_dict(raw, "controller", path)
+    vlc_raw = _require_dict(raw, "vlc", path)
+    layout_raw = _require_dict(raw, "layout", path)
     broker_raw = _require_dict(raw, "broker", path)
     robot_raw = _require_dict(raw, "robot_hand", path)
     audio_raw = _require_dict(raw, "audio_companion", path)
@@ -326,7 +325,8 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         project_dir=PROJECT_DIR,
         config_path=path,
         paths=_load_paths_config(paths_raw, path),
-        controller=_load_controller_config(controller_raw, path),
+        vlc=_load_vlc_config(vlc_raw, path),
+        layout=_load_layout_config(layout_raw, path),
         broker=_load_broker_config(broker_raw, path),
         robot_hand=_load_robot_hand_config(robot_raw, path),
         audio_companion=_load_audio_companion_config(audio_raw, path),

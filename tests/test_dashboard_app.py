@@ -33,7 +33,7 @@ from fun_time.dashboard_layout import DashboardPreviewLayout, Size, compute_dash
 from fun_time import load_config
 
 
-def test_dashboard_app_loads_layout_from_controller_manifest(cfg_path: Path, tmp_path: Path):
+def test_dashboard_app_loads_layout_from_manifest(cfg_path: Path, tmp_path: Path):
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
 
@@ -41,12 +41,12 @@ def test_dashboard_app_loads_layout_from_controller_manifest(cfg_path: Path, tmp
 
     assert app_config.layout.main_monitor == 1
     assert app_config.layout.secondary_monitor == 2
-    assert app_config.layout.landscape_width_ratio == config.controller.layout.landscape_width_ratio
+    assert app_config.layout.landscape_width_ratio == config.layout.landscape_width_ratio
     assert app_config.primary_sources == "|".join(str(path) for path in config.paths.primary_vlc_dirs)
     assert app_config.favs_file == config.paths.favs_file
-    assert app_config.primary_vlc_port == config.controller.primary_vlc_http_port
-    assert app_config.portrait_vlc_port == config.controller.vlc2_http_port
-    assert app_config.landscape_vlc_port == config.controller.vlc3_http_port
+    assert app_config.primary_vlc_port == config.vlc.primary_vlc_http_port
+    assert app_config.portrait_vlc_port == config.vlc.vlc2_http_port
+    assert app_config.landscape_vlc_port == config.vlc.vlc3_http_port
     assert app_config.vlc_password == "vlc-pass"
     assert app_config.dashboard_state_file == config.paths.state_dir / "dashboard_state.ini"
     assert app_config.dashboard_cmd_file == config.paths.state_dir / "dashboard_cmd.txt"
@@ -58,7 +58,7 @@ def test_dashboard_highlights_primary_for_ai_video_with_funscript(cfg_path: Path
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     ai_root = config.paths.portrait_dirs[0]
     ai_root.mkdir(parents=True, exist_ok=True)
@@ -111,7 +111,7 @@ def test_dashboard_app_builds_scene_from_preview_layout(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
 
     scene = build_dashboard_scene(preview_layout)
@@ -127,7 +127,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     primary_root = config.paths.primary_vlc_dirs[0]
     primary_root.mkdir(parents=True, exist_ok=True)
@@ -185,7 +185,7 @@ def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
@@ -221,7 +221,7 @@ def test_osr2_non_auto_uses_panel_color(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
@@ -248,7 +248,7 @@ def test_quarter_button_uses_osr2_pink_when_robot_hand(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
@@ -290,7 +290,7 @@ def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path:
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     scene = build_dashboard_scene(preview_layout)
     snapshot = DashboardSnapshot(
@@ -325,7 +325,7 @@ def test_dashboard_window_geometry_prefers_launch_geometry_when_provided(cfg_pat
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     scene = build_dashboard_scene(preview_layout)
 
@@ -356,7 +356,7 @@ def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
@@ -437,7 +437,7 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
@@ -518,7 +518,7 @@ def test_dashboard_scene_has_quit_and_omnipause_actions(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
 
     scene = build_dashboard_scene(preview_layout)
@@ -534,7 +534,7 @@ def test_dashboard_scene_quit_and_omnipause_buttons_are_inside_status_strip(cfg_
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
 
     strip = preview_layout.main_status_strip
@@ -561,7 +561,7 @@ def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_p
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
@@ -591,7 +591,7 @@ def test_dashboard_scene_vlc_panel_labels_are_top_justified(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
 
     scene = build_dashboard_scene(preview_layout)
@@ -608,7 +608,7 @@ def test_dashboard_scene_omnipause_button_shows_play_icon_when_paused(cfg_path: 
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
@@ -647,7 +647,7 @@ def test_dashboard_scene_lock_buttons_use_icon(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
 
     scene = build_dashboard_scene(preview_layout)
@@ -666,7 +666,7 @@ def test_dashboard_scene_trash_buttons_use_icon(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
 
     scene = build_dashboard_scene(preview_layout)
@@ -685,7 +685,7 @@ def test_dashboard_scene_trash_buttons_are_not_yellow(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
 
     scene = build_dashboard_scene(preview_layout)
@@ -702,7 +702,7 @@ def test_dashboard_scene_pressed_button_has_lighter_fill(cfg_path: Path):
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
 
     scene_normal = build_dashboard_scene(preview_layout)
@@ -737,7 +737,7 @@ def _make_layout(cfg_path: Path) -> DashboardPreviewLayout:
     return compute_dashboard_preview_layout(
         Size(2560, 1392),
         Size(1440, 3440),
-        config.controller.layout,
+        config.layout,
     )
 
 
@@ -829,7 +829,7 @@ def test_dashboard_scene_default_cable_connected_without_snapshot(cfg_path: Path
 def test_osr2_highlights_green_when_funscript_playing(cfg_path: Path):
     config = load_config(cfg_path)
     layout = compute_dashboard_preview_layout(
-        Size(2560, 1392), Size(1440, 3440), config.controller.layout,
+        Size(2560, 1392), Size(1440, 3440), config.layout,
     )
     primary_root = config.paths.primary_vlc_dirs[0]
     primary_root.mkdir(parents=True, exist_ok=True)
@@ -902,7 +902,7 @@ def test_active_chips_and_locks_use_same_green_as_favs(cfg_path: Path):
     import time as _time
     config = load_config(cfg_path)
     layout = compute_dashboard_preview_layout(
-        Size(2560, 1392), Size(1440, 3440), config.controller.layout,
+        Size(2560, 1392), Size(1440, 3440), config.layout,
     )
     heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
@@ -937,7 +937,7 @@ def test_mfp_and_osr2_labels_are_top_justified(cfg_path: Path):
 def test_osr2_controlled_with_funscript_shows_funscript_control(cfg_path: Path):
     config = load_config(cfg_path)
     layout = compute_dashboard_preview_layout(
-        Size(2560, 1392), Size(1440, 3440), config.controller.layout,
+        Size(2560, 1392), Size(1440, 3440), config.layout,
     )
     primary_root = config.paths.primary_vlc_dirs[0]
     primary_root.mkdir(parents=True, exist_ok=True)
@@ -1001,7 +1001,7 @@ def test_portrait_label_is_split_across_two_lines(cfg_path: Path):
 def test_mfp_label_has_no_connection_status_text(cfg_path: Path):
     config = load_config(cfg_path)
     layout = compute_dashboard_preview_layout(
-        Size(2560, 1392), Size(1440, 3440), config.controller.layout,
+        Size(2560, 1392), Size(1440, 3440), config.layout,
     )
     heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
@@ -1079,7 +1079,7 @@ def test_default_scene_shows_vlc_buttons(cfg_path: Path):
 
 
 def test_vlc_buttons_text_labels(cfg_path: Path):
-    """File dialog button shows folder icon, clipper shows [], nudge shows - and +."""
+    """File dialog button shows folder icon, clipper shows [ ], nudge shows - and +."""
     layout = _make_layout(cfg_path)
     snapshot = _make_snapshot(primary_uses_robot_hand=False)
 

@@ -86,7 +86,7 @@ class TestRequireDir:
 
 
 # ---------------------------------------------------------------------------
-# controller manifest
+# windows bridge manifest
 # ---------------------------------------------------------------------------
 
 class TestControllerManifest:
@@ -98,13 +98,13 @@ class TestControllerManifest:
     def test_vlc_pass_is_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, "mysecret")
-        assert result["controller"]["vlc_pass"] == "mysecret"
+        assert result["vlc"]["vlc_pass"] == "mysecret"
 
     def test_vlc_ports_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["controller"]["vlc2_port"] == "8091"
-        assert result["controller"]["vlc3_port"] == "8092"
+        assert result["vlc"]["vlc2_port"] == "8091"
+        assert result["vlc"]["vlc3_port"] == "8092"
         assert result["layout"]["main_monitor"] == "1"
         assert result["layout"]["secondary_monitor"] == "2"
 
@@ -215,7 +215,7 @@ class TestControllerManifest:
 
         assert manifest_path.name == WINDOWS_BRIDGE_MANIFEST_FILENAME
         assert parser["runtime"]["project_dir"] == str(cfg.project_dir)
-        assert parser["controller"]["vlc_pass"] == "pw"
+        assert parser["vlc"]["vlc_pass"] == "pw"
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
         assert "windows_bridge_lock_module" not in parser["modules"]
@@ -385,7 +385,7 @@ class TestBrokerHelpers:
         tray_probe.assert_called_once_with()
         starter.assert_not_called()
 
-    def test_main_ensures_mfp_serial_port_before_broker_and_controller(self, cfg_path: Path):
+    def test_main_ensures_mfp_serial_port_before_broker_and_bridge(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
@@ -448,7 +448,7 @@ class TestRunController:
              patch("fun_time.orchestrator.secrets.token_hex", return_value="abc123"):
             assert resolve_vlc_http_password() == "fun_time_abc123"
 
-    def test_uses_manifest_path_for_controller_launch(self, cfg_path: Path):
+    def test_uses_manifest_path_for_bridge_launch(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
