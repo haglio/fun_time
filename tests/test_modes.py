@@ -184,68 +184,28 @@ def test_build_satellite_playlist_paths_returns_all_when_f_mode_false(tmp_path: 
     assert len(paths) == 2
 
 
-def test_build_primary_playlist_paths_includes_ai_sources_in_f_mode(tmp_path: Path):
-    """F-mode primary playlist should include AI videos with funscripts."""
+def test_build_primary_playlist_paths_includes_funscripted_ai_subdir_in_f_mode(tmp_path: Path):
+    """F-mode primary playlist should include AI videos with funscripts that live
+    inside the primary source tree (non_AI/actually_AI_but_funscripted/)."""
     primary_root = tmp_path / "videos" / "videos" / "2D" / "non_AI"
-    ai_root = tmp_path / "videos" / "videos" / "2D" / "AI" / "2_outbox" / "upscaled_by_orientation" / "portrait"
-    primary_root.mkdir(parents=True)
-    ai_root.mkdir(parents=True)
-    non_ai_video = primary_root / "non_ai_clip.mp4"
-    ai_video = ai_root / "ai_clip.mp4"
+    non_ai_video = primary_root / "clip.mp4"
+    ai_video = primary_root / "actually_AI_but_funscripted" / "portrait" / "funscripted_ai_clip.mp4"
+    non_ai_video.parent.mkdir(parents=True)
+    ai_video.parent.mkdir(parents=True)
     non_ai_video.write_text("x", encoding="utf-8")
     ai_video.write_text("x", encoding="utf-8")
-    non_ai_script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "non_AI" / "non_ai_clip.funscript"
-    ai_script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "2_outbox" / "upscaled_by_orientation" / "portrait" / "ai_clip.funscript"
+    non_ai_script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "non_AI" / "clip.funscript"
+    ai_script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "non_AI" / "actually_AI_but_funscripted" / "portrait" / "funscripted_ai_clip.funscript"
     non_ai_script.parent.mkdir(parents=True, exist_ok=True)
     ai_script.parent.mkdir(parents=True, exist_ok=True)
     non_ai_script.write_text("{}", encoding="utf-8")
     ai_script.write_text("{}", encoding="utf-8")
-    all_sources = f"{primary_root}|{ai_root}"
 
-    paths = build_primary_playlist_paths(
-        str(primary_root), True, all_video_sources=all_sources, rng=random.Random(1),
-    )
+    paths = build_primary_playlist_paths(str(primary_root), True, rng=random.Random(1))
 
     assert len(paths) == 2
     path_strs = {str(p) for p in paths}
     assert str(non_ai_video) in path_strs
     assert str(ai_video) in path_strs
-
-
-def test_build_fmode_playlists_includes_ai_funscripted_videos_in_primary(tmp_path: Path):
-    """build_fmode_playlists should put AI funscripted videos into the primary playlist."""
-    primary_root = tmp_path / "videos" / "videos" / "primary"
-    portrait_root = tmp_path / "videos" / "videos" / "portrait"
-    landscape_root = tmp_path / "videos" / "videos" / "landscape"
-    for root in (primary_root, portrait_root, landscape_root):
-        root.mkdir(parents=True)
-    primary_video = primary_root / "main.mp4"
-    portrait_video = portrait_root / "ai_portrait.mp4"
-    primary_video.write_text("x", encoding="utf-8")
-    portrait_video.write_text("x", encoding="utf-8")
-    primary_script = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "main.funscript"
-    portrait_script = tmp_path / "videos" / "scripts" / "scripts" / "portrait" / "ai_portrait.funscript"
-    primary_script.parent.mkdir(parents=True, exist_ok=True)
-    portrait_script.parent.mkdir(parents=True, exist_ok=True)
-    primary_script.write_text("{}", encoding="utf-8")
-    portrait_script.write_text("{}", encoding="utf-8")
-    favs_file = tmp_path / "favs.csv"
-    favs_file.write_text("local_file,web_url\r\n", encoding="utf-8")
-    state_dir = tmp_path / "state"
-
-    plan = build_fmode_playlists(
-        primary_sources=str(primary_root),
-        portrait_sources=str(portrait_root),
-        landscape_sources=str(landscape_root),
-        favs_file=favs_file,
-        state_dir=state_dir,
-        enabled=True,
-        rng=random.Random(1),
-    )
-
-    assert plan.primary_count == 2
-    playlist_content = (state_dir / "primary_vlc_playlist.m3u").read_text(encoding="utf-8")
-    assert str(primary_video) in playlist_content
-    assert str(portrait_video) in playlist_content
 
 
