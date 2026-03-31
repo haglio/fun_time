@@ -50,6 +50,7 @@ class BrokerSerialSession:
         self.monotonic = monotonic
         self.sleep = sleep
         self.is_retryable_error = is_retryable_error or (lambda _exc: False)
+        self.connected_event: threading.Event | None = None
         self.last_real_rx_time = 0.0
         self.poll_interval_seconds = 0.05
 
@@ -66,6 +67,8 @@ class BrokerSerialSession:
                 timeout=0.02,
             ) as real:
                 self.last_real_rx_time = 0.0
+                if self.connected_event is not None:
+                    self.connected_event.set()
                 thread_real = self.start_thread(
                     target=self.forward_real_to_virtual,
                     args=(real, virt, udp_sock, session_stop, retry_state),
@@ -86,6 +89,8 @@ class BrokerSerialSession:
             self.logger.exception("Failed to open or run serial session")
             retry_state.value = self.is_retryable_error(exc)
         finally:
+            if self.connected_event is not None:
+                self.connected_event.clear()
             session_stop.set()
             if thread_real is not None:
                 thread_real.join(timeout=1.0)
