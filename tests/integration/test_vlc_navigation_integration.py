@@ -118,13 +118,31 @@ def _wait_for_item_change(port: int, before: str, timeout: float = 5.0) -> str:
     return get_current_file_path(port, TEST_PASSWORD)
 
 
+def _wait_for_stable_current(port: int = TEST_PORT, timeout: float = 3.0) -> None:
+    """Poll until VLC's playlist_jstree reports a valid current item.
+
+    After rapid pl_next/pl_previous commands, VLC can briefly report
+    current=-1 (no current item).  vlc_nav_step depends on resolving the
+    current ID, so callers should stabilize first.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        _, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", TEST_PASSWORD)
+        _, current_id = _parse_playlist_ids(xml)
+        if current_id != -1:
+            return
+        time.sleep(0.05)
+
+
 def _next():
+    _wait_for_stable_current()
     before = _current()
     vlc_http_cmd(TEST_PORT, "pl_next", TEST_PASSWORD)
     _wait_for_item_change(TEST_PORT, before)
 
 
 def _prev():
+    _wait_for_stable_current()
     before = _current()
     vlc_http_cmd(TEST_PORT, "pl_previous", TEST_PASSWORD)
     _wait_for_item_change(TEST_PORT, before)
@@ -189,6 +207,7 @@ def test_playlist_wraps_around(vlc_with_playlist):
 
 
 def test_vlc_nav_step_next_advances_video(vlc_with_playlist):
+    _wait_for_stable_current()
     before = _current()
     ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
     assert ok is True, "vlc_nav_step returned False — check _parse_playlist_ids"
@@ -197,6 +216,7 @@ def test_vlc_nav_step_next_advances_video(vlc_with_playlist):
 
 
 def test_vlc_nav_step_prev_goes_back(vlc_with_playlist):
+    _wait_for_stable_current()
     before = _current()
     ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
     assert ok is True, "vlc_nav_step returned False — check _parse_playlist_ids"
@@ -205,6 +225,7 @@ def test_vlc_nav_step_prev_goes_back(vlc_with_playlist):
 
 
 def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
+    _wait_for_stable_current()
     start = _current()
     ok_next = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
     assert ok_next is True, "vlc_nav_step next returned False"
@@ -224,6 +245,7 @@ def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
 def test_advance_and_remove_plays_next_and_shrinks_playlist(vlc_with_playlist):
     """vlc_advance_and_remove must: play the next item, remove the old one,
     and leave VLC in a state where navigation still works."""
+    _wait_for_stable_current()
     before_path = _current()
     _, xml_before = vlc_http_req(TEST_PORT, "/requests/playlist_jstree.xml", TEST_PASSWORD)
     ids_before, current_before = _parse_playlist_ids(xml_before)
@@ -244,6 +266,7 @@ def test_advance_and_remove_plays_next_and_shrinks_playlist(vlc_with_playlist):
 
 def test_advance_and_remove_preserves_navigation(vlc_with_playlist):
     """After vlc_advance_and_remove, vlc_nav_step must still work."""
+    _wait_for_stable_current()
     before_remove = _current()
     vlc_advance_and_remove(TEST_PORT, TEST_PASSWORD)
     _wait_for_item_change(TEST_PORT, before_remove)
