@@ -243,38 +243,14 @@ def test_osr2_non_auto_uses_panel_color(cfg_path: Path):
     assert fills[preview_layout.osr2_panel] == COLOR_PANEL
 
 
-def test_quarter_button_uses_osr2_pink_when_robot_hand(cfg_path: Path):
-    config = load_config(cfg_path)
-    preview_layout = compute_dashboard_preview_layout(
-        Size(2560, 1392),
-        Size(1440, 3440),
-        config.layout,
-    )
-    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
-    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
-    heartbeat_file.write_text("100.0", encoding="utf-8")
-    snapshot = DashboardSnapshot(
-        f_mode_enabled=False,
-        robot_link_enabled=False,
-        primary_uses_robot_hand=True,
-        osr2_mode="auto",
-        mfp_alive=True,
-        primary_responsive=True,
-        omni_paused=False,
-        primary=DashboardPanelSnapshot("C:\\clips\\primary.mp4", False),
-        portrait=DashboardPanelSnapshot("C:\\clips\\portrait.mp4", False),
-        landscape=DashboardPanelSnapshot("C:\\clips\\landscape.mp4", False),
-        window=DashboardWindowSnapshot(10, 20, 300, 200),
-    )
+def test_quarter_button_uses_neutral_grey(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_robot_hand=True)
 
-    scene = build_dashboard_scene(
-        preview_layout,
-        snapshot,
-        broker_heartbeat_file=heartbeat_file,
-    )
+    scene = build_dashboard_scene(layout, snapshot)
 
     fills = {item.rect: item.fill for item in scene.rects}
-    assert fills[preview_layout.quarter_button] == COLOR_OSR2
+    assert fills[layout.quarter_button] == COLOR_PANEL
 
 
 def test_dashboard_app_writes_commands_for_click_actions(tmp_path: Path):
@@ -881,7 +857,6 @@ def test_osr2_auto_mode_stays_pink_even_with_funscript(cfg_path: Path):
 
     fills = {item.rect: item.fill for item in scene.rects}
     assert fills[layout.osr2_panel] == COLOR_OSR2, "Auto mode must stay pink even with funscript"
-    assert fills[layout.quarter_button] == COLOR_OSR2, "Robot Hand button must stay pink in auto mode"
 
 
 def test_robot_hand_label_says_robot_hand():

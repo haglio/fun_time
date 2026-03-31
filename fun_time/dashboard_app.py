@@ -397,7 +397,7 @@ def build_dashboard_scene(
         DashboardRectItem(layout.primary_prev, fill=_press_fill(COLOR_PANEL, PRIMARY_PREV)),
         DashboardRectItem(layout.primary_next, fill=_press_fill(COLOR_PANEL, PRIMARY_NEXT)),
         *(
-            (DashboardRectItem(layout.quarter_button, fill=_press_fill(osr2_fill, QUARTER_BUTTON)),)
+            (DashboardRectItem(layout.quarter_button, fill=_press_fill(COLOR_PANEL, QUARTER_BUTTON)),)
             if snapshot is not None and snapshot.primary_uses_robot_hand else (
                 DashboardRectItem(layout.vlc_nudge_prev, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_PREV)),
                 DashboardRectItem(layout.vlc_nudge_next, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_NEXT)),
