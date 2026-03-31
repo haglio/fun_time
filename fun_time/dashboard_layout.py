@@ -123,9 +123,10 @@ def compute_dashboard_preview_layout(
 
     mfp_area_y = status_strip_y + status_strip_h + panel_gap
     mfp_area_h = max(28, main_inner_h - status_strip_h - panel_gap)
-    mfp_preview_aspect = 0.67
-    mfp_h = max(28, int(mfp_area_h * 0.92))
-    mfp_w = min(mfp_max_w, round(mfp_h * mfp_preview_aspect))
+    mfp_hw_ratio = 1.5
+    mfp_h_raw = max(28, int(mfp_area_h * 0.92))
+    mfp_w = min(mfp_max_w, round(mfp_h_raw / mfp_hw_ratio))
+    mfp_h = round(mfp_w * mfp_hw_ratio)
     mfp_x = main_inner_x + (left_strip_w - mfp_w) // 2 - left_column_nudge
     mfp_y = mfp_area_y + (mfp_area_h - mfp_h) // 2
     landscape_x = main_inner_x + left_strip_w + panel_gap

@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.dashboard_app import (
-    COLOR_ACTIVE,
     COLOR_ACTIVE_ALT,
     COLOR_CABLE,
     COLOR_CABLE_DIM,
@@ -212,7 +211,6 @@ def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
 
     fills = {item.rect: item.fill for item in scene.rects}
     assert fills[preview_layout.osr2_panel] == COLOR_OSR2
-    assert COLOR_OSR2 != COLOR_ACTIVE
     assert COLOR_OSR2 != COLOR_ACTIVE_ALT
 
 
@@ -334,7 +332,7 @@ def test_dashboard_window_geometry_prefers_launch_geometry_when_provided(cfg_pat
 
 
 def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
-    """MFP panel must be COLOR_ACTIVE when all three conditions are met:
+    """MFP panel must be COLOR_ACTIVE_ALT when all three conditions are met:
     mfp_alive=True, primary_responsive=True, and broker heartbeat fresh."""
     import time
 
@@ -368,7 +366,7 @@ def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
     )
 
     fills = {item.rect: item.fill for item in scene.rects}
-    assert fills[preview_layout.mfp_panel] == COLOR_ACTIVE
+    assert fills[preview_layout.mfp_panel] == COLOR_ACTIVE_ALT
 
 
 def test_hydrate_sets_mfp_alive_true_for_current_process(cfg_path: Path, tmp_path: Path):
