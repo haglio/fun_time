@@ -70,6 +70,28 @@ def _start_broker_process_direct(config_path: str | Path) -> subprocess.Popen[by
     )
 
 
+def stop_broker_processes(project_dir: str | Path) -> None:
+    """Kill all broker and broker-tray processes without restarting."""
+    project_path = Path(project_dir)
+    ps_command = (
+        "$targets = Get-CimInstance Win32_Process | Where-Object { "
+        "(($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $_.CommandLine -match '"
+        + BROKER_PROCESS_PATTERN
+        + "') -or "
+        "(($_.Name -match '^powershell\\.exe$|^pwsh\\.exe$|^wscript\\.exe$') -and $_.CommandLine -match '"
+        + BROKER_TRAY_PATTERN
+        + "') "
+        "}; "
+        "$targets | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+    )
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
+        cwd=project_path,
+        check=False,
+        **subprocess_window_kwargs(),
+    )
+
+
 def restart_broker(project_dir: str | Path, config_path: str | Path | None = None) -> None:
     project_path = Path(project_dir)
     launch_path = project_path / "launch_broker_tray.vbs"

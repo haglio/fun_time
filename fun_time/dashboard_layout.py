@@ -97,15 +97,12 @@ def compute_dashboard_preview_layout(
     portrait_y = right_inner_y
     primary_y = right_inner_y + portrait_h + stack_gap
 
-    toolbar_button_w = 24
-    toolbar_button_h = 20
-    toolbar_gap = 6
-    toolbar_y_offset = toolbar_button_h + toolbar_gap
+    # Mini button sizes used inside the status strip schematic
+    mini_button_w = 20
+    mini_button_h = 16
+    mini_button_gap = 4
 
     main_y = portrait_y + (portrait_h - left_h) // 2
-    quit_button_x = main_x
-    omnipause_button_x = main_x + toolbar_button_w + toolbar_gap
-    toolbar_y = main_y - toolbar_y_offset
     preview_bottom = max(main_y + left_h, secondary_y + right_h, primary_y + primary_h)
 
     main_inner_x = main_x + inner_pad
@@ -116,20 +113,33 @@ def compute_dashboard_preview_layout(
     landscape_w = max(34, int(main_inner_w * clamp01(layout_config.landscape_width_ratio)))
     left_strip_w = max(52, main_inner_w - landscape_w - panel_gap)
     mfp_max_w = max(44, int(left_strip_w * clamp01(layout_config.mfp_width_ratio)))
+
+    # Status strip has two rows: (1) quit+omnipause buttons, (2) broker+fmode chips
+    strip_pad = 3
+    row_gap = 3
+    status_strip_h = strip_pad + mini_button_h + row_gap + status_chip_size + strip_pad
+    mini_buttons_total_w = mini_button_w * 2 + mini_button_gap
+    status_strip_w = max(mfp_max_w, status_chip_size * 2 + status_chip_gap + 8, mini_buttons_total_w)
+    left_column_nudge = 2
+    status_strip_x = main_inner_x + (left_strip_w - status_strip_w) // 2 - left_column_nudge
     status_strip_y = main_inner_y
-    status_strip_h = status_chip_size + 6
+
     mfp_area_y = status_strip_y + status_strip_h + panel_gap
     mfp_area_h = max(28, main_inner_h - status_strip_h - panel_gap)
     mfp_preview_aspect = 0.67
-    mfp_h = max(40, int(mfp_area_h * 0.92))
+    mfp_h = max(28, int(mfp_area_h * 0.92))
     mfp_w = min(mfp_max_w, round(mfp_h * mfp_preview_aspect))
-    status_strip_w = max(mfp_w, status_chip_size * 2 + status_chip_gap + 8)
-    left_column_nudge = 2
-    status_strip_x = main_inner_x + (left_strip_w - status_strip_w) // 2 - left_column_nudge
     mfp_x = main_inner_x + (left_strip_w - mfp_w) // 2 - left_column_nudge
     mfp_y = mfp_area_y + (mfp_area_h - mfp_h) // 2
     landscape_x = main_inner_x + left_strip_w + panel_gap
     landscape_y = main_inner_y
+
+    # Button row (row 1) inside status strip
+    btn_row_x = status_strip_x + (status_strip_w - mini_buttons_total_w) // 2
+    btn_row_y = status_strip_y + strip_pad
+    # Chip row (row 2) inside status strip
+    chip_row_y = btn_row_y + mini_button_h + row_gap
+    status_row_x = status_strip_x + (status_strip_w - (status_chip_size * 2 + status_chip_gap)) // 2
 
     osr2_w = 56
     osr2_h = 56
@@ -144,7 +154,6 @@ def compute_dashboard_preview_layout(
     primary_button_y = primary_y + (primary_h - 22) // 2
     landscape_button_y = landscape_y + (main_inner_h - 22) // 2
     landscape_stack_y = landscape_y + (main_inner_h - 36) // 2
-    status_row_x = status_strip_x + (status_strip_w - (status_chip_size * 2 + status_chip_gap)) // 2
 
     dashboard_w = secondary_x + right_w + outer_pad
     dashboard_h = max(preview_bottom, osr2_y + osr2_h, link_y + 18) + bottom_pad
@@ -177,8 +186,8 @@ def compute_dashboard_preview_layout(
         landscape_lock=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y + 20, 30, 16),
         osr2_panel=Rect(osr2_x, osr2_y, osr2_w, osr2_h),
         link_toggle=Rect(link_x, link_y, link_w, 18),
-        quit_button=Rect(quit_button_x, toolbar_y, toolbar_button_w, toolbar_button_h),
-        omnipause_button=Rect(omnipause_button_x, toolbar_y, toolbar_button_w, toolbar_button_h),
-        broker_panel=Rect(status_row_x, status_strip_y + 3, status_chip_size, status_chip_size),
-        fmode_panel=Rect(status_row_x + status_chip_size + status_chip_gap, status_strip_y + 3, status_chip_size, status_chip_size),
+        quit_button=Rect(btn_row_x, btn_row_y, mini_button_w, mini_button_h),
+        omnipause_button=Rect(btn_row_x + mini_button_w + mini_button_gap, btn_row_y, mini_button_w, mini_button_h),
+        broker_panel=Rect(status_row_x, chip_row_y, status_chip_size, status_chip_size),
+        fmode_panel=Rect(status_row_x + status_chip_size + status_chip_gap, chip_row_y, status_chip_size, status_chip_size),
     )
