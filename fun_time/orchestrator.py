@@ -209,7 +209,7 @@ def run_windows_bridge(config, logger) -> int:
     hotkey_script = config.project_dir / "windows_bridge_hotkeys.ahk"
 
     logger.info("Launching Python-orchestrated Windows bridge using config %s", config.config_path)
-    logger.info("VLC HTTP ports: portrait=%s landscape=%s", config.controller.vlc2_http_port, config.controller.vlc3_http_port)
+    logger.info("VLC HTTP ports: portrait=%s landscape=%s", config.vlc.vlc2_http_port, config.vlc.vlc3_http_port)
 
     exit_code = run_python_orchestrated_bridge(
         manifest_path=manifest_path,

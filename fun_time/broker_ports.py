@@ -214,7 +214,7 @@ def ensure_mfp_serial_port(config, logger) -> str | None:
 
 
 def ensure_mfp_vlc_endpoint(config, logger) -> str:
-    desired = f"127.0.0.1:{config.controller.primary_vlc_http_port}"
+    desired = f"127.0.0.1:{config.vlc.primary_vlc_http_port}"
     current = read_mfp_vlc_endpoint(config)
     if current == desired:
         return current

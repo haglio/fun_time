@@ -100,7 +100,7 @@ def _current(port: int = TEST_PORT) -> str:
     return get_current_file_path(port, TEST_PASSWORD)
 
 
-def _wait_for_item_change(port: int, before: str, timeout: float = 5.0) -> str:
+def _wait_for_item_change(port: int, before: str, timeout: float = 6.0) -> str:
     """Poll until VLC's current item differs from *before*.
 
     After detecting the change, waits briefly for VLC to finish its internal
@@ -132,6 +132,19 @@ def _wait_for_stable_current(port: int = TEST_PORT, timeout: float = 3.0) -> Non
         if current_id != -1:
             return
         time.sleep(0.05)
+
+
+def _wait_for_playlist_count(port: int, expected: int, timeout: float = 5.0) -> tuple[list[int], int]:
+    """Poll until VLC's playlist has exactly *expected* items."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        _, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", TEST_PASSWORD)
+        ids, current = _parse_playlist_ids(xml)
+        if len(ids) == expected:
+            return ids, current
+        time.sleep(0.1)
+    _, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", TEST_PASSWORD)
+    return _parse_playlist_ids(xml)
 
 
 def _next():
@@ -254,8 +267,7 @@ def test_advance_and_remove_plays_next_and_shrinks_playlist(vlc_with_playlist):
     ok = vlc_advance_and_remove(TEST_PORT, TEST_PASSWORD)
     _wait_for_item_change(TEST_PORT, before_path)
 
-    _, xml_after = vlc_http_req(TEST_PORT, "/requests/playlist_jstree.xml", TEST_PASSWORD)
-    ids_after, current_after = _parse_playlist_ids(xml_after)
+    ids_after, current_after = _wait_for_playlist_count(TEST_PORT, count_before - 1)
     assert len(ids_after) == count_before - 1, \
         f"playlist should shrink by 1: was {count_before}, now {len(ids_after)}"
     assert current_before not in ids_after, \

@@ -110,10 +110,10 @@ def run_startup_sequence(
         primary_sources=m["media"]["primary_vlc_sources"],
         portrait_sources=m["media"]["portrait_dirs"],
         landscape_sources=m["media"]["landscape_dirs"],
-        primary_port=int(m["controller"]["primary_vlc_port"]),
-        portrait_port=int(m["controller"]["vlc2_port"]),
-        landscape_port=int(m["controller"]["vlc3_port"]),
-        password=m["controller"]["vlc_pass"],
+        primary_port=int(m["vlc"]["primary_vlc_port"]),
+        portrait_port=int(m["vlc"]["vlc2_port"]),
+        landscape_port=int(m["vlc"]["vlc3_port"]),
+        password=m["vlc"]["vlc_pass"],
         result_file=str(core_result_file),
         hide_windows=hide_windows,
     )
@@ -212,10 +212,10 @@ def run_startup_sequence(
         progress.advance("Positioning windows...")
 
         # Restore VLC audio (muted in launch_core_apps during loading)
-        primary_port = int(m["controller"]["primary_vlc_port"])
-        portrait_port = int(m["controller"]["vlc2_port"])
-        landscape_port = int(m["controller"]["vlc3_port"])
-        password = m["controller"]["vlc_pass"]
+        primary_port = int(m["vlc"]["primary_vlc_port"])
+        portrait_port = int(m["vlc"]["vlc2_port"])
+        landscape_port = int(m["vlc"]["vlc3_port"])
+        password = m["vlc"]["vlc_pass"]
         for port in [primary_port, portrait_port, landscape_port]:
             vlc_http_cmd(port, "volume&val=256", password)
             vlc_http_cmd(port, "pl_play", password)

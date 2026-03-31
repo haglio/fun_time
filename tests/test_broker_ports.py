@@ -244,10 +244,10 @@ class TestEnsureMfpVlcEndpointEdgeCases:
         logger = logging.getLogger("test.broker")
         mfp_config = config.paths.mfp_exe.with_name("MultiFunPlayer.config.json")
         mfp_config.write_text(json.dumps({
-            "MediaSource": {"VLC": {"Endpoint": f"127.0.0.1:{config.controller.primary_vlc_http_port}"}}
+            "MediaSource": {"VLC": {"Endpoint": f"127.0.0.1:{config.vlc.primary_vlc_http_port}"}}
         }), encoding="utf-8")
         result = ensure_mfp_vlc_endpoint(config, logger)
-        assert result == f"127.0.0.1:{config.controller.primary_vlc_http_port}"
+        assert result == f"127.0.0.1:{config.vlc.primary_vlc_http_port}"
 
 
 class TestMfpConfigEdgeCases:
