@@ -703,6 +703,11 @@ def build_dashboard_window(
     root.configure(bg=COLOR_BG)
     root.resizable(False, False)
     root.attributes("-topmost", True)
+    if launch_geometry is not None:
+        root.geometry(
+            f"{launch_geometry.width}x{launch_geometry.height}"
+            f"+{launch_geometry.x}+{launch_geometry.y}"
+        )
 
     # Remove minimize/maximize/close buttons, keep title bar.
     # Hide from taskbar via WS_EX_TOOLWINDOW (window is always-on-top, no need for taskbar entry).
