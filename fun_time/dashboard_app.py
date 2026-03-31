@@ -371,11 +371,11 @@ def build_dashboard_scene(
         return lighten_color(fill) if action_id in pressed_actions else fill
 
     rects = (
-        DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
-        DashboardRectItem(layout.omnipause_button, fill=_press_fill(omnipause_fill, OMNIPAUSE_TOGGLE)),
         DashboardRectItem(layout.main_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.secondary_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.main_status_strip, fill=COLOR_PANEL),
+        DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
+        DashboardRectItem(layout.omnipause_button, fill=_press_fill(omnipause_fill, OMNIPAUSE_TOGGLE)),
         DashboardRectItem(layout.mfp_panel, fill=mfp_fill),
         DashboardRectItem(layout.landscape_panel, fill=landscape_fill),
         DashboardRectItem(layout.portrait_panel, fill=portrait_fill),
