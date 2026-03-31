@@ -855,6 +855,35 @@ def test_osr2_highlights_green_when_funscript_playing(cfg_path: Path):
     assert fills[layout.osr2_panel] == COLOR_ACTIVE_ALT
 
 
+def test_osr2_auto_mode_stays_pink_even_with_funscript(cfg_path: Path):
+    config = load_config(cfg_path)
+    layout = compute_dashboard_preview_layout(
+        Size(2560, 1392), Size(1440, 3440), config.controller.layout,
+    )
+    primary_root = config.paths.primary_vlc_dirs[0]
+    primary_root.mkdir(parents=True, exist_ok=True)
+    primary_path = primary_root / "vid.mp4"
+    primary_path.write_text("v", encoding="utf-8")
+    script_path = Path(
+        str(primary_root).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\")
+    ) / "vid.funscript"
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path.write_text("s", encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=True,
+        osr2_mode="auto", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        primary=DashboardPanelSnapshot(str(primary_path), False),
+        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.osr2_panel] == COLOR_OSR2, "Auto mode must stay pink even with funscript"
+    assert fills[layout.quarter_button] == COLOR_OSR2, "Robot Hand button must stay pink in auto mode"
+
+
 def test_robot_hand_label_says_robot_hand():
     from fun_time.dashboard_state import LABEL_PRIMARY_ROBOT
     assert LABEL_PRIMARY_ROBOT == "Robot Hand"

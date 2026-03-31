@@ -351,10 +351,10 @@ def build_dashboard_scene(
             f_mode_enabled=snapshot.f_mode_enabled,
             is_favorite=is_favorite_path(snapshot.landscape.path, favs_content),
         ) else COLOR_PANEL
-        if funscript_active:
-            osr2_fill = COLOR_ACTIVE_ALT
-        elif snapshot.osr2_mode == "auto":
+        if snapshot.osr2_mode == "auto":
             osr2_fill = COLOR_OSR2
+        elif funscript_active:
+            osr2_fill = COLOR_ACTIVE_ALT
         else:
             osr2_fill = COLOR_PANEL
         mfp_fill = COLOR_ACTIVE if mfp_connected else COLOR_DISABLED
@@ -587,7 +587,7 @@ def render_dashboard_scene(canvas: tk.Canvas, scene: DashboardScene) -> None:
             x = item.rect.x
         elif item.anchor == "n":
             y = item.rect.y + 2
-        canvas.create_text(x, y, text=item.text, fill=item.color, font=item.font, anchor=item.anchor)
+        canvas.create_text(x, y, text=item.text, fill=item.color, font=item.font, anchor=item.anchor, justify="center")
 
 
 def write_dashboard_command(path: Path, action_id: str) -> None:
