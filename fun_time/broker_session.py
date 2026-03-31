@@ -5,9 +5,6 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-def _default_port_exists(port_name: str) -> bool:
-    import serial.tools.list_ports
-    return any(p.device == port_name for p in serial.tools.list_ports.comports())
 
 
 @dataclass
@@ -55,9 +52,18 @@ class BrokerSerialSession:
         self.sleep = sleep
         self.is_retryable_error = is_retryable_error or (lambda _exc: False)
         self.connected_event: threading.Event | None = None
-        self.port_exists = _default_port_exists
         self.last_real_rx_time = 0.0
         self.poll_interval_seconds = 0.05
+
+    @staticmethod
+    def _peer_connected(port) -> bool:
+        """Check whether the peer application has the other end of the
+        virtual port pair open.  Most serial drivers (including com0com)
+        bridge DTR→DSR, so DSR low means the peer closed or never opened."""
+        try:
+            return port.dsr
+        except (OSError, AttributeError):
+            return True  # can't check → assume connected
 
     def run(self, udp_sock) -> bool:
         session_stop = threading.Event()
@@ -87,8 +93,8 @@ class BrokerSerialSession:
 
                 while not self.stop_event.is_set() and not session_stop.is_set():
                     self.sleep(self.poll_interval_seconds)
-                    if not self.port_exists(self.real_port):
-                        self.logger.warning("Real port %s disappeared, ending session", self.real_port)
+                    if not self._peer_connected(virt):
+                        self.logger.warning("Virtual port peer disconnected (DSR low), ending session")
                         retry_state.value = True
                         break
                     self.tick_command_and_stale_timeout(udp_sock)
