@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.vlc_actions import get_playback_state, get_playback_time, vlc_http_cmd
+from fun_time.vlc_actions import ensure_playback_state, get_playback_state, get_playback_time, vlc_http_cmd
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -291,8 +291,10 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     s = shared_integration_session
     port, password = _read_vlc_config_from_manifest(s)
 
-    # The previous test may have toggled omnipause, leaving VLC in a
-    # transitional state.  Wait for playback to be active before seeking.
+    # The previous test may have toggled omnipause, leaving VLC paused.
+    # Actively drive VLC into "playing" state rather than passively waiting
+    # for the orchestrator's async omnipause-leave to complete the resume.
+    ensure_playback_state(port, password, should_play=True)
     s.wait_until(
         lambda: get_playback_state(port, password) == "playing",
         timeout=10,
