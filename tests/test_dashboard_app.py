@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.dashboard_app import (
-    COLOR_ACTIVE_ALT,
+    COLOR_ACTIVE,
     COLOR_CABLE,
     COLOR_CABLE_DIM,
     COLOR_DISABLED,
@@ -93,7 +93,7 @@ def test_dashboard_highlights_primary_for_ai_video_with_funscript(cfg_path: Path
     )
 
     fills = {item.rect: item.fill for item in scene.rects}
-    assert fills[preview_layout.primary_panel] == COLOR_ACTIVE_ALT
+    assert fills[preview_layout.primary_panel] == COLOR_ACTIVE
 
 
 def test_dashboard_app_resolves_landscape_monitor_as_logical_main_even_if_ids_are_swapped():
@@ -175,8 +175,8 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     assert "Non-AI VLC" in texts
     assert "Portrait\nAI VLC" in texts
     assert not any(".mp4" in item.text for item in scene.texts)
-    assert fills[preview_layout.primary_panel] == COLOR_ACTIVE_ALT
-    assert fills[preview_layout.portrait_panel] == COLOR_ACTIVE_ALT
+    assert fills[preview_layout.primary_panel] == COLOR_ACTIVE
+    assert fills[preview_layout.portrait_panel] == COLOR_ACTIVE
     assert any(action == "portrait_lock" for action, _rect in scene.actions)
     assert any(action == "link_toggle" for action, _rect in scene.actions)
 
@@ -213,7 +213,7 @@ def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
 
     fills = {item.rect: item.fill for item in scene.rects}
     assert fills[preview_layout.osr2_panel] == COLOR_OSR2
-    assert COLOR_OSR2 != COLOR_ACTIVE_ALT
+    assert COLOR_OSR2 != COLOR_ACTIVE
 
 
 def test_osr2_non_auto_uses_panel_color(cfg_path: Path):
@@ -334,7 +334,7 @@ def test_dashboard_window_geometry_prefers_launch_geometry_when_provided(cfg_pat
 
 
 def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
-    """MFP panel must be COLOR_ACTIVE_ALT when all three conditions are met:
+    """MFP panel must be COLOR_ACTIVE when all three conditions are met:
     mfp_alive=True, primary_responsive=True, and broker heartbeat fresh."""
     import time
 
@@ -368,7 +368,7 @@ def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
     )
 
     fills = {item.rect: item.fill for item in scene.rects}
-    assert fills[preview_layout.mfp_panel] == COLOR_ACTIVE_ALT
+    assert fills[preview_layout.mfp_panel] == COLOR_ACTIVE
 
 
 def test_hydrate_sets_mfp_alive_true_for_current_process():
@@ -863,8 +863,8 @@ def test_osr2_highlights_green_when_funscript_playing(cfg_path: Path):
     scene = build_dashboard_scene(layout, snapshot)
 
     fills = {item.rect: item.fill for item in scene.rects}
-    assert fills[layout.primary_panel] == COLOR_ACTIVE_ALT
-    assert fills[layout.osr2_panel] == COLOR_ACTIVE_ALT
+    assert fills[layout.primary_panel] == COLOR_ACTIVE
+    assert fills[layout.osr2_panel] == COLOR_ACTIVE
 
 
 def test_osr2_auto_mode_stays_pink_even_with_funscript(cfg_path: Path):
@@ -929,9 +929,9 @@ def test_active_chips_and_locks_use_same_green_as_favs(cfg_path: Path):
     scene = build_dashboard_scene(layout, snapshot, broker_heartbeat_file=heartbeat_file)
 
     fills = {item.rect: item.fill for item in scene.rects}
-    assert fills[layout.broker_panel] == COLOR_ACTIVE_ALT
-    assert fills[layout.portrait_lock] == COLOR_ACTIVE_ALT
-    assert fills[layout.landscape_lock] == COLOR_ACTIVE_ALT
+    assert fills[layout.broker_panel] == COLOR_ACTIVE
+    assert fills[layout.portrait_lock] == COLOR_ACTIVE
+    assert fills[layout.landscape_lock] == COLOR_ACTIVE
 
 
 def test_mfp_and_osr2_labels_are_top_justified(cfg_path: Path):
