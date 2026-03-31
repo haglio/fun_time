@@ -10,6 +10,7 @@ from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
     _minimize_all_windows,
+    _shutdown_children,
     write_pids_file,
     run_python_orchestrated_bridge,
 )
@@ -36,6 +37,28 @@ def _fake_startup_result() -> StartupResult:
         audio_pid=700,
         layout_plan=_fake_plan(),
     )
+
+
+class TestShutdownChildren:
+    def test_closes_rfb_window(self):
+        result = StartupResult(
+            primary_pid=100, mfp_pid=200, portrait_pid=300, landscape_pid=400,
+            dashboard_pid=500, robot_hand_pid=600, audio_pid=700,
+            layout_plan=_fake_plan(), rfb_hwnd=88888,
+        )
+        with patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.close_window") as mock_close:
+            _shutdown_children(result)
+
+        mock_close.assert_called_once_with(88888)
+
+    def test_skips_rfb_close_when_no_hwnd(self):
+        result = _fake_startup_result()  # rfb_hwnd defaults to 0
+        with patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.close_window") as mock_close:
+            _shutdown_children(result)
+
+        mock_close.assert_called_once_with(0)
 
 
 class TestWritePidsFile:

@@ -23,6 +23,7 @@ from .windows_bridge_dispatch_loop import (
 from .windows_bridge_sequencer import StartupResult, run_startup_sequence
 from .win32 import (
     activate_window,
+    close_window,
     find_window_by_pid,
     get_foreground_window,
     lock_set_foreground_window,
@@ -89,6 +90,7 @@ _STARTUP_PROGRESS_STEPS = 7
 
 def _shutdown_children(result: StartupResult) -> None:
     """Kill all child processes launched during startup."""
+    close_window(result.rfb_hwnd)
     for pid in [
         result.primary_pid,
         result.mfp_pid,
