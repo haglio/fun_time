@@ -47,6 +47,16 @@ WNDENUMPROC = ctypes.WINFUNCTYPE(
 )
 
 
+WM_CLOSE = 0x0010
+
+
+def close_window(hwnd: int) -> None:
+    """Close a window gracefully by posting WM_CLOSE."""
+    if not hwnd:
+        return
+    _user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
+
+
 def find_window_by_pid(pid: int) -> int:
     """Find a visible top-level window belonging to *pid*. Returns 0 if not found.
 

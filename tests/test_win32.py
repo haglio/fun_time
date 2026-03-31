@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from fun_time.win32 import (
+    close_window,
     wait_for_window,
     move_window,
     set_always_on_top,
@@ -106,6 +107,20 @@ class TestMinimizeWindow:
         with patch("fun_time.win32._user32") as mock_user32:
             minimize_window(99999)
         mock_user32.ShowWindow.assert_called_once_with(99999, SW_MINIMIZE)
+
+
+class TestCloseWindow:
+    def test_sends_wm_close(self):
+        with patch("fun_time.win32._user32") as mock:
+            close_window(12345)
+
+        mock.PostMessageW.assert_called_once_with(12345, 0x0010, 0, 0)
+
+    def test_noop_for_zero_hwnd(self):
+        with patch("fun_time.win32._user32") as mock:
+            close_window(0)
+
+        mock.PostMessageW.assert_not_called()
 
 
 class TestConstants:
