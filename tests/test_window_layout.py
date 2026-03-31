@@ -10,6 +10,7 @@ from fun_time.window_layout import (
     compute_window_layout,
 )
 from fun_time import load_config
+from fun_time.config import LayoutConfig
 
 
 def test_compute_window_layout_uses_secondary_monitor_for_portrait_primary_and_robot_hand(cfg_path: Path):
@@ -75,6 +76,38 @@ def test_compute_left_partition_stack_equal_visual_gaps_with_chrome(cfg_path: Pa
     )
 
     gap_top = dashboard.y
+    gap_mid = mfp.y - (dashboard.y + dashboard.height + chrome_h)
+    gap_bot = 1392 - (mfp.y + mfp.height)
+    assert abs(gap_top - gap_mid) <= 1
+    assert abs(gap_top - gap_bot) <= 1
+
+
+def test_compute_left_partition_stack_respects_top_margin(cfg_path: Path):
+    config = load_config(cfg_path)
+    chrome_h = 31
+    # Use a top margin that reserves ~8% of screen for browser chrome
+    cfg = config.layout
+    margin_cfg = LayoutConfig(
+        main_monitor=cfg.main_monitor,
+        secondary_monitor=cfg.secondary_monitor,
+        primary_top_ratio=cfg.primary_top_ratio,
+        landscape_width_ratio=cfg.landscape_width_ratio,
+        mfp_width_ratio=cfg.mfp_width_ratio,
+        mfp_height_ratio=cfg.mfp_height_ratio,
+        left_partition_top_ratio=0.08,
+    )
+    dashboard, mfp = compute_left_partition_stack(
+        main_monitor=MonitorRect(0, 0, 2560, 1392),
+        layout_config=margin_cfg,
+        dashboard_size=Size(321, 266),
+        mfp_size=Size(240, 395),
+        dashboard_chrome_height=chrome_h,
+    )
+    top_margin = int(1392 * 0.08)  # 111
+    # Dashboard must start below the top margin
+    assert dashboard.y >= top_margin
+    # Three gaps within the usable area should still be equal
+    gap_top = dashboard.y - top_margin
     gap_mid = mfp.y - (dashboard.y + dashboard.height + chrome_h)
     gap_bot = 1392 - (mfp.y + mfp.height)
     assert abs(gap_top - gap_mid) <= 1
