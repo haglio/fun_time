@@ -90,3 +90,14 @@ def test_status_strip_side_margin_matches_top_margin():
     side_margin = btn.x - strip.x
     top_margin = btn.y - strip.y
     assert side_margin == top_margin
+
+
+def test_mfp_height_is_1_5x_width():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    mfp = layout.mfp_panel
+    assert mfp.height == round(mfp.width * 1.5)
