@@ -29,7 +29,6 @@ class DashboardPreviewLayout:
     dashboard_height: int
     main_monitor: Rect
     secondary_monitor: Rect
-    title: Rect
     main_status_strip: Rect
     mfp_panel: Rect
     landscape_panel: Rect
@@ -80,8 +79,6 @@ def compute_dashboard_preview_layout(
 
     inner_pad = 10
     panel_gap = 8
-    status_chip_size = 12
-    status_chip_gap = 1
     portrait_units = 7
     primary_units = 4
     stack_gap = 8
@@ -117,9 +114,9 @@ def compute_dashboard_preview_layout(
     # Status strip has two rows: (1) quit+omnipause buttons, (2) broker+fmode chips
     strip_pad = 3
     row_gap = 3
-    status_strip_h = strip_pad + mini_button_h + row_gap + status_chip_size + strip_pad
+    status_strip_h = strip_pad + mini_button_h + row_gap + mini_button_h + strip_pad
     mini_buttons_total_w = mini_button_w * 2 + mini_button_gap
-    status_strip_w = max(mfp_max_w, status_chip_size * 2 + status_chip_gap + 8, mini_buttons_total_w)
+    status_strip_w = max(mfp_max_w, mini_buttons_total_w + strip_pad * 2)
     left_column_nudge = 2
     status_strip_x = main_inner_x + (left_strip_w - status_strip_w) // 2 - left_column_nudge
     status_strip_y = main_inner_y
@@ -137,12 +134,12 @@ def compute_dashboard_preview_layout(
     # Button row (row 1) inside status strip
     btn_row_x = status_strip_x + (status_strip_w - mini_buttons_total_w) // 2
     btn_row_y = status_strip_y + strip_pad
-    # Chip row (row 2) inside status strip
+    # Chip row (row 2) inside status strip — same size as button row
     chip_row_y = btn_row_y + mini_button_h + row_gap
-    status_row_x = status_strip_x + (status_strip_w - (status_chip_size * 2 + status_chip_gap)) // 2
+    status_row_x = btn_row_x
 
-    osr2_w = 56
-    osr2_h = 56
+    osr2_w = 66
+    osr2_h = 66
     link_w = 62
     link_gap = 8
     osr2_x = secondary_x - osr2_w - link_gap - link_w - link_gap
@@ -164,7 +161,6 @@ def compute_dashboard_preview_layout(
         dashboard_height=dashboard_h,
         main_monitor=Rect(main_x, main_y, left_w, left_h),
         secondary_monitor=Rect(secondary_x, secondary_y, right_w, right_h),
-        title=Rect(outer_pad, preview_bottom - 14, 88, 12),
         main_status_strip=Rect(status_strip_x, status_strip_y, status_strip_w, status_strip_h),
         mfp_panel=Rect(mfp_x, mfp_y, mfp_w, mfp_h),
         landscape_panel=Rect(landscape_x, landscape_y, landscape_w, main_inner_h),
@@ -189,6 +185,6 @@ def compute_dashboard_preview_layout(
         link_toggle=Rect(link_x, link_y, link_w, 18),
         quit_button=Rect(btn_row_x, btn_row_y, mini_button_w, mini_button_h),
         omnipause_button=Rect(btn_row_x + mini_button_w + mini_button_gap, btn_row_y, mini_button_w, mini_button_h),
-        broker_panel=Rect(status_row_x, chip_row_y, status_chip_size, status_chip_size),
-        fmode_panel=Rect(status_row_x + status_chip_size + status_chip_gap, chip_row_y, status_chip_size, status_chip_size),
+        broker_panel=Rect(status_row_x, chip_row_y, mini_button_w, mini_button_h),
+        fmode_panel=Rect(status_row_x + mini_button_w + mini_button_gap, chip_row_y, mini_button_w, mini_button_h),
     )

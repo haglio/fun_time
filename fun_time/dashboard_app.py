@@ -421,7 +421,6 @@ def build_dashboard_scene(
     texts = (
         DashboardTextItem("\u23FB", layout.quit_button, font=("Segoe UI Symbol", 10, "bold")),
         DashboardTextItem(omnipause_icon, layout.omnipause_button, font=("Segoe UI Symbol", 10, "bold")),
-        DashboardTextItem("Fun Time", layout.title, anchor="w"),
         DashboardTextItem(mfp_label, layout.mfp_panel, anchor="n"),
         DashboardTextItem(landscape_label, layout.landscape_panel, anchor="n"),
         DashboardTextItem(portrait_label, layout.portrait_panel, anchor="n"),
