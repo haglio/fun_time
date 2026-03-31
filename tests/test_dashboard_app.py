@@ -253,6 +253,16 @@ def test_quarter_button_uses_neutral_grey(cfg_path: Path):
     assert fills[layout.quarter_button] == COLOR_PANEL
 
 
+def test_robot_hand_panel_is_pink_when_active(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_robot_hand=True)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.primary_panel] == COLOR_OSR2
+
+
 def test_dashboard_app_writes_commands_for_click_actions(tmp_path: Path):
     command_file = tmp_path / "state" / "dashboard_cmd.txt"
 
