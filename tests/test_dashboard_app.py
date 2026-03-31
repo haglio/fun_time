@@ -118,7 +118,7 @@ def test_dashboard_app_builds_scene_from_preview_layout(cfg_path: Path):
 
     assert scene.width == preview_layout.dashboard_width
     assert scene.height == preview_layout.dashboard_height
-    assert any(item.text == "Fun Time" for item in scene.texts)
+    assert not any(item.text == "Fun Time" for item in scene.texts)
     assert len(scene.lines) == 2, "Default scene should show connected cable (two halves)"
 
 

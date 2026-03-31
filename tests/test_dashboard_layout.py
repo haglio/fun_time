@@ -52,3 +52,41 @@ def test_dashboard_preview_places_osr2_and_link_in_gap_left_of_secondary_stack()
 
     assert layout.osr2_panel.x + layout.osr2_panel.width < layout.link_toggle.x
     assert layout.link_toggle.x + layout.link_toggle.width < layout.secondary_monitor.x
+
+
+def test_osr2_box_is_at_least_66_pixels():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    assert layout.osr2_panel.width >= 66
+    assert layout.osr2_panel.height >= 66
+
+
+def test_broker_fmode_chips_match_button_size():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    assert layout.broker_panel.width == layout.quit_button.width
+    assert layout.broker_panel.height == layout.quit_button.height
+    assert layout.fmode_panel.width == layout.quit_button.width
+    assert layout.fmode_panel.height == layout.quit_button.height
+
+
+def test_status_strip_side_margin_matches_top_margin():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    strip = layout.main_status_strip
+    btn = layout.quit_button
+    side_margin = btn.x - strip.x
+    top_margin = btn.y - strip.y
+    assert side_margin == top_margin
