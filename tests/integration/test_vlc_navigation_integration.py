@@ -172,17 +172,13 @@ def test_next_next_prev_prev_returns_to_start(vlc_with_playlist):
 
 def test_playlist_wraps_around(vlc_with_playlist):
     proc, videos = vlc_with_playlist
-    # Go backward from the first item — should wrap to the last
-    # First navigate to a known position
+    # Go forward through all videos — loop mode should wrap back to start
+    start = _current()
     for _ in range(len(videos)):
         _next()
-    start = _current()
-    _next()
-    after = _current()
-    # We went forward from some position; just verify it changed (wrapping works)
-    # The key test: go back should return
-    _prev()
-    assert _current() == start
+    assert _current() == start, (
+        f"After wrapping through {len(videos)} items, expected {start!r}, got {_current()!r}"
+    )
 
 
 # --- vlc_nav_step (ID-based navigation) ---
