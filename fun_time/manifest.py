@@ -64,6 +64,7 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "mfp_width_ratio": str(layout.mfp_width_ratio),
             "mfp_height_ratio": str(layout.mfp_height_ratio),
             "left_partition_top_ratio": str(layout.left_partition_top_ratio),
+            "left_partition_bottom_ratio": str(layout.left_partition_bottom_ratio),
         },
         "random_favs_browser": {
             "enabled": "1" if config.random_favs_browser.enabled else "0",
