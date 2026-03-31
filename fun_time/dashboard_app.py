@@ -347,11 +347,16 @@ def build_dashboard_scene(
             osr2_label = f"{LABEL_OSR2}\n(idle; no\nfunscript)"
         mfp_label = LABEL_MFP
         cable_connected = snapshot.robot_link_enabled
-        primary_fill = COLOR_ACTIVE_ALT if primary_panel_should_highlight(
+        if primary_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
             primary_path=snapshot.primary.path,
             has_matching_funscript=primary_funscript_exists,
-        ) else COLOR_PANEL
+        ):
+            primary_fill = COLOR_ACTIVE_ALT
+        elif snapshot.primary_uses_robot_hand:
+            primary_fill = COLOR_OSR2
+        else:
+            primary_fill = COLOR_PANEL
         portrait_fill = COLOR_ACTIVE_ALT if satellite_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
             is_favorite=is_favorite_path(snapshot.portrait.path, favs_content),
