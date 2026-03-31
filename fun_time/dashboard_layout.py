@@ -151,8 +151,8 @@ def compute_dashboard_preview_layout(
     link_x = osr2_x + osr2_w + link_gap
     portrait_button_y = portrait_y + (portrait_h - 22) // 2
     portrait_stack_y = portrait_y + (portrait_h - 36) // 2
-    primary_button_y = primary_y + (primary_h - 22) // 2
     primary_center_y = primary_y + (primary_h - 16) // 2 + 8
+    primary_button_y = primary_center_y + 8 - 11  # center 22px-tall nav buttons on 16px-tall center row
     landscape_button_y = landscape_y + (main_inner_h - 22) // 2
     landscape_stack_y = landscape_y + (main_inner_h - 36) // 2
 

@@ -1146,3 +1146,14 @@ def test_quarter_button_matches_file_dialog_y(cfg_path: Path):
     layout = _make_layout(cfg_path)
 
     assert layout.quarter_button.y == layout.open_file_dialog.y
+
+
+def test_primary_nav_buttons_centered_on_file_dialog(cfg_path: Path):
+    """< and > buttons should be vertically centered on the file dialog / quarter button row."""
+    layout = _make_layout(cfg_path)
+
+    mid_row_center = layout.open_file_dialog.y + layout.open_file_dialog.height // 2
+    prev_center = layout.primary_prev.y + layout.primary_prev.height // 2
+    next_center = layout.primary_next.y + layout.primary_next.height // 2
+    assert prev_center == mid_row_center
+    assert next_center == mid_row_center
