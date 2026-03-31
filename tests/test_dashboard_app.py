@@ -347,6 +347,91 @@ def test_dashboard_window_geometry_prefers_launch_geometry_when_provided(cfg_pat
     assert root.geometry_value == "333x444+11+22"
 
 
+def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
+    """MFP panel must be COLOR_ACTIVE when all three conditions are met:
+    mfp_alive=True, primary_responsive=True, and broker heartbeat fresh."""
+    import time
+
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392),
+        Size(1440, 3440),
+        config.controller.layout,
+    )
+    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
+    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat_file.write_text(str(time.time()), encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=True,
+        primary_uses_robot_hand=False,
+        osr2_mode="controlled",
+        mfp_alive=True,
+        primary_responsive=True,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False),
+        landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(111, 222, 333, 444),
+    )
+
+    scene = build_dashboard_scene(
+        preview_layout,
+        snapshot,
+        broker_heartbeat_file=heartbeat_file,
+    )
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[preview_layout.mfp_panel] == COLOR_ACTIVE
+
+
+def test_hydrate_sets_mfp_alive_true_for_current_process(cfg_path: Path, tmp_path: Path):
+    """hydrate_dashboard_snapshot must set mfp_alive=True when given a valid PID."""
+    import os
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
+    app_config = load_dashboard_app_config(manifest_path)
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=True,
+        primary_uses_robot_hand=False,
+        osr2_mode="controlled",
+        mfp_alive=False,  # start as False
+        primary_responsive=False,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False),
+        landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(111, 222, 333, 444),
+    )
+    # Use our own PID — guaranteed to be alive
+    hydrated = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=os.getpid())
+    assert hydrated.mfp_alive is True, f"is_process_alive({os.getpid()}) returned False"
+
+
+def test_hydrate_sets_mfp_alive_false_for_zero_pid(cfg_path: Path, tmp_path: Path):
+    """hydrate_dashboard_snapshot with mfp_pid=0 must set mfp_alive=False."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
+    app_config = load_dashboard_app_config(manifest_path)
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        robot_link_enabled=True,
+        primary_uses_robot_hand=False,
+        osr2_mode="controlled",
+        mfp_alive=True,  # start as True
+        primary_responsive=False,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False),
+        landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(111, 222, 333, 444),
+    )
+    # mfp_pid=0 → mfp_alive must be False regardless of snapshot
+    hydrated = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=0)
+    assert hydrated.mfp_alive is False
+
+
 def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale(cfg_path: Path):
     config = load_config(cfg_path)
     preview_layout = compute_dashboard_preview_layout(
