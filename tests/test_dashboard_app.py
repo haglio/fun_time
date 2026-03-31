@@ -959,7 +959,7 @@ def test_vlc_buttons_text_labels(cfg_path: Path):
 
     text_at = {item.rect: item.text for item in scene.texts}
     assert text_at[layout.open_file_dialog] == "\U0001F4C2"
-    assert text_at[layout.clipper_save] == "[]"
+    assert text_at[layout.clipper_save] == "[ ]"
     assert text_at[layout.vlc_nudge_prev] == "\u2212"  # minus sign
     assert text_at[layout.vlc_nudge_next] == "+"
 
@@ -1000,3 +1000,21 @@ def test_nudge_buttons_above_file_dialog_clipper_below(cfg_path: Path):
     assert layout.vlc_nudge_prev.y + layout.vlc_nudge_prev.height <= layout.open_file_dialog.y
     assert layout.vlc_nudge_next.y + layout.vlc_nudge_next.height <= layout.open_file_dialog.y
     assert layout.open_file_dialog.y + layout.open_file_dialog.height <= layout.clipper_save.y
+
+
+def test_nudge_buttons_clear_of_title_area(cfg_path: Path):
+    """Nudge buttons (topmost VLC buttons) must not overlap the panel label."""
+    layout = _make_layout(cfg_path)
+
+    # Title is anchored at "n" — roughly the top 14px of the panel
+    title_bottom = layout.primary_panel.y + 14
+    assert layout.vlc_nudge_prev.y >= title_bottom, (
+        f"nudge_prev.y={layout.vlc_nudge_prev.y} overlaps title_bottom={title_bottom}"
+    )
+
+
+def test_quarter_button_matches_file_dialog_y(cfg_path: Path):
+    """quarter_button and open_file_dialog should share the same y so mode switch is smooth."""
+    layout = _make_layout(cfg_path)
+
+    assert layout.quarter_button.y == layout.open_file_dialog.y
