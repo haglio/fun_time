@@ -171,3 +171,41 @@ def test_forward_virtual_to_real_skips_writes_while_auto_is_active():
 
     assert real.writes == []
     assert retry_state.value is False
+
+
+def test_session_stops_when_real_port_disappears():
+    """If the real COM port vanishes (USB unplug), the session must end
+    so the heartbeat goes stale and MFP shows red."""
+    session, _auto_mode, _logger = _build_session()
+
+    # Simulate: port exists on first check, gone on second
+    check_count = 0
+
+    def fake_port_exists(port_name):
+        nonlocal check_count
+        check_count += 1
+        return check_count <= 1  # exists first time only
+
+    session.port_exists = fake_port_exists
+
+    class FakePort:
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def read(self, n): return b""
+        def write(self, d): pass
+
+    session.serial_factory = lambda *a, **kw: FakePort()
+    session.sleep = lambda _: None
+    def _fake_start_thread(*, target, args, name):
+        t = threading.Thread(target=lambda: None, daemon=True)
+        t.start()
+        return t
+    session.start_thread = _fake_start_thread
+
+    connected = threading.Event()
+    session.connected_event = connected
+
+    should_retry = session.run(object())
+
+    assert not connected.is_set(), "connected_event must be cleared after port disappears"
+    assert should_retry is True, "session should request retry after port loss"
