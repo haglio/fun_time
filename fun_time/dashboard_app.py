@@ -171,6 +171,7 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         landscape_width_ratio=parser.getfloat("layout", "landscape_width_ratio"),
         mfp_width_ratio=parser.getfloat("layout", "mfp_width_ratio"),
         mfp_height_ratio=parser.getfloat("layout", "mfp_height_ratio"),
+        left_partition_top_ratio=parser.getfloat("layout", "left_partition_top_ratio", fallback=0.0),
     )
     return DashboardAppConfig(
         layout=layout,
