@@ -4,6 +4,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 
 
@@ -33,6 +34,8 @@ class BrokerSerialSession:
         monotonic=time.monotonic,
         sleep=time.sleep,
         is_retryable_error=None,
+        activity_rx_file: Path | None = None,
+        activity_tx_file: Path | None = None,
     ):
         self.serial_factory = serial_factory
         self.virtual_port = virtual_port
@@ -54,6 +57,11 @@ class BrokerSerialSession:
         self.connected_event: threading.Event | None = None
         self.last_real_rx_time = 0.0
         self.poll_interval_seconds = 0.05
+        self._activity_rx_file = activity_rx_file
+        self._activity_tx_file = activity_tx_file
+        self._last_rx_write: float = 0.0
+        self._last_tx_write: float = 0.0
+        self._wall_clock: Callable[[], float] = time.time
 
     @staticmethod
     def _peer_connected(port) -> bool:
@@ -114,6 +122,20 @@ class BrokerSerialSession:
 
         return retry_state.value
 
+    _ACTIVITY_WRITE_INTERVAL = 5.0
+
+    def _write_activity(self, path: Path | None, last_attr: str) -> None:
+        if path is None:
+            return
+        now = self._wall_clock()
+        if now - getattr(self, last_attr) < self._ACTIVITY_WRITE_INTERVAL:
+            return
+        setattr(self, last_attr, now)
+        try:
+            path.write_text(str(now), encoding="utf-8")
+        except OSError:
+            pass
+
     def forward_real_to_virtual(self, real, virt, udp_sock, session_stop, retry_state: SessionRetryState) -> None:
         buf = bytearray()
         while not self.stop_event.is_set() and not session_stop.is_set():
@@ -123,6 +145,7 @@ class BrokerSerialSession:
                     continue
 
                 self.last_real_rx_time = self.monotonic()
+                self._write_activity(self._activity_rx_file, "_last_rx_write")
                 virt.write(data)
 
                 buf.extend(data)
@@ -146,6 +169,7 @@ class BrokerSerialSession:
                     continue
                 if not self.auto_mode.is_active:
                     real.write(data)
+                    self._write_activity(self._activity_tx_file, "_last_tx_write")
             except Exception as exc:
                 self.logger.exception("VIRT->REAL error")
                 retry_state.value = self.is_retryable_error(exc)
