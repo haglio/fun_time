@@ -15,7 +15,9 @@ from pathlib import Path
 
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
 from .dashboard_bridge import write_dashboard_snapshot
+from .dashboard_runtime import is_broker_heartbeat_fresh
 from .runtime_flow import read_flag_file
+from .windows_bridge_startup import restart_broker, stop_broker_processes
 from .vlc_actions import send_vlc_input_command, vlc_http_cmd
 from .win32 import (
     activate_window,
@@ -197,6 +199,12 @@ class DispatchLoopRunner:
                     daemon=True,
                     name="file-dialog",
                 ).start()
+            elif cmd == "broker_panel":
+                threading.Thread(
+                    target=self._handle_broker_toggle,
+                    daemon=True,
+                    name="broker-toggle",
+                ).start()
             elif cmd == "backslash_key":
                 if self.state.robot_hand_mode:
                     self._send_press("quarter_button")
@@ -314,6 +322,15 @@ class DispatchLoopRunner:
             if hwnd:
                 set_always_on_top(hwnd, True)
 
+    def _handle_broker_toggle(self) -> None:
+        """Stop broker if running, start it if stopped."""
+        project_dir = self.config.state_dir.parent
+        heartbeat_file = self.config.broker_heartbeat_file
+        if heartbeat_file is not None and is_broker_heartbeat_fresh(heartbeat_file):
+            stop_broker_processes(project_dir)
+        else:
+            restart_broker(project_dir)
+
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows."""
         was_paused = self.state.omni_paused
@@ -390,4 +407,5 @@ def build_bridge_config_from_manifest(
         robot_hand_paused_file=Path(manifest["commands"]["robot_hand_paused_file"]),
         audio_paused_file=Path(manifest["commands"]["audio_paused_file"]),
         dashboard_state_file=Path(manifest["commands"]["dashboard_state_file"]),
+        broker_heartbeat_file=Path(manifest["commands"]["broker_heartbeat_file"]),
     )

@@ -124,6 +124,7 @@ $statusItem.Enabled = $false
 
 $actionItem = $menu.Items.Add('Start broker')
 $actionItem.add_Click({
+    $script:brokerPaused = $false
     if ((Get-BrokerStatus).IsRunning) {
         Restart-BrokerProcess
     }
@@ -136,6 +137,7 @@ $actionItem.add_Click({
 
 $pauseItem = $menu.Items.Add('Pause broker')
 $pauseItem.add_Click({
+    $script:brokerPaused = $true
     Stop-BrokerProcess
     Start-Sleep -Milliseconds 300
     Update-NotifyIcon
@@ -169,6 +171,9 @@ $notifyIcon.add_DoubleClick({
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 5000
 $timer.add_Tick({
+    if (-not $script:brokerPaused) {
+        Start-BrokerProcess
+    }
     Update-NotifyIcon
 })
 
@@ -178,6 +183,7 @@ $script:statusItem = $statusItem
 $script:actionItem = $actionItem
 $script:pauseItem = $pauseItem
 $script:trayIcon = $trayIcon
+$script:brokerPaused = $false
 
 Start-BrokerProcess
 Update-NotifyIcon
