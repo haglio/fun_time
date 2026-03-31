@@ -44,6 +44,7 @@ def compute_window_layout(
     secondary_monitor: MonitorRect,
     layout_config: LayoutConfig,
     mfp_size: Size,
+    dashboard_chrome_height: int = 0,
 ) -> WindowLayoutPlan:
     dashboard_size = compute_dashboard_size(
         main_monitor=main_monitor,
@@ -87,6 +88,7 @@ def compute_window_layout(
         layout_config=layout_config,
         dashboard_size=dashboard_size,
         mfp_size=mfp_size,
+        dashboard_chrome_height=dashboard_chrome_height,
     )
 
     return WindowLayoutPlan(
@@ -120,10 +122,12 @@ def compute_left_partition_stack(
     layout_config: LayoutConfig,
     dashboard_size: Size,
     mfp_size: Size,
+    dashboard_chrome_height: int = 0,
 ) -> tuple[WindowRect, WindowRect]:
     landscape_width = int(main_monitor.width * clamp01(layout_config.landscape_width_ratio))
     left_width = main_monitor.width - landscape_width
-    gap_y = (main_monitor.height - dashboard_size.height - mfp_size.height) // 3
+    dashboard_outer_h = dashboard_size.height + dashboard_chrome_height
+    gap_y = (main_monitor.height - dashboard_outer_h - mfp_size.height) // 3
     dashboard = WindowRect(
         x=main_monitor.x + (left_width - dashboard_size.width) // 2,
         y=main_monitor.y + gap_y,
@@ -132,7 +136,7 @@ def compute_left_partition_stack(
     )
     mfp = WindowRect(
         x=main_monitor.x + (left_width - mfp_size.width) // 2,
-        y=dashboard.y + dashboard.height + gap_y,
+        y=dashboard.y + dashboard_outer_h + gap_y,
         width=mfp_size.width,
         height=mfp_size.height,
     )

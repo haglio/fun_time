@@ -25,6 +25,7 @@ from .windows_bridge_startup import start_core_session, launch_ui_companions
 from .win32 import (
     activate_window,
     find_window_by_pid,
+    get_captioned_window_chrome_height,
     get_window_rect,
     move_window,
     set_always_on_top,
@@ -149,6 +150,7 @@ def run_startup_sequence(
         secondary_monitor=secondary_rect,
         layout_config=layout_cfg,
         mfp_size=Size(mfp_w, mfp_h),
+        dashboard_chrome_height=get_captioned_window_chrome_height(),
     )
 
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
@@ -327,6 +329,7 @@ def _position_mfp_window(
             secondary_monitor=MonitorRect(0, 0, 1, 1),  # not used for MFP
             layout_config=layout_cfg,
             mfp_size=Size(actual_w, actual_h),
+            dashboard_chrome_height=get_captioned_window_chrome_height(),
         )
 
         delta_x = plan.mfp.x - actual_x
