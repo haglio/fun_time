@@ -61,10 +61,10 @@ COLOR_PANEL = "#2A3038"
 COLOR_TEXT = "#F4F7FA"
 COLOR_CABLE = "#A0A8B4"
 COLOR_CABLE_DIM = "#505860"
-COLOR_ACTIVE = "#2C8A65"
-COLOR_OSR2 = "#8A2C6A"
-COLOR_DISABLED = "#6C1F1F"
-COLOR_WARNING = "#8A6A2C"
+COLOR_GREEN = "#2C8A65"
+COLOR_PINK = "#8A2C6A"
+COLOR_RED = "#6C1F1F"
+COLOR_YELLOW = "#8A6A2C"
 
 ICON_LOCK = "\U0001F512"
 ICON_TRASH = "\U0001F5D1"
@@ -369,30 +369,30 @@ def build_dashboard_scene(
             primary_path=snapshot.primary.path,
             has_matching_funscript=primary_funscript_exists,
         ):
-            primary_fill = COLOR_ACTIVE
+            primary_fill = COLOR_GREEN
         elif snapshot.primary_uses_robot_hand:
-            primary_fill = COLOR_OSR2
+            primary_fill = COLOR_PINK
         else:
             primary_fill = COLOR_PANEL
-        portrait_fill = COLOR_ACTIVE if satellite_panel_should_highlight(
+        portrait_fill = COLOR_GREEN if satellite_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
             is_favorite=is_favorite_path(snapshot.portrait.path, favs_content),
         ) else COLOR_PANEL
-        landscape_fill = COLOR_ACTIVE if satellite_panel_should_highlight(
+        landscape_fill = COLOR_GREEN if satellite_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
             is_favorite=is_favorite_path(snapshot.landscape.path, favs_content),
         ) else COLOR_PANEL
         if snapshot.osr2_mode == "auto":
-            osr2_fill = COLOR_OSR2
+            osr2_fill = COLOR_PINK
         elif funscript_active:
-            osr2_fill = COLOR_ACTIVE
+            osr2_fill = COLOR_GREEN
         else:
             osr2_fill = COLOR_PANEL
-        mfp_fill = COLOR_ACTIVE if mfp_connected else COLOR_DISABLED
-        broker_fill = COLOR_ACTIVE if broker_running else COLOR_DISABLED
-        fmode_fill = COLOR_ACTIVE if snapshot.f_mode_enabled else COLOR_PANEL
-        portrait_lock_fill = COLOR_ACTIVE if snapshot.portrait.locked else COLOR_PANEL
-        landscape_lock_fill = COLOR_ACTIVE if snapshot.landscape.locked else COLOR_PANEL
+        mfp_fill = COLOR_GREEN if mfp_connected else COLOR_RED
+        broker_fill = COLOR_GREEN if broker_running else COLOR_RED
+        fmode_fill = COLOR_GREEN if snapshot.f_mode_enabled else COLOR_PANEL
+        portrait_lock_fill = COLOR_GREEN if snapshot.portrait.locked else COLOR_PANEL
+        landscape_lock_fill = COLOR_GREEN if snapshot.landscape.locked else COLOR_PANEL
 
     omni_paused = snapshot is not None and snapshot.omni_paused
     omnipause_icon = "\u25B6" if omni_paused else "\u23F8"
