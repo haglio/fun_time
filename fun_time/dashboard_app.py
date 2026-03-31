@@ -423,7 +423,7 @@ def build_dashboard_scene(
                 DashboardTextItem("\u2212", layout.vlc_nudge_prev, font=("Segoe UI", 9, "bold")),
                 DashboardTextItem("+", layout.vlc_nudge_next, font=("Segoe UI", 9, "bold")),
                 DashboardTextItem("\U0001F4C2", layout.open_file_dialog, font=("Segoe UI Emoji", 9, "normal")),
-                DashboardTextItem("[]", layout.clipper_save, font=("Segoe UI", 8, "bold")),
+                DashboardTextItem("[ ]", layout.clipper_save, font=("Segoe UI", 8, "bold")),
             )
         ),
         DashboardTextItem("<", layout.landscape_prev, font=("Segoe UI", 9, "bold")),
