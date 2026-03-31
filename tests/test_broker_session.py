@@ -29,7 +29,8 @@ class FakeAutoMode:
         self.set_enabled_calls.append((sock, value))
 
 
-def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0):
+def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0,
+                    activity_rx_file=None, activity_tx_file=None):
     auto_mode = FakeAutoMode(active=auto_active)
     logger = MagicMock()
     session = BrokerSerialSession(
@@ -48,6 +49,8 @@ def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0):
         consume_command=lambda _path: None,
         read_robot_hand_enabled=lambda _path: True,
         monotonic=monotonic,
+        activity_rx_file=activity_rx_file,
+        activity_tx_file=activity_tx_file,
     )
     return session, auto_mode, logger
 
@@ -205,3 +208,81 @@ def test_session_stops_when_peer_disconnects():
 
     assert not connected.is_set(), "connected_event must be cleared after peer disconnects"
     assert should_retry is True, "session should request retry after peer disconnect"
+
+
+def test_forward_real_to_virtual_writes_activity_rx_file(tmp_path):
+    rx_file = tmp_path / "osr2_serial_rx.txt"
+    wall = [1711900000.0]
+    session, _auto_mode, _logger = _build_session(
+        monotonic=lambda: 12.5, activity_rx_file=rx_file,
+    )
+    session._wall_clock = lambda: wall[0]
+    session_stop = threading.Event()
+    retry_state = SessionRetryState()
+
+    class FakeReal:
+        def __init__(self):
+            self.in_waiting = 1
+        def read(self, _size):
+            session_stop.set()
+            return b"temp data\n"
+
+    class FakeVirt:
+        def write(self, data): pass
+
+    session.forward_real_to_virtual(FakeReal(), FakeVirt(), object(), session_stop, retry_state)
+
+    assert rx_file.exists()
+    assert float(rx_file.read_text()) == 1711900000.0
+
+
+def test_forward_virtual_to_real_writes_activity_tx_file(tmp_path):
+    tx_file = tmp_path / "osr2_serial_tx.txt"
+    wall = [1711900000.0]
+    session, _auto_mode, _logger = _build_session(
+        activity_tx_file=tx_file,
+    )
+    session._wall_clock = lambda: wall[0]
+    session_stop = threading.Event()
+    retry_state = SessionRetryState()
+
+    class FakeVirt:
+        def __init__(self):
+            self.in_waiting = 1
+        def read(self, _size):
+            session_stop.set()
+            return b"L0500\n"
+
+    class FakeReal:
+        def __init__(self):
+            self.writes = []
+        def write(self, data):
+            self.writes.append(data)
+
+    real = FakeReal()
+    session.forward_virtual_to_real(FakeVirt(), real, session_stop, retry_state)
+
+    assert real.writes == [b"L0500\n"]
+    assert tx_file.exists()
+    assert float(tx_file.read_text()) == 1711900000.0
+
+
+def test_activity_file_not_written_when_path_is_none():
+    """When no activity files are configured, forwarding still works."""
+    session, _auto_mode, _logger = _build_session(monotonic=lambda: 12.5)
+    session_stop = threading.Event()
+    retry_state = SessionRetryState()
+
+    class FakeReal:
+        def __init__(self):
+            self.in_waiting = 1
+        def read(self, _size):
+            session_stop.set()
+            return b"data\n"
+
+    class FakeVirt:
+        def write(self, data): pass
+
+    # Should not raise — activity files are optional
+    session.forward_real_to_virtual(FakeReal(), FakeVirt(), object(), session_stop, retry_state)
+    assert session.last_real_rx_time == 12.5

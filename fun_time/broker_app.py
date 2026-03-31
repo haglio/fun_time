@@ -140,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
         monotonic=time.monotonic,
         sleep=time.sleep,
         is_retryable_error=is_retryable_serial_error,
+        activity_rx_file=config.osr2_serial_rx_file,
+        activity_tx_file=config.osr2_serial_tx_file,
     )
 
     write_mode(state_file, "0", logger)
