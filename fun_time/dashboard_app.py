@@ -207,19 +207,35 @@ def is_process_alive(pid: int) -> bool:
     return False
 
 
-def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, app_config: DashboardAppConfig, *, mfp_pid: int = 0) -> DashboardSnapshot:
+@dataclass(frozen=True)
+class VlcHydration:
+    primary_path: str = ""
+    portrait_path: str = ""
+    landscape_path: str = ""
+    primary_responsive: bool = False
+
+
+def poll_vlc(app_config: DashboardAppConfig) -> VlcHydration:
     primary_path = get_current_file_path(app_config.primary_vlc_port, app_config.vlc_password)
     portrait_path = get_current_file_path(app_config.portrait_vlc_port, app_config.vlc_password)
     landscape_path = get_current_file_path(app_config.landscape_vlc_port, app_config.vlc_password)
-    primary_status, primary_xml = vlc_http_req(app_config.primary_vlc_port, "/requests/status.xml", app_config.vlc_password)
-    primary_responsive = primary_status == 200 and "<state>" in primary_xml
+    status, xml = vlc_http_req(app_config.primary_vlc_port, "/requests/status.xml", app_config.vlc_password)
+    return VlcHydration(
+        primary_path=primary_path,
+        portrait_path=portrait_path,
+        landscape_path=landscape_path,
+        primary_responsive=status == 200 and "<state>" in xml,
+    )
+
+
+def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, vlc: VlcHydration, *, mfp_pid: int = 0) -> DashboardSnapshot:
     return replace(
         snapshot,
-        primary_responsive=primary_responsive,
+        primary_responsive=vlc.primary_responsive,
         mfp_alive=is_process_alive(mfp_pid),
-        primary=replace(snapshot.primary, path=primary_path),
-        portrait=replace(snapshot.portrait, path=portrait_path),
-        landscape=replace(snapshot.landscape, path=landscape_path),
+        primary=replace(snapshot.primary, path=vlc.primary_path),
+        portrait=replace(snapshot.portrait, path=vlc.portrait_path),
+        landscape=replace(snapshot.landscape, path=vlc.landscape_path),
     )
 
 
@@ -760,10 +776,19 @@ def build_dashboard_window(
 
     threading.Thread(target=_press_listener, daemon=True, name="press-listener").start()
 
+    _vlc_cache: list[VlcHydration] = [VlcHydration()]
+
+    def _vlc_poller() -> None:
+        while True:
+            _vlc_cache[0] = poll_vlc(app_config)
+            time.sleep(0.5)
+
+    threading.Thread(target=_vlc_poller, daemon=True, name="vlc-poller").start()
+
     def refresh() -> None:
         snapshot = load_dashboard_snapshot(app_config.dashboard_state_file)
         if snapshot is not None:
-            snapshot = hydrate_dashboard_snapshot(snapshot, app_config, mfp_pid=mfp_pid)
+            snapshot = hydrate_dashboard_snapshot(snapshot, _vlc_cache[0], mfp_pid=mfp_pid)
         _do_render(snapshot, _compute_pressed())
         root.after(500, refresh)
 
