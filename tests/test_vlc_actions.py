@@ -112,6 +112,8 @@ def test_vlc_nav_step_prev_calls_pl_play_with_prev_item_id(monkeypatch):
     calls: list[str] = []
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+    # Simulate item change after pl_play fires (calls becomes non-empty)
+    monkeypatch.setattr(vlc_actions, "get_current_file_path", lambda port, pw: "C:/a.mp4" if not calls else "C:/c.mp4")
 
     result = vlc_actions.vlc_nav_step(8090, "pw", "prev")
 
@@ -124,6 +126,7 @@ def test_vlc_nav_step_next_calls_pl_play_with_next_item_id(monkeypatch):
     calls: list[str] = []
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+    monkeypatch.setattr(vlc_actions, "get_current_file_path", lambda port, pw: "C:/a.mp4" if not calls else "C:/b.mp4")
 
     result = vlc_actions.vlc_nav_step(8090, "pw", "next")
 
@@ -136,6 +139,7 @@ def test_vlc_nav_step_next_wraps_at_end(monkeypatch):
     calls: list[str] = []
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML_LAST_CURRENT))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+    monkeypatch.setattr(vlc_actions, "get_current_file_path", lambda port, pw: "C:/c.mp4" if not calls else "C:/a.mp4")
 
     result = vlc_actions.vlc_nav_step(8090, "pw", "next")
 
@@ -149,6 +153,7 @@ def test_vlc_nav_step_container_nodes_not_counted_as_items(monkeypatch):
     calls: list[str] = []
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
     monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+    monkeypatch.setattr(vlc_actions, "get_current_file_path", lambda port, pw: "C:/a.mp4" if not calls else "C:/b.mp4")
 
     vlc_actions.vlc_nav_step(8090, "pw", "next")
 
