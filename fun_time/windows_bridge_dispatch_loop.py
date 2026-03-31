@@ -391,10 +391,10 @@ def build_bridge_config_from_manifest(
 ) -> BridgeConfig:
     """Build a BridgeConfig from the windows bridge manifest INI."""
     return BridgeConfig(
-        primary_port=int(manifest["controller"]["primary_vlc_port"]),
-        portrait_port=int(manifest["controller"]["vlc2_port"]),
-        landscape_port=int(manifest["controller"]["vlc3_port"]),
-        vlc_password=manifest["controller"]["vlc_pass"],
+        primary_port=int(manifest["vlc"]["primary_vlc_port"]),
+        portrait_port=int(manifest["vlc"]["vlc2_port"]),
+        landscape_port=int(manifest["vlc"]["vlc3_port"]),
+        vlc_password=manifest["vlc"]["vlc_pass"],
         favs_file=Path(manifest["media"]["favs_file"]),
         weird_dir=Path(manifest["media"]["weird_dir"]),
         state_dir=Path(manifest["commands"]["dashboard_state_file"]).parent,

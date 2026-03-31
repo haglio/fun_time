@@ -18,7 +18,7 @@ def test_compute_window_layout_uses_secondary_monitor_for_portrait_primary_and_r
     plan = compute_window_layout(
         main_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
-        layout_config=config.controller.layout,
+        layout_config=config.layout,
         mfp_size=Size(240, 395),
     )
 
@@ -36,7 +36,7 @@ def test_compute_window_layout_uses_main_monitor_for_landscape_and_random_favs_b
     plan = compute_window_layout(
         main_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
-        layout_config=config.controller.layout,
+        layout_config=config.layout,
         mfp_size=Size(240, 395),
     )
 
@@ -51,7 +51,7 @@ def test_compute_left_partition_stack_centers_dashboard_above_mfp(cfg_path: Path
 
     dashboard, mfp = compute_left_partition_stack(
         main_monitor=MonitorRect(0, 0, 2560, 1392),
-        layout_config=config.controller.layout,
+        layout_config=config.layout,
         dashboard_size=Size(321, 266),
         mfp_size=Size(240, 395),
     )
@@ -68,7 +68,7 @@ def test_compute_left_partition_stack_equal_visual_gaps_with_chrome(cfg_path: Pa
 
     dashboard, mfp = compute_left_partition_stack(
         main_monitor=MonitorRect(0, 0, 2560, 1392),
-        layout_config=config.controller.layout,
+        layout_config=config.layout,
         dashboard_size=Size(321, 266),
         mfp_size=Size(240, 395),
         dashboard_chrome_height=chrome_h,
@@ -87,7 +87,7 @@ def test_compute_dashboard_size_matches_preview_layout(cfg_path: Path):
     size = compute_dashboard_size(
         main_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
-        layout_config=config.controller.layout,
+        layout_config=config.layout,
     )
 
     assert size == Size(321, 266)

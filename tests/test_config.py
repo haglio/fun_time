@@ -116,13 +116,16 @@ class TestLoadConfig:
         assert cfg.paths.vlc_exe == tmp_path / "vlc.exe"
         assert cfg.paths.state_dir == (tmp_path / "state").resolve()
 
-    def test_loads_controller_ports(self, cfg_path: Path):
+    def test_loads_vlc_ports(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.controller.primary_vlc_http_port == 8090
-        assert cfg.controller.vlc2_http_port == 8091
-        assert cfg.controller.vlc3_http_port == 8092
-        assert cfg.controller.layout.main_monitor == 1
-        assert cfg.controller.layout.secondary_monitor == 2
+        assert cfg.vlc.primary_vlc_http_port == 8090
+        assert cfg.vlc.vlc2_http_port == 8091
+        assert cfg.vlc.vlc3_http_port == 8092
+
+    def test_loads_layout(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.layout.main_monitor == 1
+        assert cfg.layout.secondary_monitor == 2
 
     def test_loads_broker_settings(self, cfg_path: Path):
         cfg = load_config(cfg_path)

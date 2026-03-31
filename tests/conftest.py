@@ -66,18 +66,18 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "favs_file": str(tmp_path / "favs.csv"),
             "state_dir": str(tmp_path / "state"),
         },
-        "controller": {
+        "vlc": {
             "primary_vlc_http_port": 8090,
             "vlc2_http_port": 8091,
             "vlc3_http_port": 8092,
-            "layout": {
-                "main_monitor": 1,
-                "secondary_monitor": 2,
-                "primary_top_ratio": 0.727,
-                "landscape_width_ratio": 0.666,
-                "mfp_width_ratio": 0.9,
-                "mfp_height_ratio": 0.6,
-            },
+        },
+        "layout": {
+            "main_monitor": 1,
+            "secondary_monitor": 2,
+            "primary_top_ratio": 0.727,
+            "landscape_width_ratio": 0.666,
+            "mfp_width_ratio": 0.9,
+            "mfp_height_ratio": 0.6,
         },
         "broker": {
             "virtual_port": "COM15",
