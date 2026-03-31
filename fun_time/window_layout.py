@@ -129,7 +129,7 @@ def compute_left_partition_stack(
     top_margin = int(main_monitor.height * clamp01(layout_config.left_partition_top_ratio))
     dashboard_outer_h = dashboard_size.height + dashboard_chrome_height
     usable_height = main_monitor.height - top_margin
-    gap_y = (usable_height - dashboard_outer_h - mfp_size.height) // 3
+    gap_y = (usable_height - dashboard_outer_h - mfp_size.height) // 2
     dashboard = WindowRect(
         x=main_monitor.x + (left_width - dashboard_size.width) // 2,
         y=main_monitor.y + top_margin + gap_y,

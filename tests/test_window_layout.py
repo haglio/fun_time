@@ -58,9 +58,9 @@ def test_compute_left_partition_stack_centers_dashboard_above_mfp(cfg_path: Path
     )
 
     assert dashboard.x == 267
-    assert dashboard.y == 243
+    assert dashboard.y == 365
     assert mfp.x == 308
-    assert mfp.y == 752
+    assert mfp.y == 996
 
 
 def test_compute_left_partition_stack_equal_visual_gaps_with_chrome(cfg_path: Path):
@@ -77,9 +77,7 @@ def test_compute_left_partition_stack_equal_visual_gaps_with_chrome(cfg_path: Pa
 
     gap_top = dashboard.y
     gap_mid = mfp.y - (dashboard.y + dashboard.height + chrome_h)
-    gap_bot = 1392 - (mfp.y + mfp.height)
     assert abs(gap_top - gap_mid) <= 1
-    assert abs(gap_top - gap_bot) <= 1
 
 
 def test_compute_left_partition_stack_respects_top_margin(cfg_path: Path):
@@ -106,12 +104,10 @@ def test_compute_left_partition_stack_respects_top_margin(cfg_path: Path):
     top_margin = int(1392 * 0.08)  # 111
     # Dashboard must start below the top margin
     assert dashboard.y >= top_margin
-    # Three gaps within the usable area should still be equal
+    # Top and middle gaps should be equal; MFP sits near the bottom
     gap_top = dashboard.y - top_margin
     gap_mid = mfp.y - (dashboard.y + dashboard.height + chrome_h)
-    gap_bot = 1392 - (mfp.y + mfp.height)
     assert abs(gap_top - gap_mid) <= 1
-    assert abs(gap_top - gap_bot) <= 1
 
 
 def test_compute_dashboard_size_matches_preview_layout(cfg_path: Path):
