@@ -139,6 +139,7 @@ def _build_stack(tmp_path: Path, *, enabled: bool = True):
         monotonic=clock,
         sleep=lambda _s: None,
     )
+    session.port_exists = lambda _name: True
 
     return _Stack(
         session=session,
