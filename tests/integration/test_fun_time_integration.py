@@ -295,17 +295,18 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     # transitional state.  Wait for playback to be active before seeking.
     s.wait_until(
         lambda: get_playback_state(port, password) == "playing",
-        timeout=5,
+        timeout=10,
         description="VLC to resume playing before nudge test",
     )
 
     # Seek to 30s so there's room to nudge both directions without hitting 0 or end.
-    # Retry until VLC reports a position near 30s — the seek + HTTP response can lag.
+    # Retry until VLC reports a position near 30s — the seek + HTTP response can
+    # lag significantly when the suite has multiple VLC instances running.
     vlc_http_cmd(port, "seek&val=30", password)
     result: list[float] = []
     s.wait_until(
         lambda: (t := get_playback_time(port, password)) is not None and t >= 25 and (result.append(t) or True),
-        timeout=5,
+        timeout=10,
         description="VLC to reach seek position (~30s)",
     )
     before = result[0]
@@ -314,7 +315,7 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     s.write_dashboard_command("vlc_nudge_next")
     s.wait_until(
         lambda: (t := get_playback_time(port, password)) is not None and t >= before + 7,
-        timeout=5,
+        timeout=10,
         description="VLC playback time to advance ~10s after nudge forward",
     )
     after_forward = get_playback_time(port, password)
@@ -324,7 +325,7 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     s.write_dashboard_command("vlc_nudge_prev")
     s.wait_until(
         lambda: (t := get_playback_time(port, password)) is not None and t <= after_forward - 7,
-        timeout=5,
+        timeout=10,
         description="VLC playback time to retreat ~10s after nudge backward",
     )
 

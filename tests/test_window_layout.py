@@ -86,7 +86,7 @@ def test_compute_left_partition_stack_respects_top_margin(cfg_path: Path):
     config = load_config(cfg_path)
     chrome_h = 31
     # Use a top margin that reserves ~8% of screen for browser chrome
-    cfg = config.controller.layout
+    cfg = config.layout
     margin_cfg = LayoutConfig(
         main_monitor=cfg.main_monitor,
         secondary_monitor=cfg.secondary_monitor,
