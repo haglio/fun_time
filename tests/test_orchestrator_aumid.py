@@ -26,27 +26,15 @@ def _create_lnk(path: Path) -> None:
     )
 
 
-def test_stamps_project_shortcut(tmp_path):
-    lnk = tmp_path / "Fun Time.lnk"
-    _create_lnk(lnk)
-
-    empty_dir = tmp_path / "no_pins"
-    empty_dir.mkdir()
-    with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=empty_dir):
-        stamp_shortcut_aumid(project_dir=tmp_path)
-
-    assert _read_shortcut_app_user_model_id(str(lnk)) == APP_USER_MODEL_ID
-
-
 def test_stamps_pinned_shortcut(tmp_path):
-    """If a Fun Time .lnk exists in the taskbar pin folder, stamp it too."""
+    """If a Fun Time .lnk exists in the taskbar pin folder, stamp it."""
     fake_pin_dir = tmp_path / "pins"
     fake_pin_dir.mkdir()
     lnk = fake_pin_dir / "Fun Time.lnk"
     _create_lnk(lnk)
 
     with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=fake_pin_dir):
-        stamp_shortcut_aumid(project_dir=tmp_path)
+        stamp_shortcut_aumid()
 
     assert _read_shortcut_app_user_model_id(str(lnk)) == APP_USER_MODEL_ID
 
@@ -56,7 +44,7 @@ def test_no_crash_when_no_shortcuts(tmp_path):
     empty_dir = tmp_path / "no_pins"
     empty_dir.mkdir()
     with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=empty_dir):
-        stamp_shortcut_aumid(project_dir=tmp_path)
+        stamp_shortcut_aumid()
 
 
 def test_skips_unrelated_shortcuts(tmp_path):
@@ -67,7 +55,7 @@ def test_skips_unrelated_shortcuts(tmp_path):
     _create_lnk(unrelated)
 
     with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=fake_pin_dir):
-        stamp_shortcut_aumid(project_dir=tmp_path)
+        stamp_shortcut_aumid()
 
     # Unrelated shortcut should not have been stamped
     assert _read_shortcut_app_user_model_id(str(unrelated)) is None
