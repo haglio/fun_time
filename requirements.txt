@@ -1,0 +1,10 @@
+# Runtime
+numpy
+opencv-python
+pillow
+pygame-ce
+
+# Dev
+hypothesis
+pytest
+pytest-cov
