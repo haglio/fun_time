@@ -39,7 +39,7 @@ class PygameView:
         chrome_height = _get_window_chrome_height()
         client_height = max(1, height - chrome_height)
         self.window = Window(title, size=(width, client_height))
-        self.window.position = (x, y)
+        self.window.position = (x, y + chrome_height)
         if icon_path is not None and icon_path.exists():
             try:
                 pil_icon = Image.open(str(icon_path))
