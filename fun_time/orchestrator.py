@@ -229,12 +229,13 @@ def _taskbar_pin_dir() -> Path:
     return Path(appdata) / "Microsoft" / "Internet Explorer" / "Quick Launch" / "User Pinned" / "TaskBar"
 
 
-def stamp_shortcut_aumid(*, project_dir: Path) -> None:
-    """Set AppUserModelID on Fun Time shortcuts so the taskbar groups them.
+def stamp_shortcut_aumid() -> None:
+    """Set AppUserModelID on the pinned Fun Time taskbar shortcut.
 
-    Stamps the project's own ``Fun Time.lnk`` (if present) and any matching
-    shortcut in the Windows taskbar pin folder.  Failures are logged but
-    never fatal — the app still launches, just without the open indicator.
+    Searches the Windows taskbar pin folder for shortcuts whose name
+    contains "Fun" and stamps them with the AppUserModelID.  Failures
+    are logged but never fatal — the app still launches, just without
+    the open indicator.
     """
     from .win32 import APP_USER_MODEL_ID, set_shortcut_app_user_model_id
 
@@ -242,12 +243,8 @@ def stamp_shortcut_aumid(*, project_dir: Path) -> None:
 
     candidates: list[Path] = []
 
-    # 1. Project-root shortcut
-    project_lnk = project_dir / "Fun Time.lnk"
-    if project_lnk.is_file():
-        candidates.append(project_lnk)
-
-    # 2. Pinned taskbar shortcuts whose name contains "Fun"
+    # Only stamp the pinned taskbar shortcut (outside the repo).
+    # The project's Fun Time.lnk is stamped once and committed.
     pin_dir = _taskbar_pin_dir()
     if pin_dir.is_dir():
         for lnk in pin_dir.glob("*.lnk"):
@@ -278,8 +275,7 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Loaded config from %s", config.config_path)
     ensure_runtime_files(config)
     validate_config(config)
-    if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-        stamp_shortcut_aumid(project_dir=config.project_dir)
+    stamp_shortcut_aumid()
 
     if args.check:
         logger.info("Config validation succeeded")
