@@ -710,16 +710,29 @@ def build_dashboard_window(
         )
 
     # Remove minimize/maximize/close buttons, keep title bar.
-    # Hide from taskbar via WS_EX_TOOLWINDOW (window is always-on-top, no need for taskbar entry).
+    # Show in taskbar via WS_EX_APPWINDOW so the pinned icon gets an open indicator.
     root.update_idletasks()
     _hwnd = int(root.frame(), 16)
     _style = ctypes.windll.user32.GetWindowLongW(_hwnd, -16)  # GWL_STYLE
     ctypes.windll.user32.SetWindowLongW(_hwnd, -16, _style & ~0x00080000)  # ~WS_SYSMENU
     _ex = ctypes.windll.user32.GetWindowLongW(_hwnd, -20)  # GWL_EXSTYLE
-    ctypes.windll.user32.SetWindowLongW(_hwnd, -20, (_ex | 0x00000080) & ~0x00040000)  # +TOOLWINDOW -APPWINDOW
+    ctypes.windll.user32.SetWindowLongW(_hwnd, -20, (_ex | 0x00040000) & ~0x00000080)  # +APPWINDOW -TOOLWINDOW
     ctypes.windll.user32.SetWindowPos(
         _hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0020,  # NOSIZE|NOMOVE|NOZORDER|FRAMECHANGED
     )
+
+    # Handle taskbar right-click → "Close Window": write "exit" to ahk_cmd.txt,
+    # which AHK picks up and calls ExitApp(), triggering the normal shutdown cascade.
+    _ahk_cmd_file = app_config.manifest_path.parent / "ahk_cmd.txt"
+
+    def _on_close() -> None:
+        try:
+            _ahk_cmd_file.write_text("exit", encoding="utf-8")
+        except OSError:
+            pass
+        root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", _on_close)
     canvas = tk.Canvas(root, bg=COLOR_BG, highlightthickness=0, bd=0)
     canvas.pack()
 
@@ -822,6 +835,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+
+    # Set AppUserModelID before any window creation so the taskbar can group
+    # this process's windows with the pinned "Fun Time" shortcut.
+    from .win32 import APP_USER_MODEL_ID, set_app_user_model_id
+    try:
+        set_app_user_model_id(APP_USER_MODEL_ID)
+    except OSError:
+        pass  # Non-fatal — taskbar grouping just won't work
+
     app_config = load_dashboard_app_config(Path(args.manifest_path))
     launch_geometry = None
     if None not in {args.x, args.y, args.width, args.height}:

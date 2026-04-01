@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import secrets
 import subprocess
 import sys
@@ -222,6 +223,45 @@ def run_windows_bridge(config, logger) -> int:
     return exit_code
 
 
+def _taskbar_pin_dir() -> Path:
+    """Return the Windows taskbar pinned-shortcuts folder."""
+    appdata = os.environ.get("APPDATA", "")
+    return Path(appdata) / "Microsoft" / "Internet Explorer" / "Quick Launch" / "User Pinned" / "TaskBar"
+
+
+def stamp_shortcut_aumid(*, project_dir: Path) -> None:
+    """Set AppUserModelID on Fun Time shortcuts so the taskbar groups them.
+
+    Stamps the project's own ``Fun Time.lnk`` (if present) and any matching
+    shortcut in the Windows taskbar pin folder.  Failures are logged but
+    never fatal — the app still launches, just without the open indicator.
+    """
+    from .win32 import APP_USER_MODEL_ID, set_shortcut_app_user_model_id
+
+    _log = logging.getLogger(__name__)
+
+    candidates: list[Path] = []
+
+    # 1. Project-root shortcut
+    project_lnk = project_dir / "Fun Time.lnk"
+    if project_lnk.is_file():
+        candidates.append(project_lnk)
+
+    # 2. Pinned taskbar shortcuts whose name contains "Fun"
+    pin_dir = _taskbar_pin_dir()
+    if pin_dir.is_dir():
+        for lnk in pin_dir.glob("*.lnk"):
+            if "fun" in lnk.stem.lower():
+                candidates.append(lnk)
+
+    for lnk in candidates:
+        try:
+            set_shortcut_app_user_model_id(str(lnk), APP_USER_MODEL_ID)
+            _log.info("Stamped AppUserModelID on %s", lnk)
+        except OSError as exc:
+            _log.warning("Could not stamp AppUserModelID on %s: %s", lnk, exc)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = load_config(args.config)
@@ -231,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Loaded config from %s", config.config_path)
     ensure_runtime_files(config)
     validate_config(config)
+    stamp_shortcut_aumid(project_dir=config.project_dir)
 
     if args.check:
         logger.info("Config validation succeeded")
