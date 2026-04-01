@@ -92,6 +92,56 @@ def test_status_strip_side_margin_matches_top_margin():
     assert side_margin == top_margin
 
 
+def test_rfb_box_encloses_status_strip_and_mfp():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    rfb = layout.rfb_panel
+    strip = layout.main_status_strip
+    mfp = layout.mfp_panel
+
+    # RFB box must fully enclose both sub-panels
+    assert rfb.x < strip.x
+    assert rfb.y < strip.y
+    assert rfb.x + rfb.width > strip.x + strip.width
+    assert rfb.x < mfp.x
+    assert rfb.x + rfb.width > mfp.x + mfp.width
+    assert rfb.y + rfb.height > mfp.y + mfp.height
+
+    # RFB box must match landscape panel y and height
+    assert rfb.y == layout.landscape_panel.y
+    assert rfb.height == layout.landscape_panel.height
+
+    # Side margins should be equal (status strip centered)
+    left_margin = strip.x - rfb.x
+    right_margin = (rfb.x + rfb.width) - (strip.x + strip.width)
+    assert left_margin == right_margin
+
+
+def test_primary_shadow_peeks_behind_primary_panel():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    shadow = layout.primary_shadow
+    panel = layout.primary_panel
+
+    # Shadow must be offset to the bottom-right
+    assert shadow.x > panel.x
+    assert shadow.y > panel.y
+    # Shadow must be same size as primary panel
+    assert shadow.width == panel.width
+    assert shadow.height == panel.height
+    # Bottom and right edges must peek past the primary panel
+    assert shadow.x + shadow.width > panel.x + panel.width
+    assert shadow.y + shadow.height > panel.y + panel.height
+
+
 def test_mfp_height_matches_hw_ratio():
     layout = compute_dashboard_preview_layout(
         Size(width=2560, height=1392),
