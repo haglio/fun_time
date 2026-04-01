@@ -60,7 +60,7 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
     )
 
 
-def is_osr2_device_on(path: Path, *, max_age_seconds: float = 30.0, now: float | None = None) -> bool:
+def is_osr2_device_on(path: Path, *, max_age_seconds: float = 16.0, now: float | None = None) -> bool:
     if not path.exists():
         return False
     try:
