@@ -96,7 +96,7 @@ def decode_video_to_numpy_frames(path: Path) -> list[np.ndarray]:
 
 
 def cache_dir_for_clips_folder(folder: Path) -> Path:
-    return folder / ".rhcache"
+    return folder.parent / "frames"
 
 
 def load_clip_frames(video_path: Path, cache_dir: Path) -> list[np.ndarray]:
