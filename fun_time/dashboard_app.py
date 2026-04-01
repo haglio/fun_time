@@ -800,8 +800,12 @@ class DashboardWindow(QMainWindow):
 
         # Remove minimize/maximize/close buttons via Win32, keep title bar.
         # Show in taskbar via WS_EX_APPWINDOW.
+        # The subprocess is launched with SW_HIDE (hidden_subprocess_kwargs),
+        # which PyQt6 inherits.  An explicit ShowWindow(SW_SHOW) overrides it.
         self.show()
         _hwnd = int(self.winId())
+        SW_SHOW = 5
+        ctypes.windll.user32.ShowWindow(_hwnd, SW_SHOW)
         _style = ctypes.windll.user32.GetWindowLongW(_hwnd, -16)  # GWL_STYLE
         ctypes.windll.user32.SetWindowLongW(_hwnd, -16, _style & ~0x00080000)  # ~WS_SYSMENU
         _ex = ctypes.windll.user32.GetWindowLongW(_hwnd, -20)  # GWL_EXSTYLE
