@@ -556,6 +556,119 @@ class TestDispatchLoopRunner:
             runner.tick()  # should not raise
 
 
+class TestRobotHandZOrder:
+    """Primary VLC must leave the TOPMOST z-band while Robot Hand mode is
+    active so VLC video transitions cannot bring it above Robot Hand."""
+
+    def _make_runner(self, tmp_path, **kwargs):
+        from fun_time.command_dispatch import BridgeConfig
+
+        config = BridgeConfig(
+            primary_port=9090,
+            portrait_port=9091,
+            landscape_port=9092,
+            vlc_password="test",
+            favs_file=tmp_path / "favs.txt",
+            weird_dir=tmp_path / "weird",
+            state_dir=tmp_path,
+            primary_sources="",
+            portrait_sources="",
+            landscape_sources="",
+            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
+            robot_hand_mode_file=tmp_path / "rh_mode.txt",
+            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
+            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            audio_paused_file=tmp_path / "audio_paused.txt",
+            dashboard_state_file=tmp_path / "dashboard_state.ini",
+        )
+        return DispatchLoopRunner(
+            config=config,
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            shared_state_file=tmp_path / "shared_state.ini",
+            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            primary_pid=100,
+            mfp_pid=200,
+            portrait_pid=300,
+            landscape_pid=400,
+            dashboard_pid=500,
+            dashboard_enabled=False,
+            **kwargs,
+        )
+
+    def test_robot_hand_mode_on_demotes_primary_from_topmost(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(robot_hand_mode=False)
+
+        topmost_calls = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            mock_dispatch.return_value = (BridgeState(robot_hand_mode=True), [])
+            runner._dispatch("robot_toggle")
+
+        assert (1001, False) in topmost_calls
+
+    def test_robot_hand_mode_off_restores_primary_topmost(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(robot_hand_mode=True)
+
+        topmost_calls = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            mock_dispatch.return_value = (BridgeState(robot_hand_mode=False), [])
+            runner._dispatch("robot_toggle")
+
+        assert (1001, True) in topmost_calls
+
+    def test_tick_enforces_primary_not_topmost_during_sync(self, tmp_path):
+        """Periodic sync must re-demote Primary VLC even when robot hand
+        mode hasn't changed — VLC video transitions may re-assert topmost."""
+        runner = self._make_runner(tmp_path, sync_interval_ms=0)
+        runner.state = BridgeState(robot_hand_mode=True)
+        runner._last_sync = 0
+
+        topmost_calls = []
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=9999), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            # No state change — robot hand mode stays True
+            mock_dispatch.return_value = (BridgeState(robot_hand_mode=True), [])
+            runner.tick()
+
+        # Primary VLC must be demoted
+        assert (1001, False) in topmost_calls
+        # Robot Hand must be re-asserted topmost
+        assert (9999, True) in topmost_calls
+
+    def test_restore_all_topmost_demotes_primary_in_robot_hand_mode(self, tmp_path):
+        """_restore_all_topmost must explicitly set Primary VLC NOT-TOPMOST
+        (not just skip it) when robot hand mode is active."""
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(robot_hand_mode=True)
+
+        topmost_calls = []
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            runner._restore_all_topmost()
+
+        assert (1001, False) in topmost_calls
+        restored = {h for h, v in topmost_calls if v}
+        assert {2001, 3001, 4001, 5001} <= restored
+
+
 class TestRobotHandActivationRetry:
     """When entering Robot Hand mode, the window may not be visible yet
     (Robot Hand app hasn't processed UDP SHOW). The dispatch loop must
@@ -645,9 +758,8 @@ class TestRobotHandActivationRetry:
              patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
             runner.tick()
 
-        # find_window_by_title may be called for other ops, but topmost/activate
-        # should NOT be called for Robot Hand retry
-        mock_topmost.assert_not_called()
+        # activate is retry-specific — should NOT fire after pending clears.
+        # set_always_on_top IS expected from periodic z-order enforcement.
         mock_activate.assert_not_called()
 
 
