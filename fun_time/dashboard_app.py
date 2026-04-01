@@ -356,7 +356,9 @@ def build_dashboard_scene(
         landscape_label = LABEL_LANDSCAPE_VLC
         primary_funscript_exists = has_matching_funscript(snapshot.primary.path)
         funscript_active = bool(snapshot.primary.path) and primary_funscript_exists
-        if snapshot.osr2_mode == "auto":
+        if snapshot.osr2_mode == "off":
+            osr2_label = f"{LABEL_OSR2}\n(off)"
+        elif snapshot.osr2_mode == "auto":
             osr2_label = f"{LABEL_OSR2}\n(auto)"
         elif funscript_active:
             osr2_label = f"{LABEL_OSR2}\n(funscript\ncontrol)"
@@ -382,7 +384,9 @@ def build_dashboard_scene(
             f_mode_enabled=snapshot.f_mode_enabled,
             is_favorite=is_favorite_path(snapshot.landscape.path, favs_content),
         ) else COLOR_PANEL
-        if snapshot.osr2_mode == "auto":
+        if snapshot.osr2_mode == "off":
+            osr2_fill = COLOR_PANEL
+        elif snapshot.osr2_mode == "auto":
             osr2_fill = COLOR_PINK
         elif funscript_active:
             osr2_fill = COLOR_GREEN

@@ -1049,6 +1049,24 @@ def test_osr2_auto_mode_shows_parenthesized_auto(cfg_path: Path):
     assert "OSR2\n(auto)" in texts
 
 
+def test_osr2_off_mode_shows_off_label_and_dim_color(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        osr2_mode="off", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    texts = {item.text for item in scene.texts}
+    assert "OSR2\n(off)" in texts
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.osr2_panel] == COLOR_PANEL
+
+
 def test_portrait_label_is_split_across_two_lines(cfg_path: Path):
     layout = _make_layout(cfg_path)
 

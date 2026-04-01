@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
 from .dashboard_bridge import write_dashboard_snapshot
-from .dashboard_runtime import is_broker_heartbeat_fresh
+from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on
 from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
 from .vlc_actions import send_vlc_input_command, vlc_http_cmd
@@ -278,11 +278,18 @@ class DispatchLoopRunner:
         try:
             robot_link_enabled = read_flag_file(self.config.robot_hand_enabled_file, True)
             robot_hand_mode_on = read_flag_file(self.config.robot_hand_mode_file, False)
+            device_on = is_osr2_device_on(self.config.state_dir / "osr2_serial_rx.txt")
+            if not device_on:
+                osr2_mode = "off"
+            elif robot_hand_mode_on:
+                osr2_mode = "auto"
+            else:
+                osr2_mode = "controlled"
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
                 f_mode_enabled=self.state.f_mode_enabled,
                 robot_link_enabled=robot_link_enabled,
-                osr2_mode="auto" if robot_hand_mode_on else "controlled",
+                osr2_mode=osr2_mode,
                 mfp_alive=bool(self.mfp_pid),
                 primary_uses_robot_hand=self.state.robot_hand_mode and robot_link_enabled,
                 portrait_locked=self.state.locked2,

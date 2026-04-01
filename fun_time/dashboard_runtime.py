@@ -60,6 +60,17 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
     )
 
 
+def is_osr2_device_on(path: Path, *, max_age_seconds: float = 30.0, now: float | None = None) -> bool:
+    if not path.exists():
+        return False
+    try:
+        last_rx = float(path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return False
+    current = time.time() if now is None else now
+    return (current - last_rx) < max_age_seconds
+
+
 def is_broker_heartbeat_fresh(path: Path, *, max_age_seconds: float = 3.0, now: float | None = None) -> bool:
     if not path.exists():
         return False
