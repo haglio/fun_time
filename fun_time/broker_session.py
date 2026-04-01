@@ -87,6 +87,7 @@ class BrokerSerialSession:
                 timeout=0.02,
             ) as real:
                 self.last_real_rx_time = 0.0
+                virt.write_timeout = 0.1
                 if self.connected_event is not None:
                     self.connected_event.set()
                 try:
@@ -153,7 +154,10 @@ class BrokerSerialSession:
 
                 self.last_real_rx_time = self.monotonic()
                 self._write_activity(self._activity_rx_file, "_last_rx_write")
-                virt.write(data)
+                try:
+                    virt.write(data)
+                except OSError:
+                    pass  # virtual port peer not connected; RX activity already tracked
 
                 buf.extend(data)
                 while b"\n" in buf:
