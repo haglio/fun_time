@@ -484,30 +484,31 @@ def test_dashboard_launch_geometry_precedes_update_idletasks(cfg_path: Path):
             f"geometry() must be called before first update_idletasks(); "
             f"call log: {events}"
         )
-    finally:
-        root.destroy()
 
-
-def test_dashboard_window_decorations_and_taskbar(cfg_path: Path):
-    import ctypes
-
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
-    app_config = load_dashboard_app_config(manifest_path)
-
-    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
-        root = build_dashboard_window(app_config)
-
-    try:
-        # Title bar kept (not overrideredirect).
+        # Window decorations: title bar kept (not overrideredirect), visible
+        # on taskbar via WS_EX_APPWINDOW (not hidden by WS_EX_TOOLWINDOW).
+        # All tk.Tk()-dependent assertions live in this single test because
+        # Python 3.14 cannot create a second tk.Tk() after destroying one.
+        import ctypes
         assert not root.overrideredirect()
-        # Visible on taskbar via WS_EX_APPWINDOW (not hidden by WS_EX_TOOLWINDOW).
         hwnd = int(root.frame(), 16)
         ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE
         assert not (ex_style & 0x00000080), "WS_EX_TOOLWINDOW should NOT be set"
         assert ex_style & 0x00040000, "WS_EX_APPWINDOW should be set"
+
+        # Close handler: WM_DELETE_WINDOW writes 'exit' to ahk_cmd.txt.
+        ahk_cmd_file = manifest_path.parent / "ahk_cmd.txt"
+        assert not ahk_cmd_file.exists(), "ahk_cmd.txt should not exist before close"
+        handler_cmd = root.protocol("WM_DELETE_WINDOW")
+        assert handler_cmd, "WM_DELETE_WINDOW protocol handler should be registered"
+        root.tk.eval(handler_cmd)
+        assert ahk_cmd_file.exists(), "Close handler should have written ahk_cmd.txt"
+        assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
     finally:
-        root.destroy()
+        try:
+            root.destroy()
+        except Exception:
+            pass
 
 
 def test_dashboard_app_hydrates_live_vlc_state():
