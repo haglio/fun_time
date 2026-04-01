@@ -1236,3 +1236,26 @@ def test_primary_nav_buttons_centered_on_file_dialog(cfg_path: Path):
     next_center = layout.primary_next.y + layout.primary_next.height // 2
     assert prev_center == mid_row_center
     assert next_center == mid_row_center
+
+
+def test_scene_contains_rfb_box(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    scene = build_dashboard_scene(layout)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert layout.rfb_panel in fills
+
+
+def test_scene_contains_primary_shadow_behind_primary(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    scene = build_dashboard_scene(layout)
+
+    rects_in_order = [item.rect for item in scene.rects]
+    shadow_idx = rects_in_order.index(layout.primary_shadow)
+    primary_idx = rects_in_order.index(layout.primary_panel)
+    # Shadow must be drawn before primary (underneath)
+    assert shadow_idx < primary_idx
+
+    outlines = {item.rect: item.outline for item in scene.rects}
+    # Shadow uses a dimmer outline than default
+    assert outlines[layout.primary_shadow] == "#505860"

@@ -30,10 +30,12 @@ class DashboardPreviewLayout:
     main_monitor: Rect
     secondary_monitor: Rect
     main_status_strip: Rect
+    rfb_panel: Rect
     mfp_panel: Rect
     landscape_panel: Rect
     portrait_panel: Rect
     primary_panel: Rect
+    primary_shadow: Rect
     portrait_prev: Rect
     portrait_next: Rect
     portrait_lock: Rect
@@ -93,6 +95,9 @@ def compute_dashboard_preview_layout(
     primary_h = max(48, available_stack_h - portrait_h)
     portrait_y = right_inner_y
     primary_y = right_inner_y + portrait_h + stack_gap
+    shadow_offset = 4
+    primary_shadow_x = right_inner_x + shadow_offset
+    primary_shadow_y = primary_y + shadow_offset
 
     # Mini button sizes used inside the status strip schematic
     mini_button_w = 20
@@ -117,17 +122,24 @@ def compute_dashboard_preview_layout(
     status_strip_h = strip_pad + mini_button_h + row_gap + mini_button_h + strip_pad
     mini_buttons_total_w = mini_button_w * 2 + mini_button_gap
     status_strip_w = max(mfp_max_w, mini_buttons_total_w + strip_pad * 2)
-    left_column_nudge = 2
-    status_strip_x = main_inner_x + (left_strip_w - status_strip_w) // 2 - left_column_nudge
-    status_strip_y = main_inner_y
+    # RFB container around status strip + MFP
+    rfb_pad = 3
+    rfb_gap = 4
+    rfb_y = main_inner_y
+    rfb_h = main_inner_h
+    rfb_w = status_strip_w + 2 * rfb_pad
+    rfb_x = main_inner_x + (left_strip_w - rfb_w) // 2
 
-    mfp_area_y = status_strip_y + status_strip_h + panel_gap
-    mfp_area_h = max(28, main_inner_h - status_strip_h - panel_gap)
+    status_strip_x = rfb_x + (rfb_w - status_strip_w) // 2
+    status_strip_y = rfb_y + rfb_pad
+
+    mfp_area_y = status_strip_y + status_strip_h + rfb_gap
+    mfp_area_h = max(28, rfb_h - 2 * rfb_pad - status_strip_h - rfb_gap)
     mfp_hw_ratio = 1.125
     mfp_h_raw = max(28, int(mfp_area_h * 0.92))
     mfp_w = min(mfp_max_w, round(mfp_h_raw / mfp_hw_ratio))
     mfp_h = round(mfp_w * mfp_hw_ratio)
-    mfp_x = main_inner_x + (left_strip_w - mfp_w) // 2 - left_column_nudge
+    mfp_x = rfb_x + (rfb_w - mfp_w) // 2
     mfp_y = mfp_area_y + (mfp_area_h - mfp_h) // 2
     landscape_x = main_inner_x + left_strip_w + panel_gap
     landscape_y = main_inner_y
@@ -155,7 +167,7 @@ def compute_dashboard_preview_layout(
     landscape_stack_y = landscape_y + (main_inner_h - 36) // 2
 
     dashboard_w = secondary_x + right_w + outer_pad
-    dashboard_h = max(preview_bottom, osr2_y + osr2_h, link_y + 18) + bottom_pad
+    dashboard_h = max(preview_bottom, osr2_y + osr2_h, link_y + 18, primary_shadow_y + primary_h) + bottom_pad
 
     return DashboardPreviewLayout(
         dashboard_width=dashboard_w,
@@ -163,10 +175,12 @@ def compute_dashboard_preview_layout(
         main_monitor=Rect(main_x, main_y, left_w, left_h),
         secondary_monitor=Rect(secondary_x, secondary_y, right_w, right_h),
         main_status_strip=Rect(status_strip_x, status_strip_y, status_strip_w, status_strip_h),
+        rfb_panel=Rect(rfb_x, rfb_y, rfb_w, rfb_h),
         mfp_panel=Rect(mfp_x, mfp_y, mfp_w, mfp_h),
         landscape_panel=Rect(landscape_x, landscape_y, landscape_w, main_inner_h),
         portrait_panel=Rect(right_inner_x, portrait_y, right_inner_w, portrait_h),
         primary_panel=Rect(right_inner_x, primary_y, right_inner_w, primary_h),
+        primary_shadow=Rect(primary_shadow_x, primary_shadow_y, right_inner_w, primary_h),
         portrait_prev=Rect(right_inner_x + 6, portrait_button_y, 18, 22),
         portrait_next=Rect(right_inner_x + right_inner_w - 24, portrait_button_y, 18, 22),
         portrait_trash=Rect(right_inner_x + (right_inner_w - 30) // 2, portrait_stack_y, 30, 16),
