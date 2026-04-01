@@ -388,6 +388,7 @@ class TestBrokerHelpers:
     def test_main_ensures_mfp_serial_port_before_broker_and_bridge(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.ensure_mfp_serial_port") as ensure_mfp_port, \
@@ -523,11 +524,27 @@ class TestMainCheckFlag:
     def test_main_check_returns_zero_without_launching_bridge(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.run_windows_bridge") as run_bridge:
             result = main(["--config", str(cfg_path), "--check"])
 
         assert result == 0
+        run_bridge.assert_not_called()
+
+
+class TestOrchestratorSingleInstance:
+    def test_shows_message_and_exits_when_already_running(self, cfg_path: Path):
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=None), \
+             patch("fun_time.single_instance.show_already_running_message") as show_msg, \
+             patch("fun_time.orchestrator.run_windows_bridge") as run_bridge:
+            result = main(["--config", str(cfg_path)])
+
+        assert result == 1
+        show_msg.assert_called_once()
+        assert "already running" in show_msg.call_args[0][0]
         run_bridge.assert_not_called()
 

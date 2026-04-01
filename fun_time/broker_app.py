@@ -102,6 +102,13 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(_preparse_config(argv))
     logger = configure_logging("fun_time.broker", config.log_file("broker"))
     install_exception_logging(logger)
+
+    from .single_instance import MUTEX_BROKER, try_acquire_mutex
+    _mutex_handle = try_acquire_mutex(MUTEX_BROKER)
+    if _mutex_handle is None:
+        logger.warning("Another broker instance is already running; exiting")
+        return 0
+
     args = build_parser(config).parse_args(argv)
     args.virtual_port = resolve_virtual_port(config, args.virtual_port, logger)
 
