@@ -183,8 +183,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         beats_per_loop=args.beats_per_loop,
         bpm_smoothing=args.bpm_smoothing,
         sync_strength=args.sync_strength,
-        show_window=view.show,
-        hide_window=view.hide,
+        show_window=lambda: None,
+        hide_window=lambda: None,
         set_status_text=lambda text: status_text.__setitem__("value", text),
         show_status=status_overlay.show,
         logger=logger,
@@ -205,7 +205,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     if first_clip_frames is not None and first_clip_path is not None:
         clip_store.clip_cache[first_clip_path] = {"frames": first_clip_frames}
     selection.set_current_clip(selection.current_path)
-    view.hide()
 
     while not stop_event.is_set():
         lifecycle.process_events()

@@ -7,6 +7,7 @@ from unittest.mock import patch
 from fun_time.windows_bridge_startup import (
     _build_vlc_launch_command,
     launch_core_apps,
+    launch_robot_hand,
     launch_ui_companions,
     prepare_random_favs_browser_manifest,
     restart_broker,
@@ -130,7 +131,80 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
     )
 
 
-def test_launch_ui_companions_starts_dashboard_robot_and_audio_and_writes_result(tmp_path: Path):
+def test_launch_robot_hand_starts_process_and_returns_pid(tmp_path: Path):
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(42)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+    ):
+        pid = launch_robot_hand(
+            python_exe="python.exe",
+            robot_hand_module="fun_time.robot_hand.app",
+            config_path="cfg.json",
+            clips_folder="clips",
+            robot_x=100,
+            robot_y=200,
+            robot_width=300,
+            robot_height=400,
+        )
+
+    assert pid == 42
+    command = popen.call_args.args[0]
+    assert command[:3] == ["python.exe", "-m", "fun_time.robot_hand.app"]
+    assert "--config" in command
+    assert "--clips-folder" in command
+
+
+def test_launch_ui_companions_skips_robot_hand_when_pid_provided(tmp_path: Path):
+    result_file = tmp_path / "ui_companions.ini"
+
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=[FakeProc(11), FakeProc(33)]) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+    ):
+        launch_ui_companions(
+            python_exe="python.exe",
+            dashboard_module="fun_time.dashboard_app",
+            dashboard_enabled=True,
+            windows_bridge_manifest_path="windows_bridge_launch.ini",
+            dashboard_x=10,
+            dashboard_y=20,
+            dashboard_width=30,
+            dashboard_height=40,
+            mfp_pid=55,
+            robot_hand_module="fun_time.robot_hand.app",
+            audio_module="fun_time.audio_companion_app",
+            config_path="cfg.json",
+            clips_folder="clips",
+            audio_folder="audio",
+            robot_x=100,
+            robot_y=200,
+            robot_width=300,
+            robot_height=400,
+            robot_hand_pid=22,
+            result_file=result_file,
+        )
+
+    assert popen.call_count == 2
+    dashboard_command = popen.call_args_list[0].args[0]
+    assert dashboard_command[:3] == ["python.exe", "-m", "fun_time.dashboard_app"]
+    audio_command = popen.call_args_list[1].args[0]
+    assert audio_command[:3] == ["python.exe", "-m", "fun_time.audio_companion_app"]
+
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(result_file, encoding="utf-8")
+    assert parser.get("result", "dashboard_pid") == "11"
+    assert parser.get("result", "robot_hand_pid") == "22"
+    assert parser.get("result", "audio_pid") == "33"
+
+
+def test_launch_ui_companions_launches_robot_hand_when_pid_not_provided(tmp_path: Path):
     result_file = tmp_path / "ui_companions.ini"
 
     class FakeProc:
@@ -163,20 +237,13 @@ def test_launch_ui_companions_starts_dashboard_robot_and_audio_and_writes_result
         )
 
     assert popen.call_count == 3
-    dashboard_command = popen.call_args_list[0].args[0]
-    assert dashboard_command[:3] == ["python.exe", "-m", "fun_time.dashboard_app"]
-    assert "--mfp-pid" in dashboard_command
     robot_command = popen.call_args_list[1].args[0]
     assert robot_command[:3] == ["python.exe", "-m", "fun_time.robot_hand.app"]
-    audio_command = popen.call_args_list[2].args[0]
-    assert audio_command[:3] == ["python.exe", "-m", "fun_time.audio_companion_app"]
 
     parser = configparser.ConfigParser()
     parser.optionxform = str
     parser.read(result_file, encoding="utf-8")
-    assert parser.get("result", "dashboard_pid") == "11"
     assert parser.get("result", "robot_hand_pid") == "22"
-    assert parser.get("result", "audio_pid") == "33"
 
 
 def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):

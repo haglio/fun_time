@@ -178,6 +178,41 @@ def start_core_session(
     )
 
 
+def launch_robot_hand(
+    *,
+    python_exe: str | Path,
+    robot_hand_module: str,
+    config_path: str | Path,
+    clips_folder: str | Path,
+    robot_x: int,
+    robot_y: int,
+    robot_width: int,
+    robot_height: int,
+) -> int:
+    """Launch Robot Hand subprocess, returning its PID."""
+    proc = subprocess.Popen(
+        [
+            str(python_exe),
+            "-m",
+            robot_hand_module,
+            "--config",
+            str(config_path),
+            "--clips-folder",
+            str(clips_folder),
+            "--x",
+            str(robot_x),
+            "--y",
+            str(robot_y),
+            "--width",
+            str(robot_width),
+            "--height",
+            str(robot_height),
+        ],
+        **subprocess_window_kwargs(),
+    )
+    return proc.pid
+
+
 def launch_ui_companions(
     *,
     python_exe: str | Path,
@@ -198,6 +233,7 @@ def launch_ui_companions(
     robot_y: int,
     robot_width: int,
     robot_height: int,
+    robot_hand_pid: int = 0,
     result_file: str | Path,
 ) -> None:
     python_exe = str(python_exe)
@@ -229,26 +265,17 @@ def launch_ui_companions(
         )
         dashboard_pid = dashboard_proc.pid
 
-    robot_proc = subprocess.Popen(
-        [
-            python_exe,
-            "-m",
-            robot_hand_module,
-            "--config",
-            config_path,
-            "--clips-folder",
-            clips_folder,
-            "--x",
-            str(robot_x),
-            "--y",
-            str(robot_y),
-            "--width",
-            str(robot_width),
-            "--height",
-            str(robot_height),
-        ],
-        **subprocess_window_kwargs(),
-    )
+    if not robot_hand_pid:
+        robot_hand_pid = launch_robot_hand(
+            python_exe=python_exe,
+            robot_hand_module=robot_hand_module,
+            config_path=config_path,
+            clips_folder=clips_folder,
+            robot_x=robot_x,
+            robot_y=robot_y,
+            robot_width=robot_width,
+            robot_height=robot_height,
+        )
     audio_proc = subprocess.Popen(
         [
             python_exe,
@@ -266,7 +293,7 @@ def launch_ui_companions(
         result_file,
         {
             "dashboard_pid": dashboard_pid,
-            "robot_hand_pid": robot_proc.pid,
+            "robot_hand_pid": robot_hand_pid,
             "audio_pid": audio_proc.pid,
         },
     )

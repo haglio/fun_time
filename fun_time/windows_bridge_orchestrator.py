@@ -254,6 +254,7 @@ def run_python_orchestrated_bridge(
         dashboard_pid=result.dashboard_pid,
         dashboard_enabled=dashboard_enabled,
         rfb_hwnd=result.rfb_hwnd,
+        robot_hand_pid=result.robot_hand_pid,
     )
     # Robot Hand startup detection is handled by the dispatch loop's first
     # sync tick: if the broker has already written robot_hand_mode.txt = "1"

@@ -21,7 +21,8 @@ from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .startup_progress import NullProgress, ProgressReporter
 from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser, tab_placeholder_path
-from .windows_bridge_startup import start_core_session, launch_ui_companions
+from .runtime_flow import read_flag_file, write_flag_file
+from .windows_bridge_startup import launch_robot_hand, start_core_session, launch_ui_companions
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -173,6 +174,21 @@ def run_startup_sequence(
                     activate_window(hwnd)
         logger.info("Topmost set on core windows")
 
+    # --- Phase 2.1: Launch Robot Hand early ---
+    # Robot Hand is launched before other UI companions so it has time
+    # to initialise pygame, scan clips, and decode the first clip while
+    # the rest of the startup sequence continues.
+    robot_hand_pid = launch_robot_hand(
+        python_exe=m["executables"]["python_exe"],
+        robot_hand_module=m["modules"]["robot_hand_module"],
+        config_path=m["runtime"]["config_path"],
+        clips_folder=m["media"]["robot_hand_clips"],
+        robot_x=plan.robot_hand.x,
+        robot_y=plan.robot_hand.y,
+        robot_width=plan.robot_hand.width,
+        robot_height=plan.robot_hand.height,
+    )
+
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("Launching browser...")
     rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, mfp_pid, hide_windows=hide_windows)
@@ -202,6 +218,7 @@ def run_startup_sequence(
         robot_y=plan.robot_hand.y,
         robot_width=plan.robot_hand.width,
         robot_height=plan.robot_hand.height,
+        robot_hand_pid=robot_hand_pid,
         result_file=str(ui_result_file),
     )
     ui_pids = _read_result_pids(ui_result_file)
@@ -211,6 +228,12 @@ def run_startup_sequence(
     if hide_windows:
         progress.advance("Positioning windows...")
 
+        # Check if Robot Hand mode is active at startup (OSR2 already in auto mode)
+        robot_hand_active_at_startup = (
+            read_flag_file(m["commands"]["robot_hand_enabled_file"], True)
+            and read_flag_file(m["commands"]["robot_hand_mode_file"], False)
+        )
+
         # Restore VLC audio (muted in launch_core_apps during loading)
         primary_port = int(m["vlc"]["primary_vlc_port"])
         portrait_port = int(m["vlc"]["vlc2_port"])
@@ -218,7 +241,14 @@ def run_startup_sequence(
         password = m["vlc"]["vlc_pass"]
         for port in [primary_port, portrait_port, landscape_port]:
             vlc_http_cmd(port, "volume&val=256", password)
+            if port == primary_port and robot_hand_active_at_startup:
+                continue  # Don't start primary playback — Robot Hand takes over
             vlc_http_cmd(port, "pl_play", password)
+
+        if robot_hand_active_at_startup:
+            write_flag_file(m["commands"]["robot_hand_paused_file"], False)
+            write_flag_file(m["commands"]["audio_paused_file"], False)
+            logger.info("Robot Hand auto-mode detected at startup — unpaused")
 
         _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=False)
         _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=False)
@@ -245,6 +275,17 @@ def run_startup_sequence(
             if dash_hwnd:
                 set_always_on_top(dash_hwnd, False)
                 set_always_on_top(dash_hwnd, True)
+
+        # When OSR2 is in auto mode, Robot Hand gets topmost LAST so
+        # it appears on top of everything — the first thing the user sees.
+        if robot_hand_active_at_startup:
+            rh_hwnd = wait_for_window(robot_hand_pid, timeout_s=2.0)
+            if rh_hwnd:
+                set_always_on_top(rh_hwnd, True)
+                if not skip_activate:
+                    activate_window(rh_hwnd)
+                logger.info("Robot Hand activated as first-visible window")
+
         logger.info("Topmost set on core windows")
 
         progress.advance("Finalizing...")
