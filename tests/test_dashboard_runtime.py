@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.dashboard_runtime import is_broker_heartbeat_fresh, load_dashboard_snapshot
+from fun_time.dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on, load_dashboard_snapshot
 
 
 def test_load_dashboard_snapshot_returns_none_when_missing(tmp_path: Path):
@@ -200,6 +200,31 @@ def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
 
     assert snapshot is not None
     assert snapshot.omni_paused is False
+
+
+def test_osr2_device_on_when_rx_recent(tmp_path: Path):
+    rx_file = tmp_path / "osr2_serial_rx.txt"
+    rx_file.write_text("100.0", encoding="utf-8")
+
+    assert is_osr2_device_on(rx_file, now=120.0) is True
+
+
+def test_osr2_device_off_when_rx_stale(tmp_path: Path):
+    rx_file = tmp_path / "osr2_serial_rx.txt"
+    rx_file.write_text("100.0", encoding="utf-8")
+
+    assert is_osr2_device_on(rx_file, now=131.0) is False
+
+
+def test_osr2_device_off_when_rx_missing(tmp_path: Path):
+    assert is_osr2_device_on(tmp_path / "missing.txt", now=100.0) is False
+
+
+def test_osr2_device_off_when_rx_invalid(tmp_path: Path):
+    rx_file = tmp_path / "osr2_serial_rx.txt"
+    rx_file.write_text("not-a-float", encoding="utf-8")
+
+    assert is_osr2_device_on(rx_file, now=100.0) is False
 
 
 def test_broker_heartbeat_is_fresh_when_recent(tmp_path: Path):

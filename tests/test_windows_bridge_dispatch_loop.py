@@ -1132,3 +1132,88 @@ class TestHandleOpenFileDialog:
             time.sleep(0.1)
 
         mock_handle.assert_called_once()
+
+
+class TestUpdateDashboardOsr2Off:
+    """_update_dashboard should write osr2_mode='off' when the device is off."""
+
+    def _make_runner(self, tmp_path, **kwargs):
+        from fun_time.command_dispatch import BridgeConfig
+
+        config = BridgeConfig(
+            primary_port=9090,
+            portrait_port=9091,
+            landscape_port=9092,
+            vlc_password="test",
+            favs_file=tmp_path / "favs.txt",
+            weird_dir=tmp_path / "weird",
+            state_dir=tmp_path,
+            primary_sources="",
+            portrait_sources="",
+            landscape_sources="",
+            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
+            robot_hand_mode_file=tmp_path / "rh_mode.txt",
+            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
+            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            audio_paused_file=tmp_path / "audio_paused.txt",
+            dashboard_state_file=tmp_path / "dashboard_state.ini",
+        )
+        return DispatchLoopRunner(
+            config=config,
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            shared_state_file=tmp_path / "shared_state.ini",
+            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            primary_pid=100,
+            mfp_pid=200,
+            dashboard_enabled=False,
+            **kwargs,
+        )
+
+    def _read_osr2_mode(self, tmp_path):
+        import configparser
+        ini = tmp_path / "dashboard_state.ini"
+        parser = configparser.ConfigParser()
+        parser.read_string(ini.read_text(encoding="utf-16"))
+        return parser.get("osr2", "mode")
+
+    def test_osr2_mode_off_when_rx_file_missing(self, tmp_path):
+        runner = self._make_runner(tmp_path)
+        # No osr2_serial_rx.txt exists
+
+        runner._update_dashboard()
+
+        assert self._read_osr2_mode(tmp_path) == "off"
+
+    def test_osr2_mode_off_when_rx_timestamp_stale(self, tmp_path):
+        runner = self._make_runner(tmp_path)
+        rx_file = tmp_path / "osr2_serial_rx.txt"
+        rx_file.write_text("100.0", encoding="utf-8")
+
+        with patch("fun_time.dashboard_runtime.time") as mock_time:
+            mock_time.time.return_value = 200.0  # 100s stale
+            runner._update_dashboard()
+
+        assert self._read_osr2_mode(tmp_path) == "off"
+
+    def test_osr2_mode_controlled_when_device_on(self, tmp_path):
+        runner = self._make_runner(tmp_path)
+        rx_file = tmp_path / "osr2_serial_rx.txt"
+        rx_file.write_text("100.0", encoding="utf-8")
+
+        with patch("fun_time.dashboard_runtime.time") as mock_time:
+            mock_time.time.return_value = 110.0  # 10s ago — fresh
+            runner._update_dashboard()
+
+        assert self._read_osr2_mode(tmp_path) == "controlled"
+
+    def test_osr2_mode_auto_when_device_on_and_robot_hand(self, tmp_path):
+        runner = self._make_runner(tmp_path)
+        rx_file = tmp_path / "osr2_serial_rx.txt"
+        rx_file.write_text("100.0", encoding="utf-8")
+        (tmp_path / "rh_mode.txt").write_text("1", encoding="utf-8")
+
+        with patch("fun_time.dashboard_runtime.time") as mock_time:
+            mock_time.time.return_value = 110.0
+            runner._update_dashboard()
+
+        assert self._read_osr2_mode(tmp_path) == "auto"
