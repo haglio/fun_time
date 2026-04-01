@@ -6,7 +6,7 @@ import logging
 import sys
 import types
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -75,16 +75,34 @@ class TestMainReconnect:
             if sleep_calls["count"] >= 4:
                 raise KeyboardInterrupt
 
-        with patch("fun_time.broker_app.configure_logging", return_value=logging.getLogger("test.broker")), \
-             patch("fun_time.broker_app.install_exception_logging"), \
-             patch("fun_time.broker_app.serial.Serial", side_effect=FakeSerial), \
-             patch("fun_time.broker_app.socket.socket", return_value=FakeSocket()), \
-             patch("fun_time.broker_app.time.sleep", side_effect=fake_sleep):
+        with patch.object(broker_app_module, "configure_logging", return_value=logging.getLogger("test.broker")), \
+             patch.object(broker_app_module, "install_exception_logging"), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
+             patch.object(broker_app_module.serial, "Serial", side_effect=FakeSerial), \
+             patch.object(broker_app_module, "socket") as mock_socket_mod, \
+             patch.object(broker_app_module.time, "sleep", side_effect=fake_sleep):
+            mock_socket_mod.socket.return_value = FakeSocket()
+            mock_socket_mod.AF_INET = 2
+            mock_socket_mod.SOCK_DGRAM = 2
             result = broker_app_module.main(["--config", str(cfg_path), "--serial-retry-delay", "0"])
 
         assert result == 0
         assert open_ports.count("COM4") >= 2
         assert open_ports.count("COM15") >= 2
+
+
+class TestBrokerSingleInstance:
+    def test_exits_when_already_running(self, broker_app_module, cfg_path):
+        logger = logging.getLogger("test.broker")
+        mock_socket_mod = MagicMock()
+        with patch.object(broker_app_module, "configure_logging", return_value=logger), \
+             patch.object(broker_app_module, "install_exception_logging"), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=None), \
+             patch.object(broker_app_module, "socket", mock_socket_mod):
+            result = broker_app_module.main(["--config", str(cfg_path)])
+
+        assert result == 0
+        mock_socket_mod.socket.assert_not_called()
 
 
 def test_write_heartbeat_persists_current_timestamp(tmp_path: Path, broker_app_module):
