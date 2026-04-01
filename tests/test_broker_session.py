@@ -211,6 +211,48 @@ def test_session_stops_when_peer_disconnects():
     assert should_retry is True, "session should request retry after peer disconnect"
 
 
+def test_session_stays_alive_when_peer_never_connected():
+    """If MFP was never connected (DSR always low), the session must stay
+    alive so the COM4 reader can capture device data like temperature
+    reports for the activity file."""
+    session, _auto_mode, _logger = _build_session()
+
+    poll_count = 0
+
+    class FakePort:
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def read(self, n): return b""
+        def write(self, d): pass
+        @property
+        def dsr(self):
+            return False  # MFP never connected
+
+    session.serial_factory = lambda *a, **kw: FakePort()
+
+    def counting_sleep(_):
+        nonlocal poll_count
+        poll_count += 1
+        if poll_count >= 5:
+            session.stop_event.set()  # end after 5 ticks
+    session.sleep = counting_sleep
+
+    def _fake_start_thread(*, target, args, name):
+        t = threading.Thread(target=lambda: None, daemon=True)
+        t.start()
+        return t
+    session.start_thread = _fake_start_thread
+
+    connected = threading.Event()
+    session.connected_event = connected
+
+    should_retry = session.run(object())
+
+    assert poll_count >= 5, (
+        f"Session should have survived at least 5 poll ticks, got {poll_count}"
+    )
+
+
 def test_forward_real_to_virtual_writes_activity_rx_file(tmp_path):
     rx_file = tmp_path / "osr2_serial_rx.txt"
     wall = [1711900000.0]
@@ -278,6 +320,8 @@ def test_peer_disconnect_retries_despite_thread_teardown_error():
     thread_reading = threading.Event()
 
     class FakeVirt:
+        def __init__(self):
+            self._first_dsr = True  # MFP starts connected
         def __enter__(self): return self
         def __exit__(self, *a): pass
         @property
@@ -286,8 +330,11 @@ def test_peer_disconnect_retries_despite_thread_teardown_error():
         def write(self, data): pass
         @property
         def dsr(self):
+            if self._first_dsr:
+                self._first_dsr = False
+                return True  # peer was connected initially
             thread_reading.wait(timeout=5.0)
-            return False
+            return False  # then disconnects
 
     class FakeReal:
         def __init__(self):
@@ -306,7 +353,8 @@ def test_peer_disconnect_retries_despite_thread_teardown_error():
             )
         def write(self, data): pass
 
-    ports = iter([FakeVirt(), FakeReal()])
+    fake_virt = FakeVirt()
+    ports = iter([fake_virt, FakeReal()])
     session.serial_factory = lambda *a, **kw: next(ports)
     session.sleep = lambda _: None
 

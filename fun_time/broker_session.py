@@ -101,9 +101,13 @@ class BrokerSerialSession:
                         name="broker-virtual",
                     )
 
+                    peer_was_connected = False
                     while not self.stop_event.is_set() and not session_stop.is_set():
                         self.sleep(self.poll_interval_seconds)
-                        if not self._peer_connected(virt):
+                        peer_up = self._peer_connected(virt)
+                        if peer_up:
+                            peer_was_connected = True
+                        if not peer_up and peer_was_connected:
                             self.logger.warning("Virtual port peer disconnected (DSR low), ending session")
                             peer_disconnected = True
                             break
