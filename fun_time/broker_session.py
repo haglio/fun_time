@@ -78,6 +78,7 @@ class BrokerSerialSession:
         retry_state = SessionRetryState()
         thread_real = None
         thread_virtual = None
+        peer_disconnected = False
 
         try:
             with self.serial_factory(self.virtual_port, self.baud, timeout=0.02) as virt, self.serial_factory(
@@ -88,24 +89,31 @@ class BrokerSerialSession:
                 self.last_real_rx_time = 0.0
                 if self.connected_event is not None:
                     self.connected_event.set()
-                thread_real = self.start_thread(
-                    target=self.forward_real_to_virtual,
-                    args=(real, virt, udp_sock, session_stop, retry_state),
-                    name="broker-real",
-                )
-                thread_virtual = self.start_thread(
-                    target=self.forward_virtual_to_real,
-                    args=(virt, real, session_stop, retry_state),
-                    name="broker-virtual",
-                )
+                try:
+                    thread_real = self.start_thread(
+                        target=self.forward_real_to_virtual,
+                        args=(real, virt, udp_sock, session_stop, retry_state),
+                        name="broker-real",
+                    )
+                    thread_virtual = self.start_thread(
+                        target=self.forward_virtual_to_real,
+                        args=(virt, real, session_stop, retry_state),
+                        name="broker-virtual",
+                    )
 
-                while not self.stop_event.is_set() and not session_stop.is_set():
-                    self.sleep(self.poll_interval_seconds)
-                    if not self._peer_connected(virt):
-                        self.logger.warning("Virtual port peer disconnected (DSR low), ending session")
-                        retry_state.value = True
-                        break
-                    self.tick_command_and_stale_timeout(udp_sock)
+                    while not self.stop_event.is_set() and not session_stop.is_set():
+                        self.sleep(self.poll_interval_seconds)
+                        if not self._peer_connected(virt):
+                            self.logger.warning("Virtual port peer disconnected (DSR low), ending session")
+                            peer_disconnected = True
+                            break
+                        self.tick_command_and_stale_timeout(udp_sock)
+                finally:
+                    session_stop.set()
+                    if thread_real is not None:
+                        thread_real.join(timeout=1.0)
+                    if thread_virtual is not None:
+                        thread_virtual.join(timeout=1.0)
         except KeyboardInterrupt:
             raise
         except Exception as exc:
@@ -114,13 +122,8 @@ class BrokerSerialSession:
         finally:
             if self.connected_event is not None:
                 self.connected_event.clear()
-            session_stop.set()
-            if thread_real is not None:
-                thread_real.join(timeout=1.0)
-            if thread_virtual is not None:
-                thread_virtual.join(timeout=1.0)
 
-        return retry_state.value
+        return peer_disconnected or retry_state.value
 
     _ACTIVITY_WRITE_INTERVAL = 5.0
 

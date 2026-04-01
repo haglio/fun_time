@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -265,6 +266,64 @@ def test_forward_virtual_to_real_writes_activity_tx_file(tmp_path):
     assert real.writes == [b"L0500\n"]
     assert tx_file.exists()
     assert float(tx_file.read_text()) == 1711900000.0
+
+
+def test_peer_disconnect_retries_despite_thread_teardown_error():
+    """Reproduces the port-close race: when DSR goes low the with-block
+    closes ports while forwarding threads are still reading, causing
+    AttributeError/TypeError.  These non-retryable errors must not
+    prevent the broker from retrying."""
+    session, _auto_mode, _logger = _build_session()
+
+    thread_reading = threading.Event()
+
+    class FakeVirt:
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        @property
+        def in_waiting(self): return 0
+        def read(self, n): return b""
+        def write(self, data): pass
+        @property
+        def dsr(self):
+            thread_reading.wait(timeout=5.0)
+            return False
+
+    class FakeReal:
+        def __init__(self):
+            self._closed = False
+        def __enter__(self): return self
+        def __exit__(self, *a):
+            self._closed = True
+        @property
+        def in_waiting(self): return 1
+        def read(self, n):
+            thread_reading.set()
+            while not self._closed:
+                time.sleep(0.001)
+            raise AttributeError(
+                "'NoneType' object has no attribute 'hEvent'"
+            )
+        def write(self, data): pass
+
+    ports = iter([FakeVirt(), FakeReal()])
+    session.serial_factory = lambda *a, **kw: next(ports)
+    session.sleep = lambda _: None
+
+    def _start(*, target, args, name):
+        t = threading.Thread(target=target, args=args, daemon=True)
+        t.start()
+        return t
+    session.start_thread = _start
+
+    session.connected_event = threading.Event()
+
+    should_retry = session.run(object())
+
+    assert should_retry is True, (
+        "run() must return True after peer disconnect even when "
+        "forwarding threads error with non-retryable exceptions during teardown"
+    )
 
 
 def test_activity_file_not_written_when_path_is_none():
