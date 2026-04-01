@@ -230,6 +230,8 @@ class DispatchLoopRunner:
                 self._dispatch("sync_robot_hand")
                 if self.state.robot_hand_mode and not prev_mode:
                     self._robot_hand_activate_pending = True
+                if self.state.robot_hand_mode:
+                    self._enforce_robot_hand_z_order()
 
         self._try_robot_hand_activate()
 
@@ -247,10 +249,28 @@ class DispatchLoopRunner:
             activate_window(hwnd)
         self._robot_hand_activate_pending = False
 
+    def _enforce_robot_hand_z_order(self) -> None:
+        """Keep Primary VLC out of the TOPMOST band while Robot Hand is active.
+
+        VLC may re-assert topmost during video transitions; demoting it
+        to the regular z-band guarantees Robot Hand stays above it.
+        """
+        primary_hwnd = find_window_by_pid(self.primary_pid)
+        if primary_hwnd:
+            set_always_on_top(primary_hwnd, False)
+        robot_hwnd = find_window_by_title("Robot Hand")
+        if robot_hwnd:
+            set_always_on_top(robot_hwnd, True)
+
     def _dispatch(self, command: str) -> None:
+        prev_robot_hand = self.state.robot_hand_mode
         new_state, ops = dispatch_command(command, self.state, self.config)
         self.state = new_state
         remaining = execute_window_ops(ops, self.primary_pid)
+        if self.state.robot_hand_mode != prev_robot_hand:
+            primary_hwnd = find_window_by_pid(self.primary_pid)
+            if primary_hwnd:
+                set_always_on_top(primary_hwnd, not self.state.robot_hand_mode)
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
             if suppress_unsuspend and op.op == "unsuspend_hotkeys":
@@ -328,11 +348,13 @@ class DispatchLoopRunner:
             set_always_on_top(self.rfb_hwnd, True)
         robot_hand_mode = self.state.robot_hand_mode
         for pid in self._all_pids:
-            if pid == self.primary_pid and robot_hand_mode:
-                continue
             hwnd = find_window_by_pid(pid)
-            if hwnd:
-                set_always_on_top(hwnd, True)
+            if not hwnd:
+                continue
+            if pid == self.primary_pid and robot_hand_mode:
+                set_always_on_top(hwnd, False)
+                continue
+            set_always_on_top(hwnd, True)
         # Robot Hand topmost LAST when in robot hand mode — this puts it on
         # top of all other windows.  Skip when not in robot hand mode so it
         # stays behind the always-on-top VLC/MFP/Dashboard windows.
