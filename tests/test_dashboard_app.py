@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+from PyQt6.QtGui import QColor
+
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.dashboard_app import (
     COLOR_GREEN,
@@ -293,17 +295,12 @@ def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path:
         window=DashboardWindowSnapshot(111, 222, 333, 444),
     )
 
-    class FakeRoot:
-        def __init__(self):
-            self.geometry_value = ""
+    from PyQt6.QtWidgets import QWidget
+    widget = QWidget()
+    apply_dashboard_window_geometry(widget, snapshot, scene)
+    geo = widget.geometry()
 
-        def geometry(self, value: str):
-            self.geometry_value = value
-
-    root = FakeRoot()
-    apply_dashboard_window_geometry(root, snapshot, scene)
-
-    assert root.geometry_value == "333x444+111+222"
+    assert (geo.x(), geo.y(), geo.width(), geo.height()) == (111, 222, 333, 444)
 
 
 def test_dashboard_window_geometry_prefers_launch_geometry_when_provided(cfg_path: Path):
@@ -315,22 +312,17 @@ def test_dashboard_window_geometry_prefers_launch_geometry_when_provided(cfg_pat
     )
     scene = build_dashboard_scene(preview_layout)
 
-    class FakeRoot:
-        def __init__(self):
-            self.geometry_value = ""
-
-        def geometry(self, value: str):
-            self.geometry_value = value
-
-    root = FakeRoot()
+    from PyQt6.QtWidgets import QWidget
+    widget = QWidget()
     apply_dashboard_window_geometry(
-        root,
+        widget,
         None,
         scene,
         launch_geometry=DashboardLaunchGeometry(x=11, y=22, width=333, height=444),
     )
+    geo = widget.geometry()
 
-    assert root.geometry_value == "333x444+11+22"
+    assert (geo.x(), geo.y(), geo.width(), geo.height()) == (11, 22, 333, 444)
 
 
 def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
@@ -447,68 +439,35 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
     assert fills[preview_layout.mfp_panel] == COLOR_RED
 
 
-def test_dashboard_launch_geometry_precedes_update_idletasks(cfg_path: Path):
-    """Regression: geometry must be applied before update_idletasks() so the
-    window never flashes at a default position during startup."""
-    import tkinter as tk
+def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
+    """Window must show in taskbar (WS_EX_APPWINDOW) and close handler writes exit."""
+    import ctypes
+    from fun_time.dashboard_app import DashboardWindow
 
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    events: list[str] = []
-    orig_geo = tk.Wm.wm_geometry
-    orig_update = tk.Misc.update_idletasks
-
-    def spy_geometry(self, newGeometry=None):
-        if newGeometry is not None:
-            events.append("geometry")
-        return orig_geo(self, newGeometry)
-
-    def spy_update(self):
-        events.append("update_idletasks")
-        return orig_update(self)
-
-    with (
-        patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))),
-        patch.object(tk.Wm, "geometry", spy_geometry),
-        patch.object(tk.Misc, "update_idletasks", spy_update),
-    ):
-        root = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
 
     try:
-        first_update = events.index("update_idletasks")
-        geo_before = [i for i, e in enumerate(events) if e == "geometry" and i < first_update]
-        assert geo_before, (
-            f"geometry() must be called before first update_idletasks(); "
-            f"call log: {events}"
-        )
-
-        # Window decorations: title bar kept (not overrideredirect), visible
-        # on taskbar via WS_EX_APPWINDOW (not hidden by WS_EX_TOOLWINDOW).
-        # All tk.Tk()-dependent assertions live in this single test because
-        # Python 3.14 cannot create a second tk.Tk() after destroying one.
-        import ctypes
-        assert not root.overrideredirect()
-        hwnd = int(root.frame(), 16)
+        # Window decorations: visible on taskbar via WS_EX_APPWINDOW.
+        hwnd = int(window.winId())
         ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE
         assert not (ex_style & 0x00000080), "WS_EX_TOOLWINDOW should NOT be set"
         assert ex_style & 0x00040000, "WS_EX_APPWINDOW should be set"
 
-        # Close handler: WM_DELETE_WINDOW writes 'exit' to ahk_cmd.txt.
+        # Close handler: closeEvent writes 'exit' to ahk_cmd.txt.
         ahk_cmd_file = manifest_path.parent / "ahk_cmd.txt"
         assert not ahk_cmd_file.exists(), "ahk_cmd.txt should not exist before close"
-        handler_cmd = root.protocol("WM_DELETE_WINDOW")
-        assert handler_cmd, "WM_DELETE_WINDOW protocol handler should be registered"
-        root.tk.eval(handler_cmd)
+        from PyQt6.QtGui import QCloseEvent
+        window.closeEvent(QCloseEvent())
         assert ahk_cmd_file.exists(), "Close handler should have written ahk_cmd.txt"
         assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
     finally:
-        try:
-            root.destroy()
-        except Exception:
-            pass
+        window.close()
 
 
 def test_dashboard_app_hydrates_live_vlc_state():
@@ -696,12 +655,15 @@ def test_dashboard_scene_omnipause_button_shows_play_icon_when_paused(cfg_path: 
 
 
 def test_lighten_color_adds_to_each_channel():
-    assert lighten_color("#2A3038", 50) == "#5C626A"
-    assert lighten_color("#000000", 30) == "#1E1E1E"
+    result = lighten_color(QColor(0x2A, 0x30, 0x38), 50)
+    assert (result.red(), result.green(), result.blue()) == (0x5C, 0x62, 0x6A)
+    result2 = lighten_color(QColor(0, 0, 0), 30)
+    assert (result2.red(), result2.green(), result2.blue()) == (30, 30, 30)
 
 
 def test_lighten_color_caps_at_255():
-    assert lighten_color("#F0F0F0", 50) == "#FFFFFF"
+    result = lighten_color(QColor(240, 240, 240), 50)
+    assert (result.red(), result.green(), result.blue()) == (255, 255, 255)
 
 
 def test_dashboard_scene_lock_buttons_use_icon(cfg_path: Path):
@@ -1258,4 +1220,62 @@ def test_scene_contains_primary_shadow_behind_primary(cfg_path: Path):
 
     outlines = {item.rect: item.outline for item in scene.rects}
     # Shadow uses a dimmer outline than default
-    assert outlines[layout.primary_shadow] == "#505860"
+    assert outlines[layout.primary_shadow] == COLOR_CABLE_DIM
+
+
+# ---------------------------------------------------------------------------
+# DashboardWidget tests
+# ---------------------------------------------------------------------------
+
+def test_dashboard_widget_emits_action_on_click(cfg_path: Path):
+    """Clicking inside an action rect should emit action_triggered with the action ID."""
+    from PyQt6.QtCore import QPoint
+    from PyQt6.QtWidgets import QApplication
+    from fun_time.dashboard_app import DashboardWidget
+
+    layout = _make_layout(cfg_path)
+    scene = build_dashboard_scene(layout)
+
+    widget = DashboardWidget()
+    widget.set_scene(scene)
+    received: list[str] = []
+    widget.action_triggered.connect(received.append)
+
+    # Simulate a click in the center of the quit button
+    from fun_time.dashboard_actions import QUIT_BUTTON
+    quit_rect = None
+    for action_id, rect in scene.actions:
+        if action_id == QUIT_BUTTON:
+            quit_rect = rect
+            break
+    assert quit_rect is not None
+    from unittest.mock import MagicMock
+    event = MagicMock()
+    event.position.return_value = QPoint(
+        quit_rect.x + quit_rect.width // 2,
+        quit_rect.y + quit_rect.height // 2,
+    ).toPointF()
+    widget.mousePressEvent(event)
+
+    assert received == [QUIT_BUTTON]
+
+
+def test_dashboard_widget_ignores_click_outside_actions(cfg_path: Path):
+    """Clicking outside any action rect should not emit."""
+    from PyQt6.QtCore import QPoint
+    from fun_time.dashboard_app import DashboardWidget
+
+    layout = _make_layout(cfg_path)
+    scene = build_dashboard_scene(layout)
+
+    widget = DashboardWidget()
+    widget.set_scene(scene)
+    received: list[str] = []
+    widget.action_triggered.connect(received.append)
+
+    from unittest.mock import MagicMock
+    event = MagicMock()
+    event.position.return_value = QPoint(0, 0).toPointF()
+    widget.mousePressEvent(event)
+
+    assert received == []
