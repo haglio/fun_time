@@ -171,12 +171,14 @@ class BrokerSerialSession:
     def forward_virtual_to_real(self, virt, real, session_stop, retry_state: SessionRetryState) -> None:
         while not self.stop_event.is_set() and not session_stop.is_set():
             try:
-                data = virt.read(virt.in_waiting or 1)
+                queued = virt.in_waiting
+                data = virt.read(queued or 1)
                 if not data:
                     continue
                 if not self.auto_mode.is_active:
                     real.write(data)
-                    self._write_activity(self._activity_tx_file, "_last_tx_write")
+                    if queued:
+                        self._write_activity(self._activity_tx_file, "_last_tx_write")
             except Exception as exc:
                 self.logger.exception("VIRT->REAL error")
                 retry_state.value = self.is_retryable_error(exc)
