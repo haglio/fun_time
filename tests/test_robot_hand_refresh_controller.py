@@ -69,7 +69,6 @@ def _build_controller(
     command: str | None = None,
     paused_state: bool = False,
 ):
-    schedule_calls: list[tuple[int, object]] = []
     status_messages: list[str] = []
     overlay_shows: list[str] = []
     show_window_calls: list[str] = []
@@ -98,7 +97,6 @@ def _build_controller(
         beats_per_loop=4.0,
         bpm_smoothing=0.5,
         sync_strength=0.5,
-        schedule_after=lambda delay, callback: schedule_calls.append((delay, callback)),
         show_window=lambda: show_window_calls.append("show"),
         hide_window=lambda: hide_window_calls.append("hide"),
         set_status_text=status_messages.append,
@@ -117,7 +115,6 @@ def _build_controller(
         "selection": selection,
         "engine": engine,
         "logger": logger,
-        "schedule_calls": schedule_calls,
         "status_messages": status_messages,
         "overlay_shows": overlay_shows,
         "show_window_calls": show_window_calls,
@@ -125,7 +122,7 @@ def _build_controller(
     }
 
 
-def test_refresh_displays_active_frame_and_schedules_next_tick():
+def test_refresh_displays_active_frame():
     state = SharedState(
         auto_active=True,
         visible=True,
@@ -135,7 +132,7 @@ def test_refresh_displays_active_frame_and_schedules_next_tick():
         pattern_duration=1.5,
         last_msg="AUTO 1",
     )
-    entry = {"pil_frames": [object() for _ in range(8)]}
+    entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(state=state, entry=entry)
 
     built["controller"].refresh()
@@ -144,7 +141,6 @@ def test_refresh_displays_active_frame_and_schedules_next_tick():
     assert built["loader"].prefetch_adopt_calls == 1
     assert built["renderer"].display_calls == [5]
     assert built["selection"].prefetch_calls == 1
-    assert built["schedule_calls"] == [(16, built["controller"].refresh)]
     assert "clip=demo.mp4" in built["status_messages"][-1]
     assert "frame=6/8" in built["status_messages"][-1]
     assert "visible=True" in built["status_messages"][-1]
@@ -158,19 +154,17 @@ def test_refresh_shows_loading_status_when_no_frames_are_ready():
     assert built["renderer"].display_calls == []
     assert built["selection"].prefetch_calls == 1
     assert built["overlay_shows"] == ["show"]
-    assert built["schedule_calls"] == [(16, built["controller"].refresh)]
     assert built["status_messages"][-1].startswith("clip=demo.mp4")
     assert "loading=True" in built["status_messages"][-1]
 
 
-def test_refresh_uses_listener_error_status_and_short_retry_when_state_has_error():
+def test_refresh_uses_listener_error_status_when_state_has_error():
     built = _build_controller(state=SharedState(error="boom"))
 
     built["controller"].refresh()
 
     assert built["selection"].prefetch_calls == 0
     assert built["overlay_shows"] == ["show"]
-    assert built["schedule_calls"] == [(100, built["controller"].refresh)]
     assert built["status_messages"] == ["Error:\nboom"]
 
 
@@ -180,11 +174,10 @@ def test_refresh_applies_runtime_commands_through_selection_step():
     built["controller"].refresh()
 
     assert built["selection"].step_calls == [1]
-    assert built["schedule_calls"] == [(16, built["controller"].refresh)]
 
 
 def test_refresh_reads_paused_state_file_each_tick():
-    entry = {"pil_frames": [object() for _ in range(4)]}
+    entry = {"frames": [object() for _ in range(4)]}
     built = _build_controller(entry=entry, paused_state=True)
 
     built["controller"].refresh()
@@ -192,7 +185,7 @@ def test_refresh_reads_paused_state_file_each_tick():
     assert built["controller"].rh_paused["value"] is True
 
 
-def test_refresh_reports_exceptions_and_schedules_retry():
+def test_refresh_reports_exceptions():
     built = _build_controller(entry=None)
     built["renderer"].current_clip_entry = MagicMock(side_effect=RuntimeError("kaboom"))
 
@@ -200,5 +193,4 @@ def test_refresh_reports_exceptions_and_schedules_retry():
 
     built["logger"].exception.assert_called_once_with("refresh failed")
     assert built["overlay_shows"] == ["show"]
-    assert built["schedule_calls"] == [(250, built["controller"].refresh)]
     assert built["status_messages"] == ["Error: kaboom\nSee robot_hand_listener.log"]

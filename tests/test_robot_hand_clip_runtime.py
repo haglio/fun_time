@@ -54,8 +54,8 @@ class TestClipCacheStore:
         store = ClipCacheStore(limit=2)
         first = Path("first.mp4")
         second = Path("second.mp4")
-        store.clip_cache[first] = {"pil_frames": [], "photo_frames": [], "photo_size": None}
-        store.clip_cache[second] = {"pil_frames": [], "photo_frames": [], "photo_size": None}
+        store.clip_cache[first] = {"frames": []}
+        store.clip_cache[second] = {"frames": []}
 
         entry = store.clip_entry_for(first)
 
@@ -78,16 +78,14 @@ class TestClipCacheStore:
         store = ClipCacheStore(limit=2)
         current = Path("current.mp4")
         next_path = Path("next.mp4")
-        store.clip_cache[current] = {"pil_frames": ["old"], "photo_frames": [None], "photo_size": None}
+        store.clip_cache[current] = {"frames": ["old"]}
         store.cache_decoded_frames(next_path, ["f1", "f2"])
 
         adopted = store.adopt_decoded_frames(next_path, protected_paths={current})
 
         assert adopted is True
-        assert store.clip_cache[current]["pil_frames"] == ["old"]
-        assert store.clip_cache[next_path]["pil_frames"] == ["f1", "f2"]
-        assert store.clip_cache[next_path]["photo_frames"] == [None, None]
-        assert store.clip_cache[next_path]["photo_size"] is None
+        assert store.clip_cache[current]["frames"] == ["old"]
+        assert store.clip_cache[next_path]["frames"] == ["f1", "f2"]
 
     def test_adopt_decoded_frames_returns_false_when_missing(self):
         store = ClipCacheStore(limit=1)

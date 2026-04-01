@@ -72,7 +72,7 @@ def test_adopt_loaded_clip_if_ready_promotes_frames_and_notifies_current_clip():
     controller.adopt_loaded_clip_if_ready()
 
     assert path in clip_store.clip_cache
-    assert clip_store.clip_cache[path]["pil_frames"] == ["f0", "f1"]
+    assert clip_store.clip_cache[path]["frames"] == ["f0", "f1"]
     assert active_loaded == ["ready"]
 
 

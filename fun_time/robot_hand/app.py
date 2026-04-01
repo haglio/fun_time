@@ -13,8 +13,8 @@ from .clip_selection import ClipSelectionController
 from .clip_sequence import ClipSequenceController
 from .lifecycle import RobotHandLifecycleController
 from .notifier import RobotHandNotifier
+from .pygame_view import PygameView
 from .refresh_controller import RobotHandRefreshController
-from .view import create_robot_hand_view, install_tk_exception_handler
 from ..config import load_config
 from ..logging_utils import configure_logging, enable_faulthandler, install_exception_logging
 from ..runtime_support import preparse_config_path
@@ -22,7 +22,7 @@ from ..threading_utils import start_daemon_thread
 from .engine import PlaybackEngine
 from .state import SharedState, udp_reader
 from .status_overlay import StatusOverlayController
-from .video import decode_video_to_pil_frames, make_photo, scan_clips
+from .video import cache_dir_for_clips_folder, load_clip_frames, scan_clips
 
 
 def _preparse_config(argv: list[str] | None) -> str | None:
@@ -97,13 +97,22 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     clips = scan_clips(clips_folder, shuffle_on_load=config.robot_hand.shuffle_on_load)
     clip_sequence = ClipSequenceController(clips)
+    cache_dir = cache_dir_for_clips_folder(clips_folder)
 
-    view = create_robot_hand_view(
+    first_clip_frames = None
+    first_clip_path = clip_sequence.current_path
+    if first_clip_path is not None:
+        try:
+            first_clip_frames = load_clip_frames(first_clip_path, cache_dir)
+            logger.info("Pre-loaded %d frames for first clip %s", len(first_clip_frames), first_clip_path.name)
+        except Exception:
+            logger.warning("Failed to pre-load first clip %s", first_clip_path.name, exc_info=True)
+
+    view = PygameView(
         width=args.width,
         height=args.height,
         x=args.x,
         y=args.y,
-        icon_path=config.project_dir / "icon.ico",
     )
 
     state = SharedState()
@@ -124,48 +133,30 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     load_state = DecodeRequestState()
     prefetch_state = DecodeRequestState()
     notifier = RobotHandNotifier(args.notify_host, args.notify_port)
+
+    status_text = {"value": "Starting..."}
     status_overlay = StatusOverlayController(
-        root=view.root,
-        label=view.status_label,
         hide_delay_ms=config.robot_hand.status_hide_ms,
         can_hide=lambda: state.error is None and not load_state.loading,
     )
-    install_tk_exception_handler(
-        root=view.root,
-        logger=logger,
-        status_setter=view.status_var.set,
-        show_status=status_overlay.show,
-        log_name=config.log_file("robot_hand_listener").name,
-    )
-
-    def current_viewport():
-        return max(1, view.container.winfo_width()), max(1, view.container.winfo_height())
 
     renderer = ClipRenderController(
         clip_store=clip_store,
-        image_label=view.image_label,
-        make_photo=make_photo,
-        viewport_getter=current_viewport,
-        schedule_after=view.root.after,
-        render_batch=args.render_batch,
+        display_frame_fn=view.display_frame,
         logger=logger,
     )
-
-    def record_listener_error(message: str):
-        with state.lock:
-            state.error = message
 
     loader = ClipLoadController(
         clip_store=clip_store,
         load_state=load_state,
         prefetch_state=prefetch_state,
         current_clip_path_getter=lambda: renderer.current_clip_path,
-        decode_clip=decode_video_to_pil_frames,
+        decode_clip=lambda path: load_clip_frames(path, cache_dir),
         start_thread=start_daemon_thread,
         logger=logger,
-        on_loading_requested=lambda path: (view.status_var.set(f"Loading clip...\n{path.name}"), status_overlay.show()),
+        on_loading_requested=lambda path: (status_text.__setitem__("value", f"Loading clip...\n{path.name}"), status_overlay.show()),
         on_active_clip_loaded=lambda: (renderer.prepare_active_clip_for_current_size(), status_overlay.schedule_hide()),
-        on_error=record_listener_error,
+        on_error=lambda msg: state.__setattr__("error", msg),
     )
     selection = ClipSelectionController(
         sequence=clip_sequence,
@@ -173,7 +164,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         loader=loader,
         renderer=renderer,
         notifier=notifier,
-        set_status_text=view.status_var.set,
+        set_status_text=lambda text: status_text.__setitem__("value", text),
         show_status=status_overlay.show,
         schedule_status_hide=status_overlay.schedule_hide,
     )
@@ -191,17 +182,16 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         beats_per_loop=args.beats_per_loop,
         bpm_smoothing=args.bpm_smoothing,
         sync_strength=args.sync_strength,
-        schedule_after=view.root.after,
-        show_window=view.root.deiconify,
-        hide_window=view.root.withdraw,
-        set_status_text=view.status_var.set,
+        show_window=view.show,
+        hide_window=view.hide,
+        set_status_text=lambda text: status_text.__setitem__("value", text),
         show_status=status_overlay.show,
         logger=logger,
         log_name=config.log_file("robot_hand_listener").name,
         read_paused_state=read_paused_state,
     )
     lifecycle = RobotHandLifecycleController(
-        root=view.root,
+        view=view,
         renderer=renderer,
         selection=selection,
         status_overlay=status_overlay,
@@ -209,13 +199,19 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         notifier=notifier,
         resize_delay_ms=config.robot_hand.resize_debounce_ms,
     )
-    lifecycle.bind_root_events()
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
+    if first_clip_frames is not None and first_clip_path is not None:
+        clip_store.clip_cache[first_clip_path] = {"frames": first_clip_frames}
     selection.set_current_clip(selection.current_path)
-    view.root.withdraw()
-    view.root.after(16, refresh_controller.refresh)
-    view.root.mainloop()
+    view.hide()
+
+    while not stop_event.is_set():
+        lifecycle.process_events()
+        refresh_controller.refresh()
+        view.clock.tick(120)
+
+    view.destroy()
     return 0
 
 

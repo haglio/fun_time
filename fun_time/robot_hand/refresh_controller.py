@@ -31,7 +31,6 @@ class RobotHandRefreshController:
         beats_per_loop: float,
         bpm_smoothing: float,
         sync_strength: float,
-        schedule_after,
         show_window,
         hide_window,
         set_status_text,
@@ -54,7 +53,6 @@ class RobotHandRefreshController:
         self.beats_per_loop = beats_per_loop
         self.bpm_smoothing = bpm_smoothing
         self.sync_strength = sync_strength
-        self.schedule_after = schedule_after
         self.show_window = show_window
         self.hide_window = hide_window
         self.set_status_text = set_status_text
@@ -73,7 +71,6 @@ class RobotHandRefreshController:
             self.logger.exception("refresh failed")
             self.set_status_text(exception_status_text(str(exc), log_name=self.log_name))
             self.show_status()
-            self.schedule_after(250, self.refresh)
 
     def _refresh_once(self) -> None:
         now = self.now_source()
@@ -94,7 +91,6 @@ class RobotHandRefreshController:
         if shared.error:
             self.set_status_text(listener_error_status_text(shared.error))
             self.show_status()
-            self.schedule_after(100, self.refresh)
             return
 
         loop_duration = update_engine(
@@ -120,8 +116,8 @@ class RobotHandRefreshController:
         active_entry = self.renderer.current_clip_entry()
         clip_name = path.name if path else "(none)"
 
-        if active_entry and active_entry["pil_frames"]:
-            frame_count = len(active_entry["pil_frames"])
+        if active_entry and active_entry["frames"]:
+            frame_count = len(active_entry["frames"])
             display_index = display_index_for_phase(
                 phase=self.engine.phase,
                 frame_count=frame_count,
@@ -163,4 +159,3 @@ class RobotHandRefreshController:
             self.show_status()
 
         self.selection.request_nearby_prefetch()
-        self.schedule_after(16, self.refresh)

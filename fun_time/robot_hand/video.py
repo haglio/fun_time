@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageOps, ImageTk
+import numpy as np
 
 from ..runtime_support import hidden_subprocess_kwargs
 
@@ -45,7 +45,7 @@ def ffprobe_size(path: Path) -> tuple[int, int]:
     return int(width), int(height)
 
 
-def decode_video_to_pil_frames(path: Path) -> list[Image.Image]:
+def decode_video_to_numpy_frames(path: Path) -> list[np.ndarray]:
     width, height = ffprobe_size(path)
     frame_size = width * height * 3
 
@@ -69,7 +69,7 @@ def decode_video_to_pil_frames(path: Path) -> list[Image.Image]:
     ]
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **_subprocess_kwargs())
-    frames: list[Image.Image] = []
+    frames: list[np.ndarray] = []
 
     try:
         while True:
@@ -78,7 +78,9 @@ def decode_video_to_pil_frames(path: Path) -> list[Image.Image]:
                 break
             if len(buf) != frame_size:
                 break
-            frames.append(Image.frombytes("RGB", (width, height), buf))
+            frames.append(
+                np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 3)).copy()
+            )
     finally:
         if proc.stdout:
             proc.stdout.close()
@@ -93,6 +95,15 @@ def decode_video_to_pil_frames(path: Path) -> list[Image.Image]:
     return frames
 
 
-def make_photo(img: Image.Image, max_width: int, max_height: int):
-    sized = ImageOps.contain(img, (max(1, int(max_width)), max(1, int(max_height))), Image.Resampling.LANCZOS)
-    return ImageTk.PhotoImage(sized)
+def cache_dir_for_clips_folder(folder: Path) -> Path:
+    return folder / ".rhcache"
+
+
+def load_clip_frames(video_path: Path, cache_dir: Path) -> list[np.ndarray]:
+    from .frame_cache import read_rhcache_all_frames
+
+    cache_path = cache_dir / (video_path.stem + ".rhcache")
+    if cache_path.exists():
+        return read_rhcache_all_frames(cache_path)
+
+    return decode_video_to_numpy_frames(video_path)
