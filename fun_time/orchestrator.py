@@ -278,7 +278,8 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Loaded config from %s", config.config_path)
     ensure_runtime_files(config)
     validate_config(config)
-    stamp_shortcut_aumid(project_dir=config.project_dir)
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+        stamp_shortcut_aumid(project_dir=config.project_dir)
 
     if args.check:
         logger.info("Config validation succeeded")
