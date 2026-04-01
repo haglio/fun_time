@@ -40,8 +40,6 @@ class PygameView:
     def display_frame(self, frame: np.ndarray) -> None:
         h, w = frame.shape[:2]
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
-        if self._current_texture is not None:
-            self._current_texture.destroy()
         self._current_texture = Texture.from_surface(self.renderer, surface)
         self.renderer.clear()
         self._current_texture.draw()
@@ -57,9 +55,6 @@ class PygameView:
         self.window.title = title
 
     def destroy(self) -> None:
-        if self._current_texture is not None:
-            self._current_texture.destroy()
-            self._current_texture = None
-        self.renderer.destroy()
+        self._current_texture = None
         self.window.destroy()
         pygame.quit()
