@@ -206,14 +206,14 @@ def test_osr2_device_on_when_rx_recent(tmp_path: Path):
     rx_file = tmp_path / "osr2_serial_rx.txt"
     rx_file.write_text("100.0", encoding="utf-8")
 
-    assert is_osr2_device_on(rx_file, now=120.0) is True
+    assert is_osr2_device_on(rx_file, now=115.0) is True
 
 
 def test_osr2_device_off_when_rx_stale(tmp_path: Path):
     rx_file = tmp_path / "osr2_serial_rx.txt"
     rx_file.write_text("100.0", encoding="utf-8")
 
-    assert is_osr2_device_on(rx_file, now=131.0) is False
+    assert is_osr2_device_on(rx_file, now=117.0) is False
 
 
 def test_osr2_device_off_when_rx_missing(tmp_path: Path):
