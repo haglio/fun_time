@@ -3,10 +3,13 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from pathlib import Path
+
 from fun_time.single_instance import (
     ERROR_ALREADY_EXISTS,
     MUTEX_BROKER,
     MUTEX_ORCHESTRATOR,
+    mutex_name_for_config,
     show_already_running_message,
     try_acquire_mutex,
 )
@@ -66,3 +69,19 @@ class TestConstants:
 
     def test_mutex_names_are_distinct(self):
         assert MUTEX_BROKER != MUTEX_ORCHESTRATOR
+
+
+class TestMutexNameForConfig:
+    def test_same_path_gives_same_name(self):
+        a = mutex_name_for_config(MUTEX_ORCHESTRATOR, Path("C:/foo/config.json"))
+        b = mutex_name_for_config(MUTEX_ORCHESTRATOR, Path("C:/foo/config.json"))
+        assert a == b
+
+    def test_different_paths_give_different_names(self):
+        a = mutex_name_for_config(MUTEX_ORCHESTRATOR, Path("C:/foo/config.json"))
+        b = mutex_name_for_config(MUTEX_ORCHESTRATOR, Path("C:/bar/config.json"))
+        assert a != b
+
+    def test_includes_base_prefix(self):
+        name = mutex_name_for_config(MUTEX_BROKER, Path("C:/foo/config.json"))
+        assert name.startswith(MUTEX_BROKER)
