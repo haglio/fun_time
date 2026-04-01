@@ -1,6 +1,15 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Single-instance guard: exit if another tray is already running.
+$mutexName = 'Global\FunTime.BrokerTray'
+$createdNew = $false
+$script:trayMutex = New-Object System.Threading.Mutex($true, $mutexName, [ref]$createdNew)
+if (-not $createdNew) {
+    $script:trayMutex.Dispose()
+    exit 0
+}
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
