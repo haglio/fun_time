@@ -8,6 +8,14 @@ import uuid
 from pathlib import Path
 
 import pytest
+from PyQt6.QtWidgets import QApplication
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _qapp():
+    """Ensure a QApplication instance exists for the test session."""
+    app = QApplication.instance() or QApplication([])
+    yield app
 
 
 TMP_ROOT = Path(
