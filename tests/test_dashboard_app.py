@@ -501,10 +501,11 @@ def test_dashboard_window_decorations_and_taskbar(cfg_path: Path):
     try:
         # Title bar kept (not overrideredirect).
         assert not root.overrideredirect()
-        # Hidden from taskbar via WS_EX_TOOLWINDOW.
+        # Visible on taskbar via WS_EX_APPWINDOW (not hidden by WS_EX_TOOLWINDOW).
         hwnd = int(root.frame(), 16)
         ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE
-        assert ex_style & 0x00000080, "WS_EX_TOOLWINDOW should be set"
+        assert not (ex_style & 0x00000080), "WS_EX_TOOLWINDOW should NOT be set"
+        assert ex_style & 0x00040000, "WS_EX_APPWINDOW should be set"
     finally:
         root.destroy()
 
