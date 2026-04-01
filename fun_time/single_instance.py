@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import ctypes
+import hashlib
+from pathlib import Path
 
 _kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
 _user32 = ctypes.windll.user32  # type: ignore[attr-defined]
@@ -10,6 +12,17 @@ ERROR_ALREADY_EXISTS = 183
 
 MUTEX_BROKER = "Global\\FunTime.Broker"
 MUTEX_ORCHESTRATOR = "Global\\FunTime.Orchestrator"
+
+
+def mutex_name_for_config(base: str, config_path: Path) -> str:
+    """Derive a mutex name from a base prefix and config file path.
+
+    The same config path always produces the same mutex, so the real app
+    (single config) blocks duplicates while integration tests (unique
+    tmp configs) run without conflict.
+    """
+    suffix = hashlib.md5(str(config_path).encode()).hexdigest()[:12]
+    return f"{base}.{suffix}"
 
 
 def try_acquire_mutex(name: str) -> int | None:

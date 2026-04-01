@@ -268,8 +268,8 @@ def main(argv: list[str] | None = None) -> int:
     logger = configure_logging("fun_time.orchestrator", config.log_file("orchestrator"), console=True)
     install_exception_logging(logger)
 
-    from .single_instance import MUTEX_ORCHESTRATOR, try_acquire_mutex, show_already_running_message
-    _mutex_handle = try_acquire_mutex(MUTEX_ORCHESTRATOR)
+    from .single_instance import MUTEX_ORCHESTRATOR, mutex_name_for_config, try_acquire_mutex, show_already_running_message
+    _mutex_handle = try_acquire_mutex(mutex_name_for_config(MUTEX_ORCHESTRATOR, config.config_path))
     if _mutex_handle is None:
         logger.warning("Another Fun Time instance is already running; exiting")
         show_already_running_message("Another copy of Fun Time is already running.")
