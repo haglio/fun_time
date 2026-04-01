@@ -56,6 +56,7 @@ class TestRunStartupSequence:
             _write_result(kwargs["result_file"], ui_pids)
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=fake_start_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=fake_launch_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=99999), \
@@ -96,6 +97,7 @@ class TestRunStartupSequence:
             topmost_calls.append((hwnd, on_top))
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
@@ -124,6 +126,7 @@ class TestRunStartupSequence:
         ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
@@ -410,6 +413,7 @@ class TestTopmostOnAllCoreWindows:
         pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040}
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=2020), \
@@ -443,6 +447,7 @@ class TestNoActivateWindowDuringIntegration:
         pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040}
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=2020), \
@@ -469,6 +474,7 @@ class TestNoActivateWindowDuringIntegration:
         pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040}
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=2020), \
@@ -510,6 +516,7 @@ class TestProgressReporting:
                 pass
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
@@ -550,6 +557,7 @@ class TestProgressReporting:
                 pass
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
@@ -583,6 +591,7 @@ class TestProgressReporting:
         ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
@@ -619,6 +628,7 @@ class TestLoadingScreenStartup:
             move_calls.append((hwnd, x, y, w, h))
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
@@ -660,6 +670,7 @@ class TestLoadingScreenStartup:
             _write_result(kwargs["result_file"], core_pids)
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=capture_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=600), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
@@ -679,3 +690,144 @@ class TestLoadingScreenStartup:
             )
 
         assert core_kwargs["hide_windows"] is True
+
+
+class TestPhase4RobotHandAutoMode:
+    """When OSR2 is in auto mode at startup, Robot Hand should be the first thing shown."""
+
+    def test_skips_primary_play_when_robot_hand_mode_active(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        # Seed mode files: OSR2 in auto mode
+        m = configparser.ConfigParser()
+        m.optionxform = str
+        m.read(str(manifest_path), encoding="utf-8")
+        Path(m["commands"]["robot_hand_mode_file"]).parent.mkdir(parents=True, exist_ok=True)
+        Path(m["commands"]["robot_hand_mode_file"]).write_text("1", encoding="utf-8")
+        Path(m["commands"]["robot_hand_enabled_file"]).write_text("1", encoding="utf-8")
+
+        vlc_cmds: list[tuple] = []
+
+        def track_vlc(port, cmd, password):
+            vlc_cmds.append((port, cmd))
+            return True
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=60), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", side_effect=track_vlc), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                hide_windows=True,
+            )
+
+        primary_port = int(m["vlc"]["primary_vlc_port"])
+        portrait_port = int(m["vlc"]["vlc2_port"])
+        landscape_port = int(m["vlc"]["vlc3_port"])
+
+        # Primary VLC should NOT get pl_play
+        assert (primary_port, "pl_play") not in vlc_cmds
+        # Portrait and landscape should get pl_play
+        assert (portrait_port, "pl_play") in vlc_cmds
+        assert (landscape_port, "pl_play") in vlc_cmds
+        # All three should get volume restored
+        assert (primary_port, "volume&val=256") in vlc_cmds
+
+    def test_unpauses_robot_hand_when_auto_mode_active(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        m = configparser.ConfigParser()
+        m.optionxform = str
+        m.read(str(manifest_path), encoding="utf-8")
+        Path(m["commands"]["robot_hand_mode_file"]).parent.mkdir(parents=True, exist_ok=True)
+        Path(m["commands"]["robot_hand_mode_file"]).write_text("1", encoding="utf-8")
+        Path(m["commands"]["robot_hand_enabled_file"]).write_text("1", encoding="utf-8")
+        # Start paused (as seed_robot_hand_state does)
+        Path(m["commands"]["robot_hand_paused_file"]).write_text("1", encoding="utf-8")
+        Path(m["commands"]["audio_paused_file"]).write_text("1", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=60), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                hide_windows=True,
+            )
+
+        assert Path(m["commands"]["robot_hand_paused_file"]).read_text(encoding="utf-8").strip() == "0"
+        assert Path(m["commands"]["audio_paused_file"]).read_text(encoding="utf-8").strip() == "0"
+
+    def test_sets_robot_hand_topmost_last_when_auto_mode(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        m = configparser.ConfigParser()
+        m.optionxform = str
+        m.read(str(manifest_path), encoding="utf-8")
+        Path(m["commands"]["robot_hand_mode_file"]).parent.mkdir(parents=True, exist_ok=True)
+        Path(m["commands"]["robot_hand_mode_file"]).write_text("1", encoding="utf-8")
+        Path(m["commands"]["robot_hand_enabled_file"]).write_text("1", encoding="utf-8")
+        Path(m["commands"]["robot_hand_paused_file"]).write_text("1", encoding="utf-8")
+        Path(m["commands"]["audio_paused_file"]).write_text("1", encoding="utf-8")
+
+        topmost_calls: list[tuple] = []
+        activate_calls: list[int] = []
+        rh_hwnd = 77777
+        pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040, 50: 5050, 60: rh_hwnd}
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=60), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.windows_bridge_sequencer.activate_window", side_effect=lambda h: activate_calls.append(h)), \
+             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                hide_windows=True,
+            )
+
+        # Robot Hand should be the last window to get topmost=True
+        topmost_on = [(h, v) for h, v in topmost_calls if v]
+        assert topmost_on[-1] == (rh_hwnd, True)
+        # Robot Hand should be activated
+        assert rh_hwnd in activate_calls

@@ -606,7 +606,7 @@ class TestRobotHandActivationRetry:
 
         assert runner.state.robot_hand_mode is True
 
-        # Second tick: window now visible
+        # Second tick: window now visible — activation uses topmost, not show_window
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345) as mock_find, \
              patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show, \
@@ -615,7 +615,7 @@ class TestRobotHandActivationRetry:
             runner.tick()
 
         mock_find.assert_called_with("Robot Hand")
-        mock_show.assert_called_with(12345)
+        mock_show.assert_not_called()
         mock_topmost.assert_called_with(12345, True)
         mock_activate.assert_called_with(12345)
 
@@ -632,7 +632,6 @@ class TestRobotHandActivationRetry:
         # Second tick: window found, activation succeeds
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_window"), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
             runner.tick()
@@ -642,14 +641,12 @@ class TestRobotHandActivationRetry:
         # Third tick: no more activation attempts
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345) as mock_find, \
-             patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show, \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
             runner.tick()
 
-        # find_window_by_title may be called for other ops, but show/topmost/activate
+        # find_window_by_title may be called for other ops, but topmost/activate
         # should NOT be called for Robot Hand retry
-        mock_show.assert_not_called()
         mock_topmost.assert_not_called()
         mock_activate.assert_not_called()
 
@@ -745,6 +742,59 @@ class TestHandleOmniPauseToggle:
         restored = {h for h, v in topmost_calls if v}
         assert 1001 not in restored
         assert {2001, 3001, 4001, 5001} <= restored
+
+    def test_entering_omnipause_removes_robot_hand_topmost(self, tmp_path):
+        runner = self._make_runner(tmp_path, robot_hand_pid=600)
+        runner.state = BridgeState(omni_paused=False, robot_hand_mode=True)
+
+        topmost_calls = []
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001, 600: 6001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
+            runner._handle_omnipause_toggle()
+
+        removed = {h for h, v in topmost_calls if not v}
+        assert 6001 in removed
+
+    def test_leaving_omnipause_sets_robot_hand_topmost_last_in_robot_mode(self, tmp_path):
+        runner = self._make_runner(tmp_path, robot_hand_pid=600)
+        runner.state = BridgeState(omni_paused=True, robot_hand_mode=True)
+
+        topmost_calls = []
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001, 600: 6001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, robot_hand_mode=True), [])
+            runner._handle_omnipause_toggle()
+
+        restored = [(h, v) for h, v in topmost_calls if v]
+        assert 6001 in {h for h, _ in restored}
+        # Robot Hand must be set topmost LAST (for z-order)
+        assert restored[-1] == (6001, True)
+
+    def test_leaving_omnipause_skips_robot_hand_topmost_when_not_in_robot_mode(self, tmp_path):
+        runner = self._make_runner(tmp_path, robot_hand_pid=600)
+        runner.state = BridgeState(omni_paused=True, robot_hand_mode=False)
+
+        topmost_calls = []
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001, 600: 6001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, robot_hand_mode=False), [])
+            runner._handle_omnipause_toggle()
+
+        restored = {h for h, v in topmost_calls if v}
+        assert 6001 not in restored
 
 
 class TestHandleOpenFileDialog:

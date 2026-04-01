@@ -150,6 +150,7 @@ class DispatchLoopRunner:
         dashboard_pid: int = 0,
         dashboard_enabled: bool,
         rfb_hwnd: int = 0,
+        robot_hand_pid: int = 0,
         sync_interval_ms: int = 200,
     ) -> None:
         self.config = config
@@ -163,6 +164,7 @@ class DispatchLoopRunner:
         self.dashboard_pid = dashboard_pid
         self.dashboard_enabled = dashboard_enabled
         self.rfb_hwnd = rfb_hwnd
+        self.robot_hand_pid = robot_hand_pid
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
@@ -240,7 +242,6 @@ class DispatchLoopRunner:
         hwnd = find_window_by_title("Robot Hand")
         if not hwnd:
             return
-        show_window(hwnd)
         set_always_on_top(hwnd, True)
         if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
             activate_window(hwnd)
@@ -314,6 +315,10 @@ class DispatchLoopRunner:
             hwnd = find_window_by_pid(pid)
             if hwnd:
                 set_always_on_top(hwnd, False)
+        if self.robot_hand_pid:
+            hwnd = find_window_by_pid(self.robot_hand_pid)
+            if hwnd:
+                set_always_on_top(hwnd, False)
 
     def _restore_all_topmost(self) -> None:
         # Restore RFB first — within the topmost z-band the last window to
@@ -326,6 +331,13 @@ class DispatchLoopRunner:
             if pid == self.primary_pid and robot_hand_mode:
                 continue
             hwnd = find_window_by_pid(pid)
+            if hwnd:
+                set_always_on_top(hwnd, True)
+        # Robot Hand topmost LAST when in robot hand mode — this puts it on
+        # top of all other windows.  Skip when not in robot hand mode so it
+        # stays behind the always-on-top VLC/MFP/Dashboard windows.
+        if robot_hand_mode and self.robot_hand_pid:
+            hwnd = find_window_by_pid(self.robot_hand_pid)
             if hwnd:
                 set_always_on_top(hwnd, True)
 
