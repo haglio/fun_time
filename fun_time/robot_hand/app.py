@@ -113,6 +113,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         height=args.height,
         x=args.x,
         y=args.y,
+        icon_path=config.project_dir / "icon.ico",
     )
 
     state = SharedState()

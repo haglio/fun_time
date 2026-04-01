@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
 import numpy as np
 import pygame
@@ -16,10 +16,17 @@ class PygameView:
         x: int = 0,
         y: int = 0,
         title: str = "Robot Hand",
+        icon_path: Path | None = None,
     ) -> None:
-        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{x},{y}"
         pygame.init()
         self.window = Window(title, size=(width, height))
+        self.window.position = (x, y)
+        if icon_path is not None and icon_path.exists():
+            try:
+                icon_surface = pygame.image.load(str(icon_path))
+                self.window.set_icon(icon_surface)
+            except Exception:
+                pass
         self.renderer = Renderer(self.window, accelerated=True)
         self.clock = pygame.time.Clock()
         self._width = width
