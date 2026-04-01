@@ -97,9 +97,7 @@ class ClipCacheStore:
 
         self.decoded_frame_cache.move_to_end(path)
         self.clip_cache[path] = {
-            "pil_frames": frames,
-            "photo_frames": [None] * len(frames),
-            "photo_size": None,
+            "frames": frames,
         }
         self.clip_cache.move_to_end(path)
         self.trim_cache(protected_paths=protected_paths)

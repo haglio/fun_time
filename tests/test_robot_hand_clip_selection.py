@@ -18,7 +18,7 @@ class FakeLoader:
     def request_clip_load(self, path: Path) -> None:
         self.load_requests.append(path)
         if self.adopt_on_load:
-            self.clip_store.clip_cache[path] = {"pil_frames": ["f0"]}
+            self.clip_store.clip_cache[path] = {"frames": ["f0"]}
 
     def request_prefetch(self, path: Path) -> None:
         self.prefetch_requests.append(path)
@@ -70,7 +70,7 @@ def _build_controller(*paths: str, loader_busy: bool = False, adopt_on_load: boo
 def test_set_current_clip_uses_cached_entry_without_loading():
     controller, clip_store, loader, renderer, notifier, _status_messages, _shows, hides = _build_controller("a.mp4", "b.mp4")
     path = Path("b.mp4")
-    clip_store.clip_cache[path] = {"pil_frames": ["f0"]}
+    clip_store.clip_cache[path] = {"frames": ["f0"]}
 
     controller.set_current_clip(path)
 
@@ -131,7 +131,7 @@ def test_request_nearby_prefetch_uses_first_uncached_neighbor():
         "b.mp4",
         "c.mp4",
     )
-    clip_store.clip_cache[Path("b.mp4")] = {"pil_frames": ["f0"]}
+    clip_store.clip_cache[Path("b.mp4")] = {"frames": ["f0"]}
 
     controller.request_nearby_prefetch()
 

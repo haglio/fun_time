@@ -1,25 +1,34 @@
 from __future__ import annotations
 
+import time
+
 
 class StatusOverlayController:
-    def __init__(self, *, root, label, hide_delay_ms: int, can_hide):
-        self.root = root
-        self.label = label
+    def __init__(self, *, hide_delay_ms: int, can_hide, now_source=time.monotonic):
         self.hide_delay_ms = hide_delay_ms
         self.can_hide = can_hide
-        self._hide_after_id = None
+        self._now = now_source
+        self._visible = False
+        self._hide_at: float | None = None
+
+    @property
+    def visible(self) -> bool:
+        if self._hide_at is not None and self._now() >= self._hide_at:
+            self._hide_at = None
+            if self.can_hide():
+                self._visible = False
+        return self._visible
 
     def show(self) -> None:
-        self.label.place(x=10, y=10)
+        self._visible = True
 
     def hide(self) -> None:
         if self.can_hide():
-            self.label.place_forget()
+            self._visible = False
+            self._hide_at = None
 
     def schedule_hide(self) -> None:
-        if self._hide_after_id is not None:
-            self.root.after_cancel(self._hide_after_id)
-        self._hide_after_id = self.root.after(self.hide_delay_ms, self.hide)
+        self._hide_at = self._now() + self.hide_delay_ms / 1000.0
 
     def on_mouse_motion(self, _event=None) -> None:
         self.show()
