@@ -28,18 +28,6 @@ class FakeSelection:
         self.steps.append(delta)
 
 
-class FakeStatusOverlay:
-    def __init__(self):
-        self.motion_calls = 0
-        self.leave_calls = 0
-
-    def on_mouse_motion(self, _event=None) -> None:
-        self.motion_calls += 1
-
-    def on_mouse_leave(self, _event=None) -> None:
-        self.leave_calls += 1
-
-
 class FakeNotifier:
     def __init__(self):
         self.visible_updates: list[bool] = []
@@ -56,23 +44,21 @@ def _build_controller():
     view = FakeView()
     renderer = FakeRenderer()
     selection = FakeSelection()
-    status_overlay = FakeStatusOverlay()
     notifier = FakeNotifier()
     stop_event = threading.Event()
     controller = RobotHandLifecycleController(
         view=view,
         renderer=renderer,
         selection=selection,
-        status_overlay=status_overlay,
         stop_event=stop_event,
         notifier=notifier,
         resize_delay_ms=75,
     )
-    return controller, view, renderer, selection, status_overlay, notifier, stop_event
+    return controller, view, renderer, selection, notifier, stop_event
 
 
 def test_handle_key_steps_selection_on_bracket_keys():
-    controller, _view, _renderer, selection, _status_overlay, _notifier, _stop_event = _build_controller()
+    controller, _view, _renderer, selection, _notifier, _stop_event = _build_controller()
 
     controller._handle_key(type("Event", (), {"key": pygame.K_LEFTBRACKET})())
     controller._handle_key(type("Event", (), {"key": pygame.K_RIGHTBRACKET})())
@@ -81,7 +67,7 @@ def test_handle_key_steps_selection_on_bracket_keys():
 
 
 def test_resize_debounces_prepare_calls():
-    controller, _view, renderer, _selection, _status_overlay, _notifier, _stop_event = _build_controller()
+    controller, _view, renderer, _selection, _notifier, _stop_event = _build_controller()
 
     controller._on_resize()
     assert renderer.prepare_calls == 0
@@ -92,7 +78,7 @@ def test_resize_debounces_prepare_calls():
 
 
 def test_on_close_stops_notifier():
-    controller, _view, _renderer, _selection, _status_overlay, notifier, stop_event = _build_controller()
+    controller, _view, _renderer, _selection, notifier, stop_event = _build_controller()
 
     controller.on_close()
 

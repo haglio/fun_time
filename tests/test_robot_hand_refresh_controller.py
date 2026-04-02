@@ -46,14 +46,20 @@ class FakeRenderer:
 
 
 class FakeSelection:
-    def __init__(self, *, current_number: int = 2, count: int = 5):
+    def __init__(self, *, current_number: int = 2, count: int = 5, pending_clip_name: str | None = None):
         self.current_number = current_number
         self.count = count
         self.step_calls: list[int] = []
         self.prefetch_calls = 0
+        self.adopt_calls = 0
+        self.pending_clip_name = pending_clip_name
 
     def step(self, delta: int) -> None:
         self.step_calls.append(delta)
+
+    def adopt_pending_clip(self) -> bool:
+        self.adopt_calls += 1
+        return False
 
     def request_nearby_prefetch(self) -> None:
         self.prefetch_calls += 1
@@ -68,9 +74,9 @@ def _build_controller(
     current_frame_index: int | None = None,
     command: str | None = None,
     paused_state: bool = False,
+    pending_clip_name: str | None = None,
 ):
-    status_messages: list[str] = []
-    overlay_shows: list[str] = []
+    loading_texts: list[str | None] = []
     show_window_calls: list[str] = []
     hide_window_calls: list[str] = []
 
@@ -81,7 +87,7 @@ def _build_controller(
         entry=entry,
         current_frame_index=current_frame_index,
     )
-    selection = FakeSelection()
+    selection = FakeSelection(pending_clip_name=pending_clip_name)
     engine = PlaybackEngine(phase=0.25, last_tick=5.0)
     logger = MagicMock()
     controller = RobotHandRefreshController(
@@ -99,8 +105,7 @@ def _build_controller(
         sync_strength=0.5,
         show_window=lambda: show_window_calls.append("show"),
         hide_window=lambda: hide_window_calls.append("hide"),
-        set_status_text=status_messages.append,
-        show_status=lambda: overlay_shows.append("show"),
+        set_loading_text=loading_texts.append,
         logger=logger,
         log_name="robot_hand_listener.log",
         now_source=lambda: 5.0,
@@ -115,8 +120,7 @@ def _build_controller(
         "selection": selection,
         "engine": engine,
         "logger": logger,
-        "status_messages": status_messages,
-        "overlay_shows": overlay_shows,
+        "loading_texts": loading_texts,
         "show_window_calls": show_window_calls,
         "hide_window_calls": hide_window_calls,
     }
@@ -141,31 +145,23 @@ def test_refresh_displays_active_frame():
     assert built["loader"].prefetch_adopt_calls == 1
     assert built["renderer"].display_calls == [5]
     assert built["selection"].prefetch_calls == 1
-    assert "clip=demo.mp4" in built["status_messages"][-1]
-    assert "frame=6/8" in built["status_messages"][-1]
-    assert "visible=True" in built["status_messages"][-1]
 
 
-def test_refresh_shows_loading_status_when_no_frames_are_ready():
+def test_refresh_skips_display_when_no_frames_are_ready():
     built = _build_controller(loading=True, entry=None)
 
     built["controller"].refresh()
 
     assert built["renderer"].display_calls == []
     assert built["selection"].prefetch_calls == 1
-    assert built["overlay_shows"] == ["show"]
-    assert built["status_messages"][-1].startswith("clip=demo.mp4")
-    assert "loading=True" in built["status_messages"][-1]
 
 
-def test_refresh_uses_listener_error_status_when_state_has_error():
+def test_refresh_skips_prefetch_when_state_has_error():
     built = _build_controller(state=SharedState(error="boom"))
 
     built["controller"].refresh()
 
     assert built["selection"].prefetch_calls == 0
-    assert built["overlay_shows"] == ["show"]
-    assert built["status_messages"] == ["Error:\nboom"]
 
 
 def test_refresh_applies_runtime_commands_through_selection_step():
@@ -192,5 +188,30 @@ def test_refresh_reports_exceptions():
     built["controller"].refresh()
 
     built["logger"].exception.assert_called_once_with("refresh failed")
-    assert built["overlay_shows"] == ["show"]
-    assert built["status_messages"] == ["Error: kaboom\nSee robot_hand_listener.log"]
+
+
+def test_refresh_sets_loading_text_when_pending_clip():
+    entry = {"frames": [object() for _ in range(4)]}
+    built = _build_controller(entry=entry, pending_clip_name="next.mp4")
+
+    built["controller"].refresh()
+
+    assert built["loading_texts"][-1] == "Loading next.mp4"
+
+
+def test_refresh_clears_loading_text_when_no_pending_clip():
+    entry = {"frames": [object() for _ in range(4)]}
+    built = _build_controller(entry=entry, pending_clip_name=None)
+
+    built["controller"].refresh()
+
+    assert built["loading_texts"][-1] is None
+
+
+def test_refresh_calls_adopt_pending_clip():
+    entry = {"frames": [object() for _ in range(4)]}
+    built = _build_controller(entry=entry)
+
+    built["controller"].refresh()
+
+    assert built["selection"].adopt_calls == 1
