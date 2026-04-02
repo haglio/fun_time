@@ -78,6 +78,7 @@ class TestMainReconnect:
         with patch.object(broker_app_module, "configure_logging", return_value=logging.getLogger("test.broker")), \
              patch.object(broker_app_module, "install_exception_logging"), \
              patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
+             patch.object(broker_app_module, "resolve_virtual_port", side_effect=lambda _c, port, _l: port), \
              patch.object(broker_app_module.serial, "Serial", side_effect=FakeSerial), \
              patch.object(broker_app_module, "socket") as mock_socket_mod, \
              patch.object(broker_app_module.time, "sleep", side_effect=fake_sleep):
