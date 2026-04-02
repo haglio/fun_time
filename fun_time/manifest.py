@@ -35,6 +35,10 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "audio_module": "fun_time.audio_companion_app",
             "dashboard_module": "fun_time.dashboard_app",
         },
+        "robot_hand": {
+            "udp_host": config.robot_hand.udp_host,
+            "udp_port": str(config.robot_hand.udp_port),
+        },
         "commands": {
             "robot_hand_mode_file": str(config.robot_hand_mode_file),
             "robot_hand_cmd_file": str(config.robot_hand_cmd_file),

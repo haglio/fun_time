@@ -831,3 +831,49 @@ class TestPhase4RobotHandAutoMode:
         assert topmost_on[-1] == (rh_hwnd, True)
         # Robot Hand should be activated
         assert rh_hwnd in activate_calls
+
+    def test_sends_auto_udp_when_auto_mode_active(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "robot_hand_pid": 60, "audio_pid": 70}
+
+        m = configparser.ConfigParser()
+        m.optionxform = str
+        m.read(str(manifest_path), encoding="utf-8")
+        Path(m["commands"]["robot_hand_mode_file"]).parent.mkdir(parents=True, exist_ok=True)
+        Path(m["commands"]["robot_hand_mode_file"]).write_text("1", encoding="utf-8")
+        Path(m["commands"]["robot_hand_enabled_file"]).write_text("1", encoding="utf-8")
+
+        udp_sent: list[tuple[bytes, tuple[str, int]]] = []
+
+        class FakeSocket:
+            def sendto(self, data, addr):
+                udp_sent.append((data, addr))
+            def close(self):
+                pass
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_robot_hand", return_value=60), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
+             patch("fun_time.windows_bridge_sequencer.socket.socket", return_value=FakeSocket()), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                hide_windows=True,
+            )
+
+        rh_host = m["robot_hand"]["udp_host"]
+        rh_port = int(m["robot_hand"]["udp_port"])
+        assert (b"AUTO 1", (rh_host, rh_port)) in udp_sent
