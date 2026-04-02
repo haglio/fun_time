@@ -12,6 +12,7 @@ dependencies = [
     "pillow",
     "pygame-ce",
     "PyQt6",
+    "pyserial",
 ]
 
 [project.optional-dependencies]
