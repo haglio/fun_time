@@ -10,6 +10,7 @@ import ctypes
 import ctypes.wintypes
 import logging
 import os
+import socket
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -248,6 +249,10 @@ def run_startup_sequence(
         if robot_hand_active_at_startup:
             write_flag_file(m["commands"]["robot_hand_paused_file"], False)
             write_flag_file(m["commands"]["audio_paused_file"], False)
+            # Send AUTO 1 directly to Robot Hand — it may have missed the
+            # broker's initial UDP messages because the broker detected auto
+            # mode before Robot Hand's UDP listener was bound.
+            _send_robot_hand_auto(m, True)
             logger.info("Robot Hand auto-mode detected at startup — unpaused")
 
         _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=False)
@@ -302,6 +307,21 @@ def run_startup_sequence(
         core_hwnds=collected_hwnds,
         rfb_hwnd=rfb_hwnd,
     )
+
+
+def _send_robot_hand_auto(m: configparser.ConfigParser, active: bool) -> None:
+    """Send AUTO message directly to Robot Hand via UDP."""
+    try:
+        host = m["robot_hand"]["udp_host"]
+        port = int(m["robot_hand"]["udp_port"])
+        msg = f"AUTO {1 if active else 0}".encode("utf-8")
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.sendto(msg, (host, port))
+        finally:
+            sock.close()
+    except Exception:
+        logger.debug("Failed to send AUTO to Robot Hand", exc_info=True)
 
 
 def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:

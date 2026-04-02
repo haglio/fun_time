@@ -64,6 +64,15 @@ def read_paused_state(path: Path, *, logger: logging.Logger | None = None) -> bo
 
 def main(argv: list[str] | None = None) -> int:
     config = load_config(_preparse_config(argv))
+
+    # Set AppUserModelID before any window creation so Robot Hand gets its
+    # own taskbar identity (icon + title) instead of inheriting python.exe's.
+    from ..win32 import APP_USER_MODEL_ID, set_app_user_model_id
+    try:
+        set_app_user_model_id(APP_USER_MODEL_ID)
+    except OSError:
+        pass  # Non-fatal
+
     logger = configure_logging("fun_time.robot_hand", config.log_file("robot_hand_listener"))
     install_exception_logging(logger)
     fault_fp = enable_faulthandler(config.log_file("robot_hand_crash"))
@@ -98,15 +107,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     clips = scan_clips(clips_folder, shuffle_on_load=config.robot_hand.shuffle_on_load)
     clip_sequence = ClipSequenceController(clips)
     cache_dir = cache_dir_for_clips_folder(clips_folder)
-
-    first_clip_frames = None
-    first_clip_path = clip_sequence.current_path
-    if first_clip_path is not None:
-        try:
-            first_clip_frames = load_clip_frames(first_clip_path, cache_dir)
-            logger.info("Pre-loaded %d frames for first clip %s", len(first_clip_frames), first_clip_path.name)
-        except Exception:
-            logger.warning("Failed to pre-load first clip %s", first_clip_path.name, exc_info=True)
 
     view = PygameView(
         width=args.width,
@@ -202,8 +202,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
-    if first_clip_frames is not None and first_clip_path is not None:
-        clip_store.clip_cache[first_clip_path] = {"frames": first_clip_frames}
     selection.set_current_clip(selection.current_path)
 
     while not stop_event.is_set():
