@@ -288,11 +288,13 @@ class TestStrokeAndBpmFromSerial:
         assert s.udp_messages == [
             "AUTO 1",
             "SHOW",
+            "BPM 87",
             "STROKE Twist",
             "PATTERN 1.5",
             "SYNC",
             "AUTO 1",
             "SHOW",
+            "BPM 87",
             "BPM 90",
             "BEATS 2",
             "SYNC",
@@ -373,7 +375,7 @@ class TestRobotHandEnabledSuppression:
         s.controller.set_enabled(sock, True)
 
         assert s.state_file.read_text(encoding="utf-8") == "1"
-        assert s.udp_messages[-2:] == ["AUTO 1", "SHOW"]
+        assert s.udp_messages[-3:] == ["AUTO 1", "SHOW", "BPM 87"]
 
 
 class TestBrokerCommands:
