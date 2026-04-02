@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 
@@ -38,8 +39,10 @@ class ClipLoadController:
             return
 
         if self._adopt_decoded_frames(path):
+            self.logger.info("Adopted prefetched clip %s", path.name)
             return
 
+        self.logger.info("Loading clip %s (no prefetch available)", path.name)
         request_id = self.load_state.begin()
         self.on_loading_requested(path)
         self.start_thread(
@@ -54,6 +57,7 @@ class ClipLoadController:
         if self.is_busy:
             return
 
+        self.logger.info("Prefetching clip %s", path.name)
         request_id = self.prefetch_state.begin()
         self.start_thread(
             target=self._prefetch_thread_fn,
@@ -86,6 +90,7 @@ class ClipLoadController:
         if err:
             return
 
+        self.logger.info("Prefetch ready: %s (%d frames)", path.name, len(frames) if frames else 0)
         self._cache_decoded_frames(path, frames)
 
     def _cache_decoded_frames(self, path: Path, frames: list) -> None:
@@ -102,8 +107,11 @@ class ClipLoadController:
         )
 
     def _decode_thread_fn(self, path: Path, request_id: int, state, log_error) -> None:
+        t0 = time.monotonic()
         try:
             frames = self.decode_clip(path)
+            elapsed = time.monotonic() - t0
+            self.logger.info("Decoded %s: %d frames in %.2fs", path.name, len(frames), elapsed)
             state.record_success(path, frames, request_id)
         except Exception as exc:
             log_error(path, exc)
