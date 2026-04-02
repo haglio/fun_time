@@ -108,6 +108,26 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     clip_sequence = ClipSequenceController(clips)
     cache_dir = cache_dir_for_clips_folder(clips_folder)
 
+    # Start decoding the first clip immediately in a background thread.
+    # This overlaps with pygame init + controller wiring below, so by
+    # the time the main loop starts the first clip is likely already
+    # decoded and ready to display.
+    first_clip_path = clip_sequence.current_path
+    preload_result: dict = {"frames": None}
+
+    def _preload_first_clip() -> None:
+        try:
+            preload_result["frames"] = load_clip_frames(first_clip_path, cache_dir)
+        except Exception:
+            logger.warning("Failed to pre-load first clip %s", first_clip_path, exc_info=True)
+
+    preload_thread = None
+    if first_clip_path is not None:
+        preload_thread = threading.Thread(
+            target=_preload_first_clip, daemon=True, name="robot-hand-preload",
+        )
+        preload_thread.start()
+
     view = PygameView(
         width=args.width,
         height=args.height,
@@ -202,6 +222,11 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
+    if preload_thread is not None:
+        preload_thread.join(timeout=10.0)
+        if preload_result["frames"] is not None:
+            clip_store.clip_cache[first_clip_path] = {"frames": preload_result["frames"]}
+            logger.info("Pre-loaded %d frames for %s", len(preload_result["frames"]), first_clip_path.name)
     selection.set_current_clip(selection.current_path)
 
     while not stop_event.is_set():
