@@ -49,6 +49,11 @@ class BrokerAutoController:
         with self._lock:
             return self._auto_active
 
+    # Seed BPM sent when entering auto mode so Robot Hand can start
+    # animating immediately instead of waiting ~3-4 s for the first real
+    # BPM from the OSR2 serial stream.
+    _SEED_BPM = 87
+
     def publish_effective_state(self, sock: socket.socket, mode_value: str | None = None) -> None:
         with self._lock:
             effective_active = self._auto_active and self._enabled
@@ -57,6 +62,8 @@ class BrokerAutoController:
         self.write_mode(self.state_file, mode_text, self.logger)
         self.udp_send(sock, self.udp_host, self.udp_port, f"AUTO {1 if effective_active else 0}")
         self.udp_send(sock, self.udp_host, self.udp_port, "SHOW" if effective_active else "HIDE")
+        if effective_active:
+            self.udp_send(sock, self.udp_host, self.udp_port, f"BPM {self._SEED_BPM}")
 
     def set_auto(self, sock: socket.socket, value: bool, mode_value: str | None = None) -> None:
         with self._lock:

@@ -29,7 +29,7 @@ def test_set_auto_writes_mode_and_sends_udp_messages():
 
     assert controller.is_active is True
     assert writes == [(Path("mode.txt"), "1")]
-    assert sends == ["AUTO 1", "SHOW"]
+    assert sends == ["AUTO 1", "SHOW", "BPM 87"]
     logger.info.assert_called_once_with("AUTO %s", "ON")
 
 
@@ -124,11 +124,13 @@ def test_handle_line_sends_stroke_bpm_and_sync_messages():
     assert sends == [
         "AUTO 1",
         "SHOW",
+        "BPM 87",
         "STROKE Pull",
         "PATTERN 2.0",
         "SYNC",
         "AUTO 1",
         "SHOW",
+        "BPM 87",
         "BPM 120",
         "BEATS 4",
         "SYNC",
@@ -193,4 +195,4 @@ def test_reenabling_robot_hand_restores_auto_visibility_when_auto_is_active():
     controller.set_enabled(sock, True)
 
     assert writes[-1] == (Path("mode.txt"), "1")
-    assert sends[-2:] == ["AUTO 1", "SHOW"]
+    assert sends[-3:] == ["AUTO 1", "SHOW", "BPM 87"]

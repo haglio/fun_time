@@ -312,14 +312,22 @@ def run_startup_sequence(
 
 
 def _send_robot_hand_auto(m: configparser.ConfigParser, active: bool) -> None:
-    """Send AUTO message directly to Robot Hand via UDP."""
+    """Send AUTO and seed BPM directly to Robot Hand via UDP.
+
+    When activating, a seed BPM is sent so the playback engine can start
+    advancing frames immediately instead of waiting ~3-4 s for the first
+    real BPM from the broker.  The broker's real BPM replaces this seed
+    within seconds.
+    """
+    _SEED_BPM = 87
     try:
         host = m["robot_hand"]["udp_host"]
         port = int(m["robot_hand"]["udp_port"])
-        msg = f"AUTO {1 if active else 0}".encode("utf-8")
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            sock.sendto(msg, (host, port))
+            sock.sendto(f"AUTO {1 if active else 0}".encode("utf-8"), (host, port))
+            if active:
+                sock.sendto(f"BPM {_SEED_BPM}".encode("utf-8"), (host, port))
         finally:
             sock.close()
     except Exception:
