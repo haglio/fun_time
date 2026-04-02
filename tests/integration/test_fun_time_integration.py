@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from fun_time.vlc_actions import ensure_playback_state, get_playback_state, get_playback_time, vlc_http_cmd
+from fun_time.win32 import find_window_by_pid, is_window_topmost
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -175,6 +176,35 @@ def test_fun_time_robot_hand_active_playback(shared_integration_session: FunTime
         description="Audio paused file to flip back on after leaving mode",
     )
 
+
+
+def test_fun_time_primary_vlc_not_topmost_in_robot_hand_mode(shared_integration_session: FunTimeIntegrationSession):
+    """Primary VLC must leave the TOPMOST z-band while Robot Hand mode is
+    active so VLC video transitions cannot bring it above Robot Hand."""
+    s = shared_integration_session
+    primary_pid = s.read_child_pids()["primary_pid"]
+    hwnd = find_window_by_pid(primary_pid)
+    assert hwnd, f"Primary VLC window not found for pid {primary_pid}"
+
+    assert is_window_topmost(hwnd), "Primary VLC should be TOPMOST before robot hand mode"
+
+    s.write_robot_hand_mode(True)
+    s.wait_for_new_log("Entering Robot Hand mode", timeout=12)
+
+    s.wait_until(
+        lambda: not is_window_topmost(find_window_by_pid(primary_pid)),
+        timeout=12,
+        description="Primary VLC to lose TOPMOST in robot hand mode",
+    )
+
+    s.write_robot_hand_mode(False)
+    s.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
+
+    s.wait_until(
+        lambda: is_window_topmost(find_window_by_pid(primary_pid)),
+        timeout=12,
+        description="Primary VLC to regain TOPMOST after leaving robot hand mode",
+    )
 
 
 def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):

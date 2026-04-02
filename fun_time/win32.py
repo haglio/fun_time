@@ -25,6 +25,8 @@ SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
 HWND_TOPMOST = ctypes.wintypes.HWND(-1)
 HWND_NOTOPMOST = ctypes.wintypes.HWND(-2)
+GWL_EXSTYLE = -20
+WS_EX_TOPMOST = 0x00000008
 LSFW_LOCK = 1
 LSFW_UNLOCK = 2
 
@@ -140,6 +142,12 @@ def set_always_on_top(hwnd: int, on_top: bool) -> None:
     """Set or clear the always-on-top flag for a window."""
     insert_after = HWND_TOPMOST if on_top else HWND_NOTOPMOST
     _user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+
+
+def is_window_topmost(hwnd: int) -> bool:
+    """Check whether a window has the WS_EX_TOPMOST extended style."""
+    ex_style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    return bool(ex_style & WS_EX_TOPMOST)
 
 
 def activate_window(hwnd: int) -> None:

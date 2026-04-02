@@ -9,6 +9,7 @@ from fun_time.win32 import (
     wait_for_window,
     move_window,
     set_always_on_top,
+    is_window_topmost,
     activate_window,
     get_window_rect,
     find_window_by_pid,
@@ -16,6 +17,8 @@ from fun_time.win32 import (
     send_vk_to_window,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
+    GWL_EXSTYLE,
+    WS_EX_TOPMOST,
     SW_MINIMIZE,
     SW_RESTORE,
     SWP_NOZORDER,
@@ -121,6 +124,19 @@ class TestCloseWindow:
             close_window(0)
 
         mock.PostMessageW.assert_not_called()
+
+
+class TestIsWindowTopmost:
+    def test_returns_true_when_topmost_bit_set(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowLongW.return_value = WS_EX_TOPMOST | 0x100
+            assert is_window_topmost(111) is True
+        mock.GetWindowLongW.assert_called_once_with(111, GWL_EXSTYLE)
+
+    def test_returns_false_when_topmost_bit_clear(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowLongW.return_value = 0x100
+            assert is_window_topmost(111) is False
 
 
 class TestConstants:
