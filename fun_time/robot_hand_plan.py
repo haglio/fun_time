@@ -53,8 +53,9 @@ def build_robot_hand_plan(
         next_enabled = not enabled
 
         if omni_paused:
+            effective = next_enabled and mode_state_on
             return RobotHandPlan(
-                target_active=robot_hand_mode_on,
+                target_active=effective,
                 is_transition=False,
                 write_enabled=True,
                 enabled_value=next_enabled,
