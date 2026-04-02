@@ -15,7 +15,6 @@ class ClipLoadController:
         decode_clip,
         start_thread,
         logger,
-        on_loading_requested,
         on_active_clip_loaded,
         on_error,
     ):
@@ -26,7 +25,6 @@ class ClipLoadController:
         self.decode_clip = decode_clip
         self.start_thread = start_thread
         self.logger = logger
-        self.on_loading_requested = on_loading_requested
         self.on_active_clip_loaded = on_active_clip_loaded
         self.on_error = on_error
 
@@ -44,7 +42,6 @@ class ClipLoadController:
 
         self.logger.info("Loading clip %s (no prefetch available)", path.name)
         request_id = self.load_state.begin()
-        self.on_loading_requested(path)
         self.start_thread(
             target=self._loader_thread_fn,
             args=(path, request_id),

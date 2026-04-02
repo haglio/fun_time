@@ -12,7 +12,6 @@ class RobotHandLifecycleController:
         view,
         renderer,
         selection,
-        status_overlay,
         stop_event,
         notifier,
         resize_delay_ms: int,
@@ -20,7 +19,6 @@ class RobotHandLifecycleController:
         self.view = view
         self.renderer = renderer
         self.selection = selection
-        self.status_overlay = status_overlay
         self.stop_event = stop_event
         self.notifier = notifier
         self.resize_delay_ms = resize_delay_ms
@@ -34,10 +32,6 @@ class RobotHandLifecycleController:
                 self._handle_key(event)
             elif event.type == pygame.VIDEORESIZE:
                 self._on_resize()
-            elif event.type == pygame.MOUSEMOTION:
-                self.status_overlay.on_mouse_motion()
-            elif event.type == pygame.WINDOWLEAVE:
-                self.status_overlay.on_mouse_leave()
 
         self._flush_pending_resize()
 

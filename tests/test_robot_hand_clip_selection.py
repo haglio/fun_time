@@ -50,9 +50,6 @@ def _build_controller(*paths: str, loader_busy: bool = False, adopt_on_load: boo
     loader = FakeLoader(clip_store, is_busy=loader_busy, adopt_on_load=adopt_on_load)
     renderer = FakeRenderer()
     notifier = FakeNotifier()
-    status_messages: list[str] = []
-    shows: list[str] = []
-    hides: list[str] = []
 
     controller = ClipSelectionController(
         sequence=sequence,
@@ -60,15 +57,12 @@ def _build_controller(*paths: str, loader_busy: bool = False, adopt_on_load: boo
         loader=loader,
         renderer=renderer,
         notifier=notifier,
-        set_status_text=status_messages.append,
-        show_status=lambda: shows.append("show"),
-        schedule_status_hide=lambda: hides.append("hide"),
     )
-    return controller, clip_store, loader, renderer, notifier, status_messages, shows, hides
+    return controller, clip_store, loader, renderer, notifier
 
 
 def test_set_current_clip_uses_cached_entry_without_loading():
-    controller, clip_store, loader, renderer, notifier, _status_messages, _shows, hides = _build_controller("a.mp4", "b.mp4")
+    controller, clip_store, loader, renderer, notifier = _build_controller("a.mp4", "b.mp4")
     path = Path("b.mp4")
     clip_store.clip_cache[path] = {"frames": ["f0"]}
 
@@ -78,11 +72,10 @@ def test_set_current_clip_uses_cached_entry_without_loading():
     assert renderer.prepare_calls == 1
     assert notifier.clip_notifications == [path]
     assert loader.load_requests == []
-    assert hides == ["hide"]
 
 
 def test_set_current_clip_requests_load_for_uncached_entry():
-    controller, _clip_store, loader, renderer, notifier, _status_messages, _shows, hides = _build_controller("a.mp4", "b.mp4")
+    controller, _clip_store, loader, renderer, notifier = _build_controller("a.mp4", "b.mp4")
     path = Path("b.mp4")
 
     controller.set_current_clip(path)
@@ -91,11 +84,10 @@ def test_set_current_clip_requests_load_for_uncached_entry():
     assert renderer.prepare_calls == 0
     assert notifier.clip_notifications == [path]
     assert loader.load_requests == [path]
-    assert hides == []
 
 
 def test_set_current_clip_prepares_when_load_adopts_immediately():
-    controller, _clip_store, loader, renderer, notifier, _status_messages, _shows, hides = _build_controller(
+    controller, _clip_store, loader, renderer, notifier = _build_controller(
         "a.mp4",
         "b.mp4",
         adopt_on_load=True,
@@ -108,25 +100,79 @@ def test_set_current_clip_prepares_when_load_adopts_immediately():
     assert renderer.prepare_calls == 1
     assert notifier.clip_notifications == [path]
     assert loader.load_requests == [path]
-    assert hides == ["hide"]
 
 
-def test_step_advances_sequence_and_reports_selected_clip():
-    controller, _clip_store, loader, renderer, notifier, status_messages, shows, hides = _build_controller("a.mp4", "b.mp4")
+def test_step_switches_immediately_when_cached():
+    controller, clip_store, loader, renderer, notifier = _build_controller("a.mp4", "b.mp4")
+    clip_store.clip_cache[Path("b.mp4")] = {"frames": ["f0"]}
 
     controller.step(1)
 
     assert controller.current_number == 2
     assert renderer.current_clip_path == Path("b.mp4")
     assert notifier.clip_notifications == [Path("b.mp4")]
+    assert renderer.prepare_calls == 1
+    assert controller.pending_clip_name is None
+
+
+def test_step_defers_switch_when_not_cached():
+    controller, _clip_store, loader, renderer, notifier = _build_controller("a.mp4", "b.mp4")
+    # Set initial clip on renderer
+    renderer.current_clip_path = Path("a.mp4")
+
+    controller.step(1)
+
+    assert controller.current_number == 2
+    # Renderer still shows old clip
+    assert renderer.current_clip_path == Path("a.mp4")
+    # No notification yet — deferred
+    assert notifier.clip_notifications == []
+    # Load was requested
     assert loader.load_requests == [Path("b.mp4")]
-    assert status_messages == ["Selected clip: b.mp4"]
-    assert shows == ["show"]
-    assert hides == ["hide"]
+    # Pending clip name is set
+    assert controller.pending_clip_name == "b.mp4"
+
+
+def test_adopt_pending_clip_switches_when_loaded():
+    controller, clip_store, loader, renderer, notifier = _build_controller("a.mp4", "b.mp4")
+    renderer.current_clip_path = Path("a.mp4")
+
+    controller.step(1)  # defers — b.mp4 not cached
+
+    # Simulate async load completing
+    clip_store.clip_cache[Path("b.mp4")] = {"frames": ["f0"]}
+    result = controller.adopt_pending_clip()
+
+    assert result is True
+    assert renderer.current_clip_path == Path("b.mp4")
+    assert notifier.clip_notifications == [Path("b.mp4")]
+    assert renderer.prepare_calls == 1
+    assert controller.pending_clip_name is None
+
+
+def test_adopt_pending_clip_returns_false_when_not_ready():
+    controller, _clip_store, loader, renderer, notifier = _build_controller("a.mp4", "b.mp4")
+    renderer.current_clip_path = Path("a.mp4")
+
+    controller.step(1)  # defers
+
+    result = controller.adopt_pending_clip()
+
+    assert result is False
+    assert renderer.current_clip_path == Path("a.mp4")
+    assert controller.pending_clip_name == "b.mp4"
+
+
+def test_adopt_pending_clip_noop_when_no_pending():
+    controller, _clip_store, _loader, _renderer, _notifier = _build_controller("a.mp4", "b.mp4")
+
+    result = controller.adopt_pending_clip()
+
+    assert result is False
 
 
 def test_request_nearby_prefetch_uses_first_uncached_neighbor():
-    controller, clip_store, loader, _renderer, _notifier, _status_messages, _shows, _hides = _build_controller(
+    controller, clip_store, loader, _renderer, _notifier = _build_controller(
         "a.mp4",
         "b.mp4",
         "c.mp4",
@@ -139,7 +185,7 @@ def test_request_nearby_prefetch_uses_first_uncached_neighbor():
 
 
 def test_request_nearby_prefetch_skips_when_busy():
-    controller, _clip_store, loader, _renderer, _notifier, _status_messages, _shows, _hides = _build_controller(
+    controller, _clip_store, loader, _renderer, _notifier = _build_controller(
         "a.mp4",
         "b.mp4",
         loader_busy=True,
@@ -151,7 +197,7 @@ def test_request_nearby_prefetch_skips_when_busy():
 
 
 def test_request_nearby_prefetch_is_empty_for_single_clip():
-    controller, _clip_store, loader, _renderer, _notifier, _status_messages, _shows, _hides = _build_controller("solo.mp4")
+    controller, _clip_store, loader, _renderer, _notifier = _build_controller("solo.mp4")
 
     controller.request_nearby_prefetch()
 

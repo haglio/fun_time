@@ -7,12 +7,6 @@ from ..runtime_support import consume_command_file
 from .engine import update_engine
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command, get_engine_estimated_bpm
-from .status_text import (
-    active_clip_status_text,
-    exception_status_text,
-    listener_error_status_text,
-    loading_status_text,
-)
 
 
 class RobotHandRefreshController:
@@ -33,8 +27,7 @@ class RobotHandRefreshController:
         sync_strength: float,
         show_window,
         hide_window,
-        set_status_text,
-        show_status,
+        set_loading_text,
         logger,
         log_name: str,
         now_source=time.monotonic,
@@ -55,8 +48,7 @@ class RobotHandRefreshController:
         self.sync_strength = sync_strength
         self.show_window = show_window
         self.hide_window = hide_window
-        self.set_status_text = set_status_text
-        self.show_status = show_status
+        self.set_loading_text = set_loading_text
         self.logger = logger
         self.log_name = log_name
         self.now_source = now_source
@@ -69,13 +61,12 @@ class RobotHandRefreshController:
             self._refresh_once()
         except Exception as exc:
             self.logger.exception("refresh failed")
-            self.set_status_text(exception_status_text(str(exc), log_name=self.log_name))
-            self.show_status()
 
     def _refresh_once(self) -> None:
         now = self.now_source()
         self.loader.adopt_loaded_clip_if_ready()
         self.loader.adopt_prefetch_if_ready()
+        self.selection.adopt_pending_clip()
 
         shared = read_shared_state_snapshot(self.state)
         self.rh_paused["value"] = self.read_paused_state(self.paused_file, logger=self.logger)
@@ -89,8 +80,6 @@ class RobotHandRefreshController:
         )
 
         if shared.error:
-            self.set_status_text(listener_error_status_text(shared.error))
-            self.show_status()
             return
 
         loop_duration = update_engine(
@@ -112,9 +101,7 @@ class RobotHandRefreshController:
             step_clip=self.selection.step,
         )
 
-        path = self.renderer.current_clip_path
         active_entry = self.renderer.current_clip_entry()
-        clip_name = path.name if path else "(none)"
 
         if active_entry and active_entry["frames"]:
             frame_count = len(active_entry["frames"])
@@ -124,38 +111,10 @@ class RobotHandRefreshController:
                 auto_active=shared.auto_active,
                 current_frame_index=self.renderer.current_frame_index,
             )
-
             self.renderer.display_frame(display_index)
 
-            self.set_status_text(
-                active_clip_status_text(
-                    clip_name=clip_name,
-                    clip_index=self.selection.current_number,
-                    clip_count=self.selection.count,
-                    frame_index=display_index + 1,
-                    frame_count=frame_count,
-                    visible=shared.visible,
-                    auto_active=shared.auto_active,
-                    phase=self.engine.phase,
-                    raw_bpm=shared.raw_bpm,
-                    estimated_bpm=get_engine_estimated_bpm(self.engine),
-                    beats=shared.beats,
-                    loop_duration=loop_duration,
-                    stroke_name=shared.stroke_name,
-                    pattern_duration=shared.pattern_duration,
-                    loading=self.loader.load_state.loading,
-                    last_msg=shared.last_msg,
-                )
-            )
-        else:
-            self.set_status_text(
-                loading_status_text(
-                    clip_name=clip_name,
-                    clip_index=self.selection.current_number,
-                    clip_count=self.selection.count,
-                    loading=self.loader.load_state.loading,
-                )
-            )
-            self.show_status()
+        # Show or clear the loading overlay
+        pending = self.selection.pending_clip_name
+        self.set_loading_text(f"Loading {pending}" if pending else None)
 
         self.selection.request_nearby_prefetch()

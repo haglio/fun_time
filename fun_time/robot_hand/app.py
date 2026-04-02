@@ -21,7 +21,6 @@ from ..runtime_support import preparse_config_path
 from ..threading_utils import start_daemon_thread
 from .engine import PlaybackEngine
 from .state import SharedState, udp_reader
-from .status_overlay import StatusOverlayController
 from .video import cache_dir_for_clips_folder, load_clip_frames, scan_clips
 
 
@@ -155,12 +154,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     prefetch_state = DecodeRequestState()
     notifier = RobotHandNotifier(args.notify_host, args.notify_port)
 
-    status_text = {"value": "Starting..."}
-    status_overlay = StatusOverlayController(
-        hide_delay_ms=config.robot_hand.status_hide_ms,
-        can_hide=lambda: state.error is None and not load_state.loading,
-    )
-
     renderer = ClipRenderController(
         clip_store=clip_store,
         display_frame_fn=view.display_frame,
@@ -175,8 +168,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         decode_clip=lambda path: load_clip_frames(path, cache_dir),
         start_thread=start_daemon_thread,
         logger=logger,
-        on_loading_requested=lambda path: (status_text.__setitem__("value", f"Loading clip...\n{path.name}"), status_overlay.show()),
-        on_active_clip_loaded=lambda: (renderer.prepare_active_clip_for_current_size(), status_overlay.schedule_hide()),
+        on_active_clip_loaded=renderer.prepare_active_clip_for_current_size,
         on_error=lambda msg: state.__setattr__("error", msg),
     )
     selection = ClipSelectionController(
@@ -185,9 +177,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         loader=loader,
         renderer=renderer,
         notifier=notifier,
-        set_status_text=lambda text: status_text.__setitem__("value", text),
-        show_status=status_overlay.show,
-        schedule_status_hide=status_overlay.schedule_hide,
     )
 
     refresh_controller = RobotHandRefreshController(
@@ -205,8 +194,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         sync_strength=args.sync_strength,
         show_window=lambda: None,
         hide_window=lambda: None,
-        set_status_text=lambda text: status_text.__setitem__("value", text),
-        show_status=status_overlay.show,
+        set_loading_text=view.set_loading_text,
         logger=logger,
         log_name=config.log_file("robot_hand_listener").name,
         read_paused_state=read_paused_state,
@@ -215,7 +203,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         view=view,
         renderer=renderer,
         selection=selection,
-        status_overlay=status_overlay,
         stop_event=stop_event,
         notifier=notifier,
         resize_delay_ms=config.robot_hand.resize_debounce_ms,

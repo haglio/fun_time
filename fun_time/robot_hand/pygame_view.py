@@ -55,6 +55,8 @@ class PygameView:
         self._width = width
         self._height = height
         self._current_texture: Texture | None = None
+        self._loading_font: pygame.font.Font | None = None
+        self._loading_text: str | None = None
 
     @property
     def width(self) -> int:
@@ -67,13 +69,32 @@ class PygameView:
     def get_size(self) -> tuple[int, int]:
         return self.window.size
 
+    def set_loading_text(self, text: str | None) -> None:
+        self._loading_text = text
+
     def display_frame(self, frame: np.ndarray) -> None:
         h, w = frame.shape[:2]
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
         self._current_texture = Texture.from_surface(self.renderer, surface)
         self.renderer.clear()
         self._current_texture.draw()
+        if self._loading_text:
+            self._draw_loading_overlay()
         self.renderer.present()
+
+    def _draw_loading_overlay(self) -> None:
+        if self._loading_font is None:
+            self._loading_font = pygame.font.SysFont("arial", 18)
+        text_surface = self._loading_font.render(self._loading_text, True, (255, 255, 255))
+        padding = 8
+        w, h = text_surface.get_size()
+        bg = pygame.Surface((w + padding * 2, h + padding * 2), pygame.SRCALPHA)
+        bg.fill((0, 0, 0, 180))
+        bg.blit(text_surface, (padding, padding))
+        texture = Texture.from_surface(self.renderer, bg)
+        win_w, _win_h = self.window.size
+        dest = pygame.Rect(win_w - w - padding * 3, padding, w + padding * 2, h + padding * 2)
+        texture.draw(dstrect=dest)
 
     def show(self) -> None:
         self.window.show()
