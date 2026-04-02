@@ -323,6 +323,13 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     after_forward = get_playback_time(port, password)
     assert after_forward is not None
 
+    # Pause VLC to freeze the position before measuring — playback
+    # advancing during the backward nudge can mask the seek.
+    ensure_playback_state(port, password, should_play=False)
+    after_forward = get_playback_time(port, password)
+    assert after_forward is not None
+    ensure_playback_state(port, password, should_play=True)
+
     # --- nudge backward ---
     s.write_dashboard_command("vlc_nudge_prev")
     s.wait_until(
