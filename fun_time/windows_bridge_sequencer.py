@@ -37,6 +37,7 @@ from .window_layout import (
     MonitorRect,
     WindowLayoutPlan,
     WindowRect,
+    clamp01,
     compute_window_layout,
 )
 
@@ -129,6 +130,22 @@ def run_startup_sequence(
         primary_pid, mfp_pid, portrait_pid, landscape_pid,
     )
 
+    # Launch Robot Hand as early as possible so it can initialise pygame,
+    # scan clips, and decode the first clip while the rest of startup
+    # continues.  Its rect depends only on secondary monitor + primary_top_ratio
+    # (same as Primary VLC), so no MFP window is needed.
+    rh_rect = _compute_robot_hand_rect(m)
+    robot_hand_pid = launch_robot_hand(
+        python_exe=m["executables"]["python_exe"],
+        robot_hand_module=m["modules"]["robot_hand_module"],
+        config_path=m["runtime"]["config_path"],
+        clips_folder=m["media"]["robot_hand_clips"],
+        robot_x=rh_rect.x,
+        robot_y=rh_rect.y,
+        robot_width=rh_rect.width,
+        robot_height=rh_rect.height,
+    )
+
     # --- Phase 2: Wait for MFP window and compute layout ---
     progress.advance("Waiting for media player window...")
     mfp_hwnd = wait_for_window(mfp_pid, timeout_s=15.0)
@@ -174,21 +191,6 @@ def run_startup_sequence(
                 if not skip_activate:
                     activate_window(hwnd)
         logger.info("Topmost set on core windows")
-
-    # --- Phase 2.1: Launch Robot Hand early ---
-    # Robot Hand is launched before other UI companions so it has time
-    # to initialise pygame, scan clips, and decode the first clip while
-    # the rest of the startup sequence continues.
-    robot_hand_pid = launch_robot_hand(
-        python_exe=m["executables"]["python_exe"],
-        robot_hand_module=m["modules"]["robot_hand_module"],
-        config_path=m["runtime"]["config_path"],
-        clips_folder=m["media"]["robot_hand_clips"],
-        robot_x=plan.robot_hand.x,
-        robot_y=plan.robot_hand.y,
-        robot_width=plan.robot_hand.width,
-        robot_height=plan.robot_hand.height,
-    )
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("Launching browser...")
@@ -322,6 +324,28 @@ def _send_robot_hand_auto(m: configparser.ConfigParser, active: bool) -> None:
             sock.close()
     except Exception:
         logger.debug("Failed to send AUTO to Robot Hand", exc_info=True)
+
+
+def _compute_robot_hand_rect(m: configparser.ConfigParser) -> WindowRect:
+    """Compute Robot Hand's window rect without needing MFP size.
+
+    Robot Hand uses the same rect as Primary VLC, which depends only on
+    the secondary monitor dimensions and primary_top_ratio.
+    """
+    layout_cfg = _layout_config_from_manifest(m)
+    monitors = enumerate_monitors()
+    _, secondary_rect = get_logical_monitor_rects(
+        monitors, main_index=layout_cfg.main_monitor,
+        secondary_index=layout_cfg.secondary_monitor,
+    )
+    portrait_height = int(secondary_rect.height * clamp01(layout_cfg.primary_top_ratio))
+    primary_height = secondary_rect.height - portrait_height
+    return WindowRect(
+        x=secondary_rect.x,
+        y=secondary_rect.y + portrait_height,
+        width=secondary_rect.width,
+        height=primary_height,
+    )
 
 
 def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
