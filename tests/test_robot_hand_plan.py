@@ -164,7 +164,9 @@ def test_toggle_enables_but_no_transition_when_auto_off():
     assert plan.is_transition is False
 
 
-def test_toggle_during_omnipause_writes_enabled_but_no_transition():
+def test_toggle_disable_during_omnipause_deactivates_mode():
+    """Disabling Robot Hand during omnipause must set target_active=False
+    so that leaving omnipause does not re-activate the Robot Hand window."""
     plan = build_robot_hand_plan(
         "toggle-enabled",
         robot_hand_mode_on=True,
@@ -175,7 +177,24 @@ def test_toggle_during_omnipause_writes_enabled_but_no_transition():
 
     assert plan.write_enabled is True
     assert plan.enabled_value is False
-    assert plan.target_active is True  # preserves current state
+    assert plan.target_active is False  # mode must reflect the disable
+    assert plan.is_transition is False
+
+
+def test_toggle_enable_during_omnipause_activates_mode_when_auto_on():
+    """Re-enabling Robot Hand during omnipause with mode_state on must
+    set target_active=True so leaving omnipause restores Robot Hand."""
+    plan = build_robot_hand_plan(
+        "toggle-enabled",
+        robot_hand_mode_on=False,
+        enabled=False,
+        mode_state_on=True,
+        omni_paused=True,
+    )
+
+    assert plan.write_enabled is True
+    assert plan.enabled_value is True
+    assert plan.target_active is True
     assert plan.is_transition is False
 
 
