@@ -4,7 +4,7 @@ import sys
 
 from .runtime_support import hidden_subprocess_kwargs
 
-BROKER_PROCESS_PATTERN = "fun_time\\.broker_app"
+BROKER_PROCESS_PATTERN = "osr2_broker\\.app"
 BROKER_TRAY_PATTERN = "broker_tray\\.ps1|launch_broker_tray\\.vbs"
 
 

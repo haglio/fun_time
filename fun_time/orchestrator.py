@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 from .config import load_config
-from .broker_ports import ensure_mfp_serial_port, ensure_mfp_vlc_endpoint
+from .mfp_config import ensure_mfp_vlc_endpoint
 from .manifest import write_windows_bridge_manifest
 from .windows_bridge_orchestrator import run_python_orchestrated_bridge
 from .logging_utils import configure_logging, install_exception_logging
@@ -58,8 +58,6 @@ def validate_config(config) -> None:
     require_dir(config.paths.clips_dir)
     require_dir(config.paths.audio_dir)
     require_file(config.project_dir / "windows_bridge_hotkeys.ahk")
-    require_file(config.project_dir / "scripts" / "run_broker_service.ps1")
-    require_file(config.project_dir / "fun_time" / "broker_app.py")
     if config.paths.genau_config_path:
         require_file(config.paths.genau_config_path)
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
@@ -131,22 +129,22 @@ def start_broker(config, logger) -> subprocess.Popen | None:
             if python_console.exists():
                 python_path = python_console
         if python_path.exists():
-            command = [str(python_path), "-m", "fun_time.broker_app", "--config", str(config.config_path)]
+            command = [str(python_path), "-m", "osr2_broker.app", "--config", str(config.config_path)]
         else:
-            command = ["py", "-3", "-m", "fun_time.broker_app", "--config", str(config.config_path)]
+            command = ["py", "-3", "-m", "osr2_broker.app", "--config", str(config.config_path)]
         logger.warning("Broker was not running; starting direct integration broker process")
         return subprocess.Popen(
             command,
-            cwd=config.project_dir,
+            cwd=config.project_dir.parent / "osr2_broker",
             **orchestrator_broker.subprocess_window_kwargs(),
         )
 
-    tray_launcher = config.project_dir / "launch_broker_tray.vbs"
+    tray_launcher = config.project_dir.parent / "osr2_broker" / "launch_broker_tray.vbs"
     command = ["wscript.exe", str(tray_launcher)]
     logger.warning("Broker was not running; starting %s", tray_launcher)
     return subprocess.Popen(
         command,
-        cwd=config.project_dir,
+        cwd=config.project_dir.parent / "osr2_broker",
         **orchestrator_broker.subprocess_window_kwargs(),
     )
 
@@ -282,7 +280,6 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Config validation succeeded")
         return 0
 
-    ensure_mfp_serial_port(config, logger)
     ensure_mfp_vlc_endpoint(config, logger)
     ensure_broker_running(config, logger)
     return run_windows_bridge(config, logger)

@@ -85,16 +85,6 @@ class VlcConfig:
 
 
 @dataclass(frozen=True)
-class BrokerConfig:
-    virtual_port: str
-    real_port: str
-    baud: int
-    udp_host: str
-    udp_port: int
-    auto_stale_timeout: float
-
-
-@dataclass(frozen=True)
 class GenauConfig:
     shuffle_on_load: bool
     beats_per_loop: float
@@ -133,7 +123,6 @@ class ProjectConfig:
     paths: PathsConfig
     vlc: VlcConfig
     layout: LayoutConfig
-    broker: BrokerConfig
     genau: GenauConfig
     audio_companion: AudioCompanionConfig
     random_favs_browser: RandomFavsBrowserConfig
@@ -153,14 +142,6 @@ class ProjectConfig:
     @property
     def genau_paused_file(self) -> Path:
         return self.paths.state_dir / "genau_paused.txt"
-
-    @property
-    def broker_cmd_file(self) -> Path:
-        return self.paths.state_dir / "broker_cmd.txt"
-
-    @property
-    def broker_heartbeat_file(self) -> Path:
-        return self.paths.state_dir / "broker_heartbeat.txt"
 
     @property
     def osr2_serial_rx_file(self) -> Path:
@@ -272,17 +253,6 @@ def _load_vlc_config(vlc_raw: dict[str, Any], source_path: Path) -> VlcConfig:
     )
 
 
-def _load_broker_config(broker_raw: dict[str, Any], source_path: Path) -> BrokerConfig:
-    return BrokerConfig(
-        virtual_port=_require_typed_value(broker_raw, "virtual_port", source_path, "config.broker", str),
-        real_port=_require_typed_value(broker_raw, "real_port", source_path, "config.broker", str),
-        baud=_require_typed_value(broker_raw, "baud", source_path, "config.broker", int),
-        udp_host=_require_typed_value(broker_raw, "udp_host", source_path, "config.broker", str),
-        udp_port=_require_typed_value(broker_raw, "udp_port", source_path, "config.broker", int),
-        auto_stale_timeout=_require_typed_value(broker_raw, "auto_stale_timeout", source_path, "config.broker", float),
-    )
-
-
 def _load_genau_config(robot_raw: dict[str, Any], source_path: Path) -> GenauConfig:
     return GenauConfig(
         shuffle_on_load=_require_typed_value(robot_raw, "shuffle_on_load", source_path, "config.genau", bool),
@@ -330,7 +300,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     paths_raw = _require_dict(raw, "paths", path)
     vlc_raw = _require_dict(raw, "vlc", path)
     layout_raw = _require_dict(raw, "layout", path)
-    broker_raw = _require_dict(raw, "broker", path)
     robot_raw = _require_dict(raw, "genau", path)
     audio_raw = _require_dict(raw, "audio_companion", path)
     browser_raw = _require_optional_dict(raw, "random_favs_browser", path)
@@ -343,7 +312,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         paths=_load_paths_config(paths_raw, path),
         vlc=_load_vlc_config(vlc_raw, path),
         layout=_load_layout_config(layout_raw, path),
-        broker=_load_broker_config(broker_raw, path),
         genau=_load_genau_config(robot_raw, path),
         audio_companion=_load_audio_companion_config(audio_raw, path),
         random_favs_browser=_load_random_favs_browser_config(browser_raw),

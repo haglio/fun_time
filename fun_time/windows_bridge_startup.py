@@ -62,10 +62,10 @@ def _resolve_broker_python_exe(config_path: str | Path) -> list[str]:
 
 def _start_broker_process_direct(config_path: str | Path) -> subprocess.Popen[bytes]:
     config_path = Path(config_path).resolve()
-    command = [*_resolve_broker_python_exe(config_path), "-m", "fun_time.broker_app", "--config", str(config_path)]
+    command = [*_resolve_broker_python_exe(config_path), "-m", "osr2_broker.app", "--config", str(config_path)]
     return subprocess.Popen(
         command,
-        cwd=config_path.parent,
+        cwd=config_path.parent.parent / "osr2_broker",
         **subprocess_window_kwargs(),
     )
 
@@ -94,7 +94,7 @@ def stop_broker_processes(project_dir: str | Path) -> None:
 
 def restart_broker(project_dir: str | Path, config_path: str | Path | None = None) -> None:
     project_path = Path(project_dir)
-    launch_path = project_path / "launch_broker_tray.vbs"
+    launch_path = project_path.parent / "osr2_broker" / "launch_broker_tray.vbs"
     ps_command = (
         "$targets = Get-CimInstance Win32_Process | Where-Object { "
         "(($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $_.CommandLine -match '"
