@@ -48,6 +48,7 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "genau_paused_file": str(config.genau_paused_file),
             "broker_cmd_file": str(config.paths.state_dir / "broker_cmd.txt"),
             "broker_heartbeat_file": str(config.paths.state_dir / "broker_heartbeat.txt"),
+            "broker_tray_launcher": str(config.paths.broker_tray_launcher or ""),
             "audio_cmd_file": str(config.audio_cmd_file),
             "audio_paused_file": str(config.audio_paused_file),
             "dashboard_state_file": str(config.paths.state_dir / "dashboard_state.ini"),

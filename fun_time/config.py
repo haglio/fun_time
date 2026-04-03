@@ -51,6 +51,7 @@ class PathsConfig:
     state_dir: Path
     genau_python_exe: Path | None = None
     genau_config_path: Path | None = None
+    broker_tray_launcher: Path | None = None
 
     @property
     def primary_vlc_dir(self) -> Path:
@@ -233,6 +234,7 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path) -> PathsCon
         state_dir=_require_path_value(paths_raw, "state_dir", source_path, "config.paths"),
         genau_python_exe=_resolve_path(PROJECT_DIR, paths_raw["genau_python_exe"]) if paths_raw.get("genau_python_exe") else None,
         genau_config_path=_resolve_path(PROJECT_DIR, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
+        broker_tray_launcher=_resolve_path(PROJECT_DIR, paths_raw["broker_tray_launcher"]) if paths_raw.get("broker_tray_launcher") else None,
     )
 
 

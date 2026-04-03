@@ -65,6 +65,7 @@ class BridgeConfig:
     audio_paused_file: Path
     dashboard_state_file: Path
     broker_heartbeat_file: Path | None = None
+    broker_tray_launcher: Path | None = None
 
 
 @dataclass(frozen=True)
