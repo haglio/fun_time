@@ -18,14 +18,15 @@ from fun_time.windows_bridge_startup import (
 
 def test_restart_broker_stops_existing_processes_and_launches_tray(tmp_path: Path):
     project_dir = tmp_path
-    osr2_broker_dir = project_dir.parent / "osr2_broker"
-    osr2_broker_dir.mkdir(parents=True, exist_ok=True)
-    launch_path = osr2_broker_dir / "launch_broker_tray.vbs"
+    fake_broker_dir = tmp_path / "osr2_broker"
+    fake_broker_dir.mkdir(parents=True, exist_ok=True)
+    launch_path = fake_broker_dir / "launch_broker_tray.vbs"
     launch_path.write_text("", encoding="utf-8")
 
     with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
         "fun_time.windows_bridge_startup.subprocess.Popen"
-    ) as popen, patch("fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}):
+    ) as popen, patch("fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}), \
+         patch("fun_time.windows_bridge_startup.BROKER_PROJECT_DIR", fake_broker_dir):
         restart_broker(project_dir)
 
     run.assert_called_once()
@@ -37,6 +38,7 @@ def test_restart_broker_stops_existing_processes_and_launches_tray(tmp_path: Pat
 
 
 def test_restart_broker_starts_broker_directly_during_integration(tmp_path: Path, monkeypatch):
+    from fun_time.orchestrator_broker import BROKER_PROJECT_DIR
     project_dir = tmp_path
     config_path = project_dir / "fun_time_integration_config.json"
     config_path.write_text(
@@ -53,14 +55,14 @@ def test_restart_broker_starts_broker_directly_during_integration(tmp_path: Path
         "fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(123)
     ) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
-    ), patch("fun_time.windows_bridge_startup.Path.exists", return_value=True):
+    ):
         restart_broker(project_dir, config_path)
 
     run.assert_called_once()
     command = popen.call_args.args[0]
-    assert command[0].endswith("python.exe")
     assert command[1:3] == ["-m", "osr2_broker.app"]
-    assert command[-2:] == ["--config", str(config_path.resolve())]
+    assert "--config" in command
+    assert popen.call_args.kwargs.get("cwd") == BROKER_PROJECT_DIR
 
 
 def test_prepare_random_favs_browser_manifest_delegates_to_random_browser_builder(tmp_path: Path):

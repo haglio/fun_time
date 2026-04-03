@@ -121,30 +121,27 @@ def start_broker(config, logger) -> subprocess.Popen | None:
         logger.warning("Broker auto-start is only implemented on Windows")
         return None
 
+    broker_dir = orchestrator_broker.BROKER_PROJECT_DIR
+
     if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
-        python_exe = str(config.paths.python_exe)
-        python_path = Path(python_exe)
-        if python_path.name.lower() == "pythonw.exe":
-            python_console = python_path.with_name("python.exe")
-            if python_console.exists():
-                python_path = python_console
-        if python_path.exists():
-            command = [str(python_path), "-m", "osr2_broker.app", "--config", str(config.config_path)]
+        broker_python = broker_dir / ".venv" / "Scripts" / "python.exe"
+        if broker_python.exists():
+            command = [str(broker_python), "-m", "osr2_broker.app", "--config", str(broker_dir / "osr2_broker_config.json")]
         else:
-            command = ["py", "-3", "-m", "osr2_broker.app", "--config", str(config.config_path)]
+            command = ["py", "-3", "-m", "osr2_broker.app", "--config", str(broker_dir / "osr2_broker_config.json")]
         logger.warning("Broker was not running; starting direct integration broker process")
         return subprocess.Popen(
             command,
-            cwd=config.project_dir.parent / "osr2_broker",
+            cwd=broker_dir,
             **orchestrator_broker.subprocess_window_kwargs(),
         )
 
-    tray_launcher = config.project_dir.parent / "osr2_broker" / "launch_broker_tray.vbs"
+    tray_launcher = broker_dir / "launch_broker_tray.vbs"
     command = ["wscript.exe", str(tray_launcher)]
     logger.warning("Broker was not running; starting %s", tray_launcher)
     return subprocess.Popen(
         command,
-        cwd=config.project_dir.parent / "osr2_broker",
+        cwd=broker_dir,
         **orchestrator_broker.subprocess_window_kwargs(),
     )
 
