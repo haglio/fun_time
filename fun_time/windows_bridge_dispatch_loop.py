@@ -421,7 +421,7 @@ class DispatchLoopRunner:
         if self._is_broker_alive():
             stop_broker_processes(project_dir)
         else:
-            restart_broker(project_dir)
+            restart_broker(project_dir, self.config.broker_tray_launcher)
 
     def _handle_broker_start(self) -> None:
         """Start broker only if not already running."""
@@ -542,4 +542,5 @@ def build_bridge_config_from_manifest(
         audio_paused_file=Path(manifest["commands"]["audio_paused_file"]),
         dashboard_state_file=Path(manifest["commands"]["dashboard_state_file"]),
         broker_heartbeat_file=Path(manifest["commands"]["broker_heartbeat_file"]),
+        broker_tray_launcher=Path(v) if (v := manifest["commands"].get("broker_tray_launcher", "").strip()) else None,
     )

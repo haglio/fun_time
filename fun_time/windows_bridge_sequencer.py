@@ -101,9 +101,11 @@ def run_startup_sequence(
     # --- Phase 1: Launch core media stack ---
     progress.advance("Preparing services...")
     core_result_file = _build_unique_result_path(state_dir, "core_session")
+    broker_launcher_raw = m["commands"].get("broker_tray_launcher", "").strip()
     start_core_session(
         project_dir=m["runtime"]["project_dir"],
         config_path=m["runtime"]["config_path"],
+        broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
         random_favs_browser_manifest_file=m["random_favs_browser"]["manifest_file"],
         enabled_file=m["commands"]["genau_enabled_file"],
         paused_file=m["commands"]["genau_paused_file"],

@@ -16,53 +16,32 @@ from fun_time.windows_bridge_startup import (
 )
 
 
-def test_restart_broker_stops_existing_processes_and_launches_tray(tmp_path: Path):
-    project_dir = tmp_path
-    fake_broker_dir = tmp_path / "osr2_broker"
-    fake_broker_dir.mkdir(parents=True, exist_ok=True)
-    launch_path = fake_broker_dir / "launch_broker_tray.vbs"
-    launch_path.write_text("", encoding="utf-8")
+def test_restart_broker_stops_and_launches_tray(tmp_path: Path):
+    launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
+    launcher.parent.mkdir()
+    launcher.touch()
 
-    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-        "fun_time.windows_bridge_startup.subprocess.Popen"
-    ) as popen, patch("fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}), \
-         patch("fun_time.windows_bridge_startup.BROKER_PROJECT_DIR", fake_broker_dir):
-        restart_broker(project_dir)
+    with patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop, \
+         patch("fun_time.windows_bridge_startup.time.sleep") as sleep, \
+         patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen, \
+         patch("fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}):
+        restart_broker(tmp_path, launcher)
 
-    run.assert_called_once()
-    run_command = run.call_args.args[0]
-    assert run_command[:4] == ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden"]
-    assert "osr2_broker\\.app" in run_command[-1]
-    assert "launch_broker_tray\\.vbs" in run_command[-1]
-    popen.assert_called_once_with(["wscript.exe", str(launch_path)], cwd=project_dir, creationflags=1)
-
-
-def test_restart_broker_starts_broker_directly_during_integration(tmp_path: Path, monkeypatch):
-    from fun_time.orchestrator_broker import BROKER_PROJECT_DIR
-    project_dir = tmp_path
-    config_path = project_dir / "fun_time_integration_config.json"
-    config_path.write_text(
-        '{"paths": {"python_exe": "pythonw.exe"}}',
-        encoding="utf-8",
+    stop.assert_called_once_with(tmp_path)
+    sleep.assert_called_once_with(0.4)
+    popen.assert_called_once_with(
+        ["wscript.exe", str(launcher)], cwd=launcher.parent, creationflags=1,
     )
-    monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
 
-    class FakeProc:
-        def __init__(self, pid: int):
-            self.pid = pid
 
-    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-        "fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(123)
-    ) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
-    ):
-        restart_broker(project_dir, config_path)
+def test_restart_broker_skips_launch_when_no_launcher(tmp_path: Path):
+    with patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop, \
+         patch("fun_time.windows_bridge_startup.time.sleep"), \
+         patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen:
+        restart_broker(tmp_path)
 
-    run.assert_called_once()
-    command = popen.call_args.args[0]
-    assert command[1:3] == ["-m", "osr2_broker.app"]
-    assert "--config" in command
-    assert popen.call_args.kwargs.get("cwd") == BROKER_PROJECT_DIR
+    stop.assert_called_once_with(tmp_path)
+    popen.assert_not_called()
 
 
 def test_prepare_random_favs_browser_manifest_delegates_to_random_browser_builder(tmp_path: Path):
@@ -116,7 +95,7 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
             result_file=result_file,
         )
 
-    restart.assert_called_once_with(tmp_path, "fun_time_config.json")
+    restart.assert_called_once_with(tmp_path, None)
     seed.assert_called_once()
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
     launch.assert_called_once_with(

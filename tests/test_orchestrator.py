@@ -15,7 +15,6 @@ from fun_time.manifest import (
 from fun_time.orchestrator import (
     build_parser,
     ensure_broker_running,
-    is_broker_tray_running,
     is_broker_running,
     main,
     require_dir,
@@ -289,39 +288,12 @@ class TestBrokerHelpers:
              patch("fun_time.orchestrator.subprocess.run", return_value=completed):
             assert is_broker_running() is True
 
-    def test_is_broker_tray_running_false_when_probe_finds_nothing(self):
-        completed = subprocess_result(stdout="", returncode=0)
-        with patch("fun_time.orchestrator.sys.platform", "win32"), \
-             patch("fun_time.orchestrator.subprocess.run", return_value=completed):
-            assert is_broker_tray_running() is False
-
-    def test_is_broker_tray_running_true_when_probe_finds_process(self):
-        completed = subprocess_result(stdout="RUNNING\r\n", returncode=0)
-        with patch("fun_time.orchestrator.sys.platform", "win32"), \
-             patch("fun_time.orchestrator.subprocess.run", return_value=completed):
-            assert is_broker_tray_running() is True
-
-    def test_start_broker_launches_tray_launcher(self, cfg_path: Path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        cfg = load_config(cfg_path)
+    def test_start_broker_launches_configured_tray_launcher(self, cfg_factory, tmp_path: Path):
+        launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
+        launcher.parent.mkdir()
+        launcher.touch()
+        cfg = load_config(cfg_factory({"paths": {"broker_tray_launcher": str(launcher)}}))
         logger = MagicMock()
-
-        with patch("fun_time.orchestrator.sys.platform", "win32"), \
-             patch("fun_time.orchestrator.subprocess.Popen") as popen:
-            start_broker(cfg, logger)
-
-        popen.assert_called_once()
-        command = popen.call_args.args[0]
-        assert command == [
-            "wscript.exe",
-            str(cfg.project_dir.parent / "osr2_broker" / "launch_broker_tray.vbs"),
-        ]
-
-    def test_start_broker_uses_direct_python_process_during_integration(self, cfg_path: Path, monkeypatch):
-        from fun_time.orchestrator_broker import BROKER_PROJECT_DIR
-        cfg = load_config(cfg_path)
-        logger = MagicMock()
-        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
 
         with patch("fun_time.orchestrator.sys.platform", "win32"), \
              patch("fun_time.orchestrator.subprocess.Popen") as popen, \
@@ -330,57 +302,45 @@ class TestBrokerHelpers:
 
         popen.assert_called_once()
         command = popen.call_args.args[0]
-        assert command[1:3] == ["-m", "osr2_broker.app"]
-        assert "--config" in command
-        assert popen.call_args.kwargs.get("cwd") == BROKER_PROJECT_DIR
+        assert command == ["wscript.exe", str(launcher)]
+        assert popen.call_args.kwargs.get("cwd") == launcher.parent
+
+    def test_start_broker_skips_when_launcher_not_configured(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+
+        with patch("fun_time.orchestrator.sys.platform", "win32"), \
+             patch("fun_time.orchestrator.subprocess.Popen") as popen:
+            result = start_broker(cfg, logger)
+
+        popen.assert_not_called()
+        assert result is None
 
     def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
-        with patch("fun_time.orchestrator.is_broker_running", side_effect=[False, False, False, True]) as broker_probe, \
-             patch("fun_time.orchestrator.is_broker_tray_running", side_effect=[True]) as tray_probe, \
-             patch("fun_time.orchestrator.start_broker") as starter, \
-             patch("fun_time.orchestrator.time.sleep") as sleeper:
-            result = ensure_broker_running(cfg, logger, attempts=3, delay_seconds=0.01)
-
-        assert result is True
-        assert broker_probe.call_count == 4
-        assert tray_probe.call_count == 1
-        starter.assert_called_once_with(cfg, logger)
-        sleeper.assert_called()
-
-    def test_ensure_broker_running_in_integration_mode_only_requires_runtime(self, cfg_path: Path, monkeypatch):
-        cfg = load_config(cfg_path)
-        logger = MagicMock()
-        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-
         with patch("fun_time.orchestrator.is_broker_running", side_effect=[False, False, True]) as broker_probe, \
-             patch("fun_time.orchestrator.is_broker_tray_running") as tray_probe, \
              patch("fun_time.orchestrator.start_broker") as starter, \
              patch("fun_time.orchestrator.time.sleep") as sleeper:
             result = ensure_broker_running(cfg, logger, attempts=3, delay_seconds=0.01)
 
         assert result is True
         assert broker_probe.call_count == 3
-        tray_probe.assert_not_called()
         starter.assert_called_once_with(cfg, logger)
         sleeper.assert_called()
 
-    def test_ensure_broker_running_skips_start_when_present(self, cfg_path: Path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_ensure_broker_running_skips_start_when_present(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
         with patch("fun_time.orchestrator.is_broker_running", return_value=True) as broker_probe, \
-             patch("fun_time.orchestrator.is_broker_tray_running", return_value=True) as tray_probe, \
              patch("fun_time.orchestrator.start_broker") as starter:
             result = ensure_broker_running(cfg, logger)
 
         assert result is True
         broker_probe.assert_called_once_with()
-        tray_probe.assert_called_once_with()
         starter.assert_not_called()
 
     def test_main_ensures_mfp_vlc_endpoint_before_broker_and_bridge(self, cfg_path: Path):
@@ -399,39 +359,6 @@ class TestBrokerHelpers:
         ensure_broker.assert_called_once()
         run_windows_bridge.assert_called_once()
 
-    def test_ensure_broker_running_starts_when_service_exists_but_tray_is_missing(self, cfg_path: Path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        cfg = load_config(cfg_path)
-        logger = MagicMock()
-
-        with patch("fun_time.orchestrator.is_broker_running", side_effect=[True, True]) as broker_probe, \
-             patch("fun_time.orchestrator.is_broker_tray_running", side_effect=[False, True]) as tray_probe, \
-             patch("fun_time.orchestrator.start_broker") as starter, \
-             patch("fun_time.orchestrator.time.sleep") as sleeper:
-            result = ensure_broker_running(cfg, logger, attempts=1, delay_seconds=0.01)
-
-        assert result is True
-        assert broker_probe.call_count == 2
-        assert tray_probe.call_count == 2
-        starter.assert_called_once_with(cfg, logger)
-        sleeper.assert_called_once()
-
-    def test_ensure_broker_running_starts_when_tray_exists_but_service_is_missing(self, cfg_path: Path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        cfg = load_config(cfg_path)
-        logger = MagicMock()
-
-        with patch("fun_time.orchestrator.is_broker_running", side_effect=[False, True]) as broker_probe, \
-             patch("fun_time.orchestrator.is_broker_tray_running", side_effect=[True, True]) as tray_probe, \
-             patch("fun_time.orchestrator.start_broker") as starter, \
-             patch("fun_time.orchestrator.time.sleep") as sleeper:
-            result = ensure_broker_running(cfg, logger, attempts=1, delay_seconds=0.01)
-
-        assert result is True
-        assert broker_probe.call_count == 2
-        assert tray_probe.call_count == 1
-        starter.assert_called_once_with(cfg, logger)
-        sleeper.assert_called_once()
 
 
 class TestRunController:

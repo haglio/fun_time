@@ -137,6 +137,16 @@ class TestLoadConfig:
         assert cfg.audio_companion.host == "127.0.0.1"
         assert cfg.audio_companion.port == 50556
 
+    def test_broker_tray_launcher_defaults_to_none(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.paths.broker_tray_launcher is None
+
+    def test_broker_tray_launcher_resolves_when_set(self, cfg_factory, tmp_path: Path):
+        launcher = tmp_path / "launch_broker_tray.vbs"
+        path = cfg_factory({"paths": {"broker_tray_launcher": str(launcher)}})
+        cfg = load_config(path)
+        assert cfg.paths.broker_tray_launcher == launcher
+
     def test_missing_random_favs_browser_section_defaults_disabled(self, cfg_factory):
         path = cfg_factory()
         raw = json.loads(path.read_text(encoding="utf-8"))

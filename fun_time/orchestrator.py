@@ -90,90 +90,38 @@ def is_broker_running() -> bool:
     return result.returncode == 0 and "RUNNING" in result.stdout
 
 
-def is_broker_tray_running() -> bool:
-    if sys.platform != "win32":
-        return False
-
-    command = [
-        "powershell.exe",
-        "-NoProfile",
-        "-Command",
-        (
-            "$proc = Get-CimInstance Win32_Process | Where-Object { "
-            "$_.Name -match '^powershell\\.exe$|^pwsh\\.exe$|^wscript\\.exe$' -and "
-            "$_.CommandLine -match '" + orchestrator_broker.BROKER_TRAY_PATTERN + "' "
-            "} | Select-Object -First 1; "
-            "if ($null -ne $proc) { 'RUNNING' }"
-        ),
-    ]
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-        **orchestrator_broker.subprocess_window_kwargs(),
-    )
-    return result.returncode == 0 and "RUNNING" in result.stdout
-
-
 def start_broker(config, logger) -> subprocess.Popen | None:
     if sys.platform != "win32":
         logger.warning("Broker auto-start is only implemented on Windows")
         return None
 
-    broker_dir = orchestrator_broker.BROKER_PROJECT_DIR
+    launcher = config.paths.broker_tray_launcher
+    if not launcher or not launcher.is_file():
+        logger.warning("broker_tray_launcher not configured or missing; skipping broker start")
+        return None
 
-    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
-        broker_python = broker_dir / ".venv" / "Scripts" / "python.exe"
-        if broker_python.exists():
-            command = [str(broker_python), "-m", "osr2_broker.app", "--config", str(broker_dir / "osr2_broker_config.json")]
-        else:
-            command = ["py", "-3", "-m", "osr2_broker.app", "--config", str(broker_dir / "osr2_broker_config.json")]
-        logger.warning("Broker was not running; starting direct integration broker process")
-        return subprocess.Popen(
-            command,
-            cwd=broker_dir,
-            **orchestrator_broker.subprocess_window_kwargs(),
-        )
-
-    tray_launcher = broker_dir / "launch_broker_tray.vbs"
-    command = ["wscript.exe", str(tray_launcher)]
-    logger.warning("Broker was not running; starting %s", tray_launcher)
+    command = ["wscript.exe", str(launcher)]
+    logger.warning("Broker was not running; starting %s", launcher)
     return subprocess.Popen(
         command,
-        cwd=broker_dir,
+        cwd=launcher.parent,
         **orchestrator_broker.subprocess_window_kwargs(),
     )
 
 
 def ensure_broker_running(config, logger, *, attempts: int = 20, delay_seconds: float = 0.25) -> bool:
-    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
-        if is_broker_running():
-            return True
-
-        start_broker(config, logger)
-
-        for _ in range(max(1, attempts)):
-            time.sleep(delay_seconds)
-            if is_broker_running():
-                logger.info("Broker runtime is now running in integration mode")
-                return True
-
-        logger.warning("Broker runtime did not appear to start successfully in integration mode")
-        return False
-
-    if is_broker_running() and is_broker_tray_running():
+    if is_broker_running():
         return True
 
     start_broker(config, logger)
 
     for _ in range(max(1, attempts)):
         time.sleep(delay_seconds)
-        if is_broker_running() and is_broker_tray_running():
-            logger.info("Broker and tray are now running")
+        if is_broker_running():
+            logger.info("Broker is now running")
             return True
 
-    logger.warning("Broker runtime did not appear to start successfully")
+    logger.warning("Broker did not appear to start successfully")
     return False
 
 

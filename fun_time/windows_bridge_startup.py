@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
-from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_PROJECT_DIR, BROKER_TRAY_PATTERN, subprocess_window_kwargs
+from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
 
 
@@ -39,24 +39,6 @@ def _write_result_file(result_file: str | Path, values: dict[str, int | str]) ->
         parser.write(fp)
 
 
-def _integration_direct_broker_start_enabled() -> bool:
-    return os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-
-
-def _start_broker_process_direct(config_path: str | Path) -> subprocess.Popen[bytes]:
-    broker_dir = BROKER_PROJECT_DIR
-    broker_python = broker_dir / ".venv" / "Scripts" / "python.exe"
-    if broker_python.exists():
-        exe = [str(broker_python)]
-    else:
-        exe = ["py", "-3"]
-    command = [*exe, "-m", "osr2_broker.app", "--config", str(broker_dir / "osr2_broker_config.json")]
-    return subprocess.Popen(
-        command,
-        cwd=broker_dir,
-        **subprocess_window_kwargs(),
-    )
-
 
 def stop_broker_processes(project_dir: str | Path) -> None:
     """Kill all broker and broker-tray processes without restarting."""
@@ -80,34 +62,13 @@ def stop_broker_processes(project_dir: str | Path) -> None:
     )
 
 
-def restart_broker(project_dir: str | Path, config_path: str | Path | None = None) -> None:
-    project_path = Path(project_dir)
-    launch_path = BROKER_PROJECT_DIR / "launch_broker_tray.vbs"
-    ps_command = (
-        "$targets = Get-CimInstance Win32_Process | Where-Object { "
-        "(($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $_.CommandLine -match '"
-        + BROKER_PROCESS_PATTERN
-        + "') -or "
-        "(($_.Name -match '^powershell\\.exe$|^pwsh\\.exe$|^wscript\\.exe$') -and $_.CommandLine -match '"
-        + BROKER_TRAY_PATTERN
-        + "') "
-        "}; "
-        "$targets | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; "
-        "Start-Sleep -Milliseconds 400"
-    )
-    subprocess.run(
-        ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
-        cwd=project_path,
-        check=False,
-        **subprocess_window_kwargs(),
-    )
-    if _integration_direct_broker_start_enabled() and config_path is not None:
-        _start_broker_process_direct(config_path)
-        return
-    if launch_path.is_file():
+def restart_broker(project_dir: str | Path, broker_tray_launcher: Path | None = None) -> None:
+    stop_broker_processes(project_dir)
+    time.sleep(0.4)
+    if broker_tray_launcher and broker_tray_launcher.is_file():
         subprocess.Popen(
-            ["wscript.exe", str(launch_path)],
-            cwd=project_path,
+            ["wscript.exe", str(broker_tray_launcher)],
+            cwd=broker_tray_launcher.parent,
             **subprocess_window_kwargs(),
         )
 
@@ -131,6 +92,7 @@ def start_core_session(
     *,
     project_dir: str | Path,
     config_path: str | Path,
+    broker_tray_launcher: Path | None = None,
     random_favs_browser_manifest_file: str | Path,
     enabled_file: str | Path,
     paused_file: str | Path,
@@ -147,7 +109,7 @@ def start_core_session(
     result_file: str | Path,
     hide_windows: bool = False,
 ) -> None:
-    restart_broker(project_dir, config_path)
+    restart_broker(project_dir, broker_tray_launcher)
     seed_genau_state(enabled_file, paused_file, audio_paused_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     launch_core_apps(
