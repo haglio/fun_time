@@ -388,7 +388,7 @@ def test_repeat_one_nav_step_changes_video_and_keeps_playing(vlc_repeat_one):
     assert ok is True
     _wait_for_item_change(REPEAT_PORT, before)
     after = _current(REPEAT_PORT)
-    state = get_playback_state(REPEAT_PORT, TEST_PASSWORD)
+    state = _wait_for_playing(REPEAT_PORT)
     assert after != before, f"nav_step did not change video in repeat-one mode"
     assert state == "playing", f"VLC must be playing after nav (state={state})"
 
