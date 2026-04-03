@@ -20,6 +20,7 @@ from fun_time.win32 import (
     GWL_EXSTYLE,
     WS_EX_TOPMOST,
     SW_MINIMIZE,
+    SW_SHOWMINNOACTIVE,
     SW_RESTORE,
     SWP_NOZORDER,
     SWP_NOACTIVATE,
@@ -110,6 +111,11 @@ class TestMinimizeWindow:
         with patch("fun_time.win32._user32") as mock_user32:
             minimize_window(99999)
         mock_user32.ShowWindow.assert_called_once_with(99999, SW_MINIMIZE)
+
+    def test_no_activate_uses_sw_showminnoactive(self):
+        with patch("fun_time.win32._user32") as mock_user32:
+            minimize_window(99999, activate=False)
+        mock_user32.ShowWindow.assert_called_once_with(99999, SW_SHOWMINNOACTIVE)
 
 
 class TestCloseWindow:

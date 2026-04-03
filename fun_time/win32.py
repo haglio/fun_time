@@ -198,6 +198,7 @@ def find_window_by_title(title: str) -> int:
 SW_SHOW = 5
 SW_HIDE = 0
 SW_MINIMIZE = 6
+SW_SHOWMINNOACTIVE = 7
 
 
 def show_window(hwnd: int) -> None:
@@ -210,9 +211,14 @@ def hide_window(hwnd: int) -> None:
     _user32.ShowWindow(hwnd, SW_HIDE)
 
 
-def minimize_window(hwnd: int) -> None:
-    """Minimize a window to the taskbar."""
-    _user32.ShowWindow(hwnd, SW_MINIMIZE)
+def minimize_window(hwnd: int, *, activate: bool = True) -> None:
+    """Minimize a window to the taskbar.
+
+    When *activate* is False, uses SW_SHOWMINNOACTIVE to minimize
+    without activating the next window in z-order — prevents focus
+    stealing when minimizing multiple windows in sequence.
+    """
+    _user32.ShowWindow(hwnd, SW_MINIMIZE if activate else SW_SHOWMINNOACTIVE)
 
 
 def send_key_to_window(hwnd: int, key: str) -> None:

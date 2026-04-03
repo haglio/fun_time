@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from fun_time.vlc_actions import ensure_playback_state, get_playback_state, get_playback_time, vlc_http_cmd
-from fun_time.win32 import find_window_by_pid, is_window_topmost
+from fun_time.win32 import find_window_by_pid, get_foreground_window, is_window_topmost
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -367,6 +367,28 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
         timeout=10,
         description="VLC playback time to retreat ~10s after nudge backward",
     )
+
+
+
+def test_fun_time_startup_does_not_steal_foreground(isolated_integration_session: FunTimeIntegrationSession):
+    """The second session startup must not steal the user's foreground window.
+
+    This is the exact regression that five previous fix attempts failed to
+    solve (2026-03-26).  The root cause was minimize_window using SW_MINIMIZE
+    which activates the next z-order window on each call, creating a chain of
+    focus transfers.  The fix uses SW_SHOWMINNOACTIVE instead.
+    """
+    s = isolated_integration_session
+    fg_hwnd = get_foreground_window()
+    child_pids = s.read_child_pids()
+    for name, pid in child_pids.items():
+        if not pid:
+            continue
+        child_hwnd = find_window_by_pid(pid)
+        if child_hwnd:
+            assert child_hwnd != fg_hwnd, (
+                f"Foreground stolen by {name} (pid={pid}, hwnd={child_hwnd})"
+            )
 
 
 
