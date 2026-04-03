@@ -24,6 +24,7 @@ from .win32 import (
     find_window_by_pid,
     find_window_by_title,
     hide_window,
+    is_window_topmost,
     send_vk_to_window,
     send_key_to_window,
     set_always_on_top,
@@ -370,13 +371,19 @@ class DispatchLoopRunner:
                 set_always_on_top(hwnd, False)
 
     def _restore_all_topmost(self) -> None:
-        # Restore RFB first — within the topmost z-band the last window to
-        # receive HWND_TOPMOST goes to the front, so RFB must be set before
-        # MFP and Dashboard to end up below them.
+        # Mirror the startup z-order sequence in windows_bridge_sequencer.py:
+        # 1. RFB first (so it ends up below everything set after it)
+        # 2. Non-dashboard PIDs
+        # 3. Dashboard toggle (False→True) — NEVER a bare True
+        # 4. Genau last (on top of all) if in genau mode
+        genau_mode = self.state.genau_mode
+
         if self.rfb_hwnd:
             set_always_on_top(self.rfb_hwnd, True)
-        genau_mode = self.state.genau_mode
+
         for pid in self._all_pids:
+            if pid == self.dashboard_pid:
+                continue  # handled separately below
             hwnd = find_window_by_pid(pid)
             if not hwnd:
                 continue
@@ -384,19 +391,35 @@ class DispatchLoopRunner:
                 set_always_on_top(hwnd, False)
                 continue
             set_always_on_top(hwnd, True)
-        # Re-assert Dashboard topmost — Dashboard sets its own
-        # WindowStaysOnTopHint via Qt, so a bare HWND_TOPMOST from
-        # outside doesn't move it to the front of the topmost band.
-        # Toggling (False→True) forces Windows to re-evaluate z-order,
-        # matching the startup sequence in windows_bridge_sequencer.py.
+
+        # Re-assert Dashboard topmost with a toggle (False→True).
+        # Dashboard manages its own WS_EX_TOPMOST via Qt's
+        # WindowStaysOnTopHint, which may re-assert topmost between
+        # _remove_all_topmost and here.  A bare HWND_TOPMOST is a
+        # no-op on an already-topmost window, so the toggle forces
+        # Windows to reinsert Dashboard at the front of the topmost
+        # band.  This matches the startup sequence exactly.
         if self.dashboard_pid:
             dash_hwnd = find_window_by_pid(self.dashboard_pid)
             if dash_hwnd:
                 set_always_on_top(dash_hwnd, False)
                 set_always_on_top(dash_hwnd, True)
-        # Genau topmost LAST when in robot hand mode — this puts it on
-        # top of all other windows.  Skip when not in robot hand mode so it
-        # stays behind the always-on-top VLC/MFP/Dashboard windows.
+                logger.debug(
+                    "Dashboard topmost toggled: hwnd=%d, now_topmost=%s",
+                    dash_hwnd, is_window_topmost(dash_hwnd),
+                )
+            else:
+                logger.warning(
+                    "Dashboard hwnd not found for pid %d during topmost restore",
+                    self.dashboard_pid,
+                )
+        # Log RFB state for diagnostics
+        if self.rfb_hwnd:
+            logger.debug(
+                "RFB topmost state after restore: hwnd=%d, topmost=%s",
+                self.rfb_hwnd, is_window_topmost(self.rfb_hwnd),
+            )
+
         if genau_mode and self.genau_pid:
             hwnd = find_window_by_pid(self.genau_pid)
             if hwnd:
@@ -435,6 +458,16 @@ class DispatchLoopRunner:
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows."""
         was_paused = self.state.omni_paused
+        if was_paused:
+            # Pre-restore diagnostic: check if Qt re-asserted topmost
+            # during omnipause (Dashboard has WindowStaysOnTopHint).
+            dash_hwnd = find_window_by_pid(self.dashboard_pid) if self.dashboard_pid else 0
+            logger.info(
+                "Un-omnipause pre-restore: dash_hwnd=%d dash_topmost=%s "
+                "rfb_hwnd=%d rfb_topmost=%s",
+                dash_hwnd, is_window_topmost(dash_hwnd) if dash_hwnd else "N/A",
+                self.rfb_hwnd, is_window_topmost(self.rfb_hwnd) if self.rfb_hwnd else "N/A",
+            )
         self._dispatch("omnipause_toggle")
         if not was_paused:
             self._remove_all_topmost()
