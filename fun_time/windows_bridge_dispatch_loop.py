@@ -25,7 +25,6 @@ from .win32 import (
     find_window_by_title,
     hide_window,
     is_window_topmost,
-    place_window_behind,
     send_vk_to_window,
     send_key_to_window,
     set_always_on_top,
@@ -406,22 +405,7 @@ class DispatchLoopRunner:
         else:
             logger.info("Dashboard hwnd not found during topmost restore")
 
-        # 3. Explicit z-order: place RFB behind Dashboard.  Previous
-        #    attempts relied solely on HWND_TOPMOST call ordering, which
-        #    is unreliable for cross-process topmost windows.  Explicit
-        #    relative positioning via SetWindowPos(rfb, dash, ...) is a
-        #    direct z-order instruction that Windows cannot ignore.
-        if self.rfb_hwnd and dash_hwnd:
-            ok = place_window_behind(self.rfb_hwnd, dash_hwnd)
-            logger.info(
-                "Placed RFB (hwnd=%d) behind Dashboard (hwnd=%d): "
-                "success=%s rfb_topmost=%s dash_topmost=%s",
-                self.rfb_hwnd, dash_hwnd, ok,
-                is_window_topmost(self.rfb_hwnd),
-                is_window_topmost(dash_hwnd),
-            )
-
-        # 4. Genau last — on top of everything in genau mode.
+        # 3. Genau last — on top of everything in genau mode.
         if genau_mode and self.genau_pid:
             hwnd = find_window_by_pid(self.genau_pid)
             if hwnd:

@@ -662,38 +662,34 @@ class TestGenauZOrder:
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.place_window_behind", return_value=True):
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True):
             runner._restore_all_topmost()
 
         assert (1001, False) in topmost_calls
         restored = {h for h, v in topmost_calls if v}
         assert {2001, 3001, 4001, 5001} <= restored
 
-    def test_restore_all_topmost_places_rfb_behind_dashboard(self, tmp_path):
-        """RFB must be explicitly positioned behind Dashboard via
-        place_window_behind — not just via HWND_TOPMOST call ordering."""
+    def test_restore_all_topmost_toggles_dashboard_above_rfb(self, tmp_path):
+        """Dashboard must get a topmost toggle (False→True) — never a bare
+        True — so it ends up above RFB and MFP."""
         runner = self._make_runner(tmp_path, rfb_hwnd=7777)
         runner.state = BridgeState()
 
         topmost_calls: list[tuple[int, bool]] = []
-        place_calls: list[tuple[int, int]] = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.place_window_behind", side_effect=lambda h, b: place_calls.append((h, b)) or True):
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True):
             runner._restore_all_topmost()
 
         # Dashboard must only get the toggle (False→True), never a bare True
         dash_calls = [(h, v) for h, v in topmost_calls if h == 5001]
         assert dash_calls == [(5001, False), (5001, True)]
 
-        # RFB must be explicitly placed behind Dashboard
-        assert (7777, 5001) in place_calls, (
-            f"Expected place_window_behind(rfb=7777, dash=5001), got {place_calls}"
-        )
+        # MFP (4001) must get a bare True from the loop — NOT skipped
+        mfp_calls = [(h, v) for h, v in topmost_calls if h == 4001]
+        assert (4001, True) in mfp_calls
 
     def test_restore_falls_back_to_title_when_pid_lookup_fails(self, tmp_path):
         """When find_window_by_pid cannot find Dashboard (PID mismatch
@@ -702,7 +698,6 @@ class TestGenauZOrder:
         runner.state = BridgeState()
 
         topmost_calls: list[tuple[int, bool]] = []
-        place_calls: list[tuple[int, int]] = []
         # Dashboard PID 500 maps to 0 (not found) — simulates PID mismatch
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001}
 
@@ -712,16 +707,16 @@ class TestGenauZOrder:
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.place_window_behind", side_effect=lambda h, b: place_calls.append((h, b)) or True):
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True):
             runner._restore_all_topmost()
 
         # Dashboard found via title (hwnd 9999) must get the toggle
         dash_calls = [(h, v) for h, v in topmost_calls if h == 9999]
         assert dash_calls == [(9999, False), (9999, True)]
 
-        # RFB placed behind the title-found Dashboard
-        assert (7777, 9999) in place_calls
+        # Dashboard found via title (hwnd 9999) must get the toggle
+        dash_calls = [(h, v) for h, v in topmost_calls if h == 9999]
+        assert dash_calls == [(9999, False), (9999, True)]
 
 
 class TestGenauActivationRetry:
