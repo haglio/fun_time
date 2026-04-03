@@ -1,12 +1,12 @@
 # Known Issues
 
-## Robot Hand Disable / Re-enable Reliability
+## Genau Disable / Re-enable Reliability
 
 - Status: Deferred
-- Symptom: Toggling Robot Hand with `r` can behave inconsistently when disabling takeover and then re-enabling it later.
+- Symptom: Toggling Genau with `r` can behave inconsistently when disabling takeover and then re-enabling it later.
 - Notes:
   - This behavior predates the current extraction work.
-  - Robot Hand transition planning has been extracted into Python, which should make this easier to fix later without adding more controller-side complexity.
+  - Genau transition planning has been extracted into Python, which should make this easier to fix later without adding more controller-side complexity.
 
 ## OmniPause Does Not Fully Drop Fun Time Windows From Topmost
 
@@ -17,7 +17,7 @@
   - Satellite VLCs
   - MFP
   - Fun Time overlay/dashboard
-  - Robot Hand
+  - Genau
 - Notes:
   - Several controller-side attempts were made to force topmost off during OmniPause.
   - Those attempts did not resolve the issue reliably enough to justify carrying more AHK-specific complexity while the Windows bridge is actively being reduced toward a thinner hotkey/window listener.

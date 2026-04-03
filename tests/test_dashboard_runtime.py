@@ -24,7 +24,7 @@ def test_load_dashboard_snapshot_parses_controller_export(tmp_path: Path):
                 "alive=1",
                 "[primary]",
                 "responsive=1",
-                "uses_robot_hand=0",
+                "uses_genau=0",
                 "path=demo-primary.mp4",
                 "locked=0",
                 "[portrait]",
@@ -49,7 +49,7 @@ def test_load_dashboard_snapshot_parses_controller_export(tmp_path: Path):
     assert snapshot.mfp_alive is True
     assert snapshot.primary_responsive is True
     assert snapshot.osr2_mode == "auto"
-    assert snapshot.primary_uses_robot_hand is False
+    assert snapshot.primary_uses_genau is False
     assert snapshot.primary.path == "demo-primary.mp4"
     assert snapshot.primary.locked is False
     assert snapshot.portrait.locked is True
@@ -73,7 +73,7 @@ def test_load_dashboard_snapshot_supports_utf16_ahk_ini_exports(tmp_path: Path):
                 "alive=1",
                 "[primary]",
                 "responsive=1",
-                "uses_robot_hand=1",
+                "uses_genau=1",
                 "path=primary.mp4",
                 "locked=0",
                 "[portrait]",
@@ -97,7 +97,7 @@ def test_load_dashboard_snapshot_supports_utf16_ahk_ini_exports(tmp_path: Path):
     assert snapshot is not None
     assert snapshot.f_mode_enabled is True
     assert snapshot.robot_link_enabled is False
-    assert snapshot.primary_uses_robot_hand is True
+    assert snapshot.primary_uses_genau is True
     assert snapshot.portrait.locked is True
     assert snapshot.window.x == 10
 
@@ -116,7 +116,7 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
                 "[mfp]",
                 "alive=0",
                 "[primary]",
-                "uses_robot_hand=0",
+                "uses_genau=0",
                 "locked=0",
                 "[portrait]",
                 "locked=1",
@@ -154,7 +154,7 @@ def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
                 "[omnipause]",
                 "active=1",
                 "[primary]",
-                "uses_robot_hand=0",
+                "uses_genau=0",
                 "locked=0",
                 "[portrait]",
                 "locked=0",
@@ -185,7 +185,7 @@ def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
                 "[mfp]",
                 "alive=0",
                 "[primary]",
-                "uses_robot_hand=0",
+                "uses_genau=0",
                 "locked=0",
                 "[portrait]",
                 "locked=0",

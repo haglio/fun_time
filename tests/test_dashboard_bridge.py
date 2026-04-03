@@ -11,7 +11,7 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         robot_link_enabled=False,
         osr2_mode="auto",
         mfp_alive=True,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         portrait_locked=True,
         landscape_locked=False,
     )
@@ -28,7 +28,7 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "[omnipause]\n"
         "active=0\n"
         "[primary]\n"
-        "uses_robot_hand=0\n"
+        "uses_genau=0\n"
         "locked=0\n"
         "[portrait]\n"
         "locked=1\n"
@@ -43,7 +43,7 @@ def test_build_dashboard_snapshot_text_includes_omnipause_state():
         robot_link_enabled=True,
         osr2_mode="controlled",
         mfp_alive=False,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         portrait_locked=False,
         landscape_locked=False,
         omni_paused=True,
@@ -61,7 +61,7 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
         robot_link_enabled=True,
         osr2_mode="controlled",
         mfp_alive=False,
-        primary_uses_robot_hand=True,
+        primary_uses_genau=True,
         portrait_locked=False,
         landscape_locked=True,
     )
@@ -71,7 +71,7 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
         robot_link_enabled=True,
         osr2_mode="controlled",
         mfp_alive=False,
-        primary_uses_robot_hand=True,
+        primary_uses_genau=True,
         portrait_locked=False,
         landscape_locked=True,
     )
@@ -80,6 +80,6 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
     assert second is False
     text = output.read_text(encoding="utf-16")
     assert "[primary]" in text
-    assert "uses_robot_hand=1" in text
+    assert "uses_genau=1" in text
 
 

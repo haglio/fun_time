@@ -51,7 +51,7 @@ Large slices moved out of AHK into Python over the course of this refactor:
 - dashboard raw snapshot writing
 - lock/discard planning and execution
 - F-mode planning and execution
-- Robot Hand planning and much of its non-window side effects
+- Genau planning and much of its non-window side effects
 - OmniPause planning and much of its non-window side effects
 - VLC write-side actions
 - some VLC query helpers
@@ -88,8 +88,8 @@ Current focused integration coverage includes:
 - portrait lock/unlock
 - omnipause toggle
 - F-mode toggle
-- Robot Hand enable/disable
-- Robot Hand mode-file sync
+- Genau enable/disable
+- Genau mode-file sync
 - portrait discard/weird flow
 
 Important testing philosophy changes:

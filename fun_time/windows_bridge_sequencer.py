@@ -23,7 +23,7 @@ from .startup_progress import NullProgress, ProgressReporter
 from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser, tab_placeholder_path
 from .runtime_flow import read_flag_file, write_flag_file
-from .windows_bridge_startup import launch_robot_hand, start_core_session, launch_ui_companions
+from .windows_bridge_startup import launch_genau, start_core_session, launch_ui_companions
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -51,7 +51,7 @@ class StartupResult:
     portrait_pid: int
     landscape_pid: int
     dashboard_pid: int
-    robot_hand_pid: int
+    genau_pid: int
     audio_pid: int
     layout_plan: WindowLayoutPlan
     core_hwnds: list[int] = field(default_factory=list)
@@ -105,8 +105,8 @@ def run_startup_sequence(
         project_dir=m["runtime"]["project_dir"],
         config_path=m["runtime"]["config_path"],
         random_favs_browser_manifest_file=m["random_favs_browser"]["manifest_file"],
-        enabled_file=m["commands"]["robot_hand_enabled_file"],
-        paused_file=m["commands"]["robot_hand_paused_file"],
+        enabled_file=m["commands"]["genau_enabled_file"],
+        paused_file=m["commands"]["genau_paused_file"],
         audio_paused_file=m["commands"]["audio_paused_file"],
         vlc_exe=m["executables"]["vlc_exe"],
         mfp_exe=m["executables"]["mfp_exe"],
@@ -130,16 +130,16 @@ def run_startup_sequence(
         primary_pid, mfp_pid, portrait_pid, landscape_pid,
     )
 
-    # Launch Robot Hand as early as possible so it can initialise pygame,
+    # Launch Genau as early as possible so it can initialise pygame,
     # scan clips, and decode the first clip while the rest of startup
     # continues.  Its rect depends only on secondary monitor + primary_top_ratio
     # (same as Primary VLC), so no MFP window is needed.
-    rh_rect = _compute_robot_hand_rect(m)
-    robot_hand_pid = launch_robot_hand(
+    rh_rect = _compute_genau_rect(m)
+    genau_pid = launch_genau(
         python_exe=m["executables"]["genau_python_exe"],
-        robot_hand_module=m["modules"]["robot_hand_module"],
+        genau_module=m["modules"]["genau_module"],
         config_path=m["runtime"]["genau_config_path"],
-        clips_folder=m["media"]["robot_hand_clips"],
+        clips_folder=m["media"]["genau_clips"],
         robot_x=rh_rect.x,
         robot_y=rh_rect.y,
         robot_width=rh_rect.width,
@@ -212,16 +212,16 @@ def run_startup_sequence(
         dashboard_width=plan.dashboard.width,
         dashboard_height=plan.dashboard.height,
         mfp_pid=mfp_pid,
-        robot_hand_module=m["modules"]["robot_hand_module"],
+        genau_module=m["modules"]["genau_module"],
         audio_module=m["modules"]["audio_module"],
         config_path=m["runtime"]["config_path"],
-        clips_folder=m["media"]["robot_hand_clips"],
-        audio_folder=m["media"]["robot_hand_audio"],
-        robot_x=plan.robot_hand.x,
-        robot_y=plan.robot_hand.y,
-        robot_width=plan.robot_hand.width,
-        robot_height=plan.robot_hand.height,
-        robot_hand_pid=robot_hand_pid,
+        clips_folder=m["media"]["genau_clips"],
+        audio_folder=m["media"]["genau_audio"],
+        robot_x=plan.genau.x,
+        robot_y=plan.genau.y,
+        robot_width=plan.genau.width,
+        robot_height=plan.genau.height,
+        genau_pid=genau_pid,
         result_file=str(ui_result_file),
     )
     ui_pids = _read_result_pids(ui_result_file)
@@ -231,10 +231,10 @@ def run_startup_sequence(
     if hide_windows:
         progress.advance("Positioning windows...")
 
-        # Check if Robot Hand mode is active at startup (OSR2 already in auto mode)
-        robot_hand_active_at_startup = (
-            read_flag_file(m["commands"]["robot_hand_enabled_file"], True)
-            and read_flag_file(m["commands"]["robot_hand_mode_file"], False)
+        # Check if Genau mode is active at startup (OSR2 already in auto mode)
+        genau_active_at_startup = (
+            read_flag_file(m["commands"]["genau_enabled_file"], True)
+            and read_flag_file(m["commands"]["genau_mode_file"], False)
         )
 
         # Restore VLC audio (muted in launch_core_apps during loading)
@@ -244,18 +244,18 @@ def run_startup_sequence(
         password = m["vlc"]["vlc_pass"]
         for port in [primary_port, portrait_port, landscape_port]:
             vlc_http_cmd(port, "volume&val=256", password)
-            if port == primary_port and robot_hand_active_at_startup:
-                continue  # Don't start primary playback — Robot Hand takes over
+            if port == primary_port and genau_active_at_startup:
+                continue  # Don't start primary playback — Genau takes over
             vlc_http_cmd(port, "pl_play", password)
 
-        if robot_hand_active_at_startup:
-            write_flag_file(m["commands"]["robot_hand_paused_file"], False)
+        if genau_active_at_startup:
+            write_flag_file(m["commands"]["genau_paused_file"], False)
             write_flag_file(m["commands"]["audio_paused_file"], False)
-            # Send AUTO 1 directly to Robot Hand — it may have missed the
+            # Send AUTO 1 directly to Genau — it may have missed the
             # broker's initial UDP messages because the broker detected auto
-            # mode before Robot Hand's UDP listener was bound.
-            _send_robot_hand_auto(m, True)
-            logger.info("Robot Hand auto-mode detected at startup — unpaused")
+            # mode before Genau's UDP listener was bound.
+            _send_genau_auto(m, True)
+            logger.info("Genau auto-mode detected at startup — unpaused")
 
         _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=False)
         _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=False)
@@ -283,15 +283,15 @@ def run_startup_sequence(
                 set_always_on_top(dash_hwnd, False)
                 set_always_on_top(dash_hwnd, True)
 
-        # When OSR2 is in auto mode, Robot Hand gets topmost LAST so
+        # When OSR2 is in auto mode, Genau gets topmost LAST so
         # it appears on top of everything — the first thing the user sees.
-        if robot_hand_active_at_startup:
-            rh_hwnd = wait_for_window(robot_hand_pid, timeout_s=2.0)
+        if genau_active_at_startup:
+            rh_hwnd = wait_for_window(genau_pid, timeout_s=2.0)
             if rh_hwnd:
                 set_always_on_top(rh_hwnd, True)
                 if not skip_activate:
                     activate_window(rh_hwnd)
-                logger.info("Robot Hand activated as first-visible window")
+                logger.info("Genau activated as first-visible window")
 
         logger.info("Topmost set on core windows")
 
@@ -303,7 +303,7 @@ def run_startup_sequence(
         portrait_pid=portrait_pid,
         landscape_pid=landscape_pid,
         dashboard_pid=ui_pids["dashboard_pid"],
-        robot_hand_pid=ui_pids["robot_hand_pid"],
+        genau_pid=ui_pids["genau_pid"],
         audio_pid=ui_pids["audio_pid"],
         layout_plan=plan,
         core_hwnds=collected_hwnds,
@@ -311,8 +311,8 @@ def run_startup_sequence(
     )
 
 
-def _send_robot_hand_auto(m: configparser.ConfigParser, active: bool) -> None:
-    """Send AUTO and seed BPM directly to Robot Hand via UDP.
+def _send_genau_auto(m: configparser.ConfigParser, active: bool) -> None:
+    """Send AUTO and seed BPM directly to Genau via UDP.
 
     When activating, a seed BPM is sent so the playback engine can start
     advancing frames immediately instead of waiting ~3-4 s for the first
@@ -321,8 +321,8 @@ def _send_robot_hand_auto(m: configparser.ConfigParser, active: bool) -> None:
     """
     _SEED_BPM = 87
     try:
-        host = m["robot_hand"]["udp_host"]
-        port = int(m["robot_hand"]["udp_port"])
+        host = m["genau"]["udp_host"]
+        port = int(m["genau"]["udp_port"])
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock.sendto(f"AUTO {1 if active else 0}".encode("utf-8"), (host, port))
@@ -331,13 +331,13 @@ def _send_robot_hand_auto(m: configparser.ConfigParser, active: bool) -> None:
         finally:
             sock.close()
     except Exception:
-        logger.debug("Failed to send AUTO to Robot Hand", exc_info=True)
+        logger.debug("Failed to send AUTO to Genau", exc_info=True)
 
 
-def _compute_robot_hand_rect(m: configparser.ConfigParser) -> WindowRect:
-    """Compute Robot Hand's window rect without needing MFP size.
+def _compute_genau_rect(m: configparser.ConfigParser) -> WindowRect:
+    """Compute Genau's window rect without needing MFP size.
 
-    Robot Hand uses the same rect as Primary VLC, which depends only on
+    Genau uses the same rect as Primary VLC, which depends only on
     the secondary monitor dimensions and primary_top_ratio.
     """
     layout_cfg = _layout_config_from_manifest(m)

@@ -29,10 +29,10 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         primary_sources=str(tmp_path / "primary"),
         portrait_sources=str(tmp_path / "portrait"),
         landscape_sources=str(tmp_path / "landscape"),
-        robot_hand_enabled_file=state_dir / "robot_hand_enabled.txt",
-        robot_hand_mode_file=state_dir / "robot_hand_mode.txt",
-        robot_hand_cmd_file=state_dir / "robot_hand_cmd.txt",
-        robot_hand_paused_file=state_dir / "robot_hand_paused.txt",
+        genau_enabled_file=state_dir / "genau_enabled.txt",
+        genau_mode_file=state_dir / "genau_mode.txt",
+        genau_cmd_file=state_dir / "genau_cmd.txt",
+        genau_paused_file=state_dir / "genau_paused.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
     )
@@ -42,7 +42,7 @@ def _make_state(**overrides) -> BridgeState:
     defaults = dict(
         locked2=False,
         locked3=False,
-        robot_hand_mode=False,
+        genau_mode=False,
         f_mode_enabled=False,
         omni_paused=False,
     )
@@ -226,7 +226,7 @@ def test_primary_next_calls_vlc_nav_step(tmp_path: Path):
     """Primary VLC navigation uses vlc_nav_step (pl_play&id=N).
     With --start-paused removed, VLC auto-plays on item transitions."""
     config = _make_config(tmp_path)
-    state = _make_state(robot_hand_mode=False)
+    state = _make_state(genau_mode=False)
     nav_calls: list[tuple] = []
 
     with patch("fun_time.command_dispatch.vlc_nav_step",
@@ -254,31 +254,31 @@ def test_landscape_prev_cancels_lock_and_calls_nav_step_prev(tmp_path: Path):
 # --- primary_prev / primary_next ---
 
 
-def test_primary_prev_sends_prev_command_to_robot_hand_when_in_robot_mode(tmp_path: Path):
+def test_primary_prev_sends_prev_command_to_genau_when_in_robot_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(robot_hand_mode=True)
+    config.genau_enabled_file.write_text("1", encoding="utf-8")
+    config.genau_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(genau_mode=True)
 
     new_state, ops = dispatch_command("primary_prev", state, config)
 
-    assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "PREV"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "PREV"
 
 
-def test_primary_next_sends_next_command_to_robot_hand_when_in_robot_mode(tmp_path: Path):
+def test_primary_next_sends_next_command_to_genau_when_in_robot_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(robot_hand_mode=True)
+    config.genau_enabled_file.write_text("1", encoding="utf-8")
+    config.genau_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(genau_mode=True)
 
     new_state, ops = dispatch_command("primary_next", state, config)
 
-    assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "NEXT"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
 def test_primary_prev_calls_vlc_nav_step(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(robot_hand_mode=False)
+    state = _make_state(genau_mode=False)
     nav_calls: list[tuple] = []
 
     with patch("fun_time.command_dispatch.vlc_nav_step",
@@ -291,13 +291,13 @@ def test_primary_prev_calls_vlc_nav_step(tmp_path: Path):
 # --- quarter_button ---
 
 
-def test_quarter_button_writes_robot_hand_offset_command(tmp_path: Path):
+def test_quarter_button_writes_genau_offset_command(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()
 
     new_state, ops = dispatch_command("quarter_button", state, config)
 
-    assert config.robot_hand_cmd_file.read_text(encoding="utf-8") == "OFFSET_QUARTER_CYCLE"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "OFFSET_QUARTER_CYCLE"
 
 
 # --- omnipause_toggle ---
@@ -393,30 +393,30 @@ def test_fmode_panel_click_dispatches_as_fmode_toggle(tmp_path: Path):
 
 def test_robot_toggle_disables_and_hides_when_enabled_and_mode_on(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(robot_hand_mode=True)
+    config.genau_enabled_file.write_text("1", encoding="utf-8")
+    config.genau_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(genau_mode=True)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("robot_toggle", state, config)
 
-    assert new_state.robot_hand_mode is False
-    assert config.robot_hand_enabled_file.read_text(encoding="utf-8") == "0"
+    assert new_state.genau_mode is False
+    assert config.genau_enabled_file.read_text(encoding="utf-8") == "0"
     assert not any(op.op == "hide" for op in ops)
     assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
 
 
 def test_robot_toggle_enables_and_shows_when_disabled_and_mode_state_on(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.robot_hand_enabled_file.write_text("0", encoding="utf-8")
-    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(robot_hand_mode=False)
+    config.genau_enabled_file.write_text("0", encoding="utf-8")
+    config.genau_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(genau_mode=False)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("robot_toggle", state, config)
 
-    assert new_state.robot_hand_mode is True
-    assert config.robot_hand_enabled_file.read_text(encoding="utf-8") == "1"
+    assert new_state.genau_mode is True
+    assert config.genau_enabled_file.read_text(encoding="utf-8") == "1"
     assert not any(op.op == "show" for op in ops)
     assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
 
@@ -424,62 +424,62 @@ def test_robot_toggle_enables_and_shows_when_disabled_and_mode_state_on(tmp_path
 def test_link_toggle_is_alias_for_robot_toggle(tmp_path: Path):
     """link_toggle and robot_toggle produce identical state transitions."""
     config = _make_config(tmp_path)
-    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(robot_hand_mode=True)
+    config.genau_enabled_file.write_text("1", encoding="utf-8")
+    config.genau_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(genau_mode=True)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("link_toggle", state, config)
 
-    assert new_state.robot_hand_mode is False
-    assert config.robot_hand_enabled_file.read_text(encoding="utf-8") == "0"
+    assert new_state.genau_mode is False
+    assert config.genau_enabled_file.read_text(encoding="utf-8") == "0"
 
 
-# --- sync_robot_hand ---
+# --- sync_genau ---
 
 
-def test_sync_robot_hand_skips_when_omni_paused(tmp_path: Path):
+def test_sync_genau_skips_when_omni_paused(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
-    new_state, ops = dispatch_command("sync_robot_hand", state, config)
+    new_state, ops = dispatch_command("sync_genau", state, config)
 
     assert new_state == state
     assert ops == []
 
 
-def test_sync_robot_hand_transitions_to_robot_mode(tmp_path: Path):
+def test_sync_genau_transitions_to_robot_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(robot_hand_mode=False, omni_paused=False)
+    config.genau_enabled_file.write_text("1", encoding="utf-8")
+    config.genau_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(genau_mode=False, omni_paused=False)
 
     with (
         patch("fun_time.runtime_flow.ensure_playback_state", return_value=True),
     ):
-        new_state, ops = dispatch_command("sync_robot_hand", state, config)
+        new_state, ops = dispatch_command("sync_genau", state, config)
 
-    assert new_state.robot_hand_mode is True
+    assert new_state.genau_mode is True
 
 
-def test_first_sync_tick_enters_robot_hand_when_broker_detected_auto_mode(tmp_path: Path):
+def test_first_sync_tick_enters_genau_when_broker_detected_auto_mode(tmp_path: Path):
     """Startup auto-detect: if the broker has already written mode file = '1'
     by the time the dispatch loop starts, the first sync tick naturally enters
-    Robot Hand mode — no special startup check needed."""
+    Genau mode — no special startup check needed."""
     config = _make_config(tmp_path)
-    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
-    # Initial state: fresh startup, robot_hand_mode=False (default)
-    state = _make_state(robot_hand_mode=False, omni_paused=False)
+    config.genau_enabled_file.write_text("1", encoding="utf-8")
+    config.genau_mode_file.write_text("1", encoding="utf-8")
+    # Initial state: fresh startup, genau_mode=False (default)
+    state = _make_state(genau_mode=False, omni_paused=False)
     vlc_calls: list[tuple[int, str, bool]] = []
 
     with patch(
         "fun_time.runtime_flow.ensure_playback_state",
         side_effect=lambda port, password, should_play: vlc_calls.append((port, password, should_play)) or True,
     ):
-        new_state, ops = dispatch_command("sync_robot_hand", state, config)
+        new_state, ops = dispatch_command("sync_genau", state, config)
 
-    assert new_state.robot_hand_mode is True
+    assert new_state.genau_mode is True
     assert vlc_calls == [(config.primary_port, config.vlc_password, False)]
     assert not any(op.op == "show" for op in ops)
     assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
@@ -506,10 +506,10 @@ def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
     assert config.primary_port in paused_ports
 
 
-def test_enter_omnipause_does_not_remove_robot_hand_topmost(tmp_path: Path):
-    """Robot Hand should stay topmost during omnipause — only pause playback."""
+def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
+    """Genau should stay topmost during omnipause — only pause playback."""
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=False, robot_hand_mode=True)
+    state = _make_state(omni_paused=False, genau_mode=True)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("enter_omnipause", state, config)
@@ -517,10 +517,10 @@ def test_enter_omnipause_does_not_remove_robot_hand_topmost(tmp_path: Path):
     assert not any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
 
 
-def test_omnipause_toggle_enter_does_not_remove_robot_hand_topmost(tmp_path: Path):
-    """Esc (omnipause toggle) should pause Robot Hand, not remove its topmost."""
+def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
+    """Esc (omnipause toggle) should pause Genau, not remove its topmost."""
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=False, robot_hand_mode=True)
+    state = _make_state(omni_paused=False, genau_mode=True)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("omnipause_toggle", state, config)
@@ -548,9 +548,9 @@ def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):
     assert config.primary_port not in resumed_ports
 
 
-def test_leave_omnipause_skip_primary_adds_robot_hand_ops_when_in_robot_mode(tmp_path: Path):
+def test_leave_omnipause_skip_primary_adds_genau_ops_when_in_robot_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=True, robot_hand_mode=True)
+    state = _make_state(omni_paused=True, genau_mode=True)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
@@ -600,9 +600,9 @@ def test_unknown_command_returns_unchanged_state(tmp_path: Path):
 # --- clipper_save ---
 
 
-def test_clipper_save_calls_subprocess_when_not_in_robot_hand_mode(tmp_path: Path):
+def test_clipper_save_calls_subprocess_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(robot_hand_mode=False)
+    state = _make_state(genau_mode=False)
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
          patch("fun_time.command_dispatch.get_playback_time", return_value=42.5), \
@@ -631,7 +631,7 @@ def test_clipper_save_calls_subprocess_when_not_in_robot_hand_mode(tmp_path: Pat
 
 def test_clipper_save_no_tooltip_on_failure(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(robot_hand_mode=False)
+    state = _make_state(genau_mode=False)
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
          patch("fun_time.command_dispatch.get_playback_time", return_value=42.5), \
@@ -645,11 +645,11 @@ def test_clipper_save_no_tooltip_on_failure(tmp_path: Path):
     assert ops == []
 
 
-def test_clipper_save_noop_when_in_robot_hand_mode(tmp_path: Path):
+def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-    config.robot_hand_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(robot_hand_mode=False)
+    config.genau_enabled_file.write_text("1", encoding="utf-8")
+    config.genau_mode_file.write_text("1", encoding="utf-8")
+    state = _make_state(genau_mode=False)
 
     with patch("fun_time.command_dispatch.get_current_file_path") as mock_vlc, \
          patch("fun_time.command_dispatch.subprocess") as mock_subprocess:

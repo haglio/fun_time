@@ -95,7 +95,7 @@ class BrokerConfig:
 
 
 @dataclass(frozen=True)
-class RobotHandConfig:
+class GenauConfig:
     shuffle_on_load: bool
     beats_per_loop: float
     clip_cache_size: int
@@ -134,24 +134,24 @@ class ProjectConfig:
     vlc: VlcConfig
     layout: LayoutConfig
     broker: BrokerConfig
-    robot_hand: RobotHandConfig
+    genau: GenauConfig
     audio_companion: AudioCompanionConfig
     random_favs_browser: RandomFavsBrowserConfig
 
     @property
-    def robot_hand_mode_file(self) -> Path:
-        return self.paths.state_dir / "robot_hand_mode.txt"
+    def genau_mode_file(self) -> Path:
+        return self.paths.state_dir / "genau_mode.txt"
 
     @property
-    def robot_hand_cmd_file(self) -> Path:
+    def genau_cmd_file(self) -> Path:
         return self.paths.state_dir / "genau_cmd.txt"
 
     @property
-    def robot_hand_enabled_file(self) -> Path:
-        return self.paths.state_dir / "robot_hand_enabled.txt"
+    def genau_enabled_file(self) -> Path:
+        return self.paths.state_dir / "genau_enabled.txt"
 
     @property
-    def robot_hand_paused_file(self) -> Path:
+    def genau_paused_file(self) -> Path:
         return self.paths.state_dir / "genau_paused.txt"
 
     @property
@@ -283,20 +283,20 @@ def _load_broker_config(broker_raw: dict[str, Any], source_path: Path) -> Broker
     )
 
 
-def _load_robot_hand_config(robot_raw: dict[str, Any], source_path: Path) -> RobotHandConfig:
-    return RobotHandConfig(
-        shuffle_on_load=_require_typed_value(robot_raw, "shuffle_on_load", source_path, "config.robot_hand", bool),
-        beats_per_loop=_require_typed_value(robot_raw, "beats_per_loop", source_path, "config.robot_hand", float),
-        clip_cache_size=_require_typed_value(robot_raw, "clip_cache_size", source_path, "config.robot_hand", int),
-        render_batch=_require_typed_value(robot_raw, "render_batch", source_path, "config.robot_hand", int),
-        bpm_smoothing=_require_typed_value(robot_raw, "bpm_smoothing", source_path, "config.robot_hand", float),
-        sync_strength=_require_typed_value(robot_raw, "sync_strength", source_path, "config.robot_hand", float),
-        udp_host=_require_typed_value(robot_raw, "udp_host", source_path, "config.robot_hand", str),
-        udp_port=_require_typed_value(robot_raw, "udp_port", source_path, "config.robot_hand", int),
-        notify_host=_require_typed_value(robot_raw, "notify_host", source_path, "config.robot_hand", str),
-        notify_port=_require_typed_value(robot_raw, "notify_port", source_path, "config.robot_hand", int),
-        status_hide_ms=_require_typed_value(robot_raw, "status_hide_ms", source_path, "config.robot_hand", int),
-        resize_debounce_ms=_require_typed_value(robot_raw, "resize_debounce_ms", source_path, "config.robot_hand", int),
+def _load_genau_config(robot_raw: dict[str, Any], source_path: Path) -> GenauConfig:
+    return GenauConfig(
+        shuffle_on_load=_require_typed_value(robot_raw, "shuffle_on_load", source_path, "config.genau", bool),
+        beats_per_loop=_require_typed_value(robot_raw, "beats_per_loop", source_path, "config.genau", float),
+        clip_cache_size=_require_typed_value(robot_raw, "clip_cache_size", source_path, "config.genau", int),
+        render_batch=_require_typed_value(robot_raw, "render_batch", source_path, "config.genau", int),
+        bpm_smoothing=_require_typed_value(robot_raw, "bpm_smoothing", source_path, "config.genau", float),
+        sync_strength=_require_typed_value(robot_raw, "sync_strength", source_path, "config.genau", float),
+        udp_host=_require_typed_value(robot_raw, "udp_host", source_path, "config.genau", str),
+        udp_port=_require_typed_value(robot_raw, "udp_port", source_path, "config.genau", int),
+        notify_host=_require_typed_value(robot_raw, "notify_host", source_path, "config.genau", str),
+        notify_port=_require_typed_value(robot_raw, "notify_port", source_path, "config.genau", int),
+        status_hide_ms=_require_typed_value(robot_raw, "status_hide_ms", source_path, "config.genau", int),
+        resize_debounce_ms=_require_typed_value(robot_raw, "resize_debounce_ms", source_path, "config.genau", int),
     )
 
 
@@ -331,7 +331,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     vlc_raw = _require_dict(raw, "vlc", path)
     layout_raw = _require_dict(raw, "layout", path)
     broker_raw = _require_dict(raw, "broker", path)
-    robot_raw = _require_dict(raw, "robot_hand", path)
+    robot_raw = _require_dict(raw, "genau", path)
     audio_raw = _require_dict(raw, "audio_companion", path)
     browser_raw = _require_optional_dict(raw, "random_favs_browser", path)
     if browser_raw is None:
@@ -344,7 +344,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         vlc=_load_vlc_config(vlc_raw, path),
         layout=_load_layout_config(layout_raw, path),
         broker=_load_broker_config(broker_raw, path),
-        robot_hand=_load_robot_hand_config(robot_raw, path),
+        genau=_load_genau_config(robot_raw, path),
         audio_companion=_load_audio_companion_config(audio_raw, path),
         random_favs_browser=_load_random_favs_browser_config(browser_raw),
     )

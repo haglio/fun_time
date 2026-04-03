@@ -35,7 +35,7 @@ class WindowLayoutPlan:
     mfp: WindowRect
     dashboard: WindowRect
     random_favs_browser: WindowRect
-    robot_hand: WindowRect
+    genau: WindowRect
 
 
 def compute_window_layout(
@@ -66,7 +66,7 @@ def compute_window_layout(
         width=secondary_monitor.width,
         height=primary_height,
     )
-    robot_hand = primary
+    genau = primary
 
     landscape_width = int(main_monitor.width * clamp01(layout_config.landscape_width_ratio))
     landscape = WindowRect(
@@ -98,7 +98,7 @@ def compute_window_layout(
         mfp=mfp,
         dashboard=dashboard,
         random_favs_browser=random_favs_browser,
-        robot_hand=robot_hand,
+        genau=genau,
     )
 
 

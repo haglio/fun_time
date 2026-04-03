@@ -49,7 +49,7 @@ class BrokerAutoController:
         with self._lock:
             return self._auto_active
 
-    # Seed BPM sent when entering auto mode so Robot Hand can start
+    # Seed BPM sent when entering auto mode so Genau can start
     # animating immediately instead of waiting ~3-4 s for the first real
     # BPM from the OSR2 serial stream.
     _SEED_BPM = 87
@@ -84,7 +84,7 @@ class BrokerAutoController:
             return
 
         self.publish_effective_state(sock)
-        self.logger.info("Robot Hand %s", "ENABLED" if value else "DISABLED")
+        self.logger.info("Genau %s", "ENABLED" if value else "DISABLED")
 
     def handle_line(self, sock: socket.socket, line: str) -> None:
         low = line.lower()

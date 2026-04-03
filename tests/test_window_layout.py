@@ -13,7 +13,7 @@ from fun_time import load_config
 from fun_time.config import LayoutConfig
 
 
-def test_compute_window_layout_uses_secondary_monitor_for_portrait_primary_and_robot_hand(cfg_path: Path):
+def test_compute_window_layout_uses_secondary_monitor_for_portrait_primary_and_genau(cfg_path: Path):
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
@@ -28,7 +28,7 @@ def test_compute_window_layout_uses_secondary_monitor_for_portrait_primary_and_r
     assert plan.portrait.width == 1440
     assert plan.primary.x == 2560
     assert plan.primary.y == plan.portrait.height
-    assert plan.robot_hand == plan.primary
+    assert plan.genau == plan.primary
 
 
 def test_compute_window_layout_uses_main_monitor_for_landscape_and_random_favs_browser(cfg_path: Path):

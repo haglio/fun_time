@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 from .modes import build_fmode_playlists
 from .omnipause import build_omnipause_plan
-from .robot_hand_plan import build_robot_hand_plan
+from .genau_plan import build_genau_plan
 from .vlc_actions import ensure_playback_state, replace_playlist_from_file
 
 
@@ -30,8 +30,8 @@ def write_flag_file(path: str | Path, value: bool) -> None:
 
 
 @dataclass(frozen=True)
-class RobotHandFlowResult:
-    next_robot_hand_mode: bool
+class GenauFlowResult:
+    next_genau_mode: bool
     is_transition: bool
     log_message: str
 
@@ -45,9 +45,9 @@ class FModeFlowResult:
     log_message: str
 
 
-def apply_sync_robot_hand(
+def apply_sync_genau(
     *,
-    robot_hand_mode_on: bool,
+    genau_mode_on: bool,
     omni_paused: bool,
     enabled_file: str | Path,
     mode_state_file: str | Path,
@@ -55,12 +55,12 @@ def apply_sync_robot_hand(
     audio_paused_file: str | Path,
     primary_port: int,
     password: str,
-) -> RobotHandFlowResult:
+) -> GenauFlowResult:
     enabled = read_flag_file(enabled_file, True)
     mode_state_on = read_flag_file(mode_state_file, False)
-    plan = build_robot_hand_plan(
+    plan = build_genau_plan(
         "sync-state",
-        robot_hand_mode_on=robot_hand_mode_on,
+        genau_mode_on=genau_mode_on,
         enabled=enabled,
         mode_state_on=mode_state_on,
         omni_paused=omni_paused,
@@ -69,17 +69,17 @@ def apply_sync_robot_hand(
         write_flag_file(paused_file, not plan.target_active)
         write_flag_file(audio_paused_file, not plan.target_active)
         if not ensure_playback_state(primary_port, password, should_play=not plan.target_active):
-            logger.warning("Primary VLC failed to reach desired Robot Hand sync playback state")
-    return RobotHandFlowResult(
-        next_robot_hand_mode=plan.target_active,
+            logger.warning("Primary VLC failed to reach desired Genau sync playback state")
+    return GenauFlowResult(
+        next_genau_mode=plan.target_active,
         is_transition=plan.is_transition,
         log_message=plan.log_message,
     )
 
 
-def apply_toggle_robot_hand_enabled(
+def apply_toggle_genau_enabled(
     *,
-    robot_hand_mode_on: bool,
+    genau_mode_on: bool,
     omni_paused: bool,
     enabled_file: str | Path,
     mode_state_file: str | Path,
@@ -87,12 +87,12 @@ def apply_toggle_robot_hand_enabled(
     audio_paused_file: str | Path,
     primary_port: int,
     password: str,
-) -> RobotHandFlowResult:
+) -> GenauFlowResult:
     enabled = read_flag_file(enabled_file, True)
     mode_state_on = read_flag_file(mode_state_file, False)
-    plan = build_robot_hand_plan(
+    plan = build_genau_plan(
         "toggle-enabled",
-        robot_hand_mode_on=robot_hand_mode_on,
+        genau_mode_on=genau_mode_on,
         enabled=enabled,
         mode_state_on=mode_state_on,
         omni_paused=omni_paused,
@@ -103,9 +103,9 @@ def apply_toggle_robot_hand_enabled(
         write_flag_file(paused_file, not plan.target_active)
         write_flag_file(audio_paused_file, not plan.target_active)
         if not ensure_playback_state(primary_port, password, should_play=not plan.target_active):
-            logger.warning("Primary VLC failed to reach desired Robot Hand toggle playback state")
-    return RobotHandFlowResult(
-        next_robot_hand_mode=plan.target_active,
+            logger.warning("Primary VLC failed to reach desired Genau toggle playback state")
+    return GenauFlowResult(
+        next_genau_mode=plan.target_active,
         is_transition=plan.is_transition,
         log_message=plan.log_message,
     )
@@ -152,21 +152,21 @@ def apply_toggle_fmode(
 class OmniPauseFlowResult:
     action: str
     next_omni_paused: bool
-    robot_hand_branch: bool
+    genau_branch: bool
     log_message: str
 
 
-def build_omnipause_toggle(*, omni_paused: bool, robot_hand_mode_on: bool) -> OmniPauseFlowResult:
+def build_omnipause_toggle(*, omni_paused: bool, genau_mode_on: bool) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "toggle",
         omni_paused=omni_paused,
-        robot_hand_mode_on=robot_hand_mode_on,
+        genau_mode_on=genau_mode_on,
         skip_primary_resume=False,
     )
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        robot_hand_branch=plan.robot_hand_branch,
+        genau_branch=plan.genau_branch,
         log_message=plan.log_message,
     )
 
@@ -174,21 +174,21 @@ def build_omnipause_toggle(*, omni_paused: bool, robot_hand_mode_on: bool) -> Om
 def apply_enter_omnipause(
     *,
     omni_paused: bool,
-    robot_hand_mode_on: bool,
+    genau_mode_on: bool,
     portrait_port: int,
     landscape_port: int,
     primary_port: int,
     password: str,
-    robot_hand_paused_file: str | Path,
+    genau_paused_file: str | Path,
     audio_paused_file: str | Path,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "enter",
         omni_paused=omni_paused,
-        robot_hand_mode_on=robot_hand_mode_on,
+        genau_mode_on=genau_mode_on,
         skip_primary_resume=False,
     )
-    write_flag_file(robot_hand_paused_file, True)
+    write_flag_file(genau_paused_file, True)
     write_flag_file(audio_paused_file, True)
     vlc_targets = [
         (portrait_port, "Portrait"),
@@ -206,7 +206,7 @@ def apply_enter_omnipause(
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        robot_hand_branch=plan.robot_hand_branch,
+        genau_branch=plan.genau_branch,
         log_message=plan.log_message,
     )
 
@@ -214,22 +214,22 @@ def apply_enter_omnipause(
 def apply_leave_omnipause(
     *,
     omni_paused: bool,
-    robot_hand_mode_on: bool,
+    genau_mode_on: bool,
     skip_primary_resume: bool,
     primary_port: int,
     portrait_port: int,
     landscape_port: int,
     password: str,
-    robot_hand_paused_file: str | Path,
+    genau_paused_file: str | Path,
     audio_paused_file: str | Path,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "leave",
         omni_paused=omni_paused,
-        robot_hand_mode_on=robot_hand_mode_on,
+        genau_mode_on=genau_mode_on,
         skip_primary_resume=skip_primary_resume,
     )
-    write_flag_file(robot_hand_paused_file, False)
+    write_flag_file(genau_paused_file, False)
     write_flag_file(audio_paused_file, False)
     vlc_targets = [
         (portrait_port, "Portrait"),
@@ -248,6 +248,6 @@ def apply_leave_omnipause(
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        robot_hand_branch=plan.robot_hand_branch,
+        genau_branch=plan.genau_branch,
         log_message=plan.log_message,
     )

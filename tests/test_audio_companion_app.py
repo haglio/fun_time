@@ -115,7 +115,7 @@ class TestAudioPlaybackController:
 
         play_current.assert_called_once_with()
 
-    def test_apply_state_does_not_play_when_mode_file_says_robot_hand_is_inactive(self, audio_companion_module, tmp_path: Path):
+    def test_apply_state_does_not_play_when_mode_file_says_genau_is_inactive(self, audio_companion_module, tmp_path: Path):
         controller = self._make_controller(audio_companion_module, tmp_path)
         controller.current_path = tmp_path / "demo.mp3"
         controller.visible = True
@@ -130,7 +130,7 @@ class TestAudioPlaybackController:
         play_current.assert_not_called()
 
     def test_read_mode_active_treats_only_1_as_enabled(self, audio_companion_module, tmp_path: Path):
-        path = tmp_path / "robot_hand_mode.txt"
+        path = tmp_path / "genau_mode.txt"
         path.write_text("1", encoding="utf-8")
         assert audio_companion_module.read_mode_active(path) is True
         path.write_text("0", encoding="utf-8")

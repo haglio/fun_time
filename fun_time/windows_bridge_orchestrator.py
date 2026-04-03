@@ -44,7 +44,7 @@ def write_pids_file(path: Path, result: StartupResult) -> None:
         "portrait_pid": str(result.portrait_pid),
         "landscape_pid": str(result.landscape_pid),
         "dashboard_pid": str(result.dashboard_pid),
-        "robot_hand_pid": str(result.robot_hand_pid),
+        "genau_pid": str(result.genau_pid),
         "audio_pid": str(result.audio_pid),
     }
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,7 +73,7 @@ def _minimize_all_windows(result: StartupResult) -> None:
         result.mfp_pid,
         result.portrait_pid,
         result.landscape_pid,
-        result.robot_hand_pid,
+        result.genau_pid,
     ]:
         if not pid:
             continue
@@ -97,7 +97,7 @@ def _shutdown_children(result: StartupResult) -> None:
         result.portrait_pid,
         result.landscape_pid,
         result.dashboard_pid,
-        result.robot_hand_pid,
+        result.genau_pid,
         result.audio_pid,
     ]:
         kill_process_tree(pid)
@@ -194,9 +194,9 @@ def run_python_orchestrated_bridge(
             unlock_set_foreground_window()
 
     logger.info(
-        "Startup complete: primary=%d mfp=%d portrait=%d landscape=%d dashboard=%d robot_hand=%d audio=%d",
+        "Startup complete: primary=%d mfp=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
         result.primary_pid, result.mfp_pid, result.portrait_pid, result.landscape_pid,
-        result.dashboard_pid, result.robot_hand_pid, result.audio_pid,
+        result.dashboard_pid, result.genau_pid, result.audio_pid,
     )
 
     # --- Close loading screen (normal mode only) ---
@@ -254,10 +254,10 @@ def run_python_orchestrated_bridge(
         dashboard_pid=result.dashboard_pid,
         dashboard_enabled=dashboard_enabled,
         rfb_hwnd=result.rfb_hwnd,
-        robot_hand_pid=result.robot_hand_pid,
+        genau_pid=result.genau_pid,
     )
-    # Robot Hand startup detection is handled by the dispatch loop's first
-    # sync tick: if the broker has already written robot_hand_mode.txt = "1"
+    # Genau startup detection is handled by the dispatch loop's first
+    # sync tick: if the broker has already written genau_mode.txt = "1"
     # (it detects auto mode within ~4s via BPM/stroke inference), the sync
     # will detect the entering transition and pause Primary VLC naturally.
 
