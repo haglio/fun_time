@@ -23,6 +23,7 @@ from .windows_bridge_dispatch_loop import (
     build_bridge_config_from_manifest,
 )
 from .windows_bridge_sequencer import StartupResult, run_startup_sequence
+from .windows_bridge_startup import _no_activate_kwargs
 from .win32 import (
     activate_window,
     close_window,
@@ -69,7 +70,12 @@ def kill_process_tree(pid: int) -> None:
 
 
 def _minimize_all_windows(result: StartupResult) -> None:
-    """Minimize all Fun Time windows so integration tests don't take over the display."""
+    """Minimize all Fun Time windows so integration tests don't take over the display.
+
+    Uses activate=False (SW_SHOWMINNOACTIVE) to prevent each minimize from
+    activating the next window in z-order, which would create a chain of
+    focus transfers that steals the user's foreground window.
+    """
     for pid in [
         result.primary_pid,
         result.mfp_pid,
@@ -81,7 +87,7 @@ def _minimize_all_windows(result: StartupResult) -> None:
             continue
         hwnd = find_window_by_pid(pid)
         if hwnd:
-            minimize_window(hwnd)
+            minimize_window(hwnd, activate=False)
     logger.info("Minimized all windows for integration test run")
 
 
@@ -306,7 +312,7 @@ def run_python_orchestrated_bridge(
 
     command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file)]
     logger.info("Launching AHK hotkey script: %s", " ".join(command))
-    ahk_proc = subprocess.Popen(command, cwd=project_dir)
+    ahk_proc = subprocess.Popen(command, cwd=project_dir, **_no_activate_kwargs())
 
     try:
         exit_code = ahk_proc.wait()
