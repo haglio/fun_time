@@ -267,8 +267,8 @@ def _dispatch_omnipause_toggle(
         state = replace(state, omni_paused=result.next_omni_paused)
         ops.append(WindowOp(op="unsuspend_hotkeys"))
         if state.robot_hand_mode:
-            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
-            ops.append(WindowOp(op="activate", title="Robot Hand"))
+            ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
+            ops.append(WindowOp(op="activate", title="Genau"))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
@@ -313,8 +313,8 @@ def _dispatch_leave_omnipause_skip_primary(
     state = replace(state, omni_paused=result.next_omni_paused)
     ops.append(WindowOp(op="unsuspend_hotkeys"))
     if state.robot_hand_mode:
-        ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
-        ops.append(WindowOp(op="activate", title="Robot Hand"))
+        ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
+        ops.append(WindowOp(op="activate", title="Genau"))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
@@ -361,10 +361,10 @@ def _dispatch_robot_toggle(
     state = replace(state, robot_hand_mode=result.next_robot_hand_mode)
     if result.is_transition:
         if result.next_robot_hand_mode:
-            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
-            ops.append(WindowOp(op="activate", title="Robot Hand"))
+            ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
+            ops.append(WindowOp(op="activate", title="Genau"))
         else:
-            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
+            ops.append(WindowOp(op="set_topmost", title="Genau", value=False))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
@@ -389,10 +389,10 @@ def _dispatch_sync_robot_hand(
     state = replace(state, robot_hand_mode=result.next_robot_hand_mode)
     if result.is_transition:
         if result.next_robot_hand_mode:
-            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=True))
-            ops.append(WindowOp(op="activate", title="Robot Hand"))
+            ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
+            ops.append(WindowOp(op="activate", title="Genau"))
         else:
-            ops.append(WindowOp(op="set_topmost", title="Robot Hand", value=False))
+            ops.append(WindowOp(op="set_topmost", title="Genau", value=False))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops

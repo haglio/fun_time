@@ -241,7 +241,7 @@ class DispatchLoopRunner:
         if not self.state.robot_hand_mode:
             self._robot_hand_activate_pending = False
             return
-        hwnd = find_window_by_title("Robot Hand")
+        hwnd = find_window_by_title("Genau")
         if not hwnd:
             return
         set_always_on_top(hwnd, True)
@@ -250,15 +250,15 @@ class DispatchLoopRunner:
         self._robot_hand_activate_pending = False
 
     def _enforce_robot_hand_z_order(self) -> None:
-        """Keep Primary VLC out of the TOPMOST band while Robot Hand is active.
+        """Keep Primary VLC out of the TOPMOST band while Genau is active.
 
         VLC may re-assert topmost during video transitions; demoting it
-        to the regular z-band guarantees Robot Hand stays above it.
+        to the regular z-band guarantees Genau stays above it.
         """
         primary_hwnd = find_window_by_pid(self.primary_pid)
         if primary_hwnd:
             set_always_on_top(primary_hwnd, False)
-        robot_hwnd = find_window_by_title("Robot Hand")
+        robot_hwnd = find_window_by_title("Genau")
         if robot_hwnd:
             set_always_on_top(robot_hwnd, True)
 

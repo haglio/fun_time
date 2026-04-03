@@ -403,7 +403,7 @@ def test_robot_toggle_disables_and_hides_when_enabled_and_mode_on(tmp_path: Path
     assert new_state.robot_hand_mode is False
     assert config.robot_hand_enabled_file.read_text(encoding="utf-8") == "0"
     assert not any(op.op == "hide" for op in ops)
-    assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is False for op in ops)
+    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
 
 
 def test_robot_toggle_enables_and_shows_when_disabled_and_mode_state_on(tmp_path: Path):
@@ -418,7 +418,7 @@ def test_robot_toggle_enables_and_shows_when_disabled_and_mode_state_on(tmp_path
     assert new_state.robot_hand_mode is True
     assert config.robot_hand_enabled_file.read_text(encoding="utf-8") == "1"
     assert not any(op.op == "show" for op in ops)
-    assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is True for op in ops)
+    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
 
 
 def test_link_toggle_is_alias_for_robot_toggle(tmp_path: Path):
@@ -482,8 +482,8 @@ def test_first_sync_tick_enters_robot_hand_when_broker_detected_auto_mode(tmp_pa
     assert new_state.robot_hand_mode is True
     assert vlc_calls == [(config.primary_port, config.vlc_password, False)]
     assert not any(op.op == "show" for op in ops)
-    assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is True for op in ops)
-    assert any(op.op == "activate" and op.title == "Robot Hand" for op in ops)
+    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
+    assert any(op.op == "activate" and op.title == "Genau" for op in ops)
 
 
 def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
@@ -514,7 +514,7 @@ def test_enter_omnipause_does_not_remove_robot_hand_topmost(tmp_path: Path):
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("enter_omnipause", state, config)
 
-    assert not any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is False for op in ops)
+    assert not any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
 
 
 def test_omnipause_toggle_enter_does_not_remove_robot_hand_topmost(tmp_path: Path):
@@ -525,7 +525,7 @@ def test_omnipause_toggle_enter_does_not_remove_robot_hand_topmost(tmp_path: Pat
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
-    assert not any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is False for op in ops)
+    assert not any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
 
 
 def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):
@@ -555,8 +555,8 @@ def test_leave_omnipause_skip_primary_adds_robot_hand_ops_when_in_robot_mode(tmp
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
 
-    assert any(op.op == "set_topmost" and op.title == "Robot Hand" and op.value is True for op in ops)
-    assert any(op.op == "activate" and op.title == "Robot Hand" for op in ops)
+    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
+    assert any(op.op == "activate" and op.title == "Genau" for op in ops)
 
 
 # --- vlc nudge ---
