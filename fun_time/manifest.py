@@ -15,11 +15,13 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "project_dir": str(config.project_dir),
             "config_path": str(config.config_path),
             "windows_bridge_log_file": str(config.log_file("windows_bridge")),
+            "genau_config_path": str(config.paths.genau_config_path or config.config_path),
         },
         "executables": {
             "vlc_exe": str(config.paths.vlc_exe),
             "mfp_exe": str(config.paths.mfp_exe),
             "python_exe": str(config.paths.python_exe),
+            "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
         },
         "media": {
             "primary_vlc_sources": "|".join(str(path) for path in config.paths.primary_vlc_dirs),
@@ -31,7 +33,7 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "robot_hand_audio": str(config.paths.audio_dir),
         },
         "modules": {
-            "robot_hand_module": "fun_time.robot_hand.app",
+            "robot_hand_module": "genau",
             "audio_module": "fun_time.audio_companion_app",
             "dashboard_module": "fun_time.dashboard_app",
         },
