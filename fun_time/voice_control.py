@@ -65,12 +65,14 @@ def parse_vosk_result(raw_json: str, *, threshold: float) -> str | None:
     return command
 
 
+_VOICE_IMPORT_ERROR: str = ""
 try:
     import vosk
     import sounddevice as sd
-except ImportError:  # optional dependency — voice control silently unavailable
+except Exception as _exc:  # optional — voice control silently unavailable
     vosk = None  # type: ignore[assignment]
     sd = None  # type: ignore[assignment]
+    _VOICE_IMPORT_ERROR = str(_exc)
 
 VOICE_AVAILABLE = vosk is not None and sd is not None
 
@@ -124,29 +126,33 @@ class VoiceController:
                 logger.debug("audio status: %s", status)
             audio_q.put(bytes(indata))
 
-        model = vosk.Model(model_name=self.model_path)
-        grammar = build_grammar()
-        rec = vosk.KaldiRecognizer(model, self.sample_rate, grammar)
-        logger.info("Voice control started (model=%s, rate=%d)", self.model_path, self.sample_rate)
+        try:
+            model = vosk.Model(model_name=self.model_path)
+            grammar = build_grammar()
+            rec = vosk.KaldiRecognizer(model, self.sample_rate, grammar)
+            logger.info("Voice control listening (model=%s, rate=%d, device=%s)",
+                        self.model_path, self.sample_rate, self.device_index)
 
-        with sd.RawInputStream(
-            samplerate=self.sample_rate,
-            blocksize=8000,
-            dtype="int16",
-            channels=1,
-            device=self.device_index,
-            callback=_callback,
-        ):
-            while not self._stop.is_set():
-                try:
-                    data = audio_q.get(timeout=0.5)
-                except _queue.Empty:
-                    continue
-                if rec.AcceptWaveform(data):
-                    result = rec.Result()
-                    command = parse_vosk_result(result, threshold=self.confidence_threshold)
-                    if command:
-                        logger.info("Voice command: %s", command)
-                        self._write_command(command)
+            with sd.RawInputStream(
+                samplerate=self.sample_rate,
+                blocksize=8000,
+                dtype="int16",
+                channels=1,
+                device=self.device_index,
+                callback=_callback,
+            ):
+                while not self._stop.is_set():
+                    try:
+                        data = audio_q.get(timeout=0.5)
+                    except _queue.Empty:
+                        continue
+                    if rec.AcceptWaveform(data):
+                        result = rec.Result()
+                        command = parse_vosk_result(result, threshold=self.confidence_threshold)
+                        if command:
+                            logger.info("Voice command: %s", command)
+                            self._write_command(command)
 
-        logger.info("Voice control stopped")
+            logger.info("Voice control stopped")
+        except Exception:
+            logger.exception("Voice control thread crashed")
