@@ -695,6 +695,34 @@ class TestGenauZOrder:
             f"Expected place_window_behind(rfb=7777, dash=5001), got {place_calls}"
         )
 
+    def test_restore_falls_back_to_title_when_pid_lookup_fails(self, tmp_path):
+        """When find_window_by_pid cannot find Dashboard (PID mismatch
+        from venv launcher), _find_dashboard_hwnd falls back to title."""
+        runner = self._make_runner(tmp_path, rfb_hwnd=7777)
+        runner.state = BridgeState()
+
+        topmost_calls: list[tuple[int, bool]] = []
+        place_calls: list[tuple[int, int]] = []
+        # Dashboard PID 500 maps to 0 (not found) — simulates PID mismatch
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001}
+
+        def title_lookup(title):
+            return 9999 if title == "Fun Time" else 0
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.place_window_behind", side_effect=lambda h, b: place_calls.append((h, b)) or True):
+            runner._restore_all_topmost()
+
+        # Dashboard found via title (hwnd 9999) must get the toggle
+        dash_calls = [(h, v) for h, v in topmost_calls if h == 9999]
+        assert dash_calls == [(9999, False), (9999, True)]
+
+        # RFB placed behind the title-found Dashboard
+        assert (7777, 9999) in place_calls
+
 
 class TestGenauActivationRetry:
     """When entering Genau mode, the window may not be visible yet

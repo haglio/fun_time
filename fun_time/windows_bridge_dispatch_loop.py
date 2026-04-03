@@ -363,9 +363,14 @@ class DispatchLoopRunner:
         if self.rfb_hwnd:
             set_always_on_top(self.rfb_hwnd, False)
         for pid in self._all_pids:
+            if pid == self.dashboard_pid:
+                continue  # handled via _find_dashboard_hwnd below
             hwnd = find_window_by_pid(pid)
             if hwnd:
                 set_always_on_top(hwnd, False)
+        dash_hwnd = self._find_dashboard_hwnd()
+        if dash_hwnd:
+            set_always_on_top(dash_hwnd, False)
         if self.genau_pid:
             hwnd = find_window_by_pid(self.genau_pid)
             if hwnd:
@@ -394,17 +399,12 @@ class DispatchLoopRunner:
         #    WindowStaysOnTopHint which may re-assert topmost during
         #    omnipause.  A bare HWND_TOPMOST is a no-op on an already-
         #    topmost window.  Toggle forces re-insertion.
-        dash_hwnd = 0
-        if self.dashboard_pid:
-            dash_hwnd = find_window_by_pid(self.dashboard_pid)
-            if dash_hwnd:
-                set_always_on_top(dash_hwnd, False)
-                set_always_on_top(dash_hwnd, True)
-            else:
-                logger.info(
-                    "Dashboard hwnd not found for pid %d during topmost restore",
-                    self.dashboard_pid,
-                )
+        dash_hwnd = self._find_dashboard_hwnd()
+        if dash_hwnd:
+            set_always_on_top(dash_hwnd, False)
+            set_always_on_top(dash_hwnd, True)
+        else:
+            logger.info("Dashboard hwnd not found during topmost restore")
 
         # 3. Explicit z-order: place RFB behind Dashboard.  Previous
         #    attempts relied solely on HWND_TOPMOST call ordering, which
@@ -457,13 +457,27 @@ class DispatchLoopRunner:
                 name="broker-stop",
             ).start()
 
+    def _find_dashboard_hwnd(self) -> int:
+        """Find the Dashboard window, falling back to title search.
+
+        The PID-based lookup can fail if the venv launcher's PID differs
+        from the actual Python interpreter process that owns the Qt window.
+        """
+        hwnd = find_window_by_pid(self.dashboard_pid) if self.dashboard_pid else 0
+        if not hwnd:
+            hwnd = find_window_by_title("Fun Time")
+            if hwnd:
+                logger.info(
+                    "Dashboard found by title (hwnd=%d) but NOT by pid %d",
+                    hwnd, self.dashboard_pid,
+                )
+        return hwnd
+
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows."""
         was_paused = self.state.omni_paused
         if was_paused:
-            # Pre-restore diagnostic: check if Qt re-asserted topmost
-            # during omnipause (Dashboard has WindowStaysOnTopHint).
-            dash_hwnd = find_window_by_pid(self.dashboard_pid) if self.dashboard_pid else 0
+            dash_hwnd = self._find_dashboard_hwnd()
             logger.info(
                 "Un-omnipause pre-restore: dash_hwnd=%d dash_topmost=%s "
                 "rfb_hwnd=%d rfb_topmost=%s",
