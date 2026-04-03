@@ -318,10 +318,10 @@ class TestBrokerHelpers:
         ]
 
     def test_start_broker_uses_direct_python_process_during_integration(self, cfg_path: Path, monkeypatch):
+        from fun_time.orchestrator_broker import BROKER_PROJECT_DIR
         cfg = load_config(cfg_path)
         logger = MagicMock()
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-        cfg.paths.python_exe.touch()
 
         with patch("fun_time.orchestrator.sys.platform", "win32"), \
              patch("fun_time.orchestrator.subprocess.Popen") as popen, \
@@ -330,8 +330,9 @@ class TestBrokerHelpers:
 
         popen.assert_called_once()
         command = popen.call_args.args[0]
-        assert command[:3] == [str(cfg.paths.python_exe), "-m", "osr2_broker.app"]
-        assert command[-2:] == ["--config", str(cfg.config_path)]
+        assert command[1:3] == ["-m", "osr2_broker.app"]
+        assert "--config" in command
+        assert popen.call_args.kwargs.get("cwd") == BROKER_PROJECT_DIR
 
     def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)

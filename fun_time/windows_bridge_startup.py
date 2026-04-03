@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import configparser
-import json
 import os
 import random
 import subprocess
@@ -10,7 +9,7 @@ import time
 from pathlib import Path
 
 from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
-from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
+from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_PROJECT_DIR, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
 
 
@@ -44,28 +43,17 @@ def _integration_direct_broker_start_enabled() -> bool:
     return os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
 
 
-def _resolve_broker_python_exe(config_path: str | Path) -> list[str]:
-    config = json.loads(Path(config_path).read_text(encoding="utf-8"))
-    python_exe = str(config.get("paths", {}).get("python_exe", "")).strip()
-    if python_exe:
-        python_path = Path(python_exe)
-        if not python_path.is_absolute():
-            python_path = (Path(config_path).resolve().parent / python_path).resolve()
-        if python_path.name.lower() == "pythonw.exe":
-            python_console = python_path.with_name("python.exe")
-            if python_console.exists():
-                python_path = python_console
-        if python_path.exists():
-            return [str(python_path)]
-    return ["py", "-3"]
-
-
 def _start_broker_process_direct(config_path: str | Path) -> subprocess.Popen[bytes]:
-    config_path = Path(config_path).resolve()
-    command = [*_resolve_broker_python_exe(config_path), "-m", "osr2_broker.app", "--config", str(config_path)]
+    broker_dir = BROKER_PROJECT_DIR
+    broker_python = broker_dir / ".venv" / "Scripts" / "python.exe"
+    if broker_python.exists():
+        exe = [str(broker_python)]
+    else:
+        exe = ["py", "-3"]
+    command = [*exe, "-m", "osr2_broker.app", "--config", str(broker_dir / "osr2_broker_config.json")]
     return subprocess.Popen(
         command,
-        cwd=config_path.parent.parent / "osr2_broker",
+        cwd=broker_dir,
         **subprocess_window_kwargs(),
     )
 
@@ -94,7 +82,7 @@ def stop_broker_processes(project_dir: str | Path) -> None:
 
 def restart_broker(project_dir: str | Path, config_path: str | Path | None = None) -> None:
     project_path = Path(project_dir)
-    launch_path = project_path.parent / "osr2_broker" / "launch_broker_tray.vbs"
+    launch_path = BROKER_PROJECT_DIR / "launch_broker_tray.vbs"
     ps_command = (
         "$targets = Get-CimInstance Win32_Process | Where-Object { "
         "(($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $_.CommandLine -match '"
