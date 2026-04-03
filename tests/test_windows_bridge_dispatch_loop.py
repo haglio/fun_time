@@ -668,6 +668,31 @@ class TestGenauZOrder:
         restored = {h for h, v in topmost_calls if v}
         assert {2001, 3001, 4001, 5001} <= restored
 
+    def test_restore_all_topmost_toggles_dashboard_above_rfb(self, tmp_path):
+        """Dashboard must get a topmost toggle (False→True) so it ends up
+        above RFB in the z-band, matching the startup sequence."""
+        runner = self._make_runner(tmp_path, rfb_hwnd=7777)
+        runner.state = BridgeState()
+
+        topmost_calls: list[tuple[int, bool]] = []
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            runner._restore_all_topmost()
+
+        # Dashboard hwnd 5001 must be toggled False then True (not just True)
+        dash_calls = [(h, v) for h, v in topmost_calls if h == 5001]
+        assert (5001, False) in dash_calls, "Dashboard must be set non-topmost before re-asserting"
+        assert (5001, True) in dash_calls, "Dashboard must be set topmost after toggle"
+        # The False must come before the True
+        false_idx = topmost_calls.index((5001, False))
+        true_idx = len(topmost_calls) - 1 - topmost_calls[::-1].index((5001, True))
+        assert false_idx < true_idx, "Dashboard False must precede True"
+        # Both must come after RFB's topmost
+        rfb_idx = topmost_calls.index((7777, True))
+        assert rfb_idx < false_idx, "Dashboard toggle must come after RFB topmost"
+
 
 class TestGenauActivationRetry:
     """When entering Genau mode, the window may not be visible yet
