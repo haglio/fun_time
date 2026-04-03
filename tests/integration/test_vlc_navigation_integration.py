@@ -118,6 +118,22 @@ def _wait_for_item_change(port: int, before: str, timeout: float = 6.0) -> str:
     return get_current_file_path(port, TEST_PASSWORD)
 
 
+def _wait_for_playing(port: int, timeout: float = 3.0) -> str:
+    """Poll until VLC reports 'playing' state.
+
+    VLC can briefly report 'stopped' during playlist transitions even in
+    normal operation (no --start-paused).  This helper waits for the
+    transient state to settle before the test asserts.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        state = get_playback_state(port, TEST_PASSWORD)
+        if state == "playing":
+            return state
+        time.sleep(0.1)
+    return get_playback_state(port, TEST_PASSWORD)
+
+
 def _wait_for_stable_current(port: int = TEST_PORT, timeout: float = 3.0) -> None:
     """Poll until VLC's playlist_jstree reports a valid current item.
 
@@ -388,7 +404,7 @@ def test_repeat_one_nav_plays_after_every_transition(vlc_repeat_one):
         vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, "next")
         _wait_for_item_change(REPEAT_PORT, before)
         after = _current(REPEAT_PORT)
-        state = get_playback_state(REPEAT_PORT, TEST_PASSWORD)
+        state = _wait_for_playing(REPEAT_PORT)
         assert after != before, f"nav #{i+1}: video did not change"
         assert state == "playing", f"nav #{i+1}: VLC not playing (state={state})"
 
