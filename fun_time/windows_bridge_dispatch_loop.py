@@ -355,6 +355,16 @@ class DispatchLoopRunner:
                 set_always_on_top(hwnd, False)
                 continue
             set_always_on_top(hwnd, True)
+        # Re-assert Dashboard topmost — Dashboard sets its own
+        # WindowStaysOnTopHint via Qt, so a bare HWND_TOPMOST from
+        # outside doesn't move it to the front of the topmost band.
+        # Toggling (False→True) forces Windows to re-evaluate z-order,
+        # matching the startup sequence in windows_bridge_sequencer.py.
+        if self.dashboard_pid:
+            dash_hwnd = find_window_by_pid(self.dashboard_pid)
+            if dash_hwnd:
+                set_always_on_top(dash_hwnd, False)
+                set_always_on_top(dash_hwnd, True)
         # Genau topmost LAST when in robot hand mode — this puts it on
         # top of all other windows.  Skip when not in robot hand mode so it
         # stays behind the always-on-top VLC/MFP/Dashboard windows.
