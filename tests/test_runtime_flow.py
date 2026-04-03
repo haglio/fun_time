@@ -5,7 +5,7 @@ from pathlib import Path
 from fun_time.runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
-    apply_sync_robot_hand,
+    apply_sync_genau,
     apply_toggle_fmode,
     build_omnipause_toggle,
 )
@@ -25,8 +25,8 @@ def test_sync_entering_transition_pauses_primary_and_writes_files(monkeypatch, t
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_sync_robot_hand(
-        robot_hand_mode_on=False,
+    result = apply_sync_genau(
+        genau_mode_on=False,
         omni_paused=False,
         enabled_file=enabled_file,
         mode_state_file=mode_state_file,
@@ -36,7 +36,7 @@ def test_sync_entering_transition_pauses_primary_and_writes_files(monkeypatch, t
         password="pw",
     )
 
-    assert result.next_robot_hand_mode is True
+    assert result.next_genau_mode is True
     assert result.is_transition is True
     assert paused_file.read_text(encoding="utf-8") == "0"
     assert audio_paused_file.read_text(encoding="utf-8") == "0"
@@ -57,8 +57,8 @@ def test_sync_leaving_transition_resumes_primary_and_writes_files(monkeypatch, t
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_sync_robot_hand(
-        robot_hand_mode_on=True,
+    result = apply_sync_genau(
+        genau_mode_on=True,
         omni_paused=False,
         enabled_file=enabled_file,
         mode_state_file=mode_state_file,
@@ -68,7 +68,7 @@ def test_sync_leaving_transition_resumes_primary_and_writes_files(monkeypatch, t
         password="pw",
     )
 
-    assert result.next_robot_hand_mode is False
+    assert result.next_genau_mode is False
     assert result.is_transition is True
     assert paused_file.read_text(encoding="utf-8") == "1"
     assert audio_paused_file.read_text(encoding="utf-8") == "1"
@@ -90,8 +90,8 @@ def test_sync_steady_state_does_not_call_vlc(monkeypatch, tmp_path: Path):
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_sync_robot_hand(
-        robot_hand_mode_on=True,
+    result = apply_sync_genau(
+        genau_mode_on=True,
         omni_paused=False,
         enabled_file=enabled_file,
         mode_state_file=mode_state_file,
@@ -101,14 +101,14 @@ def test_sync_steady_state_does_not_call_vlc(monkeypatch, tmp_path: Path):
         password="pw",
     )
 
-    assert result.next_robot_hand_mode is True
+    assert result.next_genau_mode is True
     assert result.is_transition is False
     assert calls == [], "Steady state must NOT call ensure_playback_state"
     assert not paused_file.exists(), "Steady state must NOT write flag files"
 
 
 def test_toggle_disabling_resumes_primary(monkeypatch, tmp_path: Path):
-    from fun_time.runtime_flow import apply_toggle_robot_hand_enabled
+    from fun_time.runtime_flow import apply_toggle_genau_enabled
 
     enabled_file = tmp_path / "enabled.txt"
     mode_state_file = tmp_path / "mode.txt"
@@ -123,8 +123,8 @@ def test_toggle_disabling_resumes_primary(monkeypatch, tmp_path: Path):
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_toggle_robot_hand_enabled(
-        robot_hand_mode_on=True,
+    result = apply_toggle_genau_enabled(
+        genau_mode_on=True,
         omni_paused=False,
         enabled_file=enabled_file,
         mode_state_file=mode_state_file,
@@ -134,14 +134,14 @@ def test_toggle_disabling_resumes_primary(monkeypatch, tmp_path: Path):
         password="pw",
     )
 
-    assert result.next_robot_hand_mode is False
+    assert result.next_genau_mode is False
     assert result.is_transition is True
     assert enabled_file.read_text(encoding="utf-8") == "0"
     assert calls == [(8123, "pw", True)]
 
 
 def test_toggle_enabling_pauses_primary_when_auto_on(monkeypatch, tmp_path: Path):
-    from fun_time.runtime_flow import apply_toggle_robot_hand_enabled
+    from fun_time.runtime_flow import apply_toggle_genau_enabled
 
     enabled_file = tmp_path / "enabled.txt"
     mode_state_file = tmp_path / "mode.txt"
@@ -156,8 +156,8 @@ def test_toggle_enabling_pauses_primary_when_auto_on(monkeypatch, tmp_path: Path
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_toggle_robot_hand_enabled(
-        robot_hand_mode_on=False,
+    result = apply_toggle_genau_enabled(
+        genau_mode_on=False,
         omni_paused=False,
         enabled_file=enabled_file,
         mode_state_file=mode_state_file,
@@ -167,7 +167,7 @@ def test_toggle_enabling_pauses_primary_when_auto_on(monkeypatch, tmp_path: Path
         password="pw",
     )
 
-    assert result.next_robot_hand_mode is True
+    assert result.next_genau_mode is True
     assert result.is_transition is True
     assert enabled_file.read_text(encoding="utf-8") == "1"
     assert calls == [(8123, "pw", False)]
@@ -223,14 +223,14 @@ def test_toggle_fmode_replaces_playlists_and_returns_new_state(monkeypatch, tmp_
 
 
 def test_build_omnipause_toggle_returns_enter_or_leave():
-    enter = build_omnipause_toggle(omni_paused=False, robot_hand_mode_on=False)
-    leave = build_omnipause_toggle(omni_paused=True, robot_hand_mode_on=True)
+    enter = build_omnipause_toggle(omni_paused=False, genau_mode_on=False)
+    leave = build_omnipause_toggle(omni_paused=True, genau_mode_on=True)
 
     assert enter.action == "enter"
     assert enter.next_omni_paused is True
     assert leave.action == "leave"
     assert leave.next_omni_paused is False
-    assert leave.robot_hand_branch is True
+    assert leave.genau_branch is True
 
 
 def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypatch, tmp_path: Path):
@@ -245,12 +245,12 @@ def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypat
 
     result = apply_enter_omnipause(
         omni_paused=False,
-        robot_hand_mode_on=True,
+        genau_mode_on=True,
         portrait_port=9002,
         landscape_port=9003,
         primary_port=9001,
         password="pw",
-        robot_hand_paused_file=paused_file,
+        genau_paused_file=paused_file,
         audio_paused_file=audio_paused_file,
     )
 
@@ -276,13 +276,13 @@ def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_p
 
     result = apply_leave_omnipause(
         omni_paused=True,
-        robot_hand_mode_on=False,
+        genau_mode_on=False,
         skip_primary_resume=False,
         primary_port=9001,
         portrait_port=9002,
         landscape_port=9003,
         password="pw",
-        robot_hand_paused_file=paused_file,
+        genau_paused_file=paused_file,
         audio_paused_file=audio_paused_file,
     )
 
@@ -308,13 +308,13 @@ def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monk
 
     result = apply_leave_omnipause(
         omni_paused=True,
-        robot_hand_mode_on=True,
+        genau_mode_on=True,
         skip_primary_resume=False,
         primary_port=9001,
         portrait_port=9002,
         landscape_port=9003,
         password="pw",
-        robot_hand_paused_file=paused_file,
+        genau_paused_file=paused_file,
         audio_paused_file=audio_paused_file,
     )
 

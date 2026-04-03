@@ -82,9 +82,9 @@ class FakeSerialPort:
 
 def _build_stack(tmp_path: Path, *, enabled: bool = True):
     """Build a real AutoController + Session wired to fake serial ports."""
-    state_file = tmp_path / "state" / "robot_hand_mode.txt"
+    state_file = tmp_path / "state" / "genau_mode.txt"
     state_file.parent.mkdir(parents=True, exist_ok=True)
-    rh_enabled_file = tmp_path / "state" / "robot_hand_enabled.txt"
+    rh_enabled_file = tmp_path / "state" / "genau_enabled.txt"
     broker_cmd_file = tmp_path / "state" / "broker_cmd.txt"
 
     writes: list[tuple[Path, str]] = []
@@ -127,7 +127,7 @@ def _build_stack(tmp_path: Path, *, enabled: bool = True):
         real_port="COM4",
         baud=115200,
         broker_cmd_file=broker_cmd_file,
-        robot_hand_enabled_file=rh_enabled_file,
+        genau_enabled_file=rh_enabled_file,
         auto_stale_timeout=2.0,
         stop_event=stop_event,
         broker_paused=broker_paused,
@@ -135,7 +135,7 @@ def _build_stack(tmp_path: Path, *, enabled: bool = True):
         logger=logger,
         start_thread=_start_real_thread,
         consume_command=lambda _path: None,
-        read_robot_hand_enabled=lambda _path: enabled,
+        read_genau_enabled=lambda _path: enabled,
         monotonic=clock,
         sleep=lambda _s: None,
     )
@@ -198,7 +198,7 @@ def _wait_until(predicate, *, timeout=2.0, poll=0.02):
 class TestAutoTransitionFromSerial:
     """Device sends auto-mode lines on the real COM port; verify state file + UDP."""
 
-    def test_auto_on_line_activates_robot_hand(self, tmp_path):
+    def test_auto_on_line_activates_genau(self, tmp_path):
         s = _build_stack(tmp_path)
         s.real_port.inject(b"Auto mode is on!\r\n")
 
@@ -213,7 +213,7 @@ class TestAutoTransitionFromSerial:
         assert "AUTO 1" in s.udp_messages
         assert "SHOW" in s.udp_messages
 
-    def test_auto_off_line_deactivates_robot_hand(self, tmp_path):
+    def test_auto_off_line_deactivates_genau(self, tmp_path):
         s = _build_stack(tmp_path)
         # Start active, then receive OFF line.
         s.controller.set_auto(object(), True)
@@ -346,11 +346,11 @@ class TestSerialForwarding:
         assert s.real_port.tx_data == b""
 
 
-class TestRobotHandEnabledSuppression:
-    """When Robot Hand is disabled, auto-mode still tracks internally but
+class TestGenauEnabledSuppression:
+    """When Genau is disabled, auto-mode still tracks internally but
     the effective state file and UDP show inactive."""
 
-    def test_disabled_robot_hand_suppresses_state_file(self, tmp_path):
+    def test_disabled_genau_suppresses_state_file(self, tmp_path):
         s = _build_stack(tmp_path, enabled=False)
         s.real_port.inject(b"Auto mode is on!\r\n")
 
@@ -371,7 +371,7 @@ class TestRobotHandEnabledSuppression:
         sock = object()
         s.controller.set_auto(sock, True)
 
-        # Now re-enable Robot Hand.
+        # Now re-enable Genau.
         s.controller.set_enabled(sock, True)
 
         assert s.state_file.read_text(encoding="utf-8") == "1"
@@ -409,7 +409,7 @@ class TestBrokerCommands:
         # After resume, stale timeout should fire.
         assert s.controller.is_active is False
 
-    def test_robot_hand_disable_command_suppresses_output(self, tmp_path):
+    def test_genau_disable_command_suppresses_output(self, tmp_path):
         s = _build_stack(tmp_path)
         sock = object()
         s.controller.set_auto(sock, True)

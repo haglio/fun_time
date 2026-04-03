@@ -40,7 +40,7 @@ def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0,
         real_port="COM4",
         baud=115200,
         broker_cmd_file=Path("broker.cmd"),
-        robot_hand_enabled_file=Path("robot_hand_enabled.txt"),
+        genau_enabled_file=Path("genau_enabled.txt"),
         auto_stale_timeout=2.0,
         stop_event=threading.Event(),
         broker_paused=threading.Event(),
@@ -48,7 +48,7 @@ def _build_session(*, auto_active: bool = False, monotonic=lambda: 10.0,
         logger=logger,
         start_thread=MagicMock(),
         consume_command=lambda _path: None,
-        read_robot_hand_enabled=lambda _path: True,
+        read_genau_enabled=lambda _path: True,
         monotonic=monotonic,
         activity_rx_file=activity_rx_file,
         activity_tx_file=activity_tx_file,
@@ -69,7 +69,7 @@ def test_handle_broker_command_sets_pause_and_resume():
     logger.info.assert_called_once_with("OmniPause: broker resumed")
 
 
-def test_handle_broker_command_toggles_robot_hand_enablement():
+def test_handle_broker_command_toggles_genau_enablement():
     session, auto_mode, logger = _build_session()
     sock = object()
 
@@ -80,12 +80,12 @@ def test_handle_broker_command_toggles_robot_hand_enablement():
     logger.info.assert_not_called()
 
 
-def test_sync_robot_hand_enabled_reads_shared_file_state():
+def test_sync_genau_enabled_reads_shared_file_state():
     session, auto_mode, _logger = _build_session()
-    session.read_robot_hand_enabled = lambda _path: False
+    session.read_genau_enabled = lambda _path: False
     sock = object()
 
-    session.sync_robot_hand_enabled(sock)
+    session.sync_genau_enabled(sock)
 
     assert auto_mode.set_enabled_calls == [(sock, False)]
 

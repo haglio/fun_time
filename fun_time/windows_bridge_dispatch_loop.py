@@ -101,7 +101,7 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
     parser["state"] = {
         "locked2": "1" if state.locked2 else "0",
         "locked3": "1" if state.locked3 else "0",
-        "robot_hand_mode": "1" if state.robot_hand_mode else "0",
+        "genau_mode": "1" if state.genau_mode else "0",
         "f_mode_enabled": "1" if state.f_mode_enabled else "0",
         "omni_paused": "1" if state.omni_paused else "0",
     }
@@ -125,7 +125,7 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
     return BridgeState(
         locked2=s.get("locked2", "0") == "1",
         locked3=s.get("locked3", "0") == "1",
-        robot_hand_mode=s.get("robot_hand_mode", "0") == "1",
+        genau_mode=s.get("genau_mode", "0") == "1",
         f_mode_enabled=s.get("f_mode_enabled", "0") == "1",
         omni_paused=s.get("omni_paused", "0") == "1",
     )
@@ -150,7 +150,7 @@ class DispatchLoopRunner:
         dashboard_pid: int = 0,
         dashboard_enabled: bool,
         rfb_hwnd: int = 0,
-        robot_hand_pid: int = 0,
+        genau_pid: int = 0,
         sync_interval_ms: int = 200,
     ) -> None:
         self.config = config
@@ -164,13 +164,13 @@ class DispatchLoopRunner:
         self.dashboard_pid = dashboard_pid
         self.dashboard_enabled = dashboard_enabled
         self.rfb_hwnd = rfb_hwnd
-        self.robot_hand_pid = robot_hand_pid
+        self.genau_pid = genau_pid
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
         self._stop = threading.Event()
         self._file_dialog_lock = threading.Lock()
-        self._robot_hand_activate_pending = False
+        self._genau_activate_pending = False
         self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._press_port: int | None = None
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
@@ -208,7 +208,7 @@ class DispatchLoopRunner:
                     name="broker-toggle",
                 ).start()
             elif cmd == "backslash_key":
-                if self.state.robot_hand_mode:
+                if self.state.genau_mode:
                     self._send_press("quarter_button")
                     self._dispatch("quarter_button")
                 else:
@@ -226,20 +226,20 @@ class DispatchLoopRunner:
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
             if not self.state.omni_paused:
-                prev_mode = self.state.robot_hand_mode
-                self._dispatch("sync_robot_hand")
-                if self.state.robot_hand_mode and not prev_mode:
-                    self._robot_hand_activate_pending = True
-                if self.state.robot_hand_mode:
-                    self._enforce_robot_hand_z_order()
+                prev_mode = self.state.genau_mode
+                self._dispatch("sync_genau")
+                if self.state.genau_mode and not prev_mode:
+                    self._genau_activate_pending = True
+                if self.state.genau_mode:
+                    self._enforce_genau_z_order()
 
-        self._try_robot_hand_activate()
+        self._try_genau_activate()
 
-    def _try_robot_hand_activate(self) -> None:
-        if not self._robot_hand_activate_pending:
+    def _try_genau_activate(self) -> None:
+        if not self._genau_activate_pending:
             return
-        if not self.state.robot_hand_mode:
-            self._robot_hand_activate_pending = False
+        if not self.state.genau_mode:
+            self._genau_activate_pending = False
             return
         hwnd = find_window_by_title("Genau")
         if not hwnd:
@@ -247,9 +247,9 @@ class DispatchLoopRunner:
         set_always_on_top(hwnd, True)
         if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
             activate_window(hwnd)
-        self._robot_hand_activate_pending = False
+        self._genau_activate_pending = False
 
-    def _enforce_robot_hand_z_order(self) -> None:
+    def _enforce_genau_z_order(self) -> None:
         """Keep Primary VLC out of the TOPMOST band while Genau is active.
 
         VLC may re-assert topmost during video transitions; demoting it
@@ -263,14 +263,14 @@ class DispatchLoopRunner:
             set_always_on_top(robot_hwnd, True)
 
     def _dispatch(self, command: str) -> None:
-        prev_robot_hand = self.state.robot_hand_mode
+        prev_genau = self.state.genau_mode
         new_state, ops = dispatch_command(command, self.state, self.config)
         self.state = new_state
         remaining = execute_window_ops(ops, self.primary_pid)
-        if self.state.robot_hand_mode != prev_robot_hand:
+        if self.state.genau_mode != prev_genau:
             primary_hwnd = find_window_by_pid(self.primary_pid)
             if primary_hwnd:
-                set_always_on_top(primary_hwnd, not self.state.robot_hand_mode)
+                set_always_on_top(primary_hwnd, not self.state.genau_mode)
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
             if suppress_unsuspend and op.op == "unsuspend_hotkeys":
@@ -297,12 +297,12 @@ class DispatchLoopRunner:
 
     def _update_dashboard(self) -> None:
         try:
-            robot_link_enabled = read_flag_file(self.config.robot_hand_enabled_file, True)
-            robot_hand_mode_on = read_flag_file(self.config.robot_hand_mode_file, False)
+            robot_link_enabled = read_flag_file(self.config.genau_enabled_file, True)
+            genau_mode_on = read_flag_file(self.config.genau_mode_file, False)
             device_on = is_osr2_device_on(self.config.state_dir / "osr2_serial_rx.txt")
             if not device_on:
                 osr2_mode = "off"
-            elif robot_hand_mode_on:
+            elif genau_mode_on:
                 osr2_mode = "auto"
             else:
                 osr2_mode = "controlled"
@@ -312,7 +312,7 @@ class DispatchLoopRunner:
                 robot_link_enabled=robot_link_enabled,
                 osr2_mode=osr2_mode,
                 mfp_alive=bool(self.mfp_pid),
-                primary_uses_robot_hand=self.state.robot_hand_mode and robot_link_enabled,
+                primary_uses_genau=self.state.genau_mode and robot_link_enabled,
                 portrait_locked=self.state.locked2,
                 landscape_locked=self.state.locked3,
                 omni_paused=self.state.omni_paused,
@@ -335,8 +335,8 @@ class DispatchLoopRunner:
             hwnd = find_window_by_pid(pid)
             if hwnd:
                 set_always_on_top(hwnd, False)
-        if self.robot_hand_pid:
-            hwnd = find_window_by_pid(self.robot_hand_pid)
+        if self.genau_pid:
+            hwnd = find_window_by_pid(self.genau_pid)
             if hwnd:
                 set_always_on_top(hwnd, False)
 
@@ -346,20 +346,20 @@ class DispatchLoopRunner:
         # MFP and Dashboard to end up below them.
         if self.rfb_hwnd:
             set_always_on_top(self.rfb_hwnd, True)
-        robot_hand_mode = self.state.robot_hand_mode
+        genau_mode = self.state.genau_mode
         for pid in self._all_pids:
             hwnd = find_window_by_pid(pid)
             if not hwnd:
                 continue
-            if pid == self.primary_pid and robot_hand_mode:
+            if pid == self.primary_pid and genau_mode:
                 set_always_on_top(hwnd, False)
                 continue
             set_always_on_top(hwnd, True)
-        # Robot Hand topmost LAST when in robot hand mode — this puts it on
+        # Genau topmost LAST when in robot hand mode — this puts it on
         # top of all other windows.  Skip when not in robot hand mode so it
         # stays behind the always-on-top VLC/MFP/Dashboard windows.
-        if robot_hand_mode and self.robot_hand_pid:
-            hwnd = find_window_by_pid(self.robot_hand_pid)
+        if genau_mode and self.genau_pid:
+            hwnd = find_window_by_pid(self.genau_pid)
             if hwnd:
                 set_always_on_top(hwnd, True)
 
@@ -442,10 +442,10 @@ def build_bridge_config_from_manifest(
         primary_sources=manifest["media"]["primary_vlc_sources"],
         portrait_sources=manifest["media"]["portrait_dirs"],
         landscape_sources=manifest["media"]["landscape_dirs"],
-        robot_hand_enabled_file=Path(manifest["commands"]["robot_hand_enabled_file"]),
-        robot_hand_mode_file=Path(manifest["commands"]["robot_hand_mode_file"]),
-        robot_hand_cmd_file=Path(manifest["commands"]["robot_hand_cmd_file"]),
-        robot_hand_paused_file=Path(manifest["commands"]["robot_hand_paused_file"]),
+        genau_enabled_file=Path(manifest["commands"]["genau_enabled_file"]),
+        genau_mode_file=Path(manifest["commands"]["genau_mode_file"]),
+        genau_cmd_file=Path(manifest["commands"]["genau_cmd_file"]),
+        genau_paused_file=Path(manifest["commands"]["genau_paused_file"]),
         audio_paused_file=Path(manifest["commands"]["audio_paused_file"]),
         dashboard_state_file=Path(manifest["commands"]["dashboard_state_file"]),
         broker_heartbeat_file=Path(manifest["commands"]["broker_heartbeat_file"]),

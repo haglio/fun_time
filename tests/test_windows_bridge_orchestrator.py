@@ -22,7 +22,7 @@ def _fake_plan() -> WindowLayoutPlan:
     r = WindowRect(0, 0, 100, 100)
     return WindowLayoutPlan(
         portrait=r, primary=r, landscape=r, mfp=r,
-        dashboard=r, random_favs_browser=r, robot_hand=r,
+        dashboard=r, random_favs_browser=r, genau=r,
     )
 
 
@@ -33,7 +33,7 @@ def _fake_startup_result() -> StartupResult:
         portrait_pid=300,
         landscape_pid=400,
         dashboard_pid=500,
-        robot_hand_pid=600,
+        genau_pid=600,
         audio_pid=700,
         layout_plan=_fake_plan(),
     )
@@ -43,7 +43,7 @@ class TestShutdownChildren:
     def test_closes_rfb_window(self):
         result = StartupResult(
             primary_pid=100, mfp_pid=200, portrait_pid=300, landscape_pid=400,
-            dashboard_pid=500, robot_hand_pid=600, audio_pid=700,
+            dashboard_pid=500, genau_pid=600, audio_pid=700,
             layout_plan=_fake_plan(), rfb_hwnd=88888,
         )
         with patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
@@ -75,7 +75,7 @@ class TestWritePidsFile:
         assert parser.getint("pids", "portrait_pid") == 300
         assert parser.getint("pids", "landscape_pid") == 400
         assert parser.getint("pids", "dashboard_pid") == 500
-        assert parser.getint("pids", "robot_hand_pid") == 600
+        assert parser.getint("pids", "genau_pid") == 600
         assert parser.getint("pids", "audio_pid") == 700
 
 
@@ -98,7 +98,7 @@ class TestMinimizeAllWindows:
         assert 2000 in minimized_hwnds  # mfp
         assert 3000 in minimized_hwnds  # portrait
         assert 4000 in minimized_hwnds  # landscape
-        assert 6000 in minimized_hwnds  # robot_hand
+        assert 6000 in minimized_hwnds  # genau
 
     def test_skips_pids_without_windows(self):
         result = _fake_startup_result()
@@ -288,7 +288,7 @@ class TestRunPythonOrchestratedBridge:
         assert 300 in killed_pids  # portrait
         assert 400 in killed_pids  # landscape
         assert 500 in killed_pids  # dashboard
-        assert 600 in killed_pids  # robot_hand
+        assert 600 in killed_pids  # genau
         assert 700 in killed_pids  # audio
 
     def test_passes_manifest_and_pids_file_to_ahk(self, cfg_factory, tmp_path):
@@ -345,7 +345,7 @@ class TestLoadingScreenLifecycle:
 
         result_with_hwnds = StartupResult(
             primary_pid=100, mfp_pid=200, portrait_pid=300, landscape_pid=400,
-            dashboard_pid=500, robot_hand_pid=600, audio_pid=700,
+            dashboard_pid=500, genau_pid=600, audio_pid=700,
             layout_plan=_fake_plan(),
             core_hwnds=[1010, 2020, 3030, 4040],
         )

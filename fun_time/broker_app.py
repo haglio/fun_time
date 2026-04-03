@@ -35,8 +35,8 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--udp-port", type=int, default=config.broker.udp_port)
     ap.add_argument("--auto-stale-timeout", type=float, default=config.broker.auto_stale_timeout)
     ap.add_argument("--serial-retry-delay", type=float, default=SERIAL_RETRY_DELAY_SECONDS, help=argparse.SUPPRESS)
-    ap.add_argument("--state-file", default=str(config.robot_hand_mode_file))
-    ap.add_argument("--robot-hand-enabled-file", default=str(config.robot_hand_enabled_file))
+    ap.add_argument("--state-file", default=str(config.genau_mode_file))
+    ap.add_argument("--genau-enabled-file", default=str(config.genau_enabled_file))
     ap.add_argument("--broker-cmd-file", default=str(config.broker_cmd_file))
     ap.add_argument("--heartbeat-file", default=str(config.broker_heartbeat_file))
     return ap
@@ -54,7 +54,7 @@ def consume_broker_cmd(path: Path) -> str | None:
     return _consume_command_file(path)
 
 
-def read_robot_hand_enabled(path: Path) -> bool:
+def read_genau_enabled(path: Path) -> bool:
     try:
         if not path.exists():
             return True
@@ -63,13 +63,13 @@ def read_robot_hand_enabled(path: Path) -> bool:
         return True
 
 
-def ensure_robot_hand_enabled_file(path: Path, logger: logging.Logger) -> None:
+def ensure_genau_enabled_file(path: Path, logger: logging.Logger) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         if not path.exists() or not path.read_text(encoding="utf-8").replace("\ufeff", "").strip():
             path.write_text("1", encoding="utf-8")
     except Exception:
-        logger.exception("Failed to initialize Robot Hand enabled file %s", path)
+        logger.exception("Failed to initialize Genau enabled file %s", path)
 
 
 def write_heartbeat(path: Path, logger: logging.Logger) -> None:
@@ -113,11 +113,11 @@ def main(argv: list[str] | None = None) -> int:
     args.virtual_port = resolve_virtual_port(config, args.virtual_port, logger)
 
     state_file = Path(args.state_file)
-    robot_hand_enabled_file = Path(args.robot_hand_enabled_file)
+    genau_enabled_file = Path(args.genau_enabled_file)
     broker_cmd_file = Path(args.broker_cmd_file)
     heartbeat_file = Path(args.heartbeat_file)
-    ensure_robot_hand_enabled_file(robot_hand_enabled_file, logger)
-    robot_hand_enabled = read_robot_hand_enabled(robot_hand_enabled_file)
+    ensure_genau_enabled_file(genau_enabled_file, logger)
+    genau_enabled = read_genau_enabled(genau_enabled_file)
     stop_event = threading.Event()
     broker_paused = threading.Event()
     auto_mode = BrokerAutoController(
@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         logger=logger,
         write_mode=write_mode,
         udp_send=udp_send,
-        enabled=robot_hand_enabled,
+        enabled=genau_enabled,
     )
     session = BrokerSerialSession(
         serial_factory=serial.Serial,
@@ -135,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         real_port=args.real_port,
         baud=args.baud,
         broker_cmd_file=broker_cmd_file,
-        robot_hand_enabled_file=robot_hand_enabled_file,
+        genau_enabled_file=genau_enabled_file,
         auto_stale_timeout=args.auto_stale_timeout,
         stop_event=stop_event,
         broker_paused=broker_paused,
@@ -143,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         logger=logger,
         start_thread=start_daemon_thread,
         consume_command=consume_broker_cmd,
-        read_robot_hand_enabled=read_robot_hand_enabled,
+        read_genau_enabled=read_genau_enabled,
         monotonic=time.monotonic,
         sleep=time.sleep,
         is_retryable_error=is_retryable_serial_error,
@@ -163,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
         name="broker-heartbeat",
     )
     logger.info("Starting broker: %s <-> %s", args.virtual_port, args.real_port)
-    logger.info("Robot Hand UDP target: %s:%s", args.udp_host, args.udp_port)
+    logger.info("Genau UDP target: %s:%s", args.udp_host, args.udp_port)
 
     try:
         while not stop_event.is_set():

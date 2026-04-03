@@ -17,9 +17,9 @@ from .lock import build_lock_plan
 from .runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
-    apply_sync_robot_hand,
+    apply_sync_genau,
     apply_toggle_fmode,
-    apply_toggle_robot_hand_enabled,
+    apply_toggle_genau_enabled,
     build_omnipause_toggle,
     read_flag_file,
     write_flag_file,
@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 class BridgeState:
     locked2: bool = False
     locked3: bool = False
-    robot_hand_mode: bool = False
+    genau_mode: bool = False
     f_mode_enabled: bool = False
     omni_paused: bool = False
 
@@ -58,10 +58,10 @@ class BridgeConfig:
     primary_sources: str
     portrait_sources: str
     landscape_sources: str
-    robot_hand_enabled_file: Path
-    robot_hand_mode_file: Path
-    robot_hand_cmd_file: Path
-    robot_hand_paused_file: Path
+    genau_enabled_file: Path
+    genau_mode_file: Path
+    genau_cmd_file: Path
+    genau_paused_file: Path
     audio_paused_file: Path
     dashboard_state_file: Path
     broker_heartbeat_file: Path | None = None
@@ -77,10 +77,10 @@ class WindowOp:
     vk: int = 0
 
 
-def _effective_robot_hand_mode(config: BridgeConfig) -> bool:
-    if not read_flag_file(config.robot_hand_enabled_file, True):
+def _effective_genau_mode(config: BridgeConfig) -> bool:
+    if not read_flag_file(config.genau_enabled_file, True):
         return False
-    return read_flag_file(config.robot_hand_mode_file, False)
+    return read_flag_file(config.genau_mode_file, False)
 
 
 def _cancel_lock(which: int, state: BridgeState, config: BridgeConfig) -> BridgeState:
@@ -182,17 +182,17 @@ def dispatch_command(
         return state, ops
 
     if command in ("primary_prev", "primary_next"):
-        if _effective_robot_hand_mode(config):
+        if _effective_genau_mode(config):
             cmd = "PREV" if command == "primary_prev" else "NEXT"
-            write_flag_file(config.robot_hand_cmd_file, False)
-            config.robot_hand_cmd_file.write_text(cmd, encoding="utf-8")
+            write_flag_file(config.genau_cmd_file, False)
+            config.genau_cmd_file.write_text(cmd, encoding="utf-8")
         else:
             direction = "prev" if command == "primary_prev" else "next"
             vlc_nav_step(config.primary_port, config.vlc_password, direction)
         return state, ops
 
     if command == "quarter_button":
-        config.robot_hand_cmd_file.write_text("OFFSET_QUARTER_CYCLE", encoding="utf-8")
+        config.genau_cmd_file.write_text("OFFSET_QUARTER_CYCLE", encoding="utf-8")
         return state, ops
 
     if command == "omnipause_toggle":
@@ -210,8 +210,8 @@ def dispatch_command(
     if command in ("robot_toggle", "link_toggle"):
         return _dispatch_robot_toggle(state, config, ops)
 
-    if command == "sync_robot_hand":
-        return _dispatch_sync_robot_hand(state, config)
+    if command == "sync_genau":
+        return _dispatch_sync_genau(state, config)
 
     if command == "vlc_nudge_prev":
         ops.append(WindowOp(op="send_vk", vk=0x25))  # VK_LEFT
@@ -222,7 +222,7 @@ def dispatch_command(
         return state, ops
 
     if command == "clipper_save":
-        if not _effective_robot_hand_mode(config):
+        if not _effective_genau_mode(config):
             msg = _dispatch_clipper_save(config)
             if msg:
                 ops.append(WindowOp(op="tooltip", key=msg))
@@ -237,17 +237,17 @@ def _dispatch_omnipause_toggle(
     ops: list[WindowOp] = []
     toggle = build_omnipause_toggle(
         omni_paused=state.omni_paused,
-        robot_hand_mode_on=state.robot_hand_mode,
+        genau_mode_on=state.genau_mode,
     )
     if toggle.action == "enter":
         result = apply_enter_omnipause(
             omni_paused=state.omni_paused,
-            robot_hand_mode_on=state.robot_hand_mode,
+            genau_mode_on=state.genau_mode,
             portrait_port=config.portrait_port,
             landscape_port=config.landscape_port,
             primary_port=config.primary_port,
             password=config.vlc_password,
-            robot_hand_paused_file=config.robot_hand_paused_file,
+            genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
         )
         state = replace(state, omni_paused=result.next_omni_paused)
@@ -255,18 +255,18 @@ def _dispatch_omnipause_toggle(
     else:
         result = apply_leave_omnipause(
             omni_paused=state.omni_paused,
-            robot_hand_mode_on=state.robot_hand_mode,
+            genau_mode_on=state.genau_mode,
             skip_primary_resume=False,
             primary_port=config.primary_port,
             portrait_port=config.portrait_port,
             landscape_port=config.landscape_port,
             password=config.vlc_password,
-            robot_hand_paused_file=config.robot_hand_paused_file,
+            genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
         )
         state = replace(state, omni_paused=result.next_omni_paused)
         ops.append(WindowOp(op="unsuspend_hotkeys"))
-        if state.robot_hand_mode:
+        if state.genau_mode:
             ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
             ops.append(WindowOp(op="activate", title="Genau"))
     if result.log_message:
@@ -280,12 +280,12 @@ def _dispatch_enter_omnipause(
     ops: list[WindowOp] = []
     result = apply_enter_omnipause(
         omni_paused=state.omni_paused,
-        robot_hand_mode_on=state.robot_hand_mode,
+        genau_mode_on=state.genau_mode,
         portrait_port=config.portrait_port,
         landscape_port=config.landscape_port,
         primary_port=config.primary_port,
         password=config.vlc_password,
-        robot_hand_paused_file=config.robot_hand_paused_file,
+        genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
@@ -301,18 +301,18 @@ def _dispatch_leave_omnipause_skip_primary(
     ops: list[WindowOp] = []
     result = apply_leave_omnipause(
         omni_paused=state.omni_paused,
-        robot_hand_mode_on=state.robot_hand_mode,
+        genau_mode_on=state.genau_mode,
         skip_primary_resume=True,
         primary_port=config.primary_port,
         portrait_port=config.portrait_port,
         landscape_port=config.landscape_port,
         password=config.vlc_password,
-        robot_hand_paused_file=config.robot_hand_paused_file,
+        genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops.append(WindowOp(op="unsuspend_hotkeys"))
-    if state.robot_hand_mode:
+    if state.genau_mode:
         ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
         ops.append(WindowOp(op="activate", title="Genau"))
     if result.log_message:
@@ -348,19 +348,19 @@ def _dispatch_fmode_toggle(
 def _dispatch_robot_toggle(
     state: BridgeState, config: BridgeConfig, ops: list[WindowOp]
 ) -> tuple[BridgeState, list[WindowOp]]:
-    result = apply_toggle_robot_hand_enabled(
-        robot_hand_mode_on=state.robot_hand_mode,
+    result = apply_toggle_genau_enabled(
+        genau_mode_on=state.genau_mode,
         omni_paused=state.omni_paused,
-        enabled_file=config.robot_hand_enabled_file,
-        mode_state_file=config.robot_hand_mode_file,
-        paused_file=config.robot_hand_paused_file,
+        enabled_file=config.genau_enabled_file,
+        mode_state_file=config.genau_mode_file,
+        paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         primary_port=config.primary_port,
         password=config.vlc_password,
     )
-    state = replace(state, robot_hand_mode=result.next_robot_hand_mode)
+    state = replace(state, genau_mode=result.next_genau_mode)
     if result.is_transition:
-        if result.next_robot_hand_mode:
+        if result.next_genau_mode:
             ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
             ops.append(WindowOp(op="activate", title="Genau"))
         else:
@@ -370,25 +370,25 @@ def _dispatch_robot_toggle(
     return state, ops
 
 
-def _dispatch_sync_robot_hand(
+def _dispatch_sync_genau(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     if state.omni_paused:
         return state, []
     ops: list[WindowOp] = []
-    result = apply_sync_robot_hand(
-        robot_hand_mode_on=state.robot_hand_mode,
+    result = apply_sync_genau(
+        genau_mode_on=state.genau_mode,
         omni_paused=state.omni_paused,
-        enabled_file=config.robot_hand_enabled_file,
-        mode_state_file=config.robot_hand_mode_file,
-        paused_file=config.robot_hand_paused_file,
+        enabled_file=config.genau_enabled_file,
+        mode_state_file=config.genau_mode_file,
+        paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         primary_port=config.primary_port,
         password=config.vlc_password,
     )
-    state = replace(state, robot_hand_mode=result.next_robot_hand_mode)
+    state = replace(state, genau_mode=result.next_genau_mode)
     if result.is_transition:
-        if result.next_robot_hand_mode:
+        if result.next_genau_mode:
             ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
             ops.append(WindowOp(op="activate", title="Genau"))
         else:

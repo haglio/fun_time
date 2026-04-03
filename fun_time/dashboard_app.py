@@ -68,7 +68,7 @@ from fun_time.dashboard_state import (
     LABEL_MFP,
     LABEL_OSR2,
     LABEL_PORTRAIT_VLC,
-    LABEL_PRIMARY_ROBOT,
+    LABEL_PRIMARY_GENAU,
     LABEL_PRIMARY_VLC,
     has_matching_funscript,
     is_favorite_path,
@@ -399,7 +399,7 @@ def build_dashboard_scene(
         favs_content = read_favs_content(favs_file) if favs_file is not None else ""
         broker_running = is_broker_heartbeat_fresh(broker_heartbeat_file) if broker_heartbeat_file is not None else False
         mfp_connected = snapshot.mfp_alive and snapshot.primary_responsive and broker_running
-        primary_label_name = LABEL_PRIMARY_ROBOT if snapshot.primary_uses_robot_hand else LABEL_PRIMARY_VLC
+        primary_label_name = LABEL_PRIMARY_GENAU if snapshot.primary_uses_genau else LABEL_PRIMARY_VLC
         primary_label = primary_label_name
         portrait_label = LABEL_PORTRAIT_VLC
         landscape_label = LABEL_LANDSCAPE_VLC
@@ -421,7 +421,7 @@ def build_dashboard_scene(
             has_matching_funscript=primary_funscript_exists,
         ):
             primary_fill = COLOR_GREEN
-        elif snapshot.primary_uses_robot_hand:
+        elif snapshot.primary_uses_genau:
             primary_fill = COLOR_PINK
         else:
             primary_fill = COLOR_PANEL
@@ -475,7 +475,7 @@ def build_dashboard_scene(
         DashboardRectItem(layout.primary_next, fill=_press_fill(COLOR_PANEL, PRIMARY_NEXT)),
         *(
             (DashboardRectItem(layout.quarter_button, fill=_press_fill(COLOR_PANEL, QUARTER_BUTTON)),)
-            if snapshot is not None and snapshot.primary_uses_robot_hand else (
+            if snapshot is not None and snapshot.primary_uses_genau else (
                 DashboardRectItem(layout.vlc_nudge_prev, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_PREV)),
                 DashboardRectItem(layout.vlc_nudge_next, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_NEXT)),
                 DashboardRectItem(layout.open_file_dialog, fill=_press_fill(COLOR_PANEL, OPEN_FILE_DIALOG)),
@@ -509,7 +509,7 @@ def build_dashboard_scene(
         DashboardTextItem(">", layout.primary_next, font=_font_ui_sm),
         *(
             (DashboardTextItem("1/4", layout.quarter_button, font=_font_ui_tiny),)
-            if snapshot is not None and snapshot.primary_uses_robot_hand else (
+            if snapshot is not None and snapshot.primary_uses_genau else (
                 DashboardTextItem("\u2212", layout.vlc_nudge_prev, font=_font_ui_sm),
                 DashboardTextItem("+", layout.vlc_nudge_next, font=_font_ui_sm),
                 DashboardTextItem("\U0001F4C2", layout.open_file_dialog, font=_font_emoji),
@@ -526,7 +526,7 @@ def build_dashboard_scene(
         DashboardImageItem(_load_icon_pixmap("fmode_icon.ico", _icon_h), layout.fmode_panel),
         *(
             ()
-            if snapshot is not None and snapshot.primary_uses_robot_hand else (
+            if snapshot is not None and snapshot.primary_uses_genau else (
                 DashboardImageItem(
                     _load_icon_pixmap("clipper_icon.ico", layout.clipper_save.height),
                     layout.clipper_save,
@@ -627,7 +627,7 @@ def build_dashboard_scene(
             (PRIMARY_NEXT, layout.primary_next),
             *(
                 ((QUARTER_BUTTON, layout.quarter_button),)
-                if snapshot is not None and snapshot.primary_uses_robot_hand else (
+                if snapshot is not None and snapshot.primary_uses_genau else (
                     (VLC_NUDGE_PREV, layout.vlc_nudge_prev),
                     (VLC_NUDGE_NEXT, layout.vlc_nudge_next),
                     (OPEN_FILE_DIALOG, layout.open_file_dialog),

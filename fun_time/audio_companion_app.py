@@ -24,12 +24,12 @@ def _preparse_config(argv: list[str] | None) -> str | None:
 
 
 def build_parser(config) -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description="Play Robot Hand companion audio.")
+    ap = argparse.ArgumentParser(description="Play Genau companion audio.")
     ap.add_argument("--config", help="Path to a JSON config file.")
     ap.add_argument("--audio-folder", default=str(config.paths.audio_dir))
     ap.add_argument("--host", default=config.audio_companion.host)
     ap.add_argument("--port", type=int, default=config.audio_companion.port)
-    ap.add_argument("--mode-file", default=str(config.robot_hand_mode_file))
+    ap.add_argument("--mode-file", default=str(config.genau_mode_file))
     ap.add_argument("--paused-file", default=str(config.audio_paused_file))
     return ap
 
@@ -216,7 +216,7 @@ class AudioPlaybackController:
 
 def main(argv: list[str] | None = None) -> int:
     config = load_config(_preparse_config(argv))
-    logger = configure_logging("fun_time.robot_hand_audio", config.log_file("robot_hand_audio"))
+    logger = configure_logging("fun_time.genau_audio", config.log_file("genau_audio"))
     install_exception_logging(logger)
     args = build_parser(config).parse_args(argv)
 

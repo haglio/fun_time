@@ -7,11 +7,11 @@ from unittest.mock import patch
 from fun_time.windows_bridge_startup import (
     _build_vlc_launch_command,
     launch_core_apps,
-    launch_robot_hand,
+    launch_genau,
     launch_ui_companions,
     prepare_random_favs_browser_manifest,
     restart_broker,
-    seed_robot_hand_state,
+    seed_genau_state,
     start_core_session,
 )
 
@@ -73,12 +73,12 @@ def test_prepare_random_favs_browser_manifest_delegates_to_random_browser_builde
     write.assert_called_once_with(output_path, "Profile 2", ["https://example.com"])
 
 
-def test_seed_robot_hand_state_writes_enabled_and_paused_files(tmp_path: Path):
-    enabled_file = tmp_path / "robot_hand_enabled.txt"
-    paused_file = tmp_path / "robot_hand_paused.txt"
+def test_seed_genau_state_writes_enabled_and_paused_files(tmp_path: Path):
+    enabled_file = tmp_path / "genau_enabled.txt"
+    paused_file = tmp_path / "genau_paused.txt"
     audio_file = tmp_path / "audio_paused.txt"
 
-    seed_robot_hand_state(enabled_file, paused_file, audio_file)
+    seed_genau_state(enabled_file, paused_file, audio_file)
 
     assert enabled_file.read_text(encoding="utf-8") == "1"
     assert paused_file.read_text(encoding="utf-8") == "1"
@@ -89,7 +89,7 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
     result_file = tmp_path / "core_session.ini"
 
     with patch("fun_time.windows_bridge_startup.restart_broker") as restart, patch(
-        "fun_time.windows_bridge_startup.seed_robot_hand_state"
+        "fun_time.windows_bridge_startup.seed_genau_state"
     ) as seed, patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ) as prepare, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
@@ -97,8 +97,8 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
             project_dir=tmp_path,
             config_path="fun_time_config.json",
             random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
-            enabled_file=tmp_path / "robot_hand_enabled.txt",
-            paused_file=tmp_path / "robot_hand_paused.txt",
+            enabled_file=tmp_path / "genau_enabled.txt",
+            paused_file=tmp_path / "genau_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             vlc_exe="vlc.exe",
             mfp_exe="mfp.exe",
@@ -131,7 +131,7 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
     )
 
 
-def test_launch_robot_hand_starts_process_and_returns_pid(tmp_path: Path):
+def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -139,9 +139,9 @@ def test_launch_robot_hand_starts_process_and_returns_pid(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(42)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
     ):
-        pid = launch_robot_hand(
+        pid = launch_genau(
             python_exe="python.exe",
-            robot_hand_module="fun_time.robot_hand.app",
+            genau_module="fun_time.genau.app",
             config_path="cfg.json",
             clips_folder="clips",
             robot_x=100,
@@ -152,12 +152,12 @@ def test_launch_robot_hand_starts_process_and_returns_pid(tmp_path: Path):
 
     assert pid == 42
     command = popen.call_args.args[0]
-    assert command[:3] == ["python.exe", "-m", "fun_time.robot_hand.app"]
+    assert command[:3] == ["python.exe", "-m", "fun_time.genau.app"]
     assert "--config" in command
     assert "--clips-folder" in command
 
 
-def test_launch_ui_companions_skips_robot_hand_when_pid_provided(tmp_path: Path):
+def test_launch_ui_companions_skips_genau_when_pid_provided(tmp_path: Path):
     result_file = tmp_path / "ui_companions.ini"
 
     class FakeProc:
@@ -177,7 +177,7 @@ def test_launch_ui_companions_skips_robot_hand_when_pid_provided(tmp_path: Path)
             dashboard_width=30,
             dashboard_height=40,
             mfp_pid=55,
-            robot_hand_module="fun_time.robot_hand.app",
+            genau_module="fun_time.genau.app",
             audio_module="fun_time.audio_companion_app",
             config_path="cfg.json",
             clips_folder="clips",
@@ -186,7 +186,7 @@ def test_launch_ui_companions_skips_robot_hand_when_pid_provided(tmp_path: Path)
             robot_y=200,
             robot_width=300,
             robot_height=400,
-            robot_hand_pid=22,
+            genau_pid=22,
             result_file=result_file,
         )
 
@@ -200,11 +200,11 @@ def test_launch_ui_companions_skips_robot_hand_when_pid_provided(tmp_path: Path)
     parser.optionxform = str
     parser.read(result_file, encoding="utf-8")
     assert parser.get("result", "dashboard_pid") == "11"
-    assert parser.get("result", "robot_hand_pid") == "22"
+    assert parser.get("result", "genau_pid") == "22"
     assert parser.get("result", "audio_pid") == "33"
 
 
-def test_launch_ui_companions_launches_robot_hand_when_pid_not_provided(tmp_path: Path):
+def test_launch_ui_companions_launches_genau_when_pid_not_provided(tmp_path: Path):
     result_file = tmp_path / "ui_companions.ini"
 
     class FakeProc:
@@ -224,7 +224,7 @@ def test_launch_ui_companions_launches_robot_hand_when_pid_not_provided(tmp_path
             dashboard_width=30,
             dashboard_height=40,
             mfp_pid=55,
-            robot_hand_module="fun_time.robot_hand.app",
+            genau_module="fun_time.genau.app",
             audio_module="fun_time.audio_companion_app",
             config_path="cfg.json",
             clips_folder="clips",
@@ -238,12 +238,12 @@ def test_launch_ui_companions_launches_robot_hand_when_pid_not_provided(tmp_path
 
     assert popen.call_count == 3
     robot_command = popen.call_args_list[1].args[0]
-    assert robot_command[:3] == ["python.exe", "-m", "fun_time.robot_hand.app"]
+    assert robot_command[:3] == ["python.exe", "-m", "fun_time.genau.app"]
 
     parser = configparser.ConfigParser()
     parser.optionxform = str
     parser.read(result_file, encoding="utf-8")
-    assert parser.get("result", "robot_hand_pid") == "22"
+    assert parser.get("result", "genau_pid") == "22"
 
 
 def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
@@ -266,7 +266,7 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
             dashboard_width=30,
             dashboard_height=40,
             mfp_pid=55,
-            robot_hand_module="fun_time.robot_hand.app",
+            genau_module="fun_time.genau.app",
             audio_module="fun_time.audio_companion_app",
             config_path="cfg.json",
             clips_folder="clips",
@@ -283,7 +283,7 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
     parser.optionxform = str
     parser.read(result_file, encoding="utf-8")
     assert parser.get("result", "dashboard_pid") == "0"
-    assert parser.get("result", "robot_hand_pid") == "22"
+    assert parser.get("result", "genau_pid") == "22"
     assert parser.get("result", "audio_pid") == "33"
 
 
@@ -504,7 +504,7 @@ def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
     result_file = tmp_path / "core_session.ini"
 
     with patch("fun_time.windows_bridge_startup.restart_broker"), patch(
-        "fun_time.windows_bridge_startup.seed_robot_hand_state"
+        "fun_time.windows_bridge_startup.seed_genau_state"
     ), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:

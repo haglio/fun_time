@@ -41,8 +41,8 @@ class FunTimeIntegrationSession:
         return self.config.paths.state_dir / "dashboard_cmd.txt"
 
     @property
-    def robot_hand_mode_file(self) -> Path:
-        return self.config.robot_hand_mode_file
+    def genau_mode_file(self) -> Path:
+        return self.config.genau_mode_file
 
     @property
     def favs_file(self) -> Path:
@@ -53,12 +53,12 @@ class FunTimeIntegrationSession:
         return self.config.paths.weird_dir
 
     @property
-    def robot_hand_enabled_file(self) -> Path:
-        return self.config.robot_hand_enabled_file
+    def genau_enabled_file(self) -> Path:
+        return self.config.genau_enabled_file
 
-    def read_robot_hand_pid(self) -> int:
-        """Read the Robot Hand PID from the bridge pids file."""
-        return self.read_child_pids()["robot_hand_pid"]
+    def read_genau_pid(self) -> int:
+        """Read the Genau PID from the bridge pids file."""
+        return self.read_child_pids()["genau_pid"]
 
     def read_child_pids(self) -> dict[str, int]:
         """Read all child PIDs from bridge_pids.ini."""
@@ -131,9 +131,9 @@ class FunTimeIntegrationSession:
         self.dashboard_cmd_file.parent.mkdir(parents=True, exist_ok=True)
         self.dashboard_cmd_file.write_text(action, encoding="utf-8")
 
-    def write_robot_hand_mode(self, enabled: bool) -> None:
-        self.robot_hand_mode_file.parent.mkdir(parents=True, exist_ok=True)
-        self.robot_hand_mode_file.write_text("1" if enabled else "0", encoding="utf-8")
+    def write_genau_mode(self, enabled: bool) -> None:
+        self.genau_mode_file.parent.mkdir(parents=True, exist_ok=True)
+        self.genau_mode_file.write_text("1" if enabled else "0", encoding="utf-8")
 
     def favs_contains(self, path: Path) -> bool:
         if not self.favs_file.exists():

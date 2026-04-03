@@ -1,8 +1,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$taskName = 'FunTime Robot Hand Broker'
-$startupVbs = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\FunTime Robot Hand Broker.vbs'
+$taskName = 'FunTime Genau Broker'
+$startupVbs = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\FunTime Genau Broker.vbs'
 
 $removedTask = $false
 $removedStartup = $false

@@ -117,44 +117,44 @@ def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrati
 
 
 def test_fun_time_robot_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    assert shared_integration_session.robot_hand_enabled_file.read_text(encoding="utf-8") == "1"
+    assert shared_integration_session.genau_enabled_file.read_text(encoding="utf-8") == "1"
     shared_integration_session.write_dashboard_command("robot_toggle")
     shared_integration_session.wait_until(
-        lambda: shared_integration_session.robot_hand_enabled_file.read_text(encoding="utf-8") == "0",
+        lambda: shared_integration_session.genau_enabled_file.read_text(encoding="utf-8") == "0",
         timeout=12,
-        description="Robot Hand enabled file to flip off",
+        description="Genau enabled file to flip off",
     )
 
     shared_integration_session.write_dashboard_command("robot_toggle")
     shared_integration_session.wait_until(
-        lambda: shared_integration_session.robot_hand_enabled_file.read_text(encoding="utf-8") == "1",
+        lambda: shared_integration_session.genau_enabled_file.read_text(encoding="utf-8") == "1",
         timeout=12,
-        description="Robot Hand enabled file to flip back on",
+        description="Genau enabled file to flip back on",
     )
 
 
 
-def test_fun_time_robot_hand_mode_file_flow(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_robot_hand_mode(True)
-    shared_integration_session.wait_for_new_log("Entering Robot Hand mode", timeout=12)
+def test_fun_time_genau_mode_file_flow(shared_integration_session: FunTimeIntegrationSession):
+    shared_integration_session.write_genau_mode(True)
+    shared_integration_session.wait_for_new_log("Entering Genau mode", timeout=12)
 
-    shared_integration_session.write_robot_hand_mode(False)
-    shared_integration_session.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
+    shared_integration_session.write_genau_mode(False)
+    shared_integration_session.wait_for_new_log("Leaving Genau mode", timeout=12)
 
 
 
-def test_fun_time_robot_hand_active_playback(shared_integration_session: FunTimeIntegrationSession):
-    """Entering Robot Hand mode with link enabled must unpause Robot Hand and audio."""
+def test_fun_time_genau_active_playback(shared_integration_session: FunTimeIntegrationSession):
+    """Entering Genau mode with link enabled must unpause Genau and audio."""
     s = shared_integration_session
-    assert s.robot_hand_enabled_file.read_text(encoding="utf-8") == "1"
+    assert s.genau_enabled_file.read_text(encoding="utf-8") == "1"
 
-    s.write_robot_hand_mode(True)
-    s.wait_for_new_log("Entering Robot Hand mode", timeout=12)
+    s.write_genau_mode(True)
+    s.wait_for_new_log("Entering Genau mode", timeout=12)
 
     s.wait_until(
-        lambda: s.config.robot_hand_paused_file.read_text(encoding="utf-8") == "0",
+        lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "0",
         timeout=12,
-        description="Robot Hand paused file to flip off (active playback)",
+        description="Genau paused file to flip off (active playback)",
     )
     s.wait_until(
         lambda: s.config.audio_paused_file.read_text(encoding="utf-8") == "0",
@@ -162,13 +162,13 @@ def test_fun_time_robot_hand_active_playback(shared_integration_session: FunTime
         description="Audio paused file to flip off (audio companion active)",
     )
 
-    s.write_robot_hand_mode(False)
-    s.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
+    s.write_genau_mode(False)
+    s.wait_for_new_log("Leaving Genau mode", timeout=12)
 
     s.wait_until(
-        lambda: s.config.robot_hand_paused_file.read_text(encoding="utf-8") == "1",
+        lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "1",
         timeout=12,
-        description="Robot Hand paused file to flip back on after leaving mode",
+        description="Genau paused file to flip back on after leaving mode",
     )
     s.wait_until(
         lambda: s.config.audio_paused_file.read_text(encoding="utf-8") == "1",
@@ -178,9 +178,9 @@ def test_fun_time_robot_hand_active_playback(shared_integration_session: FunTime
 
 
 
-def test_fun_time_primary_vlc_not_topmost_in_robot_hand_mode(shared_integration_session: FunTimeIntegrationSession):
-    """Primary VLC must leave the TOPMOST z-band while Robot Hand mode is
-    active so VLC video transitions cannot bring it above Robot Hand."""
+def test_fun_time_primary_vlc_not_topmost_in_genau_mode(shared_integration_session: FunTimeIntegrationSession):
+    """Primary VLC must leave the TOPMOST z-band while Genau mode is
+    active so VLC video transitions cannot bring it above Genau."""
     s = shared_integration_session
     primary_pid = s.read_child_pids()["primary_pid"]
     hwnd = find_window_by_pid(primary_pid)
@@ -188,8 +188,8 @@ def test_fun_time_primary_vlc_not_topmost_in_robot_hand_mode(shared_integration_
 
     assert is_window_topmost(hwnd), "Primary VLC should be TOPMOST before robot hand mode"
 
-    s.write_robot_hand_mode(True)
-    s.wait_for_new_log("Entering Robot Hand mode", timeout=12)
+    s.write_genau_mode(True)
+    s.wait_for_new_log("Entering Genau mode", timeout=12)
 
     s.wait_until(
         lambda: not is_window_topmost(find_window_by_pid(primary_pid)),
@@ -197,8 +197,8 @@ def test_fun_time_primary_vlc_not_topmost_in_robot_hand_mode(shared_integration_
         description="Primary VLC to lose TOPMOST in robot hand mode",
     )
 
-    s.write_robot_hand_mode(False)
-    s.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
+    s.write_genau_mode(False)
+    s.wait_for_new_log("Leaving Genau mode", timeout=12)
 
     s.wait_until(
         lambda: is_window_topmost(find_window_by_pid(primary_pid)),
@@ -246,69 +246,69 @@ def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTim
 
 
 
-def test_fun_time_omnipause_while_robot_hand_mode(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_robot_hand_mode(True)
-    shared_integration_session.wait_for_new_log("Entering Robot Hand mode", timeout=12)
+def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTimeIntegrationSession):
+    shared_integration_session.write_genau_mode(True)
+    shared_integration_session.wait_for_new_log("Entering Genau mode", timeout=12)
 
     shared_integration_session.write_dashboard_command("omnipause_toggle")
     shared_integration_session.wait_for_new_log("OmniPause: entering", timeout=12)
     shared_integration_session.wait_until(
-        lambda: shared_integration_session.config.robot_hand_paused_file.read_text(encoding="utf-8") == "1",
+        lambda: shared_integration_session.config.genau_paused_file.read_text(encoding="utf-8") == "1",
         timeout=12,
-        description="Robot Hand paused file to flip on",
+        description="Genau paused file to flip on",
     )
 
     shared_integration_session.write_dashboard_command("omnipause_toggle")
     shared_integration_session.wait_for_new_log("OmniPause: leaving", timeout=12)
     shared_integration_session.wait_until(
-        lambda: shared_integration_session.config.robot_hand_paused_file.read_text(encoding="utf-8") == "0",
+        lambda: shared_integration_session.config.genau_paused_file.read_text(encoding="utf-8") == "0",
         timeout=12,
-        description="Robot Hand paused file to flip off",
+        description="Genau paused file to flip off",
     )
 
-    shared_integration_session.write_robot_hand_mode(False)
-    shared_integration_session.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
+    shared_integration_session.write_genau_mode(False)
+    shared_integration_session.wait_for_new_log("Leaving Genau mode", timeout=12)
 
 
 
-def test_fun_time_omnipause_does_not_kill_robot_hand(shared_integration_session: FunTimeIntegrationSession):
-    """Regression: omnipause must pause Robot Hand, not close it.
+def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunTimeIntegrationSession):
+    """Regression: omnipause must pause Genau, not close it.
 
-    The old AHK HandleOmniPauseToggle never removed Robot Hand's topmost
+    The old AHK HandleOmniPauseToggle never removed Genau's topmost
     flag.  When omnipause was ported to Python, an explicit
-    set_topmost(Robot Hand, False) was added by mistake, causing the
+    set_topmost(Genau, False) was added by mistake, causing the
     window to fall behind other windows (appearing "closed").  Verify the
-    Robot Hand process survives an omnipause round-trip while in robot
+    Genau process survives an omnipause round-trip while in robot
     hand mode.
     """
     s = shared_integration_session
-    rh_pid = s.read_robot_hand_pid()
-    assert _is_pid_alive(rh_pid), "Robot Hand should be alive before test"
+    rh_pid = s.read_genau_pid()
+    assert _is_pid_alive(rh_pid), "Genau should be alive before test"
 
-    s.write_robot_hand_mode(True)
-    s.wait_for_new_log("Entering Robot Hand mode", timeout=12)
+    s.write_genau_mode(True)
+    s.wait_for_new_log("Entering Genau mode", timeout=12)
 
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: entering", timeout=12)
     s.wait_until(
-        lambda: s.config.robot_hand_paused_file.read_text(encoding="utf-8") == "1",
+        lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "1",
         timeout=12,
-        description="Robot Hand paused file to flip on",
+        description="Genau paused file to flip on",
     )
 
-    # Robot Hand must still be running — omnipause should pause, not close.
+    # Genau must still be running — omnipause should pause, not close.
     assert _is_pid_alive(rh_pid), (
-        "Robot Hand process died during omnipause — "
-        "Esc should pause Robot Hand, not close it"
+        "Genau process died during omnipause — "
+        "Esc should pause Genau, not close it"
     )
 
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: leaving", timeout=12)
 
-    assert _is_pid_alive(rh_pid), "Robot Hand should survive leaving omnipause"
+    assert _is_pid_alive(rh_pid), "Genau should survive leaving omnipause"
 
-    s.write_robot_hand_mode(False)
-    s.wait_for_new_log("Leaving Robot Hand mode", timeout=12)
+    s.write_genau_mode(False)
+    s.wait_for_new_log("Leaving Genau mode", timeout=12)
 
 
 

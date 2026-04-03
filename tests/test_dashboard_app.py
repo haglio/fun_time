@@ -76,7 +76,7 @@ def test_dashboard_highlights_primary_for_ai_video_with_funscript(cfg_path: Path
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=False,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="manual",
         mfp_alive=False,
         primary_responsive=False,
@@ -153,7 +153,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=False,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="auto",
         mfp_alive=True,
         primary_responsive=True,
@@ -196,7 +196,7 @@ def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=False,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="auto",
         mfp_alive=True,
         primary_responsive=True,
@@ -228,7 +228,7 @@ def test_osr2_non_auto_uses_panel_color(cfg_path: Path):
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=False,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=False,
         primary_responsive=False,
@@ -247,7 +247,7 @@ def test_osr2_non_auto_uses_panel_color(cfg_path: Path):
 
 def test_quarter_button_uses_neutral_grey(cfg_path: Path):
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_uses_robot_hand=True)
+    snapshot = _make_snapshot(primary_uses_genau=True)
 
     scene = build_dashboard_scene(layout, snapshot)
 
@@ -255,9 +255,9 @@ def test_quarter_button_uses_neutral_grey(cfg_path: Path):
     assert fills[layout.quarter_button] == COLOR_PANEL
 
 
-def test_robot_hand_panel_is_pink_when_active(cfg_path: Path):
+def test_genau_panel_is_pink_when_active(cfg_path: Path):
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_uses_robot_hand=True)
+    snapshot = _make_snapshot(primary_uses_genau=True)
 
     scene = build_dashboard_scene(layout, snapshot)
 
@@ -284,7 +284,7 @@ def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path:
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=False,
         primary_responsive=False,
@@ -342,7 +342,7 @@ def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=True,
         primary_responsive=True,
@@ -369,7 +369,7 @@ def test_hydrate_sets_mfp_alive_true_for_current_process():
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=False,  # start as False
         primary_responsive=False,
@@ -389,7 +389,7 @@ def test_hydrate_sets_mfp_alive_false_for_zero_pid():
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=True,  # start as True
         primary_responsive=False,
@@ -417,7 +417,7 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=True,
         primary_responsive=True,
@@ -474,7 +474,7 @@ def test_dashboard_app_hydrates_live_vlc_state():
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=True,
         primary_responsive=False,
@@ -587,7 +587,7 @@ def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_p
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=False,
         primary_responsive=False,
@@ -634,7 +634,7 @@ def test_dashboard_scene_omnipause_button_shows_play_icon_when_paused(cfg_path: 
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=True,
-        primary_uses_robot_hand=False,
+        primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=False,
         primary_responsive=False,
@@ -740,11 +740,11 @@ def test_dashboard_scene_pressed_button_has_lighter_fill(cfg_path: Path):
     assert pressed_fills[preview_layout.portrait_next] == normal_fills[preview_layout.portrait_next]
 
 
-def _make_snapshot(*, robot_link_enabled: bool = True, primary_uses_robot_hand: bool = False) -> DashboardSnapshot:
+def _make_snapshot(*, robot_link_enabled: bool = True, primary_uses_genau: bool = False) -> DashboardSnapshot:
     return DashboardSnapshot(
         f_mode_enabled=False,
         robot_link_enabled=robot_link_enabled,
-        primary_uses_robot_hand=primary_uses_robot_hand,
+        primary_uses_genau=primary_uses_genau,
         osr2_mode="auto",
         mfp_alive=False,
         primary_responsive=False,
@@ -865,7 +865,7 @@ def test_osr2_highlights_green_when_funscript_playing(cfg_path: Path):
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("s", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -894,7 +894,7 @@ def test_osr2_auto_mode_stays_pink_even_with_funscript(cfg_path: Path):
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("s", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=True,
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=True,
         osr2_mode="auto", mfp_alive=False, primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -907,9 +907,9 @@ def test_osr2_auto_mode_stays_pink_even_with_funscript(cfg_path: Path):
     assert fills[layout.osr2_panel] == COLOR_PINK, "Auto mode must stay pink even with funscript"
 
 
-def test_robot_hand_label_says_robot_hand():
-    from fun_time.dashboard_state import LABEL_PRIMARY_ROBOT
-    assert LABEL_PRIMARY_ROBOT == "Robot Hand"
+def test_genau_label_says_genau():
+    from fun_time.dashboard_state import LABEL_PRIMARY_GENAU
+    assert LABEL_PRIMARY_GENAU == "Genau"
 
 
 def test_quit_button_uses_neutral_grey(cfg_path: Path):
@@ -931,7 +931,7 @@ def test_active_chips_and_locks_use_same_green_as_favs(cfg_path: Path):
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
     heartbeat_file.write_text(str(_time.time()), encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=True, primary_responsive=True, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", True), landscape=DashboardPanelSnapshot("", True),
@@ -972,7 +972,7 @@ def test_osr2_controlled_with_funscript_shows_funscript_control(cfg_path: Path):
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("s", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -988,7 +988,7 @@ def test_osr2_controlled_with_funscript_shows_funscript_control(cfg_path: Path):
 def test_osr2_controlled_without_funscript_shows_idle(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -1014,7 +1014,7 @@ def test_osr2_auto_mode_shows_parenthesized_auto(cfg_path: Path):
 def test_osr2_off_mode_shows_off_label_and_dim_color(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
         osr2_mode="off", mfp_alive=False, primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -1048,7 +1048,7 @@ def test_mfp_label_has_no_connection_status_text(cfg_path: Path):
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
     heartbeat_file.write_text("100.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=True, primary_responsive=True, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -1065,7 +1065,7 @@ def test_mfp_label_has_no_connection_status_text(cfg_path: Path):
 def test_omnipause_resume_button_is_not_green_when_paused(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_robot_hand=False,
+        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=True,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -1081,7 +1081,7 @@ def test_omnipause_resume_button_is_not_green_when_paused(cfg_path: Path):
 def test_vlc_mode_shows_vlc_buttons_not_quarter(cfg_path: Path):
     """Non-AI VLC box should show file dialog, clipper, and nudge buttons — not 1/4."""
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_uses_robot_hand=False)
+    snapshot = _make_snapshot(primary_uses_genau=False)
 
     scene = build_dashboard_scene(layout, snapshot)
 
@@ -1093,10 +1093,10 @@ def test_vlc_mode_shows_vlc_buttons_not_quarter(cfg_path: Path):
     assert "quarter_button" not in action_ids
 
 
-def test_robot_hand_mode_shows_quarter_not_vlc_buttons(cfg_path: Path):
-    """Robot Hand box should show 1/4 button only."""
+def test_genau_mode_shows_quarter_not_vlc_buttons(cfg_path: Path):
+    """Genau box should show 1/4 button only."""
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_uses_robot_hand=True)
+    snapshot = _make_snapshot(primary_uses_genau=True)
 
     scene = build_dashboard_scene(layout, snapshot)
 
@@ -1122,7 +1122,7 @@ def test_default_scene_shows_vlc_buttons(cfg_path: Path):
 def test_vlc_buttons_text_labels(cfg_path: Path):
     """File dialog button shows folder icon, nudge shows - and +, clipper is an image."""
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_uses_robot_hand=False)
+    snapshot = _make_snapshot(primary_uses_genau=False)
 
     scene = build_dashboard_scene(layout, snapshot)
 
@@ -1149,7 +1149,7 @@ def test_vlc_nudge_buttons_are_adjacent_not_edge_justified(cfg_path: Path):
 
 def test_vlc_buttons_light_up_when_pressed(cfg_path: Path):
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_uses_robot_hand=False)
+    snapshot = _make_snapshot(primary_uses_genau=False)
 
     scene_normal = build_dashboard_scene(layout, snapshot)
     scene_pressed = build_dashboard_scene(

@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $trayLauncherPath = Join-Path $projectRoot 'launch_broker_tray.vbs'
-$taskName = 'FunTime Robot Hand Broker'
+$taskName = 'FunTime Genau Broker'
 
 if (-not (Test-Path $trayLauncherPath)) {
     throw "Tray launcher not found: $trayLauncherPath"
@@ -29,7 +29,7 @@ catch {
     $startupDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
     New-Item -ItemType Directory -Path $startupDir -Force | Out-Null
 
-    $startupVbs = Join-Path $startupDir 'FunTime Robot Hand Broker.vbs'
+    $startupVbs = Join-Path $startupDir 'FunTime Genau Broker.vbs'
     $trayScript = Join-Path $projectRoot 'scripts\broker_tray.ps1'
     $vbsContent = "Set shell = CreateObject(""WScript.Shell"")`r`nshell.Run ""powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """"$trayScript"""""", 0, False"
     Set-Content -Path $startupVbs -Value $vbsContent -Encoding ASCII

@@ -129,7 +129,7 @@ def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: s
     write_manifest(Path(output_path), profile_directory, urls)
 
 
-def seed_robot_hand_state(enabled_file: str | Path, paused_file: str | Path, audio_paused_file: str | Path) -> None:
+def seed_genau_state(enabled_file: str | Path, paused_file: str | Path, audio_paused_file: str | Path) -> None:
     for path, value in (
         (Path(enabled_file), "1"),
         (Path(paused_file), "1"),
@@ -160,7 +160,7 @@ def start_core_session(
     hide_windows: bool = False,
 ) -> None:
     restart_broker(project_dir, config_path)
-    seed_robot_hand_state(enabled_file, paused_file, audio_paused_file)
+    seed_genau_state(enabled_file, paused_file, audio_paused_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     launch_core_apps(
         project_dir=project_dir,
@@ -178,10 +178,10 @@ def start_core_session(
     )
 
 
-def launch_robot_hand(
+def launch_genau(
     *,
     python_exe: str | Path,
-    robot_hand_module: str,
+    genau_module: str,
     config_path: str | Path,
     clips_folder: str | Path,
     robot_x: int,
@@ -189,12 +189,12 @@ def launch_robot_hand(
     robot_width: int,
     robot_height: int,
 ) -> int:
-    """Launch Robot Hand subprocess, returning its PID."""
+    """Launch Genau subprocess, returning its PID."""
     proc = subprocess.Popen(
         [
             str(python_exe),
             "-m",
-            robot_hand_module,
+            genau_module,
             "--config",
             str(config_path),
             "--clips-folder",
@@ -224,7 +224,7 @@ def launch_ui_companions(
     dashboard_width: int,
     dashboard_height: int,
     mfp_pid: int,
-    robot_hand_module: str,
+    genau_module: str,
     audio_module: str,
     config_path: str | Path,
     clips_folder: str | Path,
@@ -233,7 +233,7 @@ def launch_ui_companions(
     robot_y: int,
     robot_width: int,
     robot_height: int,
-    robot_hand_pid: int = 0,
+    genau_pid: int = 0,
     result_file: str | Path,
 ) -> None:
     python_exe = str(python_exe)
@@ -265,10 +265,10 @@ def launch_ui_companions(
         )
         dashboard_pid = dashboard_proc.pid
 
-    if not robot_hand_pid:
-        robot_hand_pid = launch_robot_hand(
+    if not genau_pid:
+        genau_pid = launch_genau(
             python_exe=python_exe,
-            robot_hand_module=robot_hand_module,
+            genau_module=genau_module,
             config_path=config_path,
             clips_folder=clips_folder,
             robot_x=robot_x,
@@ -293,7 +293,7 @@ def launch_ui_companions(
         result_file,
         {
             "dashboard_pid": dashboard_pid,
-            "robot_hand_pid": robot_hand_pid,
+            "genau_pid": genau_pid,
             "audio_pid": audio_proc.pid,
         },
     )

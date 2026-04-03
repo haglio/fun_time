@@ -95,7 +95,7 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "udp_port": 50555,
             "auto_stale_timeout": 8.0,
         },
-        "robot_hand": {
+        "genau": {
             "shuffle_on_load": True,
             "beats_per_loop": 1.0,
             "clip_cache_size": 2,

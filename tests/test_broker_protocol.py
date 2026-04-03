@@ -154,7 +154,7 @@ def test_handle_line_applies_auto_transition():
     assert sends[:2] == ["AUTO 1", "SHOW"]
 
 
-def test_set_auto_suppresses_robot_hand_when_disabled():
+def test_set_auto_suppresses_genau_when_disabled():
     writes: list[tuple[Path, str]] = []
     sends: list[str] = []
     controller = BrokerAutoController(
@@ -177,7 +177,7 @@ def test_set_auto_suppresses_robot_hand_when_disabled():
     assert sends == ["AUTO 0", "HIDE", "AUTO 0", "HIDE"]
 
 
-def test_reenabling_robot_hand_restores_auto_visibility_when_auto_is_active():
+def test_reenabling_genau_restores_auto_visibility_when_auto_is_active():
     writes: list[tuple[Path, str]] = []
     sends: list[str] = []
     controller = BrokerAutoController(

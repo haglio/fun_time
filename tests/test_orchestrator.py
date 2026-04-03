@@ -145,10 +145,10 @@ class TestControllerManifest:
         assert str(landscape_extra) in manifest["media"]["landscape_dirs"]
         assert "|" in manifest["media"]["landscape_dirs"]
 
-    def test_robot_hand_module_name_included(self, cfg_path: Path):
+    def test_genau_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["modules"]["robot_hand_module"] == "genau"
+        assert result["modules"]["genau_module"] == "genau"
 
     def test_audio_companion_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -225,8 +225,8 @@ class TestControllerManifest:
         assert "windows_bridge_random_favs_browser_module" not in parser["modules"]
         assert "windows_bridge_startup_module" not in parser["modules"]
         assert "windows_bridge_dashboard_bridge_module" not in parser["modules"]
-        assert parser["commands"]["robot_hand_enabled_file"] == str(cfg.robot_hand_enabled_file)
-        assert parser["commands"]["robot_hand_paused_file"] == str(cfg.robot_hand_paused_file)
+        assert parser["commands"]["genau_enabled_file"] == str(cfg.genau_enabled_file)
+        assert parser["commands"]["genau_paused_file"] == str(cfg.genau_paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
         assert parser["commands"]["dashboard_state_file"] == str(cfg.paths.state_dir / "dashboard_state.ini")
         assert parser["commands"]["dashboard_cmd_file"] == str(cfg.paths.state_dir / "dashboard_cmd.txt")
@@ -251,7 +251,7 @@ class TestValidateConfig:
         broker_py = cfg.project_dir / "fun_time" / "broker_app.py"
         broker_py.parent.mkdir(parents=True, exist_ok=True)
         broker_py.touch()
-        rh_py = cfg.project_dir / "fun_time" / "robot_hand" / "app.py"
+        rh_py = cfg.project_dir / "fun_time" / "genau" / "app.py"
         rh_py.parent.mkdir(parents=True, exist_ok=True)
         rh_py.touch()
         ac_py = cfg.project_dir / "fun_time" / "audio_companion_app.py"

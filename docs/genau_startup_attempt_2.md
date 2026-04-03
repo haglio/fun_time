@@ -1,4 +1,4 @@
-# Robot Hand Auto-Mode Startup — Attempt 2 Report
+# Genau Auto-Mode Startup — Attempt 2 Report
 
 **Date:** 2026-03-27
 **Agent:** Claude Opus 4.6 (1M context)
@@ -8,7 +8,7 @@
 
 ## Goal
 
-When the OSR2 is already in auto mode when Fun Time loads, Robot Hand
+When the OSR2 is already in auto mode when Fun Time loads, Genau
 should begin active instead of Primary VLC.
 
 ---
@@ -19,31 +19,31 @@ should begin active instead of Primary VLC.
 
 Four changes were made to the existing file-polling design:
 
-1. **Shutdown persistence** — Write `robot_hand_mode_at_shutdown.txt` on
-   exit, read on next startup to initialize `robot_hand_mode=True`.
+1. **Shutdown persistence** — Write `genau_mode_at_shutdown.txt` on
+   exit, read on next startup to initialize `genau_mode=True`.
 2. **Startup mode file override** — After the broker resets
-   `robot_hand_mode.txt` to "0", overwrite it with "1" from the
+   `genau_mode.txt` to "0", overwrite it with "1" from the
    orchestrator so the dispatch loop stays consistent.
 3. **BPM/stroke auto-mode inference** — The OSR2 doesn't re-announce
    "Auto mode is on!" if it was already on before MFP started. But it
    does send BPM and stroke pattern messages (exclusive to auto mode).
    Added inference in `handle_line` to detect these and call
    `set_auto(True)`.
-4. **Initial dispatch loop state** — Pass `initial_robot_hand_mode=True`
+4. **Initial dispatch loop state** — Pass `initial_genau_mode=True`
    to `DispatchLoopRunner` so `BridgeState` starts correctly.
 
 **Why it failed:** Multiple cascading issues:
-- The dispatch loop's `sync_robot_hand` calls `ensure_playback_state`
+- The dispatch loop's `sync_genau` calls `ensure_playback_state`
   every 200ms, which immediately undid the startup pause.
-- The Robot Hand window show/hide was tied to transitions
+- The Genau window show/hide was tied to transitions
   (`is_transition=True`), but starting in robot hand mode isn't a
   transition — the window was never shown.
 - Added retry logic for the window show, but `find_window_by_title`
-  requires `IsWindowVisible`, and the Robot Hand app starts its window
+  requires `IsWindowVisible`, and the Genau app starts its window
   hidden (waiting for UDP SHOW from the broker).
 - Even after all fixes, manual testing showed no activation. The broker
   DID detect auto mode (confirmed in logs: `AUTO ON` within 4 seconds
-  of startup), but the dispatch loop's file read and the Robot Hand
+  of startup), but the dispatch loop's file read and the Genau
   app's own visibility management were fighting each other.
 
 ### Pass 2: Rewrite to UDP-based architecture (failed harder)
@@ -51,11 +51,11 @@ Four changes were made to the existing file-polling design:
 Designed and implemented a clean rewrite with 7 commits:
 
 1. **`dispatch_udp.py`** — New UDP listener for AUTO messages
-2. **Broker multi-target UDP** — Send AUTO to both Robot Hand app and
+2. **Broker multi-target UDP** — Send AUTO to both Genau app and
    dispatch loop
-3. **Wire dispatch loop to UDP** — `apply_sync_robot_hand` takes
+3. **Wire dispatch loop to UDP** — `apply_sync_genau` takes
    `mode_state_on` as parameter instead of reading file
-4. **Remove dispatch-side Robot Hand show/hide** — Let Robot Hand app
+4. **Remove dispatch-side Genau show/hide** — Let Genau app
    be sole visibility controller
 5. **Fix stale timeout** — Use BPM/stroke evidence time
 6. **`ensure_playback_state` only on transitions** — Stop 200ms polling
@@ -73,7 +73,7 @@ which meant:
   but the dispatch loop and hotkey script never ran
 - Ctrl+Opt+Q didn't work (AHK never started)
 - The Dashboard was orphaned (launched in Phase 3, never cleaned up)
-- Robot Hand mode obviously never activated
+- Genau mode obviously never activated
 
 The integration tests didn't catch this because they test within the
 Python process (mocking out subprocesses), not the full system. The
@@ -99,16 +99,16 @@ In logs, auto mode lasted ~50 seconds before stale timeout fired.
 BPM/stroke evidence time can prevent this.
 
 ### Dual visibility controllers race
-The dispatch loop uses win32 `find_window_by_title("Robot Hand")` +
-`show_window`/`hide_window`. The Robot Hand app uses tkinter
+The dispatch loop uses win32 `find_window_by_title("Genau")` +
+`show_window`/`hide_window`. The Genau app uses tkinter
 `deiconify`/`withdraw` based on UDP SHOW/HIDE from broker. These
 operate on different schedules using different mechanisms and override
-each other. The Robot Hand app starts its window hidden and only shows
+each other. The Genau app starts its window hidden and only shows
 it when it receives UDP SHOW — so `find_window_by_title` (which
 requires `IsWindowVisible`) can't find it.
 
 ### `ensure_playback_state` called every 200ms
-The `apply_sync_robot_hand` function is called every 200ms and always
+The `apply_sync_genau` function is called every 200ms and always
 calls `ensure_playback_state`, even when there's no state change.
 This means any transient VLC state (like pausing Primary VLC at
 startup) gets immediately undone by the next sync tick.
@@ -126,7 +126,7 @@ another IPC method.
 
 The current architecture has these fundamental problems:
 
-1. **`robot_hand_mode.txt` has 3 writers** (broker, orchestrator, stale
+1. **`genau_mode.txt` has 3 writers** (broker, orchestrator, stale
    timeout) and 1 reader (dispatch loop)
 2. **Two visibility controllers** for the same window
 3. **Continuous state enforcement** (200ms polling) that fights transient
@@ -175,11 +175,11 @@ commits. The inference logic itself is correct and should be reused.
 | `broker_protocol.py` | `BrokerAutoController` — auto mode detection, UDP broadcast |
 | `broker_session.py` | Serial forwarding, T-code blocking, stale timeout |
 | `broker_app.py` | Broker process entry point |
-| `command_dispatch.py` | `_dispatch_sync_robot_hand` — reads mode file, manages state |
-| `runtime_flow.py` | `apply_sync_robot_hand` — reads files, calls VLC, writes paused files |
-| `robot_hand_plan.py` | Pure state machine for transition decisions (well-tested, correct) |
+| `command_dispatch.py` | `_dispatch_sync_genau` — reads mode file, manages state |
+| `runtime_flow.py` | `apply_sync_genau` — reads files, calls VLC, writes paused files |
+| `genau_plan.py` | Pure state machine for transition decisions (well-tested, correct) |
 | `windows_bridge_dispatch_loop.py` | `DispatchLoopRunner` — polls mode file every 200ms |
-| `windows_bridge_orchestrator.py` | `should_start_in_robot_hand_mode`, startup flow |
-| `robot_hand/app.py` | Robot Hand clip player subprocess |
-| `robot_hand/state.py` | UDP listener in Robot Hand app |
-| `robot_hand/notifier.py` | `sync_window_visibility` — Robot Hand's own show/hide |
+| `windows_bridge_orchestrator.py` | `should_start_in_genau_mode`, startup flow |
+| `genau/app.py` | Genau clip player subprocess |
+| `genau/state.py` | UDP listener in Genau app |
+| `genau/notifier.py` | `sync_window_visibility` — Genau's own show/hide |

@@ -1,6 +1,6 @@
-# Robot Hand Auto-Mode Startup — Investigation Report
+# Genau Auto-Mode Startup — Investigation Report
 
-**Goal:** When Fun Time starts and the OSR2 is already in auto mode, Robot Hand
+**Goal:** When Fun Time starts and the OSR2 is already in auto mode, Genau
 should be active from the beginning instead of Primary VLC.
 
 ---
@@ -17,7 +17,7 @@ as soon as serial traffic stops. Even if the file survived startup, it gets
 cleared within seconds.
 
 ### Attempt 2 — Skip `pl_next` during core session launch when auto mode on
-Threaded a `robot_hand_auto_mode` parameter through `start_core_session` and
+Threaded a `genau_auto_mode` parameter through `start_core_session` and
 `run_startup_sequence` to skip the initial `pl_next` call.
 
 **Why it failed:** The mode file is always "0" at the point it was being read
@@ -54,23 +54,23 @@ independent detection paths that both converge at the same check point:
 
 ### Path 1 — Shutdown persistence
 `DispatchLoopRunner.stop()` writes `"1"` or `"0"` to
-`state/robot_hand_mode_at_shutdown.txt` before MFP is killed. This reliably
+`state/genau_mode_at_shutdown.txt` before MFP is killed. This reliably
 captures the end-of-session state (the runtime value, not the mode file).
 
 **Note:** This uncommitted piece was reverted. The committed piece below is
 what remains.
 
 ### Path 2 — Live broker detection during startup (committed, not reverted)
-`should_start_in_robot_hand_mode()` was added to `windows_bridge_orchestrator.py`
+`should_start_in_genau_mode()` was added to `windows_bridge_orchestrator.py`
 (in commit `5516e5b`, bundled with a loading screen fix by the Opus agent).
-It reads `bridge_config.robot_hand_mode_file` and
-`state/robot_hand_mode_at_shutdown.txt`. The call is placed right before the
+It reads `bridge_config.genau_mode_file` and
+`state/genau_mode_at_shutdown.txt`. The call is placed right before the
 dispatch loop starts — after `run_startup_sequence()` has already run for
 ~15-20 seconds, during which MFP is live and the broker can receive the auto
 mode serial message. If either file is "1", Primary VLC is paused via
 `ensure_playback_state`.
 
-**Why this still may not work:** The `robot_hand_mode.txt` file is written by
+**Why this still may not work:** The `genau_mode.txt` file is written by
 the broker, which resets it to "0" at startup and then re-sets it to "1" only
 after receiving "Auto mode is on!" from the OSR2. The OSR2 only sends this
 message after receiving enough T-code to have confirmed auto mode is running.
@@ -81,7 +81,7 @@ detection path may in practice still read "0" if the timing doesn't work out.
 
 ## State of the Codebase
 
-- **Committed and still present:** `should_start_in_robot_hand_mode()` in
+- **Committed and still present:** `should_start_in_genau_mode()` in
   `windows_bridge_orchestrator.py`, plus the two imports
   (`read_flag_file`, `ensure_playback_state`). These are in commit `5516e5b`
   and are harmless if the feature is re-implemented differently — the function
@@ -97,14 +97,14 @@ detection path may in practice still read "0" if the timing doesn't work out.
 The core constraint is that you cannot detect auto mode before MFP is
 sending T-code. The two viable approaches are:
 
-1. **Shutdown persistence only.** Write the runtime `robot_hand_mode` state
+1. **Shutdown persistence only.** Write the runtime `genau_mode` state
    somewhere durable (NOT the broker's mode file) when the session ends.
    Read it at next startup to decide whether to pause Primary VLC. This only
    helps for the "previous session was in auto mode" case.
 
 2. **Post-startup polling.** After the loading screen completes and the
    dispatch loop starts, poll the broker mode file for a few seconds and
-   transition to Robot Hand if it flips to "1". This handles the cold-start
+   transition to Genau if it flips to "1". This handles the cold-start
    case (user pressed auto button before starting Fun Time). The transition
    machinery already exists in the dispatch loop — this may just be a matter
    of the dispatch loop acting on the mode file flip the same way it does
@@ -112,7 +112,7 @@ sending T-code. The two viable approaches are:
 
 The dispatch loop already handles live auto-mode detection correctly (the user
 confirmed: pressing the button during a live session immediately activates
-Robot Hand). So the live-session path is correct. The gap is only at the
+Genau). So the live-session path is correct. The gap is only at the
 moment `run_python_orchestrated_bridge` calls `ensure_playback_state` —
 at that point the broker may not yet have received the serial message.
 

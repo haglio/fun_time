@@ -24,7 +24,7 @@ A previous agent attempted to build this feature and failed. This document captu
 - `forward_virtual_to_real`: reads data FROM the virtual port (MFP TCode commands) and writes to the OSR2. This path is **skipped** when `auto_mode.is_active` is True.
 - `BrokerAutoController.handle_line()` parses lines from the OSR2 looking for "tcode task started", "is on", BPM data, stroke data. These set `auto_mode.is_active`.
 
-## What data actually flows (verified from broker.log and robot_hand_listener.log)
+## What data actually flows (verified from broker.log and genau_listener.log)
 
 ### MFP-controlled content
 When MultiFunPlayer plays a video with a funscript, it sends TCode commands to the virtual COM port. These flow through `forward_virtual_to_real` to COM4. **This is reliable and observable.**

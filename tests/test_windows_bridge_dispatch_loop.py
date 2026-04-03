@@ -182,7 +182,7 @@ class TestSharedState:
         state = BridgeState(
             locked2=True,
             locked3=False,
-            robot_hand_mode=True,
+            genau_mode=True,
             f_mode_enabled=False,
             omni_paused=True,
         )
@@ -212,10 +212,10 @@ class TestDispatchLoopRunner:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
-            robot_hand_mode_file=tmp_path / "rh_mode.txt",
-            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
-            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            genau_enabled_file=tmp_path / "rh_enabled.txt",
+            genau_mode_file=tmp_path / "rh_mode.txt",
+            genau_cmd_file=tmp_path / "rh_cmd.txt",
+            genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
@@ -309,10 +309,10 @@ class TestDispatchLoopRunner:
         assert loaded is not None
         assert loaded.omni_paused is True
 
-    def test_backslash_key_dispatches_quarter_button_in_robot_hand_mode(self, tmp_path):
+    def test_backslash_key_dispatches_quarter_button_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(robot_hand_mode=True)
+        runner.state = BridgeState(genau_mode=True)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -324,7 +324,7 @@ class TestDispatchLoopRunner:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "quarter_button" in commands
 
-    def test_backslash_key_sends_quarter_button_press_in_robot_hand_mode(self, tmp_path):
+    def test_backslash_key_sends_quarter_button_press_in_genau_mode(self, tmp_path):
         recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         recv_sock.bind(("127.0.0.1", 0))
         recv_sock.settimeout(1.0)
@@ -335,7 +335,7 @@ class TestDispatchLoopRunner:
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner.dashboard_enabled = True
         runner._last_sync = float("inf")
-        runner.state = BridgeState(robot_hand_mode=True)
+        runner.state = BridgeState(genau_mode=True)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -366,7 +366,7 @@ class TestDispatchLoopRunner:
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner.dashboard_enabled = True
         runner._last_sync = float("inf")
-        runner.state = BridgeState(robot_hand_mode=False)
+        runner.state = BridgeState(genau_mode=False)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -391,7 +391,7 @@ class TestDispatchLoopRunner:
     def test_backslash_key_enters_omnipause_when_not_in_robot_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(robot_hand_mode=False)
+        runner.state = BridgeState(genau_mode=False)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -460,7 +460,7 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "tooltip Clipper: MyVideo"
 
-    def test_syncs_robot_hand_periodically(self, tmp_path):
+    def test_syncs_genau_periodically(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         # Set _last_sync far in the past so the interval is exceeded
         runner._last_sync = -999
@@ -471,9 +471,9 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         calls = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "sync_robot_hand" in calls
+        assert "sync_genau" in calls
 
-    def test_skips_robot_hand_sync_when_omni_paused(self, tmp_path):
+    def test_skips_genau_sync_when_omni_paused(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         runner._last_sync = -999
         runner.state = BridgeState(omni_paused=True)
@@ -556,9 +556,9 @@ class TestDispatchLoopRunner:
             runner.tick()  # should not raise
 
 
-class TestRobotHandZOrder:
-    """Primary VLC must leave the TOPMOST z-band while Robot Hand mode is
-    active so VLC video transitions cannot bring it above Robot Hand."""
+class TestGenauZOrder:
+    """Primary VLC must leave the TOPMOST z-band while Genau mode is
+    active so VLC video transitions cannot bring it above Genau."""
 
     def _make_runner(self, tmp_path, **kwargs):
         from fun_time.command_dispatch import BridgeConfig
@@ -574,10 +574,10 @@ class TestRobotHandZOrder:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
-            robot_hand_mode_file=tmp_path / "rh_mode.txt",
-            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
-            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            genau_enabled_file=tmp_path / "rh_enabled.txt",
+            genau_mode_file=tmp_path / "rh_mode.txt",
+            genau_cmd_file=tmp_path / "rh_cmd.txt",
+            genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
@@ -595,10 +595,10 @@ class TestRobotHandZOrder:
             **kwargs,
         )
 
-    def test_robot_hand_mode_on_demotes_primary_from_topmost(self, tmp_path):
+    def test_genau_mode_on_demotes_primary_from_topmost(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(robot_hand_mode=False)
+        runner.state = BridgeState(genau_mode=False)
 
         topmost_calls = []
 
@@ -606,15 +606,15 @@ class TestRobotHandZOrder:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(robot_hand_mode=True), [])
+            mock_dispatch.return_value = (BridgeState(genau_mode=True), [])
             runner._dispatch("robot_toggle")
 
         assert (1001, False) in topmost_calls
 
-    def test_robot_hand_mode_off_restores_primary_topmost(self, tmp_path):
+    def test_genau_mode_off_restores_primary_topmost(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(robot_hand_mode=True)
+        runner.state = BridgeState(genau_mode=True)
 
         topmost_calls = []
 
@@ -622,7 +622,7 @@ class TestRobotHandZOrder:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(robot_hand_mode=False), [])
+            mock_dispatch.return_value = (BridgeState(genau_mode=False), [])
             runner._dispatch("robot_toggle")
 
         assert (1001, True) in topmost_calls
@@ -631,7 +631,7 @@ class TestRobotHandZOrder:
         """Periodic sync must re-demote Primary VLC even when robot hand
         mode hasn't changed — VLC video transitions may re-assert topmost."""
         runner = self._make_runner(tmp_path, sync_interval_ms=0)
-        runner.state = BridgeState(robot_hand_mode=True)
+        runner.state = BridgeState(genau_mode=True)
         runner._last_sync = 0
 
         topmost_calls = []
@@ -643,19 +643,19 @@ class TestRobotHandZOrder:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=9999), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             # No state change — robot hand mode stays True
-            mock_dispatch.return_value = (BridgeState(robot_hand_mode=True), [])
+            mock_dispatch.return_value = (BridgeState(genau_mode=True), [])
             runner.tick()
 
         # Primary VLC must be demoted
         assert (1001, False) in topmost_calls
-        # Robot Hand must be re-asserted topmost
+        # Genau must be re-asserted topmost
         assert (9999, True) in topmost_calls
 
-    def test_restore_all_topmost_demotes_primary_in_robot_hand_mode(self, tmp_path):
+    def test_restore_all_topmost_demotes_primary_in_genau_mode(self, tmp_path):
         """_restore_all_topmost must explicitly set Primary VLC NOT-TOPMOST
         (not just skip it) when robot hand mode is active."""
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(robot_hand_mode=True)
+        runner.state = BridgeState(genau_mode=True)
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
@@ -669,9 +669,9 @@ class TestRobotHandZOrder:
         assert {2001, 3001, 4001, 5001} <= restored
 
 
-class TestRobotHandActivationRetry:
-    """When entering Robot Hand mode, the window may not be visible yet
-    (Robot Hand app hasn't processed UDP SHOW). The dispatch loop must
+class TestGenauActivationRetry:
+    """When entering Genau mode, the window may not be visible yet
+    (Genau app hasn't processed UDP SHOW). The dispatch loop must
     retry activation on subsequent ticks."""
 
     def _make_runner(self, tmp_path, **kwargs):
@@ -688,10 +688,10 @@ class TestRobotHandActivationRetry:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
-            robot_hand_mode_file=tmp_path / "rh_mode.txt",
-            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
-            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            genau_enabled_file=tmp_path / "rh_enabled.txt",
+            genau_mode_file=tmp_path / "rh_mode.txt",
+            genau_cmd_file=tmp_path / "rh_cmd.txt",
+            genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
@@ -706,10 +706,10 @@ class TestRobotHandActivationRetry:
             **kwargs,
         )
 
-    def test_retries_robot_hand_window_activation_on_next_tick(self, tmp_path):
+    def test_retries_genau_window_activation_on_next_tick(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=0)
-        runner.config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-        runner.config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+        runner.config.genau_enabled_file.write_text("1", encoding="utf-8")
+        runner.config.genau_mode_file.write_text("1", encoding="utf-8")
         activate_calls = []
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
@@ -717,7 +717,7 @@ class TestRobotHandActivationRetry:
              patch("fun_time.windows_bridge_dispatch_loop.activate_window"):
             runner.tick()  # transition tick — window not found
 
-        assert runner.state.robot_hand_mode is True
+        assert runner.state.genau_mode is True
 
         # Second tick: window now visible — activation uses topmost, not show_window
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
@@ -734,8 +734,8 @@ class TestRobotHandActivationRetry:
 
     def test_clears_pending_flag_after_successful_activation(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=0)
-        runner.config.robot_hand_enabled_file.write_text("1", encoding="utf-8")
-        runner.config.robot_hand_mode_file.write_text("1", encoding="utf-8")
+        runner.config.genau_enabled_file.write_text("1", encoding="utf-8")
+        runner.config.genau_mode_file.write_text("1", encoding="utf-8")
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
@@ -780,10 +780,10 @@ class TestHandleOmniPauseToggle:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
-            robot_hand_mode_file=tmp_path / "rh_mode.txt",
-            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
-            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            genau_enabled_file=tmp_path / "rh_enabled.txt",
+            genau_mode_file=tmp_path / "rh_mode.txt",
+            genau_cmd_file=tmp_path / "rh_cmd.txt",
+            genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
@@ -837,9 +837,9 @@ class TestHandleOmniPauseToggle:
         restored = {h for h, v in topmost_calls if v}
         assert restored == {1001, 2001, 3001, 4001, 5001}
 
-    def test_leaving_skips_primary_topmost_in_robot_hand_mode(self, tmp_path):
+    def test_leaving_skips_primary_topmost_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True, robot_hand_mode=True)
+        runner.state = BridgeState(omni_paused=True, genau_mode=True)
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
@@ -848,16 +848,16 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, robot_hand_mode=True), [])
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
             runner._handle_omnipause_toggle()
 
         restored = {h for h, v in topmost_calls if v}
         assert 1001 not in restored
         assert {2001, 3001, 4001, 5001} <= restored
 
-    def test_entering_omnipause_removes_robot_hand_topmost(self, tmp_path):
-        runner = self._make_runner(tmp_path, robot_hand_pid=600)
-        runner.state = BridgeState(omni_paused=False, robot_hand_mode=True)
+    def test_entering_omnipause_removes_genau_topmost(self, tmp_path):
+        runner = self._make_runner(tmp_path, genau_pid=600)
+        runner.state = BridgeState(omni_paused=False, genau_mode=True)
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001, 600: 6001}
@@ -872,9 +872,9 @@ class TestHandleOmniPauseToggle:
         removed = {h for h, v in topmost_calls if not v}
         assert 6001 in removed
 
-    def test_leaving_omnipause_sets_robot_hand_topmost_last_in_robot_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path, robot_hand_pid=600)
-        runner.state = BridgeState(omni_paused=True, robot_hand_mode=True)
+    def test_leaving_omnipause_sets_genau_topmost_last_in_robot_mode(self, tmp_path):
+        runner = self._make_runner(tmp_path, genau_pid=600)
+        runner.state = BridgeState(omni_paused=True, genau_mode=True)
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001, 600: 6001}
@@ -883,17 +883,17 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, robot_hand_mode=True), [])
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
             runner._handle_omnipause_toggle()
 
         restored = [(h, v) for h, v in topmost_calls if v]
         assert 6001 in {h for h, _ in restored}
-        # Robot Hand must be set topmost LAST (for z-order)
+        # Genau must be set topmost LAST (for z-order)
         assert restored[-1] == (6001, True)
 
-    def test_leaving_omnipause_skips_robot_hand_topmost_when_not_in_robot_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path, robot_hand_pid=600)
-        runner.state = BridgeState(omni_paused=True, robot_hand_mode=False)
+    def test_leaving_omnipause_skips_genau_topmost_when_not_in_robot_mode(self, tmp_path):
+        runner = self._make_runner(tmp_path, genau_pid=600)
+        runner.state = BridgeState(omni_paused=True, genau_mode=False)
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001, 600: 6001}
@@ -902,7 +902,7 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, robot_hand_mode=False), [])
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=False), [])
             runner._handle_omnipause_toggle()
 
         restored = {h for h, v in topmost_calls if v}
@@ -928,10 +928,10 @@ class TestHandleOpenFileDialog:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
-            robot_hand_mode_file=tmp_path / "rh_mode.txt",
-            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
-            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            genau_enabled_file=tmp_path / "rh_enabled.txt",
+            genau_mode_file=tmp_path / "rh_mode.txt",
+            genau_cmd_file=tmp_path / "rh_cmd.txt",
+            genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
@@ -1004,10 +1004,10 @@ class TestHandleOpenFileDialog:
             primary_sources=r"C:\videos\2D\non_AI|C:\other",
             portrait_sources="",
             landscape_sources="",
-            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
-            robot_hand_mode_file=tmp_path / "rh_mode.txt",
-            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
-            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            genau_enabled_file=tmp_path / "rh_enabled.txt",
+            genau_mode_file=tmp_path / "rh_mode.txt",
+            genau_cmd_file=tmp_path / "rh_cmd.txt",
+            genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
@@ -1052,10 +1052,10 @@ class TestHandleOpenFileDialog:
             primary_sources=r"C:\videos",
             portrait_sources="",
             landscape_sources="",
-            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
-            robot_hand_mode_file=tmp_path / "rh_mode.txt",
-            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
-            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            genau_enabled_file=tmp_path / "rh_enabled.txt",
+            genau_mode_file=tmp_path / "rh_mode.txt",
+            genau_cmd_file=tmp_path / "rh_cmd.txt",
+            genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
@@ -1132,9 +1132,9 @@ class TestHandleOpenFileDialog:
         restored_hwnds = {h for h, _ in restored}
         assert restored_hwnds == {1001, 2001, 3001, 4001, 5001}
 
-    def test_skips_primary_topmost_in_robot_hand_mode(self, tmp_path):
+    def test_skips_primary_topmost_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False, robot_hand_mode=True)
+        runner.state = BridgeState(omni_paused=False, genau_mode=True)
 
         topmost_calls = []
 
@@ -1149,10 +1149,10 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True, robot_hand_mode=True), [])
+            mock_dispatch.return_value = (BridgeState(omni_paused=True, genau_mode=True), [])
             runner._handle_open_file_dialog()
 
-        # Primary (1001) should NOT be restored to topmost in robot_hand_mode
+        # Primary (1001) should NOT be restored to topmost in genau_mode
         restored = [(h, v) for h, v in topmost_calls if v]
         restored_hwnds = {h for h, _ in restored}
         assert 1001 not in restored_hwnds
@@ -1313,10 +1313,10 @@ class TestUpdateDashboardOsr2Off:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            robot_hand_enabled_file=tmp_path / "rh_enabled.txt",
-            robot_hand_mode_file=tmp_path / "rh_mode.txt",
-            robot_hand_cmd_file=tmp_path / "rh_cmd.txt",
-            robot_hand_paused_file=tmp_path / "rh_paused.txt",
+            genau_enabled_file=tmp_path / "rh_enabled.txt",
+            genau_mode_file=tmp_path / "rh_mode.txt",
+            genau_cmd_file=tmp_path / "rh_cmd.txt",
+            genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
@@ -1368,7 +1368,7 @@ class TestUpdateDashboardOsr2Off:
 
         assert self._read_osr2_mode(tmp_path) == "controlled"
 
-    def test_osr2_mode_auto_when_device_on_and_robot_hand(self, tmp_path):
+    def test_osr2_mode_auto_when_device_on_and_genau(self, tmp_path):
         runner = self._make_runner(tmp_path)
         rx_file = tmp_path / "osr2_serial_rx.txt"
         rx_file.write_text("100.0", encoding="utf-8")

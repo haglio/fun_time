@@ -5,8 +5,8 @@ Fun Time is a Windows desktop setup that launches and coordinates:
 - a primary VLC instance
 - two secondary VLC instances
 - MultiFunPlayer (MFP)
-- Robot Hand (a clip-based visualizer for OSR2 auto mode)
-- a Robot Hand audio companion
+- Genau (a clip-based visualizer for OSR2 auto mode)
+- a Genau audio companion
 - an AutoHotkey controller for window placement and hotkeys
 
 It uses a serial broker for the OSR2 that is intended to run continuously in the background.
@@ -14,8 +14,8 @@ It uses a serial broker for the OSR2 that is intended to run continuously in the
 It is designed so that:
 
 - in **control mode**, MFP controls the OSR2 and the primary VLC is visible/active
-- in **Robot Hand mode** (OSR2 auto/free mode), Robot Hand appears in front of the primary VLC, the primary VLC pauses, and Robot Hand takes over visual/audio playback
-- when auto/free mode ends, Robot Hand hides and the primary VLC resumes
+- in **Genau mode** (OSR2 auto/free mode), Genau appears in front of the primary VLC, the primary VLC pauses, and Genau takes over visual/audio playback
+- when auto/free mode ends, Genau hides and the primary VLC resumes
 
 ## Folder layout
 
@@ -25,23 +25,23 @@ Core files:
 - `launch.vbs` — hidden Windows launcher used by the shortcut/taskbar item
 - `fun_time_config.json` — central config for paths, ports, and layout values
 - `controller.ahk` — AutoHotkey controller and hotkeys
-- `fun_time/` — shared Python package for config, logging, orchestration, and Robot Hand modules
+- `fun_time/` — shared Python package for config, logging, orchestration, and Genau modules
 - `scripts/run_broker_service.ps1` — broker runner used behind the tray launcher
 - `scripts/install_broker_startup_task.ps1` — installs the Windows startup scheduled task for broker
 - `launch_broker_tray.vbs` — hidden Windows launcher for the broker tray app
-- `icon.ico` — Fun Time / Robot Hand icon
+- `icon.ico` — Fun Time / Genau icon
 
 Asset folders:
 
-- `fun_time/robot_hand/clips/` — Robot Hand video clips
-- `fun_time/robot_hand/audio/` — Robot Hand audio files
+- `fun_time/genau/clips/` — Genau video clips
+- `fun_time/genau/audio/` — Genau audio files
 
 Runtime state:
 
-- `state/robot_hand_mode.txt`
-- `state/robot_hand_enabled.txt`
-- `state/robot_hand_paused.txt`
-- `state/robot_hand_cmd.txt`
+- `state/genau_mode.txt`
+- `state/genau_enabled.txt`
+- `state/genau_paused.txt`
+- `state/genau_cmd.txt`
 - `state/audio_paused.txt`
 - `state/*.log`
 
@@ -71,7 +71,7 @@ This file now controls:
 - executable paths
 - media/library paths
 - serial and UDP ports
-- Robot Hand playback defaults
+- Genau playback defaults
 - monitor/layout ratios used by `controller.ahk`
 
 Useful sections:
@@ -79,7 +79,7 @@ Useful sections:
 - `paths`
 - `controller.layout`
 - `broker`
-- `robot_hand`
+- `genau`
 - `audio_companion`
 
 For the satellite AI libraries, Fun Time can now read either a single folder or multiple folders:
@@ -106,13 +106,13 @@ Example:
 }
 ```
 
-`robot_hand.shuffle_on_load` defaults to `true`, which randomizes clip order once at load time.
+`genau.shuffle_on_load` defaults to `true`, which randomizes clip order once at load time.
 
 To disable shuffle and use filesystem order:
 
 ```json
 {
-  "robot_hand": {
+  "genau": {
     "shuffle_on_load": false
   }
 }
@@ -122,7 +122,7 @@ The layout values that used to be hard-coded in AutoHotkey now live under `contr
 
 Monitor naming under `controller.layout` now uses:
 
-- `main_monitor` — the monitor that shows portrait VLC, the primary VLC, and Robot Hand
+- `main_monitor` — the monitor that shows portrait VLC, the primary VLC, and Genau
 - `secondary_monitor` — the monitor that shows landscape VLC, MFP, and the Random Favs Browser
 
 ## High-level architecture
@@ -148,32 +148,32 @@ The broker:
   - `freeMode tcode task is stopped`
   - `StrokeName: ...`
   - `bpm ...`
-- sends lightweight localhost messages to Robot Hand
+- sends lightweight localhost messages to Genau
 - if the configured virtual COM port is missing, it now tries to recover by detecting the current `com0com` broker-side port automatically
 
-Robot Hand:
+Genau:
 
 - does **not** open `COM4`
 - listens for broker-fed state
-- shows itself only in Robot Hand mode
+- shows itself only in Genau mode
 - hides itself otherwise
-- plays clips from `fun_time/robot_hand/clips/`
-- switches audio from `fun_time/robot_hand/audio/`
+- plays clips from `fun_time/genau/clips/`
+- switches audio from `fun_time/genau/audio/`
 - follows durable pause-state files for visual/audio ownership, while one-shot command files are reserved for clip actions like `NEXT`, `PREV`, and offset nudges
 
 ## Clip and audio naming
 
-`fun_time/robot_hand/clips/` and `fun_time/robot_hand/audio/` are matched by filename stem.
+`fun_time/genau/clips/` and `fun_time/genau/audio/` are matched by filename stem.
 
 Example:
 
-- `fun_time/robot_hand/clips/Daisy.mp4`
-- `fun_time/robot_hand/audio/Daisy.mp3`
+- `fun_time/genau/clips/Daisy.mp4`
+- `fun_time/genau/audio/Daisy.mp3`
 
 and
 
-- `fun_time/robot_hand/clips/Bella_quarter_middle.mp4`
-- `fun_time/robot_hand/audio/Bella_quarter_middle.mp3`
+- `fun_time/genau/clips/Bella_quarter_middle.mp4`
+- `fun_time/genau/audio/Bella_quarter_middle.mp3`
 
 So the clip and audio files should have the same base name.
 
@@ -218,7 +218,7 @@ If Scheduled Task creation is denied by Windows permissions, the installer autom
 Start it immediately (optional):
 
 ```powershell
-Start-ScheduledTask -TaskName "FunTime Robot Hand Broker"
+Start-ScheduledTask -TaskName "FunTime Genau Broker"
 ```
 
 After setup, broker starts automatically when you sign in to Windows.
@@ -379,24 +379,24 @@ Mode-dependent keys:
 Behavior:
 
 - in control mode, `[` / `]` control the primary VLC
-- `r` toggles whether Robot Hand is allowed to take over during OSR2 auto/free mode
+- `r` toggles whether Genau is allowed to take over during OSR2 auto/free mode
 - `f` toggles F-mode immediately across all three VLCs
 - in control mode, `\` opens the primary VLC open-file dialog
-- in Robot Hand mode, `[` / `]` cycle Robot Hand clips
-- in Robot Hand mode, `\` offsets Robot Hand playback by a quarter cycle
+- in Genau mode, `[` / `]` cycle Genau clips
+- in Genau mode, `\` offsets Genau playback by a quarter cycle
 - while F-mode is on, the primary VLC only plays videos whose mirrored path under `videos\scripts\scripts\2D\non_AI` has the same relative path and a `.funscript` extension
 - while F-mode is on, each satellite VLC only plays items that are both in its normal portrait/landscape pool and present in `favs.csv`
 - toggling F-mode reloads each VLC playlist immediately instead of waiting for the next advance
-- if `r` disables Robot Hand while it is already visible, Fun Time swaps back to the primary VLC the same way it does on a normal auto-mode exit
-- while Robot Hand is disabled with `r`, its audio companion stays suppressed too, even if OSR2 remains in auto/free mode
-- a small Fun Time status indicator above MFP shows both Robot Hand enablement and whether F-mode is on
+- if `r` disables Genau while it is already visible, Fun Time swaps back to the primary VLC the same way it does on a normal auto-mode exit
+- while Genau is disabled with `r`, its audio companion stays suppressed too, even if OSR2 remains in auto/free mode
+- a small Fun Time status indicator above MFP shows both Genau enablement and whether F-mode is on
 - on non-US keyboard layouts, the physical bracket-key positions are also bound
 - while Fun Time is running and not OmniPaused, these hotkeys are global and do not depend on which window is active
 
 In control mode, the `\\` action temporarily enters OmniPause while the file dialog is open, then automatically leaves OmniPause when the dialog closes without toggling primary VLC playback state.
 - when clip order is shuffled on load (default), `]` then `[` returns to the prior clip within that same loaded order
 
-Robot Hand clip switching wraps around cyclically:
+Genau clip switching wraps around cyclically:
 - `]` at the end goes back to the beginning
 - `[` at the beginning goes to the end
 
@@ -430,31 +430,31 @@ If an item is later discarded, it is removed from `favs.csv`.
 
 ## Runtime files in `state/`
 
-### `robot_hand_mode.txt`
+### `genau_mode.txt`
 
 Written by `broker.py`.
 
 Values:
 
 - `0` = control mode
-- `1` = Robot Hand mode
+- `1` = Genau mode
 
-AutoHotkey and the audio companion both use this file as the authoritative source of whether Robot Hand takeover is actually active.
+AutoHotkey and the audio companion both use this file as the authoritative source of whether Genau takeover is actually active.
 
-### `robot_hand_enabled.txt`
+### `genau_enabled.txt`
 
-Written by AutoHotkey when `r` toggles Robot Hand takeover.
+Written by AutoHotkey when `r` toggles Genau takeover.
 
 Values:
 
-- `0` = keep Robot Hand disabled even if OSR2 enters auto/free mode
-- `1` = allow normal Robot Hand takeover during auto/free mode
+- `0` = keep Genau disabled even if OSR2 enters auto/free mode
+- `1` = allow normal Genau takeover during auto/free mode
 
 The broker reads this file continuously and folds it into the mode/visibility messages it publishes.
 
-### `robot_hand_cmd.txt`
+### `genau_cmd.txt`
 
-Written by AutoHotkey when Robot Hand control hotkeys are pressed during Robot Hand mode.
+Written by AutoHotkey when Genau control hotkeys are pressed during Genau mode.
 
 Values:
 
@@ -462,9 +462,9 @@ Values:
 - `NEXT`
 - `OFFSET_QUARTER_CYCLE`
 
-`OFFSET_QUARTER_CYCLE` advances Robot Hand playback by one quarter of the current loop.
+`OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
-`robot_hand_listener.py` consumes and clears this file.
+`genau_listener.py` consumes and clears this file.
 
 ### Log files
 
@@ -475,9 +475,9 @@ Common log files:
 - `state/orchestrator.log`
 - `state/controller.log`
 - `state/broker.log`
-- `state/robot_hand_listener.log`
-- `state/robot_hand_audio.log`
-- `state/robot_hand_crash.log`
+- `state/genau_listener.log`
+- `state/genau_audio.log`
+- `state/genau_crash.log`
 
 ## Notes on design
 
@@ -487,34 +487,34 @@ Windows serial ports are effectively single-owner.
 
 Without the broker:
 
-- MFP and Robot Hand would fight over `COM4`
+- MFP and Genau would fight over `COM4`
 
 With the broker:
 
 - MFP uses virtual `COM14`
 - broker uses `COM15` and real `COM4`
-- Robot Hand gets mode/timing info over localhost instead of serial
+- Genau gets mode/timing info over localhost instead of serial
 
-### Why Robot Hand uses local files for commands/mode
+### Why Genau uses local files for commands/mode
 
 For this setup, file-based signaling turned out to be a reliable and simple way to let:
 
 - AHK
 - broker
-- Robot Hand
+- Genau
 
 coordinate mode and clip-switch commands without depending on focused windows.
 
-## Adding a new Robot Hand clip
+## Adding a new Genau clip
 
-1. Put the clip video in `fun_time/robot_hand/clips/`
-2. Put the matching audio file in `fun_time/robot_hand/audio/`
+1. Put the clip video in `fun_time/genau/clips/`
+2. Put the matching audio file in `fun_time/genau/audio/`
 3. Make sure both have the same stem
 
 Example:
 
-- `fun_time/robot_hand/clips/NewClip.mp4`
-- `fun_time/robot_hand/audio/NewClip.mp3`
+- `fun_time/genau/clips/NewClip.mp4`
+- `fun_time/genau/audio/NewClip.mp3`
 
 No config file is needed for this.
 
@@ -523,10 +523,10 @@ No config file is needed for this.
 Example:
 
 ```bash
-ffmpeg -y -i "source_video.mp4" -vn -c:a libmp3lame -q:a 2 "fun_time/robot_hand/audio/NewClip.mp3"
+ffmpeg -y -i "source_video.mp4" -vn -c:a libmp3lame -q:a 2 "fun_time/genau/audio/NewClip.mp3"
 ```
 
-## Resizing a clip if Robot Hand struggles with it
+## Resizing a clip if Genau struggles with it
 
 If a clip is too heavy, reduce its pixel dimensions.
 
@@ -580,18 +580,18 @@ Check:
 - `com0com` pair exists
 - broker log shows which broker-side port it chose
 - OSR2 is still on `COM4`
-- scheduled task `FunTime Robot Hand Broker` is present and running (`Get-ScheduledTask -TaskName "FunTime Robot Hand Broker"`)
+- scheduled task `FunTime Genau Broker` is present and running (`Get-ScheduledTask -TaskName "FunTime Genau Broker"`)
 - `C:\Program Files\MultiFunPlayer-1.34.2-patreon\MultiFunPlayer.config.json` does not still point at an old dead `CNCA*` device
 
-### Robot Hand never appears
+### Genau never appears
 
 Check:
 
 - broker is running
 - OSR2 is actually entering auto/free mode
-- `state/robot_hand_mode.txt` changes to `1`
+- `state/genau_mode.txt` changes to `1`
 - `state/broker.log` for serial parsing / mode transitions
-- `state/robot_hand_listener.log` for UI/runtime errors
+- `state/genau_listener.log` for UI/runtime errors
 
 ### Broker will not start
 
@@ -609,15 +609,15 @@ If it still cannot recover, confirm that:
 - MFP is on the matching `CNCA*` side
 - the `com0com` pair actually exists in Windows Device Manager / serial-port enumeration
 
-### `[` and `]` do not switch Robot Hand clips
+### `[` and `]` do not switch Genau clips
 
 Check:
 
-- `state/robot_hand_mode.txt` is `1`
-- `state/robot_hand_cmd.txt` is being written
-- clip files exist in `fun_time/robot_hand/clips/`
+- `state/genau_mode.txt` is `1`
+- `state/genau_cmd.txt` is being written
+- clip files exist in `fun_time/genau/clips/`
 - `state/controller.log` shows the hotkey write
-- `state/robot_hand_listener.log` shows command-file consumption errors
+- `state/genau_listener.log` shows command-file consumption errors
 
 ### A clip stutters badly
 
@@ -632,10 +632,10 @@ These should generally be ignored:
 - `*.lnk`
 - `favs.csv`
 
-The Robot Hand asset folders are intentionally ignored because they are large local assets rather than source:
+The Genau asset folders are intentionally ignored because they are large local assets rather than source:
 
-- `fun_time/robot_hand/clips/`
-- `fun_time/robot_hand/audio/`
+- `fun_time/genau/clips/`
+- `fun_time/genau/audio/`
 
 ## Current source of truth
 
@@ -649,9 +649,9 @@ These are the files that define the working system:
 - `fun_time/orchestrator.py`
 - `fun_time/broker_app.py`
 - `fun_time/audio_companion_app.py`
-- `fun_time/robot_hand/app.py`
-- `fun_time/robot_hand/state.py`
-- `fun_time/robot_hand/video.py`
+- `fun_time/genau/app.py`
+- `fun_time/genau/state.py`
+- `fun_time/genau/video.py`
 
 ## Refactors completed
 
@@ -659,7 +659,7 @@ Completed from the earlier cleanup list:
 
 - orchestration now lives in `fun_time/orchestrator.py`, with `main.sh` kept as a thin wrapper
 - config is centralized in `fun_time_config.json`
-- Robot Hand is modularized under `fun_time/robot_hand/`
+- Genau is modularized under `fun_time/genau/`
 - window/layout constants are configurable through `controller.layout`
 - runtime logging and diagnostics are written to `state/*.log`
 
@@ -710,5 +710,5 @@ bash test.sh -k clipper
 | `tests/test_config.py` | `fun_time.config` — loading, validation, derived properties |
 | `tests/test_logging_utils.py` | `fun_time.logging_utils` — handler setup, exception hooks |
 | `tests/test_orchestrator.py` | `fun_time.orchestrator` — arg parsing, path checks, controller arg building |
-| `tests/test_robot_hand_state.py` | `fun_time.robot_hand.state` — `SharedState` defaults, UDP message parsing |
-| `tests/test_robot_hand_video.py` | `fun_time.robot_hand.video` — `scan_clips`, supported extensions |
+| `tests/test_genau_state.py` | `fun_time.genau.state` — `SharedState` defaults, UDP message parsing |
+| `tests/test_genau_video.py` | `fun_time.genau.video` — `scan_clips`, supported extensions |

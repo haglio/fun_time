@@ -16,7 +16,7 @@ Add-Type -AssemblyName System.Drawing
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $stateDir = Join-Path $projectRoot 'state'
 $brokerLog = Join-Path $stateDir 'broker.log'
-$modeFile = Join-Path $stateDir 'robot_hand_mode.txt'
+$modeFile = Join-Path $stateDir 'genau_mode.txt'
 $runnerScript = Join-Path $PSScriptRoot 'run_broker_service.ps1'
 $trayIconPath = Join-Path $projectRoot 'broker_icon.ico'
 

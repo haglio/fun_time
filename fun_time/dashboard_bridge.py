@@ -9,7 +9,7 @@ def build_dashboard_snapshot_text(
     robot_link_enabled: bool,
     osr2_mode: str,
     mfp_alive: bool,
-    primary_uses_robot_hand: bool,
+    primary_uses_genau: bool,
     portrait_locked: bool,
     landscape_locked: bool,
     omni_paused: bool = False,
@@ -26,7 +26,7 @@ def build_dashboard_snapshot_text(
         "[omnipause]\n"
         f"active={'1' if omni_paused else '0'}\n"
         "[primary]\n"
-        f"uses_robot_hand={'1' if primary_uses_robot_hand else '0'}\n"
+        f"uses_genau={'1' if primary_uses_genau else '0'}\n"
         "locked=0\n"
         "[portrait]\n"
         f"locked={'1' if portrait_locked else '0'}\n"
@@ -55,7 +55,7 @@ def write_dashboard_snapshot(
     robot_link_enabled: bool,
     osr2_mode: str,
     mfp_alive: bool,
-    primary_uses_robot_hand: bool,
+    primary_uses_genau: bool,
     portrait_locked: bool,
     landscape_locked: bool,
     omni_paused: bool = False,
@@ -66,7 +66,7 @@ def write_dashboard_snapshot(
         robot_link_enabled=robot_link_enabled,
         osr2_mode=osr2_mode,
         mfp_alive=mfp_alive,
-        primary_uses_robot_hand=primary_uses_robot_hand,
+        primary_uses_genau=primary_uses_genau,
         portrait_locked=portrait_locked,
         landscape_locked=landscape_locked,
         omni_paused=omni_paused,
