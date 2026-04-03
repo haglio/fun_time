@@ -409,3 +409,109 @@ class TestLoadingScreenLifecycle:
         # No loading screen subprocess should have been launched
         loading_cmds = [c for c in popen_calls if "loading_screen" in str(c)]
         assert len(loading_cmds) == 0, "Loading screen launched in integration mode"
+
+
+class TestVoiceControlIntegration:
+    def test_voice_controller_started_when_enabled(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        path = cfg_factory({"voice_control": {"enabled": True, "model_path": "test-model"}})
+        cfg = load_config(path)
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            if "loading_screen" in str(cmd):
+                return fake_loading_proc
+            return fake_ahk_proc
+
+        mock_vc = MagicMock()
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", True), \
+             patch("fun_time.windows_bridge_orchestrator.VoiceController", return_value=mock_vc):
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        mock_vc.stop.assert_called_once()
+
+    def test_voice_controller_skipped_when_not_available(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        path = cfg_factory({"voice_control": {"enabled": True, "model_path": "test-model"}})
+        cfg = load_config(path)
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            if "loading_screen" in str(cmd):
+                return fake_loading_proc
+            return fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", False), \
+             patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class:
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        mock_vc_class.assert_not_called()
+
+    def test_voice_controller_skipped_when_disabled(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        # voice_control section absent → defaults to disabled
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            if "loading_screen" in str(cmd):
+                return fake_loading_proc
+            return fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", True), \
+             patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class:
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        mock_vc_class.assert_not_called()

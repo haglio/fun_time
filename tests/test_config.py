@@ -273,3 +273,36 @@ class TestProjectConfigProperties:
     def test_random_favs_browser_manifest_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.random_favs_browser_manifest_file == (tmp_path / "state" / "random_favs_browser_urls.txt").resolve()
+
+
+# ---------------------------------------------------------------------------
+# VoiceControlConfig
+# ---------------------------------------------------------------------------
+
+class TestVoiceControlConfig:
+    def test_missing_section_defaults_disabled(self, cfg_factory):
+        path = cfg_factory()
+        cfg = load_config(path)
+        assert cfg.voice_control.enabled is False
+
+    def test_loads_when_present(self, cfg_factory, tmp_path: Path):
+        path = cfg_factory({
+            "voice_control": {
+                "enabled": True,
+                "model_path": "vosk-model-small-en-us-0.15",
+                "sample_rate": 8000,
+                "confidence_threshold": 0.6,
+                "device_index": 2,
+            },
+        })
+        cfg = load_config(path)
+        assert cfg.voice_control.enabled is True
+        assert cfg.voice_control.model_path == "vosk-model-small-en-us-0.15"
+        assert cfg.voice_control.sample_rate == 8000
+        assert cfg.voice_control.confidence_threshold == 0.6
+        assert cfg.voice_control.device_index == 2
+
+    def test_raises_on_wrong_type(self, cfg_factory):
+        path = cfg_factory({"voice_control": "not-a-dict"})
+        with pytest.raises(TypeError):
+            load_config(path)

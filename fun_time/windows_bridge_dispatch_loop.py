@@ -218,6 +218,35 @@ class DispatchLoopRunner:
                         daemon=True,
                         name="file-dialog",
                     ).start()
+            # -- idempotent voice commands --
+            elif cmd == "pause":
+                if not self.state.omni_paused:
+                    self._handle_omnipause_toggle()
+            elif cmd == "play":
+                if self.state.omni_paused:
+                    self._handle_omnipause_toggle()
+            elif cmd == "portrait_lock_on":
+                if not self.state.locked2:
+                    self._dispatch("portrait_lock")
+            elif cmd == "landscape_lock_on":
+                if not self.state.locked3:
+                    self._dispatch("landscape_lock")
+            elif cmd == "fmode_on":
+                if not self.state.f_mode_enabled:
+                    self._dispatch("fmode_toggle")
+            elif cmd == "fmode_off":
+                if self.state.f_mode_enabled:
+                    self._dispatch("fmode_toggle")
+            elif cmd == "genau_enable":
+                if not read_flag_file(self.config.genau_enabled_file, True):
+                    self._dispatch("robot_toggle")
+            elif cmd == "genau_disable":
+                if read_flag_file(self.config.genau_enabled_file, True):
+                    self._dispatch("robot_toggle")
+            elif cmd == "broker_start":
+                self._handle_broker_start()
+            elif cmd == "broker_stop":
+                self._handle_broker_stop()
             else:
                 self._dispatch(cmd)
 
@@ -373,14 +402,35 @@ class DispatchLoopRunner:
             if hwnd:
                 set_always_on_top(hwnd, True)
 
+    def _is_broker_alive(self) -> bool:
+        hb = self.config.broker_heartbeat_file
+        return hb is not None and is_broker_heartbeat_fresh(hb)
+
     def _handle_broker_toggle(self) -> None:
         """Stop broker if running, start it if stopped."""
         project_dir = self.config.state_dir.parent
-        heartbeat_file = self.config.broker_heartbeat_file
-        if heartbeat_file is not None and is_broker_heartbeat_fresh(heartbeat_file):
+        if self._is_broker_alive():
             stop_broker_processes(project_dir)
         else:
             restart_broker(project_dir)
+
+    def _handle_broker_start(self) -> None:
+        """Start broker only if not already running."""
+        if not self._is_broker_alive():
+            threading.Thread(
+                target=lambda: restart_broker(self.config.state_dir.parent),
+                daemon=True,
+                name="broker-start",
+            ).start()
+
+    def _handle_broker_stop(self) -> None:
+        """Stop broker only if currently running."""
+        if self._is_broker_alive():
+            threading.Thread(
+                target=lambda: stop_broker_processes(self.config.state_dir.parent),
+                daemon=True,
+                name="broker-stop",
+            ).start()
 
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows."""

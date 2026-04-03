@@ -15,7 +15,9 @@ import sys
 import threading
 from pathlib import Path
 
+from .config import load_config
 from .startup_progress import NullProgress, StartupProgress
+from .voice_control import VOICE_AVAILABLE, VoiceController
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -265,6 +267,24 @@ def run_python_orchestrated_bridge(
     dispatch_thread.start()
     logger.info("Background dispatch loop started")
 
+    # --- Optional voice control ---
+    voice_controller: VoiceController | None = None
+    voice_thread: threading.Thread | None = None
+    cfg = load_config(manifest["runtime"]["config_path"])
+    if VOICE_AVAILABLE and cfg.voice_control.enabled:
+        voice_controller = VoiceController(
+            cmd_file=dashboard_cmd_file,
+            model_path=cfg.voice_control.model_path,
+            confidence_threshold=cfg.voice_control.confidence_threshold,
+            device_index=cfg.voice_control.device_index,
+            sample_rate=cfg.voice_control.sample_rate,
+        )
+        voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
+        voice_thread.start()
+        logger.info("Voice control started")
+    elif cfg.voice_control.enabled:
+        logger.warning("Voice control enabled in config but vosk/sounddevice not installed")
+
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
     if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
         ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
@@ -280,6 +300,10 @@ def run_python_orchestrated_bridge(
         logger.info("Interrupted — shutting down")
         exit_code = 1
     finally:
+        if voice_controller is not None:
+            voice_controller.stop()
+        if voice_thread is not None:
+            voice_thread.join(timeout=2.0)
         dispatch_runner.stop()
         dispatch_thread.join(timeout=2.0)
         logger.info("AHK exited — shutting down child processes")

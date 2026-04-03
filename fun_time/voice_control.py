@@ -1,0 +1,152 @@
+"""Voice control module for Fun Time.
+
+Uses Vosk (offline speech recognition) with a restricted grammar to
+recognize voice commands and write them to the dashboard command file,
+where the dispatch loop picks them up identically to AHK hotkey commands.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import threading
+from pathlib import Path
+
+VOICE_COMMANDS: dict[str, str] = {
+    "quit": "quit",
+    "pause": "pause",
+    "play": "play",
+    "lock landscape": "landscape_lock_on",
+    "lock portrait": "portrait_lock_on",
+    "next landscape": "landscape_next",
+    "next portrait": "portrait_next",
+    "previous landscape": "landscape_prev",
+    "previous portrait": "portrait_prev",
+    "weird landscape": "landscape_trash",
+    "weird portrait": "portrait_trash",
+    "f mode on": "fmode_on",
+    "f mode off": "fmode_off",
+    "enable genau": "genau_enable",
+    "disable genau": "genau_disable",
+    "start broker": "broker_start",
+    "stop broker": "broker_stop",
+    "next primary": "primary_next",
+    "previous primary": "primary_prev",
+    "skip": "vlc_nudge_next",
+    "back": "vlc_nudge_prev",
+}
+
+
+def build_grammar() -> str:
+    """Build a Vosk grammar JSON string from VOICE_COMMANDS."""
+    phrases = sorted(VOICE_COMMANDS.keys())
+    phrases.append("[unk]")
+    return json.dumps(phrases)
+
+
+def parse_vosk_result(raw_json: str, *, threshold: float) -> str | None:
+    """Parse a Vosk recognizer result and return the dispatch command, or None.
+
+    Returns None if the text is empty, unknown, "[unk]", or if the average
+    per-word confidence is below *threshold*.  When Vosk omits confidence
+    data (common in grammar mode), the phrase is accepted.
+    """
+    data = json.loads(raw_json)
+    text = data.get("text", "").strip()
+    if not text or text == "[unk]":
+        return None
+    command = VOICE_COMMANDS.get(text)
+    if command is None:
+        return None
+    words = data.get("result")
+    if words:
+        avg_conf = sum(w.get("conf", 0) for w in words) / len(words)
+        if avg_conf < threshold:
+            return None
+    return command
+
+
+try:
+    import vosk
+    import sounddevice as sd
+except ImportError:  # optional dependency — voice control silently unavailable
+    vosk = None  # type: ignore[assignment]
+    sd = None  # type: ignore[assignment]
+
+VOICE_AVAILABLE = vosk is not None and sd is not None
+
+logger = logging.getLogger(__name__)
+
+
+class VoiceController:
+    """Listens for voice commands and writes them to the dashboard command file."""
+
+    def __init__(
+        self,
+        *,
+        cmd_file: Path | str,
+        model_path: str,
+        confidence_threshold: float = 0.7,
+        device_index: int | None = None,
+        sample_rate: int = 16000,
+    ) -> None:
+        self.cmd_file = Path(cmd_file)
+        self.model_path = model_path
+        self.confidence_threshold = confidence_threshold
+        self.device_index = device_index
+        self.sample_rate = sample_rate
+        self._stop = threading.Event()
+
+    def _write_command(self, command: str) -> None:
+        """Append a command to the dashboard command file."""
+        with self.cmd_file.open("a", encoding="utf-8") as f:
+            f.write(command + "\n")
+
+    def stop(self) -> None:
+        """Signal the run loop to stop."""
+        self._stop.set()
+
+    def run(self) -> None:
+        """Blocking listen loop — call from a daemon thread.
+
+        Reads audio from the default microphone, feeds it to Vosk with
+        a restricted grammar, and writes recognized commands to the
+        dashboard command file.
+        """
+        if not VOICE_AVAILABLE:
+            raise ImportError("vosk and sounddevice are required for voice control")
+
+        import queue as _queue
+
+        audio_q: _queue.Queue[bytes] = _queue.Queue()
+
+        def _callback(indata, frames, time_info, status):
+            if status:
+                logger.debug("audio status: %s", status)
+            audio_q.put(bytes(indata))
+
+        model = vosk.Model(model_name=self.model_path)
+        grammar = build_grammar()
+        rec = vosk.KaldiRecognizer(model, self.sample_rate, grammar)
+        logger.info("Voice control started (model=%s, rate=%d)", self.model_path, self.sample_rate)
+
+        with sd.RawInputStream(
+            samplerate=self.sample_rate,
+            blocksize=8000,
+            dtype="int16",
+            channels=1,
+            device=self.device_index,
+            callback=_callback,
+        ):
+            while not self._stop.is_set():
+                try:
+                    data = audio_q.get(timeout=0.5)
+                except _queue.Empty:
+                    continue
+                if rec.AcceptWaveform(data):
+                    result = rec.Result()
+                    command = parse_vosk_result(result, threshold=self.confidence_threshold)
+                    if command:
+                        logger.info("Voice command: %s", command)
+                        self._write_command(command)
+
+        logger.info("Voice control stopped")
