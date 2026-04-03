@@ -96,7 +96,7 @@ class TestPollDashboardCommands:
 
 class TestExecuteWindowOps:
     def test_set_topmost_calls_win32(self):
-        ops = [WindowOp(op="set_topmost", title="Robot Hand", value=True)]
+        ops = [WindowOp(op="set_topmost", title="Genau", value=True)]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost:
             remaining = execute_window_ops(ops, primary_pid=1)
@@ -106,7 +106,7 @@ class TestExecuteWindowOps:
 
     def test_activate_calls_win32(self, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        ops = [WindowOp(op="activate", title="Robot Hand")]
+        ops = [WindowOp(op="activate", title="Genau")]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
             remaining = execute_window_ops(ops, primary_pid=1)
@@ -116,7 +116,7 @@ class TestExecuteWindowOps:
 
     def test_show_calls_win32(self, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        ops = [WindowOp(op="show", title="Robot Hand")]
+        ops = [WindowOp(op="show", title="Genau")]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
              patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show:
             remaining = execute_window_ops(ops, primary_pid=1)
@@ -125,7 +125,7 @@ class TestExecuteWindowOps:
         assert remaining == []
 
     def test_hide_calls_win32(self):
-        ops = [WindowOp(op="hide", title="Robot Hand")]
+        ops = [WindowOp(op="hide", title="Genau")]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
              patch("fun_time.windows_bridge_dispatch_loop.hide_window") as mock_hide:
             remaining = execute_window_ops(ops, primary_pid=1)
@@ -727,7 +727,7 @@ class TestRobotHandActivationRetry:
              patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
             runner.tick()
 
-        mock_find.assert_called_with("Robot Hand")
+        mock_find.assert_called_with("Genau")
         mock_show.assert_not_called()
         mock_topmost.assert_called_with(12345, True)
         mock_activate.assert_called_with(12345)
