@@ -249,7 +249,7 @@ def stamp_shortcut_aumid() -> None:
     pin_dir = _taskbar_pin_dir()
     if pin_dir.is_dir():
         for lnk in pin_dir.glob("*.lnk"):
-            if "fun" in lnk.stem.lower():
+            if lnk.stem.lower() == "fun time":
                 candidates.append(lnk)
 
     for lnk in candidates:
