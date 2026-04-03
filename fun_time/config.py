@@ -117,6 +117,15 @@ class RandomFavsBrowserConfig:
 
 
 @dataclass(frozen=True)
+class VoiceControlConfig:
+    enabled: bool
+    model_path: str
+    device_index: int | None = None
+    sample_rate: int = 16000
+    confidence_threshold: float = 0.7
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     project_dir: Path
     config_path: Path
@@ -126,6 +135,7 @@ class ProjectConfig:
     genau: GenauConfig
     audio_companion: AudioCompanionConfig
     random_favs_browser: RandomFavsBrowserConfig
+    voice_control: VoiceControlConfig
 
     @property
     def genau_mode_file(self) -> Path:
@@ -290,6 +300,17 @@ def _load_random_favs_browser_config(browser_raw: dict[str, Any] | None) -> Rand
     )
 
 
+def _load_voice_control_config(voice_raw: dict[str, Any] | None) -> VoiceControlConfig:
+    values = voice_raw or {}
+    return VoiceControlConfig(
+        enabled=bool(values.get("enabled", False)),
+        model_path=str(values.get("model_path", "vosk-model-small-en-us-0.15")),
+        device_index=int(values["device_index"]) if values.get("device_index") is not None else None,
+        sample_rate=int(values.get("sample_rate", 16000)),
+        confidence_threshold=float(values.get("confidence_threshold", 0.7)),
+    )
+
+
 def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     path = _resolve_config_path(config_path)
     if not path.exists():
@@ -305,6 +326,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     browser_raw = _require_optional_dict(raw, "random_favs_browser", path)
     if browser_raw is None:
         browser_raw = _require_optional_dict(raw, "chrome_overlay", path)
+    voice_raw = _require_optional_dict(raw, "voice_control", path)
 
     return ProjectConfig(
         project_dir=PROJECT_DIR,
@@ -315,6 +337,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         genau=_load_genau_config(robot_raw, path),
         audio_companion=_load_audio_companion_config(audio_raw, path),
         random_favs_browser=_load_random_favs_browser_config(browser_raw),
+        voice_control=_load_voice_control_config(voice_raw),
     )
 
 

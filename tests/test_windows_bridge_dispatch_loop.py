@@ -1404,3 +1404,281 @@ class TestUpdateDashboardOsr2Off:
             runner._update_dashboard()
 
         assert self._read_osr2_mode(tmp_path) == "auto"
+
+
+# ---------------------------------------------------------------------------
+# Idempotent voice commands
+# ---------------------------------------------------------------------------
+
+class TestIdempotentVoiceCommands:
+    """Tests for idempotent command variants used by voice control.
+
+    Each command checks current state before acting — saying "pause" while
+    already paused is a no-op, not an unpause.
+    """
+
+    def _make_runner(self, tmp_path, **kwargs):
+        from fun_time.command_dispatch import BridgeConfig
+
+        config = BridgeConfig(
+            primary_port=9090,
+            portrait_port=9091,
+            landscape_port=9092,
+            vlc_password="test",
+            favs_file=tmp_path / "favs.txt",
+            weird_dir=tmp_path / "weird",
+            state_dir=tmp_path,
+            primary_sources="",
+            portrait_sources="",
+            landscape_sources="",
+            genau_enabled_file=tmp_path / "rh_enabled.txt",
+            genau_mode_file=tmp_path / "rh_mode.txt",
+            genau_cmd_file=tmp_path / "rh_cmd.txt",
+            genau_paused_file=tmp_path / "rh_paused.txt",
+            audio_paused_file=tmp_path / "audio_paused.txt",
+            dashboard_state_file=tmp_path / "dashboard_state.ini",
+            broker_heartbeat_file=tmp_path / "broker_heartbeat.txt",
+        )
+        return DispatchLoopRunner(
+            config=config,
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            shared_state_file=tmp_path / "shared_state.ini",
+            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            primary_pid=100,
+            mfp_pid=200,
+            portrait_pid=300,
+            landscape_pid=400,
+            dashboard_pid=500,
+            dashboard_enabled=False,
+            **kwargs,
+        )
+
+    def _queue_and_tick(self, runner, tmp_path, cmd):
+        """Write a command and tick the runner with mocked externals."""
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text(cmd, encoding="utf-8")
+        runner._last_sync = float("inf")
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", wraps=None) as mock_dc:
+            # Let dispatch_command return current state unchanged
+            mock_dc.return_value = (runner.state, [])
+            runner.tick()
+            return mock_dc
+
+    # -- pause / play --
+
+    def test_pause_enters_omnipause_when_not_paused(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=False)
+        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("pause", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_toggle.assert_called_once()
+
+    def test_pause_noop_when_already_paused(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("pause", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_toggle.assert_not_called()
+
+    def test_play_leaves_omnipause_when_paused(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("play", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_toggle.assert_called_once()
+
+    def test_play_noop_when_not_paused(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=False)
+        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("play", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_toggle.assert_not_called()
+
+    # -- lock portrait / lock landscape --
+
+    def test_portrait_lock_on_dispatches_when_unlocked(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(locked2=False)
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("portrait_lock_on", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_called_once_with("portrait_lock")
+
+    def test_portrait_lock_on_noop_when_locked(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(locked2=True)
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("portrait_lock_on", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_not_called()
+
+    def test_landscape_lock_on_dispatches_when_unlocked(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(locked3=False)
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("landscape_lock_on", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_called_once_with("landscape_lock")
+
+    def test_landscape_lock_on_noop_when_locked(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(locked3=True)
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("landscape_lock_on", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_not_called()
+
+    # -- fmode on / fmode off --
+
+    def test_fmode_on_dispatches_when_disabled(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(f_mode_enabled=False)
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("fmode_on", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_called_once_with("fmode_toggle")
+
+    def test_fmode_on_noop_when_enabled(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(f_mode_enabled=True)
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("fmode_on", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_not_called()
+
+    def test_fmode_off_dispatches_when_enabled(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(f_mode_enabled=True)
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("fmode_off", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_called_once_with("fmode_toggle")
+
+    def test_fmode_off_noop_when_disabled(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(f_mode_enabled=False)
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("fmode_off", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_not_called()
+
+    # -- genau enable / genau disable --
+
+    def test_genau_enable_dispatches_when_disabled(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        (tmp_path / "rh_enabled.txt").write_text("0", encoding="utf-8")
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("genau_enable", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_called_once_with("robot_toggle")
+
+    def test_genau_enable_noop_when_already_enabled(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        (tmp_path / "rh_enabled.txt").write_text("1", encoding="utf-8")
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("genau_enable", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_not_called()
+
+    def test_genau_disable_dispatches_when_enabled(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        (tmp_path / "rh_enabled.txt").write_text("1", encoding="utf-8")
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("genau_disable", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_called_once_with("robot_toggle")
+
+    def test_genau_disable_noop_when_already_disabled(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        (tmp_path / "rh_enabled.txt").write_text("0", encoding="utf-8")
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("genau_disable", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_not_called()
+
+    # -- broker start / broker stop --
+
+    def test_broker_start_starts_when_not_running(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        # No heartbeat file → broker not running
+        with patch("fun_time.windows_bridge_dispatch_loop.restart_broker") as mock_restart:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("broker_start", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+            import time; time.sleep(0.2)  # daemon thread
+        mock_restart.assert_called_once()
+
+    def test_broker_start_noop_when_already_running(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        # Fresh heartbeat → broker running
+        import time as _time
+        (tmp_path / "broker_heartbeat.txt").write_text(str(_time.time()), encoding="utf-8")
+        with patch("fun_time.windows_bridge_dispatch_loop.restart_broker") as mock_restart:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("broker_start", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_restart.assert_not_called()
+
+    def test_broker_stop_stops_when_running(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        import time as _time
+        (tmp_path / "broker_heartbeat.txt").write_text(str(_time.time()), encoding="utf-8")
+        with patch("fun_time.windows_bridge_dispatch_loop.stop_broker_processes") as mock_stop:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("broker_stop", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+            import time; time.sleep(0.2)  # daemon thread
+        mock_stop.assert_called_once()
+
+    def test_broker_stop_noop_when_not_running(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        # No heartbeat file → broker not running
+        with patch("fun_time.windows_bridge_dispatch_loop.stop_broker_processes") as mock_stop:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("broker_stop", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_stop.assert_not_called()
