@@ -144,19 +144,6 @@ def set_always_on_top(hwnd: int, on_top: bool) -> None:
     _user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
 
 
-def place_window_behind(hwnd: int, behind_hwnd: int) -> bool:
-    """Place *hwnd* directly behind *behind_hwnd* in the z-order.
-
-    Both windows must be in the same z-band (both topmost or both
-    non-topmost).  Returns True if SetWindowPos succeeded.
-    """
-    return bool(_user32.SetWindowPos(
-        ctypes.wintypes.HWND(hwnd),
-        ctypes.wintypes.HWND(behind_hwnd),
-        0, 0, 0, 0,
-        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-    ))
-
 
 def is_window_topmost(hwnd: int) -> bool:
     """Check whether a window has the WS_EX_TOPMOST extended style."""
