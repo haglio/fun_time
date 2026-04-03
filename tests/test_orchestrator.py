@@ -148,7 +148,7 @@ class TestControllerManifest:
     def test_robot_hand_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["modules"]["robot_hand_module"] == "fun_time.robot_hand.app"
+        assert result["modules"]["robot_hand_module"] == "genau"
 
     def test_audio_companion_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)

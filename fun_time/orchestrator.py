@@ -60,7 +60,8 @@ def validate_config(config) -> None:
     require_file(config.project_dir / "windows_bridge_hotkeys.ahk")
     require_file(config.project_dir / "scripts" / "run_broker_service.ps1")
     require_file(config.project_dir / "fun_time" / "broker_app.py")
-    require_file(config.project_dir / "fun_time" / "robot_hand" / "app.py")
+    if config.paths.genau_config_path:
+        require_file(config.paths.genau_config_path)
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
 
 

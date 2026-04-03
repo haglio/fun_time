@@ -49,6 +49,8 @@ class PathsConfig:
     audio_dir: Path
     favs_file: Path
     state_dir: Path
+    genau_python_exe: Path | None = None
+    genau_config_path: Path | None = None
 
     @property
     def primary_vlc_dir(self) -> Path:
@@ -142,7 +144,7 @@ class ProjectConfig:
 
     @property
     def robot_hand_cmd_file(self) -> Path:
-        return self.paths.state_dir / "robot_hand_cmd.txt"
+        return self.paths.state_dir / "genau_cmd.txt"
 
     @property
     def robot_hand_enabled_file(self) -> Path:
@@ -150,7 +152,7 @@ class ProjectConfig:
 
     @property
     def robot_hand_paused_file(self) -> Path:
-        return self.paths.state_dir / "robot_hand_paused.txt"
+        return self.paths.state_dir / "genau_paused.txt"
 
     @property
     def broker_cmd_file(self) -> Path:
@@ -238,6 +240,8 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path) -> PathsCon
         audio_dir=_require_path_value(paths_raw, "audio_dir", source_path, "config.paths"),
         favs_file=_require_path_value(paths_raw, "favs_file", source_path, "config.paths"),
         state_dir=_require_path_value(paths_raw, "state_dir", source_path, "config.paths"),
+        genau_python_exe=_resolve_path(PROJECT_DIR, paths_raw["genau_python_exe"]) if paths_raw.get("genau_python_exe") else None,
+        genau_config_path=_resolve_path(PROJECT_DIR, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
     )
 
 

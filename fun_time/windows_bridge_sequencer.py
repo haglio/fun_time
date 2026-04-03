@@ -136,9 +136,9 @@ def run_startup_sequence(
     # (same as Primary VLC), so no MFP window is needed.
     rh_rect = _compute_robot_hand_rect(m)
     robot_hand_pid = launch_robot_hand(
-        python_exe=m["executables"]["python_exe"],
+        python_exe=m["executables"]["genau_python_exe"],
         robot_hand_module=m["modules"]["robot_hand_module"],
-        config_path=m["runtime"]["config_path"],
+        config_path=m["runtime"]["genau_config_path"],
         clips_folder=m["media"]["robot_hand_clips"],
         robot_x=rh_rect.x,
         robot_y=rh_rect.y,

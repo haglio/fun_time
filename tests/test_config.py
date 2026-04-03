@@ -253,11 +253,11 @@ class TestProjectConfigProperties:
 
     def test_robot_hand_cmd_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.robot_hand_cmd_file == (tmp_path / "state" / "robot_hand_cmd.txt").resolve()
+        assert cfg.robot_hand_cmd_file == (tmp_path / "state" / "genau_cmd.txt").resolve()
 
     def test_robot_hand_paused_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.robot_hand_paused_file == (tmp_path / "state" / "robot_hand_paused.txt").resolve()
+        assert cfg.robot_hand_paused_file == (tmp_path / "state" / "genau_paused.txt").resolve()
 
     def test_broker_cmd_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
