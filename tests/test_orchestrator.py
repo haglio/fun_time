@@ -331,6 +331,18 @@ class TestBrokerHelpers:
         starter.assert_called_once_with(cfg, logger)
         sleeper.assert_called()
 
+    def test_ensure_broker_running_skips_poll_when_launch_not_configured(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+
+        with patch("fun_time.orchestrator.is_broker_running", return_value=False), \
+             patch("fun_time.orchestrator.start_broker", return_value=None), \
+             patch("fun_time.orchestrator.time.sleep") as sleeper:
+            result = ensure_broker_running(cfg, logger)
+
+        assert result is False
+        sleeper.assert_not_called()
+
     def test_ensure_broker_running_skips_start_when_present(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()

@@ -113,7 +113,8 @@ def ensure_broker_running(config, logger, *, attempts: int = 20, delay_seconds: 
     if is_broker_running():
         return True
 
-    start_broker(config, logger)
+    if start_broker(config, logger) is None:
+        return False
 
     for _ in range(max(1, attempts)):
         time.sleep(delay_seconds)
