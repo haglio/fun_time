@@ -33,7 +33,7 @@ def test_broker_tray_shows_status_as_disabled_menu_text():
 def test_broker_tray_uses_fun_time_icon_when_available():
     text = _read("scripts/broker_tray.ps1")
 
-    assert "$trayIconPath = Join-Path $projectRoot 'icon.ico'" in text
+    assert "$trayIconPath = Join-Path $projectRoot 'broker_icon.ico'" in text
     assert "$trayIcon = New-Object System.Drawing.Icon($trayIconPath)" in text
     assert "$notifyIcon.Icon = $trayIcon" in text
     assert "$script:trayIcon = $trayIcon" in text

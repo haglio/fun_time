@@ -18,7 +18,7 @@ $stateDir = Join-Path $projectRoot 'state'
 $brokerLog = Join-Path $stateDir 'broker.log'
 $modeFile = Join-Path $stateDir 'robot_hand_mode.txt'
 $runnerScript = Join-Path $PSScriptRoot 'run_broker_service.ps1'
-$trayIconPath = Join-Path $projectRoot 'icon.ico'
+$trayIconPath = Join-Path $projectRoot 'broker_icon.ico'
 
 function Get-BrokerProcess {
     Get-CimInstance Win32_Process | Where-Object {

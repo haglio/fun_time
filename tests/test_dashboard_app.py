@@ -1120,7 +1120,7 @@ def test_default_scene_shows_vlc_buttons(cfg_path: Path):
 
 
 def test_vlc_buttons_text_labels(cfg_path: Path):
-    """File dialog button shows folder icon, clipper shows [ ], nudge shows - and +."""
+    """File dialog button shows folder icon, nudge shows - and +, clipper is an image."""
     layout = _make_layout(cfg_path)
     snapshot = _make_snapshot(primary_uses_robot_hand=False)
 
@@ -1128,9 +1128,11 @@ def test_vlc_buttons_text_labels(cfg_path: Path):
 
     text_at = {item.rect: item.text for item in scene.texts}
     assert text_at[layout.open_file_dialog] == "\U0001F4C2"
-    assert text_at[layout.clipper_save] == "[ ]"
     assert text_at[layout.vlc_nudge_prev] == "\u2212"  # minus sign
     assert text_at[layout.vlc_nudge_next] == "+"
+    # Clipper save is now an image item, not a text item
+    image_rects = {item.rect for item in scene.images}
+    assert layout.clipper_save in image_rects
 
 
 def test_vlc_nudge_buttons_are_adjacent_not_edge_justified(cfg_path: Path):

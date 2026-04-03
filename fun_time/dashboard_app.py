@@ -91,8 +91,6 @@ COLOR_YELLOW = AMBER
 ICON_LOCK = "\U0001F512"
 ICON_TRASH = "\U0001F5D1"
 
-SIZE_CHIP = 7  # below SIZE_TINY — used for broker/fmode chip labels
-
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
     return QColor(
@@ -164,6 +162,12 @@ class DashboardTextItem:
 
 
 @dataclass(frozen=True)
+class DashboardImageItem:
+    pixmap: QPixmap
+    rect: Rect
+
+
+@dataclass(frozen=True)
 class DashboardRectItem:
     rect: Rect
     outline: QColor = field(default_factory=lambda: BORDER_PANEL)
@@ -178,6 +182,7 @@ class DashboardScene:
     texts: tuple[DashboardTextItem, ...]
     actions: tuple[tuple[str, Rect], ...]
     hover_texts: tuple[tuple[Rect, str], ...] = ()
+    images: tuple[DashboardImageItem, ...] = ()
     lines: tuple[DashboardLineItem, ...] = ()
     ovals: tuple[DashboardOvalItem, ...] = ()
     arcs: tuple[DashboardArcItem, ...] = ()
@@ -345,6 +350,27 @@ def get_preview_monitor_sizes(app_config: DashboardAppConfig) -> tuple[Size, Siz
     return Size(2560, 1392), Size(1440, 3440)
 
 
+_dashboard_pixmap_cache: dict[tuple[str, int], QPixmap] = {}
+
+
+def _load_icon_pixmap(filename: str, height: int) -> QPixmap:
+    """Load an icon .ico scaled to a square of *height* pixels, cached."""
+    key = (filename, height)
+    if key not in _dashboard_pixmap_cache:
+        from PyQt6.QtCore import Qt
+
+        ico_path = Path(__file__).resolve().parent.parent / filename
+        pm = QPixmap(str(ico_path))
+        if not pm.isNull():
+            pm = pm.scaled(
+                height, height,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        _dashboard_pixmap_cache[key] = pm
+    return _dashboard_pixmap_cache[key]
+
+
 def build_dashboard_scene(
     layout: DashboardPreviewLayout,
     snapshot: DashboardSnapshot | None = None,
@@ -359,8 +385,6 @@ def build_dashboard_scene(
     osr2_label = LABEL_OSR2
     mfp_label = LABEL_MFP
     cable_connected = True
-    broker_chip = "b"
-    fmode_chip = "f"
     primary_fill = COLOR_PANEL
     portrait_fill = COLOR_PANEL
     landscape_fill = COLOR_PANEL
@@ -469,7 +493,6 @@ def build_dashboard_scene(
     _font_ui_sm = make_font(FONT_UI, SIZE_SMALL, bold=True)
     _font_emoji = make_font(FONT_EMOJI, SIZE_SMALL)
     _font_ui_tiny = make_font(FONT_UI, SIZE_TINY, bold=True)
-    _font_chip = make_font(FONT_UI, SIZE_CHIP, bold=True)
     texts = (
         DashboardTextItem("\u23FB", layout.quit_button, font=_font_symbol),
         DashboardTextItem(omnipause_icon, layout.omnipause_button, font=_font_symbol),
@@ -490,15 +513,26 @@ def build_dashboard_scene(
                 DashboardTextItem("\u2212", layout.vlc_nudge_prev, font=_font_ui_sm),
                 DashboardTextItem("+", layout.vlc_nudge_next, font=_font_ui_sm),
                 DashboardTextItem("\U0001F4C2", layout.open_file_dialog, font=_font_emoji),
-                DashboardTextItem("[ ]", layout.clipper_save, font=_font_ui_tiny),
             )
         ),
         DashboardTextItem("<", layout.landscape_prev, font=_font_ui_sm),
         DashboardTextItem(">", layout.landscape_next, font=_font_ui_sm),
         DashboardTextItem(ICON_LOCK, layout.landscape_lock, font=_font_emoji),
         DashboardTextItem(ICON_TRASH, layout.landscape_trash, font=_font_emoji),
-        DashboardTextItem(broker_chip, layout.broker_panel, font=_font_chip),
-        DashboardTextItem(fmode_chip, layout.fmode_panel, font=_font_chip),
+    )
+    _icon_h = layout.broker_panel.height
+    images = (
+        DashboardImageItem(_load_icon_pixmap("broker_icon.ico", _icon_h), layout.broker_panel),
+        DashboardImageItem(_load_icon_pixmap("fmode_icon.ico", _icon_h), layout.fmode_panel),
+        *(
+            ()
+            if snapshot is not None and snapshot.primary_uses_robot_hand else (
+                DashboardImageItem(
+                    _load_icon_pixmap("clipper_icon.ico", layout.clipper_save.height),
+                    layout.clipper_save,
+                ),
+            )
+        ),
     )
     # Cable visual connecting OSR2 to Primary panel (schematic style)
     cable_y = layout.link_toggle.y + layout.link_toggle.height // 2
@@ -572,6 +606,7 @@ def build_dashboard_scene(
         height=layout.dashboard_height,
         rects=rects,
         texts=texts,
+        images=images,
         hover_texts=(
             (layout.quit_button, "Quit"),
             (layout.omnipause_button, "Pause all"),
@@ -615,7 +650,7 @@ def build_dashboard_scene(
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QToolTip
-from PyQt6.QtGui import QPainter, QPen, QBrush, QPainterPath
+from PyQt6.QtGui import QPainter, QPen, QBrush, QPainterPath, QPixmap
 
 
 class DashboardWidget(QWidget):
@@ -692,6 +727,14 @@ class DashboardWidget(QWidget):
             elif item.anchor == "n":
                 flags = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop
             p.drawText(rect, flags, item.text)
+
+        for item in scene.images:
+            if item.pixmap.isNull():
+                continue
+            # Center the square pixmap within the (possibly wider) rect
+            px_x = item.rect.x + (item.rect.width - item.pixmap.width()) // 2
+            px_y = item.rect.y + (item.rect.height - item.pixmap.height()) // 2
+            p.drawPixmap(px_x, px_y, item.pixmap)
 
         p.end()
 
