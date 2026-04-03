@@ -17,7 +17,7 @@ from pathlib import Path
 
 from .config import load_config
 from .startup_progress import NullProgress, StartupProgress
-from .voice_control import VOICE_AVAILABLE, VoiceController
+from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -136,7 +136,8 @@ def _add_dispatch_file_handler(log_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     handler = _AppendOnWriteHandler(log_path)
     for name in ("fun_time.command_dispatch", "fun_time.vlc_actions",
-                  "fun_time.windows_bridge_dispatch_loop"):
+                  "fun_time.windows_bridge_dispatch_loop", "fun_time.voice_control",
+                  "fun_time.windows_bridge_orchestrator"):
         lg = logging.getLogger(name)
         lg.setLevel(logging.DEBUG)
         lg.addHandler(handler)
@@ -271,20 +272,32 @@ def run_python_orchestrated_bridge(
     # --- Optional voice control ---
     voice_controller: VoiceController | None = None
     voice_thread: threading.Thread | None = None
-    cfg = load_config(manifest["runtime"]["config_path"])
-    if VOICE_AVAILABLE and cfg.voice_control.enabled:
-        voice_controller = VoiceController(
-            cmd_file=dashboard_cmd_file,
-            model_path=cfg.voice_control.model_path,
-            confidence_threshold=cfg.voice_control.confidence_threshold,
-            device_index=cfg.voice_control.device_index,
-            sample_rate=cfg.voice_control.sample_rate,
+    try:
+        cfg = load_config(manifest["runtime"]["config_path"])
+        voice_diag = (
+            f"VOICE_AVAILABLE={VOICE_AVAILABLE}, "
+            f"enabled={cfg.voice_control.enabled}, "
+            f"model={cfg.voice_control.model_path}, "
+            f"device={cfg.voice_control.device_index}"
         )
-        voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
-        voice_thread.start()
-        logger.info("Voice control started")
-    elif cfg.voice_control.enabled:
-        logger.warning("Voice control enabled in config but vosk/sounddevice not installed")
+        logger.info("Voice control check: %s", voice_diag)
+        if VOICE_AVAILABLE and cfg.voice_control.enabled:
+            voice_controller = VoiceController(
+                cmd_file=dashboard_cmd_file,
+                model_path=cfg.voice_control.model_path,
+                confidence_threshold=cfg.voice_control.confidence_threshold,
+                device_index=cfg.voice_control.device_index,
+                sample_rate=cfg.voice_control.sample_rate,
+            )
+            voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
+            voice_thread.start()
+            logger.info("Voice control thread launched")
+        elif cfg.voice_control.enabled:
+            logger.warning("Voice control enabled but import failed: %s", _VOICE_IMPORT_ERROR)
+        else:
+            logger.info("Voice control disabled in config")
+    except Exception:
+        logger.exception("Voice control setup failed")
 
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
     if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
