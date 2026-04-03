@@ -25,6 +25,7 @@ from .win32 import (
     find_window_by_title,
     hide_window,
     is_window_topmost,
+    place_window_behind,
     send_vk_to_window,
     send_key_to_window,
     set_always_on_top,
@@ -371,13 +372,10 @@ class DispatchLoopRunner:
                 set_always_on_top(hwnd, False)
 
     def _restore_all_topmost(self) -> None:
-        # Mirror the startup z-order sequence in windows_bridge_sequencer.py:
-        # 1. RFB first (so it ends up below everything set after it)
-        # 2. Non-dashboard PIDs
-        # 3. Dashboard toggle (False→True) — NEVER a bare True
-        # 4. Genau last (on top of all) if in genau mode
         genau_mode = self.state.genau_mode
 
+        # 1. Restore topmost on all windows (RFB first so it ends up
+        #    below everything set after it in the topmost band).
         if self.rfb_hwnd:
             set_always_on_top(self.rfb_hwnd, True)
 
@@ -392,34 +390,38 @@ class DispatchLoopRunner:
                 continue
             set_always_on_top(hwnd, True)
 
-        # Re-assert Dashboard topmost with a toggle (False→True).
-        # Dashboard manages its own WS_EX_TOPMOST via Qt's
-        # WindowStaysOnTopHint, which may re-assert topmost between
-        # _remove_all_topmost and here.  A bare HWND_TOPMOST is a
-        # no-op on an already-topmost window, so the toggle forces
-        # Windows to reinsert Dashboard at the front of the topmost
-        # band.  This matches the startup sequence exactly.
+        # 2. Dashboard toggle (False→True) — Dashboard has Qt's
+        #    WindowStaysOnTopHint which may re-assert topmost during
+        #    omnipause.  A bare HWND_TOPMOST is a no-op on an already-
+        #    topmost window.  Toggle forces re-insertion.
+        dash_hwnd = 0
         if self.dashboard_pid:
             dash_hwnd = find_window_by_pid(self.dashboard_pid)
             if dash_hwnd:
                 set_always_on_top(dash_hwnd, False)
                 set_always_on_top(dash_hwnd, True)
-                logger.debug(
-                    "Dashboard topmost toggled: hwnd=%d, now_topmost=%s",
-                    dash_hwnd, is_window_topmost(dash_hwnd),
-                )
             else:
-                logger.warning(
+                logger.info(
                     "Dashboard hwnd not found for pid %d during topmost restore",
                     self.dashboard_pid,
                 )
-        # Log RFB state for diagnostics
-        if self.rfb_hwnd:
-            logger.debug(
-                "RFB topmost state after restore: hwnd=%d, topmost=%s",
-                self.rfb_hwnd, is_window_topmost(self.rfb_hwnd),
+
+        # 3. Explicit z-order: place RFB behind Dashboard.  Previous
+        #    attempts relied solely on HWND_TOPMOST call ordering, which
+        #    is unreliable for cross-process topmost windows.  Explicit
+        #    relative positioning via SetWindowPos(rfb, dash, ...) is a
+        #    direct z-order instruction that Windows cannot ignore.
+        if self.rfb_hwnd and dash_hwnd:
+            ok = place_window_behind(self.rfb_hwnd, dash_hwnd)
+            logger.info(
+                "Placed RFB (hwnd=%d) behind Dashboard (hwnd=%d): "
+                "success=%s rfb_topmost=%s dash_topmost=%s",
+                self.rfb_hwnd, dash_hwnd, ok,
+                is_window_topmost(self.rfb_hwnd),
+                is_window_topmost(dash_hwnd),
             )
 
+        # 4. Genau last — on top of everything in genau mode.
         if genau_mode and self.genau_pid:
             hwnd = find_window_by_pid(self.genau_pid)
             if hwnd:

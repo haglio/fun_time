@@ -662,42 +662,38 @@ class TestGenauZOrder:
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True):
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.place_window_behind", return_value=True):
             runner._restore_all_topmost()
 
         assert (1001, False) in topmost_calls
         restored = {h for h, v in topmost_calls if v}
         assert {2001, 3001, 4001, 5001} <= restored
 
-    def test_restore_all_topmost_toggles_dashboard_above_rfb(self, tmp_path):
-        """Dashboard must get a topmost toggle (False→True) — never a bare
-        True — so it ends up above RFB, matching the startup sequence."""
+    def test_restore_all_topmost_places_rfb_behind_dashboard(self, tmp_path):
+        """RFB must be explicitly positioned behind Dashboard via
+        place_window_behind — not just via HWND_TOPMOST call ordering."""
         runner = self._make_runner(tmp_path, rfb_hwnd=7777)
         runner.state = BridgeState()
 
         topmost_calls: list[tuple[int, bool]] = []
+        place_calls: list[tuple[int, int]] = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True):
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.place_window_behind", side_effect=lambda h, b: place_calls.append((h, b)) or True):
             runner._restore_all_topmost()
 
-        # Dashboard (hwnd 5001) must ONLY appear via the toggle, never in
-        # the main PID loop — mirroring the startup code exactly.
+        # Dashboard must only get the toggle (False→True), never a bare True
         dash_calls = [(h, v) for h, v in topmost_calls if h == 5001]
-        assert dash_calls == [(5001, False), (5001, True)], (
-            f"Dashboard must get exactly False→True toggle, got {dash_calls}"
+        assert dash_calls == [(5001, False), (5001, True)]
+
+        # RFB must be explicitly placed behind Dashboard
+        assert (7777, 5001) in place_calls, (
+            f"Expected place_window_behind(rfb=7777, dash=5001), got {place_calls}"
         )
-        # The toggle must come after RFB's topmost and after all other PIDs
-        rfb_idx = topmost_calls.index((7777, True))
-        dash_false_idx = topmost_calls.index((5001, False))
-        assert rfb_idx < dash_false_idx, "Dashboard toggle must come after RFB topmost"
-        # All non-dashboard PID topmost calls must precede the toggle
-        non_dash_pids = {1001, 2001, 3001, 4001}
-        for h, v in topmost_calls:
-            if h in non_dash_pids and v:
-                assert topmost_calls.index((h, v)) < dash_false_idx
 
 
 class TestGenauActivationRetry:
