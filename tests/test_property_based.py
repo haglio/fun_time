@@ -8,43 +8,8 @@ from __future__ import annotations
 from hypothesis import given, assume, settings
 from hypothesis import strategies as st
 
-from fun_time.broker_protocol import parse_auto_transition, RE_BPM, RE_STROKE
 from fun_time.vlc_actions import decode_file_uri
 from fun_time.media_actions import csv_escape, to_file_uri, make_web_url_from_path
-
-
-# ---------------------------------------------------------------------------
-# broker_protocol: parse_auto_transition
-# ---------------------------------------------------------------------------
-
-@given(line=st.text(max_size=500))
-def test_parse_auto_transition_never_crashes(line: str):
-    result = parse_auto_transition(line)
-    assert result is None or isinstance(result, bool)
-
-
-@given(line=st.text(max_size=500))
-def test_parse_auto_transition_returns_none_without_mode_keywords(line: str):
-    assume("freemode" not in line.lower().replace("!", " "))
-    assume("free mode" not in line.lower().replace("!", " "))
-    assume("auto mode" not in line.lower().replace("!", " "))
-    assert parse_auto_transition(line) is None
-
-
-@given(line=st.text(max_size=500))
-def test_re_bpm_never_crashes(line: str):
-    result = RE_BPM.search(line)
-    if result:
-        assert result.group(1).isdigit()
-        assert result.group(2).isdigit()
-
-
-@given(line=st.text(max_size=500))
-def test_re_stroke_never_crashes(line: str):
-    result = RE_STROKE.search(line)
-    if result:
-        # group(2) should be a float-like string
-        float(result.group(2))
 
 
 # ---------------------------------------------------------------------------

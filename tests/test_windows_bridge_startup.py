@@ -18,7 +18,9 @@ from fun_time.windows_bridge_startup import (
 
 def test_restart_broker_stops_existing_processes_and_launches_tray(tmp_path: Path):
     project_dir = tmp_path
-    launch_path = project_dir / "launch_broker_tray.vbs"
+    osr2_broker_dir = project_dir.parent / "osr2_broker"
+    osr2_broker_dir.mkdir(parents=True, exist_ok=True)
+    launch_path = osr2_broker_dir / "launch_broker_tray.vbs"
     launch_path.write_text("", encoding="utf-8")
 
     with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
@@ -29,7 +31,7 @@ def test_restart_broker_stops_existing_processes_and_launches_tray(tmp_path: Pat
     run.assert_called_once()
     run_command = run.call_args.args[0]
     assert run_command[:4] == ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden"]
-    assert "fun_time\\.broker_app" in run_command[-1]
+    assert "osr2_broker\\.app" in run_command[-1]
     assert "launch_broker_tray\\.vbs" in run_command[-1]
     popen.assert_called_once_with(["wscript.exe", str(launch_path)], cwd=project_dir, creationflags=1)
 
@@ -57,7 +59,7 @@ def test_restart_broker_starts_broker_directly_during_integration(tmp_path: Path
     run.assert_called_once()
     command = popen.call_args.args[0]
     assert command[0].endswith("python.exe")
-    assert command[1:3] == ["-m", "fun_time.broker_app"]
+    assert command[1:3] == ["-m", "osr2_broker.app"]
     assert command[-2:] == ["--config", str(config_path.resolve())]
 
 

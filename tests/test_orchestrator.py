@@ -248,9 +248,6 @@ class TestValidateConfig:
         # Create AHK scripts
         (cfg.project_dir / "windows_bridge_hotkeys.ahk").touch()
         # Create Python entry points
-        broker_py = cfg.project_dir / "fun_time" / "broker_app.py"
-        broker_py.parent.mkdir(parents=True, exist_ok=True)
-        broker_py.touch()
         rh_py = cfg.project_dir / "fun_time" / "genau" / "app.py"
         rh_py.parent.mkdir(parents=True, exist_ok=True)
         rh_py.touch()
@@ -317,7 +314,7 @@ class TestBrokerHelpers:
         command = popen.call_args.args[0]
         assert command == [
             "wscript.exe",
-            str(cfg.project_dir / "launch_broker_tray.vbs"),
+            str(cfg.project_dir.parent / "osr2_broker" / "launch_broker_tray.vbs"),
         ]
 
     def test_start_broker_uses_direct_python_process_during_integration(self, cfg_path: Path, monkeypatch):
@@ -333,7 +330,7 @@ class TestBrokerHelpers:
 
         popen.assert_called_once()
         command = popen.call_args.args[0]
-        assert command[:3] == [str(cfg.paths.python_exe), "-m", "fun_time.broker_app"]
+        assert command[:3] == [str(cfg.paths.python_exe), "-m", "osr2_broker.app"]
         assert command[-2:] == ["--config", str(cfg.config_path)]
 
     def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path, monkeypatch):
@@ -385,20 +382,18 @@ class TestBrokerHelpers:
         tray_probe.assert_called_once_with()
         starter.assert_not_called()
 
-    def test_main_ensures_mfp_serial_port_before_broker_and_bridge(self, cfg_path: Path):
+    def test_main_ensures_mfp_vlc_endpoint_before_broker_and_bridge(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
              patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.ensure_mfp_serial_port") as ensure_mfp_port, \
              patch("fun_time.orchestrator.ensure_mfp_vlc_endpoint") as ensure_mfp_vlc_endpoint, \
              patch("fun_time.orchestrator.ensure_broker_running") as ensure_broker, \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_windows_bridge:
             result = main(["--config", str(cfg_path)])
 
         assert result == 0
-        ensure_mfp_port.assert_called_once()
         ensure_mfp_vlc_endpoint.assert_called_once()
         ensure_broker.assert_called_once()
         run_windows_bridge.assert_called_once()

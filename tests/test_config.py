@@ -127,11 +127,6 @@ class TestLoadConfig:
         assert cfg.layout.main_monitor == 1
         assert cfg.layout.secondary_monitor == 2
 
-    def test_loads_broker_settings(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        assert cfg.broker.baud == 115200
-        assert cfg.broker.auto_stale_timeout == 8.0
-
     def test_loads_genau_settings(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.genau.beats_per_loop == 1.0
@@ -258,10 +253,6 @@ class TestProjectConfigProperties:
     def test_genau_paused_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.genau_paused_file == (tmp_path / "state" / "genau_paused.txt").resolve()
-
-    def test_broker_cmd_file(self, cfg_path: Path, tmp_path: Path):
-        cfg = load_config(cfg_path)
-        assert cfg.broker_cmd_file == (tmp_path / "state" / "broker_cmd.txt").resolve()
 
     def test_genau_enabled_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)

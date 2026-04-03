@@ -87,14 +87,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "mfp_width_ratio": 0.9,
             "mfp_height_ratio": 0.6,
         },
-        "broker": {
-            "virtual_port": "COM15",
-            "real_port": "COM4",
-            "baud": 115200,
-            "udp_host": "127.0.0.1",
-            "udp_port": 50555,
-            "auto_stale_timeout": 8.0,
-        },
         "genau": {
             "shuffle_on_load": True,
             "beats_per_loop": 1.0,
