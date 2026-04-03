@@ -17,18 +17,18 @@ from fun_time.single_instance import (
 
 class TestTryAcquireMutex:
     def test_returns_handle_when_first_instance(self):
-        with patch("fun_time.single_instance._kernel32") as k32:
+        with patch("fun_time.single_instance._kernel32") as k32, \
+             patch("fun_time.single_instance._get_last_error", return_value=0):
             k32.CreateMutexW.return_value = 12345
-            k32.GetLastError.return_value = 0
             result = try_acquire_mutex("Global\\Test")
 
         assert result == 12345
         k32.CloseHandle.assert_not_called()
 
     def test_returns_none_when_already_running(self):
-        with patch("fun_time.single_instance._kernel32") as k32:
+        with patch("fun_time.single_instance._kernel32") as k32, \
+             patch("fun_time.single_instance._get_last_error", return_value=ERROR_ALREADY_EXISTS):
             k32.CreateMutexW.return_value = 99
-            k32.GetLastError.return_value = ERROR_ALREADY_EXISTS
             result = try_acquire_mutex("Global\\Test")
 
         assert result is None
@@ -40,6 +40,20 @@ class TestTryAcquireMutex:
             result = try_acquire_mutex("Global\\Test")
 
         assert result is None
+
+    def test_uses_ctypes_get_last_error_not_kernel32(self):
+        """Regression: _kernel32.GetLastError() can return stale data
+        because Python resets the per-thread error between ctypes calls.
+        Must use ctypes.get_last_error() with use_last_error=True."""
+        with patch("fun_time.single_instance._kernel32") as k32, \
+             patch("fun_time.single_instance._get_last_error", return_value=ERROR_ALREADY_EXISTS):
+            k32.CreateMutexW.return_value = 99
+            # Simulate stale GetLastError (the bug scenario)
+            k32.GetLastError.return_value = 0
+            result = try_acquire_mutex("Global\\Test")
+
+        assert result is None
+        k32.CloseHandle.assert_called_once_with(99)
 
 
 class TestShowAlreadyRunningMessage:
