@@ -32,6 +32,16 @@ class TestVoiceCommands:
             "previous primary": "primary_prev",
             "skip": "vlc_nudge_next",
             "back": "vlc_nudge_prev",
+            "speed down": "genau_speed_down",
+            "speed up": "genau_speed_up",
+            "amp down": "genau_amplitude_down",
+            "amp up": "genau_amplitude_up",
+            "center down": "genau_center_down",
+            "center up": "genau_center_up",
+            "cycle shape": "genau_cycle_shape",
+            "genau auto": "genau_toggle_auto",
+            "previous clip": "genau_prev_clip",
+            "next clip": "genau_next_clip",
         }
         assert VOICE_COMMANDS == expected
 
