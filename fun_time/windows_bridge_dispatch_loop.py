@@ -255,7 +255,7 @@ class DispatchLoopRunner:
         now = time.monotonic()
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
-            if self.state.genau_mode:
+            if self.state.genau_mode and not self.state.omni_paused:
                 self._enforce_genau_z_order()
             if self.dashboard_enabled:
                 self._update_dashboard()
