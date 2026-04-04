@@ -127,10 +127,6 @@ class FunTimeIntegrationSession:
         self.dashboard_cmd_file.parent.mkdir(parents=True, exist_ok=True)
         self.dashboard_cmd_file.write_text(action, encoding="utf-8")
 
-    def write_genau_mode(self, enabled: bool) -> None:
-        self.genau_mode_file.parent.mkdir(parents=True, exist_ok=True)
-        self.genau_mode_file.write_text("1" if enabled else "0", encoding="utf-8")
-
     def favs_contains(self, path: Path) -> bool:
         if not self.favs_file.exists():
             return False
