@@ -224,7 +224,6 @@ class TestControllerManifest:
         assert "windows_bridge_random_favs_browser_module" not in parser["modules"]
         assert "windows_bridge_startup_module" not in parser["modules"]
         assert "windows_bridge_dashboard_bridge_module" not in parser["modules"]
-        assert parser["commands"]["genau_enabled_file"] == str(cfg.genau_enabled_file)
         assert parser["commands"]["genau_paused_file"] == str(cfg.genau_paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
         assert parser["commands"]["dashboard_state_file"] == str(cfg.paths.state_dir / "dashboard_state.ini")

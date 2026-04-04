@@ -57,7 +57,7 @@ class TestHotkeyBindings:
         text = _hotkeys_text()
         expected_commands = [
             "primary_prev", "primary_next",
-            "robot_toggle", "fmode_toggle",
+            "genau_toggle", "fmode_toggle",
             "backslash_key",
             "vlc_nudge_prev", "vlc_nudge_next",
             "portrait_prev", "portrait_next", "portrait_trash", "portrait_lock",

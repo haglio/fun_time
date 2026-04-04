@@ -17,9 +17,8 @@ from .lock import build_lock_plan
 from .runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
-    apply_sync_genau,
     apply_toggle_fmode,
-    apply_toggle_genau_enabled,
+    apply_toggle_genau_active,
     build_omnipause_toggle,
     read_flag_file,
     write_flag_file,
@@ -58,7 +57,6 @@ class BridgeConfig:
     primary_sources: str
     portrait_sources: str
     landscape_sources: str
-    genau_enabled_file: Path
     genau_mode_file: Path
     genau_cmd_file: Path
     genau_paused_file: Path
@@ -78,10 +76,18 @@ class WindowOp:
     vk: int = 0
 
 
-def _effective_genau_mode(config: BridgeConfig) -> bool:
-    if not read_flag_file(config.genau_enabled_file, True):
-        return False
-    return read_flag_file(config.genau_mode_file, False)
+_GENAU_CMD_MAP = {
+    "genau_speed_down": "SPEED_DOWN",
+    "genau_speed_up": "SPEED_UP",
+    "genau_amplitude_down": "AMPLITUDE_DOWN",
+    "genau_amplitude_up": "AMPLITUDE_UP",
+    "genau_center_down": "CENTER_DOWN",
+    "genau_center_up": "CENTER_UP",
+    "genau_cycle_shape": "CYCLE_SHAPE",
+    "genau_toggle_auto": "TOGGLE_AUTO",
+    "genau_prev_clip": "PREV",
+    "genau_next_clip": "NEXT",
+}
 
 
 def _cancel_lock(which: int, state: BridgeState, config: BridgeConfig) -> BridgeState:
@@ -183,13 +189,8 @@ def dispatch_command(
         return state, ops
 
     if command in ("primary_prev", "primary_next"):
-        if _effective_genau_mode(config):
-            cmd = "PREV" if command == "primary_prev" else "NEXT"
-            write_flag_file(config.genau_cmd_file, False)
-            config.genau_cmd_file.write_text(cmd, encoding="utf-8")
-        else:
-            direction = "prev" if command == "primary_prev" else "next"
-            vlc_nav_step(config.primary_port, config.vlc_password, direction)
+        direction = "prev" if command == "primary_prev" else "next"
+        vlc_nav_step(config.primary_port, config.vlc_password, direction)
         return state, ops
 
     if command == "quarter_button":
@@ -208,11 +209,13 @@ def dispatch_command(
     if command in ("fmode_toggle", "fmode_panel"):
         return _dispatch_fmode_toggle(state, config)
 
-    if command in ("robot_toggle", "link_toggle"):
-        return _dispatch_robot_toggle(state, config, ops)
+    if command in ("genau_toggle", "genau_panel"):
+        return _dispatch_genau_toggle(state, config, ops)
 
-    if command == "sync_genau":
-        return _dispatch_sync_genau(state, config)
+    if command in _GENAU_CMD_MAP:
+        if state.genau_mode:
+            config.genau_cmd_file.write_text(_GENAU_CMD_MAP[command], encoding="utf-8")
+        return state, ops
 
     if command == "vlc_nudge_prev":
         ops.append(WindowOp(op="send_vk", vk=0x25))  # VK_LEFT
@@ -223,7 +226,7 @@ def dispatch_command(
         return state, ops
 
     if command == "clipper_save":
-        if not _effective_genau_mode(config):
+        if not state.genau_mode:
             msg = _dispatch_clipper_save(config)
             if msg:
                 ops.append(WindowOp(op="tooltip", key=msg))
@@ -346,42 +349,12 @@ def _dispatch_fmode_toggle(
     ), []
 
 
-def _dispatch_robot_toggle(
+def _dispatch_genau_toggle(
     state: BridgeState, config: BridgeConfig, ops: list[WindowOp]
 ) -> tuple[BridgeState, list[WindowOp]]:
-    result = apply_toggle_genau_enabled(
+    result = apply_toggle_genau_active(
         genau_mode_on=state.genau_mode,
         omni_paused=state.omni_paused,
-        enabled_file=config.genau_enabled_file,
-        mode_state_file=config.genau_mode_file,
-        paused_file=config.genau_paused_file,
-        audio_paused_file=config.audio_paused_file,
-        primary_port=config.primary_port,
-        password=config.vlc_password,
-    )
-    state = replace(state, genau_mode=result.next_genau_mode)
-    if result.is_transition:
-        if result.next_genau_mode:
-            ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
-            ops.append(WindowOp(op="activate", title="Genau"))
-        else:
-            ops.append(WindowOp(op="set_topmost", title="Genau", value=False))
-    if result.log_message:
-        logger.info(result.log_message)
-    return state, ops
-
-
-def _dispatch_sync_genau(
-    state: BridgeState, config: BridgeConfig
-) -> tuple[BridgeState, list[WindowOp]]:
-    if state.omni_paused:
-        return state, []
-    ops: list[WindowOp] = []
-    result = apply_sync_genau(
-        genau_mode_on=state.genau_mode,
-        omni_paused=state.omni_paused,
-        enabled_file=config.genau_enabled_file,
-        mode_state_file=config.genau_mode_file,
         paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         primary_port=config.primary_port,

@@ -5,19 +5,15 @@ from pathlib import Path
 from fun_time.runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
-    apply_sync_genau,
     apply_toggle_fmode,
+    apply_toggle_genau_active,
     build_omnipause_toggle,
 )
 
 
-def test_sync_entering_transition_pauses_primary_and_writes_files(monkeypatch, tmp_path: Path):
-    enabled_file = tmp_path / "enabled.txt"
-    mode_state_file = tmp_path / "mode.txt"
+def test_toggle_active_activates_pauses_primary_and_writes_files(monkeypatch, tmp_path: Path):
     paused_file = tmp_path / "paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
-    enabled_file.write_text("1", encoding="utf-8")
-    mode_state_file.write_text("1", encoding="utf-8")
     calls: list[tuple[int, str, bool]] = []
 
     monkeypatch.setattr(
@@ -25,11 +21,9 @@ def test_sync_entering_transition_pauses_primary_and_writes_files(monkeypatch, t
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_sync_genau(
+    result = apply_toggle_genau_active(
         genau_mode_on=False,
         omni_paused=False,
-        enabled_file=enabled_file,
-        mode_state_file=mode_state_file,
         paused_file=paused_file,
         audio_paused_file=audio_paused_file,
         primary_port=8123,
@@ -43,13 +37,9 @@ def test_sync_entering_transition_pauses_primary_and_writes_files(monkeypatch, t
     assert calls == [(8123, "pw", False)]
 
 
-def test_sync_leaving_transition_resumes_primary_and_writes_files(monkeypatch, tmp_path: Path):
-    enabled_file = tmp_path / "enabled.txt"
-    mode_state_file = tmp_path / "mode.txt"
+def test_toggle_active_deactivates_resumes_primary_and_writes_files(monkeypatch, tmp_path: Path):
     paused_file = tmp_path / "paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
-    enabled_file.write_text("1", encoding="utf-8")
-    mode_state_file.write_text("0", encoding="utf-8")
     calls: list[tuple[int, str, bool]] = []
 
     monkeypatch.setattr(
@@ -57,11 +47,9 @@ def test_sync_leaving_transition_resumes_primary_and_writes_files(monkeypatch, t
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_sync_genau(
+    result = apply_toggle_genau_active(
         genau_mode_on=True,
         omni_paused=False,
-        enabled_file=enabled_file,
-        mode_state_file=mode_state_file,
         paused_file=paused_file,
         audio_paused_file=audio_paused_file,
         primary_port=8123,
@@ -75,14 +63,9 @@ def test_sync_leaving_transition_resumes_primary_and_writes_files(monkeypatch, t
     assert calls == [(8123, "pw", True)]
 
 
-def test_sync_steady_state_does_not_call_vlc(monkeypatch, tmp_path: Path):
-    """THE KEY REGRESSION TEST: steady state must not call ensure_playback_state."""
-    enabled_file = tmp_path / "enabled.txt"
-    mode_state_file = tmp_path / "mode.txt"
+def test_toggle_active_during_omnipause_no_vlc_call(monkeypatch, tmp_path: Path):
     paused_file = tmp_path / "paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
-    enabled_file.write_text("1", encoding="utf-8")
-    mode_state_file.write_text("1", encoding="utf-8")
     calls: list[tuple[int, str, bool]] = []
 
     monkeypatch.setattr(
@@ -90,11 +73,9 @@ def test_sync_steady_state_does_not_call_vlc(monkeypatch, tmp_path: Path):
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_sync_genau(
-        genau_mode_on=True,
-        omni_paused=False,
-        enabled_file=enabled_file,
-        mode_state_file=mode_state_file,
+    result = apply_toggle_genau_active(
+        genau_mode_on=False,
+        omni_paused=True,
         paused_file=paused_file,
         audio_paused_file=audio_paused_file,
         primary_port=8123,
@@ -103,74 +84,8 @@ def test_sync_steady_state_does_not_call_vlc(monkeypatch, tmp_path: Path):
 
     assert result.next_genau_mode is True
     assert result.is_transition is False
-    assert calls == [], "Steady state must NOT call ensure_playback_state"
-    assert not paused_file.exists(), "Steady state must NOT write flag files"
-
-
-def test_toggle_disabling_resumes_primary(monkeypatch, tmp_path: Path):
-    from fun_time.runtime_flow import apply_toggle_genau_enabled
-
-    enabled_file = tmp_path / "enabled.txt"
-    mode_state_file = tmp_path / "mode.txt"
-    paused_file = tmp_path / "paused.txt"
-    audio_paused_file = tmp_path / "audio_paused.txt"
-    enabled_file.write_text("1", encoding="utf-8")
-    mode_state_file.write_text("1", encoding="utf-8")
-    calls: list[tuple[int, str, bool]] = []
-
-    monkeypatch.setattr(
-        "fun_time.runtime_flow.ensure_playback_state",
-        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
-    )
-
-    result = apply_toggle_genau_enabled(
-        genau_mode_on=True,
-        omni_paused=False,
-        enabled_file=enabled_file,
-        mode_state_file=mode_state_file,
-        paused_file=paused_file,
-        audio_paused_file=audio_paused_file,
-        primary_port=8123,
-        password="pw",
-    )
-
-    assert result.next_genau_mode is False
-    assert result.is_transition is True
-    assert enabled_file.read_text(encoding="utf-8") == "0"
-    assert calls == [(8123, "pw", True)]
-
-
-def test_toggle_enabling_pauses_primary_when_auto_on(monkeypatch, tmp_path: Path):
-    from fun_time.runtime_flow import apply_toggle_genau_enabled
-
-    enabled_file = tmp_path / "enabled.txt"
-    mode_state_file = tmp_path / "mode.txt"
-    paused_file = tmp_path / "paused.txt"
-    audio_paused_file = tmp_path / "audio_paused.txt"
-    enabled_file.write_text("0", encoding="utf-8")
-    mode_state_file.write_text("1", encoding="utf-8")
-    calls: list[tuple[int, str, bool]] = []
-
-    monkeypatch.setattr(
-        "fun_time.runtime_flow.ensure_playback_state",
-        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
-    )
-
-    result = apply_toggle_genau_enabled(
-        genau_mode_on=False,
-        omni_paused=False,
-        enabled_file=enabled_file,
-        mode_state_file=mode_state_file,
-        paused_file=paused_file,
-        audio_paused_file=audio_paused_file,
-        primary_port=8123,
-        password="pw",
-    )
-
-    assert result.next_genau_mode is True
-    assert result.is_transition is True
-    assert enabled_file.read_text(encoding="utf-8") == "1"
-    assert calls == [(8123, "pw", False)]
+    assert calls == [], "Omnipause must NOT call ensure_playback_state"
+    assert not paused_file.exists(), "Omnipause must NOT write flag files"
 
 
 def test_toggle_fmode_replaces_playlists_and_returns_new_state(monkeypatch, tmp_path: Path):

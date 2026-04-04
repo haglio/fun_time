@@ -78,9 +78,8 @@ def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: s
     write_manifest(Path(output_path), profile_directory, urls)
 
 
-def seed_genau_state(enabled_file: str | Path, paused_file: str | Path, audio_paused_file: str | Path) -> None:
+def seed_genau_state(paused_file: str | Path, audio_paused_file: str | Path) -> None:
     for path, value in (
-        (Path(enabled_file), "1"),
         (Path(paused_file), "1"),
         (Path(audio_paused_file), "1"),
     ):
@@ -94,7 +93,6 @@ def start_core_session(
     config_path: str | Path,
     broker_tray_launcher: Path | None = None,
     random_favs_browser_manifest_file: str | Path,
-    enabled_file: str | Path,
     paused_file: str | Path,
     audio_paused_file: str | Path,
     vlc_exe: str | Path,
@@ -110,7 +108,7 @@ def start_core_session(
     hide_windows: bool = False,
 ) -> None:
     restart_broker(project_dir, broker_tray_launcher)
-    seed_genau_state(enabled_file, paused_file, audio_paused_file)
+    seed_genau_state(paused_file, audio_paused_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     launch_core_apps(
         project_dir=project_dir,

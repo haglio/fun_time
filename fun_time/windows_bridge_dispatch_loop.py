@@ -177,7 +177,7 @@ class DispatchLoopRunner:
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
 
     _HOTKEY_TO_BUTTON = {
-        "robot_toggle": "link_toggle",
+        "genau_toggle": "genau_mode_toggle",
     }
 
     def tick(self) -> None:
@@ -238,12 +238,12 @@ class DispatchLoopRunner:
             elif cmd == "fmode_off":
                 if self.state.f_mode_enabled:
                     self._dispatch("fmode_toggle")
-            elif cmd == "genau_enable":
-                if not read_flag_file(self.config.genau_enabled_file, True):
-                    self._dispatch("robot_toggle")
-            elif cmd == "genau_disable":
-                if read_flag_file(self.config.genau_enabled_file, True):
-                    self._dispatch("robot_toggle")
+            elif cmd == "genau_activate":
+                if not self.state.genau_mode:
+                    self._dispatch("genau_toggle")
+            elif cmd == "genau_deactivate":
+                if self.state.genau_mode:
+                    self._dispatch("genau_toggle")
             elif cmd == "broker_start":
                 self._handle_broker_start()
             elif cmd == "broker_stop":
@@ -251,17 +251,14 @@ class DispatchLoopRunner:
             else:
                 self._dispatch(cmd)
 
-        # Robot hand sync (skip while omni-paused)
+        # Periodic sync: z-order enforcement and dashboard update
         now = time.monotonic()
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
-            if not self.state.omni_paused:
-                prev_mode = self.state.genau_mode
-                self._dispatch("sync_genau")
-                if self.state.genau_mode and not prev_mode:
-                    self._genau_activate_pending = True
-                if self.state.genau_mode:
-                    self._enforce_genau_z_order()
+            if self.state.genau_mode:
+                self._enforce_genau_z_order()
+            if self.dashboard_enabled:
+                self._update_dashboard()
 
         self._try_genau_activate()
 
@@ -327,7 +324,6 @@ class DispatchLoopRunner:
 
     def _update_dashboard(self) -> None:
         try:
-            robot_link_enabled = read_flag_file(self.config.genau_enabled_file, True)
             genau_mode_on = read_flag_file(self.config.genau_mode_file, False)
             device_on = is_osr2_device_on(self.config.state_dir / "osr2_serial_rx.txt")
             if not device_on:
@@ -339,10 +335,9 @@ class DispatchLoopRunner:
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
                 f_mode_enabled=self.state.f_mode_enabled,
-                robot_link_enabled=robot_link_enabled,
                 osr2_mode=osr2_mode,
                 mfp_alive=bool(self.mfp_pid),
-                primary_uses_genau=self.state.genau_mode and robot_link_enabled,
+                primary_uses_genau=self.state.genau_mode,
                 portrait_locked=self.state.locked2,
                 landscape_locked=self.state.locked3,
                 omni_paused=self.state.omni_paused,
@@ -535,7 +530,6 @@ def build_bridge_config_from_manifest(
         primary_sources=manifest["media"]["primary_vlc_sources"],
         portrait_sources=manifest["media"]["portrait_dirs"],
         landscape_sources=manifest["media"]["landscape_dirs"],
-        genau_enabled_file=Path(manifest["commands"]["genau_enabled_file"]),
         genau_mode_file=Path(manifest["commands"]["genau_mode_file"]),
         genau_cmd_file=Path(manifest["commands"]["genau_cmd_file"]),
         genau_paused_file=Path(manifest["commands"]["genau_paused_file"]),

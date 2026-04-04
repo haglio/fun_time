@@ -6,7 +6,6 @@ from pathlib import Path
 def build_dashboard_snapshot_text(
     *,
     f_mode_enabled: bool,
-    robot_link_enabled: bool,
     osr2_mode: str,
     mfp_alive: bool,
     primary_uses_genau: bool,
@@ -17,8 +16,6 @@ def build_dashboard_snapshot_text(
     return (
         "[fmode]\n"
         f"enabled={'1' if f_mode_enabled else '0'}\n"
-        "[robot_link]\n"
-        f"enabled={'1' if robot_link_enabled else '0'}\n"
         "[osr2]\n"
         f"mode={osr2_mode}\n"
         "[mfp]\n"
@@ -52,7 +49,6 @@ def write_dashboard_snapshot(
     output_file: str | Path,
     *,
     f_mode_enabled: bool,
-    robot_link_enabled: bool,
     osr2_mode: str,
     mfp_alive: bool,
     primary_uses_genau: bool,
@@ -63,7 +59,6 @@ def write_dashboard_snapshot(
     path = Path(output_file)
     text = build_dashboard_snapshot_text(
         f_mode_enabled=f_mode_enabled,
-        robot_link_enabled=robot_link_enabled,
         osr2_mode=osr2_mode,
         mfp_alive=mfp_alive,
         primary_uses_genau=primary_uses_genau,

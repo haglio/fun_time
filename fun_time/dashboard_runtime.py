@@ -23,7 +23,6 @@ class DashboardWindowSnapshot:
 @dataclass(frozen=True)
 class DashboardSnapshot:
     f_mode_enabled: bool
-    robot_link_enabled: bool
     primary_uses_genau: bool
     osr2_mode: str
     mfp_alive: bool
@@ -47,7 +46,6 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
 
     return DashboardSnapshot(
         f_mode_enabled=_read_bool(parser, "fmode", "enabled"),
-        robot_link_enabled=_read_bool(parser, "robot_link", "enabled"),
         primary_uses_genau=_read_bool(parser, "primary", "uses_genau"),
         osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
         mfp_alive=_read_bool(parser, "mfp", "alive"),

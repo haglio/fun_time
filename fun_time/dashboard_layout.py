@@ -52,7 +52,7 @@ class DashboardPreviewLayout:
     landscape_lock: Rect
     landscape_trash: Rect
     osr2_panel: Rect
-    link_toggle: Rect
+    genau_mode_toggle: Rect
     quit_button: Rect
     omnipause_button: Rect
     broker_panel: Rect
@@ -153,12 +153,9 @@ def compute_dashboard_preview_layout(
 
     osr2_w = 66
     osr2_h = 66
-    link_w = 62
-    link_gap = 8
-    osr2_x = secondary_x - osr2_w - link_gap - link_w - link_gap
+    cable_gap = 8
+    osr2_x = secondary_x - osr2_w - cable_gap * 2 - 62
     osr2_y = primary_y + (primary_h - osr2_h) // 2
-    link_y = primary_y + (primary_h - 18) // 2
-    link_x = osr2_x + osr2_w + link_gap
     portrait_button_y = portrait_y + (portrait_h - 22) // 2
     portrait_stack_y = portrait_y + (portrait_h - 36) // 2
     primary_center_y = primary_y + (primary_h - 16) // 2 + 8
@@ -167,7 +164,7 @@ def compute_dashboard_preview_layout(
     landscape_stack_y = landscape_y + (main_inner_h - 36) // 2
 
     dashboard_w = secondary_x + right_w + outer_pad
-    dashboard_h = max(preview_bottom, osr2_y + osr2_h, link_y + 18, primary_shadow_y + primary_h) + bottom_pad
+    dashboard_h = max(preview_bottom, osr2_y + osr2_h, primary_shadow_y + primary_h) + bottom_pad
 
     return DashboardPreviewLayout(
         dashboard_width=dashboard_w,
@@ -197,7 +194,7 @@ def compute_dashboard_preview_layout(
         landscape_trash=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y, 30, 16),
         landscape_lock=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y + 20, 30, 16),
         osr2_panel=Rect(osr2_x, osr2_y, osr2_w, osr2_h),
-        link_toggle=Rect(link_x, link_y, link_w, 18),
+        genau_mode_toggle=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_y + primary_h - 20, 28, 16),
         quit_button=Rect(btn_row_x, btn_row_y, mini_button_w, mini_button_h),
         omnipause_button=Rect(btn_row_x + mini_button_w + mini_button_gap, btn_row_y, mini_button_w, mini_button_h),
         broker_panel=Rect(status_row_x, chip_row_y, mini_button_w, mini_button_h),
