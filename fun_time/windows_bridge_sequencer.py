@@ -145,6 +145,8 @@ def run_startup_sequence(
         robot_y=rh_rect.y,
         robot_width=rh_rect.width,
         robot_height=rh_rect.height,
+        command_file=m["commands"]["genau_cmd_file"],
+        paused_file=m["commands"]["genau_paused_file"],
     )
 
     # --- Phase 2: Wait for MFP window and compute layout ---

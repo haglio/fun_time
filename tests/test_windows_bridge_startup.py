@@ -137,6 +137,37 @@ def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
     assert "--clips-folder" in command
 
 
+def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(42)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+    ):
+        pid = launch_genau(
+            python_exe="python.exe",
+            genau_module="fun_time.genau.app",
+            config_path="cfg.json",
+            clips_folder="clips",
+            robot_x=100,
+            robot_y=200,
+            robot_width=300,
+            robot_height=400,
+            command_file="state/genau_cmd.txt",
+            paused_file="state/genau_paused.txt",
+        )
+
+    assert pid == 42
+    command = popen.call_args.args[0]
+    assert "--command-file" in command
+    idx = command.index("--command-file")
+    assert command[idx + 1] == "state/genau_cmd.txt"
+    assert "--paused-file" in command
+    idx = command.index("--paused-file")
+    assert command[idx + 1] == "state/genau_paused.txt"
+
+
 def test_launch_ui_companions_skips_genau_when_pid_provided(tmp_path: Path):
     result_file = tmp_path / "ui_companions.ini"
 

@@ -136,28 +136,32 @@ def launch_genau(
     robot_y: int,
     robot_width: int,
     robot_height: int,
+    command_file: str | Path | None = None,
+    paused_file: str | Path | None = None,
 ) -> int:
     """Launch Genau subprocess, returning its PID."""
-    proc = subprocess.Popen(
-        [
-            str(python_exe),
-            "-m",
-            genau_module,
-            "--config",
-            str(config_path),
-            "--clips-folder",
-            str(clips_folder),
-            "--x",
-            str(robot_x),
-            "--y",
-            str(robot_y),
-            "--width",
-            str(robot_width),
-            "--height",
-            str(robot_height),
-        ],
-        **subprocess_window_kwargs(),
-    )
+    cmd = [
+        str(python_exe),
+        "-m",
+        genau_module,
+        "--config",
+        str(config_path),
+        "--clips-folder",
+        str(clips_folder),
+        "--x",
+        str(robot_x),
+        "--y",
+        str(robot_y),
+        "--width",
+        str(robot_width),
+        "--height",
+        str(robot_height),
+    ]
+    if command_file is not None:
+        cmd.extend(["--command-file", str(command_file)])
+    if paused_file is not None:
+        cmd.extend(["--paused-file", str(paused_file)])
+    proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
     return proc.pid
 
 
