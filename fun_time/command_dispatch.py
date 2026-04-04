@@ -253,6 +253,7 @@ def _dispatch_omnipause_toggle(
             password=config.vlc_password,
             genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
+            genau_cmd_file=config.genau_cmd_file,
         )
         state = replace(state, omni_paused=result.next_omni_paused)
         ops.append(WindowOp(op="suspend_hotkeys"))
@@ -267,6 +268,7 @@ def _dispatch_omnipause_toggle(
             password=config.vlc_password,
             genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
+            genau_cmd_file=config.genau_cmd_file,
         )
         state = replace(state, omni_paused=result.next_omni_paused)
         ops.append(WindowOp(op="unsuspend_hotkeys"))
@@ -291,6 +293,7 @@ def _dispatch_enter_omnipause(
         password=config.vlc_password,
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
+        genau_cmd_file=config.genau_cmd_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops.append(WindowOp(op="suspend_hotkeys"))
@@ -313,6 +316,7 @@ def _dispatch_leave_omnipause_skip_primary(
         password=config.vlc_password,
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
+        genau_cmd_file=config.genau_cmd_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops.append(WindowOp(op="unsuspend_hotkeys"))
@@ -357,6 +361,7 @@ def _dispatch_genau_toggle(
         omni_paused=state.omni_paused,
         paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
+        genau_cmd_file=config.genau_cmd_file,
         primary_port=config.primary_port,
         password=config.vlc_password,
     )

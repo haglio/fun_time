@@ -51,6 +51,7 @@ def apply_toggle_genau_active(
     omni_paused: bool,
     paused_file: str | Path,
     audio_paused_file: str | Path,
+    genau_cmd_file: str | Path,
     primary_port: int,
     password: str,
 ) -> GenauFlowResult:
@@ -61,6 +62,9 @@ def apply_toggle_genau_active(
     if plan.is_transition:
         write_flag_file(paused_file, not plan.target_active)
         write_flag_file(audio_paused_file, not plan.target_active)
+        Path(genau_cmd_file).write_text(
+            "RESUME" if plan.target_active else "PAUSE", encoding="utf-8",
+        )
         if not ensure_playback_state(primary_port, password, should_play=not plan.target_active):
             logger.warning("Primary VLC failed to reach desired Genau toggle playback state")
     return GenauFlowResult(
@@ -140,6 +144,7 @@ def apply_enter_omnipause(
     password: str,
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
+    genau_cmd_file: str | Path,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "enter",
@@ -149,6 +154,7 @@ def apply_enter_omnipause(
     )
     write_flag_file(genau_paused_file, True)
     write_flag_file(audio_paused_file, True)
+    Path(genau_cmd_file).write_text("PAUSE", encoding="utf-8")
     vlc_targets = [
         (portrait_port, "Portrait"),
         (landscape_port, "Landscape"),
@@ -181,6 +187,7 @@ def apply_leave_omnipause(
     password: str,
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
+    genau_cmd_file: str | Path,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "leave",
@@ -190,6 +197,7 @@ def apply_leave_omnipause(
     )
     write_flag_file(genau_paused_file, False)
     write_flag_file(audio_paused_file, False)
+    Path(genau_cmd_file).write_text("RESUME", encoding="utf-8")
     vlc_targets = [
         (portrait_port, "Portrait"),
         (landscape_port, "Landscape"),
