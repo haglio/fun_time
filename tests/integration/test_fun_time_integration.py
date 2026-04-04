@@ -147,24 +147,24 @@ def test_fun_time_primary_vlc_not_topmost_in_genau_mode(shared_integration_sessi
     hwnd = find_window_by_pid(primary_pid)
     assert hwnd, f"Primary VLC window not found for pid {primary_pid}"
 
-    assert is_window_topmost(hwnd), "Primary VLC should be TOPMOST before robot hand mode"
+    assert is_window_topmost(hwnd), "Primary VLC should be TOPMOST before Genau activation"
 
-    s.write_genau_mode(True)
-    s.wait_for_new_log("Entering Genau mode", timeout=12)
+    s.write_dashboard_command("genau_toggle")
+    s.wait_for_new_log("Genau activated", timeout=12)
 
     s.wait_until(
         lambda: not is_window_topmost(find_window_by_pid(primary_pid)),
         timeout=12,
-        description="Primary VLC to lose TOPMOST in robot hand mode",
+        description="Primary VLC to lose TOPMOST when Genau is active",
     )
 
-    s.write_genau_mode(False)
-    s.wait_for_new_log("Leaving Genau mode", timeout=12)
+    s.write_dashboard_command("genau_toggle")
+    s.wait_for_new_log("Genau deactivated", timeout=12)
 
     s.wait_until(
         lambda: is_window_topmost(find_window_by_pid(primary_pid)),
         timeout=12,
-        description="Primary VLC to regain TOPMOST after leaving robot hand mode",
+        description="Primary VLC to regain TOPMOST after Genau deactivated",
     )
 
 
@@ -208,8 +208,8 @@ def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTim
 
 
 def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_genau_mode(True)
-    shared_integration_session.wait_for_new_log("Entering Genau mode", timeout=12)
+    shared_integration_session.write_dashboard_command("genau_toggle")
+    shared_integration_session.wait_for_new_log("Genau activated", timeout=12)
 
     shared_integration_session.write_dashboard_command("omnipause_toggle")
     shared_integration_session.wait_for_new_log("OmniPause: entering", timeout=12)
@@ -227,8 +227,8 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
         description="Genau paused file to flip off",
     )
 
-    shared_integration_session.write_genau_mode(False)
-    shared_integration_session.wait_for_new_log("Leaving Genau mode", timeout=12)
+    shared_integration_session.write_dashboard_command("genau_toggle")
+    shared_integration_session.wait_for_new_log("Genau deactivated", timeout=12)
 
 
 
@@ -246,8 +246,8 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     rh_pid = s.read_genau_pid()
     assert _is_pid_alive(rh_pid), "Genau should be alive before test"
 
-    s.write_genau_mode(True)
-    s.wait_for_new_log("Entering Genau mode", timeout=12)
+    s.write_dashboard_command("genau_toggle")
+    s.wait_for_new_log("Genau activated", timeout=12)
 
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: entering", timeout=12)
@@ -268,8 +268,8 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
 
     assert _is_pid_alive(rh_pid), "Genau should survive leaving omnipause"
 
-    s.write_genau_mode(False)
-    s.wait_for_new_log("Leaving Genau mode", timeout=12)
+    s.write_dashboard_command("genau_toggle")
+    s.wait_for_new_log("Genau deactivated", timeout=12)
 
 
 
