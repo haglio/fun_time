@@ -930,11 +930,12 @@ class TestHandleOmniPauseToggle:
         runner.state = BridgeState(omni_paused=False, genau_mode=True)
 
         topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001, 600: 6001}
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_omnipause_toggle()
@@ -947,11 +948,12 @@ class TestHandleOmniPauseToggle:
         runner.state = BridgeState(omni_paused=True, genau_mode=True)
 
         topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001, 600: 6001}
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
             runner._handle_omnipause_toggle()
@@ -960,6 +962,43 @@ class TestHandleOmniPauseToggle:
         assert 6001 in {h for h, _ in restored}
         # Genau must be set topmost LAST (for z-order)
         assert restored[-1] == (6001, True)
+
+    def test_entering_omnipause_removes_genau_topmost_via_title_when_pid_fails(self, tmp_path):
+        runner = self._make_runner(tmp_path, genau_pid=600)
+        runner.state = BridgeState(omni_paused=False, genau_mode=True)
+
+        topmost_calls = []
+        # PID lookup returns 0 for Genau (simulates pythonw launcher mismatch)
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=7777), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
+            runner._handle_omnipause_toggle()
+
+        removed = {h for h, v in topmost_calls if not v}
+        assert 7777 in removed, "Genau topmost should be removed via title lookup"
+
+    def test_leaving_omnipause_restores_genau_topmost_via_title_when_pid_fails(self, tmp_path):
+        runner = self._make_runner(tmp_path, genau_pid=600)
+        runner.state = BridgeState(omni_paused=True, genau_mode=True)
+
+        topmost_calls = []
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=7777), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
+            runner._handle_omnipause_toggle()
+
+        restored = {h for h, v in topmost_calls if v}
+        assert 7777 in restored, "Genau topmost should be restored via title lookup"
 
     def test_leaving_omnipause_skips_genau_topmost_when_not_in_robot_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, genau_pid=600)

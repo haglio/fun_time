@@ -365,10 +365,9 @@ class DispatchLoopRunner:
         dash_hwnd = self._find_dashboard_hwnd()
         if dash_hwnd:
             set_always_on_top(dash_hwnd, False)
-        if self.genau_pid:
-            hwnd = find_window_by_pid(self.genau_pid)
-            if hwnd:
-                set_always_on_top(hwnd, False)
+        genau_hwnd = find_window_by_title("Genau")
+        if genau_hwnd:
+            set_always_on_top(genau_hwnd, False)
 
     def _restore_all_topmost(self) -> None:
         genau_mode = self.state.genau_mode
@@ -401,10 +400,10 @@ class DispatchLoopRunner:
             logger.info("Dashboard hwnd not found during topmost restore")
 
         # 3. Genau last — on top of everything in genau mode.
-        if genau_mode and self.genau_pid:
-            hwnd = find_window_by_pid(self.genau_pid)
-            if hwnd:
-                set_always_on_top(hwnd, True)
+        if genau_mode:
+            genau_hwnd = find_window_by_title("Genau")
+            if genau_hwnd:
+                set_always_on_top(genau_hwnd, True)
 
     def _is_broker_alive(self) -> bool:
         hb = self.config.broker_heartbeat_file

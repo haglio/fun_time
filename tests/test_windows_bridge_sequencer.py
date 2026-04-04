@@ -855,3 +855,39 @@ class TestPhase4GenauAlwaysInactive:
         # No AUTO UDP should be sent (genau never active at startup)
         auto_msgs = [msg for msg in udp_sent if b"AUTO" in msg[0]]
         assert auto_msgs == [], "No AUTO UDP should be sent at startup"
+
+
+class TestGenauLaunchReceivesCommandFiles:
+    """Genau must receive --command-file and --paused-file from the manifest."""
+
+    def test_launch_genau_receives_manifest_file_paths(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "genau_pid": 60, "audio_pid": 70}
+
+        genau_kwargs = {}
+
+        def capture_launch_genau(**kwargs):
+            genau_kwargs.update(kwargs)
+            return 60
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", side_effect=capture_launch_genau), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert "command_file" in genau_kwargs, "launch_genau must receive command_file"
+        assert "paused_file" in genau_kwargs, "launch_genau must receive paused_file"
+        assert genau_kwargs["command_file"] == str(cfg.genau_cmd_file)
+        assert genau_kwargs["paused_file"] == str(cfg.genau_paused_file)
