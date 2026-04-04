@@ -47,7 +47,7 @@ from fun_time.dashboard_actions import (
     LANDSCAPE_PREV,
     LANDSCAPE_TRASH,
     FMODE_PANEL,
-    LINK_TOGGLE,
+    GENAU_TOGGLE,
     OMNIPAUSE_TOGGLE,
     OPEN_FILE_DIALOG,
     PORTRAIT_LOCK,
@@ -414,15 +414,16 @@ def build_dashboard_scene(
         else:
             osr2_label = f"{LABEL_OSR2}\n(idle; no\nfunscript)"
         mfp_label = LABEL_MFP
-        cable_connected = snapshot.robot_link_enabled
-        if primary_panel_should_highlight(
+        if snapshot.osr2_mode == "auto":
+            primary_fill = COLOR_PINK
+        elif snapshot.primary_uses_genau:
+            primary_fill = COLOR_PANEL
+        elif primary_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
             primary_path=snapshot.primary.path,
             has_matching_funscript=primary_funscript_exists,
         ):
             primary_fill = COLOR_GREEN
-        elif snapshot.primary_uses_genau:
-            primary_fill = COLOR_PINK
         else:
             primary_fill = COLOR_PANEL
         portrait_fill = COLOR_GREEN if satellite_panel_should_highlight(
@@ -488,6 +489,7 @@ def build_dashboard_scene(
         DashboardRectItem(layout.landscape_trash, fill=_press_fill(COLOR_PANEL, LANDSCAPE_TRASH)),
         DashboardRectItem(layout.broker_panel, fill=_press_fill(broker_fill, BROKER_PANEL)),
         DashboardRectItem(layout.fmode_panel, fill=_press_fill(fmode_fill, FMODE_PANEL)),
+        DashboardRectItem(layout.genau_mode_toggle, fill=_press_fill(COLOR_PANEL, GENAU_TOGGLE)),
     )
     _font_symbol = make_font(FONT_SYMBOL, 10, bold=True)
     _font_ui_sm = make_font(FONT_UI, SIZE_SMALL, bold=True)
@@ -519,6 +521,10 @@ def build_dashboard_scene(
         DashboardTextItem(">", layout.landscape_next, font=_font_ui_sm),
         DashboardTextItem(ICON_LOCK, layout.landscape_lock, font=_font_emoji),
         DashboardTextItem(ICON_TRASH, layout.landscape_trash, font=_font_emoji),
+        *(
+            (DashboardTextItem("VLC", layout.genau_mode_toggle, font=_font_ui_tiny),)
+            if snapshot is not None and snapshot.primary_uses_genau else ()
+        ),
     )
     _icon_h = layout.broker_panel.height
     images = (
@@ -531,75 +537,31 @@ def build_dashboard_scene(
                     _load_icon_pixmap("clipper_icon.ico", layout.clipper_save.height),
                     layout.clipper_save,
                 ),
+                DashboardImageItem(
+                    _load_icon_pixmap("genau_icon.ico", layout.genau_mode_toggle.height),
+                    layout.genau_mode_toggle,
+                ),
             )
         ),
     )
-    # Cable visual connecting OSR2 to Primary panel (schematic style)
-    cable_y = layout.link_toggle.y + layout.link_toggle.height // 2
+    # Cable visual connecting OSR2 to Primary panel (simple straight line)
     cable_start_x = layout.osr2_panel.x + layout.osr2_panel.width
     cable_end_x = layout.primary_panel.x
-    mid_x = (cable_start_x + cable_end_x) // 2
-    cable_color = COLOR_CABLE if cable_connected else COLOR_CABLE_DIM
-    if LINK_TOGGLE in pressed_actions:
-        cable_color = lighten_color(cable_color)
+    cable_y = layout.osr2_panel.y + layout.osr2_panel.height // 2
+    cable_color = COLOR_CABLE
     cable_w = 2
     socket_r = 3
-    node_r = 4
-    dot_r = 2
-    arc_r = 3
+    cable_lines: tuple[DashboardLineItem, ...] = (
+        DashboardLineItem(
+            points=((cable_start_x, cable_y), (cable_end_x, cable_y)),
+            color=cable_color, width=cable_w,
+        ),
+    )
+    cable_ovals: tuple[DashboardOvalItem, ...] = (
+        DashboardOvalItem(cx=cable_start_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
+        DashboardOvalItem(cx=cable_end_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
+    )
     cable_arcs: tuple[DashboardArcItem, ...] = ()
-    if cable_connected:
-        # Two line halves meeting at midpoint node
-        cable_lines: tuple[DashboardLineItem, ...] = (
-            DashboardLineItem(
-                points=((cable_start_x, cable_y), (mid_x - node_r, cable_y)),
-                color=cable_color, width=cable_w,
-            ),
-            DashboardLineItem(
-                points=((mid_x + node_r, cable_y), (cable_end_x, cable_y)),
-                color=cable_color, width=cable_w,
-            ),
-        )
-        # Sockets at endpoints + midpoint node (outer ring + inner dot)
-        cable_ovals: tuple[DashboardOvalItem, ...] = (
-            DashboardOvalItem(cx=cable_start_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
-            DashboardOvalItem(cx=cable_end_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
-            DashboardOvalItem(cx=mid_x, cy=cable_y, r=node_r, fill=COLOR_PANEL, outline=cable_color),
-            DashboardOvalItem(cx=mid_x, cy=cable_y, r=dot_r, fill=cable_color, outline=cable_color),
-        )
-    else:
-        # Two fragments curling apart at the break
-        curl = 6
-        gap = 8
-        cable_lines = (
-            DashboardLineItem(
-                points=(
-                    (cable_start_x, cable_y),
-                    (mid_x - gap - 4, cable_y),
-                    (mid_x - gap, cable_y),
-                    (mid_x - gap + 2, cable_y - curl),
-                ),
-                color=cable_color, width=cable_w, smooth=True,
-            ),
-            DashboardLineItem(
-                points=(
-                    (cable_end_x, cable_y),
-                    (mid_x + gap + 4, cable_y),
-                    (mid_x + gap, cable_y),
-                    (mid_x + gap - 2, cable_y + curl),
-                ),
-                color=cable_color, width=cable_w, smooth=True,
-            ),
-        )
-        cable_ovals = (
-            DashboardOvalItem(cx=cable_start_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
-            DashboardOvalItem(cx=cable_end_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
-        )
-        # Half-circle remnants of broken midpoint node
-        cable_arcs = (
-            DashboardArcItem(cx=mid_x - gap + 2, cy=cable_y - curl, r=arc_r, start=270, extent=180, outline=cable_color),
-            DashboardArcItem(cx=mid_x + gap - 2, cy=cable_y + curl, r=arc_r, start=90, extent=180, outline=cable_color),
-        )
 
     return DashboardScene(
         width=layout.dashboard_width,
@@ -638,7 +600,7 @@ def build_dashboard_scene(
             (LANDSCAPE_NEXT, layout.landscape_next),
             (LANDSCAPE_LOCK, layout.landscape_lock),
             (LANDSCAPE_TRASH, layout.landscape_trash),
-            (LINK_TOGGLE, layout.link_toggle),
+            (GENAU_TOGGLE, layout.genau_mode_toggle),
             (BROKER_PANEL, layout.broker_panel),
             (FMODE_PANEL, layout.fmode_panel),
         ),

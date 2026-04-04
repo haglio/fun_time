@@ -116,64 +116,25 @@ def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrati
 
 
 
-def test_fun_time_robot_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    assert shared_integration_session.genau_enabled_file.read_text(encoding="utf-8") == "1"
-    shared_integration_session.write_dashboard_command("robot_toggle")
-    shared_integration_session.wait_until(
-        lambda: shared_integration_session.genau_enabled_file.read_text(encoding="utf-8") == "0",
-        timeout=12,
-        description="Genau enabled file to flip off",
-    )
-
-    shared_integration_session.write_dashboard_command("robot_toggle")
-    shared_integration_session.wait_until(
-        lambda: shared_integration_session.genau_enabled_file.read_text(encoding="utf-8") == "1",
-        timeout=12,
-        description="Genau enabled file to flip back on",
-    )
-
-
-
-def test_fun_time_genau_mode_file_flow(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_genau_mode(True)
-    shared_integration_session.wait_for_new_log("Entering Genau mode", timeout=12)
-
-    shared_integration_session.write_genau_mode(False)
-    shared_integration_session.wait_for_new_log("Leaving Genau mode", timeout=12)
-
-
-
-def test_fun_time_genau_active_playback(shared_integration_session: FunTimeIntegrationSession):
-    """Entering Genau mode with link enabled must unpause Genau and audio."""
+def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
+    """Pressing 'g' (genau_toggle) activates then deactivates Genau."""
     s = shared_integration_session
-    assert s.genau_enabled_file.read_text(encoding="utf-8") == "1"
-
-    s.write_genau_mode(True)
-    s.wait_for_new_log("Entering Genau mode", timeout=12)
+    s.write_dashboard_command("genau_toggle")
+    s.wait_for_new_log("Genau activated", timeout=12)
 
     s.wait_until(
         lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "0",
         timeout=12,
-        description="Genau paused file to flip off (active playback)",
-    )
-    s.wait_until(
-        lambda: s.config.audio_paused_file.read_text(encoding="utf-8") == "0",
-        timeout=12,
-        description="Audio paused file to flip off (audio companion active)",
+        description="Genau paused file to flip off (active)",
     )
 
-    s.write_genau_mode(False)
-    s.wait_for_new_log("Leaving Genau mode", timeout=12)
+    s.write_dashboard_command("genau_toggle")
+    s.wait_for_new_log("Genau deactivated", timeout=12)
 
     s.wait_until(
         lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "1",
         timeout=12,
-        description="Genau paused file to flip back on after leaving mode",
-    )
-    s.wait_until(
-        lambda: s.config.audio_paused_file.read_text(encoding="utf-8") == "1",
-        timeout=12,
-        description="Audio paused file to flip back on after leaving mode",
+        description="Genau paused file to flip back on (inactive)",
     )
 
 

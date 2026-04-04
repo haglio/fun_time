@@ -212,7 +212,6 @@ class TestDispatchLoopRunner:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            genau_enabled_file=tmp_path / "rh_enabled.txt",
             genau_mode_file=tmp_path / "rh_mode.txt",
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
@@ -460,28 +459,38 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "tooltip Clipper: MyVideo"
 
-    def test_syncs_genau_periodically(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=100)
-        # Set _last_sync far in the past so the interval is exceeded
-        runner._last_sync = -999
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
-            mock_dispatch.return_value = (runner.state, [])
-            runner.tick()
-
-        calls = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "sync_genau" in calls
-
-    def test_skips_genau_sync_when_omni_paused(self, tmp_path):
+    def test_sync_tick_calls_enforce_genau_z_order_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         runner._last_sync = -999
-        runner.state = BridgeState(omni_paused=True)
+        runner.state = BridgeState(genau_mode=True)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+        with patch.object(runner, "_enforce_genau_z_order") as mock_enforce, \
+             patch.object(runner, "_update_dashboard"):
             runner.tick()
 
-        mock_dispatch.assert_not_called()
+        mock_enforce.assert_called_once()
+
+    def test_sync_tick_skips_enforce_genau_z_order_when_not_genau(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=100)
+        runner._last_sync = -999
+        runner.state = BridgeState(genau_mode=False)
+
+        with patch.object(runner, "_enforce_genau_z_order") as mock_enforce, \
+             patch.object(runner, "_update_dashboard"):
+            runner.tick()
+
+        mock_enforce.assert_not_called()
+
+    def test_sync_tick_calls_update_dashboard_when_enabled(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=100)
+        runner._last_sync = -999
+        runner.dashboard_enabled = True
+
+        with patch.object(runner, "_enforce_genau_z_order"), \
+             patch.object(runner, "_update_dashboard") as mock_update:
+            runner.tick()
+
+        mock_update.assert_called_once()
 
     def test_reads_shared_state_at_tick_start(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
@@ -574,7 +583,6 @@ class TestGenauZOrder:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            genau_enabled_file=tmp_path / "rh_enabled.txt",
             genau_mode_file=tmp_path / "rh_mode.txt",
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
@@ -607,7 +615,7 @@ class TestGenauZOrder:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(genau_mode=True), [])
-            runner._dispatch("robot_toggle")
+            runner._dispatch("genau_toggle")
 
         assert (1001, False) in topmost_calls
 
@@ -623,7 +631,7 @@ class TestGenauZOrder:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(genau_mode=False), [])
-            runner._dispatch("robot_toggle")
+            runner._dispatch("genau_toggle")
 
         assert (1001, True) in topmost_calls
 
@@ -738,7 +746,6 @@ class TestGenauActivationRetry:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            genau_enabled_file=tmp_path / "rh_enabled.txt",
             genau_mode_file=tmp_path / "rh_mode.txt",
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
@@ -758,20 +765,21 @@ class TestGenauActivationRetry:
 
     def test_retries_genau_window_activation_on_next_tick(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=0)
-        runner.config.genau_enabled_file.write_text("1", encoding="utf-8")
-        runner.config.genau_mode_file.write_text("1", encoding="utf-8")
-        activate_calls = []
+        runner.state = BridgeState(genau_mode=True)
+        runner._genau_activate_pending = True
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+        # First tick: window not found — activation stays pending
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window"):
-            runner.tick()  # transition tick — window not found
+            runner.tick()
 
-        assert runner.state.genau_mode is True
+        assert runner._genau_activate_pending is True
 
         # Second tick: window now visible — activation uses topmost, not show_window
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345) as mock_find, \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345) as mock_find, \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show, \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
@@ -784,17 +792,19 @@ class TestGenauActivationRetry:
 
     def test_clears_pending_flag_after_successful_activation(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=0)
-        runner.config.genau_enabled_file.write_text("1", encoding="utf-8")
-        runner.config.genau_mode_file.write_text("1", encoding="utf-8")
+        runner.state = BridgeState(genau_mode=True)
+        runner._genau_activate_pending = True
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+        # First tick: window not found — activation stays pending
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window"):
-            runner.tick()  # transition tick — window not found
+            runner.tick()
 
         # Second tick: window found, activation succeeds
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
             runner.tick()
@@ -802,8 +812,8 @@ class TestGenauActivationRetry:
         mock_activate.assert_called_once()
 
         # Third tick: no more activation attempts
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345) as mock_find, \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345) as mock_find, \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
             runner.tick()
@@ -830,7 +840,6 @@ class TestHandleOmniPauseToggle:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            genau_enabled_file=tmp_path / "rh_enabled.txt",
             genau_mode_file=tmp_path / "rh_mode.txt",
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
@@ -978,7 +987,6 @@ class TestHandleOpenFileDialog:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            genau_enabled_file=tmp_path / "rh_enabled.txt",
             genau_mode_file=tmp_path / "rh_mode.txt",
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
@@ -1054,7 +1062,6 @@ class TestHandleOpenFileDialog:
             primary_sources=r"C:\videos\2D\non_AI|C:\other",
             portrait_sources="",
             landscape_sources="",
-            genau_enabled_file=tmp_path / "rh_enabled.txt",
             genau_mode_file=tmp_path / "rh_mode.txt",
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
@@ -1102,7 +1109,6 @@ class TestHandleOpenFileDialog:
             primary_sources=r"C:\videos",
             portrait_sources="",
             landscape_sources="",
-            genau_enabled_file=tmp_path / "rh_enabled.txt",
             genau_mode_file=tmp_path / "rh_mode.txt",
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
@@ -1363,7 +1369,6 @@ class TestUpdateDashboardOsr2Off:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            genau_enabled_file=tmp_path / "rh_enabled.txt",
             genau_mode_file=tmp_path / "rh_mode.txt",
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
@@ -1456,7 +1461,6 @@ class TestIdempotentVoiceCommands:
             primary_sources="",
             portrait_sources="",
             landscape_sources="",
-            genau_enabled_file=tmp_path / "rh_enabled.txt",
             genau_mode_file=tmp_path / "rh_mode.txt",
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
@@ -1619,44 +1623,44 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_not_called()
 
-    # -- genau enable / genau disable --
+    # -- genau activate / genau deactivate --
 
-    def test_genau_enable_dispatches_when_disabled(self, tmp_path):
+    def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        (tmp_path / "rh_enabled.txt").write_text("0", encoding="utf-8")
+        runner.state = BridgeState(genau_mode=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("genau_enable", encoding="utf-8")
+            cmd_file.write_text("genau_activate", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("robot_toggle")
+        mock_d.assert_called_once_with("genau_toggle")
 
-    def test_genau_enable_noop_when_already_enabled(self, tmp_path):
+    def test_genau_activate_noop_when_already_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        (tmp_path / "rh_enabled.txt").write_text("1", encoding="utf-8")
+        runner.state = BridgeState(genau_mode=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("genau_enable", encoding="utf-8")
+            cmd_file.write_text("genau_activate", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_not_called()
 
-    def test_genau_disable_dispatches_when_enabled(self, tmp_path):
+    def test_genau_deactivate_dispatches_when_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        (tmp_path / "rh_enabled.txt").write_text("1", encoding="utf-8")
+        runner.state = BridgeState(genau_mode=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("genau_disable", encoding="utf-8")
+            cmd_file.write_text("genau_deactivate", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("robot_toggle")
+        mock_d.assert_called_once_with("genau_toggle")
 
-    def test_genau_disable_noop_when_already_disabled(self, tmp_path):
+    def test_genau_deactivate_noop_when_not_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        (tmp_path / "rh_enabled.txt").write_text("0", encoding="utf-8")
+        runner.state = BridgeState(genau_mode=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("genau_disable", encoding="utf-8")
+            cmd_file.write_text("genau_deactivate", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_not_called()

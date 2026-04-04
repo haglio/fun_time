@@ -692,21 +692,17 @@ class TestLoadingScreenStartup:
         assert core_kwargs["hide_windows"] is True
 
 
-class TestPhase4GenauAutoMode:
-    """When OSR2 is in auto mode at startup, Genau should be the first thing shown."""
+class TestPhase4GenauAlwaysInactive:
+    """genau_active_at_startup is always False — all VLC ports play, no genau unpause."""
 
-    def test_skips_primary_play_when_genau_mode_active(self, cfg_factory, tmp_path):
+    def test_all_vlc_ports_get_pl_play(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
         ui_pids = {"dashboard_pid": 50, "genau_pid": 60, "audio_pid": 70}
 
-        # Seed mode files: OSR2 in auto mode
         m = configparser.ConfigParser()
         m.optionxform = str
         m.read(str(manifest_path), encoding="utf-8")
-        Path(m["commands"]["genau_mode_file"]).parent.mkdir(parents=True, exist_ok=True)
-        Path(m["commands"]["genau_mode_file"]).write_text("1", encoding="utf-8")
-        Path(m["commands"]["genau_enabled_file"]).write_text("1", encoding="utf-8")
 
         vlc_cmds: list[tuple] = []
 
@@ -739,15 +735,14 @@ class TestPhase4GenauAutoMode:
         portrait_port = int(m["vlc"]["vlc2_port"])
         landscape_port = int(m["vlc"]["vlc3_port"])
 
-        # Primary VLC should NOT get pl_play
-        assert (primary_port, "pl_play") not in vlc_cmds
-        # Portrait and landscape should get pl_play
+        # All VLC ports should get pl_play (genau never active at startup)
+        assert (primary_port, "pl_play") in vlc_cmds
         assert (portrait_port, "pl_play") in vlc_cmds
         assert (landscape_port, "pl_play") in vlc_cmds
         # All three should get volume restored
         assert (primary_port, "volume&val=256") in vlc_cmds
 
-    def test_unpauses_genau_when_auto_mode_active(self, cfg_factory, tmp_path):
+    def test_genau_stays_paused_at_startup(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
         ui_pids = {"dashboard_pid": 50, "genau_pid": 60, "audio_pid": 70}
@@ -756,8 +751,6 @@ class TestPhase4GenauAutoMode:
         m.optionxform = str
         m.read(str(manifest_path), encoding="utf-8")
         Path(m["commands"]["genau_mode_file"]).parent.mkdir(parents=True, exist_ok=True)
-        Path(m["commands"]["genau_mode_file"]).write_text("1", encoding="utf-8")
-        Path(m["commands"]["genau_enabled_file"]).write_text("1", encoding="utf-8")
         # Start paused (as seed_genau_state does)
         Path(m["commands"]["genau_paused_file"]).write_text("1", encoding="utf-8")
         Path(m["commands"]["audio_paused_file"]).write_text("1", encoding="utf-8")
@@ -783,22 +776,14 @@ class TestPhase4GenauAutoMode:
                 hide_windows=True,
             )
 
-        assert Path(m["commands"]["genau_paused_file"]).read_text(encoding="utf-8").strip() == "0"
-        assert Path(m["commands"]["audio_paused_file"]).read_text(encoding="utf-8").strip() == "0"
+        # Pause files must NOT be overwritten — genau is never active at startup
+        assert Path(m["commands"]["genau_paused_file"]).read_text(encoding="utf-8").strip() == "1"
+        assert Path(m["commands"]["audio_paused_file"]).read_text(encoding="utf-8").strip() == "1"
 
-    def test_sets_genau_topmost_last_when_auto_mode(self, cfg_factory, tmp_path):
+    def test_genau_not_topmost_or_activated_at_startup(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
         ui_pids = {"dashboard_pid": 50, "genau_pid": 60, "audio_pid": 70}
-
-        m = configparser.ConfigParser()
-        m.optionxform = str
-        m.read(str(manifest_path), encoding="utf-8")
-        Path(m["commands"]["genau_mode_file"]).parent.mkdir(parents=True, exist_ok=True)
-        Path(m["commands"]["genau_mode_file"]).write_text("1", encoding="utf-8")
-        Path(m["commands"]["genau_enabled_file"]).write_text("1", encoding="utf-8")
-        Path(m["commands"]["genau_paused_file"]).write_text("1", encoding="utf-8")
-        Path(m["commands"]["audio_paused_file"]).write_text("1", encoding="utf-8")
 
         topmost_calls: list[tuple] = []
         activate_calls: list[int] = []
@@ -826,23 +811,16 @@ class TestPhase4GenauAutoMode:
                 hide_windows=True,
             )
 
-        # Genau should be the last window to get topmost=True
-        topmost_on = [(h, v) for h, v in topmost_calls if v]
-        assert topmost_on[-1] == (rh_hwnd, True)
-        # Genau should be activated
-        assert rh_hwnd in activate_calls
+        # Genau should NOT be set topmost (it's not active at startup)
+        genau_topmost = [(h, v) for h, v in topmost_calls if h == rh_hwnd and v]
+        assert genau_topmost == [], "Genau should not be set topmost at startup"
+        # Genau should NOT be activated
+        assert rh_hwnd not in activate_calls, "Genau should not be activated at startup"
 
-    def test_sends_auto_udp_when_auto_mode_active(self, cfg_factory, tmp_path):
+    def test_no_auto_udp_sent_at_startup(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
         ui_pids = {"dashboard_pid": 50, "genau_pid": 60, "audio_pid": 70}
-
-        m = configparser.ConfigParser()
-        m.optionxform = str
-        m.read(str(manifest_path), encoding="utf-8")
-        Path(m["commands"]["genau_mode_file"]).parent.mkdir(parents=True, exist_ok=True)
-        Path(m["commands"]["genau_mode_file"]).write_text("1", encoding="utf-8")
-        Path(m["commands"]["genau_enabled_file"]).write_text("1", encoding="utf-8")
 
         udp_sent: list[tuple[bytes, tuple[str, int]]] = []
 
@@ -874,6 +852,6 @@ class TestPhase4GenauAutoMode:
                 hide_windows=True,
             )
 
-        rh_host = m["genau"]["udp_host"]
-        rh_port = int(m["genau"]["udp_port"])
-        assert (b"AUTO 1", (rh_host, rh_port)) in udp_sent
+        # No AUTO UDP should be sent (genau never active at startup)
+        auto_msgs = [msg for msg in udp_sent if b"AUTO" in msg[0]]
+        assert auto_msgs == [], "No AUTO UDP should be sent at startup"

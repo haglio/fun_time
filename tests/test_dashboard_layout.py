@@ -43,15 +43,29 @@ def test_dashboard_preview_centers_left_column_controls_within_main_monitor():
     assert layout.main_status_strip.width >= layout.mfp_panel.width
 
 
-def test_dashboard_preview_places_osr2_and_link_in_gap_left_of_secondary_stack():
+def test_dashboard_preview_places_osr2_left_of_secondary_stack():
     layout = compute_dashboard_preview_layout(
         Size(width=2560, height=1392),
         Size(width=1440, height=3440),
         _layout_config(),
     )
 
-    assert layout.osr2_panel.x + layout.osr2_panel.width < layout.link_toggle.x
-    assert layout.link_toggle.x + layout.link_toggle.width < layout.secondary_monitor.x
+    assert layout.osr2_panel.x + layout.osr2_panel.width < layout.secondary_monitor.x
+
+
+def test_genau_mode_toggle_inside_primary_panel():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    btn = layout.genau_mode_toggle
+    panel = layout.primary_panel
+    assert btn.x >= panel.x
+    assert btn.y >= panel.y
+    assert btn.x + btn.width <= panel.x + panel.width
+    assert btn.y + btn.height <= panel.y + panel.height
 
 
 def test_osr2_box_is_at_least_66_pixels():

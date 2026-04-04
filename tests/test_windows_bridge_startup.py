@@ -56,14 +56,12 @@ def test_prepare_random_favs_browser_manifest_delegates_to_random_browser_builde
     write.assert_called_once_with(output_path, "Profile 2", ["https://example.com"])
 
 
-def test_seed_genau_state_writes_enabled_and_paused_files(tmp_path: Path):
-    enabled_file = tmp_path / "genau_enabled.txt"
+def test_seed_genau_state_writes_paused_files(tmp_path: Path):
     paused_file = tmp_path / "genau_paused.txt"
     audio_file = tmp_path / "audio_paused.txt"
 
-    seed_genau_state(enabled_file, paused_file, audio_file)
+    seed_genau_state(paused_file, audio_file)
 
-    assert enabled_file.read_text(encoding="utf-8") == "1"
     assert paused_file.read_text(encoding="utf-8") == "1"
     assert audio_file.read_text(encoding="utf-8") == "1"
 
@@ -80,7 +78,6 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
             project_dir=tmp_path,
             config_path="fun_time_config.json",
             random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
-            enabled_file=tmp_path / "genau_enabled.txt",
             paused_file=tmp_path / "genau_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             vlc_exe="vlc.exe",
@@ -495,7 +492,6 @@ def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
             project_dir=tmp_path,
             config_path="cfg.json",
             random_favs_browser_manifest_file=tmp_path / "m.txt",
-            enabled_file=tmp_path / "e.txt",
             paused_file=tmp_path / "p.txt",
             audio_paused_file=tmp_path / "a.txt",
             vlc_exe="vlc.exe",

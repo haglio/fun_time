@@ -52,10 +52,6 @@ class FunTimeIntegrationSession:
     def weird_dir(self) -> Path:
         return self.config.paths.weird_dir
 
-    @property
-    def genau_enabled_file(self) -> Path:
-        return self.config.genau_enabled_file
-
     def read_genau_pid(self) -> int:
         """Read the Genau PID from the bridge pids file."""
         return self.read_child_pids()["genau_pid"]

@@ -75,7 +75,6 @@ def test_dashboard_highlights_primary_for_ai_video_with_funscript(cfg_path: Path
     heartbeat_file.write_text("100.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=False,
         primary_uses_genau=False,
         osr2_mode="manual",
         mfp_alive=False,
@@ -122,7 +121,7 @@ def test_dashboard_app_builds_scene_from_preview_layout(cfg_path: Path):
     assert scene.width == preview_layout.dashboard_width
     assert scene.height == preview_layout.dashboard_height
     assert not any(item.text == "Fun Time" for item in scene.texts)
-    assert len(scene.lines) == 2, "Default scene should show connected cable (two halves)"
+    assert len(scene.lines) == 1, "Default scene should show cable (one straight line)"
 
 
 def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path):
@@ -152,7 +151,6 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     heartbeat_file.write_text("100.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=False,
         primary_uses_genau=False,
         osr2_mode="auto",
         mfp_alive=True,
@@ -173,14 +171,14 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
 
     texts = {item.text for item in scene.texts}
     fills = {item.rect: item.fill for item in scene.rects}
-    assert len(scene.lines) == 2, "Broken cable should have two segments"
+    assert len(scene.lines) == 1, "Cable should be one straight line"
     assert "Non-AI VLC" in texts
     assert "Portrait\nAI VLC" in texts
     assert not any(".mp4" in item.text for item in scene.texts)
-    assert fills[preview_layout.primary_panel] == COLOR_GREEN
+    assert fills[preview_layout.primary_panel] == COLOR_PINK, "Auto mode makes primary pink"
     assert fills[preview_layout.portrait_panel] == COLOR_GREEN
     assert any(action == "portrait_lock" for action, _rect in scene.actions)
-    assert any(action == "link_toggle" for action, _rect in scene.actions)
+    assert any(action == "genau_toggle" for action, _rect in scene.actions)
 
 
 def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
@@ -195,7 +193,6 @@ def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
     heartbeat_file.write_text("100.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=False,
         primary_uses_genau=False,
         osr2_mode="auto",
         mfp_alive=True,
@@ -227,7 +224,6 @@ def test_osr2_non_auto_uses_panel_color(cfg_path: Path):
     )
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=False,
         primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=False,
@@ -283,7 +279,6 @@ def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path:
     scene = build_dashboard_scene(preview_layout)
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=True,
         primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=False,
@@ -341,7 +336,6 @@ def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
     heartbeat_file.write_text(str(time.time()), encoding="utf-8")
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=True,
         primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=True,
@@ -368,7 +362,6 @@ def test_hydrate_sets_mfp_alive_true_for_current_process():
     import os
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=True,
         primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=False,  # start as False
@@ -388,7 +381,6 @@ def test_hydrate_sets_mfp_alive_false_for_zero_pid():
     """hydrate_dashboard_snapshot with mfp_pid=0 must set mfp_alive=False."""
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=True,
         primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=True,  # start as True
@@ -416,7 +408,6 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
     heartbeat_file.write_text("0.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=True,
         primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=True,
@@ -473,7 +464,6 @@ def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
 def test_dashboard_app_hydrates_live_vlc_state():
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=True,
         primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=True,
@@ -586,7 +576,6 @@ def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_p
     )
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=True,
         primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=False,
@@ -633,7 +622,6 @@ def test_dashboard_scene_omnipause_button_shows_play_icon_when_paused(cfg_path: 
     )
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=True,
         primary_uses_genau=False,
         osr2_mode="controlled",
         mfp_alive=False,
@@ -740,10 +728,9 @@ def test_dashboard_scene_pressed_button_has_lighter_fill(cfg_path: Path):
     assert pressed_fills[preview_layout.portrait_next] == normal_fills[preview_layout.portrait_next]
 
 
-def _make_snapshot(*, robot_link_enabled: bool = True, primary_uses_genau: bool = False) -> DashboardSnapshot:
+def _make_snapshot(*, primary_uses_genau: bool = False) -> DashboardSnapshot:
     return DashboardSnapshot(
         f_mode_enabled=False,
-        robot_link_enabled=robot_link_enabled,
         primary_uses_genau=primary_uses_genau,
         osr2_mode="auto",
         mfp_alive=False,
@@ -765,69 +752,54 @@ def _make_layout(cfg_path: Path) -> DashboardPreviewLayout:
     )
 
 
-def test_dashboard_scene_cable_connected_has_midpoint_node(cfg_path: Path):
+def test_dashboard_scene_cable_is_simple_straight_line(cfg_path: Path):
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(robot_link_enabled=True)
+    snapshot = _make_snapshot()
 
     scene = build_dashboard_scene(layout, snapshot)
 
-    # 2 line halves meeting at midpoint, 4 ovals (2 sockets + outer node + inner dot)
-    assert len(scene.lines) == 2, "Connected cable: left half + right half"
-    assert len(scene.ovals) == 4, "2 sockets + midpoint outer + midpoint inner"
+    # 1 straight line, 2 endpoint ovals (sockets), 0 arcs
+    assert len(scene.lines) == 1, "Cable: one straight line"
+    assert len(scene.ovals) == 2, "2 endpoint sockets"
     assert len(scene.arcs) == 0
-    assert not any(item.text in ("Robot Link", "Broken Link") for item in scene.texts)
-    # Neutral gray, no color
     assert scene.lines[0].color == COLOR_CABLE
-    assert scene.lines[1].color == COLOR_CABLE
-
-
-def test_dashboard_scene_cable_broken_curls_apart(cfg_path: Path):
-    layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(robot_link_enabled=False)
-
-    scene = build_dashboard_scene(layout, snapshot)
-
-    # 2 curling line fragments, 2 socket ovals, 2 half-circle arcs
-    assert len(scene.lines) == 2, "Broken cable: two curling fragments"
-    assert len(scene.ovals) == 2, "Only endpoint sockets (no midpoint node)"
-    assert len(scene.arcs) == 2, "Half-circle remnants of broken node"
-    assert scene.lines[0].color == COLOR_CABLE_DIM
-    assert scene.lines[0].smooth is True, "Broken fragments should use smooth curves"
 
 
 def test_dashboard_scene_cable_spans_osr2_to_primary(cfg_path: Path):
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(robot_link_enabled=True)
+    snapshot = _make_snapshot()
 
     scene = build_dashboard_scene(layout, snapshot)
 
     osr2_right = layout.osr2_panel.x + layout.osr2_panel.width
     primary_left = layout.primary_panel.x
-    # Left half starts at OSR2, right half ends at Primary
+    # Line starts at OSR2 right edge, ends at Primary left edge
     assert scene.lines[0].points[0][0] == osr2_right
-    assert scene.lines[1].points[-1][0] == primary_left
+    assert scene.lines[0].points[-1][0] == primary_left
 
 
-def test_dashboard_scene_cable_no_link_rect(cfg_path: Path):
+def test_dashboard_scene_genau_toggle_has_rect(cfg_path: Path):
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(robot_link_enabled=True)
+    snapshot = _make_snapshot()
 
     scene = build_dashboard_scene(layout, snapshot)
 
-    assert not any(item.rect == layout.link_toggle for item in scene.rects)
+    assert any(item.rect == layout.genau_mode_toggle for item in scene.rects)
 
 
-def test_dashboard_scene_cable_press_lightens_color(cfg_path: Path):
+def test_dashboard_scene_genau_toggle_press_lightens_color(cfg_path: Path):
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(robot_link_enabled=True)
+    snapshot = _make_snapshot()
 
     scene_normal = build_dashboard_scene(layout, snapshot)
     scene_pressed = build_dashboard_scene(
-        layout, snapshot, pressed_actions=frozenset({"link_toggle"}),
+        layout, snapshot, pressed_actions=frozenset({"genau_toggle"}),
     )
 
-    assert scene_normal.lines[0].color == COLOR_CABLE
-    assert scene_pressed.lines[0].color == lighten_color(COLOR_CABLE)
+    normal_fills = {item.rect: item.fill for item in scene_normal.rects}
+    pressed_fills = {item.rect: item.fill for item in scene_pressed.rects}
+    assert pressed_fills[layout.genau_mode_toggle] == lighten_color(COLOR_PANEL)
+    assert pressed_fills[layout.genau_mode_toggle] != normal_fills[layout.genau_mode_toggle]
 
 
 def test_dashboard_scene_chips_have_hover_texts(cfg_path: Path):
@@ -846,7 +818,7 @@ def test_dashboard_scene_default_cable_connected_without_snapshot(cfg_path: Path
 
     scene = build_dashboard_scene(layout)
 
-    assert len(scene.lines) == 2, "Default (no snapshot) should show connected cable"
+    assert len(scene.lines) == 1, "Default (no snapshot) should show cable"
     assert scene.lines[0].color == COLOR_CABLE
 
 
@@ -865,7 +837,7 @@ def test_osr2_highlights_green_when_funscript_playing(cfg_path: Path):
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("s", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
+        f_mode_enabled=False, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -894,7 +866,7 @@ def test_osr2_auto_mode_stays_pink_even_with_funscript(cfg_path: Path):
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("s", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=True,
+        f_mode_enabled=False, primary_uses_genau=True,
         osr2_mode="auto", mfp_alive=False, primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -931,7 +903,7 @@ def test_active_chips_and_locks_use_same_green_as_favs(cfg_path: Path):
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
     heartbeat_file.write_text(str(_time.time()), encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
+        f_mode_enabled=False, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=True, primary_responsive=True, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", True), landscape=DashboardPanelSnapshot("", True),
@@ -972,7 +944,7 @@ def test_osr2_controlled_with_funscript_shows_funscript_control(cfg_path: Path):
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("s", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
+        f_mode_enabled=False, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -988,7 +960,7 @@ def test_osr2_controlled_with_funscript_shows_funscript_control(cfg_path: Path):
 def test_osr2_controlled_without_funscript_shows_idle(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
+        f_mode_enabled=False, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -1014,7 +986,7 @@ def test_osr2_auto_mode_shows_parenthesized_auto(cfg_path: Path):
 def test_osr2_off_mode_shows_off_label_and_dim_color(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
+        f_mode_enabled=False, primary_uses_genau=False,
         osr2_mode="off", mfp_alive=False, primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -1048,7 +1020,7 @@ def test_mfp_label_has_no_connection_status_text(cfg_path: Path):
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
     heartbeat_file.write_text("100.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
+        f_mode_enabled=False, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=True, primary_responsive=True, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
@@ -1065,7 +1037,7 @@ def test_mfp_label_has_no_connection_status_text(cfg_path: Path):
 def test_omnipause_resume_button_is_not_green_when_paused(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, robot_link_enabled=True, primary_uses_genau=False,
+        f_mode_enabled=False, primary_uses_genau=False,
         osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=True,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),

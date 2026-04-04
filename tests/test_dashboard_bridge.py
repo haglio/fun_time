@@ -8,7 +8,6 @@ from fun_time.dashboard_bridge import build_dashboard_snapshot_text, write_dashb
 def test_build_dashboard_snapshot_text_matches_bridge_contract():
     text = build_dashboard_snapshot_text(
         f_mode_enabled=True,
-        robot_link_enabled=False,
         osr2_mode="auto",
         mfp_alive=True,
         primary_uses_genau=False,
@@ -19,8 +18,6 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
     assert text == (
         "[fmode]\n"
         "enabled=1\n"
-        "[robot_link]\n"
-        "enabled=0\n"
         "[osr2]\n"
         "mode=auto\n"
         "[mfp]\n"
@@ -40,7 +37,6 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
 def test_build_dashboard_snapshot_text_includes_omnipause_state():
     text = build_dashboard_snapshot_text(
         f_mode_enabled=False,
-        robot_link_enabled=True,
         osr2_mode="controlled",
         mfp_alive=False,
         primary_uses_genau=False,
@@ -58,7 +54,6 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
     first = write_dashboard_snapshot(
         output,
         f_mode_enabled=False,
-        robot_link_enabled=True,
         osr2_mode="controlled",
         mfp_alive=False,
         primary_uses_genau=True,
@@ -68,7 +63,6 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
     second = write_dashboard_snapshot(
         output,
         f_mode_enabled=False,
-        robot_link_enabled=True,
         osr2_mode="controlled",
         mfp_alive=False,
         primary_uses_genau=True,
@@ -81,5 +75,4 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
     text = output.read_text(encoding="utf-16")
     assert "[primary]" in text
     assert "uses_genau=1" in text
-
-
+    assert "robot_link" not in text

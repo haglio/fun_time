@@ -44,7 +44,6 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
         "commands": {
             "genau_mode_file": str(config.genau_mode_file),
             "genau_cmd_file": str(config.genau_cmd_file),
-            "genau_enabled_file": str(config.genau_enabled_file),
             "genau_paused_file": str(config.genau_paused_file),
             "broker_cmd_file": str(config.paths.state_dir / "broker_cmd.txt"),
             "broker_heartbeat_file": str(config.paths.state_dir / "broker_heartbeat.txt"),

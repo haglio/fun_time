@@ -107,7 +107,6 @@ def run_startup_sequence(
         config_path=m["runtime"]["config_path"],
         broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
         random_favs_browser_manifest_file=m["random_favs_browser"]["manifest_file"],
-        enabled_file=m["commands"]["genau_enabled_file"],
         paused_file=m["commands"]["genau_paused_file"],
         audio_paused_file=m["commands"]["audio_paused_file"],
         vlc_exe=m["executables"]["vlc_exe"],
@@ -233,11 +232,8 @@ def run_startup_sequence(
     if hide_windows:
         progress.advance("Positioning windows...")
 
-        # Check if Genau mode is active at startup (OSR2 already in auto mode)
-        genau_active_at_startup = (
-            read_flag_file(m["commands"]["genau_enabled_file"], True)
-            and read_flag_file(m["commands"]["genau_mode_file"], False)
-        )
+        # Genau starts inactive; user presses 'g' to activate
+        genau_active_at_startup = False
 
         # Restore VLC audio (muted in launch_core_apps during loading)
         primary_port = int(m["vlc"]["primary_vlc_port"])

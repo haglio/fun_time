@@ -57,7 +57,7 @@ Esc::QueueCommand("omnipause_toggle")
 SC01A::QueueCommand("primary_prev")
 ]::QueueCommand("primary_next")
 SC01B::QueueCommand("primary_next")
-r::QueueCommand("robot_toggle")
+g::QueueCommand("genau_toggle")
 $f::QueueCommand("fmode_toggle")
 
 \::QueueCommand("backslash_key")
@@ -72,6 +72,18 @@ d::QueueCommand("landscape_next")
 w::QueueCommand("landscape_trash")
 s::QueueCommand("landscape_lock")
 '::QueueCommand("clipper_save")
+
+; Genau direct control hotkeys
+u::QueueCommand("genau_center_down")
+i::QueueCommand("genau_amplitude_up")
+o::QueueCommand("genau_center_up")
+j::QueueCommand("genau_speed_down")
+k::QueueCommand("genau_amplitude_down")
+l::QueueCommand("genau_speed_up")
+m::QueueCommand("genau_prev_clip")
+SC033::QueueCommand("genau_cycle_shape")
+SC034::QueueCommand("genau_next_clip")
+SC035::QueueCommand("genau_toggle_auto")
 
 ; -------------------- CORE FUNCTIONS --------------------
 

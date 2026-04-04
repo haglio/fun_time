@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 from .modes import build_fmode_playlists
 from .omnipause import build_omnipause_plan
-from .genau_plan import build_genau_plan
+from .genau_plan import build_genau_toggle_plan
 from .vlc_actions import ensure_playback_state, replace_playlist_from_file
 
 
@@ -45,60 +45,19 @@ class FModeFlowResult:
     log_message: str
 
 
-def apply_sync_genau(
+def apply_toggle_genau_active(
     *,
     genau_mode_on: bool,
     omni_paused: bool,
-    enabled_file: str | Path,
-    mode_state_file: str | Path,
     paused_file: str | Path,
     audio_paused_file: str | Path,
     primary_port: int,
     password: str,
 ) -> GenauFlowResult:
-    enabled = read_flag_file(enabled_file, True)
-    mode_state_on = read_flag_file(mode_state_file, False)
-    plan = build_genau_plan(
-        "sync-state",
+    plan = build_genau_toggle_plan(
         genau_mode_on=genau_mode_on,
-        enabled=enabled,
-        mode_state_on=mode_state_on,
         omni_paused=omni_paused,
     )
-    if plan.is_transition:
-        write_flag_file(paused_file, not plan.target_active)
-        write_flag_file(audio_paused_file, not plan.target_active)
-        if not ensure_playback_state(primary_port, password, should_play=not plan.target_active):
-            logger.warning("Primary VLC failed to reach desired Genau sync playback state")
-    return GenauFlowResult(
-        next_genau_mode=plan.target_active,
-        is_transition=plan.is_transition,
-        log_message=plan.log_message,
-    )
-
-
-def apply_toggle_genau_enabled(
-    *,
-    genau_mode_on: bool,
-    omni_paused: bool,
-    enabled_file: str | Path,
-    mode_state_file: str | Path,
-    paused_file: str | Path,
-    audio_paused_file: str | Path,
-    primary_port: int,
-    password: str,
-) -> GenauFlowResult:
-    enabled = read_flag_file(enabled_file, True)
-    mode_state_on = read_flag_file(mode_state_file, False)
-    plan = build_genau_plan(
-        "toggle-enabled",
-        genau_mode_on=genau_mode_on,
-        enabled=enabled,
-        mode_state_on=mode_state_on,
-        omni_paused=omni_paused,
-    )
-    if plan.write_enabled:
-        write_flag_file(enabled_file, plan.enabled_value)
     if plan.is_transition:
         write_flag_file(paused_file, not plan.target_active)
         write_flag_file(audio_paused_file, not plan.target_active)

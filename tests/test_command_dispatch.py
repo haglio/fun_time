@@ -29,7 +29,6 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         primary_sources=str(tmp_path / "primary"),
         portrait_sources=str(tmp_path / "portrait"),
         landscape_sources=str(tmp_path / "landscape"),
-        genau_enabled_file=state_dir / "genau_enabled.txt",
         genau_mode_file=state_dir / "genau_mode.txt",
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",
@@ -222,6 +221,21 @@ def test_landscape_next_ensures_playback_after_nav(tmp_path: Path):
     assert (config.landscape_port, config.vlc_password, True) in playback_calls
 
 
+# --- primary_prev / primary_next ---
+
+
+def test_primary_prev_calls_vlc_nav_step(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(genau_mode=False)
+    nav_calls: list[tuple] = []
+
+    with patch("fun_time.command_dispatch.vlc_nav_step",
+               side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
+        dispatch_command("primary_prev", state, config)
+
+    assert nav_calls == [(config.primary_port, "prev")]
+
+
 def test_primary_next_calls_vlc_nav_step(tmp_path: Path):
     """Primary VLC navigation uses vlc_nav_step (pl_play&id=N).
     With --start-paused removed, VLC auto-plays on item transitions."""
@@ -249,43 +263,6 @@ def test_landscape_prev_cancels_lock_and_calls_nav_step_prev(tmp_path: Path):
 
     assert new_state.locked3 is False
     assert nav_calls == [(8092, "prev")]
-
-
-# --- primary_prev / primary_next ---
-
-
-def test_primary_prev_sends_prev_command_to_genau_when_in_robot_mode(tmp_path: Path):
-    config = _make_config(tmp_path)
-    config.genau_enabled_file.write_text("1", encoding="utf-8")
-    config.genau_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(genau_mode=True)
-
-    new_state, ops = dispatch_command("primary_prev", state, config)
-
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "PREV"
-
-
-def test_primary_next_sends_next_command_to_genau_when_in_robot_mode(tmp_path: Path):
-    config = _make_config(tmp_path)
-    config.genau_enabled_file.write_text("1", encoding="utf-8")
-    config.genau_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(genau_mode=True)
-
-    new_state, ops = dispatch_command("primary_next", state, config)
-
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT"
-
-
-def test_primary_prev_calls_vlc_nav_step(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(genau_mode=False)
-    nav_calls: list[tuple] = []
-
-    with patch("fun_time.command_dispatch.vlc_nav_step",
-               side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
-        dispatch_command("primary_prev", state, config)
-
-    assert nav_calls == [(config.primary_port, "prev")]
 
 
 # --- quarter_button ---
@@ -388,102 +365,76 @@ def test_fmode_panel_click_dispatches_as_fmode_toggle(tmp_path: Path):
     assert new_state.locked3 is False
 
 
-# --- robot_toggle / link_toggle ---
+# --- genau_toggle ---
 
 
-def test_robot_toggle_disables_and_hides_when_enabled_and_mode_on(tmp_path: Path):
+def test_genau_toggle_deactivates_when_genau_mode_on(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.genau_enabled_file.write_text("1", encoding="utf-8")
-    config.genau_mode_file.write_text("1", encoding="utf-8")
     state = _make_state(genau_mode=True)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("robot_toggle", state, config)
+        new_state, ops = dispatch_command("genau_toggle", state, config)
 
     assert new_state.genau_mode is False
-    assert config.genau_enabled_file.read_text(encoding="utf-8") == "0"
-    assert not any(op.op == "hide" for op in ops)
     assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
 
 
-def test_robot_toggle_enables_and_shows_when_disabled_and_mode_state_on(tmp_path: Path):
+def test_genau_toggle_activates_when_genau_mode_off(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.genau_enabled_file.write_text("0", encoding="utf-8")
-    config.genau_mode_file.write_text("1", encoding="utf-8")
     state = _make_state(genau_mode=False)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("robot_toggle", state, config)
+        new_state, ops = dispatch_command("genau_toggle", state, config)
 
     assert new_state.genau_mode is True
-    assert config.genau_enabled_file.read_text(encoding="utf-8") == "1"
-    assert not any(op.op == "show" for op in ops)
     assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
+    assert any(op.op == "activate" and op.title == "Genau" for op in ops)
 
 
-def test_link_toggle_is_alias_for_robot_toggle(tmp_path: Path):
-    """link_toggle and robot_toggle produce identical state transitions."""
+def test_genau_panel_is_alias_for_genau_toggle(tmp_path: Path):
+    """genau_panel dispatches identically to genau_toggle."""
     config = _make_config(tmp_path)
-    config.genau_enabled_file.write_text("1", encoding="utf-8")
-    config.genau_mode_file.write_text("1", encoding="utf-8")
     state = _make_state(genau_mode=True)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("link_toggle", state, config)
+        new_state, ops = dispatch_command("genau_panel", state, config)
 
     assert new_state.genau_mode is False
-    assert config.genau_enabled_file.read_text(encoding="utf-8") == "0"
+    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
 
 
-# --- sync_genau ---
+# --- genau command forwarding (_GENAU_CMD_MAP) ---
 
 
-def test_sync_genau_skips_when_omni_paused(tmp_path: Path):
+def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=True)
+    state = _make_state(genau_mode=True)
 
-    new_state, ops = dispatch_command("sync_genau", state, config)
+    new_state, ops = dispatch_command("genau_speed_down", state, config)
 
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN"
     assert new_state == state
     assert ops == []
 
 
-def test_sync_genau_transitions_to_robot_mode(tmp_path: Path):
+def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.genau_enabled_file.write_text("1", encoding="utf-8")
-    config.genau_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(genau_mode=False, omni_paused=False)
+    state = _make_state(genau_mode=True)
 
-    with (
-        patch("fun_time.runtime_flow.ensure_playback_state", return_value=True),
-    ):
-        new_state, ops = dispatch_command("sync_genau", state, config)
+    new_state, ops = dispatch_command("genau_next_clip", state, config)
 
-    assert new_state.genau_mode is True
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
-def test_first_sync_tick_enters_genau_when_broker_detected_auto_mode(tmp_path: Path):
-    """Startup auto-detect: if the broker has already written mode file = '1'
-    by the time the dispatch loop starts, the first sync tick naturally enters
-    Genau mode — no special startup check needed."""
+def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.genau_enabled_file.write_text("1", encoding="utf-8")
-    config.genau_mode_file.write_text("1", encoding="utf-8")
-    # Initial state: fresh startup, genau_mode=False (default)
-    state = _make_state(genau_mode=False, omni_paused=False)
-    vlc_calls: list[tuple[int, str, bool]] = []
+    state = _make_state(genau_mode=False)
 
-    with patch(
-        "fun_time.runtime_flow.ensure_playback_state",
-        side_effect=lambda port, password, should_play: vlc_calls.append((port, password, should_play)) or True,
-    ):
-        new_state, ops = dispatch_command("sync_genau", state, config)
+    new_state, ops = dispatch_command("genau_speed_down", state, config)
 
-    assert new_state.genau_mode is True
-    assert vlc_calls == [(config.primary_port, config.vlc_password, False)]
-    assert not any(op.op == "show" for op in ops)
-    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
-    assert any(op.op == "activate" and op.title == "Genau" for op in ops)
+    assert not config.genau_cmd_file.exists()
+    assert new_state == state
+    assert ops == []
 
 
 def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
@@ -647,9 +598,7 @@ def test_clipper_save_no_tooltip_on_failure(tmp_path: Path):
 
 def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.genau_enabled_file.write_text("1", encoding="utf-8")
-    config.genau_mode_file.write_text("1", encoding="utf-8")
-    state = _make_state(genau_mode=False)
+    state = _make_state(genau_mode=True)
 
     with patch("fun_time.command_dispatch.get_current_file_path") as mock_vlc, \
          patch("fun_time.command_dispatch.subprocess") as mock_subprocess:

@@ -96,7 +96,6 @@ def test_load_dashboard_snapshot_supports_utf16_ahk_ini_exports(tmp_path: Path):
 
     assert snapshot is not None
     assert snapshot.f_mode_enabled is True
-    assert snapshot.robot_link_enabled is False
     assert snapshot.primary_uses_genau is True
     assert snapshot.portrait.locked is True
     assert snapshot.window.x == 10
@@ -131,7 +130,7 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
 
     assert snapshot is not None
     assert snapshot.f_mode_enabled is True
-    assert snapshot.robot_link_enabled is True
+    assert snapshot.f_mode_enabled is True
     assert snapshot.primary.path == ""
     assert snapshot.primary_responsive is False
     assert snapshot.portrait.locked is True

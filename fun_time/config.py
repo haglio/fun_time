@@ -147,10 +147,6 @@ class ProjectConfig:
         return self.paths.state_dir / "genau_cmd.txt"
 
     @property
-    def genau_enabled_file(self) -> Path:
-        return self.paths.state_dir / "genau_enabled.txt"
-
-    @property
     def genau_paused_file(self) -> Path:
         return self.paths.state_dir / "genau_paused.txt"
 
