@@ -481,6 +481,17 @@ class TestDispatchLoopRunner:
 
         mock_enforce.assert_not_called()
 
+    def test_sync_tick_skips_enforce_genau_z_order_during_omnipause(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=100)
+        runner._last_sync = -999
+        runner.state = BridgeState(genau_mode=True, omni_paused=True)
+
+        with patch.object(runner, "_enforce_genau_z_order") as mock_enforce, \
+             patch.object(runner, "_update_dashboard"):
+            runner.tick()
+
+        mock_enforce.assert_not_called()
+
     def test_sync_tick_calls_update_dashboard_when_enabled(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         runner._last_sync = -999
