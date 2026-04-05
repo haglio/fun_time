@@ -151,7 +151,6 @@ class DispatchLoopRunner:
         dashboard_pid: int = 0,
         dashboard_enabled: bool,
         rfb_hwnd: int = 0,
-        genau_pid: int = 0,
         sync_interval_ms: int = 200,
     ) -> None:
         self.config = config
@@ -165,7 +164,6 @@ class DispatchLoopRunner:
         self.dashboard_pid = dashboard_pid
         self.dashboard_enabled = dashboard_enabled
         self.rfb_hwnd = rfb_hwnd
-        self.genau_pid = genau_pid
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0

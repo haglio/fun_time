@@ -926,7 +926,7 @@ class TestHandleOmniPauseToggle:
         assert {2001, 3001, 4001, 5001} <= restored
 
     def test_entering_omnipause_removes_genau_topmost(self, tmp_path):
-        runner = self._make_runner(tmp_path, genau_pid=600)
+        runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False, genau_mode=True)
 
         topmost_calls = []
@@ -944,7 +944,7 @@ class TestHandleOmniPauseToggle:
         assert 6001 in removed
 
     def test_leaving_omnipause_sets_genau_topmost_last_in_robot_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path, genau_pid=600)
+        runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True, genau_mode=True)
 
         topmost_calls = []
@@ -964,7 +964,7 @@ class TestHandleOmniPauseToggle:
         assert restored[-1] == (6001, True)
 
     def test_entering_omnipause_removes_genau_topmost_via_title_when_pid_fails(self, tmp_path):
-        runner = self._make_runner(tmp_path, genau_pid=600)
+        runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False, genau_mode=True)
 
         topmost_calls = []
@@ -983,7 +983,7 @@ class TestHandleOmniPauseToggle:
         assert 7777 in removed, "Genau topmost should be removed via title lookup"
 
     def test_leaving_omnipause_restores_genau_topmost_via_title_when_pid_fails(self, tmp_path):
-        runner = self._make_runner(tmp_path, genau_pid=600)
+        runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True, genau_mode=True)
 
         topmost_calls = []
@@ -1001,7 +1001,7 @@ class TestHandleOmniPauseToggle:
         assert 7777 in restored, "Genau topmost should be restored via title lookup"
 
     def test_leaving_omnipause_skips_genau_topmost_when_not_in_robot_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path, genau_pid=600)
+        runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True, genau_mode=False)
 
         topmost_calls = []

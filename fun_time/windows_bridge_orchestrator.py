@@ -264,7 +264,6 @@ def run_python_orchestrated_bridge(
         dashboard_pid=result.dashboard_pid,
         dashboard_enabled=dashboard_enabled,
         rfb_hwnd=result.rfb_hwnd,
-        genau_pid=result.genau_pid,
     )
     # Genau startup detection is handled by the dispatch loop's first
     # sync tick: if the broker has already written genau_mode.txt = "1"
