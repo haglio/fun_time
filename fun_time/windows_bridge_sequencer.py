@@ -284,9 +284,11 @@ def run_startup_sequence(
         # Re-assert Dashboard topmost — it set its own -topmost in Phase 3
         # but that was before RFB's topmost was set, so Dashboard is now
         # below RFB.  Toggling it ensures Dashboard ends up above RFB.
+        # Use wait_for_window (not find_window_by_pid) because the Dashboard
+        # subprocess may not have created its window yet at this point.
         dashboard_pid = ui_pids["dashboard_pid"]
         if dashboard_pid:
-            dash_hwnd = find_window_by_pid(dashboard_pid)
+            dash_hwnd = wait_for_window(dashboard_pid, timeout_s=5.0)
             if dash_hwnd:
                 set_always_on_top(dash_hwnd, False)
                 set_always_on_top(dash_hwnd, True)

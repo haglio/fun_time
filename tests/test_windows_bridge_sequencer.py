@@ -904,6 +904,63 @@ class TestPhase4GenauAlwaysInactive:
         assert auto_msgs == [], "No AUTO UDP should be sent at startup"
 
 
+class TestDashboardZOrderOnSlowStartup:
+    """Bug: Dashboard z-order correction in Phase 4 uses find_window_by_pid (one-shot).
+
+    If the Dashboard subprocess hasn't created its window yet, find_window_by_pid
+    returns 0 and the z-order toggle is silently skipped — leaving Dashboard
+    below RFB.  The fix: wait for the Dashboard window (like we wait for MFP).
+    """
+
+    def test_dashboard_topmost_toggled_even_when_window_appears_late(self, cfg_factory, tmp_path):
+        """When find_window_by_pid returns 0 for the Dashboard (window not yet
+        created), the sequencer must wait for it and still apply the z-order
+        correction (toggle off/on topmost).
+        """
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "genau_pid": 60, "audio_pid": 70}
+
+        DASH_HWND = 5050
+        # find_window_by_pid returns 0 for dashboard (simulates slow subprocess)
+        core_pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040}
+        # wait_for_window returns the hwnd for both MFP and dashboard
+        wait_pid_to_hwnd = {20: 2020, 50: DASH_HWND}
+
+        topmost_calls: list[tuple] = []
+
+        def track_topmost(hwnd, on_top):
+            topmost_calls.append((hwnd, on_top))
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=60), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: wait_pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: core_pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                hide_windows=True,
+            )
+
+        # Dashboard must be toggled off then on — even though find_window_by_pid
+        # returned 0 — because the sequencer waited for the window.
+        dash_calls = [(h, v) for h, v in topmost_calls if h == DASH_HWND]
+        assert dash_calls == [(DASH_HWND, False), (DASH_HWND, True)], (
+            f"Dashboard z-order correction was skipped or wrong: {dash_calls}"
+        )
+
+
 class TestGenauLaunchReceivesCommandFiles:
     """Genau must receive --command-file and --paused-file from the manifest."""
 
