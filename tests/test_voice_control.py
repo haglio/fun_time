@@ -24,8 +24,10 @@ class TestVoiceCommands:
             "weird portrait": "portrait_trash",
             "f mode on": "fmode_on",
             "f mode off": "fmode_off",
+            "genau": "genau_activate",
             "enable genau": "genau_enable",
             "disable genau": "genau_disable",
+            "vlc": "genau_deactivate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
             "next primary": "primary_next",
@@ -46,6 +48,12 @@ class TestVoiceCommands:
         }
         for phrase, cmd in static_phrases.items():
             assert VOICE_COMMANDS[phrase] == cmd
+
+    def test_genau_shortcut_activates(self):
+        assert VOICE_COMMANDS["genau"] == "genau_activate"
+
+    def test_vlc_shortcut_deactivates_genau(self):
+        assert VOICE_COMMANDS["vlc"] == "genau_deactivate"
 
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "genau_amp_50"
