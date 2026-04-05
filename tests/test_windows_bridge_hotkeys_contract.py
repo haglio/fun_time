@@ -74,6 +74,18 @@ class TestHotkeyBindings:
         text = _hotkeys_text()
         assert "^!q::ExitApp()" in text
 
+    def test_space_queues_enter_omnipause(self):
+        text = _hotkeys_text()
+        assert 'QueueCommand("enter_omnipause")' in text
+
+    def test_space_not_suspend_exempt(self):
+        """Space must NOT be in the SuspendExempt block — it enters omnipause but cannot leave it."""
+        text = _hotkeys_text()
+        exempt_start = text.index("#SuspendExempt true")
+        exempt_end = text.index("#SuspendExempt false")
+        exempt_block = text[exempt_start:exempt_end]
+        assert "Space" not in exempt_block
+
     def test_suspend_exempt_for_exit_and_omnipause(self):
         text = _hotkeys_text()
         assert "#SuspendExempt true" in text

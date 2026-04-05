@@ -194,6 +194,9 @@ class DispatchLoopRunner:
                 continue
             elif cmd == "omnipause_toggle":
                 self._handle_omnipause_toggle()
+            elif cmd == "enter_omnipause":
+                if not self.state.omni_paused:
+                    self._handle_enter_omnipause()
             elif cmd == "open_file_dialog":
                 threading.Thread(
                     target=self._handle_open_file_dialog,
@@ -465,6 +468,11 @@ class DispatchLoopRunner:
             self._remove_all_topmost()
         else:
             self._restore_all_topmost()
+
+    def _handle_enter_omnipause(self) -> None:
+        """Enter omnipause with topmost management (Space key — enter only, no leave)."""
+        self._dispatch("enter_omnipause")
+        self._remove_all_topmost()
 
     def _handle_open_file_dialog(self) -> None:
         """Open VLC's file dialog with managed omnipause."""
