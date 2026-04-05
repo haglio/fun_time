@@ -16,7 +16,7 @@ def test_load_dashboard_snapshot_parses_controller_export(tmp_path: Path):
             [
                 "[fmode]",
                 "enabled=0",
-                "[robot_link]",
+                "[genau_link]",
                 "enabled=1",
                 "[osr2]",
                 "mode=auto",
@@ -65,7 +65,7 @@ def test_load_dashboard_snapshot_supports_utf16_ahk_ini_exports(tmp_path: Path):
             [
                 "[fmode]",
                 "enabled=1",
-                "[robot_link]",
+                "[genau_link]",
                 "enabled=0",
                 "[osr2]",
                 "mode=auto",
@@ -108,7 +108,7 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
             [
                 "[fmode]",
                 "enabled=1",
-                "[robot_link]",
+                "[genau_link]",
                 "enabled=1",
                 "[osr2]",
                 "mode=controlled",
@@ -144,7 +144,7 @@ def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
             [
                 "[fmode]",
                 "enabled=0",
-                "[robot_link]",
+                "[genau_link]",
                 "enabled=1",
                 "[osr2]",
                 "mode=auto",
@@ -177,7 +177,7 @@ def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
             [
                 "[fmode]",
                 "enabled=0",
-                "[robot_link]",
+                "[genau_link]",
                 "enabled=1",
                 "[osr2]",
                 "mode=auto",

@@ -124,10 +124,10 @@ def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
             genau_module="fun_time.genau.app",
             config_path="cfg.json",
             clips_folder="clips",
-            robot_x=100,
-            robot_y=200,
-            robot_width=300,
-            robot_height=400,
+            genau_x=100,
+            genau_y=200,
+            genau_width=300,
+            genau_height=400,
         )
 
     assert pid == 42
@@ -150,10 +150,10 @@ def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
             genau_module="fun_time.genau.app",
             config_path="cfg.json",
             clips_folder="clips",
-            robot_x=100,
-            robot_y=200,
-            robot_width=300,
-            robot_height=400,
+            genau_x=100,
+            genau_y=200,
+            genau_width=300,
+            genau_height=400,
             command_file="state/genau_cmd.txt",
             paused_file="state/genau_paused.txt",
         )
@@ -193,10 +193,10 @@ def test_launch_ui_companions_skips_genau_when_pid_provided(tmp_path: Path):
             config_path="cfg.json",
             clips_folder="clips",
             audio_folder="audio",
-            robot_x=100,
-            robot_y=200,
-            robot_width=300,
-            robot_height=400,
+            genau_x=100,
+            genau_y=200,
+            genau_width=300,
+            genau_height=400,
             genau_pid=22,
             result_file=result_file,
         )
@@ -240,16 +240,16 @@ def test_launch_ui_companions_launches_genau_when_pid_not_provided(tmp_path: Pat
             config_path="cfg.json",
             clips_folder="clips",
             audio_folder="audio",
-            robot_x=100,
-            robot_y=200,
-            robot_width=300,
-            robot_height=400,
+            genau_x=100,
+            genau_y=200,
+            genau_width=300,
+            genau_height=400,
             result_file=result_file,
         )
 
     assert popen.call_count == 3
-    robot_command = popen.call_args_list[1].args[0]
-    assert robot_command[:3] == ["python.exe", "-m", "fun_time.genau.app"]
+    genau_command = popen.call_args_list[1].args[0]
+    assert genau_command[:3] == ["python.exe", "-m", "fun_time.genau.app"]
 
     parser = configparser.ConfigParser()
     parser.optionxform = str
@@ -282,10 +282,10 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
             config_path="cfg.json",
             clips_folder="clips",
             audio_folder="audio",
-            robot_x=100,
-            robot_y=200,
-            robot_width=300,
-            robot_height=400,
+            genau_x=100,
+            genau_y=200,
+            genau_width=300,
+            genau_height=400,
             result_file=result_file,
         )
 

@@ -499,7 +499,7 @@ def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):
     assert config.primary_port not in resumed_ports
 
 
-def test_leave_omnipause_skip_primary_adds_genau_ops_when_in_robot_mode(tmp_path: Path):
+def test_leave_omnipause_skip_primary_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True, genau_mode=True)
 

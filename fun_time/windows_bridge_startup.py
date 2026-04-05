@@ -132,10 +132,10 @@ def launch_genau(
     genau_module: str,
     config_path: str | Path,
     clips_folder: str | Path,
-    robot_x: int,
-    robot_y: int,
-    robot_width: int,
-    robot_height: int,
+    genau_x: int,
+    genau_y: int,
+    genau_width: int,
+    genau_height: int,
     command_file: str | Path | None = None,
     paused_file: str | Path | None = None,
 ) -> int:
@@ -149,13 +149,13 @@ def launch_genau(
         "--clips-folder",
         str(clips_folder),
         "--x",
-        str(robot_x),
+        str(genau_x),
         "--y",
-        str(robot_y),
+        str(genau_y),
         "--width",
-        str(robot_width),
+        str(genau_width),
         "--height",
-        str(robot_height),
+        str(genau_height),
     ]
     if command_file is not None:
         cmd.extend(["--command-file", str(command_file)])
@@ -181,10 +181,10 @@ def launch_ui_companions(
     config_path: str | Path,
     clips_folder: str | Path,
     audio_folder: str | Path,
-    robot_x: int,
-    robot_y: int,
-    robot_width: int,
-    robot_height: int,
+    genau_x: int,
+    genau_y: int,
+    genau_width: int,
+    genau_height: int,
     genau_pid: int = 0,
     result_file: str | Path,
 ) -> None:
@@ -223,10 +223,10 @@ def launch_ui_companions(
             genau_module=genau_module,
             config_path=config_path,
             clips_folder=clips_folder,
-            robot_x=robot_x,
-            robot_y=robot_y,
-            robot_width=robot_width,
-            robot_height=robot_height,
+            genau_x=genau_x,
+            genau_y=genau_y,
+            genau_width=genau_width,
+            genau_height=genau_height,
         )
     audio_proc = subprocess.Popen(
         [

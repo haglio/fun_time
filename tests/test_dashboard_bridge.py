@@ -75,4 +75,4 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
     text = output.read_text(encoding="utf-16")
     assert "[primary]" in text
     assert "uses_genau=1" in text
-    assert "robot_link" not in text
+    assert "genau_link" not in text

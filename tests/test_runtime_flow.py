@@ -158,7 +158,7 @@ def test_build_omnipause_toggle_returns_enter_or_leave():
 
 
 def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypatch, tmp_path: Path):
-    paused_file = tmp_path / "robot_paused.txt"
+    paused_file = tmp_path / "genau_paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
     calls: list[tuple[int, str, bool]] = []
@@ -190,7 +190,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypat
 
 
 def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_path: Path):
-    paused_file = tmp_path / "robot_paused.txt"
+    paused_file = tmp_path / "genau_paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
     paused_file.write_text("1", encoding="utf-8")
@@ -225,7 +225,7 @@ def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_p
 
 
 def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monkeypatch, tmp_path: Path):
-    paused_file = tmp_path / "robot_paused.txt"
+    paused_file = tmp_path / "genau_paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
     paused_file.write_text("1", encoding="utf-8")

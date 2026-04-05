@@ -1,4 +1,4 @@
-"""Background dispatch loop for dashboard commands and robot hand sync.
+"""Background dispatch loop for dashboard commands and genau sync.
 
 Runs in a thread alongside the AHK hotkey script, handling periodic
 dispatch directly in Python instead of spawning subprocesses.
@@ -135,7 +135,7 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
 
 
 class DispatchLoopRunner:
-    """Runs dashboard polling and robot hand sync in-process."""
+    """Runs dashboard polling and genau sync in-process."""
 
     def __init__(
         self,
@@ -179,7 +179,7 @@ class DispatchLoopRunner:
     }
 
     def tick(self) -> None:
-        """Run one iteration: poll dashboard, maybe sync robot hand."""
+        """Run one iteration: poll dashboard, maybe sync genau."""
         # Sync state from shared file — AHK hotkey dispatches update it directly.
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
@@ -286,9 +286,9 @@ class DispatchLoopRunner:
         primary_hwnd = find_window_by_pid(self.primary_pid)
         if primary_hwnd:
             set_always_on_top(primary_hwnd, False)
-        robot_hwnd = find_window_by_title("Genau")
-        if robot_hwnd:
-            set_always_on_top(robot_hwnd, True)
+        genau_hwnd = find_window_by_title("Genau")
+        if genau_hwnd:
+            set_always_on_top(genau_hwnd, True)
 
     def _dispatch(self, command: str) -> None:
         prev_genau = self.state.genau_mode
