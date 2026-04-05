@@ -167,3 +167,25 @@ def test_mfp_height_matches_hw_ratio():
 
     mfp = layout.mfp_panel
     assert mfp.height == round(mfp.width * 1.125)
+
+
+def test_genau_mode_toggle_does_not_overlap_clipper_save():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    genau = layout.genau_mode_toggle
+    clipper = layout.clipper_save
+    # Rects must not overlap — if they share any pixel,
+    # mousePressEvent dispatches the wrong action.
+    no_overlap = (
+        genau.x + genau.width <= clipper.x
+        or clipper.x + clipper.width <= genau.x
+        or genau.y + genau.height <= clipper.y
+        or clipper.y + clipper.height <= genau.y
+    )
+    assert no_overlap, (
+        f"genau_mode_toggle {genau} overlaps clipper_save {clipper}"
+    )
