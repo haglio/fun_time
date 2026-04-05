@@ -297,8 +297,6 @@ PKEY_AppUserModel_ID = PROPERTYKEY(
     _make_guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), 5
 )
 
-# Minimal PROPVARIANT — only VT_LPWSTR (31) and VT_EMPTY (0) used here.
-VT_EMPTY = 0
 VT_LPWSTR = 31
 
 

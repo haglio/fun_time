@@ -1,0 +1,53 @@
+"""Vulture whitelist — false positives that are not dead code.
+
+Each entry tells vulture the name is used, suppressing the report.
+Grouped by reason so reviewers can verify each entry belongs here.
+"""
+
+# --- Qt event overrides (called by the framework, not by our code) ---
+_.paintEvent  # noqa
+_.mousePressEvent  # noqa
+_.mouseMoveEvent  # noqa
+_.closeEvent  # noqa
+
+# --- Win32 struct fields (must be set for API calls to work) ---
+_.cbSize  # noqa
+_.dwFlags  # noqa
+_.wShowWindow  # noqa
+
+# --- ConfigParser case-sensitivity (optionxform = str) ---
+_.optionxform  # noqa
+
+# --- sounddevice callback signature (all params required by library) ---
+frames  # noqa
+time_info  # noqa
+
+# --- Dataclass fields (accessed through instances; vulture can't trace) ---
+# GenauConfig
+shuffle_on_load  # noqa
+beats_per_loop  # noqa
+clip_cache_size  # noqa
+render_batch  # noqa
+bpm_smoothing  # noqa
+sync_strength  # noqa
+notify_host  # noqa
+notify_port  # noqa
+status_hide_ms  # noqa
+resize_debounce_ms  # noqa
+# FModePlaylistPlan / FModeFlowResult
+success  # noqa
+primary_count  # noqa
+portrait_count  # noqa
+landscape_count  # noqa
+# StartupResult
+layout_plan  # noqa
+core_hwnds  # noqa
+
+# --- Constants / functions used only from tests or integration tests ---
+# (vulture scans production code only; test imports are invisible to it)
+COLOR_YELLOW  # noqa
+MUTEX_BROKER  # noqa
+consume_command_file  # noqa
+start_daemon_thread  # noqa
+restore_vlcrc_volume  # noqa
+_read_shortcut_app_user_model_id  # noqa
