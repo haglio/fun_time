@@ -191,6 +191,7 @@ def apply_leave_omnipause(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
+    broker_cmd_file: str | Path | None = None,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "leave",
@@ -201,6 +202,8 @@ def apply_leave_omnipause(
     write_flag_file(genau_paused_file, False)
     write_flag_file(audio_paused_file, False)
     Path(genau_cmd_file).write_text("RESUME", encoding="utf-8")
+    if broker_cmd_file is not None:
+        Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
     vlc_targets = [
         (portrait_port, "Portrait"),
         (landscape_port, "Landscape"),

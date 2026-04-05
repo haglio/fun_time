@@ -196,6 +196,7 @@ def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_p
     paused_file = tmp_path / "genau_paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
+    broker_cmd_file = tmp_path / "broker_cmd.txt"
     paused_file.write_text("1", encoding="utf-8")
     audio_paused_file.write_text("1", encoding="utf-8")
     calls: list[tuple[int, str, bool]] = []
@@ -216,6 +217,7 @@ def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_p
         genau_paused_file=paused_file,
         audio_paused_file=audio_paused_file,
         genau_cmd_file=genau_cmd_file,
+        broker_cmd_file=broker_cmd_file,
     )
 
     assert result.action == "leave"
@@ -223,6 +225,7 @@ def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_p
     assert paused_file.read_text(encoding="utf-8") == "0"
     assert audio_paused_file.read_text(encoding="utf-8") == "0"
     assert genau_cmd_file.read_text(encoding="utf-8") == "RESUME"
+    assert broker_cmd_file.read_text(encoding="utf-8") == "RESUME"
     # Calls happen in parallel, so order is non-deterministic
     assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True), (9001, "pw", True)])
 
