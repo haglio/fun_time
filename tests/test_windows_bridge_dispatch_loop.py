@@ -575,6 +575,49 @@ class TestDispatchLoopRunner:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()  # should not raise
 
+    def test_voice_off_mutes_voice_controller(self, tmp_path):
+        from fun_time.voice_control import VoiceController
+
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
+        runner.voice_controller = vc
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("voice_off", encoding="utf-8")
+
+        runner.tick()
+
+        assert vc.is_muted
+
+    def test_voice_toggle_unmutes_when_muted(self, tmp_path):
+        from fun_time.voice_control import VoiceController
+
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
+        vc.mute()
+        runner.voice_controller = vc
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("voice_toggle", encoding="utf-8")
+
+        runner.tick()
+
+        assert not vc.is_muted
+
+    def test_voice_toggle_mutes_when_not_muted(self, tmp_path):
+        from fun_time.voice_control import VoiceController
+
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
+        runner.voice_controller = vc
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("voice_toggle", encoding="utf-8")
+
+        runner.tick()
+
+        assert vc.is_muted
+
 
 class TestGenauZOrder:
     """Primary VLC must leave the TOPMOST z-band while Genau mode is

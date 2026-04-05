@@ -201,6 +201,68 @@ def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
     assert snapshot.omni_paused is False
 
 
+def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
+    snapshot_file = tmp_path / "dashboard_state.ini"
+    snapshot_file.write_text(
+        "\n".join(
+            [
+                "[fmode]",
+                "enabled=0",
+                "[osr2]",
+                "mode=controlled",
+                "[mfp]",
+                "alive=0",
+                "[omnipause]",
+                "active=0",
+                "[voice]",
+                "active=0",
+                "[primary]",
+                "uses_genau=0",
+                "locked=0",
+                "[portrait]",
+                "locked=0",
+                "[landscape]",
+                "locked=0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = load_dashboard_snapshot(snapshot_file)
+
+    assert snapshot is not None
+    assert snapshot.voice_active is False
+
+
+def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
+    snapshot_file = tmp_path / "dashboard_state.ini"
+    snapshot_file.write_text(
+        "\n".join(
+            [
+                "[fmode]",
+                "enabled=0",
+                "[osr2]",
+                "mode=controlled",
+                "[mfp]",
+                "alive=0",
+                "[primary]",
+                "uses_genau=0",
+                "locked=0",
+                "[portrait]",
+                "locked=0",
+                "[landscape]",
+                "locked=0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = load_dashboard_snapshot(snapshot_file)
+
+    assert snapshot is not None
+    assert snapshot.voice_active is True
+
+
 def test_osr2_device_on_when_rx_recent(tmp_path: Path):
     rx_file = tmp_path / "osr2_serial_rx.txt"
     rx_file.write_text("100.0", encoding="utf-8")

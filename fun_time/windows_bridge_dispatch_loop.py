@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
+from .voice_control import VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on
 from .runtime_flow import read_flag_file
@@ -177,6 +178,7 @@ class DispatchLoopRunner:
         self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._press_port: int | None = None
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
+        self.voice_controller: VoiceController | None = None
 
     _HOTKEY_TO_BUTTON = {
         "genau_toggle": "genau_mode_toggle",
@@ -253,6 +255,8 @@ class DispatchLoopRunner:
                 self._handle_broker_start()
             elif cmd == "broker_stop":
                 self._handle_broker_stop()
+            elif cmd in ("voice_off", "voice_toggle"):
+                self._handle_voice_toggle(cmd)
             else:
                 self._dispatch(cmd)
 
@@ -342,6 +346,7 @@ class DispatchLoopRunner:
                 osr2_mode = "auto"
             else:
                 osr2_mode = "controlled"
+            voice_active = self.voice_controller is not None and not self.voice_controller.is_muted
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
                 f_mode_enabled=self.state.f_mode_enabled,
@@ -351,6 +356,7 @@ class DispatchLoopRunner:
                 portrait_locked=self.state.locked2,
                 landscape_locked=self.state.locked3,
                 omni_paused=self.state.omni_paused,
+                voice_active=voice_active,
             )
         except Exception:
             pass
@@ -418,6 +424,19 @@ class DispatchLoopRunner:
     def _is_broker_alive(self) -> bool:
         hb = self.config.broker_heartbeat_file
         return hb is not None and is_broker_heartbeat_fresh(hb)
+
+    def _handle_voice_toggle(self, cmd: str) -> None:
+        """Mute or toggle voice control, then refresh the dashboard."""
+        if self.voice_controller is None:
+            return
+        if cmd == "voice_off":
+            self.voice_controller.mute()
+        elif self.voice_controller.is_muted:
+            self.voice_controller.unmute()
+        else:
+            self.voice_controller.mute()
+        if self.dashboard_enabled:
+            self._update_dashboard()
 
     def _handle_broker_toggle(self) -> None:
         """Stop broker if running, start it if stopped."""

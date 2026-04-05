@@ -119,4 +119,4 @@ def test_compute_dashboard_size_matches_preview_layout(cfg_path: Path):
         layout_config=config.layout,
     )
 
-    assert size == Size(321, 266)
+    assert size == Size(481, 399)

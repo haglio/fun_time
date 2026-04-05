@@ -339,6 +339,7 @@ def run_python_orchestrated_bridge(
                 device_index=cfg.voice_control.device_index,
                 sample_rate=cfg.voice_control.sample_rate,
             )
+            dispatch_runner.voice_controller = voice_controller
             voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
             voice_thread.start()
             logger.info("Voice control thread launched")

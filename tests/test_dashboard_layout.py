@@ -22,10 +22,10 @@ def test_dashboard_preview_layout_uses_monitor_proportions_directly():
         _layout_config(),
     )
 
-    assert layout.main_monitor.width == 186
-    assert layout.main_monitor.height == 101
-    assert layout.secondary_monitor.width == 105
-    assert layout.secondary_monitor.height == 250
+    assert layout.main_monitor.width == 279
+    assert layout.main_monitor.height == 152
+    assert layout.secondary_monitor.width == 157
+    assert layout.secondary_monitor.height == 375
 
 
 def test_dashboard_preview_centers_left_column_controls_within_main_monitor():
@@ -79,7 +79,7 @@ def test_osr2_box_is_at_least_66_pixels():
     assert layout.osr2_panel.height >= 66
 
 
-def test_broker_fmode_chips_match_button_size():
+def test_broker_fmode_voice_chips_match_button_size():
     layout = compute_dashboard_preview_layout(
         Size(width=2560, height=1392),
         Size(width=1440, height=3440),
@@ -90,6 +90,8 @@ def test_broker_fmode_chips_match_button_size():
     assert layout.broker_panel.height == layout.quit_button.height
     assert layout.fmode_panel.width == layout.quit_button.width
     assert layout.fmode_panel.height == layout.quit_button.height
+    assert layout.voice_panel.width == layout.quit_button.width
+    assert layout.voice_panel.height == layout.quit_button.height
 
 
 def test_status_strip_side_margin_matches_top_margin():

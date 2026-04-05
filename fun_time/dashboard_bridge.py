@@ -12,6 +12,7 @@ def build_dashboard_snapshot_text(
     portrait_locked: bool,
     landscape_locked: bool,
     omni_paused: bool = False,
+    voice_active: bool = True,
 ) -> str:
     return (
         "[fmode]\n"
@@ -22,6 +23,8 @@ def build_dashboard_snapshot_text(
         f"alive={'1' if mfp_alive else '0'}\n"
         "[omnipause]\n"
         f"active={'1' if omni_paused else '0'}\n"
+        "[voice]\n"
+        f"active={'1' if voice_active else '0'}\n"
         "[primary]\n"
         f"uses_genau={'1' if primary_uses_genau else '0'}\n"
         "locked=0\n"
@@ -55,6 +58,7 @@ def write_dashboard_snapshot(
     portrait_locked: bool,
     landscape_locked: bool,
     omni_paused: bool = False,
+    voice_active: bool = True,
 ) -> bool:
     path = Path(output_file)
     text = build_dashboard_snapshot_text(
@@ -65,6 +69,7 @@ def write_dashboard_snapshot(
         portrait_locked=portrait_locked,
         landscape_locked=landscape_locked,
         omni_paused=omni_paused,
+        voice_active=voice_active,
     )
     if _read_existing_snapshot(path) == text:
         return False

@@ -32,6 +32,7 @@ class DashboardSnapshot:
     portrait: DashboardPanelSnapshot
     landscape: DashboardPanelSnapshot
     window: DashboardWindowSnapshot
+    voice_active: bool = True
 
 
 def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
@@ -51,6 +52,7 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         mfp_alive=_read_bool(parser, "mfp", "alive"),
         primary_responsive=_read_bool(parser, "primary", "responsive"),
         omni_paused=_read_bool(parser, "omnipause", "active"),
+        voice_active=_read_bool(parser, "voice", "active") if parser.has_section("voice") else True,
         primary=_read_panel(parser, "primary"),
         portrait=_read_panel(parser, "portrait"),
         landscape=_read_panel(parser, "landscape"),
