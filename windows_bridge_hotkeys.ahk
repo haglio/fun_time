@@ -53,6 +53,7 @@ Log("Hotkey script started")
 Esc::QueueCommand("omnipause_toggle")
 #SuspendExempt false
 
+Space::QueueCommand("enter_omnipause")
 [::QueueCommand("primary_prev")
 SC01A::QueueCommand("primary_prev")
 ]::QueueCommand("primary_next")
