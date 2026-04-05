@@ -32,6 +32,7 @@ class TestVoiceCommands:
             "previous primary": "primary_prev",
             "skip": "vlc_nudge_next",
             "back": "vlc_nudge_prev",
+            "slow down": "genau_speed_down",
             "speed down": "genau_speed_down",
             "speed up": "genau_speed_up",
             "amp down": "genau_amplitude_down",
