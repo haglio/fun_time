@@ -1589,6 +1589,54 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_toggle.assert_not_called()
 
+    # -- enter_omnipause (Space hotkey) --
+
+    def test_enter_omnipause_enters_when_not_paused(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(omni_paused=False)
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("enter_omnipause", encoding="utf-8")
+
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
+            runner.tick()
+
+        assert runner.state.omni_paused is True
+
+    def test_enter_omnipause_removes_topmost(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=99999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(omni_paused=False)
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("enter_omnipause", encoding="utf-8")
+
+        topmost_calls: list[tuple] = []
+
+        def track_topmost(hwnd, on_top):
+            topmost_calls.append((hwnd, on_top))
+
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost):
+            runner.tick()
+
+        removals = [(h, t) for h, t in topmost_calls if t is False]
+        assert len(removals) > 0, "enter_omnipause must remove topmost from windows"
+
+    def test_enter_omnipause_noop_when_already_paused(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(omni_paused=True)
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("enter_omnipause", encoding="utf-8")
+
+        with patch.object(runner, "_dispatch") as mock_d:
+            runner.tick()
+
+        mock_d.assert_not_called()
+
     # -- lock portrait / lock landscape --
 
     def test_portrait_lock_on_dispatches_when_unlocked(self, tmp_path):
