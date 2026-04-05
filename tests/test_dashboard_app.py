@@ -7,6 +7,7 @@ from PyQt6.QtGui import QColor
 
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.dashboard_app import (
+    COLOR_BLUE,
     COLOR_GREEN,
     COLOR_CABLE,
     COLOR_CABLE_DIM,
@@ -538,6 +539,7 @@ def test_dashboard_scene_has_quit_and_omnipause_actions(cfg_path: Path):
     assert "quit" in action_ids
     assert "omnipause_toggle" in action_ids
     assert "fmode_panel" in action_ids
+    assert "voice_toggle" in action_ids
 
 
 def test_dashboard_scene_quit_and_omnipause_buttons_are_inside_status_strip(cfg_path: Path):
@@ -893,7 +895,7 @@ def test_quit_button_uses_neutral_grey(cfg_path: Path):
     assert fills[layout.quit_button] == COLOR_PANEL
 
 
-def test_active_chips_and_locks_use_same_green_as_favs(cfg_path: Path):
+def test_active_chips_and_locks_use_correct_colors(cfg_path: Path):
     import time as _time
     config = load_config(cfg_path)
     layout = compute_dashboard_preview_layout(
@@ -913,7 +915,7 @@ def test_active_chips_and_locks_use_same_green_as_favs(cfg_path: Path):
     scene = build_dashboard_scene(layout, snapshot, broker_heartbeat_file=heartbeat_file)
 
     fills = {item.rect: item.fill for item in scene.rects}
-    assert fills[layout.broker_panel] == COLOR_GREEN
+    assert fills[layout.broker_panel] == COLOR_BLUE
     assert fills[layout.portrait_lock] == COLOR_GREEN
     assert fills[layout.landscape_lock] == COLOR_GREEN
 
@@ -1232,6 +1234,94 @@ def test_dashboard_widget_emits_action_on_click(cfg_path: Path):
     widget.mousePressEvent(event)
 
     assert received == [QUIT_BUTTON]
+
+
+def test_voice_panel_blue_when_active(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, primary_uses_genau=False,
+        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+        voice_active=True,
+    )
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.voice_panel] == COLOR_BLUE
+
+
+def test_voice_panel_neutral_when_inactive(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, primary_uses_genau=False,
+        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+        voice_active=False,
+    )
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.voice_panel] == COLOR_PANEL
+
+
+def test_broker_panel_blue_when_running(cfg_path: Path):
+    import time as _time
+    config = load_config(cfg_path)
+    layout = compute_dashboard_preview_layout(
+        Size(2560, 1392), Size(1440, 3440), config.layout,
+    )
+    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
+    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat_file.write_text(str(_time.time()), encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False, primary_uses_genau=False,
+        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        primary=DashboardPanelSnapshot("", False),
+        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
+        window=DashboardWindowSnapshot(0, 0, 0, 0),
+    )
+
+    scene = build_dashboard_scene(layout, snapshot, broker_heartbeat_file=heartbeat_file)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.broker_panel] == COLOR_BLUE
+
+
+def test_voice_panel_shows_v_label(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    voice_texts = [item for item in scene.texts if item.rect == layout.voice_panel]
+    assert len(voice_texts) == 1
+    assert voice_texts[0].text == "v"
+
+
+def test_voice_panel_inside_status_strip(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+    strip = layout.main_status_strip
+    voice = layout.voice_panel
+
+    assert voice.x >= strip.x
+    assert voice.y >= strip.y
+    assert voice.x + voice.width <= strip.x + strip.width
+    assert voice.y + voice.height <= strip.y + strip.height
+
+
+def test_voice_panel_has_hover_text(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    hover = {rect: text for rect, text in scene.hover_texts}
+    assert layout.voice_panel in hover
+    assert "voice" in hover[layout.voice_panel].lower()
 
 
 def test_dashboard_widget_ignores_click_outside_actions(cfg_path: Path):

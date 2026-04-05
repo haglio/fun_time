@@ -57,6 +57,7 @@ class DashboardPreviewLayout:
     omnipause_button: Rect
     broker_panel: Rect
     fmode_panel: Rect
+    voice_panel: Rect
 
 
 def compute_dashboard_preview_layout(
@@ -64,11 +65,11 @@ def compute_dashboard_preview_layout(
     secondary_monitor: Size,
     layout_config: LayoutConfig,
 ) -> DashboardPreviewLayout:
-    outer_pad = 10
-    bottom_pad = 6
+    outer_pad = 15
+    bottom_pad = 9
     top_y = outer_pad
-    monitor_gap = 10
-    preview_max_h = 250
+    monitor_gap = 15
+    preview_max_h = 375
     base_scale = preview_max_h / max(main_monitor.height, secondary_monitor.height)
 
     left_w = round(main_monitor.width * base_scale)
@@ -79,11 +80,11 @@ def compute_dashboard_preview_layout(
     secondary_x = main_x + left_w + monitor_gap
     secondary_y = top_y
 
-    inner_pad = 10
-    panel_gap = 8
+    inner_pad = 15
+    panel_gap = 12
     portrait_units = 7
     primary_units = 4
-    stack_gap = 8
+    stack_gap = 12
 
     right_inner_x = secondary_x + inner_pad
     right_inner_y = secondary_y + inner_pad
@@ -102,7 +103,7 @@ def compute_dashboard_preview_layout(
     # Mini button sizes used inside the status strip schematic
     mini_button_w = 20
     mini_button_h = 16
-    mini_button_gap = 4
+    mini_button_gap = 3
 
     main_y = portrait_y + (portrait_h - left_h) // 2
     preview_bottom = max(main_y + left_h, secondary_y + right_h, primary_y + primary_h)
@@ -116,11 +117,11 @@ def compute_dashboard_preview_layout(
     left_strip_w = max(52, main_inner_w - landscape_w - panel_gap)
     mfp_max_w = max(44, int(left_strip_w * clamp01(layout_config.mfp_width_ratio)))
 
-    # Status strip has two rows: (1) quit+omnipause buttons, (2) broker+fmode chips
+    # Status strip has two rows: (1) quit+omnipause buttons, (2) broker+fmode+voice chips
     strip_pad = 3
     row_gap = 3
     status_strip_h = strip_pad + mini_button_h + row_gap + mini_button_h + strip_pad
-    mini_buttons_total_w = mini_button_w * 2 + mini_button_gap
+    mini_buttons_total_w = mini_button_w * 3 + mini_button_gap * 2
     status_strip_w = max(mfp_max_w, mini_buttons_total_w + strip_pad * 2)
     # RFB container around status strip + MFP
     rfb_pad = 3
@@ -199,4 +200,5 @@ def compute_dashboard_preview_layout(
         omnipause_button=Rect(btn_row_x + mini_button_w + mini_button_gap, btn_row_y, mini_button_w, mini_button_h),
         broker_panel=Rect(status_row_x, chip_row_y, mini_button_w, mini_button_h),
         fmode_panel=Rect(status_row_x + mini_button_w + mini_button_gap, chip_row_y, mini_button_w, mini_button_h),
+        voice_panel=Rect(status_row_x + (mini_button_w + mini_button_gap) * 2, chip_row_y, mini_button_w, mini_button_h),
     )

@@ -45,6 +45,7 @@ class TestVoiceCommands:
             "genau auto": "genau_toggle_auto",
             "previous clip": "genau_prev_clip",
             "next clip": "genau_next_clip",
+            "voice off": "voice_off",
         }
         for phrase, cmd in static_phrases.items():
             assert VOICE_COMMANDS[phrase] == cmd
@@ -140,3 +141,27 @@ class TestVoiceController:
         assert not vc._stop.is_set()
         vc.stop()
         assert vc._stop.is_set()
+
+    def test_mute_prevents_write_command(self, tmp_path: Path):
+        cmd_file = tmp_path / "cmd.txt"
+        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
+        vc.mute()
+        vc._write_command("landscape_next")
+        assert not cmd_file.exists()
+
+    def test_unmute_restores_write_command(self, tmp_path: Path):
+        cmd_file = tmp_path / "cmd.txt"
+        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
+        vc.mute()
+        vc.unmute()
+        vc._write_command("landscape_next")
+        assert cmd_file.read_text(encoding="utf-8") == "landscape_next\n"
+
+    def test_is_muted_property(self, tmp_path: Path):
+        cmd_file = tmp_path / "cmd.txt"
+        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
+        assert not vc.is_muted
+        vc.mute()
+        assert vc.is_muted
+        vc.unmute()
+        assert not vc.is_muted

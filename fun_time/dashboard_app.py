@@ -19,6 +19,7 @@ from shared_ui.colors import (
     AMBER,
     BG_PRIMARY,
     BG_SECONDARY,
+    BLUE,
     BORDER_PANEL,
     CABLE_ACTIVE,
     CABLE_INACTIVE,
@@ -60,6 +61,7 @@ from fun_time.dashboard_actions import (
     QUIT_BUTTON,
     VLC_NUDGE_NEXT,
     VLC_NUDGE_PREV,
+    VOICE_TOGGLE,
 )
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
 from fun_time.dashboard_runtime import DashboardSnapshot, is_broker_heartbeat_fresh, load_dashboard_snapshot
@@ -83,6 +85,7 @@ COLOR_PANEL = BG_SECONDARY
 COLOR_TEXT = TEXT_PRIMARY
 COLOR_CABLE = CABLE_ACTIVE
 COLOR_CABLE_DIM = CABLE_INACTIVE
+COLOR_BLUE = BLUE
 COLOR_GREEN = GREEN
 COLOR_PINK = PINK
 COLOR_RED = RED
@@ -391,6 +394,7 @@ def build_dashboard_scene(
     mfp_fill = COLOR_PANEL
     broker_fill = COLOR_PANEL
     fmode_fill = COLOR_PANEL
+    voice_fill = COLOR_PANEL
     portrait_lock_fill = COLOR_PANEL
     landscape_lock_fill = COLOR_PANEL
 
@@ -442,8 +446,9 @@ def build_dashboard_scene(
         else:
             osr2_fill = COLOR_PANEL
         mfp_fill = COLOR_GREEN if mfp_connected else COLOR_RED
-        broker_fill = COLOR_GREEN if broker_running else COLOR_RED
+        broker_fill = COLOR_BLUE if broker_running else COLOR_RED
         fmode_fill = COLOR_GREEN if snapshot.f_mode_enabled else COLOR_PANEL
+        voice_fill = COLOR_BLUE if snapshot.voice_active else COLOR_PANEL
         portrait_lock_fill = COLOR_GREEN if snapshot.portrait.locked else COLOR_PANEL
         landscape_lock_fill = COLOR_GREEN if snapshot.landscape.locked else COLOR_PANEL
 
@@ -488,6 +493,7 @@ def build_dashboard_scene(
         DashboardRectItem(layout.landscape_trash, fill=_press_fill(COLOR_PANEL, LANDSCAPE_TRASH)),
         DashboardRectItem(layout.broker_panel, fill=_press_fill(broker_fill, BROKER_PANEL)),
         DashboardRectItem(layout.fmode_panel, fill=_press_fill(fmode_fill, FMODE_PANEL)),
+        DashboardRectItem(layout.voice_panel, fill=_press_fill(voice_fill, VOICE_TOGGLE)),
         DashboardRectItem(layout.genau_mode_toggle, fill=_press_fill(COLOR_PANEL, GENAU_TOGGLE)),
     )
     _font_symbol = make_font(FONT_SYMBOL, 10, bold=True)
@@ -520,6 +526,7 @@ def build_dashboard_scene(
         DashboardTextItem(">", layout.landscape_next, font=_font_ui_sm),
         DashboardTextItem(ICON_LOCK, layout.landscape_lock, font=_font_emoji),
         DashboardTextItem(ICON_TRASH, layout.landscape_trash, font=_font_emoji),
+        DashboardTextItem("v", layout.voice_panel, font=_font_ui_tiny),
         *(
             (DashboardTextItem("VLC", layout.genau_mode_toggle, font=_font_ui_tiny),)
             if snapshot is not None and snapshot.primary_uses_genau else ()
@@ -573,6 +580,7 @@ def build_dashboard_scene(
             (layout.omnipause_button, "Pause all"),
             (layout.broker_panel, "Broker"),
             (layout.fmode_panel, "F-Mode"),
+            (layout.voice_panel, "Voice"),
         ),
         lines=cable_lines,
         ovals=cable_ovals,
@@ -602,6 +610,7 @@ def build_dashboard_scene(
             (GENAU_TOGGLE, layout.genau_mode_toggle),
             (BROKER_PANEL, layout.broker_panel),
             (FMODE_PANEL, layout.fmode_panel),
+            (VOICE_TOGGLE, layout.voice_panel),
         ),
     )
 

@@ -46,6 +46,7 @@ VOICE_COMMANDS: dict[str, str] = {
     "genau auto": "genau_toggle_auto",
     "previous clip": "genau_prev_clip",
     "next clip": "genau_next_clip",
+    "voice off": "voice_off",
 }
 
 _NUMBER_WORDS: dict[str, int] = {
@@ -126,9 +127,25 @@ class VoiceController:
         self.device_index = device_index
         self.sample_rate = sample_rate
         self._stop = threading.Event()
+        self._muted = threading.Event()
+
+    @property
+    def is_muted(self) -> bool:
+        """Return True if voice commands are being suppressed."""
+        return self._muted.is_set()
+
+    def mute(self) -> None:
+        """Suppress command output (voice still listens but discards)."""
+        self._muted.set()
+
+    def unmute(self) -> None:
+        """Resume command output."""
+        self._muted.clear()
 
     def _write_command(self, command: str) -> None:
-        """Append a command to the dashboard command file."""
+        """Append a command to the dashboard command file (no-op when muted)."""
+        if self._muted.is_set():
+            return
         with self.cmd_file.open("a", encoding="utf-8") as f:
             f.write(command + "\n")
 
