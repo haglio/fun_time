@@ -157,7 +157,7 @@ def launch_genau(
         "--height",
         str(genau_height),
     ]
-    cmd.append("--no-voice")
+    cmd.append("--fun-time")
     if command_file is not None:
         cmd.extend(["--command-file", str(command_file)])
     if paused_file is not None:

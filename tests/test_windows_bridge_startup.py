@@ -168,7 +168,7 @@ def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
     assert command[idx + 1] == "state/genau_paused.txt"
 
 
-def test_launch_genau_passes_no_voice_flag(tmp_path: Path):
+def test_launch_genau_passes_fun_time_flag(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -188,7 +188,7 @@ def test_launch_genau_passes_no_voice_flag(tmp_path: Path):
         )
 
     command = popen.call_args.args[0]
-    assert "--no-voice" in command
+    assert "--fun-time" in command
 
 
 def test_launch_ui_companions_skips_genau_when_pid_provided(tmp_path: Path):
