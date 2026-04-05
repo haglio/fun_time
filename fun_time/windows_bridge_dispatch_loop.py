@@ -540,6 +540,7 @@ def build_bridge_config_from_manifest(
         genau_paused_file=Path(manifest["commands"]["genau_paused_file"]),
         audio_paused_file=Path(manifest["commands"]["audio_paused_file"]),
         dashboard_state_file=Path(manifest["commands"]["dashboard_state_file"]),
+        broker_cmd_file=Path(manifest["commands"]["broker_cmd_file"]),
         broker_heartbeat_file=Path(manifest["commands"]["broker_heartbeat_file"]),
         broker_tray_launcher=Path(v) if (v := manifest["commands"].get("broker_tray_launcher", "").strip()) else None,
     )

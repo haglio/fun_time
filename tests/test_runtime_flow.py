@@ -161,6 +161,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypat
     paused_file = tmp_path / "genau_paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
+    broker_cmd_file = tmp_path / "broker_cmd.txt"
     calls: list[tuple[int, str, bool]] = []
 
     monkeypatch.setattr(
@@ -178,6 +179,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypat
         genau_paused_file=paused_file,
         audio_paused_file=audio_paused_file,
         genau_cmd_file=genau_cmd_file,
+        broker_cmd_file=broker_cmd_file,
     )
 
     assert result.action == "enter"
@@ -185,6 +187,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypat
     assert paused_file.read_text(encoding="utf-8") == "1"
     assert audio_paused_file.read_text(encoding="utf-8") == "1"
     assert genau_cmd_file.read_text(encoding="utf-8") == "PAUSE"
+    assert broker_cmd_file.read_text(encoding="utf-8") == "PARK"
     # Calls happen in parallel, so order is non-deterministic
     assert sorted(calls) == sorted([(9002, "pw", False), (9003, "pw", False), (9001, "pw", False)])
 
