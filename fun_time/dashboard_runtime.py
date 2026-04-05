@@ -60,6 +60,28 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
     )
 
 
+@dataclass(frozen=True)
+class GenauStatus:
+    cruise_active: bool = False
+    shape: str = "sine"
+
+
+def read_genau_status(path: Path) -> GenauStatus:
+    if not path.exists():
+        return GenauStatus()
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+        values = dict(
+            line.split("=", 1) for line in text.splitlines() if "=" in line
+        )
+        return GenauStatus(
+            cruise_active=values.get("cruise", "0").strip() not in ("0", "false", ""),
+            shape=values.get("shape", "sine").strip(),
+        )
+    except (OSError, ValueError):
+        return GenauStatus()
+
+
 def is_osr2_device_on(path: Path, *, max_age_seconds: float = 16.0, now: float | None = None) -> bool:
     if not path.exists():
         return False

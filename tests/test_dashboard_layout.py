@@ -189,3 +189,51 @@ def test_genau_mode_toggle_does_not_overlap_clipper_save():
     assert no_overlap, (
         f"genau_mode_toggle {genau} overlaps clipper_save {clipper}"
     )
+
+
+def _inside(inner, outer):
+    """Return True if *inner* Rect fits entirely inside *outer* Rect."""
+    return (
+        inner.x >= outer.x
+        and inner.y >= outer.y
+        and inner.x + inner.width <= outer.x + outer.width
+        and inner.y + inner.height <= outer.y + outer.height
+    )
+
+
+def test_genau_param_buttons_inside_primary_panel():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+    panel = layout.primary_panel
+
+    for rect in (
+        layout.genau_amp_up, layout.genau_amp_down,
+        layout.genau_ctr_up, layout.genau_ctr_down,
+        layout.genau_spd_up, layout.genau_spd_down,
+    ):
+        assert _inside(rect, panel), f"{rect} outside primary panel {panel}"
+
+
+def test_genau_cruise_and_shape_inside_primary_panel():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+    panel = layout.primary_panel
+
+    assert _inside(layout.genau_cruise, panel)
+    assert _inside(layout.genau_shape, panel)
+
+
+def test_genau_cruise_is_left_of_shape():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    assert layout.genau_cruise.x + layout.genau_cruise.width < layout.genau_shape.x

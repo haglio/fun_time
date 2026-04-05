@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on, load_dashboard_snapshot
+from fun_time.dashboard_runtime import (
+    GenauStatus,
+    is_broker_heartbeat_fresh,
+    is_osr2_device_on,
+    load_dashboard_snapshot,
+    read_genau_status,
+)
 
 
 def test_load_dashboard_snapshot_returns_none_when_missing(tmp_path: Path):
@@ -304,5 +310,33 @@ def test_broker_heartbeat_is_stale_when_old_or_invalid(tmp_path: Path):
     assert is_broker_heartbeat_fresh(stale_file, max_age_seconds=3.0, now=104.0) is False
     assert is_broker_heartbeat_fresh(invalid_file, now=101.0) is False
     assert is_broker_heartbeat_fresh(tmp_path / "missing.txt", now=101.0) is False
+
+
+def test_read_genau_status_returns_defaults_when_missing(tmp_path: Path):
+    status = read_genau_status(tmp_path / "missing.txt")
+
+    assert status == GenauStatus()
+    assert status.cruise_active is False
+    assert status.shape == "sine"
+
+
+def test_read_genau_status_parses_active_cruise_and_shape(tmp_path: Path):
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("cruise=1\nshape=triangle\n", encoding="utf-8")
+
+    status = read_genau_status(status_file)
+
+    assert status.cruise_active is True
+    assert status.shape == "triangle"
+
+
+def test_read_genau_status_handles_inactive_cruise(tmp_path: Path):
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("cruise=0\nshape=sawtooth\n", encoding="utf-8")
+
+    status = read_genau_status(status_file)
+
+    assert status.cruise_active is False
+    assert status.shape == "sawtooth"
 
 
