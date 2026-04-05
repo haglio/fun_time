@@ -62,6 +62,7 @@ class BridgeConfig:
     genau_paused_file: Path
     audio_paused_file: Path
     dashboard_state_file: Path
+    broker_cmd_file: Path | None = None
     broker_heartbeat_file: Path | None = None
     broker_tray_launcher: Path | None = None
 
@@ -280,6 +281,7 @@ def _dispatch_omnipause_toggle(
             genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
             genau_cmd_file=config.genau_cmd_file,
+            broker_cmd_file=config.broker_cmd_file,
         )
         state = replace(state, omni_paused=result.next_omni_paused)
         ops.append(WindowOp(op="suspend_hotkeys"))
@@ -320,6 +322,7 @@ def _dispatch_enter_omnipause(
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
+        broker_cmd_file=config.broker_cmd_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops.append(WindowOp(op="suspend_hotkeys"))
