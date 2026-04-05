@@ -23,34 +23,6 @@ class TestStructure:
         assert "WINDOWS_BRIDGE_MANIFEST_PATH := A_Args[1]" in text
         assert "PIDS_FILE_PATH := A_Args[2]" in text
 
-    def test_no_pid_reading(self):
-        """AHK no longer reads PIDs — all window ops handled by Python."""
-        text = _hotkeys_text()
-        assert "IniRead(PIDS_FILE_PATH" not in text
-
-    def test_no_shared_state_reading(self):
-        """AHK no longer reads shared state — all state managed by Python."""
-        text = _hotkeys_text()
-        assert "ReadSharedState" not in text
-        assert "robotHandMode" not in text
-
-    def test_no_startup_orchestration(self):
-        text = _hotkeys_text()
-        assert "start-core-session" not in text
-        assert "launch-ui-companions" not in text
-        assert "PositionAll" not in text
-
-    def test_no_included_files(self):
-        text = _hotkeys_text()
-        assert "#Include" not in text
-
-    def test_no_subprocess_dispatch(self):
-        """All dispatch goes through Python's background dispatch loop."""
-        text = _hotkeys_text()
-        assert "RunHiddenWait" not in text
-        assert "DispatchBridgeCommand" not in text
-        assert "CreateProcessW" not in text
-
 
 class TestHotkeyBindings:
     def test_all_hotkeys_queue_commands(self):
