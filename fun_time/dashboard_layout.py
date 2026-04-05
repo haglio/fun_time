@@ -195,7 +195,7 @@ def compute_dashboard_preview_layout(
         landscape_trash=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y, 30, 16),
         landscape_lock=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y + 20, 30, 16),
         osr2_panel=Rect(osr2_x, osr2_y, osr2_w, osr2_h),
-        genau_mode_toggle=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_y + primary_h - 20, 28, 16),
+        genau_mode_toggle=Rect(right_inner_x + right_inner_w - 28, primary_y + primary_h - 20, 28, 16),
         quit_button=Rect(btn_row_x, btn_row_y, mini_button_w, mini_button_h),
         omnipause_button=Rect(btn_row_x + mini_button_w + mini_button_gap, btn_row_y, mini_button_w, mini_button_h),
         broker_panel=Rect(status_row_x, chip_row_y, mini_button_w, mini_button_h),
