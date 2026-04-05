@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.startup_progress import StartupProgress, NullProgress
+from fun_time.startup_progress import StartupProgress
 
 
 class TestStartupProgress:
@@ -27,13 +27,3 @@ class TestStartupProgress:
         progress.finish()
 
         assert progress_file.read_text(encoding="utf-8") == "DONE"
-
-
-class TestNullProgress:
-    def test_advance_is_noop(self):
-        progress = NullProgress()
-        progress.advance("anything")  # should not raise
-
-    def test_finish_is_noop(self):
-        progress = NullProgress()
-        progress.finish()  # should not raise

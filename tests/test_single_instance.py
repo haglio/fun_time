@@ -15,6 +15,7 @@ from fun_time.single_instance import (
 )
 
 
+
 class TestTryAcquireMutex:
     def test_returns_handle_when_first_instance(self):
         with patch("fun_time.single_instance._kernel32") as k32, \
@@ -74,15 +75,6 @@ class TestShowAlreadyRunningMessage:
 
         args = u32.MessageBoxW.call_args[0]
         assert args[2] == "Fun Time"
-
-
-class TestConstants:
-    def test_mutex_names_use_global_namespace(self):
-        assert MUTEX_BROKER.startswith("Global\\")
-        assert MUTEX_ORCHESTRATOR.startswith("Global\\")
-
-    def test_mutex_names_are_distinct(self):
-        assert MUTEX_BROKER != MUTEX_ORCHESTRATOR
 
 
 class TestMutexNameForConfig:

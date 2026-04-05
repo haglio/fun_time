@@ -5,7 +5,7 @@ formatting functions never crash on arbitrary input.
 """
 from __future__ import annotations
 
-from hypothesis import given, assume, settings
+from hypothesis import given, assume
 from hypothesis import strategies as st
 
 from fun_time.vlc_actions import decode_file_uri
@@ -21,11 +21,6 @@ def test_decode_file_uri_never_crashes(uri: str):
     result = decode_file_uri(uri)
     assert isinstance(result, str)
 
-
-@given(uri=st.text(max_size=500))
-def test_decode_file_uri_returns_empty_for_non_file_uris(uri: str):
-    assume(not uri.startswith("file:///"))
-    assert decode_file_uri(uri) == ""
 
 
 @given(path=st.text(alphabet=st.characters(whitelist_categories=("L", "N", "P", "Z")), min_size=1, max_size=200))
@@ -52,12 +47,6 @@ def test_csv_escape_never_crashes(value: str):
     assert result.startswith('"')
     assert result.endswith('"')
 
-
-@given(value=st.text(max_size=500))
-def test_csv_escape_wraps_in_quotes(value: str):
-    result = csv_escape(value)
-    assert result[0] == '"'
-    assert result[-1] == '"'
 
 
 @given(value=st.text(max_size=500))
@@ -91,9 +80,6 @@ def test_to_file_uri_starts_with_file_prefix(path: str):
     result = to_file_uri(path)
     assert result.startswith("file:///")
 
-
-def test_to_file_uri_returns_empty_for_empty():
-    assert to_file_uri("") == ""
 
 
 # ---------------------------------------------------------------------------

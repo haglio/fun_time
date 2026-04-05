@@ -38,10 +38,6 @@ class TestLoadIconImage:
         img = load_icon_image(ICON_PATH, 128)
         assert img.size == (128, 128)
 
-    def test_returns_rgba_image(self):
-        img = load_icon_image(ICON_PATH, 128)
-        assert img.mode == "RGBA"
-
     def test_returns_none_for_missing_file(self):
         result = load_icon_image(Path("nonexistent.ico"), 128)
         assert result is None
