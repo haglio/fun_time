@@ -101,19 +101,28 @@ def _current(port: int = TEST_PORT) -> str:
 
 
 def _wait_for_item_change(port: int, before: str, timeout: float = 6.0) -> str:
-    """Poll until VLC's current item differs from *before*.
+    """Poll until VLC's current item differs from *before* and is stable.
 
-    After detecting the change, waits briefly for VLC to finish its internal
-    transition.  VLC's HTTP interface reports the new file path before the
-    playlist engine is fully settled — a ``pl_play`` arriving during this
-    window can be silently dropped, causing the next test to see no change.
+    VLC's HTTP interface reports the new file path before the playlist
+    engine is fully settled — a ``pl_play`` arriving during this window
+    can be silently dropped.  Instead of a fixed sleep, we require two
+    consecutive reads (200 ms apart) to agree on the new path before
+    returning.  This catches both slow settlement and transient paths
+    that revert before VLC finishes its transition.
     """
     deadline = time.monotonic() + timeout
+    candidate = None
     while time.monotonic() < deadline:
-        after = get_current_file_path(port, TEST_PASSWORD)
-        if after and after != before:
-            time.sleep(0.3)
-            return after
+        path = get_current_file_path(port, TEST_PASSWORD)
+        if path and path != before:
+            if path == candidate:
+                # Two consecutive reads agree on the new path → stable.
+                return path
+            candidate = path
+            time.sleep(0.2)
+            continue
+        # Still on the old item or empty read — reset candidate.
+        candidate = None
         time.sleep(0.05)
     return get_current_file_path(port, TEST_PASSWORD)
 
@@ -164,16 +173,31 @@ def _wait_for_playlist_count(port: int, expected: int, timeout: float = 5.0) -> 
 
 
 def _next():
+    """Navigate to the next playlist item via ID-based pl_play.
+
+    Uses vlc_nav_step so that _next() and _prev() share the same
+    ordering (jstree document order).  Raw pl_next uses VLC's internal
+    cursor, which can diverge from jstree order after pl_play&id=N
+    commands — making pl_next and vlc_nav_step("prev") non-inverse.
+    Raw pl_next is still tested directly in test_pl_next_advances_video.
+    """
     _wait_for_stable_current()
     before = _current()
-    vlc_http_cmd(TEST_PORT, "pl_next", TEST_PASSWORD)
+    vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
     _wait_for_item_change(TEST_PORT, before)
 
 
 def _prev():
+    """Navigate to the previous playlist item via ID-based pl_play.
+
+    Uses vlc_nav_step instead of raw pl_previous to bypass VLC's
+    restart-threshold (~3 s) which makes pl_previous restart the
+    current track instead of going back.  Raw pl_previous is still
+    tested directly in test_pl_previous_goes_back.
+    """
     _wait_for_stable_current()
     before = _current()
-    vlc_http_cmd(TEST_PORT, "pl_previous", TEST_PASSWORD)
+    vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
     _wait_for_item_change(TEST_PORT, before)
 
 
@@ -187,16 +211,26 @@ def test_vlc_reports_current_file(vlc_with_playlist):
 
 
 def test_pl_next_advances_video(vlc_with_playlist):
+    """Verify the raw pl_next HTTP command advances to the next item."""
+    _wait_for_stable_current()
     before = _current()
-    _next()
-    after = _current()
+    vlc_http_cmd(TEST_PORT, "pl_next", TEST_PASSWORD)
+    after = _wait_for_item_change(TEST_PORT, before)
     assert after != before, f"pl_next did not change video (still {before})"
 
 
 def test_pl_previous_goes_back(vlc_with_playlist):
+    """Verify the raw pl_previous HTTP command navigates to the previous item.
+
+    Seeks to position 0 first to stay inside VLC's restart threshold (~3 s),
+    which otherwise causes pl_previous to restart the current track.
+    """
+    _wait_for_stable_current()
     before = _current()
-    _prev()
-    after = _current()
+    vlc_http_cmd(TEST_PORT, "seek&val=0", TEST_PASSWORD)
+    time.sleep(0.15)
+    vlc_http_cmd(TEST_PORT, "pl_previous", TEST_PASSWORD)
+    after = _wait_for_item_change(TEST_PORT, before)
     assert after != before, f"pl_previous did not change video (still {before})"
 
 
@@ -260,6 +294,7 @@ def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
     assert ok_next is True, "vlc_nav_step next returned False"
     mid = _wait_for_item_change(TEST_PORT, start)
     assert mid != start
+    _wait_for_stable_current()          # let jstree fully commit the new current marker
     ok_prev = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
     assert ok_prev is True, "vlc_nav_step prev returned False"
     _wait_for_item_change(TEST_PORT, mid)
