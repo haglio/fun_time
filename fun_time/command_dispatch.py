@@ -297,6 +297,7 @@ def _dispatch_omnipause_toggle(
             genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
             genau_cmd_file=config.genau_cmd_file,
+            broker_cmd_file=config.broker_cmd_file,
         )
         state = replace(state, omni_paused=result.next_omni_paused)
         ops.append(WindowOp(op="unsuspend_hotkeys"))
@@ -346,6 +347,7 @@ def _dispatch_leave_omnipause_skip_primary(
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
+        broker_cmd_file=config.broker_cmd_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops.append(WindowOp(op="unsuspend_hotkeys"))
