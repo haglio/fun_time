@@ -6,6 +6,7 @@ import ctypes
 from ctypes import wintypes
 from dataclasses import dataclass, field
 from dataclasses import replace
+import math
 import os
 from pathlib import Path
 import queue
@@ -43,6 +44,14 @@ from fun_time.vlc_actions import get_current_file_path, vlc_http_req
 from fun_time.dashboard_actions import (
     BROKER_PANEL,
     CLIPPER_SAVE,
+    GENAU_AMP_DOWN,
+    GENAU_AMP_UP,
+    GENAU_CRUISE,
+    GENAU_CTR_DOWN,
+    GENAU_CTR_UP,
+    GENAU_SHAPE,
+    GENAU_SPD_DOWN,
+    GENAU_SPD_UP,
     LANDSCAPE_LOCK,
     LANDSCAPE_NEXT,
     LANDSCAPE_PREV,
@@ -64,7 +73,7 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
-from fun_time.dashboard_runtime import DashboardSnapshot, is_broker_heartbeat_fresh, load_dashboard_snapshot
+from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_status
 from fun_time.dashboard_state import (
     LABEL_LANDSCAPE_VLC,
     LABEL_MFP,
@@ -374,12 +383,74 @@ def _load_icon_pixmap(filename: str, height: int) -> QPixmap:
     return _dashboard_pixmap_cache[key]
 
 
+def _waveform_points(shape: str, size: int) -> list[tuple[int, int]]:
+    """Return a list of (x, y) pixel coordinates for a waveform shape."""
+    margin = 2
+    w = size - margin * 2
+    h = size - margin * 2
+    mid_y = margin + h // 2
+    points: list[tuple[int, int]] = []
+    if shape == "triangle":
+        quarter = w // 4
+        points = [
+            (margin, mid_y),
+            (margin + quarter, margin),
+            (margin + quarter * 2, mid_y),
+            (margin + quarter * 3, margin + h),
+            (margin + w, mid_y),
+        ]
+    elif shape == "rounded_square":
+        step = max(1, w // 20)
+        for i in range(0, w + 1, step):
+            t = (i / w) * 2 * math.pi
+            raw = math.sin(t)
+            squashed = max(-1.0, min(1.0, raw * 4.0))
+            y = mid_y - int(squashed * h / 2)
+            points.append((margin + i, y))
+    elif shape == "sawtooth":
+        half = w // 2
+        points = [
+            (margin, mid_y),
+            (margin + half, margin),
+            (margin + half, margin + h),
+            (margin + w, mid_y),
+        ]
+    else:  # sine (default)
+        step = max(1, w // 20)
+        for i in range(0, w + 1, step):
+            t = (i / w) * 2 * math.pi
+            y = mid_y - int(math.sin(t) * h / 2)
+            points.append((margin + i, y))
+    return points
+
+
+def _draw_waveform_pixmap(shape: str, size: int) -> QPixmap:
+    """Draw a small waveform icon as a QPixmap, cached."""
+    key = (f"waveform_{shape}", size)
+    if key not in _dashboard_pixmap_cache:
+        from PyQt6.QtCore import Qt
+
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pm)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(BLUE, 2)
+        painter.setPen(pen)
+        pts = _waveform_points(shape, size)
+        for i in range(len(pts) - 1):
+            painter.drawLine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
+        painter.end()
+        _dashboard_pixmap_cache[key] = pm
+    return _dashboard_pixmap_cache[key]
+
+
 def build_dashboard_scene(
     layout: DashboardPreviewLayout,
     snapshot: DashboardSnapshot | None = None,
     *,
     favs_file: Path | None = None,
     broker_heartbeat_file: Path | None = None,
+    genau_status: GenauStatus | None = None,
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
     primary_label = LABEL_PRIMARY_VLC
@@ -456,8 +527,13 @@ def build_dashboard_scene(
     omnipause_icon = "\u25B6" if omni_paused else "\u23F8"
     omnipause_fill = COLOR_PANEL
 
+    _genau = genau_status or GenauStatus()
+    cruise_fill = BLUE if _genau.cruise_active else COLOR_PANEL
+
     def _press_fill(fill: QColor, action_id: str) -> QColor:
         return lighten_color(fill) if action_id in pressed_actions else fill
+
+    _is_genau = snapshot is not None and snapshot.primary_uses_genau
 
     rects = (
         DashboardRectItem(layout.main_monitor, fill=COLOR_PANEL),
@@ -479,8 +555,18 @@ def build_dashboard_scene(
         DashboardRectItem(layout.primary_prev, fill=_press_fill(COLOR_PANEL, PRIMARY_PREV)),
         DashboardRectItem(layout.primary_next, fill=_press_fill(COLOR_PANEL, PRIMARY_NEXT)),
         *(
-            (DashboardRectItem(layout.quarter_button, fill=_press_fill(COLOR_PANEL, QUARTER_BUTTON)),)
-            if snapshot is not None and snapshot.primary_uses_genau else (
+            (
+                DashboardRectItem(layout.quarter_button, fill=_press_fill(COLOR_PANEL, QUARTER_BUTTON)),
+                DashboardRectItem(layout.genau_amp_up, fill=_press_fill(COLOR_PANEL, GENAU_AMP_UP)),
+                DashboardRectItem(layout.genau_amp_down, fill=_press_fill(COLOR_PANEL, GENAU_AMP_DOWN)),
+                DashboardRectItem(layout.genau_ctr_up, fill=_press_fill(COLOR_PANEL, GENAU_CTR_UP)),
+                DashboardRectItem(layout.genau_ctr_down, fill=_press_fill(COLOR_PANEL, GENAU_CTR_DOWN)),
+                DashboardRectItem(layout.genau_spd_up, fill=_press_fill(COLOR_PANEL, GENAU_SPD_UP)),
+                DashboardRectItem(layout.genau_spd_down, fill=_press_fill(COLOR_PANEL, GENAU_SPD_DOWN)),
+                DashboardRectItem(layout.genau_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
+                DashboardRectItem(layout.genau_shape, fill=_press_fill(BLUE, GENAU_SHAPE)),
+            )
+            if _is_genau else (
                 DashboardRectItem(layout.vlc_nudge_prev, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_PREV)),
                 DashboardRectItem(layout.vlc_nudge_next, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_NEXT)),
                 DashboardRectItem(layout.open_file_dialog, fill=_press_fill(COLOR_PANEL, OPEN_FILE_DIALOG)),
@@ -500,6 +586,11 @@ def build_dashboard_scene(
     _font_ui_sm = make_font(FONT_UI, SIZE_SMALL, bold=True)
     _font_emoji = make_font(FONT_EMOJI, SIZE_SMALL)
     _font_ui_tiny = make_font(FONT_UI, SIZE_TINY, bold=True)
+
+    def _label_rect(up: Rect, down: Rect) -> Rect:
+        """Compute the text rect between an up and down button pair."""
+        return Rect(up.x, up.y + up.height, up.width, down.y - up.y - up.height)
+
     texts = (
         DashboardTextItem("\u23FB", layout.quit_button, font=_font_symbol),
         DashboardTextItem(omnipause_icon, layout.omnipause_button, font=_font_symbol),
@@ -515,8 +606,20 @@ def build_dashboard_scene(
         DashboardTextItem("<", layout.primary_prev, font=_font_ui_sm),
         DashboardTextItem(">", layout.primary_next, font=_font_ui_sm),
         *(
-            (DashboardTextItem("1/4", layout.quarter_button, font=_font_ui_tiny),)
-            if snapshot is not None and snapshot.primary_uses_genau else (
+            (
+                DashboardTextItem("1/4", layout.quarter_button, font=_font_ui_tiny),
+                DashboardTextItem("\u2303", layout.genau_amp_up, font=_font_ui_tiny),
+                DashboardTextItem("\u2304", layout.genau_amp_down, font=_font_ui_tiny),
+                DashboardTextItem("\u2303", layout.genau_ctr_up, font=_font_ui_tiny),
+                DashboardTextItem("\u2304", layout.genau_ctr_down, font=_font_ui_tiny),
+                DashboardTextItem("\u2303", layout.genau_spd_up, font=_font_ui_tiny),
+                DashboardTextItem("\u2304", layout.genau_spd_down, font=_font_ui_tiny),
+                DashboardTextItem("A\nM\nP", _label_rect(layout.genau_amp_up, layout.genau_amp_down), font=_font_ui_tiny),
+                DashboardTextItem("C\nT\nR", _label_rect(layout.genau_ctr_up, layout.genau_ctr_down), font=_font_ui_tiny),
+                DashboardTextItem("S\nP\nD", _label_rect(layout.genau_spd_up, layout.genau_spd_down), font=_font_ui_tiny),
+                DashboardTextItem("cc", layout.genau_cruise, font=_font_ui_tiny),
+            )
+            if _is_genau else (
                 DashboardTextItem("\u2212", layout.vlc_nudge_prev, font=_font_ui_sm),
                 DashboardTextItem("+", layout.vlc_nudge_next, font=_font_ui_sm),
                 DashboardTextItem("\U0001F4C2", layout.open_file_dialog, font=_font_emoji),
@@ -529,7 +632,7 @@ def build_dashboard_scene(
         DashboardTextItem("v", layout.voice_panel, font=_font_ui_tiny),
         *(
             (DashboardTextItem("VLC", layout.genau_mode_toggle, font=_font_ui_tiny),)
-            if snapshot is not None and snapshot.primary_uses_genau else ()
+            if _is_genau else ()
         ),
     )
     _icon_h = layout.broker_panel.height
@@ -537,8 +640,13 @@ def build_dashboard_scene(
         DashboardImageItem(_load_icon_pixmap("broker_icon.ico", _icon_h), layout.broker_panel),
         DashboardImageItem(_load_icon_pixmap("fmode_icon.ico", _icon_h), layout.fmode_panel),
         *(
-            ()
-            if snapshot is not None and snapshot.primary_uses_genau else (
+            (
+                DashboardImageItem(
+                    _draw_waveform_pixmap(_genau.shape, layout.genau_shape.height - 4),
+                    layout.genau_shape,
+                ),
+            )
+            if _is_genau else (
                 DashboardImageItem(
                     _load_icon_pixmap("clipper_icon.ico", layout.clipper_save.height),
                     layout.clipper_save,
@@ -595,8 +703,18 @@ def build_dashboard_scene(
             (PRIMARY_PREV, layout.primary_prev),
             (PRIMARY_NEXT, layout.primary_next),
             *(
-                ((QUARTER_BUTTON, layout.quarter_button),)
-                if snapshot is not None and snapshot.primary_uses_genau else (
+                (
+                    (QUARTER_BUTTON, layout.quarter_button),
+                    (GENAU_AMP_UP, layout.genau_amp_up),
+                    (GENAU_AMP_DOWN, layout.genau_amp_down),
+                    (GENAU_CTR_UP, layout.genau_ctr_up),
+                    (GENAU_CTR_DOWN, layout.genau_ctr_down),
+                    (GENAU_SPD_UP, layout.genau_spd_up),
+                    (GENAU_SPD_DOWN, layout.genau_spd_down),
+                    (GENAU_CRUISE, layout.genau_cruise),
+                    (GENAU_SHAPE, layout.genau_shape),
+                )
+                if _is_genau else (
                     (VLC_NUDGE_PREV, layout.vlc_nudge_prev),
                     (VLC_NUDGE_NEXT, layout.vlc_nudge_next),
                     (OPEN_FILE_DIALOG, layout.open_file_dialog),
@@ -788,6 +906,7 @@ class DashboardWindow(QMainWindow):
 
         self._pressed: dict[str, float] = {}
         self._last_snapshot: DashboardSnapshot | None = None
+        self._last_genau_status: GenauStatus | None = None
         self._press_queue: queue.Queue[str] = queue.Queue()
         self._vlc_cache: list[VlcHydration] = [VlcHydration()]
 
@@ -862,13 +981,20 @@ class DashboardWindow(QMainWindow):
             del self._pressed[aid]
         return active
 
-    def _do_render(self, snapshot: DashboardSnapshot | None, pressed_actions: frozenset[str]) -> None:
+    def _do_render(
+        self,
+        snapshot: DashboardSnapshot | None,
+        pressed_actions: frozenset[str],
+        genau_status: GenauStatus | None = None,
+    ) -> None:
         self._last_snapshot = snapshot
+        self._last_genau_status = genau_status
         scene = build_dashboard_scene(
             self._preview_layout,
             snapshot,
             favs_file=self._app_config.favs_file,
             broker_heartbeat_file=self._app_config.broker_heartbeat_file,
+            genau_status=genau_status,
             pressed_actions=pressed_actions,
         )
         apply_dashboard_window_geometry(self, snapshot, scene, launch_geometry=self._launch_geometry)
@@ -877,10 +1003,11 @@ class DashboardWindow(QMainWindow):
     def _on_action(self, action_id: str) -> None:
         self._pressed[action_id] = time.monotonic()
         write_dashboard_command(self._app_config.dashboard_cmd_file, action_id)
-        self._do_render(self._last_snapshot, self._compute_pressed())
+        gs = self._last_genau_status
+        self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs)
         QTimer.singleShot(
             int(PRESS_FLASH_S * 1000) + 10,
-            lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
+            lambda: self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs),
         )
 
     def _handle_press_event(self) -> None:
@@ -890,10 +1017,11 @@ class DashboardWindow(QMainWindow):
                 self._pressed[action] = time.monotonic()
             except queue.Empty:
                 break
-        self._do_render(self._last_snapshot, self._compute_pressed())
+        gs = self._last_genau_status
+        self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs)
         QTimer.singleShot(
             int(PRESS_FLASH_S * 1000) + 10,
-            lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
+            lambda: self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs),
         )
 
     def _press_listener(self) -> None:
@@ -914,7 +1042,9 @@ class DashboardWindow(QMainWindow):
         snapshot = load_dashboard_snapshot(self._app_config.dashboard_state_file)
         if snapshot is not None:
             snapshot = hydrate_dashboard_snapshot(snapshot, self._vlc_cache[0], mfp_pid=self._mfp_pid)
-        self._do_render(snapshot, self._compute_pressed())
+        genau_status_path = self._app_config.dashboard_state_file.parent / "genau_status.txt"
+        genau_status = read_genau_status(genau_status_path)
+        self._do_render(snapshot, self._compute_pressed(), genau_status=genau_status)
 
 
 def build_dashboard_window(

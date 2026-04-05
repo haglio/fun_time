@@ -1199,6 +1199,80 @@ def test_scene_contains_primary_shadow_behind_primary(cfg_path: Path):
     assert outlines[layout.primary_shadow] == COLOR_CABLE_DIM
 
 
+def test_genau_mode_has_param_and_cruise_and_shape_actions(cfg_path: Path):
+    """Genau box should include AMP/CTR/SPD up/down, cruise, and shape actions."""
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_genau=True)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    action_ids = [a for a, _r in scene.actions]
+    for expected in (
+        "genau_amplitude_up", "genau_amplitude_down",
+        "genau_center_up", "genau_center_down",
+        "genau_speed_up", "genau_speed_down",
+        "genau_toggle_cruise", "genau_cycle_shape",
+    ):
+        assert expected in action_ids, f"missing action {expected}"
+
+
+def test_genau_param_labels_are_vertical(cfg_path: Path):
+    """AMP/CTR/SPD labels should be written with stacked letters (one per line)."""
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_genau=True)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    texts = {item.text for item in scene.texts}
+    assert "A\nM\nP" in texts
+    assert "C\nT\nR" in texts
+    assert "S\nP\nD" in texts
+
+
+def test_genau_cruise_button_blue_when_active(cfg_path: Path):
+    from fun_time.dashboard_runtime import GenauStatus
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_genau=True)
+
+    scene = build_dashboard_scene(
+        layout, snapshot,
+        genau_status=GenauStatus(cruise_active=True, shape="sine"),
+    )
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    from shared_ui.colors import BLUE
+    assert fills[layout.genau_cruise] == BLUE
+
+
+def test_genau_cruise_button_neutral_when_inactive(cfg_path: Path):
+    from fun_time.dashboard_runtime import GenauStatus
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_genau=True)
+
+    scene = build_dashboard_scene(
+        layout, snapshot,
+        genau_status=GenauStatus(cruise_active=False, shape="sine"),
+    )
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.genau_cruise] == COLOR_PANEL
+
+
+def test_vlc_mode_does_not_show_genau_param_actions(cfg_path: Path):
+    """VLC mode should NOT have AMP/CTR/SPD or cruise/shape actions."""
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_genau=False)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    action_ids = [a for a, _r in scene.actions]
+    for unexpected in (
+        "genau_amplitude_up", "genau_amplitude_down",
+        "genau_toggle_cruise", "genau_cycle_shape",
+    ):
+        assert unexpected not in action_ids, f"unexpected action {unexpected} in VLC mode"
+
+
 # ---------------------------------------------------------------------------
 # DashboardWidget tests
 # ---------------------------------------------------------------------------

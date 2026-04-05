@@ -426,6 +426,17 @@ def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
+def test_genau_toggle_cruise_writes_cmd_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(genau_mode=True)
+
+    new_state, ops = dispatch_command("genau_toggle_cruise", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_CRUISE"
+    assert new_state == state
+    assert ops == []
+
+
 def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(genau_mode=False)
