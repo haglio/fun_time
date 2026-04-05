@@ -20,6 +20,7 @@ dev = [
     "hypothesis",
     "pytest",
     "pytest-cov",
+    "vulture",
 ]
 voice = [
     "vosk",
