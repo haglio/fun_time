@@ -437,6 +437,49 @@ def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     assert ops == []
 
 
+# --- genau numeric command forwarding ---
+
+
+def test_genau_amp_writes_numeric_cmd_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(genau_mode=True)
+
+    new_state, ops = dispatch_command("genau_amp_50", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "AMP 50"
+    assert new_state == state
+    assert ops == []
+
+
+def test_genau_center_writes_numeric_cmd_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(genau_mode=True)
+
+    new_state, ops = dispatch_command("genau_center_80", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CENTER 80"
+
+
+def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(genau_mode=True)
+
+    new_state, ops = dispatch_command("genau_speed_30", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 30"
+
+
+def test_genau_numeric_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(genau_mode=False)
+
+    new_state, ops = dispatch_command("genau_amp_50", state, config)
+
+    assert not config.genau_cmd_file.exists()
+    assert new_state == state
+    assert ops == []
+
+
 def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)

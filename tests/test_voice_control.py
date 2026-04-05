@@ -9,8 +9,8 @@ from fun_time.voice_control import VOICE_COMMANDS, VoiceController, build_gramma
 
 
 class TestVoiceCommands:
-    def test_maps_all_expected_phrases(self):
-        expected = {
+    def test_contains_all_static_phrases(self):
+        static_phrases = {
             "quit": "quit",
             "pause": "pause",
             "play": "play",
@@ -44,7 +44,19 @@ class TestVoiceCommands:
             "previous clip": "genau_prev_clip",
             "next clip": "genau_next_clip",
         }
-        assert VOICE_COMMANDS == expected
+        for phrase, cmd in static_phrases.items():
+            assert VOICE_COMMANDS[phrase] == cmd
+
+    def test_contains_numeric_amp_phrases(self):
+        assert VOICE_COMMANDS["amp fifty"] == "genau_amp_50"
+        assert VOICE_COMMANDS["amp zero"] == "genau_amp_0"
+        assert VOICE_COMMANDS["amp one hundred"] == "genau_amp_100"
+
+    def test_contains_numeric_center_phrases(self):
+        assert VOICE_COMMANDS["center eighty"] == "genau_center_80"
+
+    def test_contains_numeric_speed_phrases(self):
+        assert VOICE_COMMANDS["speed thirty"] == "genau_speed_30"
 
 
 class TestBuildGrammar:

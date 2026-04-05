@@ -90,6 +90,26 @@ _GENAU_CMD_MAP = {
 }
 
 
+_GENAU_NUMERIC_PREFIXES = {
+    "genau_amp_": "AMP",
+    "genau_center_": "CENTER",
+    "genau_speed_": "SPEED",
+}
+
+
+def _parse_genau_numeric_command(command: str) -> str | None:
+    """Parse 'genau_amp_50' -> 'AMP 50', etc."""
+    for prefix, keyword in _GENAU_NUMERIC_PREFIXES.items():
+        if command.startswith(prefix):
+            value_str = command[len(prefix):]
+            try:
+                int(value_str)
+            except ValueError:
+                return None
+            return f"{keyword} {value_str}"
+    return None
+
+
 def _cancel_lock(which: int, state: BridgeState, config: BridgeConfig) -> BridgeState:
     port = config.portrait_port if which == 2 else config.landscape_port
     locked = state.locked2 if which == 2 else state.locked3
@@ -215,6 +235,12 @@ def dispatch_command(
     if command in _GENAU_CMD_MAP:
         if state.genau_mode:
             config.genau_cmd_file.write_text(_GENAU_CMD_MAP[command], encoding="utf-8")
+        return state, ops
+
+    genau_numeric = _parse_genau_numeric_command(command)
+    if genau_numeric is not None:
+        if state.genau_mode:
+            config.genau_cmd_file.write_text(genau_numeric, encoding="utf-8")
         return state, ops
 
     if command == "vlc_nudge_prev":

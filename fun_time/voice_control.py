@@ -46,6 +46,22 @@ VOICE_COMMANDS: dict[str, str] = {
     "next clip": "genau_next_clip",
 }
 
+_NUMBER_WORDS: dict[str, int] = {
+    "zero": 0, "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,
+    "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+    "one hundred": 100,
+}
+
+_NUMERIC_PREFIXES: dict[str, str] = {
+    "amp": "genau_amp",
+    "center": "genau_center",
+    "speed": "genau_speed",
+}
+
+for _word, _value in _NUMBER_WORDS.items():
+    for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
+        VOICE_COMMANDS[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
+
 
 def build_grammar() -> str:
     """Build a Vosk grammar JSON string from VOICE_COMMANDS."""
