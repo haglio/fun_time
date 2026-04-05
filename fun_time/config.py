@@ -151,14 +151,6 @@ class ProjectConfig:
         return self.paths.state_dir / "genau_paused.txt"
 
     @property
-    def osr2_serial_rx_file(self) -> Path:
-        return self.paths.state_dir / "osr2_serial_rx.txt"
-
-    @property
-    def osr2_serial_tx_file(self) -> Path:
-        return self.paths.state_dir / "osr2_serial_tx.txt"
-
-    @property
     def audio_cmd_file(self) -> Path:
         return self.paths.state_dir / "audio_cmd.txt"
 

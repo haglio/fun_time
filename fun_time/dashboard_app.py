@@ -384,7 +384,6 @@ def build_dashboard_scene(
     landscape_label = LABEL_LANDSCAPE_VLC
     osr2_label = LABEL_OSR2
     mfp_label = LABEL_MFP
-    cable_connected = True
     primary_fill = COLOR_PANEL
     portrait_fill = COLOR_PANEL
     landscape_fill = COLOR_PANEL
