@@ -232,7 +232,7 @@ def run_python_orchestrated_bridge(
 
     # Clean stale state files from previous sessions so the dispatch loop
     # starts fresh (e.g. omni_paused=True left over from a crash).
-    # Start background dispatch loop (dashboard polling + robot hand sync)
+    # Start background dispatch loop (dashboard polling + genau sync)
     manifest = configparser.ConfigParser()
     manifest.optionxform = str
     manifest.read(str(manifest_path), encoding="utf-8")

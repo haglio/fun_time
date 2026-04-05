@@ -239,8 +239,8 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     flag.  When omnipause was ported to Python, an explicit
     set_topmost(Genau, False) was added by mistake, causing the
     window to fall behind other windows (appearing "closed").  Verify the
-    Genau process survives an omnipause round-trip while in robot
-    hand mode.
+    Genau process survives an omnipause round-trip while in genau
+    mode.
     """
     s = shared_integration_session
     rh_pid = s.read_genau_pid()

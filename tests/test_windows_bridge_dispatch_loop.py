@@ -230,7 +230,7 @@ class TestDispatchLoopRunner:
         )
 
     def test_dispatches_dashboard_command(self, tmp_path):
-        # Use huge sync interval so robot hand sync doesn't fire
+        # Use huge sync interval so genau sync doesn't fire
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -387,7 +387,7 @@ class TestDispatchLoopRunner:
         recv_sock.close()
         assert "open_file_dialog" in messages
 
-    def test_backslash_key_enters_omnipause_when_not_in_robot_mode(self, tmp_path):
+    def test_backslash_key_enters_omnipause_when_not_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         runner.state = BridgeState(genau_mode=False)
@@ -647,7 +647,7 @@ class TestGenauZOrder:
         assert (1001, True) in topmost_calls
 
     def test_tick_enforces_primary_not_topmost_during_sync(self, tmp_path):
-        """Periodic sync must re-demote Primary VLC even when robot hand
+        """Periodic sync must re-demote Primary VLC even when genau
         mode hasn't changed — VLC video transitions may re-assert topmost."""
         runner = self._make_runner(tmp_path, sync_interval_ms=0)
         runner.state = BridgeState(genau_mode=True)
@@ -661,7 +661,7 @@ class TestGenauZOrder:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=9999), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            # No state change — robot hand mode stays True
+            # No state change — genau mode stays True
             mock_dispatch.return_value = (BridgeState(genau_mode=True), [])
             runner.tick()
 
@@ -672,7 +672,7 @@ class TestGenauZOrder:
 
     def test_restore_all_topmost_demotes_primary_in_genau_mode(self, tmp_path):
         """_restore_all_topmost must explicitly set Primary VLC NOT-TOPMOST
-        (not just skip it) when robot hand mode is active."""
+        (not just skip it) when genau mode is active."""
         runner = self._make_runner(tmp_path)
         runner.state = BridgeState(genau_mode=True)
 
@@ -944,7 +944,7 @@ class TestHandleOmniPauseToggle:
         removed = {h for h, v in topmost_calls if not v}
         assert 6001 in removed
 
-    def test_leaving_omnipause_sets_genau_topmost_last_in_robot_mode(self, tmp_path):
+    def test_leaving_omnipause_sets_genau_topmost_last_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True, genau_mode=True)
 
@@ -1001,7 +1001,7 @@ class TestHandleOmniPauseToggle:
         restored = {h for h, v in topmost_calls if v}
         assert 7777 in restored, "Genau topmost should be restored via title lookup"
 
-    def test_leaving_omnipause_skips_genau_topmost_when_not_in_robot_mode(self, tmp_path):
+    def test_leaving_omnipause_skips_genau_topmost_when_not_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True, genau_mode=False)
 
