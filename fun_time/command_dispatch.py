@@ -396,6 +396,7 @@ def _dispatch_genau_toggle(
         genau_cmd_file=config.genau_cmd_file,
         primary_port=config.primary_port,
         password=config.vlc_password,
+        broker_cmd_file=config.broker_cmd_file,
     )
     state = replace(state, genau_mode=result.next_genau_mode)
     if result.is_transition:

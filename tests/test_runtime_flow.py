@@ -97,6 +97,56 @@ def test_toggle_active_during_omnipause_no_vlc_call(monkeypatch, tmp_path: Path)
     assert not genau_cmd_file.exists(), "Omnipause must NOT write cmd file"
 
 
+def test_genau_deactivation_writes_broker_resume(monkeypatch, tmp_path: Path):
+    paused_file = tmp_path / "paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    genau_cmd_file = tmp_path / "genau_cmd.txt"
+    broker_cmd_file = tmp_path / "broker_cmd.txt"
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: True,
+    )
+
+    apply_toggle_genau_active(
+        genau_mode_on=True,
+        omni_paused=False,
+        paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        genau_cmd_file=genau_cmd_file,
+        primary_port=8123,
+        password="pw",
+        broker_cmd_file=broker_cmd_file,
+    )
+
+    assert broker_cmd_file.read_text(encoding="utf-8") == "RESUME"
+
+
+def test_genau_activation_does_not_write_broker_cmd(monkeypatch, tmp_path: Path):
+    paused_file = tmp_path / "paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    genau_cmd_file = tmp_path / "genau_cmd.txt"
+    broker_cmd_file = tmp_path / "broker_cmd.txt"
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: True,
+    )
+
+    apply_toggle_genau_active(
+        genau_mode_on=False,
+        omni_paused=False,
+        paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        genau_cmd_file=genau_cmd_file,
+        primary_port=8123,
+        password="pw",
+        broker_cmd_file=broker_cmd_file,
+    )
+
+    assert not broker_cmd_file.exists(), "Activation must not write to broker"
+
+
 def test_toggle_fmode_replaces_playlists_and_returns_new_state(monkeypatch, tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     portrait_root = tmp_path / "portrait"
@@ -222,12 +272,50 @@ def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_p
 
     assert result.action == "leave"
     assert result.next_omni_paused is False
-    assert paused_file.read_text(encoding="utf-8") == "0"
-    assert audio_paused_file.read_text(encoding="utf-8") == "0"
-    assert genau_cmd_file.read_text(encoding="utf-8") == "RESUME"
+    # Genau stays paused when genau_mode is off
+    assert paused_file.read_text(encoding="utf-8") == "1"
+    assert audio_paused_file.read_text(encoding="utf-8") == "1"
+    assert not genau_cmd_file.exists()
+    # Broker is un-PARKed regardless of genau mode
     assert broker_cmd_file.read_text(encoding="utf-8") == "RESUME"
     # Calls happen in parallel, so order is non-deterministic
     assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True), (9001, "pw", True)])
+
+
+def test_apply_leave_omnipause_keeps_genau_paused_when_genau_mode_off(monkeypatch, tmp_path: Path):
+    """When genau_mode is off, leaving omnipause must NOT resume Genau."""
+    paused_file = tmp_path / "genau_paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    genau_cmd_file = tmp_path / "genau_cmd.txt"
+    broker_cmd_file = tmp_path / "broker_cmd.txt"
+    paused_file.write_text("1", encoding="utf-8")
+    audio_paused_file.write_text("1", encoding="utf-8")
+    genau_cmd_file.write_text("PAUSE", encoding="utf-8")
+    calls: list[tuple[int, str, bool]] = []
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
+    )
+
+    apply_leave_omnipause(
+        omni_paused=True,
+        genau_mode_on=False,
+        skip_primary_resume=False,
+        primary_port=9001,
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+        genau_paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        genau_cmd_file=genau_cmd_file,
+        broker_cmd_file=broker_cmd_file,
+    )
+
+    assert paused_file.read_text(encoding="utf-8") == "1", "Genau must stay paused"
+    assert audio_paused_file.read_text(encoding="utf-8") == "1", "Audio must stay paused"
+    assert genau_cmd_file.read_text(encoding="utf-8") == "PAUSE", "Genau cmd must not be overwritten"
+    assert broker_cmd_file.read_text(encoding="utf-8") == "RESUME", "Broker must still be un-PARKed"
 
 
 def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monkeypatch, tmp_path: Path):
@@ -258,5 +346,9 @@ def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monk
 
     assert result.action == "leave"
     assert result.next_omni_paused is False
+    # Genau resumes when genau_mode is on
+    assert paused_file.read_text(encoding="utf-8") == "0"
+    assert audio_paused_file.read_text(encoding="utf-8") == "0"
+    assert genau_cmd_file.read_text(encoding="utf-8") == "RESUME"
     # Calls happen in parallel, so order is non-deterministic
     assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True)])
