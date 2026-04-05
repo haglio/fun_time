@@ -168,6 +168,29 @@ def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
     assert command[idx + 1] == "state/genau_paused.txt"
 
 
+def test_launch_genau_passes_no_voice_flag(tmp_path: Path):
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(42)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+    ):
+        launch_genau(
+            python_exe="python.exe",
+            genau_module="genau.app",
+            config_path="cfg.json",
+            clips_folder="clips",
+            genau_x=0,
+            genau_y=0,
+            genau_width=800,
+            genau_height=600,
+        )
+
+    command = popen.call_args.args[0]
+    assert "--no-voice" in command
+
+
 def test_launch_ui_companions_skips_genau_when_pid_provided(tmp_path: Path):
     result_file = tmp_path / "ui_companions.ini"
 
