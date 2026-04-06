@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import glob
 import os
+import random
 import subprocess
 import sys
 import tempfile
@@ -50,10 +51,10 @@ VIDEO_DIR = Path(r"C:\path\to\suite-root\videos\videos\2D\AI\2_outbox\upscaled_b
 
 
 def _find_test_videos(n: int = 4) -> list[str]:
-    videos = sorted(glob.glob(str(VIDEO_DIR / "candy" / "*.mp4")))
+    videos = glob.glob(str(VIDEO_DIR / "candy" / "*.mp4"))
     if len(videos) < n:
-        videos = sorted(glob.glob(str(VIDEO_DIR / "**" / "*.mp4"), recursive=True))
-    return videos[:n]
+        videos = glob.glob(str(VIDEO_DIR / "**" / "*.mp4"), recursive=True)
+    return random.sample(videos, min(n, len(videos)))
 
 
 @pytest.fixture(scope="module")
