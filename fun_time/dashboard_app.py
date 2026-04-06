@@ -171,6 +171,7 @@ class DashboardTextItem:
     color: QColor = field(default_factory=lambda: COLOR_TEXT)
     anchor: str = "center"
     font: QFont | None = None
+    rotation: int = 0
 
 
 @dataclass(frozen=True)
@@ -608,15 +609,15 @@ def build_dashboard_scene(
         *(
             (
                 DashboardTextItem("1/4", layout.quarter_button, font=_font_ui_tiny),
-                DashboardTextItem("\u2303", layout.genau_amp_up, font=_font_ui_tiny),
-                DashboardTextItem("\u2304", layout.genau_amp_down, font=_font_ui_tiny),
-                DashboardTextItem("\u2303", layout.genau_ctr_up, font=_font_ui_tiny),
-                DashboardTextItem("\u2304", layout.genau_ctr_down, font=_font_ui_tiny),
-                DashboardTextItem("\u2303", layout.genau_spd_up, font=_font_ui_tiny),
-                DashboardTextItem("\u2304", layout.genau_spd_down, font=_font_ui_tiny),
-                DashboardTextItem("A\nM\nP", _label_rect(layout.genau_amp_up, layout.genau_amp_down), font=_font_ui_tiny),
-                DashboardTextItem("C\nT\nR", _label_rect(layout.genau_ctr_up, layout.genau_ctr_down), font=_font_ui_tiny),
-                DashboardTextItem("S\nP\nD", _label_rect(layout.genau_spd_up, layout.genau_spd_down), font=_font_ui_tiny),
+                DashboardTextItem("^", layout.genau_amp_up, font=_font_ui_tiny),
+                DashboardTextItem("v", layout.genau_amp_down, font=_font_ui_tiny),
+                DashboardTextItem("^", layout.genau_ctr_up, font=_font_ui_tiny),
+                DashboardTextItem("v", layout.genau_ctr_down, font=_font_ui_tiny),
+                DashboardTextItem("^", layout.genau_spd_up, font=_font_ui_tiny),
+                DashboardTextItem("v", layout.genau_spd_down, font=_font_ui_tiny),
+                DashboardTextItem("AMP", _label_rect(layout.genau_amp_up, layout.genau_amp_down), font=_font_ui_tiny, rotation=90),
+                DashboardTextItem("CTR", _label_rect(layout.genau_ctr_up, layout.genau_ctr_down), font=_font_ui_tiny, rotation=90),
+                DashboardTextItem("SPD", _label_rect(layout.genau_spd_up, layout.genau_spd_down), font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("cc", layout.genau_cruise, font=_font_ui_tiny),
             )
             if _is_genau else (
@@ -814,7 +815,17 @@ class DashboardWidget(QWidget):
                 flags = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
             elif item.anchor == "n":
                 flags = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop
-            p.drawText(rect, flags, item.text)
+            if item.rotation:
+                p.save()
+                cx = rect.x() + rect.width() / 2
+                cy = rect.y() + rect.height() / 2
+                p.translate(cx, cy)
+                p.rotate(item.rotation)
+                rotated = QRectF(-rect.height() / 2, -rect.width() / 2, rect.height(), rect.width())
+                p.drawText(rotated, flags, item.text)
+                p.restore()
+            else:
+                p.drawText(rect, flags, item.text)
 
         for item in scene.images:
             if item.pixmap.isNull():

@@ -173,13 +173,13 @@ def compute_dashboard_preview_layout(
     landscape_stack_y = landscape_y + (main_inner_h - 36) // 2
 
     # Genau parameter columns (AMP, CTR, SPD) — top row of primary panel
-    genau_col_w = 14
-    genau_btn_h = 6
-    genau_label_h = 12
-    genau_col_gap = 3
-    genau_cols_total_w = genau_col_w * 3 + genau_col_gap * 2  # 48px
+    genau_col_w = 22
+    genau_btn_h = 10
+    genau_label_h = 20
+    genau_col_gap = 5
+    genau_cols_total_w = genau_col_w * 3 + genau_col_gap * 2
     genau_cols_x = right_inner_x + (right_inner_w - genau_cols_total_w) // 2
-    genau_cols_y = primary_y + 13  # just below label
+    genau_cols_y = primary_y + 16  # just below label
 
     def _genau_col_rects(col_index: int) -> tuple[Rect, Rect]:
         """Return (up_button, down_button) for a parameter column."""
@@ -202,7 +202,7 @@ def compute_dashboard_preview_layout(
         genau_bottom_btn_w, genau_bottom_btn_h,
     )
     genau_shape_rect = Rect(
-        right_inner_x + right_inner_w - 4 - genau_bottom_btn_w, genau_bottom_y,
+        right_inner_x + (right_inner_w - genau_bottom_btn_w) // 2, genau_bottom_y,
         genau_bottom_btn_w, genau_bottom_btn_h,
     )
 
