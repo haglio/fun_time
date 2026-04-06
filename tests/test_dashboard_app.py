@@ -1292,6 +1292,13 @@ def test_genau_buttons_greyed_at_limits(cfg_path: Path):
     assert text_at[layout.genau_spd_up].color != TEXT_MUTED
     assert text_at[layout.genau_spd_down].color != TEXT_MUTED
 
+    # Disabled buttons must not be clickable (no action = no highlight)
+    action_ids = [a for a, _r in scene.actions]
+    assert "genau_amplitude_up" not in action_ids, "at-max button should not be clickable"
+    assert "genau_amplitude_down" in action_ids, "not-at-min button should be clickable"
+    assert "genau_center_down" not in action_ids, "at-min button should not be clickable"
+    assert "genau_center_up" in action_ids, "not-at-max button should be clickable"
+
 
 def test_vlc_mode_does_not_show_genau_param_actions(cfg_path: Path):
     """VLC mode should NOT have AMP/CTR/SPD or cruise/shape actions."""
