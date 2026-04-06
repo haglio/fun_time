@@ -1258,6 +1258,41 @@ def test_genau_cruise_button_neutral_when_inactive(cfg_path: Path):
     assert fills[layout.genau_cruise] == COLOR_PANEL
 
 
+def test_genau_shape_button_has_neutral_fill(cfg_path: Path):
+    """Shape button must use neutral fill so the waveform icon is visible."""
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_genau=True)
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[layout.genau_shape] == COLOR_PANEL
+
+
+def test_genau_buttons_greyed_at_limits(cfg_path: Path):
+    """When a param is at max, its up button text should be muted; same for min/down."""
+    from fun_time.dashboard_runtime import GenauStatus
+    from shared_ui.colors import TEXT_MUTED
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_uses_genau=True)
+
+    scene = build_dashboard_scene(
+        layout, snapshot,
+        genau_status=GenauStatus(amp_at_max=True, ctr_at_min=True),
+    )
+
+    text_at = {item.rect: item for item in scene.texts}
+    # AMP up should be muted (at max), AMP down should be normal
+    assert text_at[layout.genau_amp_up].color == TEXT_MUTED
+    assert text_at[layout.genau_amp_down].color != TEXT_MUTED
+    # CTR down should be muted (at min), CTR up should be normal
+    assert text_at[layout.genau_ctr_down].color == TEXT_MUTED
+    assert text_at[layout.genau_ctr_up].color != TEXT_MUTED
+    # SPD neither — both normal
+    assert text_at[layout.genau_spd_up].color != TEXT_MUTED
+    assert text_at[layout.genau_spd_down].color != TEXT_MUTED
+
+
 def test_vlc_mode_does_not_show_genau_param_actions(cfg_path: Path):
     """VLC mode should NOT have AMP/CTR/SPD or cruise/shape actions."""
     layout = _make_layout(cfg_path)

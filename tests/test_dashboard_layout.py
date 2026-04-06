@@ -210,11 +210,28 @@ def test_genau_param_buttons_inside_primary_panel():
     panel = layout.primary_panel
 
     for rect in (
-        layout.genau_amp_up, layout.genau_amp_down,
-        layout.genau_ctr_up, layout.genau_ctr_down,
-        layout.genau_spd_up, layout.genau_spd_down,
+        layout.genau_amp_label, layout.genau_amp_up, layout.genau_amp_down,
+        layout.genau_ctr_label, layout.genau_ctr_up, layout.genau_ctr_down,
+        layout.genau_spd_label, layout.genau_spd_up, layout.genau_spd_down,
     ):
         assert _inside(rect, panel), f"{rect} outside primary panel {panel}"
+
+
+def test_genau_param_labels_are_left_of_buttons():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    for label, up in (
+        (layout.genau_amp_label, layout.genau_amp_up),
+        (layout.genau_ctr_label, layout.genau_ctr_up),
+        (layout.genau_spd_label, layout.genau_spd_up),
+    ):
+        assert label.x + label.width == up.x, (
+            f"Label right edge ({label.x + label.width}) should abut button left edge ({up.x})"
+        )
 
 
 def test_genau_cruise_and_shape_inside_primary_panel():
