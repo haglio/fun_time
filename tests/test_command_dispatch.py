@@ -511,6 +511,51 @@ def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
     assert config.primary_port in paused_ports
 
 
+def test_enter_omnipause_emits_disable_all_topmost(tmp_path: Path):
+    """Entering omnipause must emit a disable_all_topmost op so the dispatch
+    loop removes topmost from all windows."""
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=False)
+
+    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
+        new_state, ops = dispatch_command("enter_omnipause", state, config)
+
+    assert any(op.op == "disable_all_topmost" for op in ops)
+
+
+def test_omnipause_toggle_enter_emits_disable_all_topmost(tmp_path: Path):
+    """Toggle entering omnipause must also emit disable_all_topmost."""
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=False)
+
+    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
+        new_state, ops = dispatch_command("omnipause_toggle", state, config)
+
+    assert any(op.op == "disable_all_topmost" for op in ops)
+
+
+def test_omnipause_toggle_leave_emits_restore_all_topmost(tmp_path: Path):
+    """Leaving omnipause must emit restore_all_topmost so the dispatch
+    loop rebuilds the z-order stack."""
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=True)
+
+    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
+        new_state, ops = dispatch_command("omnipause_toggle", state, config)
+
+    assert any(op.op == "restore_all_topmost" for op in ops)
+
+
+def test_leave_omnipause_skip_primary_emits_restore_all_topmost(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=True)
+
+    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
+        new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
+
+    assert any(op.op == "restore_all_topmost" for op in ops)
+
+
 def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
     """Genau should stay topmost during omnipause — only pause playback."""
     config = _make_config(tmp_path)

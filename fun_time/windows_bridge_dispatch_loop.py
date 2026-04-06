@@ -60,7 +60,8 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
     """Execute window operations via Python win32, returning any that need AHK."""
     remaining: list[WindowOp] = []
     for op in ops:
-        if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "tooltip"):
+        if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "tooltip",
+                      "disable_all_topmost", "restore_all_topmost"):
             remaining.append(op)
             continue
 
@@ -279,6 +280,12 @@ class DispatchLoopRunner:
             self._apply_z_order()
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
+            if op.op == "disable_all_topmost":
+                self._remove_all_topmost()
+                continue
+            if op.op == "restore_all_topmost":
+                self._restore_all_topmost()
+                continue
             if suppress_unsuspend and op.op == "unsuspend_hotkeys":
                 continue
             if op.op == "vlc_http_seek":
@@ -430,9 +437,13 @@ class DispatchLoopRunner:
         return hwnd
 
     def _handle_omnipause_toggle(self) -> None:
-        """Toggle omnipause with topmost management for all windows."""
-        was_paused = self.state.omni_paused
-        if was_paused:
+        """Toggle omnipause with topmost management for all windows.
+
+        Topmost removal (enter) and restoration (leave) are driven by
+        the disable_all_topmost / restore_all_topmost WindowOps that
+        command_dispatch emits — _dispatch handles them automatically.
+        """
+        if self.state.omni_paused:
             dash_hwnd = self._find_dashboard_hwnd()
             logger.info(
                 "Un-omnipause pre-restore: dash_hwnd=%d dash_topmost=%s "
@@ -441,15 +452,14 @@ class DispatchLoopRunner:
                 self.rfb_hwnd, is_window_topmost(self.rfb_hwnd) if self.rfb_hwnd else "N/A",
             )
         self._dispatch("omnipause_toggle")
-        if not was_paused:
-            self._remove_all_topmost()
-        else:
-            self._restore_all_topmost()
 
     def _handle_enter_omnipause(self) -> None:
-        """Enter omnipause with topmost management (Space key — enter only, no leave)."""
+        """Enter omnipause with topmost management (Space key — enter only, no leave).
+
+        Topmost removal is driven by the disable_all_topmost WindowOp
+        that command_dispatch emits — _dispatch handles it automatically.
+        """
         self._dispatch("enter_omnipause")
-        self._remove_all_topmost()
 
     def _handle_open_file_dialog(self) -> None:
         """Open VLC's file dialog with managed omnipause."""
@@ -465,7 +475,6 @@ class DispatchLoopRunner:
 
         if should_manage_omnipause:
             self._dispatch("enter_omnipause")
-            self._remove_all_topmost()
 
         try:
             default_dir = self.config.primary_sources.split("|")[0] if self.config.primary_sources else ""
@@ -482,7 +491,6 @@ class DispatchLoopRunner:
         finally:
             if should_manage_omnipause:
                 self._dispatch("leave_omnipause_skip_primary")
-                self._restore_all_topmost()
 
     def run(self) -> None:
         """Main loop — call from a background thread."""

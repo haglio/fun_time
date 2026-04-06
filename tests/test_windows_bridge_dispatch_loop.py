@@ -175,6 +175,20 @@ class TestExecuteWindowOps:
         mock_topmost.assert_not_called()
         assert remaining == []
 
+    def test_disable_all_topmost_returned_as_remaining(self):
+        ops = [WindowOp(op="disable_all_topmost")]
+        remaining = execute_window_ops(ops, primary_pid=1)
+
+        assert len(remaining) == 1
+        assert remaining[0].op == "disable_all_topmost"
+
+    def test_restore_all_topmost_returned_as_remaining(self):
+        ops = [WindowOp(op="restore_all_topmost")]
+        remaining = execute_window_ops(ops, primary_pid=1)
+
+        assert len(remaining) == 1
+        assert remaining[0].op == "restore_all_topmost"
+
 
 class TestSharedState:
     def test_write_then_read_roundtrip(self, tmp_path):
@@ -807,7 +821,8 @@ class TestHandleOmniPauseToggle:
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
+                   return_value=[WindowOp(op="disable_all_topmost")]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
@@ -827,7 +842,8 @@ class TestHandleOmniPauseToggle:
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
+                   return_value=[WindowOp(op="restore_all_topmost")]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=False), [])
@@ -844,7 +860,8 @@ class TestHandleOmniPauseToggle:
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
+                   return_value=[WindowOp(op="restore_all_topmost")]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
@@ -862,7 +879,8 @@ class TestHandleOmniPauseToggle:
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
+                   return_value=[WindowOp(op="disable_all_topmost")]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
@@ -880,7 +898,8 @@ class TestHandleOmniPauseToggle:
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
+                   return_value=[WindowOp(op="restore_all_topmost")]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
@@ -903,7 +922,8 @@ class TestHandleOmniPauseToggle:
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
+                   return_value=[WindowOp(op="disable_all_topmost")]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=7777), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
@@ -921,7 +941,8 @@ class TestHandleOmniPauseToggle:
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
+                   return_value=[WindowOp(op="restore_all_topmost")]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=7777), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
@@ -1016,8 +1037,13 @@ class TestHandleOpenFileDialog:
         # Map each PID to a unique hwnd
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
+        exec_returns = iter([
+            [WindowOp(op="disable_all_topmost")],
+            [WindowOp(op="restore_all_topmost")],
+        ])
+
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
@@ -1153,8 +1179,13 @@ class TestHandleOpenFileDialog:
 
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
+        exec_returns = iter([
+            [WindowOp(op="disable_all_topmost")],
+            [WindowOp(op="restore_all_topmost")],
+        ])
+
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
@@ -1181,8 +1212,13 @@ class TestHandleOpenFileDialog:
 
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
+        exec_returns = iter([
+            [WindowOp(op="disable_all_topmost")],
+            [WindowOp(op="restore_all_topmost")],
+        ])
+
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
@@ -1205,8 +1241,13 @@ class TestHandleOpenFileDialog:
 
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
+        exec_returns = iter([
+            [WindowOp(op="disable_all_topmost")],
+            [WindowOp(op="restore_all_topmost")],
+        ])
+
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d, **kw: (call_log.append("dialog"), None)[-1]), \
