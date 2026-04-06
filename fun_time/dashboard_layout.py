@@ -53,10 +53,13 @@ class DashboardPreviewLayout:
     landscape_trash: Rect
     osr2_panel: Rect
     genau_mode_toggle: Rect
+    genau_amp_label: Rect
     genau_amp_up: Rect
     genau_amp_down: Rect
+    genau_ctr_label: Rect
     genau_ctr_up: Rect
     genau_ctr_down: Rect
+    genau_spd_label: Rect
     genau_spd_up: Rect
     genau_spd_down: Rect
     genau_cruise: Rect
@@ -172,26 +175,30 @@ def compute_dashboard_preview_layout(
     landscape_button_y = landscape_y + (main_inner_h - 22) // 2
     landscape_stack_y = landscape_y + (main_inner_h - 36) // 2
 
-    # Genau parameter columns (AMP, CTR, SPD) — top row of primary panel
-    genau_col_w = 22
+    # Genau parameter groups (AMP, CTR, SPD) — top row of primary panel
+    # Each group: rotated label on left, ^/v buttons stacked on right
+    genau_label_w = 12
+    genau_btn_w = 14
     genau_btn_h = 10
-    genau_label_h = 20
-    genau_col_gap = 5
-    genau_cols_total_w = genau_col_w * 3 + genau_col_gap * 2
-    genau_cols_x = right_inner_x + (right_inner_w - genau_cols_total_w) // 2
-    genau_cols_y = primary_y + 16  # just below label
+    genau_group_w = genau_label_w + genau_btn_w  # 26
+    genau_group_h = genau_btn_h * 2  # 20
+    genau_group_gap = 6
+    genau_groups_total_w = genau_group_w * 3 + genau_group_gap * 2
+    genau_groups_x = right_inner_x + (right_inner_w - genau_groups_total_w) // 2
+    genau_groups_y = primary_y + 16  # just below label
 
-    def _genau_col_rects(col_index: int) -> tuple[Rect, Rect]:
-        """Return (up_button, down_button) for a parameter column."""
-        cx = genau_cols_x + col_index * (genau_col_w + genau_col_gap)
+    def _genau_group_rects(col_index: int) -> tuple[Rect, Rect, Rect]:
+        """Return (label, up_button, down_button) for a parameter group."""
+        gx = genau_groups_x + col_index * (genau_group_w + genau_group_gap)
         return (
-            Rect(cx, genau_cols_y, genau_col_w, genau_btn_h),
-            Rect(cx, genau_cols_y + genau_btn_h + genau_label_h, genau_col_w, genau_btn_h),
+            Rect(gx, genau_groups_y, genau_label_w, genau_group_h),
+            Rect(gx + genau_label_w, genau_groups_y, genau_btn_w, genau_btn_h),
+            Rect(gx + genau_label_w, genau_groups_y + genau_btn_h, genau_btn_w, genau_btn_h),
         )
 
-    amp_up, amp_down = _genau_col_rects(0)
-    ctr_up, ctr_down = _genau_col_rects(1)
-    spd_up, spd_down = _genau_col_rects(2)
+    amp_label, amp_up, amp_down = _genau_group_rects(0)
+    ctr_label, ctr_up, ctr_down = _genau_group_rects(1)
+    spd_label, spd_up, spd_down = _genau_group_rects(2)
 
     # Genau cruise / shape — bottom row alongside mode toggle
     genau_bottom_y = primary_y + primary_h - 20
@@ -238,10 +245,13 @@ def compute_dashboard_preview_layout(
         landscape_lock=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y + 20, 30, 16),
         osr2_panel=Rect(osr2_x, osr2_y, osr2_w, osr2_h),
         genau_mode_toggle=Rect(right_inner_x + right_inner_w - 28, primary_y + primary_h - 20, 28, 16),
+        genau_amp_label=amp_label,
         genau_amp_up=amp_up,
         genau_amp_down=amp_down,
+        genau_ctr_label=ctr_label,
         genau_ctr_up=ctr_up,
         genau_ctr_down=ctr_down,
+        genau_spd_label=spd_label,
         genau_spd_up=spd_up,
         genau_spd_down=spd_down,
         genau_cruise=genau_cruise_rect,
