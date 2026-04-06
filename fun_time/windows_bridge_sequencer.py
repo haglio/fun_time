@@ -32,6 +32,7 @@ from .win32 import (
     move_window,
     set_always_on_top,
     wait_for_window,
+    wait_for_window_by_title,
 )
 from .window_layout import (
     MonitorRect,
@@ -273,14 +274,25 @@ def run_startup_sequence(
             if hwnd:
                 set_always_on_top(hwnd, True)
                 collected_hwnds.append(hwnd)
+        # Demote Genau so it stays behind Primary VLC (they share the same
+        # rect).  Genau doesn't set itself topmost, but if Windows placed it
+        # above Primary when both were non-topmost, the NOTOPMOST call ensures
+        # it stays below the topmost band.  Use title-based lookup because
+        # the venv launcher PID differs from the interpreter PID that owns
+        # the PyGame window.
+        genau_hwnd = wait_for_window_by_title("Genau", timeout_s=5.0)
+        if genau_hwnd:
+            set_always_on_top(genau_hwnd, False)
+
         # Re-assert Dashboard topmost — it set its own -topmost in Phase 3
         # but that was before RFB's topmost was set, so Dashboard is now
         # below RFB.  Toggling it ensures Dashboard ends up above RFB.
-        # Use wait_for_window (not find_window_by_pid) because the Dashboard
-        # subprocess may not have created its window yet at this point.
+        # Use title-based lookup because the venv launcher PID differs from
+        # the interpreter PID that owns the Qt window (find_window_by_pid
+        # always fails for Dashboard — see dispatch loop's _find_dashboard_hwnd).
         dashboard_pid = ui_pids["dashboard_pid"]
         if dashboard_pid:
-            dash_hwnd = wait_for_window(dashboard_pid, timeout_s=5.0)
+            dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=5.0)
             if dash_hwnd:
                 set_always_on_top(dash_hwnd, False)
                 set_always_on_top(dash_hwnd, True)

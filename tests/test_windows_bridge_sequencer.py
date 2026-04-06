@@ -526,6 +526,7 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd"), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -721,6 +722,7 @@ class TestPhase4GenauAlwaysInactive:
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", side_effect=track_vlc), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -766,6 +768,7 @@ class TestPhase4GenauAlwaysInactive:
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -801,6 +804,7 @@ class TestPhase4GenauAlwaysInactive:
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
              patch("fun_time.windows_bridge_sequencer.activate_window", side_effect=lambda h: activate_calls.append(h)), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -818,20 +822,15 @@ class TestPhase4GenauAlwaysInactive:
         assert rh_hwnd not in activate_calls, "Genau should not be activated at startup"
 
     def test_dashboard_is_last_topmost_in_phase4(self, cfg_factory, tmp_path):
-        """Dashboard must be the last topmost=True call so it's above Primary VLC.
-
-        A previous fix incorrectly re-asserted Primary as the last topmost call
-        (to put it above Genau), which put Primary above Dashboard.  Genau never
-        sets itself topmost, so it's already behind all topmost windows — no
-        explicit demotion is needed.
-        """
+        """Dashboard must be the last topmost=True call so it's above Primary VLC."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
         ui_pids = {"dashboard_pid": 50, "genau_pid": 60, "audio_pid": 70}
 
         topmost_calls: list[tuple] = []
         DASH_HWND = 5050
-        pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040, 50: DASH_HWND, 60: 77777}
+        pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040}
+        title_to_hwnd = {"Fun Time": DASH_HWND, "Genau": 77777}
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=60), \
@@ -839,6 +838,7 @@ class TestPhase4GenauAlwaysInactive:
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
@@ -854,8 +854,6 @@ class TestPhase4GenauAlwaysInactive:
                 hide_windows=True,
             )
 
-        # Dashboard must be the last topmost=True call — it sits on top of
-        # everything.  Primary VLC must NOT be re-asserted after Dashboard.
         last_topmost_true = [(h, v) for h, v in topmost_calls if v][-1]
         assert last_topmost_true[0] == DASH_HWND, (
             f"Dashboard (hwnd={DASH_HWND}) must be the last topmost call, "
@@ -886,6 +884,7 @@ class TestPhase4GenauAlwaysInactive:
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.socket.socket", return_value=FakeSocket()), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -902,43 +901,40 @@ class TestPhase4GenauAlwaysInactive:
         assert auto_msgs == [], "No AUTO UDP should be sent at startup"
 
 
-class TestDashboardZOrderOnSlowStartup:
-    """Bug: Dashboard z-order correction in Phase 4 uses find_window_by_pid (one-shot).
+class TestPhase4TitleBasedWindowLookup:
+    """Bug: find_window_by_pid fails for Dashboard and Genau because the venv
+    launcher PID differs from the interpreter PID that owns the window.
 
-    If the Dashboard subprocess hasn't created its window yet, find_window_by_pid
-    returns 0 and the z-order toggle is silently skipped — leaving Dashboard
-    below RFB.  The fix: wait for the Dashboard window (like we wait for MFP).
+    Phase 4 must use title-based lookup (wait_for_window_by_title) for both
+    the Dashboard z-order toggle and the Genau demotion.
     """
 
-    def test_dashboard_topmost_toggled_even_when_window_appears_late(self, cfg_factory, tmp_path):
-        """When find_window_by_pid returns 0 for the Dashboard (window not yet
-        created), the sequencer must wait for it and still apply the z-order
-        correction (toggle off/on topmost).
+    def test_dashboard_topmost_via_title_when_pid_fails(self, cfg_factory, tmp_path):
+        """Dashboard z-order toggle must use title lookup ("Fun Time"), not PID,
+        because the venv launcher PID never matches the Qt window's PID.
         """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
         ui_pids = {"dashboard_pid": 50, "genau_pid": 60, "audio_pid": 70}
 
         DASH_HWND = 5050
-        # find_window_by_pid returns 0 for dashboard (simulates slow subprocess)
+        GENAU_HWND = 6060
+        # find_window_by_pid returns 0 for dashboard PID (venv launcher mismatch)
         core_pid_to_hwnd = {10: 1010, 20: 2020, 30: 3030, 40: 4040}
-        # wait_for_window returns the hwnd for both MFP and dashboard
-        wait_pid_to_hwnd = {20: 2020, 50: DASH_HWND}
+        title_to_hwnd = {"Fun Time": DASH_HWND, "Genau": GENAU_HWND}
 
         topmost_calls: list[tuple] = []
-
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=60), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: wait_pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: core_pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: core_pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
@@ -951,11 +947,20 @@ class TestDashboardZOrderOnSlowStartup:
                 hide_windows=True,
             )
 
-        # Dashboard must be toggled off then on — even though find_window_by_pid
-        # returned 0 — because the sequencer waited for the window.
+        # Dashboard found by title and toggled off/on
         dash_calls = [(h, v) for h, v in topmost_calls if h == DASH_HWND]
         assert dash_calls == [(DASH_HWND, False), (DASH_HWND, True)], (
             f"Dashboard z-order correction was skipped or wrong: {dash_calls}"
+        )
+        # Genau found by title and demoted
+        genau_calls = [(h, v) for h, v in topmost_calls if h == GENAU_HWND]
+        assert genau_calls == [(GENAU_HWND, False)], (
+            f"Genau should be demoted to NOTOPMOST: {genau_calls}"
+        )
+        # Dashboard must be LAST topmost=True call (above everything)
+        last_topmost_true = [(h, v) for h, v in topmost_calls if v][-1]
+        assert last_topmost_true[0] == DASH_HWND, (
+            f"Dashboard must be last topmost, but hwnd={last_topmost_true[0]} was"
         )
 
 
