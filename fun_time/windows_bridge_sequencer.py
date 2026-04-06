@@ -27,7 +27,6 @@ from .windows_bridge_startup import launch_genau, start_core_session, launch_ui_
 from .win32 import (
     activate_window,
     find_window_by_pid,
-    find_window_by_title,
     get_captioned_window_chrome_height,
     get_window_rect,
     move_window,
@@ -194,13 +193,6 @@ def run_startup_sequence(
                 set_always_on_top(hwnd, True)
                 if not skip_activate:
                     activate_window(hwnd)
-        # Keep Genau behind Primary VLC (they share the same rect)
-        genau_hwnd = find_window_by_title("Genau")
-        if genau_hwnd:
-            set_always_on_top(genau_hwnd, False)
-        primary_hwnd = find_window_by_pid(primary_pid)
-        if primary_hwnd:
-            set_always_on_top(primary_hwnd, True)
         logger.info("Topmost set on core windows")
 
     # --- Phase 2.5: Launch Random Favs Browser ---
@@ -292,16 +284,6 @@ def run_startup_sequence(
             if dash_hwnd:
                 set_always_on_top(dash_hwnd, False)
                 set_always_on_top(dash_hwnd, True)
-
-        # Ensure Genau is behind Primary VLC.  Genau occupies the same
-        # rect; demoting it to NOTOPMOST then re-asserting Primary as the
-        # last TOPMOST call guarantees Primary is visually in front.
-        genau_hwnd = find_window_by_title("Genau")
-        if genau_hwnd:
-            set_always_on_top(genau_hwnd, False)
-        primary_hwnd = find_window_by_pid(primary_pid)
-        if primary_hwnd:
-            set_always_on_top(primary_hwnd, True)
 
         # When OSR2 is in auto mode, Genau gets topmost LAST so
         # it appears on top of everything — the first thing the user sees.
