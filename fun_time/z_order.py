@@ -5,7 +5,7 @@ orchestrator, and dispatch loop with a single source of truth.
 """
 from __future__ import annotations
 
-from .win32 import set_always_on_top
+from .win32 import is_window_topmost, set_always_on_top
 
 
 def compute_z_order(
@@ -78,11 +78,13 @@ def apply_z_order(layers: list[tuple[int, bool]], *, reorder: bool = True) -> No
         for hwnd, _ in layers:
             if hwnd:
                 set_always_on_top(hwnd, False)
-    else:
         for hwnd, topmost in layers:
-            if hwnd and not topmost:
-                set_always_on_top(hwnd, False)
-
-    for hwnd, topmost in layers:
-        if hwnd and topmost:
-            set_always_on_top(hwnd, True)
+            if hwnd and topmost:
+                set_always_on_top(hwnd, True)
+    else:
+        # Drift correction: only call SetWindowPos when the current
+        # state differs from desired.  In the steady state this makes
+        # zero SetWindowPos calls, eliminating visual flicker.
+        for hwnd, topmost in layers:
+            if hwnd and is_window_topmost(hwnd) != topmost:
+                set_always_on_top(hwnd, topmost)
