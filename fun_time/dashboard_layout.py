@@ -176,24 +176,30 @@ def compute_dashboard_preview_layout(
     landscape_stack_y = landscape_y + (main_inner_h - 36) // 2
 
     # Genau parameter groups (AMP, CTR, SPD) — top row of primary panel
-    # Each group: rotated label on left, ^/v buttons stacked on right
+    # Each group: rotated label on left, ^/v buttons stacked on right.
+    # Label is taller than the button pair so rotated text has room.
     genau_label_w = 12
+    genau_label_h = 30
     genau_btn_w = 14
     genau_btn_h = 10
-    genau_group_w = genau_label_w + genau_btn_w  # 26
-    genau_group_h = genau_btn_h * 2  # 20
+    genau_btn_pair_h = genau_btn_h * 2
+    genau_btn_offset_y = (genau_label_h - genau_btn_pair_h) // 2
+    genau_group_w = genau_label_w + genau_btn_w
     genau_group_gap = 6
     genau_groups_total_w = genau_group_w * 3 + genau_group_gap * 2
     genau_groups_x = right_inner_x + (right_inner_w - genau_groups_total_w) // 2
-    genau_groups_y = primary_y + 16  # just below label
+    # Center row between title bottom and nav button top
+    genau_title_bottom = primary_y + 14
+    genau_groups_y = genau_title_bottom + (primary_button_y - genau_title_bottom - genau_label_h) // 2
 
     def _genau_group_rects(col_index: int) -> tuple[Rect, Rect, Rect]:
         """Return (label, up_button, down_button) for a parameter group."""
         gx = genau_groups_x + col_index * (genau_group_w + genau_group_gap)
+        btn_y = genau_groups_y + genau_btn_offset_y
         return (
-            Rect(gx, genau_groups_y, genau_label_w, genau_group_h),
-            Rect(gx + genau_label_w, genau_groups_y, genau_btn_w, genau_btn_h),
-            Rect(gx + genau_label_w, genau_groups_y + genau_btn_h, genau_btn_w, genau_btn_h),
+            Rect(gx, genau_groups_y, genau_label_w, genau_label_h),
+            Rect(gx + genau_label_w, btn_y, genau_btn_w, genau_btn_h),
+            Rect(gx + genau_label_w, btn_y + genau_btn_h, genau_btn_w, genau_btn_h),
         )
 
     amp_label, amp_up, amp_down = _genau_group_rects(0)
