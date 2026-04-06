@@ -24,6 +24,7 @@ from .windows_bridge_dispatch_loop import (
 )
 from .windows_bridge_sequencer import StartupResult, run_startup_sequence
 from .windows_bridge_startup import _no_activate_kwargs
+from .z_order import apply_z_order, compute_z_order
 from .win32 import (
     activate_window,
     close_window,
@@ -31,7 +32,6 @@ from .win32 import (
     get_foreground_window,
     lock_set_foreground_window,
     minimize_window,
-    set_always_on_top,
     unlock_set_foreground_window,
     wait_for_window_by_title,
 )
@@ -154,36 +154,26 @@ def _add_dispatch_file_handler(log_path: Path) -> None:
 def _fix_post_loading_z_order(result: StartupResult) -> None:
     """Re-assert z-order after the loading screen overlay is destroyed.
 
-    Phase 4 sets topmost while the full-screen overlay is still up.
-    Destroying that overlay can rearrange z-order underneath.  This
-    function re-applies the correct stacking:
-
-      Genau  → NOTOPMOST  (behind all topmost windows)
-      RFB    → TOPMOST    (bottom of topmost band)
-      Core   → TOPMOST    (above RFB)
-      Dashboard → toggle  (above everything)
-
-    Title-based lookup is used for Dashboard and Genau because the venv
-    launcher PID differs from the interpreter PID that owns the window.
+    Uses the centralized z-order module to set the correct stacking
+    in one pass: demote all, then promote bottom-to-top.
     """
-    genau_hwnd = wait_for_window_by_title("Genau", timeout_s=3.0)
-    if genau_hwnd:
-        set_always_on_top(genau_hwnd, False)
-
-    if result.rfb_hwnd:
-        set_always_on_top(result.rfb_hwnd, True)
-
-    for pid in [result.primary_pid, result.portrait_pid, result.landscape_pid, result.mfp_pid]:
-        hwnd = find_window_by_pid(pid)
-        if hwnd:
-            set_always_on_top(hwnd, True)
-
+    dash_hwnd = 0
     if result.dashboard_pid:
-        dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0)
-        if dash_hwnd:
-            set_always_on_top(dash_hwnd, False)
-            set_always_on_top(dash_hwnd, True)
+        dash_hwnd = find_window_by_pid(result.dashboard_pid)
+        if not dash_hwnd:
+            dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0)
 
+    layers = compute_z_order(
+        rfb_hwnd=result.rfb_hwnd,
+        portrait_hwnd=find_window_by_pid(result.portrait_pid),
+        landscape_hwnd=find_window_by_pid(result.landscape_pid),
+        primary_hwnd=find_window_by_pid(result.primary_pid),
+        genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
+        mfp_hwnd=find_window_by_pid(result.mfp_pid),
+        dashboard_hwnd=dash_hwnd,
+        genau_active=False,
+    )
+    apply_z_order(layers)
     logger.info("Post-loading z-order corrected")
 
 
