@@ -199,9 +199,10 @@ def run_python_orchestrated_bridge(
             progress=progress,
             hide_windows=show_loading,
         )
-    finally:
+    except Exception:
         if integration_mode:
             unlock_set_foreground_window()
+        raise
 
     logger.info(
         "Startup complete: primary=%d mfp=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
@@ -223,6 +224,7 @@ def run_python_orchestrated_bridge(
 
     if integration_mode:
         _minimize_all_windows(result)
+        unlock_set_foreground_window()
         if saved_foreground:
             activate_window(saved_foreground)
             logger.info("Restored foreground window (hwnd=%d) after integration startup", saved_foreground)
