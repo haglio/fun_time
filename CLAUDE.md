@@ -43,6 +43,7 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 ## Integration test fidelity
 
 - **Test configuration must derive from production code.** Integration tests may test individual components (not only end-to-end), but their configuration (launch commands, flags, init sequences) must come from the same production functions that real sessions use. Never hand-craft config that duplicates production logic — if the test builds its own VLC command line instead of calling `_build_vlc_launch_command`, it can pass while production is broken.
+- **Integration tests must randomize video selection.** Use `random.sample()` or `random.choice()` — never `sorted()[:n]` or other deterministic selection. The same videos playing every run masks bugs that only surface with different media files.
 
 ## Repo-specific gotchas
 
