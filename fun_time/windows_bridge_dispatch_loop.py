@@ -20,6 +20,7 @@ from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on
 from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
 from .vlc_actions import send_vlc_input_command, vlc_http_cmd
+from .z_order import apply_z_order, compute_z_order
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -174,7 +175,6 @@ class DispatchLoopRunner:
         self._last_sync = 0.0
         self._stop = threading.Event()
         self._file_dialog_lock = threading.Lock()
-        self._genau_activate_pending = False
         self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._press_port: int | None = None
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
@@ -264,39 +264,10 @@ class DispatchLoopRunner:
         now = time.monotonic()
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
-            if self.state.genau_mode and not self.state.omni_paused:
-                self._enforce_genau_z_order()
+            if not self.state.omni_paused:
+                self._apply_z_order()
             if self.dashboard_enabled:
                 self._update_dashboard()
-
-        self._try_genau_activate()
-
-    def _try_genau_activate(self) -> None:
-        if not self._genau_activate_pending:
-            return
-        if not self.state.genau_mode:
-            self._genau_activate_pending = False
-            return
-        hwnd = find_window_by_title("Genau")
-        if not hwnd:
-            return
-        set_always_on_top(hwnd, True)
-        if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-            activate_window(hwnd)
-        self._genau_activate_pending = False
-
-    def _enforce_genau_z_order(self) -> None:
-        """Keep Primary VLC out of the TOPMOST band while Genau is active.
-
-        VLC may re-assert topmost during video transitions; demoting it
-        to the regular z-band guarantees Genau stays above it.
-        """
-        primary_hwnd = find_window_by_pid(self.primary_pid)
-        if primary_hwnd:
-            set_always_on_top(primary_hwnd, False)
-        genau_hwnd = find_window_by_title("Genau")
-        if genau_hwnd:
-            set_always_on_top(genau_hwnd, True)
 
     def _dispatch(self, command: str) -> None:
         logger.info("Dispatching command: %s", command)
@@ -305,9 +276,7 @@ class DispatchLoopRunner:
         self.state = new_state
         remaining = execute_window_ops(ops, self.primary_pid)
         if self.state.genau_mode != prev_genau:
-            primary_hwnd = find_window_by_pid(self.primary_pid)
-            if primary_hwnd:
-                set_always_on_top(primary_hwnd, not self.state.genau_mode)
+            self._apply_z_order()
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
             if suppress_unsuspend and op.op == "unsuspend_hotkeys":
@@ -361,65 +330,37 @@ class DispatchLoopRunner:
         except Exception:
             pass
 
-    @property
-    def _all_pids(self) -> list[int]:
-        return [self.primary_pid, self.portrait_pid, self.landscape_pid,
-                self.mfp_pid, self.dashboard_pid]
+    def _apply_z_order(self) -> None:
+        """Look up all window HWNDs and apply the centralized z-order stack."""
+        layers = compute_z_order(
+            rfb_hwnd=self.rfb_hwnd,
+            portrait_hwnd=find_window_by_pid(self.portrait_pid),
+            landscape_hwnd=find_window_by_pid(self.landscape_pid),
+            primary_hwnd=find_window_by_pid(self.primary_pid),
+            genau_hwnd=find_window_by_title("Genau"),
+            mfp_hwnd=find_window_by_pid(self.mfp_pid),
+            dashboard_hwnd=self._find_dashboard_hwnd(),
+            genau_active=self.state.genau_mode,
+        )
+        apply_z_order(layers)
 
     def _remove_all_topmost(self) -> None:
-        # Remove RFB first — the last HWND_NOTOPMOST call wins z-position
-        # in the non-topmost band, so RFB must be removed before MFP/Dashboard
-        # to preserve relative order (RFB below both).
-        if self.rfb_hwnd:
-            set_always_on_top(self.rfb_hwnd, False)
-        for pid in self._all_pids:
-            if pid == self.dashboard_pid:
-                continue  # handled via _find_dashboard_hwnd below
-            hwnd = find_window_by_pid(pid)
-            if hwnd:
-                set_always_on_top(hwnd, False)
-        dash_hwnd = self._find_dashboard_hwnd()
-        if dash_hwnd:
-            set_always_on_top(dash_hwnd, False)
-        genau_hwnd = find_window_by_title("Genau")
-        if genau_hwnd:
-            set_always_on_top(genau_hwnd, False)
+        """Demote all windows from the TOPMOST band (omnipause)."""
+        layers = compute_z_order(
+            rfb_hwnd=self.rfb_hwnd,
+            portrait_hwnd=find_window_by_pid(self.portrait_pid),
+            landscape_hwnd=find_window_by_pid(self.landscape_pid),
+            primary_hwnd=find_window_by_pid(self.primary_pid),
+            genau_hwnd=find_window_by_title("Genau"),
+            mfp_hwnd=find_window_by_pid(self.mfp_pid),
+            dashboard_hwnd=self._find_dashboard_hwnd(),
+            genau_active=self.state.genau_mode,
+        )
+        apply_z_order([(h, False) for h, _ in layers])
 
     def _restore_all_topmost(self) -> None:
-        genau_mode = self.state.genau_mode
-
-        # 1. Restore topmost on all windows (RFB first so it ends up
-        #    below everything set after it in the topmost band).
-        if self.rfb_hwnd:
-            set_always_on_top(self.rfb_hwnd, True)
-
-        for pid in self._all_pids:
-            if pid == self.dashboard_pid:
-                continue  # handled separately below
-            hwnd = find_window_by_pid(pid)
-            if not hwnd:
-                continue
-            if pid == self.primary_pid and genau_mode:
-                set_always_on_top(hwnd, False)
-                continue
-            set_always_on_top(hwnd, True)
-
-        # 2. Dashboard toggle (False→True) — Dashboard has Qt's
-        #    WindowStaysOnTopHint which may re-assert topmost during
-        #    omnipause.  A bare HWND_TOPMOST is a no-op on an already-
-        #    topmost window.  Toggle forces re-insertion.
-        dash_hwnd = self._find_dashboard_hwnd()
-        if dash_hwnd:
-            set_always_on_top(dash_hwnd, False)
-            set_always_on_top(dash_hwnd, True)
-        else:
-            logger.info("Dashboard hwnd not found during topmost restore")
-
-        # 3. Genau last — on top of everything in genau mode.
-        if genau_mode:
-            genau_hwnd = find_window_by_title("Genau")
-            if genau_hwnd:
-                set_always_on_top(genau_hwnd, True)
+        """Restore the correct z-order stack after omnipause."""
+        self._apply_z_order()
 
     def _is_broker_alive(self) -> bool:
         hb = self.config.broker_heartbeat_file

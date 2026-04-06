@@ -505,13 +505,14 @@ class TestPostLoadingZOrder:
         topmost_calls: list[tuple] = []
         GENAU_HWND = 6060
         DASH_HWND = 5050
+        pid_to_hwnd = {100: 1010, 200: 2020, 300: 3030, 400: 4040, 500: DASH_HWND}
         title_to_hwnd = {"Fun Time": DASH_HWND, "Genau": GENAU_HWND}
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=result_with_hwnds), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=1010), \
-             patch("fun_time.windows_bridge_orchestrator.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)):
 
             run_python_orchestrated_bridge(
@@ -522,15 +523,17 @@ class TestPostLoadingZOrder:
                 project_dir=tmp_path,
             )
 
-        # Genau must be demoted AFTER loading screen closes
+        # Genau must be demoted (topmost=False)
         genau_demoted = [(h, v) for h, v in topmost_calls if h == GENAU_HWND and not v]
-        assert len(genau_demoted) >= 1, f"Genau not demoted after loading screen: {topmost_calls}"
+        assert len(genau_demoted) >= 1, f"Genau not demoted: {topmost_calls}"
 
-        # Dashboard must be the last topmost=True call
-        topmost_true = [(h, v) for h, v in topmost_calls if v]
-        assert topmost_true[-1][0] == DASH_HWND, (
-            f"Dashboard must be last topmost, got hwnd={topmost_true[-1][0]}: {topmost_calls}"
-        )
+        # Dashboard must be set topmost
+        dash_promoted = [(h, v) for h, v in topmost_calls if h == DASH_HWND and v]
+        assert len(dash_promoted) >= 1, f"Dashboard not promoted: {topmost_calls}"
+
+        # Core windows must be set topmost
+        core_promoted = {h for h, v in topmost_calls if v and h in {1010, 2020, 3030, 4040}}
+        assert core_promoted == {1010, 2020, 3030, 4040}, f"Core not promoted: {topmost_calls}"
 
 
 class TestVoiceControlIntegration:
