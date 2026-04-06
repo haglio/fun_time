@@ -54,6 +54,7 @@ def apply_toggle_genau_active(
     genau_cmd_file: str | Path,
     primary_port: int,
     password: str,
+    broker_cmd_file: str | Path | None = None,
 ) -> GenauFlowResult:
     plan = build_genau_toggle_plan(
         genau_mode_on=genau_mode_on,
@@ -67,6 +68,8 @@ def apply_toggle_genau_active(
         )
         if not ensure_playback_state(primary_port, password, should_play=not plan.target_active):
             logger.warning("Primary VLC failed to reach desired Genau toggle playback state")
+        if not plan.target_active and broker_cmd_file is not None:
+            Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
     return GenauFlowResult(
         next_genau_mode=plan.target_active,
         is_transition=plan.is_transition,
@@ -199,9 +202,10 @@ def apply_leave_omnipause(
         genau_mode_on=genau_mode_on,
         skip_primary_resume=skip_primary_resume,
     )
-    write_flag_file(genau_paused_file, False)
-    write_flag_file(audio_paused_file, False)
-    Path(genau_cmd_file).write_text("RESUME", encoding="utf-8")
+    if genau_mode_on:
+        write_flag_file(genau_paused_file, False)
+        write_flag_file(audio_paused_file, False)
+        Path(genau_cmd_file).write_text("RESUME", encoding="utf-8")
     if broker_cmd_file is not None:
         Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
     vlc_targets = [
