@@ -145,8 +145,13 @@ RequireManifestValue(section, key) {
 
 Log(msg) {
     global WINDOWS_BRIDGE_LOG_FILE
-    try {
-        FileAppend(FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n", WINDOWS_BRIDGE_LOG_FILE, "UTF-8-RAW")
+    line := FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n"
+    loop 3 {
+        try {
+            FileAppend(line, WINDOWS_BRIDGE_LOG_FILE, "UTF-8-RAW")
+            return
+        }
+        Sleep(50)
     }
 }
 

@@ -230,6 +230,19 @@ class FunTimeIntegrationSession:
             "Stop-Process -Force -ErrorAction SilentlyContinue"
         )
         subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], check=False)
+        # Wait for AHK to fully exit — #SingleInstance Force in the next
+        # AHK launch races with zombie processes that Stop-Process -Force
+        # has signalled but the OS hasn't fully reaped yet.
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            result = subprocess.run(
+                ["tasklist", "/FI", "IMAGENAME eq AutoHotkey64.exe", "/NH"],
+                capture_output=True, text=True, check=False,
+            )
+            if "AutoHotkey64.exe" not in result.stdout:
+                return
+            time.sleep(0.3)
+
 
 
 def build_integration_config(tmp_path: Path) -> Path:
