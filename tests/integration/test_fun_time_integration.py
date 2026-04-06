@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.vlc_actions import ensure_playback_state, get_playback_state, get_playback_time, vlc_http_cmd
+from fun_time.vlc_actions import ensure_playback_state, get_playback_state, get_playback_time, vlc_http_cmd, vlc_http_req
 from fun_time.win32 import find_window_by_pid, get_foreground_window, is_window_topmost
 
 from .integration_support import (
@@ -303,15 +303,27 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     # position and break the nudge assertions.
     vlc_http_cmd(port, "rate&val=0.1", password)
 
-    # Seek to 30s so there's room to nudge both directions without hitting 0 or end.
-    # Retry until VLC reports a position near 30s — the seek + HTTP response can
-    # lag significantly when the suite has multiple VLC instances running.
-    vlc_http_cmd(port, "seek&val=30", password)
+    # Read video length and seek to the midpoint so there's room for
+    # ±10 s nudges without wrapping past the end.  The old fixed seek
+    # to 30 s failed when the test video was shorter than 40 s.
+    length_result: list[float] = []
+    s.wait_until(
+        lambda: (
+            (_s := vlc_http_req(port, "/requests/status.xml", password))
+            and (_m := re.search(r"<length>(\d+)</length>", _s[1]))
+            and (length_result.append(float(_m.group(1))) or True)
+        ),
+        timeout=10,
+        description="VLC to report video length",
+    )
+    video_length = length_result[0]
+    midpoint = int(max(15, min(video_length / 2, video_length - 15)))
+    vlc_http_cmd(port, f"seek&val={midpoint}", password)
     result: list[float] = []
     s.wait_until(
-        lambda: (t := get_playback_time(port, password)) is not None and t >= 25 and (result.append(t) or True),
+        lambda: (t := get_playback_time(port, password)) is not None and t >= midpoint - 5 and (result.append(t) or True),
         timeout=10,
-        description="VLC to reach seek position (~30s)",
+        description=f"VLC to reach seek position (~{midpoint}s)",
     )
     before = result[0]
 

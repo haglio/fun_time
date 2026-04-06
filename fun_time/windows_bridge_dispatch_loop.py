@@ -295,6 +295,7 @@ class DispatchLoopRunner:
             set_always_on_top(genau_hwnd, True)
 
     def _dispatch(self, command: str) -> None:
+        logger.info("Dispatching command: %s", command)
         prev_genau = self.state.genau_mode
         new_state, ops = dispatch_command(command, self.state, self.config)
         self.state = new_state
@@ -308,7 +309,8 @@ class DispatchLoopRunner:
             if suppress_unsuspend and op.op == "unsuspend_hotkeys":
                 continue
             if op.op == "vlc_http_seek":
-                vlc_http_cmd(self.config.primary_port, op.key, self.config.vlc_password)
+                ok = vlc_http_cmd(self.config.primary_port, op.key, self.config.vlc_password)
+                logger.info("vlc_http_seek %s → %s", op.key, "ok" if ok else "FAILED")
                 continue
             if op.op == "tooltip":
                 self.ahk_cmd_file.write_text(f"tooltip {op.key}", encoding="utf-8")
