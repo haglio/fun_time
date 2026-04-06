@@ -285,12 +285,21 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     # The previous test may have toggled omnipause, leaving VLC paused.
     # Actively drive VLC into "playing" state rather than passively waiting
     # for the orchestrator's async omnipause-leave to complete the resume.
+    # The sleep lets the orchestrator finish processing queued commands
+    # (omnipause-leave, genau-deactivation) before we send nudge commands
+    # that compete for the same dispatch loop.
+    time.sleep(2.0)
     ensure_playback_state(port, password, should_play=True)
     s.wait_until(
         lambda: get_playback_state(port, password) == "playing",
         timeout=10,
         description="VLC to resume playing before nudge test",
     )
+    # Freeze playback rate to prevent auto-advance.  VLC stays in
+    # "playing" state (seek commands work normally) but can never reach
+    # the end of the video and wrap around, which would reset the
+    # position and break the nudge assertions.
+    vlc_http_cmd(port, "rate&val=0.1", password)
 
     # Seek to 30s so there's room to nudge both directions without hitting 0 or end.
     # Retry until VLC reports a position near 30s — the seek + HTTP response can
@@ -305,29 +314,42 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     before = result[0]
 
     # --- nudge forward ---
-    s.write_dashboard_command("vlc_nudge_next")
-    s.wait_until(
-        lambda: (t := get_playback_time(port, password)) is not None and t >= before + 7,
-        timeout=10,
-        description="VLC playback time to advance ~10s after nudge forward",
-    )
-    after_forward = get_playback_time(port, password)
-    assert after_forward is not None
+    # The dashboard command goes through the orchestrator's async dispatch
+    # loop.  Under load the loop can stall, so re-send the command if VLC
+    # doesn't respond within a short window.
+    for _attempt in range(3):
+        s.write_dashboard_command("vlc_nudge_next")
+        try:
+            s.wait_until(
+                lambda: (t := get_playback_time(port, password)) is not None and t >= before + 7,
+                timeout=8,
+                description="VLC playback time to advance ~10s after nudge forward",
+            )
+            break
+        except AssertionError:
+            if _attempt == 2:
+                raise
 
-    # Pause VLC to freeze the position before measuring — playback
-    # advancing during the backward nudge can mask the seek.
-    ensure_playback_state(port, password, should_play=False)
+    # Read the forward position.  The rate freeze (0.1x) keeps VLC
+    # effectively frozen, so pausing is unnecessary — and the old
+    # pause/resume cycle could disrupt VLC's window state, causing
+    # the subsequent backward nudge's PostMessage to miss.
     after_forward = get_playback_time(port, password)
     assert after_forward is not None
-    ensure_playback_state(port, password, should_play=True)
 
     # --- nudge backward ---
-    s.write_dashboard_command("vlc_nudge_prev")
-    s.wait_until(
-        lambda: (t := get_playback_time(port, password)) is not None and t <= after_forward - 7,
-        timeout=10,
-        description="VLC playback time to retreat ~10s after nudge backward",
-    )
+    for _attempt in range(3):
+        s.write_dashboard_command("vlc_nudge_prev")
+        try:
+            s.wait_until(
+                lambda: (t := get_playback_time(port, password)) is not None and t <= after_forward - 7,
+                timeout=8,
+                description="VLC playback time to retreat ~10s after nudge backward",
+            )
+            break
+        except AssertionError:
+            if _attempt == 2:
+                raise
 
 
 

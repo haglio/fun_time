@@ -556,26 +556,26 @@ def test_leave_omnipause_skip_primary_adds_genau_ops_when_in_genau_mode(tmp_path
 # --- vlc nudge ---
 
 
-def test_vlc_nudge_prev_sends_vk_left(tmp_path: Path):
+def test_vlc_nudge_prev_emits_http_seek(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()
 
     new_state, ops = dispatch_command("vlc_nudge_prev", state, config)
 
     assert len(ops) == 1
-    assert ops[0].op == "send_vk"
-    assert ops[0].vk == 0x25  # VK_LEFT
+    assert ops[0].op == "vlc_http_seek"
+    assert ops[0].key == "seek&val=-10"
 
 
-def test_vlc_nudge_next_sends_vk_right(tmp_path: Path):
+def test_vlc_nudge_next_emits_http_seek(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()
 
     new_state, ops = dispatch_command("vlc_nudge_next", state, config)
 
     assert len(ops) == 1
-    assert ops[0].op == "send_vk"
-    assert ops[0].vk == 0x27  # VK_RIGHT
+    assert ops[0].op == "vlc_http_seek"
+    assert ops[0].key == "seek&val=+10"
 
 
 # --- unknown command ---
