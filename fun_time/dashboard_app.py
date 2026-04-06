@@ -391,38 +391,41 @@ def _waveform_points(shape: str, size: int) -> list[tuple[int, int]]:
     w = size - margin * 2
     h = size - margin * 2
     mid_y = margin + h // 2
-    points: list[tuple[int, int]] = []
+    top = margin
+    bot = margin + h
     if shape == "triangle":
-        quarter = w // 4
-        points = [
+        # Sharp zig-zag — 5 vertices, no curves
+        q = w // 4
+        return [
             (margin, mid_y),
-            (margin + quarter, margin),
-            (margin + quarter * 2, mid_y),
-            (margin + quarter * 3, margin + h),
+            (margin + q, top),
+            (margin + q * 2, mid_y),
+            (margin + q * 3, bot),
             (margin + w, mid_y),
         ]
-    elif shape == "rounded_square":
-        step = max(1, w // 20)
-        for i in range(0, w + 1, step):
-            t = (i / w) * 2 * math.pi
-            raw = math.sin(t)
-            squashed = max(-1.0, min(1.0, raw * 4.0))
-            y = mid_y - int(squashed * h / 2)
-            points.append((margin + i, y))
-    elif shape == "sawtooth":
+    if shape == "rounded_square":
+        # True square wave with vertical edges
+        q = w // 4
+        return [
+            (margin, mid_y), (margin, top),
+            (margin + q * 2, top), (margin + q * 2, bot),
+            (margin + q * 4, bot), (margin + q * 4, mid_y),
+        ]
+    if shape == "sawtooth":
         half = w // 2
-        points = [
+        return [
             (margin, mid_y),
-            (margin + half, margin),
-            (margin + half, margin + h),
+            (margin + half, top),
+            (margin + half, bot),
             (margin + w, mid_y),
         ]
-    else:  # sine (default)
-        step = max(1, w // 20)
-        for i in range(0, w + 1, step):
-            t = (i / w) * 2 * math.pi
-            y = mid_y - int(math.sin(t) * h / 2)
-            points.append((margin + i, y))
+    # Sine — many sample points for an obviously smooth curve
+    steps = max(4, w)
+    points: list[tuple[int, int]] = []
+    for i in range(steps + 1):
+        t = (i / steps) * 2 * math.pi
+        y = mid_y - int(math.sin(t) * h / 2)
+        points.append((margin + round(i * w / steps), y))
     return points
 
 
@@ -1017,6 +1020,8 @@ class DashboardWindow(QMainWindow):
             int(PRESS_FLASH_S * 1000) + 10,
             lambda: self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs),
         )
+        if action_id.startswith("genau_"):
+            QTimer.singleShot(100, self._refresh)
 
     def _handle_press_event(self) -> None:
         while True:
