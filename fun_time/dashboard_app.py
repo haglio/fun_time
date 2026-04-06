@@ -27,6 +27,7 @@ from shared_ui.colors import (
     GREEN,
     PINK,
     RED,
+    TEXT_MUTED,
     TEXT_PRIMARY,
 )
 from shared_ui.fonts import (
@@ -565,7 +566,7 @@ def build_dashboard_scene(
                 DashboardRectItem(layout.genau_spd_up, fill=_press_fill(COLOR_PANEL, GENAU_SPD_UP)),
                 DashboardRectItem(layout.genau_spd_down, fill=_press_fill(COLOR_PANEL, GENAU_SPD_DOWN)),
                 DashboardRectItem(layout.genau_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
-                DashboardRectItem(layout.genau_shape, fill=_press_fill(BLUE, GENAU_SHAPE)),
+                DashboardRectItem(layout.genau_shape, fill=_press_fill(COLOR_PANEL, GENAU_SHAPE)),
             )
             if _is_genau else (
                 DashboardRectItem(layout.vlc_nudge_prev, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_PREV)),
@@ -588,10 +589,6 @@ def build_dashboard_scene(
     _font_emoji = make_font(FONT_EMOJI, SIZE_SMALL)
     _font_ui_tiny = make_font(FONT_UI, SIZE_TINY, bold=True)
 
-    def _label_rect(up: Rect, down: Rect) -> Rect:
-        """Compute the text rect between an up and down button pair."""
-        return Rect(up.x, up.y + up.height, up.width, down.y - up.y - up.height)
-
     texts = (
         DashboardTextItem("\u23FB", layout.quit_button, font=_font_symbol),
         DashboardTextItem(omnipause_icon, layout.omnipause_button, font=_font_symbol),
@@ -609,15 +606,15 @@ def build_dashboard_scene(
         *(
             (
                 DashboardTextItem("1/4", layout.quarter_button, font=_font_ui_tiny),
-                DashboardTextItem("^", layout.genau_amp_up, font=_font_ui_tiny),
-                DashboardTextItem("v", layout.genau_amp_down, font=_font_ui_tiny),
-                DashboardTextItem("^", layout.genau_ctr_up, font=_font_ui_tiny),
-                DashboardTextItem("v", layout.genau_ctr_down, font=_font_ui_tiny),
-                DashboardTextItem("^", layout.genau_spd_up, font=_font_ui_tiny),
-                DashboardTextItem("v", layout.genau_spd_down, font=_font_ui_tiny),
-                DashboardTextItem("AMP", _label_rect(layout.genau_amp_up, layout.genau_amp_down), font=_font_ui_tiny, rotation=90),
-                DashboardTextItem("CTR", _label_rect(layout.genau_ctr_up, layout.genau_ctr_down), font=_font_ui_tiny, rotation=90),
-                DashboardTextItem("SPD", _label_rect(layout.genau_spd_up, layout.genau_spd_down), font=_font_ui_tiny, rotation=90),
+                DashboardTextItem("^", layout.genau_amp_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.amp_at_max else COLOR_TEXT),
+                DashboardTextItem("v", layout.genau_amp_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.amp_at_min else COLOR_TEXT),
+                DashboardTextItem("^", layout.genau_ctr_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.ctr_at_max else COLOR_TEXT),
+                DashboardTextItem("v", layout.genau_ctr_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.ctr_at_min else COLOR_TEXT),
+                DashboardTextItem("^", layout.genau_spd_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.spd_at_max else COLOR_TEXT),
+                DashboardTextItem("v", layout.genau_spd_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.spd_at_min else COLOR_TEXT),
+                DashboardTextItem("AMP", layout.genau_amp_label, font=_font_ui_tiny, rotation=90),
+                DashboardTextItem("CTR", layout.genau_ctr_label, font=_font_ui_tiny, rotation=90),
+                DashboardTextItem("SPD", layout.genau_spd_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("cc", layout.genau_cruise, font=_font_ui_tiny),
             )
             if _is_genau else (
