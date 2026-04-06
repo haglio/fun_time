@@ -31,7 +31,9 @@ from .win32 import (
     get_foreground_window,
     lock_set_foreground_window,
     minimize_window,
+    set_always_on_top,
     unlock_set_foreground_window,
+    wait_for_window_by_title,
 )
 
 logger = logging.getLogger(__name__)
@@ -149,6 +151,42 @@ def _add_dispatch_file_handler(log_path: Path) -> None:
         lg.addHandler(handler)
 
 
+def _fix_post_loading_z_order(result: StartupResult) -> None:
+    """Re-assert z-order after the loading screen overlay is destroyed.
+
+    Phase 4 sets topmost while the full-screen overlay is still up.
+    Destroying that overlay can rearrange z-order underneath.  This
+    function re-applies the correct stacking:
+
+      Genau  → NOTOPMOST  (behind all topmost windows)
+      RFB    → TOPMOST    (bottom of topmost band)
+      Core   → TOPMOST    (above RFB)
+      Dashboard → toggle  (above everything)
+
+    Title-based lookup is used for Dashboard and Genau because the venv
+    launcher PID differs from the interpreter PID that owns the window.
+    """
+    genau_hwnd = wait_for_window_by_title("Genau", timeout_s=3.0)
+    if genau_hwnd:
+        set_always_on_top(genau_hwnd, False)
+
+    if result.rfb_hwnd:
+        set_always_on_top(result.rfb_hwnd, True)
+
+    for pid in [result.primary_pid, result.portrait_pid, result.landscape_pid, result.mfp_pid]:
+        hwnd = find_window_by_pid(pid)
+        if hwnd:
+            set_always_on_top(hwnd, True)
+
+    if result.dashboard_pid:
+        dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0)
+        if dash_hwnd:
+            set_always_on_top(dash_hwnd, False)
+            set_always_on_top(dash_hwnd, True)
+
+    logger.info("Post-loading z-order corrected")
+
+
 def run_python_orchestrated_bridge(
     *,
     manifest_path: str | Path,
@@ -221,6 +259,11 @@ def run_python_orchestrated_bridge(
                 loading_proc.kill()
                 logger.warning("Loading screen did not exit, killed")
         progress_file.unlink(missing_ok=True)
+
+        # Re-assert z-order AFTER the loading screen overlay is gone.
+        # Phase 4 set topmost while the overlay was still covering everything;
+        # destroying the overlay can rearrange z-order.  Correct it now.
+        _fix_post_loading_z_order(result)
 
     if integration_mode:
         _minimize_all_windows(result)
