@@ -64,6 +64,16 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
 class GenauStatus:
     cruise_active: bool = False
     shape: str = "sine"
+    amp_at_max: bool = False
+    amp_at_min: bool = False
+    ctr_at_max: bool = False
+    ctr_at_min: bool = False
+    spd_at_max: bool = False
+    spd_at_min: bool = False
+
+
+def _status_bool(values: dict[str, str], key: str) -> bool:
+    return values.get(key, "0").strip() not in ("0", "false", "")
 
 
 def read_genau_status(path: Path) -> GenauStatus:
@@ -75,8 +85,14 @@ def read_genau_status(path: Path) -> GenauStatus:
             line.split("=", 1) for line in text.splitlines() if "=" in line
         )
         return GenauStatus(
-            cruise_active=values.get("cruise", "0").strip() not in ("0", "false", ""),
+            cruise_active=_status_bool(values, "cruise"),
             shape=values.get("shape", "sine").strip(),
+            amp_at_max=_status_bool(values, "amp_at_max"),
+            amp_at_min=_status_bool(values, "amp_at_min"),
+            ctr_at_max=_status_bool(values, "ctr_at_max"),
+            ctr_at_min=_status_bool(values, "ctr_at_min"),
+            spd_at_max=_status_bool(values, "spd_at_max"),
+            spd_at_min=_status_bool(values, "spd_at_min"),
         )
     except (OSError, ValueError):
         return GenauStatus()
