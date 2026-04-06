@@ -1216,17 +1216,17 @@ def test_genau_mode_has_param_and_cruise_and_shape_actions(cfg_path: Path):
         assert expected in action_ids, f"missing action {expected}"
 
 
-def test_genau_param_labels_are_vertical(cfg_path: Path):
-    """AMP/CTR/SPD labels should be written with stacked letters (one per line)."""
+def test_genau_param_labels_are_rotated(cfg_path: Path):
+    """AMP/CTR/SPD labels should be rotated 90° (not horizontal)."""
     layout = _make_layout(cfg_path)
     snapshot = _make_snapshot(primary_uses_genau=True)
 
     scene = build_dashboard_scene(layout, snapshot)
 
-    texts = {item.text for item in scene.texts}
-    assert "A\nM\nP" in texts
-    assert "C\nT\nR" in texts
-    assert "S\nP\nD" in texts
+    label_items = [item for item in scene.texts if item.text in ("AMP", "CTR", "SPD")]
+    assert len(label_items) == 3, f"Expected 3 param labels, found {[i.text for i in label_items]}"
+    for item in label_items:
+        assert item.rotation == 90, f"{item.text} should be rotated 90°"
 
 
 def test_genau_cruise_button_blue_when_active(cfg_path: Path):

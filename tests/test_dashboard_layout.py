@@ -237,3 +237,34 @@ def test_genau_cruise_is_left_of_shape():
     )
 
     assert layout.genau_cruise.x + layout.genau_cruise.width < layout.genau_shape.x
+
+
+def test_genau_shape_does_not_overlap_mode_toggle():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    shape = layout.genau_shape
+    toggle = layout.genau_mode_toggle
+    no_overlap = (
+        shape.x + shape.width <= toggle.x
+        or toggle.x + toggle.width <= shape.x
+        or shape.y + shape.height <= toggle.y
+        or toggle.y + toggle.height <= shape.y
+    )
+    assert no_overlap, f"genau_shape {shape} overlaps genau_mode_toggle {toggle}"
+
+
+def test_genau_shape_is_horizontally_centered():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    panel = layout.primary_panel
+    panel_center = panel.x + panel.width // 2
+    shape_center = layout.genau_shape.x + layout.genau_shape.width // 2
+    assert abs(panel_center - shape_center) <= 1
