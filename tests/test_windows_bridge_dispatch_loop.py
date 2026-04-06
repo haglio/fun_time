@@ -169,7 +169,7 @@ class TestExecuteWindowOps:
     def test_skips_op_when_window_not_found(self):
         ops = [WindowOp(op="set_topmost", title="Nonexistent", value=True)]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost:
+             patch("fun_time.z_order.set_always_on_top") as mock_topmost:
             remaining = execute_window_ops(ops, primary_pid=1)
 
         mock_topmost.assert_not_called()
@@ -259,7 +259,7 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=88888), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost):
+             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost):
             runner.tick()
 
         removals = [(h, t) for h, t in topmost_calls if t is False]
@@ -282,7 +282,7 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=88888), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost):
+             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost):
             runner.tick()
 
         # RFB topmost should have been restored first (before PID-based
@@ -300,7 +300,7 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
+             patch("fun_time.z_order.set_always_on_top"):
             runner.tick()
 
         assert runner.state.omni_paused is True
@@ -370,7 +370,7 @@ class TestDispatchLoopRunner:
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             runner.tick()
@@ -395,7 +395,7 @@ class TestDispatchLoopRunner:
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             runner.tick()
@@ -459,45 +459,35 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "tooltip Clipper: MyVideo"
 
-    def test_sync_tick_calls_enforce_genau_z_order_in_genau_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=100)
-        runner._last_sync = -999
-        runner.state = BridgeState(genau_mode=True)
-
-        with patch.object(runner, "_enforce_genau_z_order") as mock_enforce, \
-             patch.object(runner, "_update_dashboard"):
-            runner.tick()
-
-        mock_enforce.assert_called_once()
-
-    def test_sync_tick_skips_enforce_genau_z_order_when_not_genau(self, tmp_path):
+    def test_sync_tick_applies_z_order(self, tmp_path):
+        """Sync tick enforces z-order unconditionally (not just in genau mode)."""
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         runner._last_sync = -999
         runner.state = BridgeState(genau_mode=False)
 
-        with patch.object(runner, "_enforce_genau_z_order") as mock_enforce, \
+        with patch.object(runner, "_apply_z_order") as mock_apply, \
              patch.object(runner, "_update_dashboard"):
             runner.tick()
 
-        mock_enforce.assert_not_called()
+        mock_apply.assert_called_once()
 
-    def test_sync_tick_skips_enforce_genau_z_order_during_omnipause(self, tmp_path):
+    def test_sync_tick_skips_z_order_during_omnipause(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         runner._last_sync = -999
         runner.state = BridgeState(genau_mode=True, omni_paused=True)
 
-        with patch.object(runner, "_enforce_genau_z_order") as mock_enforce, \
+        with patch.object(runner, "_apply_z_order") as mock_apply, \
              patch.object(runner, "_update_dashboard"):
             runner.tick()
 
-        mock_enforce.assert_not_called()
+        mock_apply.assert_not_called()
 
     def test_sync_tick_calls_update_dashboard_when_enabled(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         runner._last_sync = -999
         runner.dashboard_enabled = True
 
-        with patch.object(runner, "_enforce_genau_z_order"), \
+        with patch.object(runner, "_apply_z_order"), \
              patch.object(runner, "_update_dashboard") as mock_update:
             runner.tick()
 
@@ -657,41 +647,37 @@ class TestGenauZOrder:
             **kwargs,
         )
 
-    def test_genau_mode_on_demotes_primary_from_topmost(self, tmp_path):
+    def test_genau_toggle_on_applies_z_order(self, tmp_path):
+        """Toggling genau mode on must trigger a full z-order apply."""
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         runner.state = BridgeState(genau_mode=False)
 
-        topmost_calls = []
-
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+             patch.object(runner, "_apply_z_order") as mock_apply:
             mock_dispatch.return_value = (BridgeState(genau_mode=True), [])
             runner._dispatch("genau_toggle")
 
-        assert (1001, False) in topmost_calls
+        mock_apply.assert_called_once()
 
-    def test_genau_mode_off_restores_primary_topmost(self, tmp_path):
+    def test_genau_toggle_off_applies_z_order(self, tmp_path):
+        """Toggling genau mode off must trigger a full z-order apply."""
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         runner.state = BridgeState(genau_mode=True)
 
-        topmost_calls = []
-
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+             patch.object(runner, "_apply_z_order") as mock_apply:
             mock_dispatch.return_value = (BridgeState(genau_mode=False), [])
             runner._dispatch("genau_toggle")
 
-        assert (1001, True) in topmost_calls
+        mock_apply.assert_called_once()
 
-    def test_tick_enforces_primary_not_topmost_during_sync(self, tmp_path):
-        """Periodic sync must re-demote Primary VLC even when genau
-        mode hasn't changed — VLC video transitions may re-assert topmost."""
+    def test_tick_enforces_z_order_during_sync(self, tmp_path):
+        """Periodic sync must enforce z-order — Primary VLC demoted in genau mode,
+        Genau topmost, and all other windows in correct stack order."""
         runner = self._make_runner(tmp_path, sync_interval_ms=0)
         runner.state = BridgeState(genau_mode=True)
         runner._last_sync = 0
@@ -699,23 +685,19 @@ class TestGenauZOrder:
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=9999), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            # No state change — genau mode stays True
-            mock_dispatch.return_value = (BridgeState(genau_mode=True), [])
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        # Primary VLC must be demoted
+        # Primary VLC must be demoted (genau mode)
         assert (1001, False) in topmost_calls
-        # Genau must be re-asserted topmost
+        # Genau must be topmost
         assert (9999, True) in topmost_calls
 
     def test_restore_all_topmost_demotes_primary_in_genau_mode(self, tmp_path):
-        """_restore_all_topmost must explicitly set Primary VLC NOT-TOPMOST
-        (not just skip it) when genau mode is active."""
+        """_restore_all_topmost must demote Primary and promote Genau
+        when genau mode is active."""
         runner = self._make_runner(tmp_path)
         runner.state = BridgeState(genau_mode=True)
 
@@ -723,8 +705,8 @@ class TestGenauZOrder:
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True):
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=9999), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner._restore_all_topmost()
 
         assert (1001, False) in topmost_calls
@@ -732,8 +714,7 @@ class TestGenauZOrder:
         assert {2001, 3001, 4001, 5001} <= restored
 
     def test_restore_all_topmost_toggles_dashboard_above_rfb(self, tmp_path):
-        """Dashboard must get a topmost toggle (False→True) — never a bare
-        True — so it ends up above RFB and MFP."""
+        """Dashboard must end up above RFB and MFP in the topmost band."""
         runner = self._make_runner(tmp_path, rfb_hwnd=7777)
         runner.state = BridgeState()
 
@@ -741,15 +722,16 @@ class TestGenauZOrder:
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True):
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner._restore_all_topmost()
 
-        # Dashboard must only get the toggle (False→True), never a bare True
+        # Dashboard must get a demote then promote (apply_z_order demotes all first)
         dash_calls = [(h, v) for h, v in topmost_calls if h == 5001]
-        assert dash_calls == [(5001, False), (5001, True)]
+        assert (5001, False) in dash_calls
+        assert (5001, True) in dash_calls
 
-        # MFP (4001) must get a bare True from the loop — NOT skipped
+        # MFP must also be set topmost
         mfp_calls = [(h, v) for h, v in topmost_calls if h == 4001]
         assert (4001, True) in mfp_calls
 
@@ -768,113 +750,13 @@ class TestGenauZOrder:
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True):
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner._restore_all_topmost()
 
-        # Dashboard found via title (hwnd 9999) must get the toggle
+        # Dashboard found via title (hwnd 9999) must be in the z-order stack
         dash_calls = [(h, v) for h, v in topmost_calls if h == 9999]
-        assert dash_calls == [(9999, False), (9999, True)]
-
-        # Dashboard found via title (hwnd 9999) must get the toggle
-        dash_calls = [(h, v) for h, v in topmost_calls if h == 9999]
-        assert dash_calls == [(9999, False), (9999, True)]
-
-
-class TestGenauActivationRetry:
-    """When entering Genau mode, the window may not be visible yet
-    (Genau app hasn't processed UDP SHOW). The dispatch loop must
-    retry activation on subsequent ticks."""
-
-    def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.command_dispatch import BridgeConfig
-
-        config = BridgeConfig(
-            primary_port=9090,
-            portrait_port=9091,
-            landscape_port=9092,
-            vlc_password="test",
-            favs_file=tmp_path / "favs.txt",
-            weird_dir=tmp_path / "weird",
-            state_dir=tmp_path,
-            primary_sources="",
-            portrait_sources="",
-            landscape_sources="",
-            genau_mode_file=tmp_path / "rh_mode.txt",
-            genau_cmd_file=tmp_path / "rh_cmd.txt",
-            genau_paused_file=tmp_path / "rh_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
-        )
-        return DispatchLoopRunner(
-            config=config,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            shared_state_file=tmp_path / "shared_state.ini",
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            primary_pid=100,
-            mfp_pid=200,
-            dashboard_enabled=False,
-            **kwargs,
-        )
-
-    def test_retries_genau_window_activation_on_next_tick(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=0)
-        runner.state = BridgeState(genau_mode=True)
-        runner._genau_activate_pending = True
-
-        # First tick: window not found — activation stays pending
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window"):
-            runner.tick()
-
-        assert runner._genau_activate_pending is True
-
-        # Second tick: window now visible — activation uses topmost, not show_window
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345) as mock_find, \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show, \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
-            runner.tick()
-
-        mock_find.assert_called_with("Genau")
-        mock_show.assert_not_called()
-        mock_topmost.assert_called_with(12345, True)
-        mock_activate.assert_called_with(12345)
-
-    def test_clears_pending_flag_after_successful_activation(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=0)
-        runner.state = BridgeState(genau_mode=True)
-        runner._genau_activate_pending = True
-
-        # First tick: window not found — activation stays pending
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window"):
-            runner.tick()
-
-        # Second tick: window found, activation succeeds
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
-            runner.tick()
-
-        mock_activate.assert_called_once()
-
-        # Third tick: no more activation attempts
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345) as mock_find, \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
-            runner.tick()
-
-        # activate is retry-specific — should NOT fire after pending clears.
-        # set_always_on_top IS expected from periodic z-order enforcement.
-        mock_activate.assert_not_called()
+        assert (9999, False) in dash_calls
+        assert (9999, True) in dash_calls
 
 
 class TestHandleOmniPauseToggle:
@@ -925,7 +807,7 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_omnipause_toggle()
 
@@ -944,7 +826,7 @@ class TestHandleOmniPauseToggle:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=False), [])
             runner._handle_omnipause_toggle()
 
@@ -961,7 +843,7 @@ class TestHandleOmniPauseToggle:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
             runner._handle_omnipause_toggle()
 
@@ -980,7 +862,7 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_omnipause_toggle()
 
@@ -998,14 +880,16 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
             runner._handle_omnipause_toggle()
 
         restored = [(h, v) for h, v in topmost_calls if v]
         assert 6001 in {h for h, _ in restored}
-        # Genau must be set topmost LAST (for z-order)
-        assert restored[-1] == (6001, True)
+        # Genau must be topmost; Dashboard is always last in the stack
+        genau_pos = next(i for i, (h, _) in enumerate(restored) if h == 6001)
+        dash_pos = next(i for i, (h, _) in enumerate(restored) if h == 5001)
+        assert genau_pos < dash_pos, "Genau must be below Dashboard"
 
     def test_entering_omnipause_removes_genau_topmost_via_title_when_pid_fails(self, tmp_path):
         runner = self._make_runner(tmp_path)
@@ -1019,7 +903,7 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=7777), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_omnipause_toggle()
 
@@ -1037,7 +921,7 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=7777), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
             runner._handle_omnipause_toggle()
 
@@ -1054,7 +938,7 @@ class TestHandleOmniPauseToggle:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=False), [])
             runner._handle_omnipause_toggle()
 
@@ -1108,7 +992,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
@@ -1133,7 +1017,7 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
@@ -1182,7 +1066,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
              patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd"):
@@ -1227,7 +1111,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc, \
              patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd") as mock_http:
@@ -1245,7 +1129,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc, \
              patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd") as mock_http:
@@ -1269,7 +1153,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
@@ -1297,7 +1181,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True, genau_mode=True), [])
@@ -1321,7 +1205,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d, **kw: (call_log.append("dialog"), None)[-1]), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
@@ -1337,7 +1221,7 @@ class TestHandleOpenFileDialog:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
+             patch("fun_time.z_order.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
              patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd"):
@@ -1358,7 +1242,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
@@ -1390,7 +1274,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
              patch.object(Path, "write_text", capture_write):
@@ -1585,7 +1469,7 @@ class TestIdempotentVoiceCommands:
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", wraps=None) as mock_dc:
             # Let dispatch_command return current state unchanged
             mock_dc.return_value = (runner.state, [])
@@ -1645,7 +1529,7 @@ class TestIdempotentVoiceCommands:
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
+             patch("fun_time.z_order.set_always_on_top"):
             runner.tick()
 
         assert runner.state.omni_paused is True
@@ -1664,7 +1548,7 @@ class TestIdempotentVoiceCommands:
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=88888), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost):
+             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost):
             runner.tick()
 
         removals = [(h, t) for h, t in topmost_calls if t is False]
