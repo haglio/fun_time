@@ -63,7 +63,7 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=99999), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -104,8 +104,9 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=track_move), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -133,7 +134,7 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -262,7 +263,7 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
              patch("fun_time.windows_bridge_sequencer.move_window") as mock_move, \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top") as mock_topmost, \
+             patch("fun_time.z_order.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77777), \
              patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate:
             rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
@@ -274,39 +275,6 @@ class TestMaybeLaunchRandomFavsBrowser:
         )
         # Should return the browser hwnd for topmost management
         assert rfb_hwnd == 55555
-
-    def test_mfp_topmost_toggled_after_browser_launch(self, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        """Regression: MFP z-order must be restored above browser by toggling topmost off/on."""
-        m = self._make_manifest_parser()
-        plan = self._fake_plan()
-        launch_result = MagicMock(should_launch=True)
-
-        topmost_calls: list[tuple] = []
-
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
-
-        with patch("fun_time.windows_bridge_sequencer._resolve_shortcut", return_value=("chrome.exe", "", "")), \
-             patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
-             patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
-             patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=track_topmost), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77777), \
-             patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate:
-            _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
-
-        # Browser should be set topmost so clicking it raises above MFP/Dashboard
-        assert (55555, True) in topmost_calls
-
-        # MFP should be toggled: first False (clear), then True (re-set)
-        # so it starts above the browser in the topmost z-band
-        mfp_calls = [(h, t) for h, t in topmost_calls if h == 77777]
-        assert mfp_calls == [(77777, False), (77777, True)]
-
-        # MFP should be activated last
-        mock_activate.assert_called_once_with(77777)
 
     def test_skips_mfp_topmost_when_hide_windows(self):
         """During loading screen (hide_windows=True), the browser launch must
@@ -327,7 +295,7 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77777), \
              patch("fun_time.windows_bridge_sequencer.activate_window"):
             _maybe_launch_random_favs_browser(m, plan, mfp_pid=20, hide_windows=True)
@@ -361,7 +329,7 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", side_effect=capture_launch), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77777), \
              patch("fun_time.windows_bridge_sequencer.activate_window"):
             _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
@@ -388,7 +356,7 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", side_effect=capture_launch), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=77777), \
              patch("fun_time.windows_bridge_sequencer.activate_window"):
             _maybe_launch_random_favs_browser(m, plan, mfp_pid=20)
@@ -420,8 +388,9 @@ class TestTopmostOnAllCoreWindows:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -454,7 +423,7 @@ class TestNoActivateWindowDuringIntegration:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate, \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -481,7 +450,7 @@ class TestNoActivateWindowDuringIntegration:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate, \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -523,7 +492,7 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd"), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -565,7 +534,7 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -599,7 +568,7 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -636,7 +605,7 @@ class TestLoadingScreenStartup:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=track_move), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window") as mock_activate, \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -678,7 +647,7 @@ class TestLoadingScreenStartup:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -719,7 +688,7 @@ class TestPhase4GenauAlwaysInactive:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", side_effect=track_vlc), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -765,7 +734,7 @@ class TestPhase4GenauAlwaysInactive:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -801,7 +770,7 @@ class TestPhase4GenauAlwaysInactive:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
              patch("fun_time.windows_bridge_sequencer.activate_window", side_effect=lambda h: activate_calls.append(h)), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -841,7 +810,7 @@ class TestPhase4GenauAlwaysInactive:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
@@ -881,7 +850,7 @@ class TestPhase4GenauAlwaysInactive:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -934,7 +903,7 @@ class TestPhase4TitleBasedWindowLookup:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
@@ -947,14 +916,14 @@ class TestPhase4TitleBasedWindowLookup:
                 hide_windows=True,
             )
 
-        # Dashboard found by title and toggled off/on
+        # Dashboard found by title must be demoted then promoted
         dash_calls = [(h, v) for h, v in topmost_calls if h == DASH_HWND]
-        assert dash_calls == [(DASH_HWND, False), (DASH_HWND, True)], (
-            f"Dashboard z-order correction was skipped or wrong: {dash_calls}"
-        )
+        assert (DASH_HWND, False) in dash_calls, f"Dashboard not demoted: {dash_calls}"
+        assert (DASH_HWND, True) in dash_calls, f"Dashboard not promoted: {dash_calls}"
+
         # Genau found by title and demoted
         genau_calls = [(h, v) for h, v in topmost_calls if h == GENAU_HWND]
-        assert genau_calls == [(GENAU_HWND, False)], (
+        assert (GENAU_HWND, False) in genau_calls, (
             f"Genau should be demoted to NOTOPMOST: {genau_calls}"
         )
         # Dashboard must be LAST topmost=True call (above everything)
@@ -986,7 +955,7 @@ class TestGenauLaunchReceivesCommandFiles:
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.z_order.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.activate_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None

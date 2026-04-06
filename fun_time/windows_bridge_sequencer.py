@@ -24,13 +24,13 @@ from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser, tab_placeholder_path
 from .runtime_flow import read_flag_file, write_flag_file
 from .windows_bridge_startup import launch_genau, start_core_session, launch_ui_companions
+from .z_order import apply_z_order, compute_z_order
 from .win32 import (
     activate_window,
     find_window_by_pid,
     get_captioned_window_chrome_height,
     get_window_rect,
     move_window,
-    set_always_on_top,
     wait_for_window,
     wait_for_window_by_title,
 )
@@ -188,11 +188,21 @@ def run_startup_sequence(
         logger.info("Core windows positioned")
 
         progress.advance("Finalizing window layout...")
-        for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
-            hwnd = find_window_by_pid(pid)
-            if hwnd:
-                set_always_on_top(hwnd, True)
-                if not skip_activate:
+        # Z-order is set here for immediate visibility; the dispatch loop's
+        # continuous enforcement will correct any drift after startup.
+        layers = compute_z_order(
+            portrait_hwnd=find_window_by_pid(portrait_pid),
+            landscape_hwnd=find_window_by_pid(landscape_pid),
+            primary_hwnd=find_window_by_pid(primary_pid),
+            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
+            mfp_hwnd=find_window_by_pid(mfp_pid),
+            genau_active=False,
+        )
+        apply_z_order(layers)
+        if not skip_activate:
+            for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
+                hwnd = find_window_by_pid(pid)
+                if hwnd:
                     activate_window(hwnd)
         logger.info("Topmost set on core windows")
 
@@ -264,47 +274,39 @@ def run_startup_sequence(
         _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg, activate=False)
         logger.info("Core windows positioned (deferred reveal)")
 
-        # Set topmost on RFB first — within the topmost z-band the last
-        # window to receive SetWindowPos(HWND_TOPMOST) goes to the front,
-        # so RFB must be set before everything that should appear above it.
-        if rfb_hwnd:
-            set_always_on_top(rfb_hwnd, True)
+        # Collect core window handles for StartupResult
         for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
             hwnd = find_window_by_pid(pid)
             if hwnd:
-                set_always_on_top(hwnd, True)
                 collected_hwnds.append(hwnd)
-        # Demote Genau so it stays behind Primary VLC (they share the same
-        # rect).  Genau doesn't set itself topmost, but if Windows placed it
-        # above Primary when both were non-topmost, the NOTOPMOST call ensures
-        # it stays below the topmost band.  Use title-based lookup because
-        # the venv launcher PID differs from the interpreter PID that owns
-        # the PyGame window.
-        genau_hwnd = wait_for_window_by_title("Genau", timeout_s=5.0)
-        if genau_hwnd:
-            set_always_on_top(genau_hwnd, False)
 
-        # Re-assert Dashboard topmost — it set its own -topmost in Phase 3
-        # but that was before RFB's topmost was set, so Dashboard is now
-        # below RFB.  Toggling it ensures Dashboard ends up above RFB.
-        # Use title-based lookup because the venv launcher PID differs from
-        # the interpreter PID that owns the Qt window (find_window_by_pid
-        # always fails for Dashboard — see dispatch loop's _find_dashboard_hwnd).
+        # Apply z-order using centralized module.
+        # The post-loading fix and dispatch loop's continuous enforcement
+        # will correct any drift, but setting it here makes windows visible
+        # in the right order when the loading screen closes.
         dashboard_pid = ui_pids["dashboard_pid"]
+        dash_hwnd = 0
         if dashboard_pid:
-            dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=5.0)
-            if dash_hwnd:
-                set_always_on_top(dash_hwnd, False)
-                set_always_on_top(dash_hwnd, True)
+            dash_hwnd = find_window_by_pid(dashboard_pid)
+            if not dash_hwnd:
+                dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=5.0)
 
-        # When OSR2 is in auto mode, Genau gets topmost LAST so
-        # it appears on top of everything — the first thing the user sees.
+        layers = compute_z_order(
+            rfb_hwnd=rfb_hwnd,
+            portrait_hwnd=find_window_by_pid(portrait_pid),
+            landscape_hwnd=find_window_by_pid(landscape_pid),
+            primary_hwnd=find_window_by_pid(primary_pid),
+            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=5.0),
+            mfp_hwnd=find_window_by_pid(mfp_pid),
+            dashboard_hwnd=dash_hwnd,
+            genau_active=genau_active_at_startup,
+        )
+        apply_z_order(layers)
+
         if genau_active_at_startup:
             rh_hwnd = wait_for_window(genau_pid, timeout_s=2.0)
-            if rh_hwnd:
-                set_always_on_top(rh_hwnd, True)
-                if not skip_activate:
-                    activate_window(rh_hwnd)
+            if rh_hwnd and not skip_activate:
+                activate_window(rh_hwnd)
                 logger.info("Genau activated as first-visible window")
 
         logger.info("Topmost set on core windows")
@@ -536,24 +538,9 @@ def _maybe_launch_random_favs_browser(
     no_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height, activate=not no_activate)
 
-    # Skip topmost during loading screen — setting it now would punch through
-    # the overlay.  Phase 4 sets topmost on all windows after the overlay closes.
-    if not hide_windows:
-        # RFB is topmost so clicking it raises it above MFP/Dashboard within
-        # the topmost z-band.  MFP's topmost is re-asserted below to start
-        # above RFB.
-        set_always_on_top(new_hwnd, True)
-
-    # Restore MFP above browser — toggle topmost off/on to force z-order
-    # recalculation (re-setting topmost on an already-topmost window is a no-op).
-    # Skip during loading screen: Phase 4 handles z-order after the overlay closes.
-    if not hide_windows:
-        mfp_hwnd = find_window_by_pid(mfp_pid)
-        if mfp_hwnd:
-            set_always_on_top(mfp_hwnd, False)
-            set_always_on_top(mfp_hwnd, True)
-            if not no_activate:
-                activate_window(mfp_hwnd)
+    # Z-order for RFB is handled by Phase 2/4's centralized apply_z_order
+    # call and the dispatch loop's continuous enforcement.  No individual
+    # set_always_on_top calls needed here.
 
     logger.info("Random Favs Browser positioned")
     return new_hwnd
