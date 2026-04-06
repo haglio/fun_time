@@ -386,43 +386,36 @@ def _load_icon_pixmap(filename: str, height: int) -> QPixmap:
 
 
 def _waveform_points(shape: str, w: int, h: int) -> list[tuple[int, int]]:
-    """Return a list of (x, y) pixel coordinates for a waveform shape."""
-    mx, my = 2, 3  # horizontal / vertical margin
+    """Return iconic pixel coordinates for a waveform shape.
+
+    At dashboard icon sizes (~20x16), mathematically accurate full-cycle
+    waveforms are indistinguishable.  Instead, draw a single arch/peak
+    so the *character* of each shape is obvious: round top vs sharp peak
+    vs flat top vs ramp.
+    """
+    mx, my = 2, 3
     dw = w - mx * 2
     dh = h - my * 2
-    mid_y = my + dh // 2
     top = my
     bot = my + dh
     if shape == "triangle":
-        q = dw // 4
-        return [
-            (mx, mid_y),
-            (mx + q, top),
-            (mx + q * 2, mid_y),
-            (mx + q * 3, bot),
-            (mx + dw, mid_y),
-        ]
+        # Sharp peak — two straight lines meeting at a point
+        return [(mx, bot), (mx + dw // 2, top), (mx + dw, bot)]
     if shape == "rounded_square":
-        q = dw // 4
+        # Flat top — clearly rectangular
         return [
-            (mx, mid_y), (mx, top),
-            (mx + q * 2, top), (mx + q * 2, bot),
-            (mx + q * 4, bot), (mx + q * 4, mid_y),
+            (mx, bot), (mx, top),
+            (mx + dw, top), (mx + dw, bot),
         ]
     if shape == "sawtooth":
-        half = dw // 2
-        return [
-            (mx, mid_y),
-            (mx + half, top),
-            (mx + half, bot),
-            (mx + dw, mid_y),
-        ]
-    # Sine — many sample points for an obviously smooth curve
-    steps = max(4, dw)
+        # Ramp up, vertical drop
+        return [(mx, bot), (mx + dw, top), (mx + dw, bot)]
+    # Sine — smooth arch, obviously rounded at the peak
+    steps = max(8, dw)
     points: list[tuple[int, int]] = []
     for i in range(steps + 1):
-        t = (i / steps) * 2 * math.pi
-        y = mid_y - int(math.sin(t) * dh / 2)
+        t = (i / steps) * math.pi  # half-cycle: 0 to pi
+        y = bot - int(math.sin(t) * dh)
         points.append((mx + round(i * dw / steps), y))
     return points
 
