@@ -385,63 +385,60 @@ def _load_icon_pixmap(filename: str, height: int) -> QPixmap:
     return _dashboard_pixmap_cache[key]
 
 
-def _waveform_points(shape: str, size: int) -> list[tuple[int, int]]:
+def _waveform_points(shape: str, w: int, h: int) -> list[tuple[int, int]]:
     """Return a list of (x, y) pixel coordinates for a waveform shape."""
-    margin = 2
-    w = size - margin * 2
-    h = size - margin * 2
-    mid_y = margin + h // 2
-    top = margin
-    bot = margin + h
+    mx, my = 2, 3  # horizontal / vertical margin
+    dw = w - mx * 2
+    dh = h - my * 2
+    mid_y = my + dh // 2
+    top = my
+    bot = my + dh
     if shape == "triangle":
-        # Sharp zig-zag — 5 vertices, no curves
-        q = w // 4
+        q = dw // 4
         return [
-            (margin, mid_y),
-            (margin + q, top),
-            (margin + q * 2, mid_y),
-            (margin + q * 3, bot),
-            (margin + w, mid_y),
+            (mx, mid_y),
+            (mx + q, top),
+            (mx + q * 2, mid_y),
+            (mx + q * 3, bot),
+            (mx + dw, mid_y),
         ]
     if shape == "rounded_square":
-        # True square wave with vertical edges
-        q = w // 4
+        q = dw // 4
         return [
-            (margin, mid_y), (margin, top),
-            (margin + q * 2, top), (margin + q * 2, bot),
-            (margin + q * 4, bot), (margin + q * 4, mid_y),
+            (mx, mid_y), (mx, top),
+            (mx + q * 2, top), (mx + q * 2, bot),
+            (mx + q * 4, bot), (mx + q * 4, mid_y),
         ]
     if shape == "sawtooth":
-        half = w // 2
+        half = dw // 2
         return [
-            (margin, mid_y),
-            (margin + half, top),
-            (margin + half, bot),
-            (margin + w, mid_y),
+            (mx, mid_y),
+            (mx + half, top),
+            (mx + half, bot),
+            (mx + dw, mid_y),
         ]
     # Sine — many sample points for an obviously smooth curve
-    steps = max(4, w)
+    steps = max(4, dw)
     points: list[tuple[int, int]] = []
     for i in range(steps + 1):
         t = (i / steps) * 2 * math.pi
-        y = mid_y - int(math.sin(t) * h / 2)
-        points.append((margin + round(i * w / steps), y))
+        y = mid_y - int(math.sin(t) * dh / 2)
+        points.append((mx + round(i * dw / steps), y))
     return points
 
 
-def _draw_waveform_pixmap(shape: str, size: int) -> QPixmap:
-    """Draw a small waveform icon as a QPixmap, cached."""
-    key = (f"waveform_{shape}", size)
+def _draw_waveform_pixmap(shape: str, w: int, h: int) -> QPixmap:
+    """Draw a waveform icon as a QPixmap, cached."""
+    key = (f"waveform_{shape}", w, h)
     if key not in _dashboard_pixmap_cache:
         from PyQt6.QtCore import Qt
 
-        pm = QPixmap(size, size)
+        pm = QPixmap(w, h)
         pm.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pm)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pen = QPen(BLUE, 2)
-        painter.setPen(pen)
-        pts = _waveform_points(shape, size)
+        painter.setPen(QPen(BLUE, 1))
+        pts = _waveform_points(shape, w, h)
         for i in range(len(pts) - 1):
             painter.drawLine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
         painter.end()
@@ -643,7 +640,7 @@ def build_dashboard_scene(
         *(
             (
                 DashboardImageItem(
-                    _draw_waveform_pixmap(_genau.shape, layout.genau_shape.height - 4),
+                    _draw_waveform_pixmap(_genau.shape, layout.genau_shape.width, layout.genau_shape.height),
                     layout.genau_shape,
                 ),
             )
