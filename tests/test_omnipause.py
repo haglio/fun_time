@@ -34,3 +34,27 @@ def test_leave_controlled_mode_skips_primary_resume_when_requested():
     plan = build_omnipause_plan("leave", omni_paused=True, genau_mode_on=False, skip_primary_resume=True)
 
     assert plan.resume_primary_playback is False
+
+
+def test_enter_always_disables_always_on_top():
+    plan = build_omnipause_plan("enter", omni_paused=False, genau_mode_on=False, skip_primary_resume=False)
+
+    assert plan.disable_always_on_top is True
+
+
+def test_toggle_enter_always_disables_always_on_top():
+    plan = build_omnipause_plan("toggle", omni_paused=False, genau_mode_on=False, skip_primary_resume=False)
+
+    assert plan.disable_always_on_top is True
+
+
+def test_leave_does_not_disable_always_on_top():
+    plan = build_omnipause_plan("leave", omni_paused=True, genau_mode_on=False, skip_primary_resume=False)
+
+    assert plan.disable_always_on_top is False
+
+
+def test_enter_disables_always_on_top_even_in_genau_mode():
+    plan = build_omnipause_plan("enter", omni_paused=False, genau_mode_on=True, skip_primary_resume=False)
+
+    assert plan.disable_always_on_top is True

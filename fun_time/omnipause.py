@@ -9,6 +9,7 @@ class OmniPausePlan:
     next_omni_paused: bool
     genau_branch: bool
     resume_primary_playback: bool
+    disable_always_on_top: bool
     log_message: str
 
 
@@ -20,6 +21,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, genau_mode_on: bool,
                 next_omni_paused=True,
                 genau_branch=genau_mode_on,
                 resume_primary_playback=False,
+                disable_always_on_top=True,
                 log_message="OmniPause: entering",
             )
         return OmniPausePlan(
@@ -27,6 +29,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, genau_mode_on: bool,
             next_omni_paused=False,
             genau_branch=genau_mode_on,
             resume_primary_playback=(not genau_mode_on and not skip_primary_resume),
+            disable_always_on_top=False,
             log_message="OmniPause: leaving",
         )
 
@@ -36,6 +39,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, genau_mode_on: bool,
             next_omni_paused=True,
             genau_branch=genau_mode_on,
             resume_primary_playback=False,
+            disable_always_on_top=True,
             log_message="OmniPause: entering",
         )
 
@@ -45,6 +49,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, genau_mode_on: bool,
             next_omni_paused=False,
             genau_branch=genau_mode_on,
             resume_primary_playback=(not genau_mode_on and not skip_primary_resume),
+            disable_always_on_top=False,
             log_message="OmniPause: leaving",
         )
 
