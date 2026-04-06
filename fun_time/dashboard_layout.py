@@ -185,7 +185,7 @@ def compute_dashboard_preview_layout(
     genau_btn_pair_h = genau_btn_h * 2
     genau_btn_offset_y = (genau_label_h - genau_btn_pair_h) // 2
     genau_group_w = genau_label_w + genau_btn_w
-    genau_group_gap = 6
+    genau_group_gap = 10
     genau_groups_total_w = genau_group_w * 3 + genau_group_gap * 2
     genau_groups_x = right_inner_x + (right_inner_w - genau_groups_total_w) // 2
     # Center row between title bottom and nav button top
