@@ -676,24 +676,27 @@ class TestGenauZOrder:
         mock_apply.assert_called_once()
 
     def test_tick_enforces_z_order_during_sync(self, tmp_path):
-        """Periodic sync must enforce z-order — Primary VLC demoted in genau mode,
-        Genau topmost, and all other windows in correct stack order."""
+        """Periodic sync must correct drift — if Primary VLC re-asserts TOPMOST
+        during a video transition while in genau mode, the sync tick demotes it."""
         runner = self._make_runner(tmp_path, sync_interval_ms=0)
         runner.state = BridgeState(genau_mode=True)
         runner._last_sync = 0
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+        # Simulate VLC drift: Primary (1001) has re-asserted TOPMOST
+        hwnd_topmost = {1001: True, 2001: True, 3001: True, 4001: True, 5001: True, 9999: True}
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=9999), \
+             patch("fun_time.z_order.is_window_topmost", side_effect=lambda h: hwnd_topmost.get(h, False)), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        # Primary VLC must be demoted (genau mode)
+        # Primary VLC must be demoted (it drifted to TOPMOST in genau mode)
         assert (1001, False) in topmost_calls
-        # Genau must be topmost
-        assert (9999, True) in topmost_calls
+        # No other calls needed — everything else is already correct
+        assert len(topmost_calls) == 1
 
     def test_restore_all_topmost_demotes_primary_in_genau_mode(self, tmp_path):
         """_restore_all_topmost must demote Primary and promote Genau
