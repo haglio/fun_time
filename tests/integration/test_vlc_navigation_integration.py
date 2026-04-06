@@ -7,6 +7,7 @@ Requires: VLC installed, FUN_TIME_RUN_INTEGRATION=1 env var.
 """
 from __future__ import annotations
 
+import ctypes
 import glob
 import os
 import random
@@ -32,6 +33,7 @@ from fun_time.vlc_actions import (
     vlc_nav_step,
     wait_for_http,
 )
+from fun_time.win32 import move_window, wait_for_window
 from fun_time.windows_bridge_startup import _build_vlc_launch_command, _no_activate_kwargs
 
 pytestmark = [
@@ -57,6 +59,17 @@ def _find_test_videos(n: int = 4) -> list[str]:
     return random.sample(videos, min(n, len(videos)))
 
 
+def _position_vlc_right_two_thirds(pid: int) -> None:
+    """Move VLC to the right 2/3 of the primary monitor."""
+    hwnd = wait_for_window(pid, timeout_s=10.0)
+    if not hwnd:
+        return
+    screen_w = ctypes.windll.user32.GetSystemMetrics(0)  # SM_CXSCREEN
+    screen_h = ctypes.windll.user32.GetSystemMetrics(1)  # SM_CYSCREEN
+    left_margin = screen_w // 3
+    move_window(hwnd, left_margin, 0, screen_w - left_margin, screen_h, activate=False)
+
+
 @pytest.fixture(scope="module")
 def vlc_with_playlist():
     """Start a VLC instance with a known playlist of 4+ videos."""
@@ -74,6 +87,7 @@ def vlc_with_playlist():
         repeat_mode="loop", mute=True,
         playlist_path=playlist_path, defer_playlist=True,
     )
+    cmd.append("--no-fullscreen")
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -85,6 +99,7 @@ def vlc_with_playlist():
     vlc_http_cmd(TEST_PORT, "volume&val=0", TEST_PASSWORD)
     replace_playlist_from_file(TEST_PORT, TEST_PASSWORD, playlist_path)
     time.sleep(1.0)
+    _position_vlc_right_two_thirds(proc.pid)
     # Freeze playback rate to near-zero.  VLC stays in "playing" state
     # (all HTTP commands and jstree updates work normally) but can never
     # reach the end of a video and auto-advance.  This eliminates the
@@ -430,6 +445,7 @@ def vlc_repeat_one():
         repeat_mode="repeat", mute=True,
         playlist_path=playlist_path, defer_playlist=True,
     )
+    cmd.append("--no-fullscreen")
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -442,6 +458,7 @@ def vlc_repeat_one():
     replace_playlist_from_file(REPEAT_PORT, TEST_PASSWORD, playlist_path)
     vlc_http_cmd(REPEAT_PORT, "pl_next", TEST_PASSWORD)
     time.sleep(1.0)
+    _position_vlc_right_two_thirds(proc.pid)
     # Freeze playback rate to near-zero.  VLC stays in "playing" state
     # (all HTTP commands and jstree updates work normally) but can never
     # reach the end of a video and auto-advance.  This eliminates the
