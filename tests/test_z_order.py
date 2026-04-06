@@ -114,17 +114,32 @@ class TestApplyZOrder:
         hwnds_called = [h for h, _ in calls]
         assert 0 not in hwnds_called
 
-    def test_enforce_only_demotes_non_topmost_entries(self):
-        """With reorder=False, only windows marked non-topmost are demoted."""
+    def test_enforce_skips_correct_windows(self):
+        """With reorder=False, windows already in the correct state are skipped."""
         layers = [(10, True), (20, False), (30, True)]
         calls: list[tuple[int, bool]] = []
 
-        with patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: calls.append((h, v))):
+        # Simulate: 10 is already topmost (correct), 20 is topmost (wrong),
+        # 30 is already topmost (correct)
+        topmost_state = {10: True, 20: True, 30: True}
+
+        with patch("fun_time.z_order.is_window_topmost", side_effect=lambda h: topmost_state.get(h, False)), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: calls.append((h, v))):
             apply_z_order(layers, reorder=False)
 
-        # Only hwnd 20 should be demoted (it's the non-topmost entry)
-        demoted = [(h, v) for h, v in calls if not v]
-        assert demoted == [(20, False)]
-        # Topmost entries are still promoted (in order)
-        promoted = [(h, v) for h, v in calls if v]
-        assert promoted == [(10, True), (30, True)]
+        # Only hwnd 20 should be changed (topmost but should not be)
+        assert calls == [(20, False)]
+
+    def test_enforce_promotes_missing_topmost(self):
+        """With reorder=False, a window that should be topmost but isn't gets promoted."""
+        layers = [(10, True), (20, True)]
+        calls: list[tuple[int, bool]] = []
+
+        # 10 is not topmost (wrong), 20 is already topmost (correct)
+        topmost_state = {10: False, 20: True}
+
+        with patch("fun_time.z_order.is_window_topmost", side_effect=lambda h: topmost_state.get(h, False)), \
+             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: calls.append((h, v))):
+            apply_z_order(layers, reorder=False)
+
+        assert calls == [(10, True)]
