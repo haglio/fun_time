@@ -245,11 +245,11 @@ def dispatch_command(
         return state, ops
 
     if command == "vlc_nudge_prev":
-        ops.append(WindowOp(op="send_vk", vk=0x25))  # VK_LEFT
+        ops.append(WindowOp(op="vlc_http_seek", key="seek&val=-10"))
         return state, ops
 
     if command == "vlc_nudge_next":
-        ops.append(WindowOp(op="send_vk", vk=0x27))  # VK_RIGHT
+        ops.append(WindowOp(op="vlc_http_seek", key="seek&val=+10"))
         return state, ops
 
     if command == "clipper_save":

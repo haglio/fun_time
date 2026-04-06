@@ -74,6 +74,10 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
                 send_vk_to_window(hwnd, op.vk)
             continue
 
+        if op.op == "vlc_http_seek":
+            remaining.append(op)
+            continue
+
         if op.title:
             hwnd = find_window_by_title(op.title)
             if not hwnd:
@@ -302,6 +306,9 @@ class DispatchLoopRunner:
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
             if suppress_unsuspend and op.op == "unsuspend_hotkeys":
+                continue
+            if op.op == "vlc_http_seek":
+                vlc_http_cmd(self.config.primary_port, op.key, self.config.vlc_password)
                 continue
             if op.op == "tooltip":
                 self.ahk_cmd_file.write_text(f"tooltip {op.key}", encoding="utf-8")

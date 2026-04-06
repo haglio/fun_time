@@ -73,10 +73,6 @@ def vlc_with_playlist():
         repeat_mode="loop", mute=True,
         playlist_path=playlist_path, defer_playlist=True,
     )
-    # --vout none suppresses VLC's video window (prevents focus stealing
-    # on playlist transitions) without changing playback state behavior
-    # the way --no-video does.
-    cmd.insert(1, "--vout=none")
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -88,6 +84,12 @@ def vlc_with_playlist():
     vlc_http_cmd(TEST_PORT, "volume&val=0", TEST_PASSWORD)
     replace_playlist_from_file(TEST_PORT, TEST_PASSWORD, playlist_path)
     time.sleep(1.0)
+    # Freeze playback rate to near-zero.  VLC stays in "playing" state
+    # (all HTTP commands and jstree updates work normally) but can never
+    # reach the end of a video and auto-advance.  This eliminates the
+    # race where VLC finishes a clip between a position read and the
+    # subsequent navigation command, making the read stale.
+    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
     yield proc, videos
     # Kill first, then patch vlcrc — avoids the audio blast that
     # restore_vlc_volume (HTTP) caused by setting volume=256 while playing.
@@ -144,28 +146,40 @@ def _wait_for_playing(port: int, timeout: float = 3.0) -> str:
 
 
 def _wait_for_stable_current(port: int = TEST_PORT, timeout: float = 3.0) -> None:
-    """Poll until VLC's playlist_jstree reports a valid current item.
+    """Poll until VLC's playlist_jstree consistently reports a valid current item.
 
-    After rapid pl_next/pl_previous commands, VLC can briefly report
-    current=-1 (no current item).  vlc_nav_step depends on resolving the
-    current ID, so callers should stabilize first.
+    After pl_delete or rapid navigation, VLC can oscillate between
+    current=-1 and a valid ID.  A single valid read is not enough â
+    we require two consecutive valid reads (100 ms apart) before
+    returning, matching the two-read stability pattern used by
+    _wait_for_item_change.
     """
     deadline = time.monotonic() + timeout
+    consecutive_valid = 0
     while time.monotonic() < deadline:
         _, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", TEST_PASSWORD)
         _, current_id = _parse_playlist_ids(xml)
         if current_id != -1:
-            return
-        time.sleep(0.05)
+            consecutive_valid += 1
+            if consecutive_valid >= 2:
+                return
+        else:
+            consecutive_valid = 0
+        time.sleep(0.1)
 
 
 def _wait_for_playlist_count(port: int, expected: int, timeout: float = 5.0) -> tuple[list[int], int]:
-    """Poll until VLC's playlist has exactly *expected* items."""
+    """Poll until VLC's playlist has exactly *expected* items and a valid current.
+
+    After pl_delete, VLC can briefly report the correct item count while
+    current is still -1 (mid-transition).  Requiring both conditions
+    prevents a caller from acting on a half-settled jstree.
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         _, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", TEST_PASSWORD)
         ids, current = _parse_playlist_ids(xml)
-        if len(ids) == expected:
+        if len(ids) == expected and current != -1:
             return ids, current
         time.sleep(0.1)
     _, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", TEST_PASSWORD)
@@ -184,6 +198,7 @@ def _next():
     _wait_for_stable_current()
     before = _current()
     vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
+    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
     _wait_for_item_change(TEST_PORT, before)
 
 
@@ -198,6 +213,7 @@ def _prev():
     _wait_for_stable_current()
     before = _current()
     vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
+    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
     _wait_for_item_change(TEST_PORT, before)
 
 
@@ -292,11 +308,13 @@ def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
     start = _current()
     ok_next = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
     assert ok_next is True, "vlc_nav_step next returned False"
+    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
     mid = _wait_for_item_change(TEST_PORT, start)
     assert mid != start
     _wait_for_stable_current()          # let jstree fully commit the new current marker
     ok_prev = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
     assert ok_prev is True, "vlc_nav_step prev returned False"
+    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
     _wait_for_item_change(TEST_PORT, mid)
     assert _current() == start, f"next+prev did not return to start: expected {start}, got {_current()}"
 
@@ -316,6 +334,10 @@ def test_advance_and_remove_plays_next_and_shrinks_playlist(vlc_with_playlist):
     count_before = len(ids_before)
 
     ok = vlc_advance_and_remove(TEST_PORT, TEST_PASSWORD)
+    # Briefly restore normal rate so VLC fully processes the pl_play +
+    # pl_delete transition.  At rate=0.01, VLC can stall mid-transition
+    # and never commit the current marker in the jstree.
+    vlc_http_cmd(TEST_PORT, "rate&val=1", TEST_PASSWORD)
     _wait_for_item_change(TEST_PORT, before_path)
 
     ids_after, current_after = _wait_for_playlist_count(TEST_PORT, count_before - 1)
@@ -325,18 +347,30 @@ def test_advance_and_remove_plays_next_and_shrinks_playlist(vlc_with_playlist):
         "old item should be removed from playlist"
     assert current_after != current_before, \
         "current item should have changed"
+    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
 
 
 def test_advance_and_remove_preserves_navigation(vlc_with_playlist):
     """After vlc_advance_and_remove, vlc_nav_step must still work."""
-    _wait_for_stable_current()
+    _wait_for_stable_current(timeout=5.0)
     before_remove = _current()
+    vlc_http_cmd(TEST_PORT, "rate&val=1", TEST_PASSWORD)
     vlc_advance_and_remove(TEST_PORT, TEST_PASSWORD)
     _wait_for_item_change(TEST_PORT, before_remove)
+    # vlc_advance_and_remove's tight 0.15 s play+delete gap can leave
+    # VLC with current=-1.  Force-play the first remaining item to
+    # re-establish a valid current before the navigation check.
+    _, xml = vlc_http_req(TEST_PORT, "/requests/playlist_jstree.xml", TEST_PASSWORD)
+    ids, cur = _parse_playlist_ids(xml)
+    if cur == -1 and ids:
+        vlc_http_cmd(TEST_PORT, f"pl_play&id={ids[0]}", TEST_PASSWORD)
+    _wait_for_stable_current(timeout=5.0)
+    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
 
     before = _current()
     ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
     assert ok is True, "vlc_nav_step failed after advance_and_remove"
+    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
     after = _wait_for_item_change(TEST_PORT, before)
     assert after != before, "nav should change video after advance_and_remove"
 
@@ -395,7 +429,6 @@ def vlc_repeat_one():
         repeat_mode="repeat", mute=True,
         playlist_path=playlist_path, defer_playlist=True,
     )
-    cmd.insert(1, "--vout=none")
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -408,6 +441,12 @@ def vlc_repeat_one():
     replace_playlist_from_file(REPEAT_PORT, TEST_PASSWORD, playlist_path)
     vlc_http_cmd(REPEAT_PORT, "pl_next", TEST_PASSWORD)
     time.sleep(1.0)
+    # Freeze playback rate to near-zero.  VLC stays in "playing" state
+    # (all HTTP commands and jstree updates work normally) but can never
+    # reach the end of a video and auto-advance.  This eliminates the
+    # race where VLC finishes a clip between a position read and the
+    # subsequent navigation command, making the read stale.
+    vlc_http_cmd(REPEAT_PORT, "rate&val=0.01", TEST_PASSWORD)
     yield proc, videos
     proc.kill()
     proc.wait()
