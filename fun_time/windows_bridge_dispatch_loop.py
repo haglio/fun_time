@@ -265,7 +265,7 @@ class DispatchLoopRunner:
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
             if not self.state.omni_paused:
-                self._apply_z_order()
+                self._apply_z_order(reorder=False)
             if self.dashboard_enabled:
                 self._update_dashboard()
 
@@ -330,8 +330,16 @@ class DispatchLoopRunner:
         except Exception:
             pass
 
-    def _apply_z_order(self) -> None:
-        """Look up all window HWNDs and apply the centralized z-order stack."""
+    def _apply_z_order(self, *, reorder: bool = True) -> None:
+        """Look up all window HWNDs and apply the centralized z-order stack.
+
+        *reorder=True* (default) rebuilds the full stack (demote all,
+        then promote bottom-to-top).  Use after transitions.
+
+        *reorder=False* only corrects drift — demotes windows that
+        should not be topmost without touching the rest.  Use for the
+        periodic sync tick to avoid visual flicker.
+        """
         layers = compute_z_order(
             rfb_hwnd=self.rfb_hwnd,
             portrait_hwnd=find_window_by_pid(self.portrait_pid),
@@ -342,7 +350,7 @@ class DispatchLoopRunner:
             dashboard_hwnd=self._find_dashboard_hwnd(),
             genau_active=self.state.genau_mode,
         )
-        apply_z_order(layers)
+        apply_z_order(layers, reorder=reorder)
 
     def _remove_all_topmost(self) -> None:
         """Demote all windows from the TOPMOST band (omnipause)."""

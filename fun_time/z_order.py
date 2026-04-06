@@ -60,17 +60,28 @@ def compute_z_order(
     return layers
 
 
-def apply_z_order(layers: list[tuple[int, bool]]) -> None:
+def apply_z_order(layers: list[tuple[int, bool]], *, reorder: bool = True) -> None:
     """Apply the z-order stack via SetWindowPos.
 
-    First demotes ALL windows to the regular z-band, then sets TOPMOST
-    from bottom to top.  The demote-then-promote pattern ensures correct
-    ordering even when a window has re-asserted TOPMOST externally
-    (e.g. Dashboard's Qt WindowStaysOnTopHint, VLC video transitions).
+    When *reorder* is True (default), demotes ALL windows first so the
+    subsequent promote-from-bottom-to-top establishes the correct
+    stacking.  Use this at startup and after transitions (genau toggle,
+    omnipause leave) where the full ordering must be rebuilt.
+
+    When *reorder* is False, only demotes windows that should NOT be
+    topmost.  Already-topmost windows are left untouched, avoiding the
+    visual flicker that a full demote-all causes.  Use this for periodic
+    drift correction (sync tick) where only the Primary/Genau pair may
+    need fixing.
     """
-    for hwnd, _ in layers:
-        if hwnd:
-            set_always_on_top(hwnd, False)
+    if reorder:
+        for hwnd, _ in layers:
+            if hwnd:
+                set_always_on_top(hwnd, False)
+    else:
+        for hwnd, topmost in layers:
+            if hwnd and not topmost:
+                set_always_on_top(hwnd, False)
 
     for hwnd, topmost in layers:
         if hwnd and topmost:
