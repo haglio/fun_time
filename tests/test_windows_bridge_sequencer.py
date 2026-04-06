@@ -817,6 +817,53 @@ class TestPhase4GenauAlwaysInactive:
         # Genau should NOT be activated
         assert rh_hwnd not in activate_calls, "Genau should not be activated at startup"
 
+    def test_primary_vlc_topmost_after_genau_demoted(self, cfg_factory, tmp_path):
+        """Primary VLC must be re-asserted topmost after Genau is demoted."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
+        ui_pids = {"dashboard_pid": 50, "genau_pid": 60, "audio_pid": 70}
+
+        topmost_calls: list[tuple] = []
+        rh_hwnd = 77777
+        primary_hwnd = 1010
+        pid_to_hwnd = {10: primary_hwnd, 20: 2020, 30: 3030, 40: 4040, 50: 5050, 60: rh_hwnd}
+
+        def title_lookup(title):
+            return rh_hwnd if title == "Genau" else 0
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=lambda **kw: _write_result(kw["result_file"], core_pids)), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=60), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=lambda **kw: _write_result(kw["result_file"], ui_pids)), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_title", side_effect=title_lookup), \
+             patch("fun_time.windows_bridge_sequencer.get_window_rect", return_value=(0, 0, 240, 395)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.windows_bridge_sequencer.activate_window"), \
+             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                hide_windows=True,
+            )
+
+        # Genau must be explicitly demoted (not-topmost)
+        genau_demoted = [(h, v) for h, v in topmost_calls if h == rh_hwnd and not v]
+        assert len(genau_demoted) >= 1, "Genau should be explicitly set not-topmost"
+
+        # Primary VLC must be the last topmost=True call
+        last_topmost_true = [(h, v) for h, v in topmost_calls if v][-1]
+        assert last_topmost_true[0] == primary_hwnd, (
+            f"Primary VLC (hwnd={primary_hwnd}) must be the last topmost call, "
+            f"but hwnd={last_topmost_true[0]} was"
+        )
+
     def test_no_auto_udp_sent_at_startup(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         core_pids = {"primary_pid": 10, "mfp_pid": 20, "portrait_pid": 30, "landscape_pid": 40}
