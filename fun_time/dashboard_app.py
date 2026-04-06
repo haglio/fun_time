@@ -703,12 +703,12 @@ def build_dashboard_scene(
             *(
                 (
                     (QUARTER_BUTTON, layout.quarter_button),
-                    (GENAU_AMP_UP, layout.genau_amp_up),
-                    (GENAU_AMP_DOWN, layout.genau_amp_down),
-                    (GENAU_CTR_UP, layout.genau_ctr_up),
-                    (GENAU_CTR_DOWN, layout.genau_ctr_down),
-                    (GENAU_SPD_UP, layout.genau_spd_up),
-                    (GENAU_SPD_DOWN, layout.genau_spd_down),
+                    *(() if _genau.amp_at_max else ((GENAU_AMP_UP, layout.genau_amp_up),)),
+                    *(() if _genau.amp_at_min else ((GENAU_AMP_DOWN, layout.genau_amp_down),)),
+                    *(() if _genau.ctr_at_max else ((GENAU_CTR_UP, layout.genau_ctr_up),)),
+                    *(() if _genau.ctr_at_min else ((GENAU_CTR_DOWN, layout.genau_ctr_down),)),
+                    *(() if _genau.spd_at_max else ((GENAU_SPD_UP, layout.genau_spd_up),)),
+                    *(() if _genau.spd_at_min else ((GENAU_SPD_DOWN, layout.genau_spd_down),)),
                     (GENAU_CRUISE, layout.genau_cruise),
                     (GENAU_SHAPE, layout.genau_shape),
                 )
