@@ -586,7 +586,7 @@ def test_vlc_nudge_next_emits_http_seek(tmp_path: Path):
 
     assert len(ops) == 1
     assert ops[0].op == "vlc_http_seek"
-    assert ops[0].key == "seek&val=+10"
+    assert ops[0].key == "seek&val=%2B10"
 
 
 # --- unknown command ---
