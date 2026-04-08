@@ -58,7 +58,8 @@ from fun_time.dashboard_actions import (
     LANDSCAPE_PREV,
     LANDSCAPE_TRASH,
     FMODE_PANEL,
-    GENAU_TOGGLE,
+    GENAU_ACTIVATE,
+    HYBRID_ACTIVATE,
     OMNIPAUSE_TOGGLE,
     OPEN_FILE_DIALOG,
     PORTRAIT_LOCK,
@@ -70,6 +71,7 @@ from fun_time.dashboard_actions import (
     QUARTER_BUTTON,
     QUIT_BUTTON,
     VLC_NUDGE_NEXT,
+    VLC_ACTIVATE,
     VLC_NUDGE_PREV,
     VOICE_TOGGLE,
 )
@@ -81,6 +83,7 @@ from fun_time.dashboard_state import (
     LABEL_OSR2,
     LABEL_PORTRAIT_VLC,
     LABEL_PRIMARY_GENAU,
+    LABEL_PRIMARY_HYBRID,
     LABEL_PRIMARY_VLC,
     has_matching_funscript,
     is_favorite_path,
@@ -468,7 +471,8 @@ def build_dashboard_scene(
         favs_content = read_favs_content(favs_file) if favs_file is not None else ""
         broker_running = is_broker_heartbeat_fresh(broker_heartbeat_file) if broker_heartbeat_file is not None else False
         mfp_connected = snapshot.mfp_alive and snapshot.primary_responsive and broker_running
-        primary_label_name = LABEL_PRIMARY_GENAU if snapshot.primary_uses_genau else LABEL_PRIMARY_VLC
+        _mode_labels = {"vlc": LABEL_PRIMARY_VLC, "genau": LABEL_PRIMARY_GENAU, "hybrid": LABEL_PRIMARY_HYBRID}
+        primary_label_name = _mode_labels.get(snapshot.primary_mode, LABEL_PRIMARY_VLC)
         primary_label = primary_label_name
         portrait_label = LABEL_PORTRAIT_VLC
         landscape_label = LABEL_LANDSCAPE_VLC
@@ -485,7 +489,7 @@ def build_dashboard_scene(
         mfp_label = LABEL_MFP
         if snapshot.osr2_mode == "auto":
             primary_fill = COLOR_PINK
-        elif snapshot.primary_uses_genau:
+        elif snapshot.primary_mode == "genau":
             primary_fill = COLOR_PANEL
         elif primary_panel_should_highlight(
             f_mode_enabled=snapshot.f_mode_enabled,
@@ -528,7 +532,8 @@ def build_dashboard_scene(
     def _press_fill(fill: QColor, action_id: str) -> QColor:
         return lighten_color(fill) if action_id in pressed_actions else fill
 
-    _is_genau = snapshot is not None and snapshot.primary_uses_genau
+    _is_genau = snapshot is not None and snapshot.primary_mode == "genau"
+    _is_hybrid = snapshot is not None and snapshot.primary_mode == "hybrid"
 
     rects = (
         DashboardRectItem(layout.main_monitor, fill=COLOR_PANEL),
@@ -560,12 +565,29 @@ def build_dashboard_scene(
                 DashboardRectItem(layout.genau_spd_down, fill=_press_fill(COLOR_PANEL, GENAU_SPD_DOWN)),
                 DashboardRectItem(layout.genau_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
                 DashboardRectItem(layout.genau_shape, fill=_press_fill(COLOR_PANEL, GENAU_SHAPE)),
+                DashboardRectItem(layout.hybrid_mode_button, fill=_press_fill(COLOR_PANEL, HYBRID_ACTIVATE)),
             )
             if _is_genau else (
                 DashboardRectItem(layout.vlc_nudge_prev, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_PREV)),
                 DashboardRectItem(layout.vlc_nudge_next, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_NEXT)),
+                DashboardRectItem(layout.hybrid_quarter_button, fill=_press_fill(COLOR_PANEL, QUARTER_BUTTON)),
+                DashboardRectItem(layout.hybrid_open_file_dialog, fill=_press_fill(COLOR_PANEL, OPEN_FILE_DIALOG)),
+                DashboardRectItem(layout.clipper_save, fill=_press_fill(COLOR_PANEL, CLIPPER_SAVE)),
+                DashboardRectItem(layout.hybrid_genau_amp_up, fill=_press_fill(COLOR_PANEL, GENAU_AMP_UP)),
+                DashboardRectItem(layout.hybrid_genau_amp_down, fill=_press_fill(COLOR_PANEL, GENAU_AMP_DOWN)),
+                DashboardRectItem(layout.hybrid_genau_ctr_up, fill=_press_fill(COLOR_PANEL, GENAU_CTR_UP)),
+                DashboardRectItem(layout.hybrid_genau_ctr_down, fill=_press_fill(COLOR_PANEL, GENAU_CTR_DOWN)),
+                DashboardRectItem(layout.hybrid_genau_spd_up, fill=_press_fill(COLOR_PANEL, GENAU_SPD_UP)),
+                DashboardRectItem(layout.hybrid_genau_spd_down, fill=_press_fill(COLOR_PANEL, GENAU_SPD_DOWN)),
+                DashboardRectItem(layout.genau_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
+                DashboardRectItem(layout.genau_shape, fill=_press_fill(COLOR_PANEL, GENAU_SHAPE)),
+            )
+            if _is_hybrid else (
+                DashboardRectItem(layout.vlc_nudge_prev, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_PREV)),
+                DashboardRectItem(layout.vlc_nudge_next, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_NEXT)),
                 DashboardRectItem(layout.open_file_dialog, fill=_press_fill(COLOR_PANEL, OPEN_FILE_DIALOG)),
                 DashboardRectItem(layout.clipper_save, fill=_press_fill(COLOR_PANEL, CLIPPER_SAVE)),
+                DashboardRectItem(layout.hybrid_mode_button, fill=_press_fill(COLOR_PANEL, HYBRID_ACTIVATE)),
             )
         ),
         DashboardRectItem(layout.landscape_prev, fill=_press_fill(COLOR_PANEL, LANDSCAPE_PREV)),
@@ -575,7 +597,7 @@ def build_dashboard_scene(
         DashboardRectItem(layout.broker_panel, fill=_press_fill(broker_fill, BROKER_PANEL)),
         DashboardRectItem(layout.fmode_panel, fill=_press_fill(fmode_fill, FMODE_PANEL)),
         DashboardRectItem(layout.voice_panel, fill=_press_fill(voice_fill, VOICE_TOGGLE)),
-        DashboardRectItem(layout.genau_mode_toggle, fill=_press_fill(COLOR_PANEL, GENAU_TOGGLE)),
+        DashboardRectItem(layout.genau_mode_toggle, fill=_press_fill(COLOR_PANEL, GENAU_ACTIVATE)),
     )
     _font_symbol = make_font(FONT_SYMBOL, 10, bold=True)
     _font_ui_sm = make_font(FONT_UI, SIZE_SMALL, bold=True)
@@ -609,11 +631,30 @@ def build_dashboard_scene(
                 DashboardTextItem("CTR", layout.genau_ctr_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("SPD", layout.genau_spd_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("cc", layout.genau_cruise, font=_font_ui_tiny),
+                DashboardTextItem("h", layout.hybrid_mode_button, font=_font_ui_tiny),
             )
             if _is_genau else (
                 DashboardTextItem("\u2212", layout.vlc_nudge_prev, font=_font_ui_sm),
                 DashboardTextItem("+", layout.vlc_nudge_next, font=_font_ui_sm),
+                DashboardTextItem("1/4", layout.hybrid_quarter_button, font=_font_ui_tiny),
+                DashboardTextItem("\U0001F4C2", layout.hybrid_open_file_dialog, font=_font_emoji),
+                DashboardTextItem("^", layout.hybrid_genau_amp_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.amp_at_max else COLOR_TEXT),
+                DashboardTextItem("v", layout.hybrid_genau_amp_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.amp_at_min else COLOR_TEXT),
+                DashboardTextItem("^", layout.hybrid_genau_ctr_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.ctr_at_max else COLOR_TEXT),
+                DashboardTextItem("v", layout.hybrid_genau_ctr_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.ctr_at_min else COLOR_TEXT),
+                DashboardTextItem("^", layout.hybrid_genau_spd_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.spd_at_max else COLOR_TEXT),
+                DashboardTextItem("v", layout.hybrid_genau_spd_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.spd_at_min else COLOR_TEXT),
+                DashboardTextItem("AMP", layout.hybrid_genau_amp_label, font=_font_ui_tiny, rotation=90),
+                DashboardTextItem("CTR", layout.hybrid_genau_ctr_label, font=_font_ui_tiny, rotation=90),
+                DashboardTextItem("SPD", layout.hybrid_genau_spd_label, font=_font_ui_tiny, rotation=90),
+                DashboardTextItem("cc", layout.genau_cruise, font=_font_ui_tiny),
+                DashboardTextItem("VLC", layout.hybrid_mode_button, font=_font_ui_tiny),
+            )
+            if _is_hybrid else (
+                DashboardTextItem("\u2212", layout.vlc_nudge_prev, font=_font_ui_sm),
+                DashboardTextItem("+", layout.vlc_nudge_next, font=_font_ui_sm),
                 DashboardTextItem("\U0001F4C2", layout.open_file_dialog, font=_font_emoji),
+                DashboardTextItem("h", layout.hybrid_mode_button, font=_font_ui_tiny),
             )
         ),
         DashboardTextItem("<", layout.landscape_prev, font=_font_ui_sm),
@@ -638,6 +679,20 @@ def build_dashboard_scene(
                 ),
             )
             if _is_genau else (
+                DashboardImageItem(
+                    _draw_waveform_pixmap(_genau.shape, layout.genau_shape.width, layout.genau_shape.height),
+                    layout.genau_shape,
+                ),
+                DashboardImageItem(
+                    _load_icon_pixmap("clipper_icon.ico", layout.clipper_save.height),
+                    layout.clipper_save,
+                ),
+                DashboardImageItem(
+                    _load_icon_pixmap("genau_icon.ico", layout.genau_mode_toggle.height),
+                    layout.genau_mode_toggle,
+                ),
+            )
+            if _is_hybrid else (
                 DashboardImageItem(
                     _load_icon_pixmap("clipper_icon.ico", layout.clipper_save.height),
                     layout.clipper_save,
@@ -704,19 +759,39 @@ def build_dashboard_scene(
                     *(() if _genau.spd_at_min else ((GENAU_SPD_DOWN, layout.genau_spd_down),)),
                     (GENAU_CRUISE, layout.genau_cruise),
                     (GENAU_SHAPE, layout.genau_shape),
+                    (HYBRID_ACTIVATE, layout.hybrid_mode_button),
+                    (VLC_ACTIVATE, layout.genau_mode_toggle),
                 )
                 if _is_genau else (
                     (VLC_NUDGE_PREV, layout.vlc_nudge_prev),
                     (VLC_NUDGE_NEXT, layout.vlc_nudge_next),
+                    (QUARTER_BUTTON, layout.hybrid_quarter_button),
+                    (OPEN_FILE_DIALOG, layout.hybrid_open_file_dialog),
+                    (CLIPPER_SAVE, layout.clipper_save),
+                    *(() if _genau.amp_at_max else ((GENAU_AMP_UP, layout.hybrid_genau_amp_up),)),
+                    *(() if _genau.amp_at_min else ((GENAU_AMP_DOWN, layout.hybrid_genau_amp_down),)),
+                    *(() if _genau.ctr_at_max else ((GENAU_CTR_UP, layout.hybrid_genau_ctr_up),)),
+                    *(() if _genau.ctr_at_min else ((GENAU_CTR_DOWN, layout.hybrid_genau_ctr_down),)),
+                    *(() if _genau.spd_at_max else ((GENAU_SPD_UP, layout.hybrid_genau_spd_up),)),
+                    *(() if _genau.spd_at_min else ((GENAU_SPD_DOWN, layout.hybrid_genau_spd_down),)),
+                    (GENAU_CRUISE, layout.genau_cruise),
+                    (GENAU_SHAPE, layout.genau_shape),
+                    (VLC_ACTIVATE, layout.hybrid_mode_button),
+                    (GENAU_ACTIVATE, layout.genau_mode_toggle),
+                )
+                if _is_hybrid else (
+                    (VLC_NUDGE_PREV, layout.vlc_nudge_prev),
+                    (VLC_NUDGE_NEXT, layout.vlc_nudge_next),
                     (OPEN_FILE_DIALOG, layout.open_file_dialog),
                     (CLIPPER_SAVE, layout.clipper_save),
+                    (HYBRID_ACTIVATE, layout.hybrid_mode_button),
+                    (GENAU_ACTIVATE, layout.genau_mode_toggle),
                 )
             ),
             (LANDSCAPE_PREV, layout.landscape_prev),
             (LANDSCAPE_NEXT, layout.landscape_next),
             (LANDSCAPE_LOCK, layout.landscape_lock),
             (LANDSCAPE_TRASH, layout.landscape_trash),
-            (GENAU_TOGGLE, layout.genau_mode_toggle),
             (BROKER_PANEL, layout.broker_panel),
             (FMODE_PANEL, layout.fmode_panel),
             (VOICE_TOGGLE, layout.voice_panel),
