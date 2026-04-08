@@ -119,10 +119,10 @@ def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrati
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    """Pressing 'g' (genau_toggle) activates then deactivates Genau."""
+    """Pressing 'g' (genau_activate) then 'v' (vlc_activate) switches modes."""
     s = shared_integration_session
-    s.write_dashboard_command("genau_toggle")
-    s.wait_for_new_log("Genau activated", timeout=12)
+    s.write_dashboard_command("genau_activate")
+    s.wait_for_new_log("Switched to genau mode", timeout=12)
 
     s.wait_until(
         lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "0",
@@ -130,8 +130,8 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
         description="Genau paused file to flip off (active)",
     )
 
-    s.write_dashboard_command("genau_toggle")
-    s.wait_for_new_log("Genau deactivated", timeout=12)
+    s.write_dashboard_command("vlc_activate")
+    s.wait_for_new_log("Switched to vlc mode", timeout=12)
 
     s.wait_until(
         lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "1",
@@ -155,8 +155,8 @@ def test_fun_time_primary_vlc_not_topmost_in_genau_mode(shared_integration_sessi
         description="Primary VLC to be TOPMOST before Genau activation",
     )
 
-    s.write_dashboard_command("genau_toggle")
-    s.wait_for_new_log("Genau activated", timeout=12)
+    s.write_dashboard_command("genau_activate")
+    s.wait_for_new_log("Switched to genau mode", timeout=12)
 
     s.wait_until(
         lambda: not is_window_topmost(find_window_by_pid(primary_pid)),
@@ -164,8 +164,8 @@ def test_fun_time_primary_vlc_not_topmost_in_genau_mode(shared_integration_sessi
         description="Primary VLC to lose TOPMOST when Genau is active",
     )
 
-    s.write_dashboard_command("genau_toggle")
-    s.wait_for_new_log("Genau deactivated", timeout=12)
+    s.write_dashboard_command("vlc_activate")
+    s.wait_for_new_log("Switched to vlc mode", timeout=12)
 
     s.wait_until(
         lambda: is_window_topmost(find_window_by_pid(primary_pid)),
@@ -214,8 +214,8 @@ def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTim
 
 
 def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_dashboard_command("genau_toggle")
-    shared_integration_session.wait_for_new_log("Genau activated", timeout=12)
+    shared_integration_session.write_dashboard_command("genau_activate")
+    shared_integration_session.wait_for_new_log("Switched to genau mode", timeout=12)
 
     shared_integration_session.write_dashboard_command("omnipause_toggle")
     shared_integration_session.wait_for_new_log("OmniPause: entering", timeout=12)
@@ -233,8 +233,8 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
         description="Genau paused file to flip off",
     )
 
-    shared_integration_session.write_dashboard_command("genau_toggle")
-    shared_integration_session.wait_for_new_log("Genau deactivated", timeout=12)
+    shared_integration_session.write_dashboard_command("vlc_activate")
+    shared_integration_session.wait_for_new_log("Switched to vlc mode", timeout=12)
 
 
 
@@ -252,8 +252,8 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     rh_pid = s.read_genau_pid()
     assert _is_pid_alive(rh_pid), "Genau should be alive before test"
 
-    s.write_dashboard_command("genau_toggle")
-    s.wait_for_new_log("Genau activated", timeout=12)
+    s.write_dashboard_command("genau_activate")
+    s.wait_for_new_log("Switched to genau mode", timeout=12)
 
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: entering", timeout=12)
@@ -274,8 +274,8 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
 
     assert _is_pid_alive(rh_pid), "Genau should survive leaving omnipause"
 
-    s.write_dashboard_command("genau_toggle")
-    s.wait_for_new_log("Genau deactivated", timeout=12)
+    s.write_dashboard_command("vlc_activate")
+    s.wait_for_new_log("Switched to vlc mode", timeout=12)
 
 
 
