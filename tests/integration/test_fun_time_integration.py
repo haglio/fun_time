@@ -149,7 +149,11 @@ def test_fun_time_primary_vlc_not_topmost_in_genau_mode(shared_integration_sessi
     hwnd = find_window_by_pid(primary_pid)
     assert hwnd, f"Primary VLC window not found for pid {primary_pid}"
 
-    assert is_window_topmost(hwnd), "Primary VLC should be TOPMOST before Genau activation"
+    s.wait_until(
+        lambda: is_window_topmost(hwnd),
+        timeout=5,
+        description="Primary VLC to be TOPMOST before Genau activation",
+    )
 
     s.write_dashboard_command("genau_toggle")
     s.wait_for_new_log("Genau activated", timeout=12)
