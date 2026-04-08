@@ -64,6 +64,19 @@ class DashboardPreviewLayout:
     genau_spd_down: Rect
     genau_cruise: Rect
     genau_shape: Rect
+    hybrid_mode_button: Rect
+    vlc_mode_button: Rect
+    hybrid_quarter_button: Rect
+    hybrid_open_file_dialog: Rect
+    hybrid_genau_amp_label: Rect
+    hybrid_genau_amp_up: Rect
+    hybrid_genau_amp_down: Rect
+    hybrid_genau_ctr_label: Rect
+    hybrid_genau_ctr_up: Rect
+    hybrid_genau_ctr_down: Rect
+    hybrid_genau_spd_label: Rect
+    hybrid_genau_spd_up: Rect
+    hybrid_genau_spd_down: Rect
     quit_button: Rect
     omnipause_button: Rect
     broker_panel: Rect
@@ -192,19 +205,36 @@ def compute_dashboard_preview_layout(
     genau_title_bottom = primary_y + 14
     genau_groups_y = genau_title_bottom + (primary_button_y - genau_title_bottom - genau_label_h) // 2
 
-    def _genau_group_rects(col_index: int) -> tuple[Rect, Rect, Rect]:
-        """Return (label, up_button, down_button) for a parameter group."""
+    def _genau_group_rects(col_index: int, group_y: int) -> tuple[Rect, Rect, Rect]:
+        """Return (label, up_button, down_button) for a parameter group at *group_y*."""
         gx = genau_groups_x + col_index * (genau_group_w + genau_group_gap)
-        btn_y = genau_groups_y + genau_btn_offset_y
+        btn_y = group_y + genau_btn_offset_y
         return (
-            Rect(gx, genau_groups_y, genau_label_w, genau_label_h),
+            Rect(gx, group_y, genau_label_w, genau_label_h),
             Rect(gx + genau_label_w, btn_y, genau_btn_w, genau_btn_h),
             Rect(gx + genau_label_w, btn_y + genau_btn_h, genau_btn_w, genau_btn_h),
         )
 
-    amp_label, amp_up, amp_down = _genau_group_rects(0)
-    ctr_label, ctr_up, ctr_down = _genau_group_rects(1)
-    spd_label, spd_up, spd_down = _genau_group_rects(2)
+    amp_label, amp_up, amp_down = _genau_group_rects(0, genau_groups_y)
+    ctr_label, ctr_up, ctr_down = _genau_group_rects(1, genau_groups_y)
+    spd_label, spd_up, spd_down = _genau_group_rects(2, genau_groups_y)
+
+    # Hybrid genau groups — same horizontal positions, shifted up to clear nudge row
+    hybrid_genau_groups_y = genau_title_bottom + 2
+    h_amp_label, h_amp_up, h_amp_down = _genau_group_rects(0, hybrid_genau_groups_y)
+    h_ctr_label, h_ctr_up, h_ctr_down = _genau_group_rects(1, hybrid_genau_groups_y)
+    h_spd_label, h_spd_up, h_spd_down = _genau_group_rects(2, hybrid_genau_groups_y)
+
+    # Hybrid mode button — to the left of genau_mode_toggle with 4px gap
+    genau_toggle_x = right_inner_x + right_inner_w - 28
+    genau_toggle_y = primary_y + primary_h - 20
+    hybrid_mode_btn_w = 14
+    hybrid_mode_btn_h = 16
+    hybrid_mode_btn_x = genau_toggle_x - 4 - hybrid_mode_btn_w
+
+    # Hybrid quarter/file dialog — at nudge button x positions, center y
+    nudge_prev_x = right_inner_x + (right_inner_w - 44) // 2
+    nudge_next_x = nudge_prev_x + 24
 
     # Genau cruise / shape — bottom row alongside mode toggle
     genau_bottom_y = primary_y + primary_h - 20
@@ -262,6 +292,19 @@ def compute_dashboard_preview_layout(
         genau_spd_down=spd_down,
         genau_cruise=genau_cruise_rect,
         genau_shape=genau_shape_rect,
+        hybrid_mode_button=Rect(hybrid_mode_btn_x, genau_toggle_y, hybrid_mode_btn_w, hybrid_mode_btn_h),
+        vlc_mode_button=Rect(genau_toggle_x, genau_toggle_y, 28, 16),
+        hybrid_quarter_button=Rect(nudge_prev_x, primary_center_y, genau_bottom_btn_w, genau_bottom_btn_h),
+        hybrid_open_file_dialog=Rect(nudge_next_x, primary_center_y, genau_bottom_btn_w, genau_bottom_btn_h),
+        hybrid_genau_amp_label=h_amp_label,
+        hybrid_genau_amp_up=h_amp_up,
+        hybrid_genau_amp_down=h_amp_down,
+        hybrid_genau_ctr_label=h_ctr_label,
+        hybrid_genau_ctr_up=h_ctr_up,
+        hybrid_genau_ctr_down=h_ctr_down,
+        hybrid_genau_spd_label=h_spd_label,
+        hybrid_genau_spd_up=h_spd_up,
+        hybrid_genau_spd_down=h_spd_down,
         quit_button=Rect(btn_row_x, btn_row_y, mini_button_w, mini_button_h),
         omnipause_button=Rect(btn_row_x + mini_button_w + mini_button_gap, btn_row_y, mini_button_w, mini_button_h),
         broker_panel=Rect(status_row_x, chip_row_y, mini_button_w, mini_button_h),

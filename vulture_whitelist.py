@@ -43,6 +43,25 @@ landscape_count  # noqa
 layout_plan  # noqa
 core_hwnds  # noqa
 
+# --- Functions vulture reports as unused at low confidence (false positive) ---
+# build_mode_switch_plan is called from runtime_flow.py
+build_mode_switch_plan  # noqa
+
+# --- Dashboard layout fields accessed through instances (vulture can't trace) ---
+hybrid_mode_button  # noqa
+vlc_mode_button  # noqa
+hybrid_quarter_button  # noqa
+hybrid_open_file_dialog  # noqa
+hybrid_genau_amp_label  # noqa
+hybrid_genau_amp_up  # noqa
+hybrid_genau_amp_down  # noqa
+hybrid_genau_ctr_label  # noqa
+hybrid_genau_ctr_up  # noqa
+hybrid_genau_ctr_down  # noqa
+hybrid_genau_spd_label  # noqa
+hybrid_genau_spd_up  # noqa
+hybrid_genau_spd_down  # noqa
+
 # --- Constants / functions used only from tests or integration tests ---
 # (vulture scans production code only; test imports are invisible to it)
 COLOR_YELLOW  # noqa

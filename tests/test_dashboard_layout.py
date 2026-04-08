@@ -285,3 +285,74 @@ def test_genau_shape_is_horizontally_centered():
     panel_center = panel.x + panel.width // 2
     shape_center = layout.genau_shape.x + layout.genau_shape.width // 2
     assert abs(panel_center - shape_center) <= 1
+
+
+def test_hybrid_mode_button_left_of_genau_toggle():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    h = layout.hybrid_mode_button
+    g = layout.genau_mode_toggle
+    # hybrid_mode_button is to the left with a 4px gap
+    assert h.x + h.width + 4 == g.x
+    assert h.y == g.y
+    assert h.width == 14
+    assert h.height == 16
+    assert _inside(h, layout.primary_panel)
+
+
+def test_vlc_mode_button_same_position_as_genau_toggle():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    assert layout.vlc_mode_button.x == layout.genau_mode_toggle.x
+    assert layout.vlc_mode_button.y == layout.genau_mode_toggle.y
+    assert layout.vlc_mode_button.width == layout.genau_mode_toggle.width
+    assert layout.vlc_mode_button.height == layout.genau_mode_toggle.height
+
+
+def test_hybrid_quarter_and_open_file_positions():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    # hybrid_quarter_button at nudge_prev x, center_y
+    assert layout.hybrid_quarter_button.x == layout.vlc_nudge_prev.x
+    assert layout.hybrid_quarter_button.y == layout.quarter_button.y
+    assert layout.hybrid_quarter_button.width == 20
+    assert layout.hybrid_quarter_button.height == 16
+    # hybrid_open_file_dialog at nudge_next x, center_y
+    assert layout.hybrid_open_file_dialog.x == layout.vlc_nudge_next.x
+    assert layout.hybrid_open_file_dialog.y == layout.quarter_button.y
+    assert layout.hybrid_open_file_dialog.width == 20
+    assert layout.hybrid_open_file_dialog.height == 16
+    assert _inside(layout.hybrid_quarter_button, layout.primary_panel)
+    assert _inside(layout.hybrid_open_file_dialog, layout.primary_panel)
+
+
+def test_hybrid_genau_groups_above_normal_groups():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    # Hybrid groups should be shifted up compared to normal groups
+    assert layout.hybrid_genau_amp_label.y < layout.genau_amp_label.y
+    assert layout.hybrid_genau_ctr_label.y < layout.genau_ctr_label.y
+    assert layout.hybrid_genau_spd_label.y < layout.genau_spd_label.y
+    # All hybrid genau rects must fit inside primary panel
+    for rect in (
+        layout.hybrid_genau_amp_label, layout.hybrid_genau_amp_up, layout.hybrid_genau_amp_down,
+        layout.hybrid_genau_ctr_label, layout.hybrid_genau_ctr_up, layout.hybrid_genau_ctr_down,
+        layout.hybrid_genau_spd_label, layout.hybrid_genau_spd_up, layout.hybrid_genau_spd_down,
+    ):
+        assert _inside(rect, layout.primary_panel), f"{rect} outside primary panel {layout.primary_panel}"
