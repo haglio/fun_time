@@ -87,6 +87,8 @@ _GENAU_CMD_MAP = {
     "genau_cycle_shape": "CYCLE_SHAPE",
     "genau_toggle_auto": "TOGGLE_AUTO",
     "genau_toggle_cruise": "TOGGLE_CRUISE",
+    "genau_cruise_on": "CRUISE_ON",
+    "genau_cruise_off": "CRUISE_OFF",
     "genau_prev_clip": "PREV",
     "genau_next_clip": "NEXT",
 }
