@@ -504,6 +504,28 @@ def test_genau_toggle_cruise_writes_cmd_file(tmp_path: Path):
     assert ops == []
 
 
+def test_genau_cruise_on_writes_cmd_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(genau_mode=True)
+
+    new_state, ops = dispatch_command("genau_cruise_on", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_ON"
+    assert new_state == state
+    assert ops == []
+
+
+def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(genau_mode=True)
+
+    new_state, ops = dispatch_command("genau_cruise_off", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_OFF"
+    assert new_state == state
+    assert ops == []
+
+
 def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(genau_mode=False)
