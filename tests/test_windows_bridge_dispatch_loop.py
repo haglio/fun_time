@@ -189,6 +189,14 @@ class TestExecuteWindowOps:
         assert len(remaining) == 1
         assert remaining[0].op == "restore_all_topmost"
 
+    def test_open_rfb_tab_returned_as_remaining(self):
+        ops = [WindowOp(op="open_rfb_tab", key="https://example.com")]
+        remaining = execute_window_ops(ops, primary_pid=1)
+
+        assert len(remaining) == 1
+        assert remaining[0].op == "open_rfb_tab"
+        assert remaining[0].key == "https://example.com"
+
 
 class TestSharedState:
     def test_write_then_read_roundtrip(self, tmp_path):
@@ -621,6 +629,101 @@ class TestDispatchLoopRunner:
         runner.tick()
 
         assert vc.is_muted
+
+
+class TestOpenRfbTab:
+    def _make_runner(self, tmp_path, **kwargs):
+        from fun_time.command_dispatch import BridgeConfig
+
+        config = BridgeConfig(
+            primary_port=9090,
+            portrait_port=9091,
+            landscape_port=9092,
+            vlc_password="test",
+            favs_file=tmp_path / "favs.txt",
+            weird_dir=tmp_path / "weird",
+            state_dir=tmp_path,
+            primary_sources="",
+            portrait_sources="",
+            landscape_sources="",
+            genau_mode_file=tmp_path / "rh_mode.txt",
+            genau_cmd_file=tmp_path / "rh_cmd.txt",
+            genau_paused_file=tmp_path / "rh_paused.txt",
+            audio_paused_file=tmp_path / "audio_paused.txt",
+            dashboard_state_file=tmp_path / "dashboard_state.ini",
+        )
+        return DispatchLoopRunner(
+            config=config,
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            shared_state_file=tmp_path / "shared_state.ini",
+            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            primary_pid=100,
+            mfp_pid=200,
+            dashboard_enabled=False,
+            **kwargs,
+        )
+
+    def test_open_rfb_tab_op_calls_open_rfb_tab_when_rfb_running(self, tmp_path):
+        runner = self._make_runner(
+            tmp_path,
+            sync_interval_ms=999999,
+            rfb_hwnd=12345,
+            rfb_shortcut_target=r"C:\Chrome\chrome.exe",
+            rfb_shortcut_work_dir=r"C:\Chrome",
+            rfb_shortcut_args='--profile-directory="Profile 2"',
+        )
+        runner._last_sync = float("inf")
+
+        rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[rfb_op]), \
+             patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
+            mock_dispatch.return_value = (runner.state, [rfb_op])
+            runner._dispatch("portrait_lock")
+
+        mock_open.assert_called_once_with(
+            url="https://example.com",
+            shortcut_target=r"C:\Chrome\chrome.exe",
+            shortcut_work_dir=r"C:\Chrome",
+            shortcut_args='--profile-directory="Profile 2"',
+        )
+
+    def test_open_rfb_tab_op_skipped_when_rfb_not_running(self, tmp_path):
+        runner = self._make_runner(
+            tmp_path,
+            sync_interval_ms=999999,
+            rfb_hwnd=0,
+            rfb_shortcut_target=r"C:\Chrome\chrome.exe",
+            rfb_shortcut_work_dir=r"C:\Chrome",
+            rfb_shortcut_args='--profile-directory="Profile 2"',
+        )
+        runner._last_sync = float("inf")
+
+        rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[rfb_op]), \
+             patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
+            mock_dispatch.return_value = (runner.state, [rfb_op])
+            runner._dispatch("portrait_lock")
+
+        mock_open.assert_not_called()
+
+    def test_open_rfb_tab_op_skipped_when_no_shortcut_target(self, tmp_path):
+        runner = self._make_runner(
+            tmp_path,
+            sync_interval_ms=999999,
+            rfb_hwnd=12345,
+        )
+        runner._last_sync = float("inf")
+
+        rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[rfb_op]), \
+             patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
+            mock_dispatch.return_value = (runner.state, [rfb_op])
+            runner._dispatch("portrait_lock")
+
+        mock_open.assert_not_called()
 
 
 class TestGenauZOrder:

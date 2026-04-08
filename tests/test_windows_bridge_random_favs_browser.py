@@ -4,11 +4,61 @@ import subprocess
 from pathlib import Path
 
 from fun_time.windows_bridge_random_favs_browser import (
+    build_open_rfb_tab_command,
     build_random_favs_browser_launch_plan,
     launch_random_favs_browser,
+    open_rfb_tab,
     read_random_favs_browser_manifest,
     tab_placeholder_path,
 )
+
+
+# --- Open RFB tab ---
+
+
+def test_build_open_rfb_tab_command_constructs_chrome_command():
+    cmd = build_open_rfb_tab_command(
+        url="https://example.com",
+        shortcut_target=r"C:\Chrome\chrome.exe",
+        shortcut_args='--profile-directory="Profile 2"',
+    )
+
+    assert cmd == r'"C:\Chrome\chrome.exe" --profile-directory="Profile 2" "https://example.com"'
+
+
+def test_build_open_rfb_tab_command_with_empty_args():
+    cmd = build_open_rfb_tab_command(
+        url="https://example.com",
+        shortcut_target=r"C:\Chrome\chrome.exe",
+        shortcut_args="",
+    )
+
+    assert cmd == r'"C:\Chrome\chrome.exe" "https://example.com"'
+
+
+def test_open_rfb_tab_calls_subprocess(monkeypatch):
+    recorded: dict[str, str] = {}
+
+    def fake_popen(cmd, cwd):
+        recorded["cmd"] = cmd
+        recorded["cwd"] = cwd
+        return object()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+    open_rfb_tab(
+        url="https://example.com",
+        shortcut_target=r"C:\Chrome\chrome.exe",
+        shortcut_work_dir=r"C:\Chrome",
+        shortcut_args='--profile-directory="Profile 2"',
+    )
+
+    assert "chrome.exe" in recorded["cmd"]
+    assert "https://example.com" in recorded["cmd"]
+    assert recorded["cwd"] == r"C:\Chrome"
+
+
+# --- Manifest tests ---
 
 
 def test_read_random_favs_browser_manifest_returns_profile_and_urls(tmp_path: Path):

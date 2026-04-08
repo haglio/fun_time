@@ -455,7 +455,7 @@ def _position_mfp_window(
     logger.info("Positioned MFP (pid=%d) at %d,%d", mfp_pid, actual_x, actual_y)
 
 
-def _resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
+def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
     """Resolve a Windows .lnk shortcut, returning (target, work_dir, args).
 
     Uses the COM IShellLink interface via ctypes.
@@ -507,7 +507,7 @@ def _maybe_launch_random_favs_browser(
     shortcut_path = m["random_favs_browser"]["shortcut_path"]
     manifest_file = m["random_favs_browser"]["manifest_file"]
 
-    target, work_dir, args = _resolve_shortcut(shortcut_path)
+    target, work_dir, args = resolve_shortcut(shortcut_path)
     if not target:
         logger.warning("Random Favs Browser skipped: could not resolve shortcut %s", shortcut_path)
         return 0

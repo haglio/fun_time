@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .media_actions import ensure_in_favs, move_to_weird, remove_from_favs
+from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .lock import build_lock_plan
 from .runtime_flow import (
     apply_enter_omnipause,
@@ -123,7 +123,7 @@ def _cancel_lock(which: int, state: BridgeState, config: BridgeConfig) -> Bridge
     return replace(state, locked3=plan.next_locked)
 
 
-def _toggle_lock(which: int, state: BridgeState, config: BridgeConfig) -> BridgeState:
+def _toggle_lock(which: int, state: BridgeState, config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     port = config.portrait_port if which == 2 else config.landscape_port
     locked = state.locked2 if which == 2 else state.locked3
     current_path = get_current_file_path(port, config.vlc_password)
@@ -136,9 +136,14 @@ def _toggle_lock(which: int, state: BridgeState, config: BridgeConfig) -> Bridge
         vlc_http_cmd(port, "pl_next", config.vlc_password)
     if plan.log_message:
         logger.info(plan.log_message)
+    lock_ops: list[WindowOp] = []
+    if plan.open_rfb_tab and current_path:
+        url = make_web_url_from_path(current_path)
+        if url:
+            lock_ops.append(WindowOp(op="open_rfb_tab", key=url))
     if which == 2:
-        return replace(state, locked2=plan.next_locked)
-    return replace(state, locked3=plan.next_locked)
+        return replace(state, locked2=plan.next_locked), lock_ops
+    return replace(state, locked3=plan.next_locked), lock_ops
 
 
 def _discard(which: int, state: BridgeState, config: BridgeConfig) -> BridgeState:
@@ -183,7 +188,8 @@ def dispatch_command(
         return state, ops
 
     if command == "portrait_lock":
-        state = _toggle_lock(2, state, config)
+        state, lock_ops = _toggle_lock(2, state, config)
+        ops.extend(lock_ops)
         return state, ops
 
     if command == "portrait_trash":
@@ -203,7 +209,8 @@ def dispatch_command(
         return state, ops
 
     if command == "landscape_lock":
-        state = _toggle_lock(3, state, config)
+        state, lock_ops = _toggle_lock(3, state, config)
+        ops.extend(lock_ops)
         return state, ops
 
     if command == "landscape_trash":
