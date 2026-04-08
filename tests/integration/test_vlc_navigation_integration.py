@@ -8,6 +8,7 @@ Requires: VLC installed, FUN_TIME_RUN_INTEGRATION=1 env var.
 from __future__ import annotations
 
 import ctypes
+import ctypes.wintypes
 import glob
 import os
 import random
@@ -26,15 +27,14 @@ from fun_time.vlc_actions import (
     get_playback_state,
     replace_playlist_from_file,
     restore_vlcrc_volume,
-    set_repeat_mode,
     vlc_advance_and_remove,
     vlc_http_cmd,
     vlc_http_req,
     vlc_nav_step,
     wait_for_http,
 )
-from fun_time.win32 import move_window, wait_for_window
-from fun_time.windows_bridge_startup import _build_vlc_launch_command, _no_activate_kwargs
+from fun_time.win32 import wait_for_window
+from fun_time.windows_bridge_startup import _build_vlc_launch_command
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows only"),
@@ -59,15 +59,53 @@ def _find_test_videos(n: int = 4) -> list[str]:
     return random.sample(videos, min(n, len(videos)))
 
 
-def _position_vlc_right_two_thirds(pid: int) -> None:
-    """Move VLC to the right 2/3 of the primary monitor."""
+def _start_minimized_kwargs() -> dict:
+    """Return Popen kwargs that start the window minimized without focus.
+
+    Uses SW_SHOWMINNOACTIVE (7) so VLC never appears at full size on screen.
+    The window is restored to the correct position later via
+    _restore_vlc_right_two_thirds.
+    """
+    si = subprocess.STARTUPINFO()
+    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    si.wShowWindow = 7  # SW_SHOWMINNOACTIVE
+    return {"startupinfo": si}
+
+
+class WINDOWPLACEMENT(ctypes.Structure):
+    _fields_ = [
+        ("length", ctypes.c_uint),
+        ("flags", ctypes.c_uint),
+        ("showCmd", ctypes.c_uint),
+        ("ptMinPosition", ctypes.wintypes.POINT),
+        ("ptMaxPosition", ctypes.wintypes.POINT),
+        ("rcNormalPosition", ctypes.wintypes.RECT),
+    ]
+
+
+def _restore_vlc_right_two_thirds(pid: int) -> None:
+    """Restore a minimized VLC window directly to the right 2/3 of the primary monitor.
+
+    Uses SetWindowPlacement to set the restored position BEFORE showing the
+    window, so VLC never appears at the wrong size.  The window transitions
+    from minimized directly to the target rect.
+    """
     hwnd = wait_for_window(pid, timeout_s=10.0)
     if not hwnd:
         return
     screen_w = ctypes.windll.user32.GetSystemMetrics(0)  # SM_CXSCREEN
     screen_h = ctypes.windll.user32.GetSystemMetrics(1)  # SM_CYSCREEN
     left_margin = screen_w // 3
-    move_window(hwnd, left_margin, 0, screen_w - left_margin, screen_h, activate=False)
+
+    wp = WINDOWPLACEMENT()
+    wp.length = ctypes.sizeof(WINDOWPLACEMENT)
+    ctypes.windll.user32.GetWindowPlacement(hwnd, ctypes.byref(wp))
+    wp.rcNormalPosition.left = left_margin
+    wp.rcNormalPosition.top = 0
+    wp.rcNormalPosition.right = screen_w
+    wp.rcNormalPosition.bottom = screen_h
+    wp.showCmd = 4  # SW_SHOWNOACTIVATE — restore without stealing focus
+    ctypes.windll.user32.SetWindowPlacement(hwnd, ctypes.byref(wp))
 
 
 @pytest.fixture(scope="module")
@@ -91,7 +129,7 @@ def vlc_with_playlist():
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        **_no_activate_kwargs(),
+        **_start_minimized_kwargs(),
     )
     if not wait_for_http(TEST_PORT, TEST_PASSWORD, timeout_ms=10000):
         proc.kill()
@@ -99,7 +137,7 @@ def vlc_with_playlist():
     vlc_http_cmd(TEST_PORT, "volume&val=0", TEST_PASSWORD)
     replace_playlist_from_file(TEST_PORT, TEST_PASSWORD, playlist_path)
     time.sleep(1.0)
-    _position_vlc_right_two_thirds(proc.pid)
+    _restore_vlc_right_two_thirds(proc.pid)
     # Freeze playback rate to near-zero.  VLC stays in "playing" state
     # (all HTTP commands and jstree updates work normally) but can never
     # reach the end of a video and auto-advance.  This eliminates the
@@ -449,7 +487,7 @@ def vlc_repeat_one():
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        **_no_activate_kwargs(),
+        **_start_minimized_kwargs(),
     )
     if not wait_for_http(REPEAT_PORT, TEST_PASSWORD, timeout_ms=10000):
         proc.kill()
@@ -458,7 +496,7 @@ def vlc_repeat_one():
     replace_playlist_from_file(REPEAT_PORT, TEST_PASSWORD, playlist_path)
     vlc_http_cmd(REPEAT_PORT, "pl_next", TEST_PASSWORD)
     time.sleep(1.0)
-    _position_vlc_right_two_thirds(proc.pid)
+    _restore_vlc_right_two_thirds(proc.pid)
     # Freeze playback rate to near-zero.  VLC stays in "playing" state
     # (all HTTP commands and jstree updates work normally) but can never
     # reach the end of a video and auto-advance.  This eliminates the
