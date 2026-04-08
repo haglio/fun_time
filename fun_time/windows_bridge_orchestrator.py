@@ -22,7 +22,7 @@ from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
 )
-from .windows_bridge_sequencer import StartupResult, run_startup_sequence
+from .windows_bridge_sequencer import StartupResult, resolve_shortcut, run_startup_sequence
 from .windows_bridge_startup import _no_activate_kwargs
 from .z_order import apply_z_order, compute_z_order
 from .win32 import (
@@ -287,6 +287,11 @@ def run_python_orchestrated_bridge(
     wb_log_path = Path(manifest["runtime"]["windows_bridge_log_file"])
     _add_dispatch_file_handler(wb_log_path)
 
+    rfb_target, rfb_work_dir, rfb_args = "", "", ""
+    if manifest["random_favs_browser"]["enabled"] == "1":
+        rfb_shortcut_path = manifest["random_favs_browser"]["shortcut_path"]
+        rfb_target, rfb_work_dir, rfb_args = resolve_shortcut(rfb_shortcut_path)
+
     dispatch_runner = DispatchLoopRunner(
         config=bridge_config,
         dashboard_cmd_file=Path(manifest["commands"]["dashboard_cmd_file"]),
@@ -299,6 +304,9 @@ def run_python_orchestrated_bridge(
         dashboard_pid=result.dashboard_pid,
         dashboard_enabled=dashboard_enabled,
         rfb_hwnd=result.rfb_hwnd,
+        rfb_shortcut_target=rfb_target,
+        rfb_shortcut_work_dir=rfb_work_dir,
+        rfb_shortcut_args=rfb_args,
     )
     # Genau startup detection is handled by the dispatch loop's first
     # sync tick: if the broker has already written genau_mode.txt = "1"

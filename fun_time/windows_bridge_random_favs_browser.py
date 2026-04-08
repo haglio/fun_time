@@ -102,5 +102,36 @@ def launch_random_favs_browser(
     return plan
 
 
+def build_open_rfb_tab_command(
+    *,
+    url: str,
+    shortcut_target: str,
+    shortcut_args: str,
+) -> str:
+    """Build a Chrome command to open a URL as a new tab in the RFB profile."""
+    cmd = _quote(shortcut_target)
+    existing_args = shortcut_args.strip()
+    if existing_args:
+        cmd += f" {existing_args}"
+    cmd += f" {_quote(url)}"
+    return cmd
+
+
+def open_rfb_tab(
+    *,
+    url: str,
+    shortcut_target: str,
+    shortcut_work_dir: str,
+    shortcut_args: str,
+) -> None:
+    """Open a URL as a new tab in the RFB Chrome window."""
+    cmd = build_open_rfb_tab_command(
+        url=url,
+        shortcut_target=shortcut_target,
+        shortcut_args=shortcut_args,
+    )
+    subprocess.Popen(cmd, cwd=shortcut_work_dir)
+
+
 def _quote(value: str) -> str:
     return f'"{value}"'

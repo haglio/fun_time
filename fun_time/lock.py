@@ -11,6 +11,7 @@ class LockActionPlan:
     remove_from_favs: bool
     advance_playlist: bool
     move_to_weird: bool
+    open_rfb_tab: bool
     log_message: str
 
 
@@ -26,6 +27,7 @@ def build_lock_plan(action: str, *, which: int, locked: bool, current_path: str)
                 remove_from_favs=False,
                 advance_playlist=False,
                 move_to_weird=False,
+                open_rfb_tab=True,
                 log_message=f"Locked {player_name} VLC",
             )
         return LockActionPlan(
@@ -35,6 +37,7 @@ def build_lock_plan(action: str, *, which: int, locked: bool, current_path: str)
             remove_from_favs=False,
             advance_playlist=True,
             move_to_weird=False,
+            open_rfb_tab=False,
             log_message=f"Unlocked {player_name} VLC",
         )
 
@@ -46,6 +49,7 @@ def build_lock_plan(action: str, *, which: int, locked: bool, current_path: str)
             remove_from_favs=False,
             advance_playlist=False,
             move_to_weird=False,
+            open_rfb_tab=False,
             log_message="",
         )
 
@@ -57,6 +61,7 @@ def build_lock_plan(action: str, *, which: int, locked: bool, current_path: str)
             remove_from_favs=bool(current_path),
             advance_playlist=True,
             move_to_weird=bool(current_path),
+            open_rfb_tab=False,
             log_message=f"Discarding from player {which}: {current_path}",
         )
 

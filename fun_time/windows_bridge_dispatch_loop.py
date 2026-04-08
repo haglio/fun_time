@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
+from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on
@@ -61,7 +62,8 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
     remaining: list[WindowOp] = []
     for op in ops:
         if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "tooltip",
-                      "disable_all_topmost", "restore_all_topmost"):
+                      "disable_all_topmost", "restore_all_topmost",
+                      "open_rfb_tab"):
             remaining.append(op)
             continue
 
@@ -158,6 +160,9 @@ class DispatchLoopRunner:
         dashboard_pid: int = 0,
         dashboard_enabled: bool,
         rfb_hwnd: int = 0,
+        rfb_shortcut_target: str = "",
+        rfb_shortcut_work_dir: str = "",
+        rfb_shortcut_args: str = "",
         sync_interval_ms: int = 200,
     ) -> None:
         self.config = config
@@ -171,6 +176,9 @@ class DispatchLoopRunner:
         self.dashboard_pid = dashboard_pid
         self.dashboard_enabled = dashboard_enabled
         self.rfb_hwnd = rfb_hwnd
+        self.rfb_shortcut_target = rfb_shortcut_target
+        self.rfb_shortcut_work_dir = rfb_shortcut_work_dir
+        self.rfb_shortcut_args = rfb_shortcut_args
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
@@ -287,6 +295,16 @@ class DispatchLoopRunner:
                 self._restore_all_topmost()
                 continue
             if suppress_unsuspend and op.op == "unsuspend_hotkeys":
+                continue
+            if op.op == "open_rfb_tab":
+                if self.rfb_hwnd and self.rfb_shortcut_target:
+                    open_rfb_tab(
+                        url=op.key,
+                        shortcut_target=self.rfb_shortcut_target,
+                        shortcut_work_dir=self.rfb_shortcut_work_dir,
+                        shortcut_args=self.rfb_shortcut_args,
+                    )
+                    logger.info("Opened RFB tab: %s", op.key)
                 continue
             if op.op == "vlc_http_seek":
                 ok = vlc_http_cmd(self.config.primary_port, op.key, self.config.vlc_password)

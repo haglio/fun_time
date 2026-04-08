@@ -33,6 +33,26 @@ def test_cancel_lock_only_changes_state_when_currently_locked():
     assert unlocked_plan.repeat_mode == ""
 
 
+def test_toggle_lock_sets_open_rfb_tab_true_when_locking():
+    plan = build_lock_plan("toggle-lock", which=2, locked=False, current_path="clip.mp4")
+
+    assert plan.open_rfb_tab is True
+
+
+def test_toggle_lock_sets_open_rfb_tab_false_when_unlocking():
+    plan = build_lock_plan("toggle-lock", which=3, locked=True, current_path="clip.mp4")
+
+    assert plan.open_rfb_tab is False
+
+
+def test_cancel_lock_and_discard_set_open_rfb_tab_false():
+    cancel = build_lock_plan("cancel-lock", which=2, locked=True, current_path="")
+    discard = build_lock_plan("discard", which=3, locked=True, current_path="odd.mp4")
+
+    assert cancel.open_rfb_tab is False
+    assert discard.open_rfb_tab is False
+
+
 def test_discard_unlocks_removes_from_favs_advances_and_moves_to_weird():
     plan = build_lock_plan("discard", which=3, locked=True, current_path="odd.mp4")
 

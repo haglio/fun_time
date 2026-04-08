@@ -258,7 +258,7 @@ class TestMaybeLaunchRandomFavsBrowser:
 
         launch_result = MagicMock(should_launch=True)
 
-        with patch("fun_time.windows_bridge_sequencer._resolve_shortcut", return_value=("chrome.exe", "", "")), \
+        with patch("fun_time.windows_bridge_sequencer.resolve_shortcut", return_value=("chrome.exe", "", "")), \
              patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
@@ -290,7 +290,7 @@ class TestMaybeLaunchRandomFavsBrowser:
         def track_topmost(hwnd, on_top):
             topmost_calls.append((hwnd, on_top))
 
-        with patch("fun_time.windows_bridge_sequencer._resolve_shortcut", return_value=("chrome.exe", "", "")), \
+        with patch("fun_time.windows_bridge_sequencer.resolve_shortcut", return_value=("chrome.exe", "", "")), \
              patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
@@ -324,7 +324,7 @@ class TestMaybeLaunchRandomFavsBrowser:
             launch_kwargs.update(kwargs)
             return launch_result
 
-        with patch("fun_time.windows_bridge_sequencer._resolve_shortcut", return_value=("chrome.exe", "", "")), \
+        with patch("fun_time.windows_bridge_sequencer.resolve_shortcut", return_value=("chrome.exe", "", "")), \
              patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", side_effect=capture_launch), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
@@ -351,7 +351,7 @@ class TestMaybeLaunchRandomFavsBrowser:
             launch_kwargs.update(kwargs)
             return launch_result
 
-        with patch("fun_time.windows_bridge_sequencer._resolve_shortcut", return_value=("chrome.exe", "", "")), \
+        with patch("fun_time.windows_bridge_sequencer.resolve_shortcut", return_value=("chrome.exe", "", "")), \
              patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", side_effect=capture_launch), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
