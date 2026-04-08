@@ -14,11 +14,12 @@ from pathlib import Path
 
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .lock import build_lock_plan
+from .mode_plan import genau_active
 from .runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
+    apply_mode_switch,
     apply_toggle_fmode,
-    apply_toggle_genau_active,
     build_omnipause_toggle,
     read_flag_file,
     write_flag_file,
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 class BridgeState:
     locked2: bool = False
     locked3: bool = False
-    genau_mode: bool = False
+    primary_mode: str = "vlc"
     f_mode_enabled: bool = False
     omni_paused: bool = False
 
@@ -240,17 +241,18 @@ def dispatch_command(
     if command in ("fmode_toggle", "fmode_panel"):
         return _dispatch_fmode_toggle(state, config)
 
-    if command in ("genau_toggle", "genau_panel"):
-        return _dispatch_genau_toggle(state, config, ops)
+    if command in ("genau_activate", "vlc_activate", "hybrid_activate"):
+        target = {"genau_activate": "genau", "vlc_activate": "vlc", "hybrid_activate": "hybrid"}[command]
+        return _dispatch_mode_switch(target, state, config, ops)
 
     if command in _GENAU_CMD_MAP:
-        if state.genau_mode:
+        if genau_active(state.primary_mode):
             config.genau_cmd_file.write_text(_GENAU_CMD_MAP[command], encoding="utf-8")
         return state, ops
 
     genau_numeric = _parse_genau_numeric_command(command)
     if genau_numeric is not None:
-        if state.genau_mode:
+        if genau_active(state.primary_mode):
             config.genau_cmd_file.write_text(genau_numeric, encoding="utf-8")
         return state, ops
 
@@ -263,7 +265,7 @@ def dispatch_command(
         return state, ops
 
     if command == "clipper_save":
-        if not state.genau_mode:
+        if state.primary_mode != "genau":
             msg = _dispatch_clipper_save(config)
             if msg:
                 ops.append(WindowOp(op="tooltip", key=msg))
@@ -278,12 +280,12 @@ def _dispatch_omnipause_toggle(
     ops: list[WindowOp] = []
     toggle = build_omnipause_toggle(
         omni_paused=state.omni_paused,
-        genau_mode_on=state.genau_mode,
+        primary_mode=state.primary_mode,
     )
     if toggle.action == "enter":
         result = apply_enter_omnipause(
             omni_paused=state.omni_paused,
-            genau_mode_on=state.genau_mode,
+            primary_mode=state.primary_mode,
             portrait_port=config.portrait_port,
             landscape_port=config.landscape_port,
             primary_port=config.primary_port,
@@ -299,7 +301,7 @@ def _dispatch_omnipause_toggle(
     else:
         result = apply_leave_omnipause(
             omni_paused=state.omni_paused,
-            genau_mode_on=state.genau_mode,
+            primary_mode=state.primary_mode,
             skip_primary_resume=False,
             primary_port=config.primary_port,
             portrait_port=config.portrait_port,
@@ -313,7 +315,7 @@ def _dispatch_omnipause_toggle(
         state = replace(state, omni_paused=result.next_omni_paused)
         ops.append(WindowOp(op="restore_all_topmost"))
         ops.append(WindowOp(op="unsuspend_hotkeys"))
-        if state.genau_mode:
+        if genau_active(state.primary_mode):
             ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
             ops.append(WindowOp(op="activate", title="Genau"))
     if result.log_message:
@@ -327,7 +329,7 @@ def _dispatch_enter_omnipause(
     ops: list[WindowOp] = []
     result = apply_enter_omnipause(
         omni_paused=state.omni_paused,
-        genau_mode_on=state.genau_mode,
+        primary_mode=state.primary_mode,
         portrait_port=config.portrait_port,
         landscape_port=config.landscape_port,
         primary_port=config.primary_port,
@@ -351,7 +353,7 @@ def _dispatch_leave_omnipause_skip_primary(
     ops: list[WindowOp] = []
     result = apply_leave_omnipause(
         omni_paused=state.omni_paused,
-        genau_mode_on=state.genau_mode,
+        primary_mode=state.primary_mode,
         skip_primary_resume=True,
         primary_port=config.primary_port,
         portrait_port=config.portrait_port,
@@ -365,7 +367,7 @@ def _dispatch_leave_omnipause_skip_primary(
     state = replace(state, omni_paused=result.next_omni_paused)
     ops.append(WindowOp(op="restore_all_topmost"))
     ops.append(WindowOp(op="unsuspend_hotkeys"))
-    if state.genau_mode:
+    if genau_active(state.primary_mode):
         ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
         ops.append(WindowOp(op="activate", title="Genau"))
     if result.log_message:
@@ -398,11 +400,12 @@ def _dispatch_fmode_toggle(
     ), []
 
 
-def _dispatch_genau_toggle(
-    state: BridgeState, config: BridgeConfig, ops: list[WindowOp]
+def _dispatch_mode_switch(
+    target_mode: str, state: BridgeState, config: BridgeConfig, ops: list[WindowOp]
 ) -> tuple[BridgeState, list[WindowOp]]:
-    result = apply_toggle_genau_active(
-        genau_mode_on=state.genau_mode,
+    result = apply_mode_switch(
+        current_mode=state.primary_mode,
+        target_mode=target_mode,
         omni_paused=state.omni_paused,
         paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
@@ -411,9 +414,9 @@ def _dispatch_genau_toggle(
         password=config.vlc_password,
         broker_cmd_file=config.broker_cmd_file,
     )
-    state = replace(state, genau_mode=result.next_genau_mode)
+    state = replace(state, primary_mode=result.next_mode)
     if result.is_transition:
-        if result.next_genau_mode:
+        if genau_active(result.next_mode):
             ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
             ops.append(WindowOp(op="activate", title="Genau"))
         else:

@@ -58,7 +58,10 @@ Space::QueueCommand("enter_omnipause")
 SC01A::QueueCommand("primary_prev")
 ]::QueueCommand("primary_next")
 SC01B::QueueCommand("primary_next")
-g::QueueCommand("genau_toggle")
+; Mode activation hotkeys
+g::QueueCommand("genau_activate")
+h::QueueCommand("hybrid_activate")
+v::QueueCommand("vlc_activate")
 $f::QueueCommand("fmode_toggle")
 
 \::QueueCommand("backslash_key")

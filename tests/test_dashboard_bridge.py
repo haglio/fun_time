@@ -10,7 +10,7 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         f_mode_enabled=True,
         osr2_mode="auto",
         mfp_alive=True,
-        primary_uses_genau=False,
+        primary_mode="vlc",
         portrait_locked=True,
         landscape_locked=False,
     )
@@ -27,7 +27,7 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "[voice]\n"
         "active=1\n"
         "[primary]\n"
-        "uses_genau=0\n"
+        "mode=vlc\n"
         "locked=0\n"
         "[portrait]\n"
         "locked=1\n"
@@ -41,7 +41,7 @@ def test_build_dashboard_snapshot_text_includes_omnipause_state():
         f_mode_enabled=False,
         osr2_mode="controlled",
         mfp_alive=False,
-        primary_uses_genau=False,
+        primary_mode="vlc",
         portrait_locked=False,
         landscape_locked=False,
         omni_paused=True,
@@ -55,7 +55,7 @@ def test_build_dashboard_snapshot_text_includes_voice_state():
         f_mode_enabled=False,
         osr2_mode="controlled",
         mfp_alive=False,
-        primary_uses_genau=False,
+        primary_mode="vlc",
         portrait_locked=False,
         landscape_locked=False,
         voice_active=False,
@@ -72,7 +72,7 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
         f_mode_enabled=False,
         osr2_mode="controlled",
         mfp_alive=False,
-        primary_uses_genau=True,
+        primary_mode="genau",
         portrait_locked=False,
         landscape_locked=True,
     )
@@ -81,7 +81,7 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
         f_mode_enabled=False,
         osr2_mode="controlled",
         mfp_alive=False,
-        primary_uses_genau=True,
+        primary_mode="genau",
         portrait_locked=False,
         landscape_locked=True,
     )
@@ -90,5 +90,5 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
     assert second is False
     text = output.read_text(encoding="utf-16")
     assert "[primary]" in text
-    assert "uses_genau=1" in text
+    assert "mode=genau" in text
     assert "genau_link" not in text

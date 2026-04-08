@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 from .modes import build_fmode_playlists
 from .omnipause import build_omnipause_plan
-from .genau_plan import build_genau_toggle_plan
+from .mode_plan import build_mode_switch_plan, genau_active
 from .vlc_actions import ensure_playback_state, replace_playlist_from_file
 
 
@@ -30,8 +30,8 @@ def write_flag_file(path: str | Path, value: bool) -> None:
 
 
 @dataclass(frozen=True)
-class GenauFlowResult:
-    next_genau_mode: bool
+class ModeSwitchFlowResult:
+    next_mode: str
     is_transition: bool
     log_message: str
 
@@ -45,9 +45,10 @@ class FModeFlowResult:
     log_message: str
 
 
-def apply_toggle_genau_active(
+def apply_mode_switch(
     *,
-    genau_mode_on: bool,
+    current_mode: str,
+    target_mode: str,
     omni_paused: bool,
     paused_file: str | Path,
     audio_paused_file: str | Path,
@@ -55,23 +56,30 @@ def apply_toggle_genau_active(
     primary_port: int,
     password: str,
     broker_cmd_file: str | Path | None = None,
-) -> GenauFlowResult:
-    plan = build_genau_toggle_plan(
-        genau_mode_on=genau_mode_on,
+) -> ModeSwitchFlowResult:
+    plan = build_mode_switch_plan(
+        current_mode=current_mode,
+        target_mode=target_mode,
         omni_paused=omni_paused,
     )
     if plan.is_transition:
-        write_flag_file(paused_file, not plan.target_active)
-        write_flag_file(audio_paused_file, not plan.target_active)
-        Path(genau_cmd_file).write_text(
-            "RESUME" if plan.target_active else "PAUSE", encoding="utf-8",
-        )
-        if not ensure_playback_state(primary_port, password, should_play=not plan.target_active):
-            logger.warning("Primary VLC failed to reach desired Genau toggle playback state")
-        if not plan.target_active and broker_cmd_file is not None:
+        will_genau = genau_active(plan.target_mode)
+        write_flag_file(paused_file, not will_genau)
+        write_flag_file(audio_paused_file, not will_genau)
+        if plan.genau_cmd is not None:
+            cmds = [plan.genau_cmd]
+            if plan.hud_cmd is not None:
+                cmds.append(plan.hud_cmd)
+            Path(genau_cmd_file).write_text("\n".join(cmds), encoding="utf-8")
+        elif plan.hud_cmd is not None:
+            Path(genau_cmd_file).write_text(plan.hud_cmd, encoding="utf-8")
+        if plan.vlc_should_play is not None:
+            if not ensure_playback_state(primary_port, password, should_play=plan.vlc_should_play):
+                logger.warning("Primary VLC failed to reach desired mode-switch playback state")
+        if not will_genau and broker_cmd_file is not None:
             Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
-    return GenauFlowResult(
-        next_genau_mode=plan.target_active,
+    return ModeSwitchFlowResult(
+        next_mode=plan.target_mode,
         is_transition=plan.is_transition,
         log_message=plan.log_message,
     )
@@ -123,11 +131,11 @@ class OmniPauseFlowResult:
     log_message: str
 
 
-def build_omnipause_toggle(*, omni_paused: bool, genau_mode_on: bool) -> OmniPauseFlowResult:
+def build_omnipause_toggle(*, omni_paused: bool, primary_mode: str) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "toggle",
         omni_paused=omni_paused,
-        genau_mode_on=genau_mode_on,
+        genau_mode_on=genau_active(primary_mode),
         skip_primary_resume=False,
     )
     return OmniPauseFlowResult(
@@ -142,7 +150,7 @@ def build_omnipause_toggle(*, omni_paused: bool, genau_mode_on: bool) -> OmniPau
 def apply_enter_omnipause(
     *,
     omni_paused: bool,
-    genau_mode_on: bool,
+    primary_mode: str,
     portrait_port: int,
     landscape_port: int,
     primary_port: int,
@@ -155,7 +163,7 @@ def apply_enter_omnipause(
     plan = build_omnipause_plan(
         "enter",
         omni_paused=omni_paused,
-        genau_mode_on=genau_mode_on,
+        genau_mode_on=genau_active(primary_mode),
         skip_primary_resume=False,
     )
     write_flag_file(genau_paused_file, True)
@@ -188,7 +196,7 @@ def apply_enter_omnipause(
 def apply_leave_omnipause(
     *,
     omni_paused: bool,
-    genau_mode_on: bool,
+    primary_mode: str,
     skip_primary_resume: bool,
     primary_port: int,
     portrait_port: int,
@@ -202,10 +210,10 @@ def apply_leave_omnipause(
     plan = build_omnipause_plan(
         "leave",
         omni_paused=omni_paused,
-        genau_mode_on=genau_mode_on,
+        genau_mode_on=genau_active(primary_mode),
         skip_primary_resume=skip_primary_resume,
     )
-    if genau_mode_on:
+    if genau_active(primary_mode):
         write_flag_file(genau_paused_file, False)
         write_flag_file(audio_paused_file, False)
         Path(genau_cmd_file).write_text("RESUME", encoding="utf-8")

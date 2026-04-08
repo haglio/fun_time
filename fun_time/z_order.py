@@ -17,7 +17,7 @@ def compute_z_order(
     genau_hwnd: int = 0,
     mfp_hwnd: int = 0,
     dashboard_hwnd: int = 0,
-    genau_active: bool = False,
+    primary_mode: str = "vlc",
 ) -> list[tuple[int, bool]]:
     """Compute the desired z-order stack (bottom to top).
 
@@ -29,8 +29,8 @@ def compute_z_order(
 
         RFB > Portrait > Landscape > [Primary|Genau] > MFP > Dashboard
 
-    The inactive window (Genau when not active, Primary when Genau is
-    active) gets ``topmost=False``.
+    In VLC mode, Genau is non-topmost.  In Genau mode, Primary is
+    non-topmost.  In Hybrid mode, both are topmost with Genau on top.
     """
     layers: list[tuple[int, bool]] = []
 
@@ -41,9 +41,14 @@ def compute_z_order(
     if landscape_hwnd:
         layers.append((landscape_hwnd, True))
 
-    if genau_active:
+    if primary_mode == "genau":
         if primary_hwnd:
             layers.append((primary_hwnd, False))
+        if genau_hwnd:
+            layers.append((genau_hwnd, True))
+    elif primary_mode == "hybrid":
+        if primary_hwnd:
+            layers.append((primary_hwnd, True))
         if genau_hwnd:
             layers.append((genau_hwnd, True))
     else:

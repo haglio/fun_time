@@ -204,7 +204,7 @@ class TestSharedState:
         state = BridgeState(
             locked2=True,
             locked3=False,
-            genau_mode=True,
+            primary_mode="genau",
             f_mode_enabled=False,
             omni_paused=True,
         )
@@ -333,7 +333,7 @@ class TestDispatchLoopRunner:
     def test_backslash_key_dispatches_quarter_button_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(genau_mode=True)
+        runner.state = BridgeState(primary_mode="genau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -356,7 +356,7 @@ class TestDispatchLoopRunner:
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner.dashboard_enabled = True
         runner._last_sync = float("inf")
-        runner.state = BridgeState(genau_mode=True)
+        runner.state = BridgeState(primary_mode="genau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -387,7 +387,7 @@ class TestDispatchLoopRunner:
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner.dashboard_enabled = True
         runner._last_sync = float("inf")
-        runner.state = BridgeState(genau_mode=False)
+        runner.state = BridgeState(primary_mode="vlc")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -412,7 +412,7 @@ class TestDispatchLoopRunner:
     def test_backslash_key_enters_omnipause_when_not_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(genau_mode=False)
+        runner.state = BridgeState(primary_mode="vlc")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -485,7 +485,7 @@ class TestDispatchLoopRunner:
         """Sync tick enforces z-order unconditionally (not just in genau mode)."""
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         runner._last_sync = -999
-        runner.state = BridgeState(genau_mode=False)
+        runner.state = BridgeState(primary_mode="vlc")
 
         with patch.object(runner, "_apply_z_order") as mock_apply, \
              patch.object(runner, "_update_dashboard"):
@@ -496,7 +496,7 @@ class TestDispatchLoopRunner:
     def test_sync_tick_skips_z_order_during_omnipause(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=100)
         runner._last_sync = -999
-        runner.state = BridgeState(genau_mode=True, omni_paused=True)
+        runner.state = BridgeState(primary_mode="genau", omni_paused=True)
 
         with patch.object(runner, "_apply_z_order") as mock_apply, \
              patch.object(runner, "_update_dashboard"):
@@ -764,31 +764,31 @@ class TestGenauZOrder:
             **kwargs,
         )
 
-    def test_genau_toggle_on_applies_z_order(self, tmp_path):
-        """Toggling genau mode on must trigger a full z-order apply."""
+    def test_genau_activate_applies_z_order(self, tmp_path):
+        """Activating genau mode must trigger a full z-order apply."""
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(genau_mode=False)
+        runner.state = BridgeState(primary_mode="vlc")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch.object(runner, "_apply_z_order") as mock_apply:
-            mock_dispatch.return_value = (BridgeState(genau_mode=True), [])
-            runner._dispatch("genau_toggle")
+            mock_dispatch.return_value = (BridgeState(primary_mode="genau"), [])
+            runner._dispatch("genau_activate")
 
         mock_apply.assert_called_once()
 
-    def test_genau_toggle_off_applies_z_order(self, tmp_path):
-        """Toggling genau mode off must trigger a full z-order apply."""
+    def test_vlc_activate_applies_z_order(self, tmp_path):
+        """Deactivating genau mode must trigger a full z-order apply."""
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(genau_mode=True)
+        runner.state = BridgeState(primary_mode="genau")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch.object(runner, "_apply_z_order") as mock_apply:
-            mock_dispatch.return_value = (BridgeState(genau_mode=False), [])
-            runner._dispatch("genau_toggle")
+            mock_dispatch.return_value = (BridgeState(primary_mode="vlc"), [])
+            runner._dispatch("vlc_activate")
 
         mock_apply.assert_called_once()
 
@@ -796,7 +796,7 @@ class TestGenauZOrder:
         """Periodic sync must correct drift — if Primary VLC re-asserts TOPMOST
         during a video transition while in genau mode, the sync tick demotes it."""
         runner = self._make_runner(tmp_path, sync_interval_ms=0)
-        runner.state = BridgeState(genau_mode=True)
+        runner.state = BridgeState(primary_mode="genau")
         runner._last_sync = 0
 
         topmost_calls = []
@@ -819,7 +819,7 @@ class TestGenauZOrder:
         """_restore_all_topmost must demote Primary and promote Genau
         when genau mode is active."""
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(genau_mode=True)
+        runner.state = BridgeState(primary_mode="genau")
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
@@ -957,7 +957,7 @@ class TestHandleOmniPauseToggle:
 
     def test_leaving_skips_primary_topmost_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True, genau_mode=True)
+        runner.state = BridgeState(omni_paused=True, primary_mode="genau")
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
@@ -967,7 +967,7 @@ class TestHandleOmniPauseToggle:
                    return_value=[WindowOp(op="restore_all_topmost")]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, primary_mode="genau"), [])
             runner._handle_omnipause_toggle()
 
         restored = {h for h, v in topmost_calls if v}
@@ -976,7 +976,7 @@ class TestHandleOmniPauseToggle:
 
     def test_entering_omnipause_removes_genau_topmost(self, tmp_path):
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False, genau_mode=True)
+        runner.state = BridgeState(omni_paused=False, primary_mode="genau")
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
@@ -995,7 +995,7 @@ class TestHandleOmniPauseToggle:
 
     def test_leaving_omnipause_sets_genau_topmost_last_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True, genau_mode=True)
+        runner.state = BridgeState(omni_paused=True, primary_mode="genau")
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
@@ -1006,7 +1006,7 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, primary_mode="genau"), [])
             runner._handle_omnipause_toggle()
 
         restored = [(h, v) for h, v in topmost_calls if v]
@@ -1018,7 +1018,7 @@ class TestHandleOmniPauseToggle:
 
     def test_entering_omnipause_removes_genau_topmost_via_title_when_pid_fails(self, tmp_path):
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False, genau_mode=True)
+        runner.state = BridgeState(omni_paused=False, primary_mode="genau")
 
         topmost_calls = []
         # PID lookup returns 0 for Genau (simulates pythonw launcher mismatch)
@@ -1038,7 +1038,7 @@ class TestHandleOmniPauseToggle:
 
     def test_leaving_omnipause_restores_genau_topmost_via_title_when_pid_fails(self, tmp_path):
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True, genau_mode=True)
+        runner.state = BridgeState(omni_paused=True, primary_mode="genau")
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
@@ -1049,7 +1049,7 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=7777), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=True), [])
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, primary_mode="genau"), [])
             runner._handle_omnipause_toggle()
 
         restored = {h for h, v in topmost_calls if v}
@@ -1057,7 +1057,7 @@ class TestHandleOmniPauseToggle:
 
     def test_leaving_omnipause_skips_genau_topmost_when_not_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True, genau_mode=False)
+        runner.state = BridgeState(omni_paused=True, primary_mode="vlc")
 
         topmost_calls = []
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001, 600: 6001}
@@ -1066,7 +1066,7 @@ class TestHandleOmniPauseToggle:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, genau_mode=False), [])
+            mock_dispatch.return_value = (BridgeState(omni_paused=False, primary_mode="vlc"), [])
             runner._handle_omnipause_toggle()
 
         restored = {h for h, v in topmost_calls if v}
@@ -1306,7 +1306,7 @@ class TestHandleOpenFileDialog:
 
     def test_skips_primary_topmost_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False, genau_mode=True)
+        runner.state = BridgeState(omni_paused=False, primary_mode="genau")
 
         topmost_calls = []
 
@@ -1326,7 +1326,7 @@ class TestHandleOpenFileDialog:
              patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True, genau_mode=True), [])
+            mock_dispatch.return_value = (BridgeState(omni_paused=True, primary_mode="genau"), [])
             runner._handle_open_file_dialog()
 
         # Primary (1001) should NOT be restored to topmost in genau_mode
@@ -1801,17 +1801,17 @@ class TestIdempotentVoiceCommands:
 
     def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(genau_mode=False)
+        runner.state = BridgeState(primary_mode="vlc")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("genau_toggle")
+        mock_d.assert_called_once_with("genau_activate")
 
     def test_genau_activate_noop_when_already_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(genau_mode=True)
+        runner.state = BridgeState(primary_mode="genau")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
@@ -1821,17 +1821,17 @@ class TestIdempotentVoiceCommands:
 
     def test_genau_deactivate_dispatches_when_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(genau_mode=True)
+        runner.state = BridgeState(primary_mode="genau")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_deactivate", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("genau_toggle")
+        mock_d.assert_called_once_with("vlc_activate")
 
     def test_genau_deactivate_noop_when_not_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(genau_mode=False)
+        runner.state = BridgeState(primary_mode="vlc")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_deactivate", encoding="utf-8")
