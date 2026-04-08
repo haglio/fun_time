@@ -52,6 +52,21 @@ def _read_vlc_config_from_manifest(session: FunTimeIntegrationSession) -> tuple[
     return port, password
 
 
+def _read_vlc_video_length(port: int, password: str, session: FunTimeIntegrationSession) -> float:
+    """Read the current video's length in seconds from VLC's HTTP API."""
+    result: list[float] = []
+    session.wait_until(
+        lambda: (
+            (_s := vlc_http_req(port, "/requests/status.xml", password))
+            and (_m := re.search(r"<length>(\d+)</length>", _s[1]))
+            and (result.append(float(_m.group(1))) or True)
+        ),
+        timeout=10,
+        description="VLC to report video length",
+    )
+    return result[0]
+
+
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
     reason="Fun Time integration tests require Windows",
@@ -289,11 +304,8 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     port, password = _read_vlc_config_from_manifest(s)
 
     # The previous test may have toggled omnipause, leaving VLC paused.
-    # Actively drive VLC into "playing" state rather than passively waiting
-    # for the orchestrator's async omnipause-leave to complete the resume.
-    # The sleep lets the orchestrator finish processing queued commands
-    # (omnipause-leave, genau-deactivation) before we send nudge commands
-    # that compete for the same dispatch loop.
+    # Let the orchestrator finish processing queued commands before we
+    # send nudge commands that compete for the same dispatch loop.
     time.sleep(2.0)
     ensure_playback_state(port, password, should_play=True)
     s.wait_until(
@@ -301,27 +313,30 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
         timeout=10,
         description="VLC to resume playing before nudge test",
     )
-    # Freeze playback rate to prevent auto-advance.  VLC stays in
-    # "playing" state (seek commands work normally) but can never reach
-    # the end of the video and wrap around, which would reset the
-    # position and break the nudge assertions.
+
+    # Advance through the playlist until we find a video long enough
+    # for ±10s nudges.  The primary playlist has multiple videos (linked
+    # by _link_primary_samples); short clips (<22s) can't accommodate
+    # the +10/-10 seek without wrapping past the end.
+    video_length = _read_vlc_video_length(port, password, s)
+    for _ in range(10):
+        if video_length >= 22:
+            break
+        vlc_http_cmd(port, "pl_next", password)
+        time.sleep(1.0)
+        ensure_playback_state(port, password, should_play=True)
+        video_length = _read_vlc_video_length(port, password, s)
+    assert video_length >= 22, (
+        f"No video in playlist is >=22s (last was {video_length}s); "
+        f"nudge test needs >=22s for +/-10s seeks without wrapping."
+    )
+
+    # Freeze playback rate AFTER finding the right video — VLC resets
+    # rate on track change.
     vlc_http_cmd(port, "rate&val=0.1", password)
 
-    # Read video length and seek to the midpoint so there's room for
-    # ±10 s nudges without wrapping past the end.  The old fixed seek
-    # to 30 s failed when the test video was shorter than 40 s.
-    length_result: list[float] = []
-    s.wait_until(
-        lambda: (
-            (_s := vlc_http_req(port, "/requests/status.xml", password))
-            and (_m := re.search(r"<length>(\d+)</length>", _s[1]))
-            and (length_result.append(float(_m.group(1))) or True)
-        ),
-        timeout=10,
-        description="VLC to report video length",
-    )
-    video_length = length_result[0]
-    midpoint = int(max(15, min(video_length / 2, video_length - 15)))
+    # Seek to midpoint so there's room for ±10s nudges.
+    midpoint = int(min(video_length / 2, video_length - 11))
     vlc_http_cmd(port, f"seek&val={midpoint}", password)
     result: list[float] = []
     s.wait_until(
@@ -332,42 +347,27 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     before = result[0]
 
     # --- nudge forward ---
-    # The dashboard command goes through the orchestrator's async dispatch
-    # loop.  Under load the loop can stall, so re-send the command if VLC
-    # doesn't respond within a short window.
-    for _attempt in range(3):
-        s.write_dashboard_command("vlc_nudge_next")
-        try:
-            s.wait_until(
-                lambda: (t := get_playback_time(port, password)) is not None and t >= before + 7,
-                timeout=8,
-                description="VLC playback time to advance ~10s after nudge forward",
-            )
-            break
-        except AssertionError:
-            if _attempt == 2:
-                raise
-
-    # Read the forward position.  The rate freeze (0.1x) keeps VLC
-    # effectively frozen, so pausing is unnecessary — and the old
-    # pause/resume cycle could disrupt VLC's window state, causing
-    # the subsequent backward nudge's PostMessage to miss.
+    # Wait for the dispatch loop's own log confirmation that the HTTP
+    # seek was sent and VLC responded.  Previous attempts polled VLC's
+    # position immediately, racing the async dispatch path (file →
+    # dispatch loop → HTTP → VLC).  The retry loop papered over that
+    # race but never eliminated it.
+    s.write_dashboard_command("vlc_nudge_next")
+    s.wait_for_new_log("vlc_http_seek", timeout=10)
     after_forward = get_playback_time(port, password)
-    assert after_forward is not None
+    assert after_forward is not None and after_forward >= before + 7, (
+        f"Nudge forward: expected position >= {before + 7}, "
+        f"got {after_forward} (before={before})\n{s._log_tail()}"
+    )
 
     # --- nudge backward ---
-    for _attempt in range(3):
-        s.write_dashboard_command("vlc_nudge_prev")
-        try:
-            s.wait_until(
-                lambda: (t := get_playback_time(port, password)) is not None and t <= after_forward - 7,
-                timeout=8,
-                description="VLC playback time to retreat ~10s after nudge backward",
-            )
-            break
-        except AssertionError:
-            if _attempt == 2:
-                raise
+    s.write_dashboard_command("vlc_nudge_prev")
+    s.wait_for_new_log("vlc_http_seek", timeout=10)
+    after_backward = get_playback_time(port, password)
+    assert after_backward is not None and after_backward <= after_forward - 7, (
+        f"Nudge backward: expected position <= {after_forward - 7}, "
+        f"got {after_backward} (after_forward={after_forward})\n{s._log_tail()}"
+    )
 
 
 
