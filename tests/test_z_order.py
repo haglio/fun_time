@@ -10,7 +10,7 @@ class TestComputeZOrder:
         layers = compute_z_order(
             primary_hwnd=100,
             genau_hwnd=200,
-            genau_active=False,
+            primary_mode="vlc",
         )
         primary_entry = [(h, t) for h, t in layers if h == 100]
         genau_entry = [(h, t) for h, t in layers if h == 200]
@@ -22,7 +22,7 @@ class TestComputeZOrder:
         layers = compute_z_order(
             primary_hwnd=100,
             genau_hwnd=200,
-            genau_active=True,
+            primary_mode="genau",
         )
         primary_entry = [(h, t) for h, t in layers if h == 100]
         genau_entry = [(h, t) for h, t in layers if h == 200]
@@ -39,7 +39,7 @@ class TestComputeZOrder:
             genau_hwnd=5,
             mfp_hwnd=6,
             dashboard_hwnd=7,
-            genau_active=False,
+            primary_mode="vlc",
         )
         topmost_hwnds = [h for h, t in layers if t]
         assert topmost_hwnds == [1, 2, 3, 4, 6, 7]
@@ -57,19 +57,40 @@ class TestComputeZOrder:
             genau_hwnd=5,
             mfp_hwnd=6,
             dashboard_hwnd=7,
-            genau_active=True,
+            primary_mode="genau",
         )
         topmost_hwnds = [h for h, t in layers if t]
         assert topmost_hwnds == [1, 2, 3, 5, 6, 7]
         not_topmost = [h for h, t in layers if not t]
         assert not_topmost == [4]
 
+    def test_hybrid_both_topmost_genau_above_primary(self):
+        """In hybrid mode, both Primary and Genau are topmost, Genau above Primary."""
+        layers = compute_z_order(
+            rfb_hwnd=1,
+            portrait_hwnd=2,
+            landscape_hwnd=3,
+            primary_hwnd=4,
+            genau_hwnd=5,
+            mfp_hwnd=6,
+            dashboard_hwnd=7,
+            primary_mode="hybrid",
+        )
+        topmost_hwnds = [h for h, t in layers if t]
+        assert topmost_hwnds == [1, 2, 3, 4, 5, 6, 7]
+        not_topmost = [h for h, t in layers if not t]
+        assert not_topmost == []
+        # Genau must come after Primary in the list (stacks on top)
+        primary_idx = [h for h, _ in layers].index(4)
+        genau_idx = [h for h, _ in layers].index(5)
+        assert genau_idx > primary_idx
+
     def test_missing_hwnds_skipped(self):
         """Zero-valued HWNDs are omitted from layers."""
         layers = compute_z_order(
             primary_hwnd=100,
             mfp_hwnd=200,
-            genau_active=False,
+            primary_mode="vlc",
         )
         hwnds = [h for h, _ in layers]
         assert 0 not in hwnds
@@ -77,16 +98,16 @@ class TestComputeZOrder:
 
     def test_dashboard_always_last_topmost(self):
         """Dashboard must be the last TOPMOST entry regardless of genau state."""
-        for genau_active in [False, True]:
+        for primary_mode in ["vlc", "genau", "hybrid"]:
             layers = compute_z_order(
                 primary_hwnd=1,
                 genau_hwnd=2,
                 mfp_hwnd=3,
                 dashboard_hwnd=4,
-                genau_active=genau_active,
+                primary_mode=primary_mode,
             )
             topmost_entries = [(h, t) for h, t in layers if t]
-            assert topmost_entries[-1] == (4, True), f"genau_active={genau_active}"
+            assert topmost_entries[-1] == (4, True), f"primary_mode={primary_mode}"
 
 
 class TestApplyZOrder:

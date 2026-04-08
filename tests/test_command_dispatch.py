@@ -41,7 +41,7 @@ def _make_state(**overrides) -> BridgeState:
     defaults = dict(
         locked2=False,
         locked3=False,
-        genau_mode=False,
+        primary_mode="vlc",
         f_mode_enabled=False,
         omni_paused=False,
     )
@@ -293,7 +293,7 @@ def test_landscape_next_ensures_playback_after_nav(tmp_path: Path):
 
 def test_primary_prev_calls_vlc_nav_step(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=False)
+    state = _make_state(primary_mode="vlc")
     nav_calls: list[tuple] = []
 
     with patch("fun_time.command_dispatch.vlc_nav_step",
@@ -307,7 +307,7 @@ def test_primary_next_calls_vlc_nav_step(tmp_path: Path):
     """Primary VLC navigation uses vlc_nav_step (pl_play&id=N).
     With --start-paused removed, VLC auto-plays on item transitions."""
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=False)
+    state = _make_state(primary_mode="vlc")
     nav_calls: list[tuple] = []
 
     with patch("fun_time.command_dispatch.vlc_nav_step",
@@ -432,42 +432,42 @@ def test_fmode_panel_click_dispatches_as_fmode_toggle(tmp_path: Path):
     assert new_state.locked3 is False
 
 
-# --- genau_toggle ---
+# --- mode switch (genau_activate / vlc_activate / hybrid_activate) ---
 
 
-def test_genau_toggle_deactivates_when_genau_mode_on(tmp_path: Path):
+def test_vlc_activate_deactivates_genau(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="genau")
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("genau_toggle", state, config)
+        new_state, ops = dispatch_command("vlc_activate", state, config)
 
-    assert new_state.genau_mode is False
+    assert new_state.primary_mode == "vlc"
     assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
 
 
-def test_genau_toggle_activates_when_genau_mode_off(tmp_path: Path):
+def test_genau_activate_activates_genau(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=False)
+    state = _make_state(primary_mode="vlc")
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("genau_toggle", state, config)
+        new_state, ops = dispatch_command("genau_activate", state, config)
 
-    assert new_state.genau_mode is True
+    assert new_state.primary_mode == "genau"
     assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
     assert any(op.op == "activate" and op.title == "Genau" for op in ops)
 
 
-def test_genau_panel_is_alias_for_genau_toggle(tmp_path: Path):
-    """genau_panel dispatches identically to genau_toggle."""
+def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="vlc")
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("genau_panel", state, config)
+        new_state, ops = dispatch_command("hybrid_activate", state, config)
 
-    assert new_state.genau_mode is False
-    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
+    assert new_state.primary_mode == "hybrid"
+    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
+    assert any(op.op == "activate" and op.title == "Genau" for op in ops)
 
 
 # --- genau command forwarding (_GENAU_CMD_MAP) ---
@@ -475,7 +475,7 @@ def test_genau_panel_is_alias_for_genau_toggle(tmp_path: Path):
 
 def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="genau")
 
     new_state, ops = dispatch_command("genau_speed_down", state, config)
 
@@ -486,7 +486,7 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 
 def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="genau")
 
     new_state, ops = dispatch_command("genau_next_clip", state, config)
 
@@ -495,7 +495,7 @@ def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 
 def test_genau_toggle_cruise_writes_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="genau")
 
     new_state, ops = dispatch_command("genau_toggle_cruise", state, config)
 
@@ -506,7 +506,7 @@ def test_genau_toggle_cruise_writes_cmd_file(tmp_path: Path):
 
 def test_genau_cruise_on_writes_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="genau")
 
     new_state, ops = dispatch_command("genau_cruise_on", state, config)
 
@@ -517,7 +517,7 @@ def test_genau_cruise_on_writes_cmd_file(tmp_path: Path):
 
 def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="genau")
 
     new_state, ops = dispatch_command("genau_cruise_off", state, config)
 
@@ -528,7 +528,7 @@ def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
 
 def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=False)
+    state = _make_state(primary_mode="vlc")
 
     new_state, ops = dispatch_command("genau_speed_down", state, config)
 
@@ -542,7 +542,7 @@ def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
 
 def test_genau_amp_writes_numeric_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="genau")
 
     new_state, ops = dispatch_command("genau_amp_50", state, config)
 
@@ -553,7 +553,7 @@ def test_genau_amp_writes_numeric_cmd_file(tmp_path: Path):
 
 def test_genau_center_writes_numeric_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="genau")
 
     new_state, ops = dispatch_command("genau_center_80", state, config)
 
@@ -562,7 +562,7 @@ def test_genau_center_writes_numeric_cmd_file(tmp_path: Path):
 
 def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="genau")
 
     new_state, ops = dispatch_command("genau_speed_30", state, config)
 
@@ -571,7 +571,7 @@ def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
 
 def test_genau_numeric_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=False)
+    state = _make_state(primary_mode="vlc")
 
     new_state, ops = dispatch_command("genau_amp_50", state, config)
 
@@ -648,7 +648,7 @@ def test_leave_omnipause_skip_primary_emits_restore_all_topmost(tmp_path: Path):
 def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
     """Genau should stay topmost during omnipause — only pause playback."""
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=False, genau_mode=True)
+    state = _make_state(omni_paused=False, primary_mode="genau")
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("enter_omnipause", state, config)
@@ -659,7 +659,7 @@ def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
 def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
     """Esc (omnipause toggle) should pause Genau, not remove its topmost."""
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=False, genau_mode=True)
+    state = _make_state(omni_paused=False, primary_mode="genau")
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("omnipause_toggle", state, config)
@@ -689,7 +689,7 @@ def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):
 
 def test_leave_omnipause_skip_primary_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=True, genau_mode=True)
+    state = _make_state(omni_paused=True, primary_mode="genau")
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
@@ -741,7 +741,7 @@ def test_unknown_command_returns_unchanged_state(tmp_path: Path):
 
 def test_clipper_save_calls_subprocess_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=False)
+    state = _make_state(primary_mode="vlc")
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
          patch("fun_time.command_dispatch.get_playback_time", return_value=42.5), \
@@ -770,7 +770,7 @@ def test_clipper_save_calls_subprocess_when_not_in_genau_mode(tmp_path: Path):
 
 def test_clipper_save_no_tooltip_on_failure(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=False)
+    state = _make_state(primary_mode="vlc")
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
          patch("fun_time.command_dispatch.get_playback_time", return_value=42.5), \
@@ -786,7 +786,7 @@ def test_clipper_save_no_tooltip_on_failure(tmp_path: Path):
 
 def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(genau_mode=True)
+    state = _make_state(primary_mode="genau")
 
     with patch("fun_time.command_dispatch.get_current_file_path") as mock_vlc, \
          patch("fun_time.command_dispatch.subprocess") as mock_subprocess:

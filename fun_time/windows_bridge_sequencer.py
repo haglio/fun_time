@@ -196,7 +196,7 @@ def run_startup_sequence(
             primary_hwnd=find_window_by_pid(primary_pid),
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
             mfp_hwnd=find_window_by_pid(mfp_pid),
-            genau_active=False,
+            primary_mode="vlc",
         )
         apply_z_order(layers)
         if not skip_activate:
@@ -299,7 +299,7 @@ def run_startup_sequence(
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=5.0),
             mfp_hwnd=find_window_by_pid(mfp_pid),
             dashboard_hwnd=dash_hwnd,
-            genau_active=genau_active_at_startup,
+            primary_mode="genau" if genau_active_at_startup else "vlc",
         )
         apply_z_order(layers)
 

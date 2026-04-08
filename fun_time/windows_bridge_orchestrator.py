@@ -171,7 +171,7 @@ def _fix_post_loading_z_order(result: StartupResult) -> None:
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
         mfp_hwnd=find_window_by_pid(result.mfp_pid),
         dashboard_hwnd=dash_hwnd,
-        genau_active=False,
+        primary_mode="vlc",
     )
     apply_z_order(layers)
     logger.info("Post-loading z-order corrected")

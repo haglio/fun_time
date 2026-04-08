@@ -55,7 +55,7 @@ def test_load_dashboard_snapshot_parses_controller_export(tmp_path: Path):
     assert snapshot.mfp_alive is True
     assert snapshot.primary_responsive is True
     assert snapshot.osr2_mode == "auto"
-    assert snapshot.primary_uses_genau is False
+    assert snapshot.primary_mode == "vlc"
     assert snapshot.primary.path == "demo-primary.mp4"
     assert snapshot.primary.locked is False
     assert snapshot.portrait.locked is True
@@ -102,7 +102,7 @@ def test_load_dashboard_snapshot_supports_utf16_ahk_ini_exports(tmp_path: Path):
 
     assert snapshot is not None
     assert snapshot.f_mode_enabled is True
-    assert snapshot.primary_uses_genau is True
+    assert snapshot.primary_mode == "genau"
     assert snapshot.portrait.locked is True
     assert snapshot.window.x == 10
 

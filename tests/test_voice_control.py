@@ -27,7 +27,8 @@ class TestVoiceCommands:
             "go now": "genau_activate",
             "enable genau": "genau_enable",
             "disable genau": "genau_disable",
-            "v l c": "genau_deactivate",
+            "v l c": "vlc_activate",
+            "hybrid": "hybrid_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
             "next primary": "primary_next",
@@ -56,8 +57,11 @@ class TestVoiceCommands:
     def test_go_now_activates_genau(self):
         assert VOICE_COMMANDS["go now"] == "genau_activate"
 
-    def test_v_l_c_deactivates_genau(self):
-        assert VOICE_COMMANDS["v l c"] == "genau_deactivate"
+    def test_v_l_c_activates_vlc(self):
+        assert VOICE_COMMANDS["v l c"] == "vlc_activate"
+
+    def test_hybrid_activates_hybrid(self):
+        assert VOICE_COMMANDS["hybrid"] == "hybrid_activate"
 
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "genau_amp_50"

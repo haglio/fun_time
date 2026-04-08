@@ -5,13 +5,13 @@ from pathlib import Path
 from fun_time.runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
+    apply_mode_switch,
     apply_toggle_fmode,
-    apply_toggle_genau_active,
     build_omnipause_toggle,
 )
 
 
-def test_toggle_active_activates_pauses_primary_and_writes_files(monkeypatch, tmp_path: Path):
+def test_vlc_to_genau_pauses_primary_and_resumes_genau(monkeypatch, tmp_path: Path):
     paused_file = tmp_path / "paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
@@ -22,8 +22,9 @@ def test_toggle_active_activates_pauses_primary_and_writes_files(monkeypatch, tm
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_toggle_genau_active(
-        genau_mode_on=False,
+    result = apply_mode_switch(
+        current_mode="vlc",
+        target_mode="genau",
         omni_paused=False,
         paused_file=paused_file,
         audio_paused_file=audio_paused_file,
@@ -32,7 +33,7 @@ def test_toggle_active_activates_pauses_primary_and_writes_files(monkeypatch, tm
         password="pw",
     )
 
-    assert result.next_genau_mode is True
+    assert result.next_mode == "genau"
     assert result.is_transition is True
     assert paused_file.read_text(encoding="utf-8") == "0"
     assert audio_paused_file.read_text(encoding="utf-8") == "0"
@@ -40,7 +41,7 @@ def test_toggle_active_activates_pauses_primary_and_writes_files(monkeypatch, tm
     assert calls == [(8123, "pw", False)]
 
 
-def test_toggle_active_deactivates_resumes_primary_and_writes_files(monkeypatch, tmp_path: Path):
+def test_genau_to_vlc_resumes_primary_and_pauses_genau(monkeypatch, tmp_path: Path):
     paused_file = tmp_path / "paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
@@ -51,8 +52,9 @@ def test_toggle_active_deactivates_resumes_primary_and_writes_files(monkeypatch,
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_toggle_genau_active(
-        genau_mode_on=True,
+    result = apply_mode_switch(
+        current_mode="genau",
+        target_mode="vlc",
         omni_paused=False,
         paused_file=paused_file,
         audio_paused_file=audio_paused_file,
@@ -61,7 +63,7 @@ def test_toggle_active_deactivates_resumes_primary_and_writes_files(monkeypatch,
         password="pw",
     )
 
-    assert result.next_genau_mode is False
+    assert result.next_mode == "vlc"
     assert result.is_transition is True
     assert paused_file.read_text(encoding="utf-8") == "1"
     assert audio_paused_file.read_text(encoding="utf-8") == "1"
@@ -69,7 +71,7 @@ def test_toggle_active_deactivates_resumes_primary_and_writes_files(monkeypatch,
     assert calls == [(8123, "pw", True)]
 
 
-def test_toggle_active_during_omnipause_no_vlc_call(monkeypatch, tmp_path: Path):
+def test_vlc_to_hybrid_resumes_genau_with_hud_and_keeps_vlc(monkeypatch, tmp_path: Path):
     paused_file = tmp_path / "paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
@@ -80,8 +82,64 @@ def test_toggle_active_during_omnipause_no_vlc_call(monkeypatch, tmp_path: Path)
         lambda port, password, should_play: calls.append((port, password, should_play)) or True,
     )
 
-    result = apply_toggle_genau_active(
-        genau_mode_on=False,
+    result = apply_mode_switch(
+        current_mode="vlc",
+        target_mode="hybrid",
+        omni_paused=False,
+        paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        genau_cmd_file=genau_cmd_file,
+        primary_port=8123,
+        password="pw",
+    )
+
+    assert result.next_mode == "hybrid"
+    assert result.is_transition is True
+    assert genau_cmd_file.read_text(encoding="utf-8") == "RESUME\nHUD_ON"
+    assert calls == [], "VLC should keep playing (no playback state change)"
+
+
+def test_hybrid_to_genau_pauses_vlc_and_sends_hud_off(monkeypatch, tmp_path: Path):
+    paused_file = tmp_path / "paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    genau_cmd_file = tmp_path / "genau_cmd.txt"
+    calls: list[tuple[int, str, bool]] = []
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
+    )
+
+    result = apply_mode_switch(
+        current_mode="hybrid",
+        target_mode="genau",
+        omni_paused=False,
+        paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        genau_cmd_file=genau_cmd_file,
+        primary_port=8123,
+        password="pw",
+    )
+
+    assert result.next_mode == "genau"
+    assert genau_cmd_file.read_text(encoding="utf-8") == "HUD_OFF"
+    assert calls == [(8123, "pw", False)]
+
+
+def test_mode_switch_during_omnipause_no_side_effects(monkeypatch, tmp_path: Path):
+    paused_file = tmp_path / "paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    genau_cmd_file = tmp_path / "genau_cmd.txt"
+    calls: list[tuple[int, str, bool]] = []
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
+    )
+
+    result = apply_mode_switch(
+        current_mode="vlc",
+        target_mode="genau",
         omni_paused=True,
         paused_file=paused_file,
         audio_paused_file=audio_paused_file,
@@ -90,14 +148,14 @@ def test_toggle_active_during_omnipause_no_vlc_call(monkeypatch, tmp_path: Path)
         password="pw",
     )
 
-    assert result.next_genau_mode is True
+    assert result.next_mode == "genau"
     assert result.is_transition is False
     assert calls == [], "Omnipause must NOT call ensure_playback_state"
     assert not paused_file.exists(), "Omnipause must NOT write flag files"
     assert not genau_cmd_file.exists(), "Omnipause must NOT write cmd file"
 
 
-def test_genau_deactivation_writes_broker_resume(monkeypatch, tmp_path: Path):
+def test_genau_to_vlc_writes_broker_resume(monkeypatch, tmp_path: Path):
     paused_file = tmp_path / "paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
@@ -108,8 +166,9 @@ def test_genau_deactivation_writes_broker_resume(monkeypatch, tmp_path: Path):
         lambda port, password, should_play: True,
     )
 
-    apply_toggle_genau_active(
-        genau_mode_on=True,
+    apply_mode_switch(
+        current_mode="genau",
+        target_mode="vlc",
         omni_paused=False,
         paused_file=paused_file,
         audio_paused_file=audio_paused_file,
@@ -122,7 +181,7 @@ def test_genau_deactivation_writes_broker_resume(monkeypatch, tmp_path: Path):
     assert broker_cmd_file.read_text(encoding="utf-8") == "RESUME"
 
 
-def test_genau_activation_does_not_write_broker_cmd(monkeypatch, tmp_path: Path):
+def test_vlc_to_genau_does_not_write_broker_cmd(monkeypatch, tmp_path: Path):
     paused_file = tmp_path / "paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
@@ -133,8 +192,9 @@ def test_genau_activation_does_not_write_broker_cmd(monkeypatch, tmp_path: Path)
         lambda port, password, should_play: True,
     )
 
-    apply_toggle_genau_active(
-        genau_mode_on=False,
+    apply_mode_switch(
+        current_mode="vlc",
+        target_mode="genau",
         omni_paused=False,
         paused_file=paused_file,
         audio_paused_file=audio_paused_file,
@@ -197,8 +257,8 @@ def test_toggle_fmode_replaces_playlists_and_returns_new_state(monkeypatch, tmp_
 
 
 def test_build_omnipause_toggle_returns_enter_or_leave():
-    enter = build_omnipause_toggle(omni_paused=False, genau_mode_on=False)
-    leave = build_omnipause_toggle(omni_paused=True, genau_mode_on=True)
+    enter = build_omnipause_toggle(omni_paused=False, primary_mode="vlc")
+    leave = build_omnipause_toggle(omni_paused=True, primary_mode="genau")
 
     assert enter.action == "enter"
     assert enter.next_omni_paused is True
@@ -221,7 +281,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypat
 
     result = apply_enter_omnipause(
         omni_paused=False,
-        genau_mode_on=True,
+        primary_mode="genau",
         portrait_port=9002,
         landscape_port=9003,
         primary_port=9001,
@@ -258,7 +318,7 @@ def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_p
 
     result = apply_leave_omnipause(
         omni_paused=True,
-        genau_mode_on=False,
+        primary_mode="vlc",
         skip_primary_resume=False,
         primary_port=9001,
         portrait_port=9002,
@@ -272,18 +332,18 @@ def test_apply_leave_omnipause_resumes_satellites_and_primary(monkeypatch, tmp_p
 
     assert result.action == "leave"
     assert result.next_omni_paused is False
-    # Genau stays paused when genau_mode is off
+    # Genau stays paused when primary_mode is vlc
     assert paused_file.read_text(encoding="utf-8") == "1"
     assert audio_paused_file.read_text(encoding="utf-8") == "1"
     assert not genau_cmd_file.exists()
-    # Broker is un-PARKed regardless of genau mode
+    # Broker is un-PARKed regardless of mode
     assert broker_cmd_file.read_text(encoding="utf-8") == "RESUME"
     # Calls happen in parallel, so order is non-deterministic
     assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True), (9001, "pw", True)])
 
 
-def test_apply_leave_omnipause_keeps_genau_paused_when_genau_mode_off(monkeypatch, tmp_path: Path):
-    """When genau_mode is off, leaving omnipause must NOT resume Genau."""
+def test_apply_leave_omnipause_keeps_genau_paused_when_vlc_mode(monkeypatch, tmp_path: Path):
+    """When primary_mode is vlc, leaving omnipause must NOT resume Genau."""
     paused_file = tmp_path / "genau_paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
@@ -300,7 +360,7 @@ def test_apply_leave_omnipause_keeps_genau_paused_when_genau_mode_off(monkeypatc
 
     apply_leave_omnipause(
         omni_paused=True,
-        genau_mode_on=False,
+        primary_mode="vlc",
         skip_primary_resume=False,
         primary_port=9001,
         portrait_port=9002,
@@ -318,7 +378,7 @@ def test_apply_leave_omnipause_keeps_genau_paused_when_genau_mode_off(monkeypatc
     assert broker_cmd_file.read_text(encoding="utf-8") == "RESUME", "Broker must still be un-PARKed"
 
 
-def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monkeypatch, tmp_path: Path):
+def test_apply_leave_omnipause_resumes_genau_when_genau_mode(monkeypatch, tmp_path: Path):
     paused_file = tmp_path / "genau_paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
     genau_cmd_file = tmp_path / "genau_cmd.txt"
@@ -333,7 +393,7 @@ def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monk
 
     result = apply_leave_omnipause(
         omni_paused=True,
-        genau_mode_on=True,
+        primary_mode="genau",
         skip_primary_resume=False,
         primary_port=9001,
         portrait_port=9002,
@@ -346,7 +406,7 @@ def test_apply_leave_omnipause_resumes_satellites_even_when_primary_skipped(monk
 
     assert result.action == "leave"
     assert result.next_omni_paused is False
-    # Genau resumes when genau_mode is on
+    # Genau resumes when primary_mode is genau
     assert paused_file.read_text(encoding="utf-8") == "0"
     assert audio_paused_file.read_text(encoding="utf-8") == "0"
     assert genau_cmd_file.read_text(encoding="utf-8") == "RESUME"

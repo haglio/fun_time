@@ -23,7 +23,7 @@ class DashboardWindowSnapshot:
 @dataclass(frozen=True)
 class DashboardSnapshot:
     f_mode_enabled: bool
-    primary_uses_genau: bool
+    primary_mode: str
     osr2_mode: str
     mfp_alive: bool
     primary_responsive: bool
@@ -47,7 +47,7 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
 
     return DashboardSnapshot(
         f_mode_enabled=_read_bool(parser, "fmode", "enabled"),
-        primary_uses_genau=_read_bool(parser, "primary", "uses_genau"),
+        primary_mode=_read_primary_mode(parser),
         osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
         mfp_alive=_read_bool(parser, "mfp", "alive"),
         primary_responsive=_read_bool(parser, "primary", "responsive"),
@@ -128,6 +128,15 @@ def _read_dashboard_text(path: Path) -> str:
         except UnicodeDecodeError:
             continue
     raise UnicodeDecodeError("dashboard_state", raw, 0, 1, "unable to decode dashboard snapshot")
+
+
+def _read_primary_mode(parser: configparser.ConfigParser) -> str:
+    mode = parser.get("primary", "mode", fallback="")
+    if mode:
+        return mode
+    # Backward compat: old snapshots used uses_genau=1/0
+    uses_genau = parser.get("primary", "uses_genau", fallback="0")
+    return "genau" if uses_genau.strip() not in {"", "0", "false", "False"} else "vlc"
 
 
 def _read_bool(parser: configparser.ConfigParser, section: str, option: str) -> bool:

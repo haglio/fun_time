@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
+from .mode_plan import genau_active
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
@@ -111,7 +112,7 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
     parser["state"] = {
         "locked2": "1" if state.locked2 else "0",
         "locked3": "1" if state.locked3 else "0",
-        "genau_mode": "1" if state.genau_mode else "0",
+        "primary_mode": state.primary_mode,
         "f_mode_enabled": "1" if state.f_mode_enabled else "0",
         "omni_paused": "1" if state.omni_paused else "0",
     }
@@ -132,10 +133,18 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
     if "state" not in parser:
         return None
     s = parser["state"]
+    raw_mode = s.get("primary_mode", s.get("genau_mode", "vlc"))
+    # Backward compat: old INI files used "1"/"0" for genau_mode
+    if raw_mode == "1":
+        primary_mode = "genau"
+    elif raw_mode == "0":
+        primary_mode = "vlc"
+    else:
+        primary_mode = raw_mode
     return BridgeState(
         locked2=s.get("locked2", "0") == "1",
         locked3=s.get("locked3", "0") == "1",
-        genau_mode=s.get("genau_mode", "0") == "1",
+        primary_mode=primary_mode,
         f_mode_enabled=s.get("f_mode_enabled", "0") == "1",
         omni_paused=s.get("omni_paused", "0") == "1",
     )
@@ -189,9 +198,7 @@ class DispatchLoopRunner:
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
         self.voice_controller: VoiceController | None = None
 
-    _HOTKEY_TO_BUTTON = {
-        "genau_toggle": "genau_mode_toggle",
-    }
+    _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
@@ -225,7 +232,7 @@ class DispatchLoopRunner:
                     name="broker-toggle",
                 ).start()
             elif cmd == "backslash_key":
-                if self.state.genau_mode:
+                if genau_active(self.state.primary_mode):
                     self._send_press("quarter_button")
                     self._dispatch("quarter_button")
                 else:
@@ -255,11 +262,11 @@ class DispatchLoopRunner:
                 if self.state.f_mode_enabled:
                     self._dispatch("fmode_toggle")
             elif cmd == "genau_activate":
-                if not self.state.genau_mode:
-                    self._dispatch("genau_toggle")
+                if not genau_active(self.state.primary_mode):
+                    self._dispatch("genau_activate")
             elif cmd == "genau_deactivate":
-                if self.state.genau_mode:
-                    self._dispatch("genau_toggle")
+                if genau_active(self.state.primary_mode):
+                    self._dispatch("vlc_activate")
             elif cmd == "broker_start":
                 self._handle_broker_start()
             elif cmd == "broker_stop":
@@ -280,11 +287,11 @@ class DispatchLoopRunner:
 
     def _dispatch(self, command: str) -> None:
         logger.info("Dispatching command: %s", command)
-        prev_genau = self.state.genau_mode
+        prev_genau = genau_active(self.state.primary_mode)
         new_state, ops = dispatch_command(command, self.state, self.config)
         self.state = new_state
         remaining = execute_window_ops(ops, self.primary_pid)
-        if self.state.genau_mode != prev_genau:
+        if genau_active(self.state.primary_mode) != prev_genau:
             self._apply_z_order()
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
@@ -346,7 +353,7 @@ class DispatchLoopRunner:
                 f_mode_enabled=self.state.f_mode_enabled,
                 osr2_mode=osr2_mode,
                 mfp_alive=bool(self.mfp_pid),
-                primary_uses_genau=self.state.genau_mode,
+                primary_mode=self.state.primary_mode,
                 portrait_locked=self.state.locked2,
                 landscape_locked=self.state.locked3,
                 omni_paused=self.state.omni_paused,
@@ -373,7 +380,7 @@ class DispatchLoopRunner:
             genau_hwnd=find_window_by_title("Genau"),
             mfp_hwnd=find_window_by_pid(self.mfp_pid),
             dashboard_hwnd=self._find_dashboard_hwnd(),
-            genau_active=self.state.genau_mode,
+            primary_mode=self.state.primary_mode,
         )
         apply_z_order(layers, reorder=reorder)
 
@@ -387,7 +394,7 @@ class DispatchLoopRunner:
             genau_hwnd=find_window_by_title("Genau"),
             mfp_hwnd=find_window_by_pid(self.mfp_pid),
             dashboard_hwnd=self._find_dashboard_hwnd(),
-            genau_active=self.state.genau_mode,
+            primary_mode=self.state.primary_mode,
         )
         apply_z_order([(h, False) for h, _ in layers])
 
