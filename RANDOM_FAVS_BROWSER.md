@@ -25,7 +25,7 @@ When you lock an AI video that came from Provider, Fun Time opens a Provider **g
 - **No source image** (text-to-video) → opens `example.com/video` and fills the video prompt.
 - **From a source image** → opens `example.com/create`, fills the positive + negative image prompts, and pins a floating note with the **video prompt** and original settings — so you regenerate the image first, then make the video from it.
 
-Settings (model, resolution, aspect, quality, style, creativity, seed) are listed in the floating note for manual entry: Provider changed its setting options since these were made, so they are not auto-selected.
+Model, quality, and aspect are best-effort auto-selected when the stored value still exists as a current option (Provider renamed/removed some — e.g. model "Realism", aspect "2:3", numeric creativity — which are skipped). Style and action are custom pickers, left for manual entry. The floating note lists every original setting with a ✓ next to each one it applied; set the rest by hand.
 
 The prompts/settings come from per-video metadata JSON mirrored under `provider_regen.metadata_root`. Paths and the two generate URLs are configured in `fun_time_config.json` under `provider_regen`. Videos without a metadata sidecar fall back to the old gallery-link behavior.
 
