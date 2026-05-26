@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .lock import build_lock_plan
+from .provider_regen import regen_url_for_video
 from .mode_plan import genau_active
 from .runtime_flow import (
     apply_enter_omnipause,
@@ -66,6 +67,10 @@ class BridgeConfig:
     broker_cmd_file: Path | None = None
     broker_heartbeat_file: Path | None = None
     broker_tray_launcher: Path | None = None
+    provider_media_root: Path | None = None
+    provider_metadata_root: Path | None = None
+    provider_generate_video_url: str = "https://example.com/video"
+    provider_generate_image_url: str = "https://example.com/create"
 
 
 @dataclass(frozen=True)
@@ -141,7 +146,13 @@ def _toggle_lock(which: int, state: BridgeState, config: BridgeConfig) -> tuple[
         logger.info(plan.log_message)
     lock_ops: list[WindowOp] = []
     if plan.open_rfb_tab and current_path:
-        url = make_web_url_from_path(current_path)
+        url = regen_url_for_video(
+            current_path,
+            media_root=config.provider_media_root,
+            metadata_root=config.provider_metadata_root,
+            video_url=config.provider_generate_video_url,
+            image_url=config.provider_generate_image_url,
+        ) or make_web_url_from_path(current_path)
         if url:
             lock_ops.append(WindowOp(op="open_rfb_tab", key=url))
     if which == 2:

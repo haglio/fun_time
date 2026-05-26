@@ -78,6 +78,12 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "manifest_file": str(config.random_favs_browser_manifest_file),
             "lazy_load": "1" if config.random_favs_browser.lazy_load else "0",
         },
+        "provider_regen": {
+            "generate_video_url": config.provider_regen.generate_video_url,
+            "generate_image_url": config.provider_regen.generate_image_url,
+            "media_root": str(config.provider_regen.media_root or ""),
+            "metadata_root": str(config.provider_regen.metadata_root or ""),
+        },
     }
 
 
