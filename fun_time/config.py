@@ -118,6 +118,14 @@ class RandomFavsBrowserConfig:
 
 
 @dataclass(frozen=True)
+class ProviderRegenConfig:
+    generate_video_url: str = "https://example.com/video"
+    generate_image_url: str = "https://example.com/create"
+    media_root: Path | None = None
+    metadata_root: Path | None = None
+
+
+@dataclass(frozen=True)
 class VoiceControlConfig:
     enabled: bool
     model_path: str
@@ -137,6 +145,7 @@ class ProjectConfig:
     audio_companion: AudioCompanionConfig
     random_favs_browser: RandomFavsBrowserConfig
     voice_control: VoiceControlConfig
+    provider_regen: ProviderRegenConfig
 
     @property
     def genau_mode_file(self) -> Path:
@@ -290,6 +299,18 @@ def _load_random_favs_browser_config(browser_raw: dict[str, Any] | None) -> Rand
     )
 
 
+def _load_provider_regen_config(raw: dict[str, Any] | None) -> ProviderRegenConfig:
+    values = raw or {}
+    media_root = values.get("media_root")
+    metadata_root = values.get("metadata_root")
+    return ProviderRegenConfig(
+        generate_video_url=str(values.get("generate_video_url", "https://example.com/video")),
+        generate_image_url=str(values.get("generate_image_url", "https://example.com/create")),
+        media_root=_resolve_path(PROJECT_DIR, str(media_root)) if media_root else None,
+        metadata_root=_resolve_path(PROJECT_DIR, str(metadata_root)) if metadata_root else None,
+    )
+
+
 def _load_voice_control_config(voice_raw: dict[str, Any] | None) -> VoiceControlConfig:
     values = voice_raw or {}
     return VoiceControlConfig(
@@ -317,6 +338,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     if browser_raw is None:
         browser_raw = _require_optional_dict(raw, "chrome_overlay", path)
     voice_raw = _require_optional_dict(raw, "voice_control", path)
+    provider_regen_raw = _require_optional_dict(raw, "provider_regen", path)
 
     return ProjectConfig(
         project_dir=PROJECT_DIR,
@@ -328,6 +350,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         audio_companion=_load_audio_companion_config(audio_raw, path),
         random_favs_browser=_load_random_favs_browser_config(browser_raw),
         voice_control=_load_voice_control_config(voice_raw),
+        provider_regen=_load_provider_regen_config(provider_regen_raw),
     )
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -114,6 +115,36 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
     assert rfb_ops[0].key == "https://example.com/image/def"
+
+
+def test_landscape_lock_emits_provider_regen_url_when_metadata_present(tmp_path: Path):
+    """A locked Provider video with a metadata sidecar opens the generate page
+    (prompts in the #ft fragment), not the dead /image/{id} gallery link."""
+    media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
+    metadata_root = tmp_path / "videos" / "metadata"
+    rel = Path("2_outbox") / "upscaled_by_orientation" / "landscape" / "provider"
+    video = media_root / rel / "vid_topaz.mp4"
+    meta_file = metadata_root / rel / "vid_topaz.json"
+    meta_file.parent.mkdir(parents=True, exist_ok=True)
+    meta_file.write_text(json.dumps({"video": {"prompt": "hi", "model": "Realism"}}), encoding="utf-8")
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_text("x", encoding="utf-8")
+
+    config = _make_config(tmp_path)
+    config.provider_media_root = media_root
+    config.provider_metadata_root = metadata_root
+    state = _make_state(locked3=False)
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=str(video)),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.ensure_in_favs"),
+    ):
+        new_state, ops = dispatch_command("landscape_lock", state, config)
+
+    rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
+    assert len(rfb_ops) == 1
+    assert rfb_ops[0].key.startswith("https://example.com/video#ft=")
 
 
 # --- portrait_lock ---
