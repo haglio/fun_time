@@ -36,3 +36,26 @@ The prompts/settings come from per-video metadata JSON mirrored under `provider_
 3. Done — locking a Provider video now opens the prefilled generate page.
 
 The userscript only acts when the URL carries a `#ft=` fragment (i.e. opened by Fun Time); normal Provider browsing is unaffected.
+
+### Updating or maintaining the userscript
+
+The script is **not hosted, so it does not auto-update** — every edit to `fun_time/static/provider_autofill.user.js` must be re-pasted into Tampermonkey by hand.
+
+Environment facts (learned the hard way):
+
+- Tampermonkey is already installed in the **Blair** Chrome profile (`Profile 2`).
+- Chrome's **"Allow user scripts"** toggle must be **ON** (recent Chrome versions gate userscripts behind it). If the script stops running *entirely* — no floating note appears at all on a locked video — re-check this first at `chrome://extensions`.
+- **Do not** open the `.user.js` via a `file://` URL to install/update it — Chrome blocks that ("can't open scripts that way"). Use the dashboard paste flow below.
+
+To push a change:
+
+1. Open `fun_time/static/provider_autofill.user.js` in a **text editor** (VS Code / Notepad — *not* Chrome) and copy all.
+2. Tampermonkey icon → **Dashboard** → click **"Fun Time — Provider prompt autofill"** to open its editor.
+3. `Ctrl+A`, paste, `Ctrl+S`. Bump `@version` in the header so you can confirm the new copy took (the dashboard shows the version).
+4. Test by locking a video. The script only runs on a `#ft=` URL and **strips the fragment after reading it**, so a plain reload won't re-run it — lock again (or re-paste a test URL) to re-test.
+
+When Provider changes its UI (the usual cause of breakage), expect to tweak selectors:
+
+- Prompts are found by **placeholder prefix**; inline settings by **visible option text**; the negative-prompt popover by an **SVG-path** match on its "no/ban" icon; the video aspect trigger by a small **orientation-icon** heuristic; the Action confirm by a `Select<count>` button. Re-capture the relevant control (open it on the page → DevTools → Elements → right-click `<html>` → Copy outerHTML → save) and adjust the matcher.
+- Old metadata value → current Provider label mappings live in `VALUE_ALIASES`; image-vs-video behaviour branches on `payload.kind`.
+- Debugging: open DevTools console on the generate tab for errors, and read the floating note's per-field status (`filled ✓` / `not found ✗`, and a ✓ beside each setting it applied) to see exactly what worked.
