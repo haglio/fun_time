@@ -13,7 +13,7 @@ It uses a serial broker for the OSR2 that is intended to run continuously in the
 
 It is designed so that:
 
-- in **control mode**, MFP controls the OSR2 and the primary VLC is visible/active
+- in **VLC mode**, MFP controls the OSR2 and the primary VLC is visible/active
 - in **Genau mode** (OSR2 auto/free mode), Genau appears in front of the primary VLC, the primary VLC pauses, and Genau takes over visual/audio playback
 - when auto/free mode ends, Genau hides and the primary VLC resumes
 
@@ -39,7 +39,6 @@ Asset folders:
 Runtime state:
 
 - `state/genau_mode.txt`
-- `state/genau_enabled.txt`
 - `state/genau_paused.txt`
 - `state/genau_cmd.txt`
 - `state/audio_paused.txt`
@@ -139,7 +138,7 @@ Serial / mode control:
 
 The broker:
 
-- forwards MFP serial traffic to the OSR2 in control mode
+- forwards MFP serial traffic to the OSR2 in VLC mode
 - swallows MFP writes while OSR2 auto/free mode is active
 - watches OSR2 output for:
   - `freeMode is on!`
@@ -416,25 +415,14 @@ Written by `broker.py`.
 
 Values:
 
-- `0` = control mode
+- `0` = VLC mode
 - `1` = Genau mode
 
-AutoHotkey and the audio companion both use this file as the authoritative source of whether Genau takeover is actually active.
-
-### `genau_enabled.txt`
-
-Written by AutoHotkey when `r` toggles Genau takeover.
-
-Values:
-
-- `0` = keep Genau disabled even if OSR2 enters auto/free mode
-- `1` = allow normal Genau takeover during auto/free mode
-
-The broker reads this file continuously and folds it into the mode/visibility messages it publishes.
+The audio companion and the Python dispatch loop both read this file as the authoritative source of whether Genau takeover is actually active.
 
 ### `genau_cmd.txt`
 
-Written by AutoHotkey when Genau control hotkeys are pressed during Genau mode.
+Written by `fun_time/command_dispatch.py` when Genau control commands are dispatched during Genau mode.
 
 Values:
 
