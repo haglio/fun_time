@@ -59,6 +59,7 @@ from fun_time.dashboard_actions import (
     LANDSCAPE_TRASH,
     FMODE_PANEL,
     GENAU_ACTIVATE,
+    HELP_REFERENCE,
     HYBRID_ACTIVATE,
     OMNIPAUSE_TOGGLE,
     OPEN_FILE_DIALOG,
@@ -75,6 +76,7 @@ from fun_time.dashboard_actions import (
     VLC_NUDGE_PREV,
     VOICE_TOGGLE,
 )
+from fun_time.command_reference import render_reference_html
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
 from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_status
 from fun_time.dashboard_state import (
@@ -542,6 +544,7 @@ def build_dashboard_scene(
         DashboardRectItem(layout.main_status_strip, fill=COLOR_PANEL),
         DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
         DashboardRectItem(layout.omnipause_button, fill=_press_fill(omnipause_fill, OMNIPAUSE_TOGGLE)),
+        DashboardRectItem(layout.help_button, fill=COLOR_PANEL),
         DashboardRectItem(layout.mfp_panel, fill=mfp_fill),
         DashboardRectItem(layout.landscape_panel, fill=landscape_fill),
         DashboardRectItem(layout.portrait_panel, fill=portrait_fill),
@@ -607,6 +610,7 @@ def build_dashboard_scene(
     texts = (
         DashboardTextItem("\u23FB", layout.quit_button, font=_font_symbol),
         DashboardTextItem(omnipause_icon, layout.omnipause_button, font=_font_symbol),
+        DashboardTextItem("?", layout.help_button, font=_font_ui_sm),
         DashboardTextItem(mfp_label, layout.mfp_panel, anchor="n"),
         DashboardTextItem(landscape_label, layout.landscape_panel, anchor="n"),
         DashboardTextItem(portrait_label, layout.portrait_panel, anchor="n"),
@@ -732,6 +736,7 @@ def build_dashboard_scene(
         hover_texts=(
             (layout.quit_button, "Quit"),
             (layout.omnipause_button, "Pause all"),
+            (layout.help_button, "Hotkeys & Voice"),
             (layout.broker_panel, "Broker"),
             (layout.fmode_panel, "F-Mode"),
             (layout.voice_panel, "Voice"),
@@ -742,6 +747,7 @@ def build_dashboard_scene(
         actions=(
             (QUIT_BUTTON, layout.quit_button),
             (OMNIPAUSE_TOGGLE, layout.omnipause_button),
+            (HELP_REFERENCE, layout.help_button),
             (PORTRAIT_PREV, layout.portrait_prev),
             (PORTRAIT_NEXT, layout.portrait_next),
             (PORTRAIT_LOCK, layout.portrait_lock),
@@ -803,7 +809,7 @@ def build_dashboard_scene(
 # PyQt6 rendering widget
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
-from PyQt6.QtWidgets import QWidget, QToolTip
+from PyQt6.QtWidgets import QWidget, QToolTip, QDialog, QVBoxLayout, QTextBrowser
 from PyQt6.QtGui import QPainter, QPen, QBrush, QPainterPath, QPixmap
 
 
@@ -926,6 +932,30 @@ class DashboardWidget(QWidget):
         QToolTip.hideText()
 
 
+class ReferenceDialog(QDialog):
+    """Modeless popup listing every hotkey and voice command."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Fun Time — Hotkeys & Voice")
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+        icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+        browser = QTextBrowser(self)
+        browser.setOpenExternalLinks(False)
+        browser.setHtml(render_reference_html())
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(browser)
+        self.resize(560, 680)
+
+
 def write_dashboard_command(path: Path, action_id: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(action_id, encoding="utf-8")
@@ -981,6 +1011,7 @@ class DashboardWindow(QMainWindow):
         self._mfp_pid = mfp_pid
 
         self._pressed: dict[str, float] = {}
+        self._reference_dialog: ReferenceDialog | None = None
         self._last_snapshot: DashboardSnapshot | None = None
         self._last_genau_status: GenauStatus | None = None
         self._press_queue: queue.Queue[str] = queue.Queue()
@@ -1077,6 +1108,9 @@ class DashboardWindow(QMainWindow):
         self._widget.set_scene(scene)
 
     def _on_action(self, action_id: str) -> None:
+        if action_id == HELP_REFERENCE:
+            self._show_reference_dialog()
+            return
         self._pressed[action_id] = time.monotonic()
         write_dashboard_command(self._app_config.dashboard_cmd_file, action_id)
         gs = self._last_genau_status
@@ -1087,6 +1121,14 @@ class DashboardWindow(QMainWindow):
         )
         if action_id.startswith("genau_"):
             QTimer.singleShot(100, self._refresh)
+
+    def _show_reference_dialog(self) -> None:
+        """Open (or re-focus) the hotkey/voice reference popup."""
+        if self._reference_dialog is None:
+            self._reference_dialog = ReferenceDialog(self)
+        self._reference_dialog.show()
+        self._reference_dialog.raise_()
+        self._reference_dialog.activateWindow()
 
     def _handle_press_event(self) -> None:
         while True:

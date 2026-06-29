@@ -462,6 +462,52 @@ def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
         window.close()
 
 
+def test_help_action_opens_dialog_locally_without_routing_command(cfg_path: Path):
+    """Help is a pure UI concern — it opens a dialog and must not write a dispatch command."""
+    from unittest.mock import MagicMock
+    from fun_time.dashboard_app import DashboardWindow
+
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        cmd_file = app_config.dashboard_cmd_file
+        if cmd_file.exists():
+            cmd_file.unlink()
+
+        with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
+            window._on_action("help_reference")
+
+        mock_dialog.assert_called_once()
+        mock_dialog.return_value.show.assert_called_once()
+        # Must NOT be routed to the dispatch loop / command file.
+        assert not cmd_file.exists(), "help_reference should not be written as a command"
+    finally:
+        window.close()
+
+
+def test_reference_dialog_renders_hotkeys_and_voice():
+    """The real dialog must render the reference content via QTextBrowser."""
+    from PyQt6.QtWidgets import QTextBrowser
+    from fun_time.dashboard_app import ReferenceDialog
+
+    dialog = ReferenceDialog()
+    try:
+        browser = dialog.findChild(QTextBrowser)
+        assert browser is not None
+        text = browser.toPlainText()
+        assert "Esc" in text
+        assert "go now" in text
+        assert "Genau" in text
+    finally:
+        dialog.close()
+
+
 def test_dashboard_app_hydrates_live_vlc_state():
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
@@ -523,6 +569,34 @@ def test_poll_vlc_marks_unresponsive_on_vlc_failure(cfg_path: Path, tmp_path: Pa
 
     assert result.primary_responsive is False
     assert result.primary_path == ""
+
+
+def test_dashboard_scene_has_help_action_label_and_hover(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    action_rects = {a: r for a, r in scene.actions}
+    assert "help_reference" in action_rects
+    assert action_rects["help_reference"] == layout.help_button
+
+    text_at = {item.rect: item.text for item in scene.texts}
+    assert text_at[layout.help_button] == "?"
+
+    hover = {rect: text for rect, text in scene.hover_texts}
+    assert layout.help_button in hover
+    assert "hotkey" in hover[layout.help_button].lower()
+
+
+def test_dashboard_scene_help_action_present_in_genau_mode(cfg_path: Path):
+    """Help is a global control — present regardless of primary mode."""
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_mode="genau")
+
+    scene = build_dashboard_scene(layout, snapshot)
+
+    action_ids = [a for a, _r in scene.actions]
+    assert "help_reference" in action_ids
 
 
 def test_dashboard_scene_has_quit_and_omnipause_actions(cfg_path: Path):
