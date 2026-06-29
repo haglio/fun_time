@@ -467,7 +467,7 @@ With the broker:
 
 For this setup, file-based signaling turned out to be a reliable and simple way to let:
 
-- AHK
+- Python dispatch loop
 - broker
 - Genau
 
