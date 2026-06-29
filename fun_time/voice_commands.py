@@ -24,7 +24,9 @@ VOICE_COMMANDS: dict[str, str] = {
     "weird portrait": "portrait_trash",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
-    "genau": "genau_activate",
+    # Recognizer listens for "go now" (reliably recognized); the reference
+    # displays this as "genau" via the row's voice_display override.
+    "go now": "genau_activate",
     "v l c": "vlc_activate",
     "hybrid": "hybrid_activate",
     "start broker": "broker_start",

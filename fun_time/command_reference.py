@@ -44,6 +44,10 @@ class _Row:
     hotkeys: tuple[str, ...] = ()
     commands: tuple[str, ...] = ()
     literal_voice: tuple[str, ...] = ()
+    # When set, the Say column shows exactly these phrases instead of the ones
+    # derived from ``commands`` — for presenting a friendlier label than the
+    # recognizer's actual phrase (e.g. show "genau" while it listens for "go now").
+    voice_display: tuple[str, ...] | None = None
 
 
 # Authored reference, grouped by the part of the dashboard each row drives.
@@ -93,7 +97,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
     (
         "Modes",
         (
-            _Row("Genau mode", ("G",), ("genau_activate",)),
+            _Row("Genau mode", ("G",), ("genau_activate",), voice_display=("genau",)),
             _Row("VLC mode", ("V",), ("vlc_activate",)),
             _Row("Hybrid mode", ("H",), ("hybrid_activate",)),
         ),
@@ -133,7 +137,11 @@ def build_reference_sections() -> tuple[ReferenceSection, ...]:
             CommandRef(
                 description=row.description,
                 hotkeys=row.hotkeys,
-                voice=_voice_for(row.commands) + row.literal_voice,
+                voice=(
+                    row.voice_display
+                    if row.voice_display is not None
+                    else _voice_for(row.commands) + row.literal_voice
+                ),
                 commands=row.commands,
             )
             for row in rows
