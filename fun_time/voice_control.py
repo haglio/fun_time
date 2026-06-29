@@ -26,8 +26,10 @@ VOICE_COMMANDS: dict[str, str] = {
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
     "go now": "genau_activate",
-    "enable genau": "genau_enable",
-    "disable genau": "genau_disable",
+    # "enable genau" is a spoken synonym for "go now"; "disable genau" maps to
+    # genau_deactivate (handled by the dispatch loop), which switches back to VLC.
+    "enable genau": "genau_activate",
+    "disable genau": "genau_deactivate",
     "v l c": "vlc_activate",
     "hybrid": "hybrid_activate",
     "start broker": "broker_start",
