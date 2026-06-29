@@ -26,7 +26,7 @@ class TestVoiceCommands:
             "unlock portrait": "portrait_lock_off",
             "f mode on": "fmode_on",
             "f mode off": "fmode_off",
-            "genau": "genau_activate",
+            "go now": "genau_activate",
             "v l c": "vlc_activate",
             "hybrid": "hybrid_activate",
             "start broker": "broker_start",
@@ -57,11 +57,12 @@ class TestVoiceCommands:
         for phrase, cmd in static_phrases.items():
             assert VOICE_COMMANDS[phrase] == cmd
 
-    def test_genau_activates_genau(self):
-        assert VOICE_COMMANDS["genau"] == "genau_activate"
+    def test_go_now_activates_genau(self):
+        # Recognizer phrase stays "go now"; the reference displays it as "genau".
+        assert VOICE_COMMANDS["go now"] == "genau_activate"
 
     def test_dead_genau_phrases_removed(self):
-        for phrase in ("go now", "enable genau", "disable genau"):
+        for phrase in ("enable genau", "disable genau"):
             assert phrase not in VOICE_COMMANDS
 
     def test_v_l_c_activates_vlc(self):

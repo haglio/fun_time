@@ -74,16 +74,31 @@ def test_every_ahk_hotkey_command_is_represented_with_a_hotkey():
 
 
 def test_voice_phrases_are_derived_from_voice_commands():
-    """A row's voice list must exactly match the phrases VOICE_COMMANDS assigns to its commands."""
+    """Each row's voice must include every phrase VOICE_COMMANDS assigns to its
+    commands — except rows with an explicit voice_display alias."""
+    from fun_time.command_reference import _SECTIONS, _voice_for
+
     inverse: dict[str, list[str]] = {}
     for phrase, cmd in VOICE_COMMANDS.items():
         inverse.setdefault(cmd, []).append(phrase)
-    for row in _all_rows():
-        derived = sorted(p for cmd in row.commands for p in inverse.get(cmd, []))
-        for phrase in derived:
-            assert phrase in row.voice, (
-                f"row {row.description!r} should list derived phrase {phrase!r}"
-            )
+    for _title, rows in _SECTIONS:
+        for row in rows:
+            if row.voice_display is not None:
+                continue  # deliberate display alias (e.g. show "genau" not "go now")
+            built = _voice_for(row.commands) + row.literal_voice
+            derived = sorted(p for cmd in row.commands for p in inverse.get(cmd, []))
+            for phrase in derived:
+                assert phrase in built, (
+                    f"row {row.description!r} should list derived phrase {phrase!r}"
+                )
+
+
+def test_genau_row_displays_genau_but_recognizer_uses_go_now():
+    """The Genau mode row shows 'genau' while the recognizer phrase is 'go now'."""
+    assert VOICE_COMMANDS["go now"] == "genau_activate"
+    assert "genau" not in VOICE_COMMANDS  # display-only alias, not a recognizer phrase
+    genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
+    assert genau_rows and genau_rows[0].voice == ("genau",)
 
 
 def test_genau_mode_row_lists_genau_phrase_and_g_key():
