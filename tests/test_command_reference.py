@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 from fun_time.command_reference import (
@@ -102,6 +104,21 @@ def test_omnipause_row_uses_esc_and_pause_play_voice():
     assert "omnipause_toggle" in row.commands
     assert "pause" in row.voice
     assert "play" in row.voice
+
+
+def test_reference_does_not_import_voice_runtime():
+    """Importing the reference must not drag in voice_control (and its vosk runtime).
+
+    The dashboard process imports command_reference; it should stay free of the
+    speech-recognition libraries, which only the orchestrator's VoiceController needs.
+    """
+    code = (
+        "import fun_time.command_reference, sys; "
+        "bad = [m for m in sys.modules if m in ('fun_time.voice_control', 'vosk', 'sounddevice')]; "
+        "assert not bad, bad"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 def test_render_reference_html_contains_key_content():

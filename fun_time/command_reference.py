@@ -17,7 +17,7 @@ from __future__ import annotations
 import html
 from dataclasses import dataclass
 
-from fun_time.voice_control import VOICE_COMMANDS
+from fun_time.voice_commands import VOICE_COMMANDS
 
 
 @dataclass(frozen=True)
