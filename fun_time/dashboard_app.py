@@ -932,6 +932,28 @@ class DashboardWidget(QWidget):
         QToolTip.hideText()
 
 
+_REFERENCE_DIALOG_SIZE = Size(560, 680)
+
+
+def compute_adjacent_window_position(
+    anchor: Rect, screen: Rect, size: Size, *, gap: int = 12
+) -> tuple[int, int]:
+    """Top-left position for a *size* window placed beside *anchor*.
+
+    Prefers the space to the right of *anchor*, falls back to the left, and
+    clamps within *screen* so the window stays fully on-screen.  Keeps the
+    reference popup next to the dashboard instead of covering it.
+    """
+    if anchor.x + anchor.width + gap + size.width <= screen.x + screen.width:
+        x = anchor.x + anchor.width + gap
+    elif anchor.x - gap - size.width >= screen.x:
+        x = anchor.x - gap - size.width
+    else:
+        x = max(screen.x, screen.x + screen.width - size.width)
+    y = min(max(anchor.y, screen.y), screen.y + screen.height - size.height)
+    return x, y
+
+
 class ReferenceDialog(QDialog):
     """Modeless popup listing every hotkey and voice command."""
 
@@ -953,7 +975,7 @@ class ReferenceDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(browser)
-        self.resize(560, 680)
+        self.resize(_REFERENCE_DIALOG_SIZE.width, _REFERENCE_DIALOG_SIZE.height)
 
 
 def write_dashboard_command(path: Path, action_id: str) -> None:
@@ -1123,12 +1145,30 @@ class DashboardWindow(QMainWindow):
             QTimer.singleShot(100, self._refresh)
 
     def _show_reference_dialog(self) -> None:
-        """Open (or re-focus) the hotkey/voice reference popup."""
+        """Open (or re-focus) the hotkey/voice reference popup.
+
+        On first open it is placed beside the dashboard so the dash stays
+        visible while referencing; later opens keep wherever the user moved it.
+        """
         if self._reference_dialog is None:
             self._reference_dialog = ReferenceDialog(self)
+            self._place_reference_dialog_beside_dashboard(self._reference_dialog)
         self._reference_dialog.show()
         self._reference_dialog.raise_()
         self._reference_dialog.activateWindow()
+
+    def _place_reference_dialog_beside_dashboard(self, dialog: ReferenceDialog) -> None:
+        screen = self.screen()
+        if screen is None:
+            return
+        dash = self.frameGeometry()
+        avail = screen.availableGeometry()
+        x, y = compute_adjacent_window_position(
+            Rect(dash.x(), dash.y(), dash.width(), dash.height()),
+            Rect(avail.x(), avail.y(), avail.width(), avail.height()),
+            _REFERENCE_DIALOG_SIZE,
+        )
+        dialog.move(x, y)
 
     def _handle_press_event(self) -> None:
         while True:

@@ -491,6 +491,43 @@ def test_help_action_opens_dialog_locally_without_routing_command(cfg_path: Path
         window.close()
 
 
+def test_reference_window_prefers_right_of_dashboard():
+    from fun_time.dashboard_app import compute_adjacent_window_position
+    from fun_time.dashboard_layout import Rect, Size
+
+    anchor = Rect(100, 100, 300, 200)
+    screen = Rect(0, 0, 2000, 1000)
+    x, y = compute_adjacent_window_position(anchor, screen, Size(560, 680), gap=12)
+
+    assert x == 100 + 300 + 12  # right of the dashboard
+    assert y == 100  # aligned to the dashboard top
+
+
+def test_reference_window_falls_back_to_left_when_no_room_right():
+    from fun_time.dashboard_app import compute_adjacent_window_position
+    from fun_time.dashboard_layout import Rect, Size
+
+    anchor = Rect(1600, 100, 300, 200)
+    screen = Rect(0, 0, 2000, 1000)
+    x, _y = compute_adjacent_window_position(anchor, screen, Size(560, 680), gap=12)
+
+    assert x == 1600 - 12 - 560  # left of the dashboard
+
+
+def test_reference_window_clamps_within_screen_when_no_room_either_side():
+    from fun_time.dashboard_app import compute_adjacent_window_position
+    from fun_time.dashboard_layout import Rect, Size
+
+    anchor = Rect(0, 900, 300, 200)
+    screen = Rect(0, 0, 700, 1000)
+    x, y = compute_adjacent_window_position(anchor, screen, Size(560, 680), gap=12)
+
+    # Neither side fits a 560-wide window on a 700-wide screen — clamp inside.
+    assert 0 <= x <= 700 - 560
+    # y must keep the 680-tall window on-screen despite the low anchor.
+    assert y == 1000 - 680
+
+
 def test_reference_dialog_renders_hotkeys_and_voice():
     """The real dialog must render the reference content via QTextBrowser."""
     from PyQt6.QtWidgets import QTextBrowser
