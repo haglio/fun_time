@@ -79,6 +79,7 @@ class DashboardPreviewLayout:
     hybrid_genau_spd_down: Rect
     quit_button: Rect
     omnipause_button: Rect
+    help_button: Rect
     broker_panel: Rect
     fmode_panel: Rect
     voice_panel: Rect
@@ -307,6 +308,7 @@ def compute_dashboard_preview_layout(
         hybrid_genau_spd_down=h_spd_down,
         quit_button=Rect(btn_row_x, btn_row_y, mini_button_w, mini_button_h),
         omnipause_button=Rect(btn_row_x + mini_button_w + mini_button_gap, btn_row_y, mini_button_w, mini_button_h),
+        help_button=Rect(btn_row_x + (mini_button_w + mini_button_gap) * 2, btn_row_y, mini_button_w, mini_button_h),
         broker_panel=Rect(status_row_x, chip_row_y, mini_button_w, mini_button_h),
         fmode_panel=Rect(status_row_x + mini_button_w + mini_button_gap, chip_row_y, mini_button_w, mini_button_h),
         voice_panel=Rect(status_row_x + (mini_button_w + mini_button_gap) * 2, chip_row_y, mini_button_w, mini_button_h),

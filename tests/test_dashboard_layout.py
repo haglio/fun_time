@@ -94,6 +94,34 @@ def test_broker_fmode_voice_chips_match_button_size():
     assert layout.voice_panel.height == layout.quit_button.height
 
 
+def test_help_button_in_status_strip_top_row_third_slot():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    strip = layout.main_status_strip
+    help_b = layout.help_button
+    quit_b = layout.quit_button
+    omni_b = layout.omnipause_button
+
+    # Same size as the other mini buttons.
+    assert help_b.width == quit_b.width
+    assert help_b.height == quit_b.height
+    # Sits in the top button row (same y as quit/omnipause).
+    assert help_b.y == quit_b.y
+    # Third slot: to the right of omnipause, aligned with the voice chip below.
+    assert help_b.x > omni_b.x
+    assert help_b.x == layout.voice_panel.x
+    # Fully inside the status strip.
+    assert help_b.x >= strip.x
+    assert help_b.x + help_b.width <= strip.x + strip.width
+    assert help_b.y + help_b.height <= strip.y + strip.height
+    # No overlap with omnipause.
+    assert omni_b.x + omni_b.width <= help_b.x
+
+
 def test_status_strip_side_margin_matches_top_margin():
     layout = compute_dashboard_preview_layout(
         Size(width=2560, height=1392),
