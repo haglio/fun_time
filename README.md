@@ -5,11 +5,11 @@ Fun Time is a Windows desktop setup that launches and coordinates:
 - a primary VLC instance
 - two secondary VLC instances
 - MultiFunPlayer (MFP)
-- Genau (a clip-based visualizer for OSR2 auto mode)
+- Genau, a clip-based visualizer for OSR2 auto mode (the separate `../genau` project)
 - a Genau audio companion
-- an AutoHotkey controller for window placement and hotkeys
+- a minimal AutoHotkey hotkey shell (window placement and command dispatch run in Python)
 
-It uses a serial broker for the OSR2 that is intended to run continuously in the background.
+It uses a serial broker for the OSR2 — the separate `../osr2_broker` project — that is intended to run continuously in the background.
 
 It is designed so that:
 
@@ -24,17 +24,9 @@ Core files:
 - `main.sh` — compatibility wrapper that forwards to `orchestrator.py`
 - `launch.vbs` — hidden Windows launcher used by the shortcut/taskbar item
 - `fun_time_config.json` — central config for paths, ports, and layout values
-- `controller.ahk` — AutoHotkey controller and hotkeys
-- `fun_time/` — shared Python package for config, logging, orchestration, and Genau modules
-- `scripts/run_broker_service.ps1` — broker runner used behind the tray launcher
-- `scripts/install_broker_startup_task.ps1` — installs the Windows startup scheduled task for broker
-- `launch_broker_tray.vbs` — hidden Windows launcher for the broker tray app
-- `icon.ico` — Fun Time / Genau icon
-
-Asset folders:
-
-- `fun_time/genau/clips/` — Genau video clips
-- `fun_time/genau/audio/` — Genau audio files
+- `windows_bridge_hotkeys.ahk` — minimal AutoHotkey hotkey shell launched by the orchestrator
+- `fun_time/` — shared Python package for config, logging, orchestration, the dashboard, and command dispatch
+- `icon.ico` — Fun Time icon
 
 Runtime state:
 
@@ -71,13 +63,13 @@ This file now controls:
 - media/library paths
 - serial and UDP ports
 - Genau playback defaults
-- monitor/layout ratios used by `controller.ahk`
+- monitor/layout ratios used by the Python window layout
 
 Useful sections:
 
 - `paths`
-- `controller.layout`
-- `broker`
+- `vlc`
+- `layout`
 - `genau`
 - `audio_companion`
 
@@ -117,9 +109,9 @@ To disable shuffle and use filesystem order:
 }
 ```
 
-The layout values that used to be hard-coded in AutoHotkey now live under `controller.layout`.
+The layout values that used to be hard-coded in AutoHotkey now live under `layout`.
 
-Monitor naming under `controller.layout` now uses:
+Monitor naming under `layout` now uses:
 
 - `main_monitor` — the monitor that shows portrait VLC, the primary VLC, and Genau
 - `secondary_monitor` — the monitor that shows landscape VLC, MFP, and the Random Favs Browser
@@ -128,53 +120,11 @@ Monitor naming under `controller.layout` now uses:
 
 Serial / mode control:
 
-- OSR2 real device is on `COM4`
-- `com0com` virtual pair is used:
-  - historically this was `COM14` / `COM15`
-  - on this machine it may be recreated by Windows / `com0com` under different COM numbers later
-  - MFP should use the `CNCA*` side of the pair
-  - broker should use the matching `CNCB*` side of the pair
-- `broker.py` is the only process that talks to the real OSR2
+- the real OSR2 is on `COM4`; a `com0com` virtual pair sits between MFP and the broker (MFP uses the `CNCA*` side, the broker the matching `CNCB*` side)
+- the **broker** — the separate `../osr2_broker` project — is the only process that talks to the real OSR2. It forwards MFP serial traffic in VLC mode, swallows MFP writes during OSR2 auto/free mode, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/genau_mode.txt`.
+- **Genau** — the separate `../genau` project — never opens `COM4`. It follows the broker-fed state, shows itself only in Genau mode, and reads clip/offset commands from `state/genau_cmd.txt`.
 
-The broker:
-
-- forwards MFP serial traffic to the OSR2 in VLC mode
-- swallows MFP writes while OSR2 auto/free mode is active
-- watches OSR2 output for:
-  - `freeMode is on!`
-  - `freeMode is off!`
-  - `freeMode tcode task started`
-  - `freeMode tcode task is stopped`
-  - `StrokeName: ...`
-  - `bpm ...`
-- sends lightweight localhost messages to Genau
-- if the configured virtual COM port is missing, it now tries to recover by detecting the current `com0com` broker-side port automatically
-
-Genau:
-
-- does **not** open `COM4`
-- listens for broker-fed state
-- shows itself only in Genau mode
-- hides itself otherwise
-- plays clips from `fun_time/genau/clips/`
-- switches audio from `fun_time/genau/audio/`
-- follows durable pause-state files for visual/audio ownership, while one-shot command files are reserved for clip actions like `NEXT`, `PREV`, and offset nudges
-
-## Clip and audio naming
-
-`fun_time/genau/clips/` and `fun_time/genau/audio/` are matched by filename stem.
-
-Example:
-
-- `fun_time/genau/clips/Daisy.mp4`
-- `fun_time/genau/audio/Daisy.mp3`
-
-and
-
-- `fun_time/genau/clips/Bella_quarter_middle.mp4`
-- `fun_time/genau/audio/Bella_quarter_middle.mp3`
-
-So the clip and audio files should have the same base name.
+See those projects for the serial parsing, COM-port recovery, and clip-playback internals.
 
 ## Requirements
 
@@ -188,45 +138,15 @@ So the clip and audio files should have the same base name.
 ### Python / tools
 
 - Python (currently launched via Miniconda `pythonw.exe`)
-- `pyserial`
-- `pygame`
-- `Pillow`
-- `ffmpeg`
-- `ffprobe`
+- Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), vosk + sounddevice (voice control), and Pillow / numpy / opencv-python.
 
-Example installs:
-
-```bash
-python -m pip install pyserial pygame pillow
-```
-
-`ffmpeg` / `ffprobe` should be available on `PATH`.
+Install the declared dependencies into the project venv before first use.
 
 ## Launching
 
 ### Broker startup task (one-time setup)
 
-Install the scheduled task:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install_broker_startup_task.ps1
-```
-
-If Scheduled Task creation is denied by Windows permissions, the installer automatically falls back to a per-user Startup launcher.
-
-Start it immediately (optional):
-
-```powershell
-Start-ScheduledTask -TaskName "FunTime Genau Broker"
-```
-
-After setup, broker starts automatically when you sign in to Windows.
-
-Remove broker autostart (Scheduled Task and Startup fallback):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\uninstall_broker_startup.ps1
-```
+The broker runs as its own background service from the `../osr2_broker` project — see that project for its one-time startup-task setup (it can autostart at Windows logon). Launching Fun Time also starts the broker tray if it is not already running.
 
 ### Normal way
 
@@ -411,7 +331,7 @@ If an item is later discarded, it is removed from `favs.csv`.
 
 ### `genau_mode.txt`
 
-Written by `broker.py`.
+Written by the broker (the `../osr2_broker` project).
 
 Values:
 
@@ -432,20 +352,17 @@ Values:
 
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
-`genau_listener.py` consumes and clears this file.
+Genau (the `../genau` project) consumes and clears this file.
 
 ### Log files
 
-The Python entry points now write rotating logs in `state/`.
-
-Common log files:
+The Python entry points write rotating logs in `state/`:
 
 - `state/orchestrator.log`
-- `state/controller.log`
-- `state/broker.log`
-- `state/genau_listener.log`
+- `state/windows_bridge.log`
 - `state/genau_audio.log`
-- `state/genau_crash.log`
+
+The broker and Genau write their own logs (e.g. `broker.log`, `genau_listener.log`, `genau_crash.log`) from the `../osr2_broker` and `../genau` projects.
 
 ## Notes on design
 
@@ -472,43 +389,6 @@ For this setup, file-based signaling turned out to be a reliable and simple way 
 - Genau
 
 coordinate mode and clip-switch commands without depending on focused windows.
-
-## Adding a new Genau clip
-
-1. Put the clip video in `fun_time/genau/clips/`
-2. Put the matching audio file in `fun_time/genau/audio/`
-3. Make sure both have the same stem
-
-Example:
-
-- `fun_time/genau/clips/NewClip.mp4`
-- `fun_time/genau/audio/NewClip.mp3`
-
-No config file is needed for this.
-
-## Making audio from a source video
-
-Example:
-
-```bash
-ffmpeg -y -i "source_video.mp4" -vn -c:a libmp3lame -q:a 2 "fun_time/genau/audio/NewClip.mp3"
-```
-
-## Resizing a clip if Genau struggles with it
-
-If a clip is too heavy, reduce its pixel dimensions.
-
-Example:
-
-```bash
-ffmpeg -y -i "Bella_half_middle.mp4" -an -vf "scale=640:-2" -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p "Bella_640_middle.mp4"
-```
-
-For an even smaller version:
-
-```bash
-ffmpeg -y -i "Bella_half_middle.mp4" -an -vf "scale=480:-2" -c:v libx264 -crf 20 -preset medium -pix_fmt yuv420p "Bella_480_middle.mp4"
-```
 
 ## Troubleshooting
 
@@ -537,7 +417,7 @@ Also verify the shortcut’s **Start in** points to the project folder.
 If startup still fails, inspect:
 
 - `state/orchestrator.log`
-- `state/controller.log`
+- `state/windows_bridge.log`
 
 ### MFP does not control the OSR2
 
@@ -558,19 +438,17 @@ Check:
 - broker is running
 - OSR2 is actually entering auto/free mode
 - `state/genau_mode.txt` changes to `1`
-- `state/broker.log` for serial parsing / mode transitions
-- `state/genau_listener.log` for UI/runtime errors
+- the broker's log (in `../osr2_broker`) for serial parsing / mode transitions
+- Genau's log (in `../genau`) for UI/runtime errors
 
 ### Broker will not start
 
-Check:
+The broker is the `../osr2_broker` project — check its logs and config there. Also confirm:
 
-- `state/broker.log`
-- `state/broker_service_launcher.log`
 - current serial ports still include the real OSR2 on `COM4`
 - current serial ports still include a `com0com` pair
 
-If `fun_time_config.json` still points at an old broker-side port such as `COM15`, broker now tries to recover automatically by selecting the current `CNCB*` port.
+If the broker's config still points at an old broker-side port such as `COM15`, the broker tries to recover automatically by selecting the current `CNCB*` port.
 
 If it still cannot recover, confirm that:
 
@@ -583,9 +461,9 @@ Check:
 
 - `state/genau_mode.txt` is `1`
 - `state/genau_cmd.txt` is being written
-- clip files exist in `fun_time/genau/clips/`
-- `state/controller.log` shows the hotkey write
-- `state/genau_listener.log` shows command-file consumption errors
+- clip files exist in the configured Genau clips folder (`paths.clips_dir`)
+- `state/windows_bridge.log` shows the hotkey write
+- Genau's log (in `../genau`) shows command-file consumption errors
 
 ### A clip stutters badly
 
@@ -600,11 +478,6 @@ These should generally be ignored:
 - `*.lnk`
 - `favs.csv`
 
-The Genau asset folders are intentionally ignored because they are large local assets rather than source:
-
-- `fun_time/genau/clips/`
-- `fun_time/genau/audio/`
-
 ## Current source of truth
 
 These are the files that define the working system:
@@ -612,14 +485,14 @@ These are the files that define the working system:
 - `fun_time_config.json`
 - `main.sh`
 - `launch.vbs`
-- `controller.ahk`
+- `windows_bridge_hotkeys.ahk`
 - `fun_time/config.py`
 - `fun_time/orchestrator.py`
-- `fun_time/broker_app.py`
+- `fun_time/command_dispatch.py`
+- `fun_time/dashboard_app.py`
 - `fun_time/audio_companion_app.py`
-- `fun_time/genau/app.py`
-- `fun_time/genau/state.py`
-- `fun_time/genau/video.py`
+
+The broker, Genau, and Clipper are separate projects: `../osr2_broker`, `../genau`, `../clipper`.
 
 ## Refactors completed
 
@@ -627,13 +500,13 @@ Completed from the earlier cleanup list:
 
 - orchestration now lives in `fun_time/orchestrator.py`, with `main.sh` kept as a thin wrapper
 - config is centralized in `fun_time_config.json`
-- Genau is modularized under `fun_time/genau/`
-- window/layout constants are configurable through `controller.layout`
+- Genau, the broker, and Clipper have been extracted to their own sibling projects (`../genau`, `../osr2_broker`, `../clipper`)
+- window/layout constants are configurable through `layout`
 - runtime logging and diagnostics are written to `state/*.log`
 
 ## Developing
 
-Before doing repo work, consult [AGENTS.md](c:/suite-root/blah/blah/projects/fun_time/AGENTS.md) for the required preflight and the canonical test commands.
+Before doing repo work, consult [CLAUDE.md](CLAUDE.md) for the required preflight and the canonical test commands.
 
 ### Running the tests
 
@@ -677,6 +550,4 @@ bash test.sh -k clipper
 |---|---|
 | `tests/test_config.py` | `fun_time.config` — loading, validation, derived properties |
 | `tests/test_logging_utils.py` | `fun_time.logging_utils` — handler setup, exception hooks |
-| `tests/test_orchestrator.py` | `fun_time.orchestrator` — arg parsing, path checks, controller arg building |
-| `tests/test_genau_state.py` | `fun_time.genau.state` — `SharedState` defaults, UDP message parsing |
-| `tests/test_genau_video.py` | `fun_time.genau.video` — `scan_clips`, supported extensions |
+| `tests/test_orchestrator.py` | `fun_time.orchestrator` — arg parsing, path checks, windows-bridge arg building |
