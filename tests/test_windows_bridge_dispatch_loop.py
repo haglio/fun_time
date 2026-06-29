@@ -1797,7 +1797,7 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_not_called()
 
-    # -- genau activate / genau deactivate --
+    # -- genau activate --
 
     def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
@@ -1819,22 +1819,44 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_not_called()
 
-    def test_genau_deactivate_dispatches_when_in_genau_mode(self, tmp_path):
+    # -- lock off (idempotent unlock) --
+
+    def test_portrait_lock_off_unlocks_when_locked(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(primary_mode="genau")
+        runner.state = BridgeState(locked2=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("genau_deactivate", encoding="utf-8")
+            cmd_file.write_text("portrait_lock_off", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("vlc_activate")
+        mock_d.assert_called_once_with("portrait_lock")
 
-    def test_genau_deactivate_noop_when_not_in_genau_mode(self, tmp_path):
+    def test_portrait_lock_off_noop_when_already_unlocked(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(primary_mode="vlc")
+        runner.state = BridgeState(locked2=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("genau_deactivate", encoding="utf-8")
+            cmd_file.write_text("portrait_lock_off", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_not_called()
+
+    def test_landscape_lock_off_unlocks_when_locked(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(locked3=True)
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("landscape_lock_off", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_called_once_with("landscape_lock")
+
+    def test_landscape_lock_off_noop_when_already_unlocked(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(locked3=False)
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("landscape_lock_off", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_not_called()

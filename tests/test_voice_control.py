@@ -22,11 +22,11 @@ class TestVoiceCommands:
             "previous portrait": "portrait_prev",
             "weird landscape": "landscape_trash",
             "weird portrait": "portrait_trash",
+            "unlock landscape": "landscape_lock_off",
+            "unlock portrait": "portrait_lock_off",
             "f mode on": "fmode_on",
             "f mode off": "fmode_off",
-            "go now": "genau_activate",
-            "enable genau": "genau_activate",
-            "disable genau": "genau_deactivate",
+            "genau": "genau_activate",
             "v l c": "vlc_activate",
             "hybrid": "hybrid_activate",
             "start broker": "broker_start",
@@ -35,6 +35,8 @@ class TestVoiceCommands:
             "previous primary": "primary_prev",
             "skip": "vlc_nudge_next",
             "back": "vlc_nudge_prev",
+            "browse": "open_file_dialog",
+            "clip": "clipper_save",
             "slow down": "genau_speed_down",
             "speed down": "genau_speed_down",
             "speed up": "genau_speed_up",
@@ -42,7 +44,8 @@ class TestVoiceCommands:
             "amp up": "genau_amplitude_up",
             "center down": "genau_center_down",
             "center up": "genau_center_up",
-            "cycle shape": "genau_cycle_shape",
+            "next shape": "genau_cycle_shape",
+            "previous shape": "genau_cycle_shape_prev",
             "genau auto": "genau_toggle_auto",
             "cruise control": "genau_toggle_cruise",
             "cruise on": "genau_cruise_on",
@@ -54,14 +57,22 @@ class TestVoiceCommands:
         for phrase, cmd in static_phrases.items():
             assert VOICE_COMMANDS[phrase] == cmd
 
-    def test_go_now_activates_genau(self):
-        assert VOICE_COMMANDS["go now"] == "genau_activate"
+    def test_genau_activates_genau(self):
+        assert VOICE_COMMANDS["genau"] == "genau_activate"
+
+    def test_dead_genau_phrases_removed(self):
+        for phrase in ("go now", "enable genau", "disable genau"):
+            assert phrase not in VOICE_COMMANDS
 
     def test_v_l_c_activates_vlc(self):
         assert VOICE_COMMANDS["v l c"] == "vlc_activate"
 
     def test_hybrid_activates_hybrid(self):
         assert VOICE_COMMANDS["hybrid"] == "hybrid_activate"
+
+    def test_unlock_phrases_map_to_lock_off(self):
+        assert VOICE_COMMANDS["unlock portrait"] == "portrait_lock_off"
+        assert VOICE_COMMANDS["unlock landscape"] == "landscape_lock_off"
 
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "genau_amp_50"
@@ -73,6 +84,14 @@ class TestVoiceCommands:
 
     def test_contains_numeric_speed_phrases(self):
         assert VOICE_COMMANDS["speed thirty"] == "genau_speed_30"
+
+    def test_min_max_extreme_phrases(self):
+        assert VOICE_COMMANDS["min amp"] == "genau_amp_0"
+        assert VOICE_COMMANDS["max amp"] == "genau_amp_100"
+        assert VOICE_COMMANDS["min center"] == "genau_center_0"
+        assert VOICE_COMMANDS["max center"] == "genau_center_100"
+        assert VOICE_COMMANDS["min speed"] == "genau_speed_0"
+        assert VOICE_COMMANDS["max speed"] == "genau_speed_100"
 
 
 class TestBuildGrammar:

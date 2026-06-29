@@ -539,7 +539,7 @@ def test_reference_dialog_renders_hotkeys_and_voice():
         assert browser is not None
         text = browser.toPlainText()
         assert "Esc" in text
-        assert "go now" in text
+        assert "genau" in text
         assert "Genau" in text
     finally:
         dialog.close()
