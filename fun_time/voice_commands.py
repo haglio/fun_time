@@ -14,6 +14,8 @@ VOICE_COMMANDS: dict[str, str] = {
     "play": "play",
     "lock landscape": "landscape_lock_on",
     "lock portrait": "portrait_lock_on",
+    "unlock landscape": "landscape_lock_off",
+    "unlock portrait": "portrait_lock_off",
     "next landscape": "landscape_next",
     "next portrait": "portrait_next",
     "previous landscape": "landscape_prev",
@@ -22,11 +24,7 @@ VOICE_COMMANDS: dict[str, str] = {
     "weird portrait": "portrait_trash",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
-    "go now": "genau_activate",
-    # "enable genau" is a spoken synonym for "go now"; "disable genau" maps to
-    # genau_deactivate (handled by the dispatch loop), which switches back to VLC.
-    "enable genau": "genau_activate",
-    "disable genau": "genau_deactivate",
+    "genau": "genau_activate",
     "v l c": "vlc_activate",
     "hybrid": "hybrid_activate",
     "start broker": "broker_start",
@@ -35,6 +33,8 @@ VOICE_COMMANDS: dict[str, str] = {
     "previous primary": "primary_prev",
     "skip": "vlc_nudge_next",
     "back": "vlc_nudge_prev",
+    "browse": "open_file_dialog",
+    "clip": "clipper_save",
     "slow down": "genau_speed_down",
     "speed down": "genau_speed_down",
     "speed up": "genau_speed_up",
@@ -42,7 +42,8 @@ VOICE_COMMANDS: dict[str, str] = {
     "amp up": "genau_amplitude_up",
     "center down": "genau_center_down",
     "center up": "genau_center_up",
-    "cycle shape": "genau_cycle_shape",
+    "next shape": "genau_cycle_shape",
+    "previous shape": "genau_cycle_shape_prev",
     "genau auto": "genau_toggle_auto",
     "cruise control": "genau_toggle_cruise",
     "cruise on": "genau_cruise_on",
@@ -64,6 +65,13 @@ _NUMERIC_PREFIXES: dict[str, str] = {
     "speed": "genau_speed",
 }
 
+# "amp fifty" -> genau_amp_50, etc.
 for _word, _value in _NUMBER_WORDS.items():
     for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
         VOICE_COMMANDS[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
+
+# "min amp" -> genau_amp_0, "max speed" -> genau_speed_100, etc.
+_EXTREMES: dict[str, int] = {"min": 0, "max": 100}
+for _label, _value in _EXTREMES.items():
+    for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
+        VOICE_COMMANDS[f"{_label} {_prefix}"] = f"{_cmd_prefix}_{_value}"

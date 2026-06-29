@@ -255,6 +255,12 @@ class DispatchLoopRunner:
             elif cmd == "landscape_lock_on":
                 if not self.state.locked3:
                     self._dispatch("landscape_lock")
+            elif cmd == "portrait_lock_off":
+                if self.state.locked2:
+                    self._dispatch("portrait_lock")
+            elif cmd == "landscape_lock_off":
+                if self.state.locked3:
+                    self._dispatch("landscape_lock")
             elif cmd == "fmode_on":
                 if not self.state.f_mode_enabled:
                     self._dispatch("fmode_toggle")
@@ -264,9 +270,6 @@ class DispatchLoopRunner:
             elif cmd == "genau_activate":
                 if not genau_active(self.state.primary_mode):
                     self._dispatch("genau_activate")
-            elif cmd == "genau_deactivate":
-                if genau_active(self.state.primary_mode):
-                    self._dispatch("vlc_activate")
             elif cmd == "broker_start":
                 self._handle_broker_start()
             elif cmd == "broker_stop":

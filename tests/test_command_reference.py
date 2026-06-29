@@ -86,14 +86,30 @@ def test_voice_phrases_are_derived_from_voice_commands():
             )
 
 
-def test_genau_mode_row_lists_go_now_and_g_key():
+def test_genau_mode_row_lists_genau_phrase_and_g_key():
     rows = _all_rows()
     genau_rows = [r for r in rows if "genau_activate" in r.commands]
     assert genau_rows, "expected a row for genau_activate"
     row = genau_rows[0]
-    assert "go now" in row.voice
-    assert "enable genau" in row.voice
+    assert "genau" in row.voice
+    assert "go now" not in row.voice
     assert any(key.lower() == "g" for key in row.hotkeys)
+
+
+def test_section_titles_and_backslash_split():
+    sections = build_reference_sections()
+    titles = [s.title for s in sections]
+    for expected in ("Global", "Primary VLC", "Portrait VLC", "Landscape VLC", "Modes", "Genau"):
+        assert expected in titles, f"missing section {expected!r}"
+    assert "Genau control" not in titles  # renamed to "Genau"
+    assert "Primary" not in titles  # renamed to "Primary VLC"
+
+    by_title = {s.title: s for s in sections}
+    primary_backslash = [r for r in by_title["Primary VLC"].rows if "\\" in r.hotkeys]
+    genau_backslash = [r for r in by_title["Genau"].rows if "\\" in r.hotkeys]
+    assert len(primary_backslash) == 1, "expected the file-dialog '\\' row in Primary VLC"
+    assert "browse" in primary_backslash[0].voice
+    assert len(genau_backslash) == 1, "expected a separate '\\' offset row in Genau"
 
 
 def test_omnipause_row_uses_esc_and_pause_play_voice():
@@ -127,7 +143,7 @@ def test_render_reference_html_contains_key_content():
     assert "<table" in html
     # A hotkey, a voice phrase, and a section title should all be present.
     assert "Esc" in html
-    assert "go now" in html
+    assert "genau" in html
     assert "Genau" in html
     # No raw template gaps.
     assert "{" not in html and "}" not in html
