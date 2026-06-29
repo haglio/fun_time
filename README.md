@@ -359,56 +359,36 @@ If MFP stops loading scripts for the primary VLC, check:
 - `MediaSource.VLC.Endpoint` should match Fun Time's primary VLC port, currently `127.0.0.1:8090`
 - `%APPDATA%\vlc\vlcrc` should contain the HTTP password that both VLC and MFP expect
 
-## Hotkeys
+## Hotkeys & voice
 
-Primary controls:
+Fun Time is driven by global hotkeys and, optionally, spoken voice commands. While Fun Time is running and not OmniPaused, the hotkeys are global — they fire regardless of which window is focused.
 
-- `Ctrl+Alt+Q` — close everything
-- `Esc` — toggle OmniPause
-- `Space` — pause/play the primary VLC
-- `-` / `=` — nudge the primary VLC backward / forward by the configured VLC seek amount
+The complete, always-current list of keys and spoken phrases lives in the app. Click the **?** button on the dashboard (tooltip "Hotkeys & Voice") to open the reference popup. It is generated directly from the source mappings below, so it can never drift from what the keys and voice grammar actually do:
 
-Mode-dependent keys:
+- [`windows_bridge_hotkeys.ahk`](windows_bridge_hotkeys.ahk) — physical key → dispatch command
+- [`fun_time/voice_commands.py`](fun_time/voice_commands.py) — spoken phrase → dispatch command
+- [`fun_time/command_reference.py`](fun_time/command_reference.py) — joins both into the popup; `tests/test_command_reference.py` parses the AHK script and cross-checks the voice vocabulary so every real trigger stays represented
 
-- `[`
-- `]`
-- `r`
-- `f`
-- `\`
+This README deliberately does not repeat the key table — open the **?** popup for it. The notes below cover the non-obvious behaviors that the table alone does not explain.
 
-Behavior:
+### Modes
 
-- in control mode, `[` / `]` control the primary VLC
-- `r` toggles whether Genau is allowed to take over during OSR2 auto/free mode
-- `f` toggles F-mode immediately across all three VLCs
-- in control mode, `\` opens the primary VLC open-file dialog
-- in Genau mode, `[` / `]` cycle Genau clips
-- in Genau mode, `\` offsets Genau playback by a quarter cycle
-- while F-mode is on, the primary VLC only plays videos whose mirrored path under `videos\scripts\scripts\2D\non_AI` has the same relative path and a `.funscript` extension
-- while F-mode is on, each satellite VLC only plays items that are both in its normal portrait/landscape pool and present in `favs.csv`
-- toggling F-mode reloads each VLC playlist immediately instead of waiting for the next advance
-- if `r` disables Genau while it is already visible, Fun Time swaps back to the primary VLC the same way it does on a normal auto-mode exit
-- while Genau is disabled with `r`, its audio companion stays suppressed too, even if OSR2 remains in auto/free mode
-- a small Fun Time status indicator above MFP shows both Genau enablement and whether F-mode is on
-- on non-US keyboard layouts, the physical bracket-key positions are also bound
-- while Fun Time is running and not OmniPaused, these hotkeys are global and do not depend on which window is active
+The primary stack runs in one of three modes, each selected by its own hotkey (see the popup): **Genau**, **Hybrid**, and **VLC**. The `\` key is mode-dependent:
 
-In control mode, the `\\` action temporarily enters OmniPause while the file dialog is open, then automatically leaves OmniPause when the dialog closes without toggling primary VLC playback state.
-- when clip order is shuffled on load (default), `]` then `[` returns to the prior clip within that same loaded order
+- in VLC mode, `\` opens the primary VLC open-file dialog. Fun Time enters OmniPause while the dialog is open and leaves it when the dialog closes, without toggling primary VLC playback.
+- in Genau mode, `\` offsets Genau playback by a quarter cycle.
 
-Genau clip switching wraps around cyclically:
-- `]` at the end goes back to the beginning
-- `[` at the beginning goes to the end
+### OmniPause
 
-Secondary VLC controls:
+- `Esc` toggles OmniPause; `Space` enters it.
+- While OmniPaused, the global hotkeys are suspended — only `Esc` (toggle OmniPause) and `Ctrl+Alt+Q` (quit) stay active.
 
-- `Left` / `Right` — previous / next on portrait VLC
-- `Up` — discard current portrait item
-- `Down` — toggle portrait lock
+### F-Mode
 
-- `a` / `d` — previous / next on landscape VLC
-- `w` — discard current landscape item
-- `s` — toggle landscape lock
+Toggling F-Mode reloads all three VLC playlists immediately, rather than waiting for the next advance, and restricts each VLC to funscript-backed media:
+
+- the primary VLC plays only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
+- each satellite VLC plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
 ## Favorites CSV behavior
 
