@@ -111,8 +111,8 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Set center", (), (), ("min center", "max center", "center 0–100")),
             _Row("Speed up / down", ("L", "J"), ("genau_speed_up", "genau_speed_down")),
             _Row("Set speed", (), (), ("min speed", "max speed", "speed 0–100")),
-            _Row("Next waveform shape", (",",), ("genau_cycle_shape",)),
             _Row("Previous waveform shape", (), ("genau_cycle_shape_prev",)),
+            _Row("Next waveform shape", (",",), ("genau_cycle_shape",)),
             _Row("Previous Genau clip", ("M",), ("genau_prev_clip",)),
             _Row("Next Genau clip", (".",), ("genau_next_clip",)),
             _Row("Toggle Genau auto-takeover", ("/",), ("genau_toggle_auto",)),
@@ -124,10 +124,20 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
 
 
 def _voice_for(commands: tuple[str, ...]) -> tuple[str, ...]:
-    """All spoken phrases that map to any of *commands*, in sorted order."""
-    return tuple(sorted(
-        phrase for phrase, cmd in VOICE_COMMANDS.items() if cmd in commands
-    ))
+    """Spoken phrases for *commands*, listed in command order.
+
+    Phrases follow the order their commands appear in the row — so the Say
+    column tracks the label (e.g. on before off, up before down) — with each
+    command's own synonyms sorted among themselves.
+    """
+    by_command: dict[str, list[str]] = {}
+    for phrase, cmd in VOICE_COMMANDS.items():
+        if cmd in commands:
+            by_command.setdefault(cmd, []).append(phrase)
+    result: list[str] = []
+    for cmd in commands:
+        result.extend(sorted(by_command.get(cmd, [])))
+    return tuple(result)
 
 
 def build_reference_sections() -> tuple[ReferenceSection, ...]:
