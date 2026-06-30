@@ -6,6 +6,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def genau_enabled_path(state_dir: Path) -> Path:
+    """Path to the broker-shared flag for whether Genau may take over OSR2 auto mode."""
+    return state_dir / "genau_enabled.txt"
+
+
+def read_genau_enabled(path: Path) -> bool:
+    """True (takeover allowed) unless the flag file holds '0' — mirrors the broker."""
+    try:
+        if not path.exists():
+            return True
+        return path.read_text(encoding="utf-8-sig").strip() != "0"
+    except OSError:
+        return True
+
+
 @dataclass(frozen=True)
 class DashboardPanelSnapshot:
     path: str

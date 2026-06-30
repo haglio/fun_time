@@ -115,7 +115,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Next waveform shape", (",",), ("genau_cycle_shape",)),
             _Row("Previous Genau clip", ("M",), ("genau_prev_clip",)),
             _Row("Next Genau clip", (".",), ("genau_next_clip",)),
-            _Row("Toggle Genau auto-takeover", ("/",), ("genau_toggle_auto",)),
+            _Row("Allow / suppress Genau takeover (OSR2 auto)", ("/",), ("genau_toggle_auto",)),
             _Row("Enable / disable cruise control", ("C",), ("genau_toggle_cruise", "genau_cruise_on", "genau_cruise_off")),
             _Row("Offset ¼ cycle", ("\\",), ("backslash_key", "quarter_button")),
         ),

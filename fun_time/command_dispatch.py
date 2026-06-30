@@ -13,6 +13,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
+from .dashboard_runtime import genau_enabled_path, read_genau_enabled
 from .lock import build_lock_plan
 from .provider_regen import regen_url_for_video
 from .mode_plan import genau_active
@@ -92,7 +93,6 @@ _GENAU_CMD_MAP = {
     "genau_center_up": "CENTER_UP",
     "genau_cycle_shape": "CYCLE_SHAPE",
     "genau_cycle_shape_prev": "CYCLE_SHAPE_PREV",
-    "genau_toggle_auto": "TOGGLE_AUTO",
     "genau_toggle_cruise": "TOGGLE_CRUISE",
     "genau_cruise_on": "CRUISE_ON",
     "genau_cruise_off": "CRUISE_OFF",
@@ -119,6 +119,12 @@ def _parse_genau_numeric_command(command: str) -> str | None:
                 return None
             return f"{keyword} {value_str}"
     return None
+
+
+def _toggle_genau_enabled(path: Path) -> None:
+    """Flip the persisted allow/suppress flag; the broker syncs it each tick."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("0" if read_genau_enabled(path) else "1", encoding="utf-8")
 
 
 def _cancel_lock(which: int, state: BridgeState, config: BridgeConfig) -> BridgeState:
@@ -256,6 +262,12 @@ def dispatch_command(
     if command in ("genau_activate", "vlc_activate", "hybrid_activate"):
         target = {"genau_activate": "genau", "vlc_activate": "vlc", "hybrid_activate": "hybrid"}[command]
         return _dispatch_mode_switch(target, state, config, ops)
+
+    if command == "genau_toggle_auto":
+        # Flip whether Genau may take over while OSR2 is in auto mode. The broker
+        # reads this persisted flag each tick, so a plain file write is enough.
+        _toggle_genau_enabled(genau_enabled_path(config.state_dir))
+        return state, ops
 
     if command in _GENAU_CMD_MAP:
         if genau_active(state.primary_mode):

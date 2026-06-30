@@ -524,6 +524,31 @@ def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
+def test_genau_toggle_auto_flips_genau_enabled_flag(tmp_path: Path):
+    from fun_time.command_dispatch import genau_enabled_path, read_genau_enabled
+    config = _make_config(tmp_path)
+    state = _make_state()
+    flag = genau_enabled_path(config.state_dir)
+
+    # Missing flag means takeover allowed; first toggle suppresses it.
+    assert read_genau_enabled(flag) is True
+    dispatch_command("genau_toggle_auto", state, config)
+    assert flag.read_text(encoding="utf-8").strip() == "0"
+    assert read_genau_enabled(flag) is False
+
+    # Toggling again re-allows takeover.
+    dispatch_command("genau_toggle_auto", state, config)
+    assert flag.read_text(encoding="utf-8").strip() == "1"
+    assert read_genau_enabled(flag) is True
+
+
+def test_genau_toggle_auto_does_not_write_genau_cmd_file(tmp_path: Path):
+    # It must drive the broker flag, not the (unrelated) Genau command file.
+    config = _make_config(tmp_path)
+    dispatch_command("genau_toggle_auto", _make_state(), config)
+    assert not config.genau_cmd_file.exists()
+
+
 def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="genau")

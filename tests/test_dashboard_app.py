@@ -1369,6 +1369,27 @@ def test_genau_cruise_button_neutral_when_inactive(cfg_path: Path):
     assert fills[layout.genau_cruise] == COLOR_PANEL
 
 
+def test_takeover_toggle_owns_bottom_left_with_cc_beside_it(cfg_path: Path):
+    """The Genau takeover toggle always sits bottom-left; cc moves beside it."""
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_mode="genau")
+
+    scene = build_dashboard_scene(layout, snapshot, genau_takeover_allowed=True)
+    action_at = {a: r for a, r in scene.actions}
+    text_at = {item.rect: item.text for item in scene.texts}
+    fills = {item.rect: item.fill for item in scene.rects}
+    # Both buttons present, at their own rects.
+    assert action_at.get("genau_toggle_auto") == layout.genau_takeover
+    assert action_at.get("genau_toggle_cruise") == layout.genau_cruise
+    assert text_at[layout.genau_takeover] == "GA"
+    assert text_at[layout.genau_cruise] == "cc"
+    assert fills[layout.genau_takeover] == COLOR_GREEN  # takeover allowed
+
+    scene_suppressed = build_dashboard_scene(layout, snapshot, genau_takeover_allowed=False)
+    fills_off = {item.rect: item.fill for item in scene_suppressed.rects}
+    assert fills_off[layout.genau_takeover] == COLOR_RED  # takeover suppressed
+
+
 def test_genau_shape_button_has_neutral_fill(cfg_path: Path):
     """Shape button must use neutral fill so the waveform icon is visible."""
     layout = _make_layout(cfg_path)
