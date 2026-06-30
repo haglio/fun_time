@@ -531,6 +531,34 @@ def test_omniminimize_not_routed_on_restore_or_repeat(cfg_path: Path):
         window.close()
 
 
+def test_restore_routes_omnirestore_command(cfg_path: Path):
+    """Un-minimizing the dashboard writes omnirestore so the others come back too."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        cmd_file = app_config.dashboard_cmd_file
+        if cmd_file.exists():
+            cmd_file.unlink()
+
+        # Restore edge (minimized -> normal) routes omnirestore.
+        window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
+        assert cmd_file.read_text(encoding="utf-8") == "omnirestore"
+
+        # Minimize edge and steady state must not route omnirestore.
+        cmd_file.unlink()
+        window._maybe_route_omnirestore(now_minimized=True, was_minimized=False)
+        window._maybe_route_omnirestore(now_minimized=False, was_minimized=False)
+        assert not cmd_file.exists()
+    finally:
+        window.close()
+
+
 def test_do_render_skips_geometry_reapply_while_minimized(cfg_path: Path):
     """The refresh loop must not re-assert geometry on a minimized window (which would restore it)."""
     config = load_config(cfg_path)

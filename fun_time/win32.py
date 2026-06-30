@@ -236,6 +236,15 @@ def minimize_window(hwnd: int, *, activate: bool = True) -> None:
     _user32.ShowWindow(hwnd, SW_MINIMIZE if activate else SW_SHOWMINNOACTIVE)
 
 
+def restore_window(hwnd: int, *, activate: bool = True) -> None:
+    """Restore (un-minimize) a window to its previous size and position.
+
+    When *activate* is False, uses SW_SHOWNOACTIVATE so restoring several
+    windows in sequence never yanks focus from one to the next.
+    """
+    _user32.ShowWindow(hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE)
+
+
 def send_key_to_window(hwnd: int, key: str) -> None:
     """Send a single keystroke to a window via PostMessage (WM_KEYDOWN/UP).
 
