@@ -1462,25 +1462,34 @@ def test_genau_cruise_button_neutral_when_inactive(cfg_path: Path):
     assert fills[layout.genau_cruise] == COLOR_PANEL
 
 
-def test_takeover_toggle_owns_bottom_left_with_cc_beside_it(cfg_path: Path):
-    """The Genau takeover toggle always sits bottom-left; cc moves beside it."""
+def test_takeover_toggle_in_vlc_and_hybrid_not_genau(cfg_path: Path):
+    """The takeover toggle belongs where Genau isn't the primary: VLC and Hybrid."""
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_mode="genau")
 
-    scene = build_dashboard_scene(layout, snapshot, genau_takeover_allowed=True)
-    action_at = {a: r for a, r in scene.actions}
-    text_at = {item.rect: item.text for item in scene.texts}
-    fills = {item.rect: item.fill for item in scene.rects}
-    # Both buttons present, at their own rects.
-    assert action_at.get("genau_toggle_auto") == layout.genau_takeover
-    assert action_at.get("genau_toggle_cruise") == layout.genau_cruise
-    assert text_at[layout.genau_takeover] == "GA"
-    assert text_at[layout.genau_cruise] == "cc"
-    assert fills[layout.genau_takeover] == COLOR_GREEN  # takeover allowed
+    # Genau mode: cc owns the bottom-left; no takeover toggle (Genau already active).
+    genau = build_dashboard_scene(layout, _make_snapshot(primary_mode="genau"))
+    g_actions = {a: r for a, r in genau.actions}
+    g_text = {item.rect: item.text for item in genau.texts}
+    assert "genau_toggle_auto" not in g_actions
+    assert g_actions.get("genau_toggle_cruise") == layout.genau_cruise
+    assert g_text[layout.genau_cruise] == "cc"
 
-    scene_suppressed = build_dashboard_scene(layout, snapshot, genau_takeover_allowed=False)
-    fills_off = {item.rect: item.fill for item in scene_suppressed.rects}
-    assert fills_off[layout.genau_takeover] == COLOR_RED  # takeover suppressed
+    # VLC mode: takeover toggle at the bottom-left, green when allowed / red when not.
+    vlc = build_dashboard_scene(layout, _make_snapshot(primary_mode="vlc"), genau_takeover_allowed=True)
+    v_actions = {a: r for a, r in vlc.actions}
+    v_text = {item.rect: item.text for item in vlc.texts}
+    assert v_actions.get("genau_toggle_auto") == layout.genau_takeover
+    assert "genau_toggle_cruise" not in v_actions
+    assert v_text[layout.genau_takeover] == "GA"
+    assert {i.rect: i.fill for i in vlc.rects}[layout.genau_takeover] == COLOR_GREEN
+    vlc_off = build_dashboard_scene(layout, _make_snapshot(primary_mode="vlc"), genau_takeover_allowed=False)
+    assert {i.rect: i.fill for i in vlc_off.rects}[layout.genau_takeover] == COLOR_RED
+
+    # Hybrid mode: takeover bottom-left, cc shifted to hybrid_cruise beside it.
+    hybrid = build_dashboard_scene(layout, _make_snapshot(primary_mode="hybrid"))
+    h_actions = {a: r for a, r in hybrid.actions}
+    assert h_actions.get("genau_toggle_auto") == layout.genau_takeover
+    assert h_actions.get("genau_toggle_cruise") == layout.hybrid_cruise
 
 
 def test_genau_shape_button_has_neutral_fill(cfg_path: Path):

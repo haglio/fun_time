@@ -541,7 +541,8 @@ def build_dashboard_scene(
     _is_hybrid = snapshot is not None and snapshot.primary_mode == "hybrid"
 
     # Genau takeover allow/suppress toggle — owns the bottom-left of the primary
-    # panel in Genau/Hybrid mode: green when takeover is allowed, red when suppressed.
+    # panel in VLC/Hybrid mode (where Genau hasn't claimed the primary, so the
+    # takeover is a live choice): green when allowed, red when suppressed.
     takeover_fill = COLOR_GREEN if genau_takeover_allowed else COLOR_RED
     takeover_hover = "Genau takeover: allowed" if genau_takeover_allowed else "Genau takeover: suppressed"
 
@@ -574,7 +575,6 @@ def build_dashboard_scene(
                 DashboardRectItem(layout.genau_ctr_down, fill=_press_fill(COLOR_PANEL, GENAU_CTR_DOWN)),
                 DashboardRectItem(layout.genau_spd_up, fill=_press_fill(COLOR_PANEL, GENAU_SPD_UP)),
                 DashboardRectItem(layout.genau_spd_down, fill=_press_fill(COLOR_PANEL, GENAU_SPD_DOWN)),
-                DashboardRectItem(layout.genau_takeover, fill=_press_fill(takeover_fill, GENAU_TOGGLE_AUTO)),
                 DashboardRectItem(layout.genau_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
                 DashboardRectItem(layout.genau_shape, fill=_press_fill(COLOR_PANEL, GENAU_SHAPE)),
                 DashboardRectItem(layout.hybrid_mode_button, fill=_press_fill(COLOR_PANEL, HYBRID_ACTIVATE)),
@@ -592,7 +592,7 @@ def build_dashboard_scene(
                 DashboardRectItem(layout.hybrid_genau_spd_up, fill=_press_fill(COLOR_PANEL, GENAU_SPD_UP)),
                 DashboardRectItem(layout.hybrid_genau_spd_down, fill=_press_fill(COLOR_PANEL, GENAU_SPD_DOWN)),
                 DashboardRectItem(layout.genau_takeover, fill=_press_fill(takeover_fill, GENAU_TOGGLE_AUTO)),
-                DashboardRectItem(layout.genau_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
+                DashboardRectItem(layout.hybrid_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
                 DashboardRectItem(layout.genau_shape, fill=_press_fill(COLOR_PANEL, GENAU_SHAPE)),
             )
             if _is_hybrid else (
@@ -600,6 +600,7 @@ def build_dashboard_scene(
                 DashboardRectItem(layout.vlc_nudge_next, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_NEXT)),
                 DashboardRectItem(layout.open_file_dialog, fill=_press_fill(COLOR_PANEL, OPEN_FILE_DIALOG)),
                 DashboardRectItem(layout.clipper_save, fill=_press_fill(COLOR_PANEL, CLIPPER_SAVE)),
+                DashboardRectItem(layout.genau_takeover, fill=_press_fill(takeover_fill, GENAU_TOGGLE_AUTO)),
                 DashboardRectItem(layout.hybrid_mode_button, fill=_press_fill(COLOR_PANEL, HYBRID_ACTIVATE)),
             )
         ),
@@ -644,7 +645,6 @@ def build_dashboard_scene(
                 DashboardTextItem("AMP", layout.genau_amp_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("CTR", layout.genau_ctr_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("SPD", layout.genau_spd_label, font=_font_ui_tiny, rotation=90),
-                DashboardTextItem("GA", layout.genau_takeover, font=_font_ui_tiny),
                 DashboardTextItem("cc", layout.genau_cruise, font=_font_ui_tiny),
                 DashboardTextItem("h", layout.hybrid_mode_button, font=_font_ui_tiny),
             )
@@ -663,13 +663,14 @@ def build_dashboard_scene(
                 DashboardTextItem("CTR", layout.hybrid_genau_ctr_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("SPD", layout.hybrid_genau_spd_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("GA", layout.genau_takeover, font=_font_ui_tiny),
-                DashboardTextItem("cc", layout.genau_cruise, font=_font_ui_tiny),
+                DashboardTextItem("cc", layout.hybrid_cruise, font=_font_ui_tiny),
                 DashboardTextItem("VLC", layout.hybrid_mode_button, font=_font_ui_tiny),
             )
             if _is_hybrid else (
                 DashboardTextItem("\u2212", layout.vlc_nudge_prev, font=_font_ui_sm),
                 DashboardTextItem("+", layout.vlc_nudge_next, font=_font_ui_sm),
                 DashboardTextItem("\U0001F4C2", layout.open_file_dialog, font=_font_emoji),
+                DashboardTextItem("GA", layout.genau_takeover, font=_font_ui_tiny),
                 DashboardTextItem("h", layout.hybrid_mode_button, font=_font_ui_tiny),
             )
         ),
@@ -752,10 +753,16 @@ def build_dashboard_scene(
             (layout.broker_panel, "Broker"),
             (layout.fmode_panel, "F-Mode"),
             (layout.voice_panel, "Voice"),
-            *((
-                (layout.genau_takeover, takeover_hover),
-                (layout.genau_cruise, "Cruise control"),
-            ) if (_is_genau or _is_hybrid) else ()),
+            *(
+                ((layout.genau_cruise, "Cruise control"),)
+                if _is_genau else (
+                    (layout.genau_takeover, takeover_hover),
+                    (layout.hybrid_cruise, "Cruise control"),
+                )
+                if _is_hybrid else (
+                    (layout.genau_takeover, takeover_hover),
+                )
+            ),
         ),
         lines=cable_lines,
         ovals=cable_ovals,
@@ -779,7 +786,6 @@ def build_dashboard_scene(
                     *(() if _genau.ctr_at_min else ((GENAU_CTR_DOWN, layout.genau_ctr_down),)),
                     *(() if _genau.spd_at_max else ((GENAU_SPD_UP, layout.genau_spd_up),)),
                     *(() if _genau.spd_at_min else ((GENAU_SPD_DOWN, layout.genau_spd_down),)),
-                    (GENAU_TOGGLE_AUTO, layout.genau_takeover),
                     (GENAU_CRUISE, layout.genau_cruise),
                     (GENAU_SHAPE, layout.genau_shape),
                     (HYBRID_ACTIVATE, layout.hybrid_mode_button),
@@ -798,7 +804,7 @@ def build_dashboard_scene(
                     *(() if _genau.spd_at_max else ((GENAU_SPD_UP, layout.hybrid_genau_spd_up),)),
                     *(() if _genau.spd_at_min else ((GENAU_SPD_DOWN, layout.hybrid_genau_spd_down),)),
                     (GENAU_TOGGLE_AUTO, layout.genau_takeover),
-                    (GENAU_CRUISE, layout.genau_cruise),
+                    (GENAU_CRUISE, layout.hybrid_cruise),
                     (GENAU_SHAPE, layout.genau_shape),
                     (VLC_ACTIVATE, layout.hybrid_mode_button),
                     (GENAU_ACTIVATE, layout.genau_mode_toggle),
@@ -808,6 +814,7 @@ def build_dashboard_scene(
                     (VLC_NUDGE_NEXT, layout.vlc_nudge_next),
                     (OPEN_FILE_DIALOG, layout.open_file_dialog),
                     (CLIPPER_SAVE, layout.clipper_save),
+                    (GENAU_TOGGLE_AUTO, layout.genau_takeover),
                     (HYBRID_ACTIVATE, layout.hybrid_mode_button),
                     (GENAU_ACTIVATE, layout.genau_mode_toggle),
                 )

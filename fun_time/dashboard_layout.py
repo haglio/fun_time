@@ -64,6 +64,7 @@ class DashboardPreviewLayout:
     genau_spd_down: Rect
     genau_takeover: Rect
     genau_cruise: Rect
+    hybrid_cruise: Rect
     genau_shape: Rect
     hybrid_mode_button: Rect
     vlc_mode_button: Rect
@@ -238,8 +239,10 @@ def compute_dashboard_preview_layout(
     nudge_prev_x = right_inner_x + (right_inner_w - 44) // 2
     nudge_next_x = nudge_prev_x + 24
 
-    # Genau takeover / cruise / shape — bottom row alongside mode toggle.
-    # Takeover toggle owns the bottom-left corner; cruise sits just to its right.
+    # Bottom row of the primary panel. The bottom-left corner holds the cruise
+    # (cc) button in Genau mode, but the Genau takeover toggle in VLC/Hybrid mode
+    # (same coords, mutually exclusive by mode). In Hybrid, cruise shifts right to
+    # hybrid_cruise so it can sit beside the takeover toggle.
     genau_bottom_y = primary_y + primary_h - 20
     genau_bottom_btn_w = 20
     genau_bottom_btn_h = 16
@@ -248,6 +251,10 @@ def compute_dashboard_preview_layout(
         genau_bottom_btn_w, genau_bottom_btn_h,
     )
     genau_cruise_rect = Rect(
+        right_inner_x + 4, genau_bottom_y,
+        genau_bottom_btn_w, genau_bottom_btn_h,
+    )
+    hybrid_cruise_rect = Rect(
         right_inner_x + 4 + genau_bottom_btn_w + 4, genau_bottom_y,
         genau_bottom_btn_w, genau_bottom_btn_h,
     )
@@ -299,6 +306,7 @@ def compute_dashboard_preview_layout(
         genau_spd_down=spd_down,
         genau_takeover=genau_takeover_rect,
         genau_cruise=genau_cruise_rect,
+        hybrid_cruise=hybrid_cruise_rect,
         genau_shape=genau_shape_rect,
         hybrid_mode_button=Rect(hybrid_mode_btn_x, genau_toggle_y, hybrid_mode_btn_w, hybrid_mode_btn_h),
         vlc_mode_button=Rect(genau_toggle_x, genau_toggle_y, 28, 16),
