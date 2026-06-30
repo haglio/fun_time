@@ -552,6 +552,48 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
 
+    def test_omniminimize_minimizes_every_window(self, tmp_path):
+        """omniminimize minimizes every managed window without stealing focus."""
+        runner = self._make_runner(
+            tmp_path,
+            sync_interval_ms=999999,
+            portrait_pid=300,
+            landscape_pid=400,
+            dashboard_pid=500,
+            rfb_hwnd=7777,
+        )
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("omniminimize", encoding="utf-8")
+
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+        minimized: list[tuple[int, dict]] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
+            runner.tick()
+
+        # Every window: RFB, portrait, landscape, primary, Genau, MFP, dashboard.
+        assert {h for h, _ in minimized} == {7777, 3001, 4001, 1001, 6001, 2001, 5001}
+        # Minimized without activation so focus isn't yanked between windows.
+        assert all(kw.get("activate") is False for _, kw in minimized)
+
+    def test_omniminimize_skips_windows_that_are_not_found(self, tmp_path):
+        """Windows whose lookup returns 0 are skipped — no minimize call for them."""
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=0)
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("omniminimize", encoding="utf-8")
+
+        minimized: list[int] = []
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+            runner.tick()
+
+        assert minimized == []
+
     def test_sends_press_via_udp_on_button_command(self, tmp_path):
         recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         recv_sock.bind(("127.0.0.1", 0))

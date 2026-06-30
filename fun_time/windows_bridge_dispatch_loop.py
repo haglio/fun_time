@@ -29,6 +29,7 @@ from .win32 import (
     find_window_by_title,
     hide_window,
     is_window_topmost,
+    minimize_window,
     send_vk_to_window,
     send_key_to_window,
     set_always_on_top,
@@ -214,6 +215,8 @@ class DispatchLoopRunner:
             if cmd == "quit":
                 self.ahk_cmd_file.write_text("exit", encoding="utf-8")
                 continue
+            elif cmd == "omniminimize":
+                self._handle_omniminimize()
             elif cmd == "omnipause_toggle":
                 self._handle_omnipause_toggle()
             elif cmd == "enter_omnipause":
@@ -365,6 +368,23 @@ class DispatchLoopRunner:
         except Exception:
             pass
 
+    def _window_layers(self) -> list[tuple[int, bool]]:
+        """The centralized (hwnd, should_be_topmost) stack for every managed window.
+
+        Single source of truth for the window roster — z-order application,
+        topmost removal, and omniminimize all walk this same list.
+        """
+        return compute_z_order(
+            rfb_hwnd=self.rfb_hwnd,
+            portrait_hwnd=find_window_by_pid(self.portrait_pid),
+            landscape_hwnd=find_window_by_pid(self.landscape_pid),
+            primary_hwnd=find_window_by_pid(self.primary_pid),
+            genau_hwnd=find_window_by_title("Genau"),
+            mfp_hwnd=find_window_by_pid(self.mfp_pid),
+            dashboard_hwnd=self._find_dashboard_hwnd(),
+            primary_mode=self.state.primary_mode,
+        )
+
     def _apply_z_order(self, *, reorder: bool = True) -> None:
         """Look up all window HWNDs and apply the centralized z-order stack.
 
@@ -375,31 +395,11 @@ class DispatchLoopRunner:
         should not be topmost without touching the rest.  Use for the
         periodic sync tick to avoid visual flicker.
         """
-        layers = compute_z_order(
-            rfb_hwnd=self.rfb_hwnd,
-            portrait_hwnd=find_window_by_pid(self.portrait_pid),
-            landscape_hwnd=find_window_by_pid(self.landscape_pid),
-            primary_hwnd=find_window_by_pid(self.primary_pid),
-            genau_hwnd=find_window_by_title("Genau"),
-            mfp_hwnd=find_window_by_pid(self.mfp_pid),
-            dashboard_hwnd=self._find_dashboard_hwnd(),
-            primary_mode=self.state.primary_mode,
-        )
-        apply_z_order(layers, reorder=reorder)
+        apply_z_order(self._window_layers(), reorder=reorder)
 
     def _remove_all_topmost(self) -> None:
         """Demote all windows from the TOPMOST band (omnipause)."""
-        layers = compute_z_order(
-            rfb_hwnd=self.rfb_hwnd,
-            portrait_hwnd=find_window_by_pid(self.portrait_pid),
-            landscape_hwnd=find_window_by_pid(self.landscape_pid),
-            primary_hwnd=find_window_by_pid(self.primary_pid),
-            genau_hwnd=find_window_by_title("Genau"),
-            mfp_hwnd=find_window_by_pid(self.mfp_pid),
-            dashboard_hwnd=self._find_dashboard_hwnd(),
-            primary_mode=self.state.primary_mode,
-        )
-        apply_z_order([(h, False) for h, _ in layers])
+        apply_z_order([(h, False) for h, _ in self._window_layers()])
 
     def _restore_all_topmost(self) -> None:
         """Restore the correct z-order stack after omnipause."""
@@ -463,6 +463,16 @@ class DispatchLoopRunner:
                     hwnd, self.dashboard_pid,
                 )
         return hwnd
+
+    def _handle_omniminimize(self) -> None:
+        """Minimize every managed window — the "omniminimize" command.
+
+        Walks the same window roster as the z-order stack (RFB, the three
+        VLCs, Genau, MFP, and the dashboard itself) and minimizes each with
+        ``activate=False`` so minimizing one never yanks focus to the next.
+        """
+        for hwnd, _topmost in self._window_layers():
+            minimize_window(hwnd, activate=False)
 
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows.
