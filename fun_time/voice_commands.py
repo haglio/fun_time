@@ -52,6 +52,7 @@ VOICE_COMMANDS: dict[str, str] = {
     "cruise off": "genau_cruise_off",
     "previous clip": "genau_prev_clip",
     "next clip": "genau_next_clip",
+    "offset": "quarter_button",
     "voice off": "voice_off",
 }
 
