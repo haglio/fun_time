@@ -162,6 +162,21 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
     assert "min amp" in set_amp.voice and "max amp" in set_amp.voice
 
 
+def test_cruise_voice_lists_on_before_off():
+    cruise = next(r for r in _all_rows() if "genau_toggle_cruise" in r.commands)
+    assert cruise.voice == ("cruise control", "cruise on", "cruise off")
+
+
+def test_previous_next_pairs_are_ordered_previous_then_next():
+    for section in build_reference_sections():
+        descs = [r.description for r in section.rows]
+        for d in descs:
+            if d.startswith("Previous "):
+                nxt = "Next " + d[len("Previous "):]
+                if nxt in descs:
+                    assert descs.index(d) < descs.index(nxt), f"{d!r} should precede {nxt!r}"
+
+
 def test_offset_voice_on_genau_backslash_row():
     rows = _all_rows()
     offset_rows = [r for r in rows if "\\" in r.hotkeys and "quarter_button" in r.commands]
