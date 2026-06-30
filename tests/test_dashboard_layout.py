@@ -284,7 +284,7 @@ def test_genau_cruise_is_left_of_shape():
     assert layout.genau_cruise.x + layout.genau_cruise.width < layout.genau_shape.x
 
 
-def test_genau_takeover_owns_bottom_left_with_cruise_to_its_right():
+def test_genau_takeover_bottom_left_and_hybrid_cruise_to_its_right():
     layout = compute_dashboard_preview_layout(
         Size(width=2560, height=1392),
         Size(width=1440, height=3440),
@@ -293,11 +293,15 @@ def test_genau_takeover_owns_bottom_left_with_cruise_to_its_right():
 
     takeover = layout.genau_takeover
     cruise = layout.genau_cruise
+    hybrid_cruise = layout.hybrid_cruise
     assert _inside(takeover, layout.primary_panel)
-    assert takeover.y == cruise.y
-    # Takeover owns the far-left corner; cruise sits to its right without overlap.
-    assert takeover.x < cruise.x
-    assert takeover.x + takeover.width <= cruise.x
+    assert _inside(hybrid_cruise, layout.primary_panel)
+    # In Genau mode the bottom-left holds cruise; in VLC/Hybrid the takeover toggle
+    # takes that exact spot, so the two share coordinates.
+    assert takeover.x == cruise.x and takeover.y == cruise.y
+    # In Hybrid, cruise shifts right of the takeover toggle, no overlap.
+    assert takeover.x < hybrid_cruise.x
+    assert takeover.x + takeover.width <= hybrid_cruise.x
 
 
 def test_genau_shape_does_not_overlap_mode_toggle():
