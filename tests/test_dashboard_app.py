@@ -462,6 +462,99 @@ def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
         window.close()
 
 
+def test_dashboard_window_shows_native_minimize_and_close_buttons(cfg_path: Path):
+    """Top-right title-bar controls: minimize + close, but no maximize."""
+    import ctypes
+
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        hwnd = int(window.winId())
+        style = ctypes.windll.user32.GetWindowLongW(hwnd, -16)  # GWL_STYLE
+        assert style & 0x00080000, "WS_SYSMENU must be set (enables the close button)"
+        assert style & 0x00020000, "WS_MINIMIZEBOX must be set (enables minimize)"
+        assert not (style & 0x00010000), "WS_MAXIMIZEBOX must NOT be set (no maximize)"
+    finally:
+        window.close()
+
+
+def test_minimize_routes_omniminimize_command(cfg_path: Path):
+    """Minimizing the dashboard writes the omniminimize command for the dispatch loop."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        cmd_file = app_config.dashboard_cmd_file
+        if cmd_file.exists():
+            cmd_file.unlink()
+
+        window._maybe_route_omniminimize(now_minimized=True, was_minimized=False)
+
+        assert cmd_file.read_text(encoding="utf-8") == "omniminimize"
+    finally:
+        window.close()
+
+
+def test_omniminimize_not_routed_on_restore_or_repeat(cfg_path: Path):
+    """Only the not-minimized -> minimized transition routes; restore/repeat do not."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        cmd_file = app_config.dashboard_cmd_file
+        if cmd_file.exists():
+            cmd_file.unlink()
+
+        # Restore (minimized -> normal) must not route.
+        window._maybe_route_omniminimize(now_minimized=False, was_minimized=True)
+        # Already minimized, state re-asserted — no new transition.
+        window._maybe_route_omniminimize(now_minimized=True, was_minimized=True)
+
+        assert not cmd_file.exists()
+    finally:
+        window.close()
+
+
+def test_do_render_skips_geometry_reapply_while_minimized(cfg_path: Path):
+    """The refresh loop must not re-assert geometry on a minimized window (which would restore it)."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        with patch("fun_time.dashboard_app.apply_dashboard_window_geometry") as mock_geo, \
+             patch.object(window, "isMinimized", return_value=True):
+            window._do_render(None, frozenset())
+        mock_geo.assert_not_called()
+
+        with patch("fun_time.dashboard_app.apply_dashboard_window_geometry") as mock_geo, \
+             patch.object(window, "isMinimized", return_value=False):
+            window._do_render(None, frozenset())
+        mock_geo.assert_called_once()
+    finally:
+        window.close()
+
+
 def test_help_action_opens_dialog_locally_without_routing_command(cfg_path: Path):
     """Help is a pure UI concern — it opens a dialog and must not write a dispatch command."""
     from unittest.mock import MagicMock

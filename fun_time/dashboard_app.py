@@ -62,6 +62,7 @@ from fun_time.dashboard_actions import (
     GENAU_ACTIVATE,
     HELP_REFERENCE,
     HYBRID_ACTIVATE,
+    OMNIMINIMIZE,
     OMNIPAUSE_TOGGLE,
     OPEN_FILE_DIALOG,
     PORTRAIT_LOCK,
@@ -825,7 +826,7 @@ def build_dashboard_scene(
 # ---------------------------------------------------------------------------
 # PyQt6 rendering widget
 # ---------------------------------------------------------------------------
-from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
+from PyQt6.QtCore import Qt, QEvent, QRectF, QPointF, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QToolTip, QDialog, QVBoxLayout, QTextBrowser
 from PyQt6.QtGui import QPainter, QPen, QBrush, QPainterPath, QPixmap
 
@@ -1064,6 +1065,9 @@ class DashboardWindow(QMainWindow):
             Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.CustomizeWindowHint
             | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
         )
 
         self._widget = DashboardWidget(self)
@@ -1076,7 +1080,9 @@ class DashboardWindow(QMainWindow):
                 launch_geometry.width, launch_geometry.height,
             )
 
-        # Remove minimize/maximize/close buttons via Win32, keep title bar.
+        # Title-bar controls: keep minimize + close, drop maximize (the schematic
+        # is a fixed size).  Close routes through closeEvent (quits everything);
+        # minimize routes through changeEvent (omniminimize).
         # Show in taskbar via WS_EX_APPWINDOW.
         # The subprocess is launched with SW_HIDE (hidden_subprocess_kwargs),
         # which PyQt6 inherits.  An explicit ShowWindow(SW_SHOW) overrides it.
@@ -1084,8 +1090,12 @@ class DashboardWindow(QMainWindow):
         _hwnd = int(self.winId())
         SW_SHOW = 5
         ctypes.windll.user32.ShowWindow(_hwnd, SW_SHOW)
+        WS_SYSMENU = 0x00080000
+        WS_MINIMIZEBOX = 0x00020000
+        WS_MAXIMIZEBOX = 0x00010000
         _style = ctypes.windll.user32.GetWindowLongW(_hwnd, -16)  # GWL_STYLE
-        ctypes.windll.user32.SetWindowLongW(_hwnd, -16, _style & ~0x00080000)  # ~WS_SYSMENU
+        _style = (_style | WS_SYSMENU | WS_MINIMIZEBOX) & ~WS_MAXIMIZEBOX
+        ctypes.windll.user32.SetWindowLongW(_hwnd, -16, _style)
         _ex = ctypes.windll.user32.GetWindowLongW(_hwnd, -20)  # GWL_EXSTYLE
         ctypes.windll.user32.SetWindowLongW(_hwnd, -20, (_ex | 0x00040000) & ~0x00000080)
         ctypes.windll.user32.SetWindowPos(
@@ -1120,6 +1130,24 @@ class DashboardWindow(QMainWindow):
             pass
         event.accept()
 
+    def changeEvent(self, event: object) -> None:  # noqa: N802
+        """Route a title-bar minimize into an omniminimize of every window.
+
+        The dashboard cannot reach the other processes' windows directly, so it
+        writes the command for the dispatch loop, which owns those handles.
+        """
+        if event.type() == QEvent.Type.WindowStateChange:
+            self._maybe_route_omniminimize(
+                now_minimized=self.isMinimized(),
+                was_minimized=bool(event.oldState() & Qt.WindowState.WindowMinimized),
+            )
+        super().changeEvent(event)
+
+    def _maybe_route_omniminimize(self, *, now_minimized: bool, was_minimized: bool) -> None:
+        """Write the omniminimize command on the not-minimized -> minimized edge only."""
+        if now_minimized and not was_minimized:
+            write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIMINIMIZE)
+
     def _compute_pressed(self) -> frozenset[str]:
         now = time.monotonic()
         active = frozenset(aid for aid, t in self._pressed.items() if now - t < PRESS_FLASH_S)
@@ -1145,7 +1173,10 @@ class DashboardWindow(QMainWindow):
             genau_takeover_allowed=read_genau_enabled(genau_enabled_path(state_dir)),
             pressed_actions=pressed_actions,
         )
-        apply_dashboard_window_geometry(self, snapshot, scene, launch_geometry=self._launch_geometry)
+        # While minimized, re-asserting geometry would restore the window and
+        # fight the omniminimize — leave it minimized until the user restores it.
+        if not self.isMinimized():
+            apply_dashboard_window_geometry(self, snapshot, scene, launch_geometry=self._launch_geometry)
         self._widget.set_scene(scene)
 
     def _on_action(self, action_id: str) -> None:
