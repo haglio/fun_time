@@ -127,6 +127,55 @@ def test_section_titles_and_backslash_split():
     assert len(genau_backslash) == 1, "expected a separate '\\' offset row in Genau"
 
 
+def test_vlc_mode_row_displays_vlc_but_recognizer_uses_v_l_c():
+    assert VOICE_COMMANDS["v l c"] == "vlc_activate"
+    vlc_rows = [r for r in _all_rows() if "vlc_activate" in r.commands]
+    assert vlc_rows and vlc_rows[0].voice == ("VLC",)
+
+
+def test_previous_shape_is_a_separate_keyless_line():
+    rows = _all_rows()
+    next_rows = [r for r in rows if "genau_cycle_shape" in r.commands]
+    prev_rows = [r for r in rows if "genau_cycle_shape_prev" in r.commands]
+    assert next_rows and next_rows[0].hotkeys == (",",)
+    # The "," key does next only — it must not claim previous.
+    assert "genau_cycle_shape_prev" not in next_rows[0].commands
+    assert prev_rows and prev_rows[0].hotkeys == ()
+    assert "previous shape" in prev_rows[0].voice
+
+
+def test_min_max_value_live_on_their_own_consecutive_set_lines():
+    rows = _all_rows()
+    amp_updown = next(r for r in rows if "genau_amplitude_up" in r.commands)
+    # The up/down line must NOT carry min/max/value phrases.
+    assert not any(("min" in v or "max" in v or "0–100" in v) for v in amp_updown.voice)
+
+    genau_rows = {s.title: s for s in build_reference_sections()}["Genau"].rows
+    descs = [r.description for r in genau_rows]
+    for updown, setname in (
+        ("Amplitude up / down", "Set amplitude"),
+        ("Center up / down", "Set center"),
+        ("Speed up / down", "Set speed"),
+    ):
+        assert descs.index(setname) == descs.index(updown) + 1, "Set line must follow its up/down line"
+    set_amp = next(r for r in genau_rows if r.description == "Set amplitude")
+    assert "min amp" in set_amp.voice and "max amp" in set_amp.voice
+
+
+def test_offset_voice_on_genau_backslash_row():
+    rows = _all_rows()
+    offset_rows = [r for r in rows if "\\" in r.hotkeys and "quarter_button" in r.commands]
+    assert offset_rows and "offset" in offset_rows[0].voice
+
+
+def test_corrected_descriptions():
+    descs = {r.description for r in _all_rows()}
+    assert {"Disable voice control", "Enable / disable cruise control", "Start / stop broker"} <= descs
+    assert "Mute voice control" not in descs
+    assert "Cruise control" not in descs
+    assert "Broker start / stop" not in descs
+
+
 def test_omnipause_row_uses_esc_and_pause_play_voice():
     rows = _all_rows()
     esc_rows = [r for r in rows if "Esc" in r.hotkeys]
