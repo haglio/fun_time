@@ -594,6 +594,33 @@ class TestDispatchLoopRunner:
 
         assert minimized == []
 
+    def test_omnirestore_restores_every_window_then_reapplies_z_order(self, tmp_path):
+        """omnirestore un-minimizes every managed window without stealing focus, then re-stacks."""
+        runner = self._make_runner(
+            tmp_path,
+            sync_interval_ms=999999,
+            portrait_pid=300,
+            landscape_pid=400,
+            dashboard_pid=500,
+            rfb_hwnd=7777,
+        )
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("omnirestore", encoding="utf-8")
+
+        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+        restored: list[tuple[int, dict]] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))), \
+             patch.object(runner, "_apply_z_order") as mock_z:
+            runner.tick()
+
+        assert {h for h, _ in restored} == {7777, 3001, 4001, 1001, 6001, 2001, 5001}
+        assert all(kw.get("activate") is False for _, kw in restored)
+        mock_z.assert_called_once()
+
     def test_sends_press_via_udp_on_button_command(self, tmp_path):
         recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         recv_sock.bind(("127.0.0.1", 0))

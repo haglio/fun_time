@@ -30,6 +30,7 @@ from .win32 import (
     hide_window,
     is_window_topmost,
     minimize_window,
+    restore_window,
     send_vk_to_window,
     send_key_to_window,
     set_always_on_top,
@@ -217,6 +218,8 @@ class DispatchLoopRunner:
                 continue
             elif cmd == "omniminimize":
                 self._handle_omniminimize()
+            elif cmd == "omnirestore":
+                self._handle_omnirestore()
             elif cmd == "omnipause_toggle":
                 self._handle_omnipause_toggle()
             elif cmd == "enter_omnipause":
@@ -473,6 +476,16 @@ class DispatchLoopRunner:
         """
         for hwnd, _topmost in self._window_layers():
             minimize_window(hwnd, activate=False)
+
+    def _handle_omnirestore(self) -> None:
+        """Un-minimize every managed window — the mirror of omniminimize.
+
+        Restores each window with ``activate=False`` to avoid focus churn,
+        then re-applies the z-order so the stack comes back in the right order.
+        """
+        for hwnd, _topmost in self._window_layers():
+            restore_window(hwnd, activate=False)
+        self._apply_z_order()
 
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows.

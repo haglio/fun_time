@@ -63,6 +63,7 @@ from fun_time.dashboard_actions import (
     HELP_REFERENCE,
     HYBRID_ACTIVATE,
     OMNIMINIMIZE,
+    OMNIRESTORE,
     OMNIPAUSE_TOGGLE,
     OPEN_FILE_DIALOG,
     PORTRAIT_LOCK,
@@ -1138,22 +1139,29 @@ class DashboardWindow(QMainWindow):
         event.accept()
 
     def changeEvent(self, event: object) -> None:  # noqa: N802
-        """Route a title-bar minimize into an omniminimize of every window.
+        """Mirror the dashboard's own minimize/restore onto every managed window.
 
         The dashboard cannot reach the other processes' windows directly, so it
-        writes the command for the dispatch loop, which owns those handles.
+        writes a command for the dispatch loop, which owns those handles.  This
+        is what makes clicking the taskbar icon (which restores the dashboard)
+        bring every window back.
         """
         if event.type() == QEvent.Type.WindowStateChange:
-            self._maybe_route_omniminimize(
-                now_minimized=self.isMinimized(),
-                was_minimized=bool(event.oldState() & Qt.WindowState.WindowMinimized),
-            )
+            now_minimized = self.isMinimized()
+            was_minimized = bool(event.oldState() & Qt.WindowState.WindowMinimized)
+            self._maybe_route_omniminimize(now_minimized=now_minimized, was_minimized=was_minimized)
+            self._maybe_route_omnirestore(now_minimized=now_minimized, was_minimized=was_minimized)
         super().changeEvent(event)
 
     def _maybe_route_omniminimize(self, *, now_minimized: bool, was_minimized: bool) -> None:
         """Write the omniminimize command on the not-minimized -> minimized edge only."""
         if now_minimized and not was_minimized:
             write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIMINIMIZE)
+
+    def _maybe_route_omnirestore(self, *, now_minimized: bool, was_minimized: bool) -> None:
+        """Write the omnirestore command on the minimized -> not-minimized edge only."""
+        if was_minimized and not now_minimized:
+            write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIRESTORE)
 
     def _compute_pressed(self) -> frozenset[str]:
         now = time.monotonic()
