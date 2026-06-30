@@ -62,6 +62,7 @@ class DashboardPreviewLayout:
     genau_spd_label: Rect
     genau_spd_up: Rect
     genau_spd_down: Rect
+    genau_takeover: Rect
     genau_cruise: Rect
     genau_shape: Rect
     hybrid_mode_button: Rect
@@ -237,12 +238,17 @@ def compute_dashboard_preview_layout(
     nudge_prev_x = right_inner_x + (right_inner_w - 44) // 2
     nudge_next_x = nudge_prev_x + 24
 
-    # Genau cruise / shape — bottom row alongside mode toggle
+    # Genau takeover / cruise / shape — bottom row alongside mode toggle.
+    # Takeover toggle owns the bottom-left corner; cruise sits just to its right.
     genau_bottom_y = primary_y + primary_h - 20
     genau_bottom_btn_w = 20
     genau_bottom_btn_h = 16
-    genau_cruise_rect = Rect(
+    genau_takeover_rect = Rect(
         right_inner_x + 4, genau_bottom_y,
+        genau_bottom_btn_w, genau_bottom_btn_h,
+    )
+    genau_cruise_rect = Rect(
+        right_inner_x + 4 + genau_bottom_btn_w + 4, genau_bottom_y,
         genau_bottom_btn_w, genau_bottom_btn_h,
     )
     genau_shape_rect = Rect(
@@ -291,6 +297,7 @@ def compute_dashboard_preview_layout(
         genau_spd_label=spd_label,
         genau_spd_up=spd_up,
         genau_spd_down=spd_down,
+        genau_takeover=genau_takeover_rect,
         genau_cruise=genau_cruise_rect,
         genau_shape=genau_shape_rect,
         hybrid_mode_button=Rect(hybrid_mode_btn_x, genau_toggle_y, hybrid_mode_btn_w, hybrid_mode_btn_h),
