@@ -834,6 +834,23 @@ class TestGenauZOrder:
 
         mock_apply.assert_called_once()
 
+    def test_hybrid_to_genau_applies_z_order(self, tmp_path):
+        """Hybrid and Genau are both genau-active but have DIFFERENT stacks
+        (Primary is topmost in hybrid, non-topmost in genau), so the transition
+        must trigger a full z-order apply.  Regression — comparing genau_active()
+        instead of the mode missed this pair."""
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(primary_mode="hybrid")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch.object(runner, "_apply_z_order") as mock_apply:
+            mock_dispatch.return_value = (BridgeState(primary_mode="genau"), [])
+            runner._dispatch("genau_activate")
+
+        mock_apply.assert_called_once()
+
     def test_tick_enforces_z_order_during_sync(self, tmp_path):
         """Periodic sync must correct drift — if Primary VLC re-asserts TOPMOST
         during a video transition while in genau mode, the sync tick demotes it."""
@@ -1851,7 +1868,23 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_called_once_with("genau_activate")
 
-    def test_genau_activate_noop_when_already_in_genau_mode(self, tmp_path):
+    def test_genau_activate_dispatches_in_hybrid_mode(self, tmp_path):
+        """Hybrid mode is genau-active but is NOT genau mode: the Genau-mode
+        button must still switch to full Genau.  Regression — the old guard
+        used genau_active(), which is True for hybrid, so it swallowed this."""
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(primary_mode="hybrid")
+        with patch.object(runner, "_dispatch") as mock_d:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("genau_activate", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+        mock_d.assert_called_once_with("genau_activate")
+
+    def test_genau_activate_dispatches_when_already_in_genau_mode(self, tmp_path):
+        """The loop forwards genau_activate unconditionally — switching to the
+        mode you are already in is a no-op at the planner level (see
+        test_mode_plan.test_same_mode_is_noop), not a special case here."""
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(primary_mode="genau")
         with patch.object(runner, "_dispatch") as mock_d:
@@ -1859,7 +1892,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_not_called()
+        mock_d.assert_called_once_with("genau_activate")
 
     # -- lock off (idempotent unlock) --
 

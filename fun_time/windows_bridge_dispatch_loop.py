@@ -270,9 +270,6 @@ class DispatchLoopRunner:
             elif cmd == "fmode_off":
                 if self.state.f_mode_enabled:
                     self._dispatch("fmode_toggle")
-            elif cmd == "genau_activate":
-                if not genau_active(self.state.primary_mode):
-                    self._dispatch("genau_activate")
             elif cmd == "broker_start":
                 self._handle_broker_start()
             elif cmd == "broker_stop":
@@ -293,11 +290,14 @@ class DispatchLoopRunner:
 
     def _dispatch(self, command: str) -> None:
         logger.info("Dispatching command: %s", command)
-        prev_genau = genau_active(self.state.primary_mode)
+        prev_mode = self.state.primary_mode
         new_state, ops = dispatch_command(command, self.state, self.config)
         self.state = new_state
         remaining = execute_window_ops(ops, self.primary_pid)
-        if genau_active(self.state.primary_mode) != prev_genau:
+        # Any mode change can reshuffle the Primary/Genau stack — compute_z_order
+        # gives vlc, genau, and hybrid three distinct stacks — so reorder on the
+        # actual mode, not on genau_active() (which collapses genau and hybrid).
+        if self.state.primary_mode != prev_mode:
             self._apply_z_order()
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
