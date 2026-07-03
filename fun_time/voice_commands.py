@@ -27,16 +27,21 @@ VOICE_COMMANDS: dict[str, str] = {
     # Recognizer listens for "go now" (reliably recognized); the reference
     # displays this as "genau" via the row's voice_display override.
     "go now": "genau_activate",
-    "v l c": "vlc_activate",
+    # Recognizer listens for "video" ("nau" is too close to "go now");
+    # the reference displays this as "nau".
+    "video": "nau_activate",
     "hybrid": "hybrid_activate",
     "start broker": "broker_start",
     "stop broker": "broker_stop",
     "next primary": "primary_next",
     "previous primary": "primary_prev",
-    "skip": "vlc_nudge_next",
-    "back": "vlc_nudge_prev",
+    "skip": "primary_nudge_next",
+    "back": "primary_nudge_prev",
     "browse": "open_file_dialog",
     "clip": "clipper_save",
+    "record": "nau_record_down",
+    "loop": "nau_record_up",
+    "cancel": "nau_loop_cancel",
     "slow down": "genau_speed_down",
     "speed down": "genau_speed_down",
     "speed up": "genau_speed_up",

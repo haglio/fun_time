@@ -114,23 +114,36 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
 def test_section_titles_and_backslash_split():
     sections = build_reference_sections()
     titles = [s.title for s in sections]
-    for expected in ("Global", "Primary VLC", "Portrait VLC", "Landscape VLC", "Modes", "Genau"):
+    for expected in ("Global", "Nau", "Portrait VLC", "Landscape VLC", "Modes", "Genau"):
         assert expected in titles, f"missing section {expected!r}"
     assert "Genau control" not in titles  # renamed to "Genau"
-    assert "Primary" not in titles  # renamed to "Primary VLC"
+    assert "Primary VLC" not in titles  # replaced by "Nau"
 
     by_title = {s.title: s for s in sections}
-    primary_backslash = [r for r in by_title["Primary VLC"].rows if "\\" in r.hotkeys]
+    primary_backslash = [r for r in by_title["Nau"].rows if "\\" in r.hotkeys]
     genau_backslash = [r for r in by_title["Genau"].rows if "\\" in r.hotkeys]
-    assert len(primary_backslash) == 1, "expected the file-dialog '\\' row in Primary VLC"
+    assert len(primary_backslash) == 1, "expected the file-dialog '\\' row in Nau"
     assert "browse" in primary_backslash[0].voice
     assert len(genau_backslash) == 1, "expected a separate '\\' offset row in Genau"
 
 
-def test_vlc_mode_row_displays_vlc_but_recognizer_uses_v_l_c():
-    assert VOICE_COMMANDS["v l c"] == "vlc_activate"
-    vlc_rows = [r for r in _all_rows() if "vlc_activate" in r.commands]
-    assert vlc_rows and vlc_rows[0].voice == ("VLC",)
+def test_nau_mode_row_displays_nau_but_recognizer_uses_video():
+    assert VOICE_COMMANDS["video"] == "nau_activate"
+    assert "nau" not in VOICE_COMMANDS  # display-only alias, not a recognizer phrase
+    nau_rows = [r for r in _all_rows() if "nau_activate" in r.commands]
+    assert nau_rows and nau_rows[0].voice == ("nau",)
+
+
+def test_record_loop_row_lists_r_key_and_voice_phrases():
+    rows = _all_rows()
+    record_rows = [r for r in rows if "nau_record_down" in r.commands]
+    assert record_rows, "expected a record row"
+    row = record_rows[0]
+    assert "R" in row.hotkeys
+    assert "record" in row.voice
+    assert "loop" in row.voice
+    cancel_rows = [r for r in rows if "nau_loop_cancel" in r.commands]
+    assert cancel_rows and "cancel" in cancel_rows[0].voice
 
 
 def test_previous_shape_is_a_separate_keyless_line():
