@@ -325,6 +325,26 @@ def test_get_playback_time_returns_float_on_success(monkeypatch):
     assert vlc_actions.get_playback_time(8080, "pw") == 42.5
 
 
+def test_get_playback_time_and_length_returns_both(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<time>42</time><length>300</length>"))
+    assert vlc_actions.get_playback_time_and_length(8080, "pw") == (42.0, 300.0)
+
+
+def test_get_playback_time_and_length_defaults_length_to_zero_when_missing(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<time>42</time>"))
+    assert vlc_actions.get_playback_time_and_length(8080, "pw") == (42.0, 0.0)
+
+
+def test_get_playback_time_and_length_returns_none_when_time_missing(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<length>300</length>"))
+    assert vlc_actions.get_playback_time_and_length(8080, "pw") is None
+
+
+def test_get_playback_time_and_length_returns_none_on_http_failure(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
+    assert vlc_actions.get_playback_time_and_length(8080, "pw") is None
+
+
 def test_get_playback_state_returns_none_on_http_failure(monkeypatch):
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
     assert vlc_actions.get_playback_state(8080, "pw") is None

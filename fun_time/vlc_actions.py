@@ -114,18 +114,36 @@ def get_repeat_mode(port: int, password: str) -> str | None:
     return "off"
 
 
-def get_playback_time(port: int, password: str) -> float | None:
-    """Return VLC's current playback position in seconds, or None on error."""
+def get_playback_time_and_length(port: int, password: str) -> tuple[float, float] | None:
+    """Return VLC's ``(time, length)`` in seconds, or None if time is unavailable.
+
+    ``length`` is 0.0 when VLC does not report one (streams / unprobed media);
+    callers treat 0 as "unknown", not "zero-length".
+    """
     status, xml = vlc_http_req(port, "/requests/status.xml", password)
     if status != 200 or not xml:
         return None
-    match = re.search(r"<time>([^<]+)</time>", xml)
-    if not match:
+    time_match = re.search(r"<time>([^<]+)</time>", xml)
+    if not time_match:
         return None
     try:
-        return float(match.group(1))
+        time_s = float(time_match.group(1))
     except ValueError:
         return None
+    length_s = 0.0
+    length_match = re.search(r"<length>([^<]+)</length>", xml)
+    if length_match:
+        try:
+            length_s = float(length_match.group(1))
+        except ValueError:
+            length_s = 0.0
+    return time_s, length_s
+
+
+def get_playback_time(port: int, password: str) -> float | None:
+    """Return VLC's current playback position in seconds, or None on error."""
+    pos = get_playback_time_and_length(port, password)
+    return pos[0] if pos else None
 
 
 def get_playback_state(port: int, password: str) -> str | None:

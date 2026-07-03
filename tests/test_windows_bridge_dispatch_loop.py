@@ -3,7 +3,7 @@ from __future__ import annotations
 import socket
 import time
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
 
@@ -266,6 +266,53 @@ class TestDispatchLoopRunner:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "portrait_next" in commands
         assert not cmd_file.exists()
+
+    def test_vlc_nudge_next_calls_seek_accumulator_forward(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        (tmp_path / "dashboard_cmd.txt").write_text("vlc_nudge_next", encoding="utf-8")
+        runner._seek_accumulator = Mock()
+
+        runner.tick()
+
+        runner._seek_accumulator.nudge.assert_called_once_with(1)
+
+    def test_vlc_nudge_prev_calls_seek_accumulator_backward(self, tmp_path):
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        (tmp_path / "dashboard_cmd.txt").write_text("vlc_nudge_prev", encoding="utf-8")
+        runner._seek_accumulator = Mock()
+
+        runner.tick()
+
+        runner._seek_accumulator.nudge.assert_called_once_with(-1)
+
+    def test_primary_nav_invalidates_seek_accumulator(self, tmp_path):
+        # Changing the primary video makes the running seek target meaningless.
+        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        (tmp_path / "dashboard_cmd.txt").write_text("primary_next", encoding="utf-8")
+        runner._seek_accumulator = Mock()
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
+                   return_value=(runner.state, [])), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            runner.tick()
+
+        runner._seek_accumulator.invalidate.assert_called_once()
+
+    def test_seek_accumulator_reads_primary_and_issues_absolute_seek(self, tmp_path):
+        # The accumulator's read/seek callbacks must target the primary port,
+        # and the seek must be VLC's *absolute* form (no +/- sign).
+        runner = self._make_runner(tmp_path)
+        with patch("fun_time.windows_bridge_dispatch_loop.get_playback_time_and_length",
+                   return_value=(50.0, 300.0)) as read, \
+             patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd",
+                   return_value=True) as seek:
+            runner._seek_accumulator.nudge(1)
+
+        read.assert_called_once_with(9090, "test")
+        seek.assert_called_once_with(9090, "seek&val=60", "test")
 
     def test_omnipause_removes_rfb_topmost_before_others(self, tmp_path):
         """RFB must be removed before MFP/Dashboard so it stays below them."""

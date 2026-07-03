@@ -21,7 +21,8 @@ from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on
 from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
-from .vlc_actions import send_vlc_input_command, vlc_http_cmd
+from .vlc_actions import get_playback_time_and_length, send_vlc_input_command, vlc_http_cmd
+from .vlc_seek import PrimarySeekAccumulator
 from .z_order import apply_z_order, compute_z_order
 from .win32 import (
     activate_window,
@@ -80,10 +81,6 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
             hwnd = find_window_by_pid(primary_pid)
             if hwnd:
                 send_vk_to_window(hwnd, op.vk)
-            continue
-
-        if op.op == "vlc_http_seek":
-            remaining.append(op)
             continue
 
         if op.title:
@@ -199,8 +196,20 @@ class DispatchLoopRunner:
         self._press_port: int | None = None
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
         self.voice_controller: VoiceController | None = None
+        self._seek_accumulator = PrimarySeekAccumulator(
+            read_position=lambda: get_playback_time_and_length(
+                config.primary_port, config.vlc_password
+            ),
+            seek=self._seek_primary_absolute,
+        )
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
+
+    def _seek_primary_absolute(self, target_seconds: float) -> None:
+        """Seek the Primary VLC to an absolute position (seconds)."""
+        val = int(round(target_seconds))
+        ok = vlc_http_cmd(self.config.primary_port, f"seek&val={val}", self.config.vlc_password)
+        logger.info("primary_seek → %ds → %s", val, "ok" if ok else "FAILED")
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
@@ -279,6 +288,14 @@ class DispatchLoopRunner:
                 self._handle_broker_stop()
             elif cmd in ("voice_off", "voice_toggle"):
                 self._handle_voice_toggle(cmd)
+            elif cmd == "vlc_nudge_next":
+                self._seek_accumulator.nudge(1)
+            elif cmd == "vlc_nudge_prev":
+                self._seek_accumulator.nudge(-1)
+            elif cmd in ("primary_prev", "primary_next"):
+                # A video change invalidates the running seek target.
+                self._seek_accumulator.invalidate()
+                self._dispatch(cmd)
             else:
                 self._dispatch(cmd)
 
@@ -321,10 +338,6 @@ class DispatchLoopRunner:
                         shortcut_args=self.rfb_shortcut_args,
                     )
                     logger.info("Opened RFB tab: %s", op.key)
-                continue
-            if op.op == "vlc_http_seek":
-                ok = vlc_http_cmd(self.config.primary_port, op.key, self.config.vlc_password)
-                logger.info("vlc_http_seek %s → %s", op.key, "ok" if ok else "FAILED")
                 continue
             if op.op == "tooltip":
                 self.ahk_cmd_file.write_text(f"tooltip {op.key}", encoding="utf-8")

@@ -280,12 +280,15 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
 
 
 def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: FunTimeIntegrationSession):
-    """Verify vlc_nudge_next/prev dispatch through to VLC's HTTP seek.
+    """Verify vlc_nudge_next/prev dispatch through to a VLC seek.
 
     Confirms the full path: dashboard command file → dispatch loop →
-    vlc_http_cmd → VLC HTTP 200.  Does NOT assert on playback position
-    — that would test VLC's seek implementation on specific video
-    lengths, which varies with the randomly-selected test video.
+    PrimarySeekAccumulator → VLC absolute seek (the ``primary_seek`` log is
+    the loop's own confirmation the HTTP seek was sent and VLC responded).
+    Does NOT assert on playback position — that would test VLC's seek
+    implementation against specific video lengths, which vary with the
+    randomly-selected clip.  The stacking behaviour itself is covered
+    deterministically by the ``PrimarySeekAccumulator`` unit tests.
 
     Must run before isolated-session tests (trash), whose teardown kills all
     recent VLC processes and would leave the shared session's VLC dead.
@@ -303,14 +306,12 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     )
 
     # --- nudge forward ---
-    # Wait for the dispatch loop's own log confirmation that the HTTP
-    # seek was sent and VLC responded 200.
     s.write_dashboard_command("vlc_nudge_next")
-    s.wait_for_new_log("vlc_http_seek", timeout=10)
+    s.wait_for_new_log("primary_seek", timeout=10)
 
     # --- nudge backward ---
     s.write_dashboard_command("vlc_nudge_prev")
-    s.wait_for_new_log("vlc_http_seek", timeout=10)
+    s.wait_for_new_log("primary_seek", timeout=10)
 
 
 
