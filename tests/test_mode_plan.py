@@ -1,16 +1,10 @@
-from fun_time.mode_plan import build_mode_switch_plan, genau_active, vlc_primary_active
-
-
-def test_vlc_primary_active_covers_vlc_and_hybrid():
-    assert vlc_primary_active("vlc") is True
-    assert vlc_primary_active("hybrid") is True
-    assert vlc_primary_active("genau") is False
+from fun_time.mode_plan import build_mode_switch_plan, genau_active
 
 
 def test_genau_active_covers_genau_and_hybrid():
     assert genau_active("genau") is True
     assert genau_active("hybrid") is True
-    assert genau_active("vlc") is False
+    assert genau_active("nau") is False
 
 
 def test_nau_to_genau():

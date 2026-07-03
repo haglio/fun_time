@@ -12,7 +12,6 @@ class OmniPausePlan:
     genau_branch: bool
     resume_primary_playback: bool
     resume_nau_playback: bool
-    disable_always_on_top: bool
     log_message: str
 
 
@@ -27,7 +26,6 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str, s
             genau_branch=genau_active(primary_mode),
             resume_primary_playback=False,
             resume_nau_playback=False,
-            disable_always_on_top=True,
             log_message="OmniPause: entering",
         )
 
@@ -41,7 +39,6 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str, s
             # only (the file dialog already started VLC playback itself).
             resume_primary_playback=(primary_mode == "hybrid" and not skip_primary_resume),
             resume_nau_playback=(primary_mode == "nau"),
-            disable_always_on_top=False,
             log_message="OmniPause: leaving",
         )
 
