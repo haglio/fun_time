@@ -126,7 +126,6 @@ def apply_toggle_fmode(
 class OmniPauseFlowResult:
     action: str
     next_omni_paused: bool
-    disable_always_on_top: bool
     log_message: str
 
 
@@ -140,7 +139,6 @@ def build_omnipause_toggle(*, omni_paused: bool, primary_mode: str) -> OmniPause
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )
 
@@ -185,7 +183,6 @@ def apply_enter_omnipause(
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )
 
@@ -233,6 +230,5 @@ def apply_leave_omnipause(
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )
