@@ -32,6 +32,7 @@ from fun_time.vlc_actions import (
     vlc_nav_step,
     wait_for_http,
 )
+from fun_time.modes import write_playlist_file
 from fun_time.win32 import find_window_by_pid, move_window, wait_for_window
 from fun_time.windows_bridge_startup import _build_vlc_launch_command
 
@@ -99,15 +100,14 @@ def vlc_with_playlist():
     if len(videos) < 4:
         pytest.skip(f"Need 4 videos, found {len(videos)}")
 
-    sources = "|".join(videos)
     playlist_path = Path(tempfile.gettempdir()) / "fun_time_test_loop.m3u"
+    write_playlist_file(playlist_path, videos)
     # Defer playlist: launch VLC empty, mute via HTTP, THEN load media.
     # This eliminates the audio-leak race where VLC outputs a frame of
     # audio before --volume 0 takes effect.
     cmd = _build_vlc_launch_command(
-        VLC_EXE, sources, TEST_PORT, TEST_PASSWORD,
+        VLC_EXE, TEST_PORT, TEST_PASSWORD,
         repeat_mode="loop", mute=True,
-        playlist_path=playlist_path, defer_playlist=True,
     )
     cmd.append("--no-fullscreen")
     proc = subprocess.Popen(
@@ -424,10 +424,9 @@ def test_advance_and_remove_preserves_navigation(vlc_with_playlist):
 def test_production_config_no_start_paused(vlc_with_playlist):
     """--start-paused must not be in the production launch command.
     VLC re-applies it on every item transition, causing black screen on nav."""
-    sources = "a.mp4|b.mp4"
     for repeat_mode in ("repeat", "loop"):
         cmd = _build_vlc_launch_command(
-            VLC_EXE, sources, 0, "pw",
+            VLC_EXE, 0, "pw",
             repeat_mode=repeat_mode, mute=True,
         )
         assert "--start-paused" not in cmd, \
@@ -437,10 +436,9 @@ def test_production_config_no_start_paused(vlc_with_playlist):
 def test_production_config_has_no_random(vlc_with_playlist):
     """--no-random must be in the production launch command to override
     VLC's saved shuffle setting in vlcrc."""
-    sources = "a.mp4|b.mp4"
     for repeat_mode in ("repeat", "loop"):
         cmd = _build_vlc_launch_command(
-            VLC_EXE, sources, 0, "pw",
+            VLC_EXE, 0, "pw",
             repeat_mode=repeat_mode,
         )
         assert "--no-random" in cmd, \
@@ -462,12 +460,11 @@ def vlc_repeat_one():
     if len(videos) < 4:
         pytest.skip(f"Need 4 videos, found {len(videos)}")
 
-    sources = "|".join(videos)
     playlist_path = Path(tempfile.gettempdir()) / "fun_time_test_repeat.m3u"
+    write_playlist_file(playlist_path, videos)
     cmd = _build_vlc_launch_command(
-        VLC_EXE, sources, REPEAT_PORT, TEST_PASSWORD,
+        VLC_EXE, REPEAT_PORT, TEST_PASSWORD,
         repeat_mode="repeat", mute=True,
-        playlist_path=playlist_path, defer_playlist=True,
     )
     cmd.append("--no-fullscreen")
     proc = subprocess.Popen(

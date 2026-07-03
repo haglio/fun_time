@@ -105,7 +105,7 @@ def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrati
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    """Pressing 'g' (genau_activate) then 'v' (vlc_activate) switches modes."""
+    """Pressing 'g' (genau_activate) then 'n' (nau_activate) switches modes."""
     s = shared_integration_session
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode", timeout=12)
@@ -115,48 +115,64 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
         timeout=12,
         description="Genau paused file to flip off (active)",
     )
+    s.wait_until(
+        lambda: s.config.nau_paused_file.read_text(encoding="utf-8") == "1",
+        timeout=12,
+        description="Nau paused file to flip on (inactive)",
+    )
 
-    s.write_dashboard_command("vlc_activate")
-    s.wait_for_new_log("Switched to vlc mode", timeout=12)
+    s.write_dashboard_command("nau_activate")
+    s.wait_for_new_log("Switched to nau mode", timeout=12)
 
     s.wait_until(
         lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "1",
         timeout=12,
         description="Genau paused file to flip back on (inactive)",
     )
+    s.wait_until(
+        lambda: s.config.nau_paused_file.read_text(encoding="utf-8") == "0",
+        timeout=12,
+        description="Nau paused file to flip back off (active)",
+    )
 
 
 
-def test_fun_time_primary_vlc_not_topmost_in_genau_mode(shared_integration_session: FunTimeIntegrationSession):
-    """Primary VLC must leave the TOPMOST z-band while Genau mode is
-    active so VLC video transitions cannot bring it above Genau."""
+def test_fun_time_nau_window_not_topmost_in_genau_mode(shared_integration_session: FunTimeIntegrationSession):
+    """Nau must leave the TOPMOST z-band while Genau mode is active, and
+    regain it when Nau mode returns; the hybrid-only primary VLC must
+    never be TOPMOST in either mode."""
     s = shared_integration_session
-    primary_pid = s.read_child_pids()["primary_pid"]
-    hwnd = find_window_by_pid(primary_pid)
-    assert hwnd, f"Primary VLC window not found for pid {primary_pid}"
+    pids = s.read_child_pids()
+    nau_hwnd = find_window_by_pid(pids["nau_pid"])
+    assert nau_hwnd, f"Nau window not found for pid {pids['nau_pid']}"
 
     s.wait_until(
-        lambda: is_window_topmost(hwnd),
+        lambda: is_window_topmost(nau_hwnd),
         timeout=5,
-        description="Primary VLC to be TOPMOST before Genau activation",
+        description="Nau to be TOPMOST before Genau activation",
+    )
+    primary_hwnd = find_window_by_pid(pids["primary_pid"])
+    assert primary_hwnd, "Primary VLC window not found"
+    assert not is_window_topmost(primary_hwnd), (
+        "Primary VLC must not be TOPMOST in nau mode (it plays only in hybrid)"
     )
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode", timeout=12)
 
     s.wait_until(
-        lambda: not is_window_topmost(find_window_by_pid(primary_pid)),
+        lambda: not is_window_topmost(find_window_by_pid(pids["nau_pid"])),
         timeout=12,
-        description="Primary VLC to lose TOPMOST when Genau is active",
+        description="Nau to lose TOPMOST when Genau is active",
     )
 
-    s.write_dashboard_command("vlc_activate")
-    s.wait_for_new_log("Switched to vlc mode", timeout=12)
+    s.write_dashboard_command("nau_activate")
+    s.wait_for_new_log("Switched to nau mode", timeout=12)
 
     s.wait_until(
-        lambda: is_window_topmost(find_window_by_pid(primary_pid)),
+        lambda: is_window_topmost(find_window_by_pid(pids["nau_pid"])),
         timeout=12,
-        description="Primary VLC to regain TOPMOST after Genau deactivated",
+        description="Nau to regain TOPMOST after Genau deactivated",
     )
 
 
@@ -219,8 +235,8 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
         description="Genau paused file to flip off",
     )
 
-    shared_integration_session.write_dashboard_command("vlc_activate")
-    shared_integration_session.wait_for_new_log("Switched to vlc mode", timeout=12)
+    shared_integration_session.write_dashboard_command("nau_activate")
+    shared_integration_session.wait_for_new_log("Switched to nau mode", timeout=12)
 
 
 
@@ -260,21 +276,82 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
 
     assert is_process_alive(rh_pid), "Genau should survive leaving omnipause"
 
-    s.write_dashboard_command("vlc_activate")
-    s.wait_for_new_log("Switched to vlc mode", timeout=12)
+    s.write_dashboard_command("nau_activate")
+    s.wait_for_new_log("Switched to nau mode", timeout=12)
 
 
 
-def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: FunTimeIntegrationSession):
-    """Verify vlc_nudge_next/prev dispatch through to a VLC seek.
+def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
+    """primary_nudge_next/prev in nau mode drive Nau's seek via its command
+    file, observed through Nau's published status position."""
+    s = shared_integration_session
+
+    # Let the orchestrator finish processing commands from prior tests.
+    time.sleep(2.0)
+    s.wait_until(
+        lambda: s.read_nau_status().video != "",
+        timeout=15,
+        description="Nau status file to report a current video",
+    )
+
+    before = s.read_nau_status().position_ms
+    s.write_dashboard_command("primary_nudge_next")
+    s.wait_until(
+        lambda: s.read_nau_status().position_ms >= before + 9_000,
+        timeout=10,
+        description="Nau position to jump forward ~10s after nudge",
+    )
+
+    after_fwd = s.read_nau_status().position_ms
+    s.write_dashboard_command("primary_nudge_prev")
+    s.wait_until(
+        lambda: s.read_nau_status().position_ms <= after_fwd - 9_000,
+        timeout=10,
+        description="Nau position to jump back ~10s after nudge",
+    )
+
+
+def test_fun_time_nau_record_loop_cancel_cycle(shared_integration_session: FunTimeIntegrationSession):
+    """The record gesture round-trips through Nau: record → looping → cancel,
+    observed through Nau's published loop state."""
+    s = shared_integration_session
+    s.wait_until(
+        lambda: s.read_nau_status().video != "",
+        timeout=15,
+        description="Nau status file to report a current video",
+    )
+    assert s.read_nau_status().state == "normal"
+
+    s.write_dashboard_command("nau_record_tap")
+    s.wait_until(
+        lambda: s.read_nau_status().state == "recording",
+        timeout=10,
+        description="Nau to enter recording state",
+    )
+
+    s.write_dashboard_command("nau_record_tap")
+    s.wait_until(
+        lambda: s.read_nau_status().state == "looping",
+        timeout=10,
+        description="Nau to enter looping state",
+    )
+
+    s.write_dashboard_command("nau_loop_cancel")
+    s.wait_until(
+        lambda: s.read_nau_status().state == "normal",
+        timeout=10,
+        description="Nau to return to normal state",
+    )
+
+
+def test_fun_time_hybrid_nudge_seeks_vlc(shared_integration_session: FunTimeIntegrationSession):
+    """In hybrid mode primary_nudge_next/prev dispatch through to the
+    primary VLC's HTTP seek.
 
     Confirms the full path: dashboard command file → dispatch loop →
-    PrimarySeekAccumulator → VLC absolute seek (the ``primary_seek`` log is
-    the loop's own confirmation the HTTP seek was sent and VLC responded).
-    Does NOT assert on playback position — that would test VLC's seek
-    implementation against specific video lengths, which vary with the
-    randomly-selected clip.  The stacking behaviour itself is covered
-    deterministically by the ``PrimarySeekAccumulator`` unit tests.
+    vlc_http_cmd → VLC HTTP 200.  Does NOT assert on playback position
+    — that would test VLC's seek implementation on specific video
+    lengths, which varies with the randomly-selected test video.
 
     Must run before isolated-session tests (trash), whose teardown kills all
     recent VLC processes and would leave the shared session's VLC dead.
@@ -282,22 +359,28 @@ def test_fun_time_vlc_nudge_forward_and_backward(shared_integration_session: Fun
     s = shared_integration_session
     port, password = _read_vlc_config_from_manifest(s)
 
-    # Let the orchestrator finish processing commands from prior tests.
-    time.sleep(2.0)
+    s.write_dashboard_command("hybrid_activate")
+    s.wait_for_new_log("Switched to hybrid mode", timeout=12)
+
     ensure_playback_state(port, password, should_play=True)
     s.wait_until(
         lambda: get_playback_state(port, password) == "playing",
         timeout=10,
-        description="VLC to resume playing before nudge test",
+        description="Primary VLC to play in hybrid mode before nudge test",
     )
 
     # --- nudge forward ---
-    s.write_dashboard_command("vlc_nudge_next")
-    s.wait_for_new_log("primary_seek", timeout=10)
+    # Wait for the dispatch loop's own log confirmation that the HTTP
+    # seek was sent and VLC responded 200.
+    s.write_dashboard_command("primary_nudge_next")
+    s.wait_for_new_log("vlc_http_seek", timeout=10)
 
     # --- nudge backward ---
-    s.write_dashboard_command("vlc_nudge_prev")
-    s.wait_for_new_log("primary_seek", timeout=10)
+    s.write_dashboard_command("primary_nudge_prev")
+    s.wait_for_new_log("vlc_http_seek", timeout=10)
+
+    s.write_dashboard_command("nau_activate")
+    s.wait_for_new_log("Switched to nau mode", timeout=12)
 
 
 

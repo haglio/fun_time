@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from fun_time.config import load_config
+from fun_time.dashboard_runtime import NauStatus, read_nau_status
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.vlc_actions import restore_vlcrc_volume
@@ -55,6 +56,10 @@ class FunTimeIntegrationSession:
     def read_genau_pid(self) -> int:
         """Read the Genau PID from the bridge pids file."""
         return self.read_child_pids()["genau_pid"]
+
+    def read_nau_status(self) -> NauStatus:
+        """Parse Nau's published status file."""
+        return read_nau_status(self.config.nau_status_file)
 
     def read_child_pids(self) -> dict[str, int]:
         """Read all child PIDs from bridge_pids.ini."""
@@ -225,7 +230,7 @@ class FunTimeIntegrationSession:
 
     def _kill_recent_runtime_processes(self) -> None:
         ps = (
-            "Get-Process AutoHotkey64,pythonw,vlc,MultiFunPlayer -ErrorAction SilentlyContinue | "
+            "Get-Process AutoHotkey64,pythonw,vlc -ErrorAction SilentlyContinue | "
             "Where-Object { $_.StartTime -gt (Get-Date).AddMinutes(-5) } | "
             "Stop-Process -Force -ErrorAction SilentlyContinue"
         )
