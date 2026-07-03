@@ -42,7 +42,6 @@ from shared_ui.fonts import (
 from fun_time.config import LayoutConfig
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.vlc_actions import get_current_file_path, vlc_http_req
-from fun_time.win32 import is_process_alive
 from fun_time.dashboard_actions import (
     BROKER_PANEL,
     CLIPPER_SAVE,
