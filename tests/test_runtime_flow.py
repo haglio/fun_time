@@ -181,6 +181,36 @@ def test_genau_to_vlc_writes_broker_resume(monkeypatch, tmp_path: Path):
     assert broker_cmd_file.read_text(encoding="utf-8") == "RESUME"
 
 
+def test_hybrid_to_vlc_writes_broker_resume(monkeypatch, tmp_path: Path):
+    # Leaving Hybrid for VLC hands the OSR2 to MultiFunPlayer: the broker must be
+    # un-PARKed so MFP's funscript T-code is forwarded. This RESUME is the sole
+    # broker signal on the handoff (Genau no longer writes the broker under Fun
+    # Time), so dropping it strands the device — the reported bug.
+    paused_file = tmp_path / "paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    genau_cmd_file = tmp_path / "genau_cmd.txt"
+    broker_cmd_file = tmp_path / "broker_cmd.txt"
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: True,
+    )
+
+    apply_mode_switch(
+        current_mode="hybrid",
+        target_mode="vlc",
+        omni_paused=False,
+        paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        genau_cmd_file=genau_cmd_file,
+        primary_port=8123,
+        password="pw",
+        broker_cmd_file=broker_cmd_file,
+    )
+
+    assert broker_cmd_file.read_text(encoding="utf-8") == "RESUME"
+
+
 def test_vlc_to_genau_does_not_write_broker_cmd(monkeypatch, tmp_path: Path):
     paused_file = tmp_path / "paused.txt"
     audio_paused_file = tmp_path / "audio_paused.txt"
