@@ -31,7 +31,6 @@ class DashboardPreviewLayout:
     secondary_monitor: Rect
     main_status_strip: Rect
     rfb_panel: Rect
-    mfp_panel: Rect
     landscape_panel: Rect
     portrait_panel: Rect
     primary_panel: Rect
@@ -45,8 +44,9 @@ class DashboardPreviewLayout:
     quarter_button: Rect
     open_file_dialog: Rect
     clipper_save: Rect
-    vlc_nudge_prev: Rect
-    vlc_nudge_next: Rect
+    nau_record: Rect
+    primary_nudge_prev: Rect
+    primary_nudge_next: Rect
     landscape_prev: Rect
     landscape_next: Rect
     landscape_lock: Rect
@@ -67,7 +67,7 @@ class DashboardPreviewLayout:
     hybrid_cruise: Rect
     genau_shape: Rect
     hybrid_mode_button: Rect
-    vlc_mode_button: Rect
+    nau_mode_button: Rect
     hybrid_quarter_button: Rect
     hybrid_open_file_dialog: Rect
     hybrid_genau_amp_label: Rect
@@ -142,17 +142,15 @@ def compute_dashboard_preview_layout(
 
     landscape_w = max(34, int(main_inner_w * clamp01(layout_config.landscape_width_ratio)))
     left_strip_w = max(52, main_inner_w - landscape_w - panel_gap)
-    mfp_max_w = max(44, int(left_strip_w * clamp01(layout_config.mfp_width_ratio)))
 
     # Status strip has two rows: (1) quit+omnipause buttons, (2) broker+fmode+voice chips
     strip_pad = 3
     row_gap = 3
     status_strip_h = strip_pad + mini_button_h + row_gap + mini_button_h + strip_pad
     mini_buttons_total_w = mini_button_w * 3 + mini_button_gap * 2
-    status_strip_w = max(mfp_max_w, mini_buttons_total_w + strip_pad * 2)
-    # RFB container around status strip + MFP
+    status_strip_w = mini_buttons_total_w + strip_pad * 2
+    # RFB container around the status strip
     rfb_pad = 3
-    rfb_gap = 4
     rfb_y = main_inner_y
     rfb_h = main_inner_h
     rfb_w = status_strip_w + 2 * rfb_pad
@@ -160,15 +158,6 @@ def compute_dashboard_preview_layout(
 
     status_strip_x = rfb_x + (rfb_w - status_strip_w) // 2
     status_strip_y = rfb_y + rfb_pad
-
-    mfp_area_y = status_strip_y + status_strip_h + rfb_gap
-    mfp_area_h = max(28, rfb_h - 2 * rfb_pad - status_strip_h - rfb_gap)
-    mfp_hw_ratio = 1.125
-    mfp_h_raw = max(28, int(mfp_area_h * 0.92))
-    mfp_w = min(mfp_max_w, round(mfp_h_raw / mfp_hw_ratio))
-    mfp_h = round(mfp_w * mfp_hw_ratio)
-    mfp_x = rfb_x + (rfb_w - mfp_w) // 2
-    mfp_y = mfp_area_y + (mfp_area_h - mfp_h) // 2
     landscape_x = main_inner_x + left_strip_w + panel_gap
     landscape_y = main_inner_y
 
@@ -263,6 +252,17 @@ def compute_dashboard_preview_layout(
         genau_bottom_btn_w, genau_bottom_btn_h,
     )
 
+    # Nau-mode record button — one row below clipper_save (primary_center_y + 40).
+    # If that would spill past the primary panel bottom, place it one row above
+    # clipper_save instead so it stays inside the panel.
+    nau_record_w = 28
+    nau_record_h = 16
+    nau_record_x = right_inner_x + (right_inner_w - nau_record_w) // 2
+    nau_record_y = primary_center_y + 40
+    if nau_record_y + nau_record_h > primary_y + primary_h:
+        nau_record_y = primary_center_y - 40
+    nau_record_rect = Rect(nau_record_x, nau_record_y, nau_record_w, nau_record_h)
+
     dashboard_w = secondary_x + right_w + outer_pad
     dashboard_h = max(preview_bottom, osr2_y + osr2_h, primary_shadow_y + primary_h) + bottom_pad
 
@@ -273,7 +273,6 @@ def compute_dashboard_preview_layout(
         secondary_monitor=Rect(secondary_x, secondary_y, right_w, right_h),
         main_status_strip=Rect(status_strip_x, status_strip_y, status_strip_w, status_strip_h),
         rfb_panel=Rect(rfb_x, rfb_y, rfb_w, rfb_h),
-        mfp_panel=Rect(mfp_x, mfp_y, mfp_w, mfp_h),
         landscape_panel=Rect(landscape_x, landscape_y, landscape_w, main_inner_h),
         portrait_panel=Rect(right_inner_x, portrait_y, right_inner_w, portrait_h),
         primary_panel=Rect(right_inner_x, primary_y, right_inner_w, primary_h),
@@ -287,8 +286,9 @@ def compute_dashboard_preview_layout(
         quarter_button=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_center_y, 28, 16),
         open_file_dialog=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_center_y, 28, 16),
         clipper_save=Rect(right_inner_x + (right_inner_w - 28) // 2, primary_center_y + 20, 28, 16),
-        vlc_nudge_prev=Rect(right_inner_x + (right_inner_w - 44) // 2, primary_center_y - 20, 20, 16),
-        vlc_nudge_next=Rect(right_inner_x + (right_inner_w - 44) // 2 + 24, primary_center_y - 20, 20, 16),
+        nau_record=nau_record_rect,
+        primary_nudge_prev=Rect(right_inner_x + (right_inner_w - 44) // 2, primary_center_y - 20, 20, 16),
+        primary_nudge_next=Rect(right_inner_x + (right_inner_w - 44) // 2 + 24, primary_center_y - 20, 20, 16),
         landscape_prev=Rect(landscape_x + 6, landscape_button_y, 18, 22),
         landscape_next=Rect(landscape_x + landscape_w - 24, landscape_button_y, 18, 22),
         landscape_trash=Rect(landscape_x + (landscape_w - 30) // 2, landscape_stack_y, 30, 16),
@@ -309,7 +309,7 @@ def compute_dashboard_preview_layout(
         hybrid_cruise=hybrid_cruise_rect,
         genau_shape=genau_shape_rect,
         hybrid_mode_button=Rect(hybrid_mode_btn_x, genau_toggle_y, hybrid_mode_btn_w, hybrid_mode_btn_h),
-        vlc_mode_button=Rect(genau_toggle_x, genau_toggle_y, 28, 16),
+        nau_mode_button=Rect(genau_toggle_x, genau_toggle_y, 28, 16),
         hybrid_quarter_button=Rect(nudge_prev_x, primary_center_y, genau_bottom_btn_w, genau_bottom_btn_h),
         hybrid_open_file_dialog=Rect(nudge_next_x, primary_center_y, genau_bottom_btn_w, genau_bottom_btn_h),
         hybrid_genau_amp_label=h_amp_label,
