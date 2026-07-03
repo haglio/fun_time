@@ -245,8 +245,34 @@ class FunTimeIntegrationSession:
                 capture_output=True, text=True, check=False,
             )
             if "AutoHotkey64.exe" not in result.stdout:
-                return
+                break
             time.sleep(0.3)
+        self._wait_for_orchestrators_to_exit()
+
+    def _wait_for_orchestrators_to_exit(self, timeout: float = 15.0) -> None:
+        """Block until no fun_time.orchestrator processes remain.
+
+        Killing a session's AHK wakes its orchestrator, whose shutdown then
+        taskkills the PIDs it recorded at startup.  Windows recycles PIDs
+        aggressively, so if a NEW session launches during that window the
+        dying orchestrator can kill the new session's freshly-spawned
+        processes.  Serialize the handoff: let the old orchestrator finish
+        its shutdown storm before anything new starts.
+        """
+        ps = (
+            "@(Get-CimInstance Win32_Process | Where-Object { "
+            "$_.Name -match '^pythonw?\\.exe$' -and "
+            "$_.CommandLine -match 'fun_time\\.orchestrator' }).Count"
+        )
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            result = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-Command", ps],
+                capture_output=True, text=True, check=False,
+            )
+            if result.stdout.strip() == "0":
+                return
+            time.sleep(0.5)
 
 
 
