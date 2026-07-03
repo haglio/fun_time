@@ -107,16 +107,16 @@ def _minimize_all_windows(result: StartupResult) -> None:
     activating the next window in z-order, which would create a chain of
     focus transfers that steals the user's foreground window.
     """
-    for pid in [
-        result.primary_pid,
-        result.nau_pid,
-        result.portrait_pid,
-        result.landscape_pid,
-        result.genau_pid,
-    ]:
-        if not pid:
-            continue
-        hwnd = find_window_by_pid(pid)
+    hwnds = [
+        find_window_by_pid(result.primary_pid),
+        find_window_by_pid(result.portrait_pid),
+        find_window_by_pid(result.landscape_pid),
+        # Genau and Nau run behind venv pythonw launchers whose PIDs differ
+        # from the window-owning interpreters — resolve by title.
+        wait_for_window_by_title("Genau", timeout_s=2.0),
+        wait_for_window_by_title("Nau", timeout_s=2.0, exact=True),
+    ]
+    for hwnd in hwnds:
         if hwnd:
             minimize_window(hwnd, activate=False)
     logger.info("Minimized all windows for integration test run")
@@ -198,7 +198,8 @@ def _fix_post_loading_z_order(result: StartupResult) -> None:
         landscape_hwnd=find_window_by_pid(result.landscape_pid),
         primary_hwnd=find_window_by_pid(result.primary_pid),
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
-        nau_hwnd=find_window_by_pid(result.nau_pid),
+        nau_hwnd=find_window_by_pid(result.nau_pid)
+        or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
         dashboard_hwnd=dash_hwnd,
         primary_mode="nau",
     )

@@ -127,15 +127,21 @@ class TestMinimizeAllWindows:
         def fake_minimize(hwnd, **kwargs):
             minimized_hwnds.append(hwnd)
 
+        # Genau and Nau resolve by title — their venv-launcher pids don't
+        # own the SDL windows.
+        title_to_hwnd = {"Genau": 6001, "Nau": 2002}
+
         with patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=fake_find), \
+             patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+                   side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
              patch("fun_time.windows_bridge_orchestrator.minimize_window", side_effect=fake_minimize):
             _minimize_all_windows(result)
 
         assert 1000 in minimized_hwnds  # primary
-        assert 2000 in minimized_hwnds  # mfp
         assert 3000 in minimized_hwnds  # portrait
         assert 4000 in minimized_hwnds  # landscape
-        assert 6000 in minimized_hwnds  # genau
+        assert 6001 in minimized_hwnds  # genau (by title)
+        assert 2002 in minimized_hwnds  # nau (by exact title)
 
     def test_passes_activate_false_to_prevent_focus_steal(self):
         result = _fake_startup_result()
@@ -152,22 +158,23 @@ class TestMinimizeAllWindows:
                 f"minimize_window called without activate=False: {c}"
             )
 
-    def test_skips_pids_without_windows(self):
+    def test_skips_windows_that_cannot_be_found(self):
         result = _fake_startup_result()
         minimized_hwnds: list[int] = []
 
         def fake_find(pid):
-            return pid * 10 if pid != 200 else 0  # mfp has no window
+            return pid * 10 if pid != 300 else 0  # portrait has no window
 
         def fake_minimize(hwnd, **kwargs):
             minimized_hwnds.append(hwnd)
 
         with patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=fake_find), \
+             patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_orchestrator.minimize_window", side_effect=fake_minimize):
             _minimize_all_windows(result)
 
-        assert 2000 not in minimized_hwnds
-        assert len(minimized_hwnds) == 4
+        assert 3000 not in minimized_hwnds
+        assert minimized_hwnds == [1000, 4000]
 
     def test_called_during_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")

@@ -13,18 +13,32 @@ from pathlib import Path
 import pytest
 
 from fun_time.vlc_actions import ensure_playback_state, get_playback_state
-from fun_time.win32 import (
-    find_window_by_pid,
-    get_foreground_window,
-    is_process_alive,
-    is_window_topmost,
-)
+from fun_time.win32 import find_window_by_pid, find_window_by_title, get_foreground_window, is_window_topmost
 
 from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
 )
+
+
+def _is_pid_alive(pid: int) -> bool:
+    """Check whether a process with the given PID is still running.
+
+    On Windows, os.kill(pid, 0) can return True for zombie processes
+    whose kernel objects haven't been released.  GetExitCodeProcess
+    reliably distinguishes running (STILL_ACTIVE) from terminated.
+    """
+    import ctypes
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    STILL_ACTIVE = 259
+    handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return False
+    exit_code = ctypes.c_ulong()
+    ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+    ctypes.windll.kernel32.CloseHandle(handle)
+    return exit_code.value == STILL_ACTIVE
 
 
 def _read_vlc_config_from_manifest(session: FunTimeIntegrationSession) -> tuple[int, str]:
@@ -143,7 +157,9 @@ def test_fun_time_nau_window_not_topmost_in_genau_mode(shared_integration_sessio
     never be TOPMOST in either mode."""
     s = shared_integration_session
     pids = s.read_child_pids()
-    nau_hwnd = find_window_by_pid(pids["nau_pid"])
+    # Same lookup production uses: the venv pythonw launcher pid does not
+    # own the SDL window, so fall back to the exact title.
+    nau_hwnd = find_window_by_pid(pids["nau_pid"]) or find_window_by_title("Nau", exact=True)
     assert nau_hwnd, f"Nau window not found for pid {pids['nau_pid']}"
 
     s.wait_until(
@@ -161,7 +177,7 @@ def test_fun_time_nau_window_not_topmost_in_genau_mode(shared_integration_sessio
     s.wait_for_new_log("Switched to genau mode", timeout=12)
 
     s.wait_until(
-        lambda: not is_window_topmost(find_window_by_pid(pids["nau_pid"])),
+        lambda: not is_window_topmost(nau_hwnd),
         timeout=12,
         description="Nau to lose TOPMOST when Genau is active",
     )
@@ -170,7 +186,7 @@ def test_fun_time_nau_window_not_topmost_in_genau_mode(shared_integration_sessio
     s.wait_for_new_log("Switched to nau mode", timeout=12)
 
     s.wait_until(
-        lambda: is_window_topmost(find_window_by_pid(pids["nau_pid"])),
+        lambda: is_window_topmost(nau_hwnd),
         timeout=12,
         description="Nau to regain TOPMOST after Genau deactivated",
     )
@@ -252,7 +268,7 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     """
     s = shared_integration_session
     rh_pid = s.read_genau_pid()
-    assert is_process_alive(rh_pid), "Genau should be alive before test"
+    assert _is_pid_alive(rh_pid), "Genau should be alive before test"
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode", timeout=12)
@@ -266,7 +282,7 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     )
 
     # Genau must still be running — omnipause should pause, not close.
-    assert is_process_alive(rh_pid), (
+    assert _is_pid_alive(rh_pid), (
         "Genau process died during omnipause — "
         "Esc should pause Genau, not close it"
     )
@@ -274,7 +290,7 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: leaving", timeout=12)
 
-    assert is_process_alive(rh_pid), "Genau should survive leaving omnipause"
+    assert _is_pid_alive(rh_pid), "Genau should survive leaving omnipause"
 
     s.write_dashboard_command("nau_activate")
     s.wait_for_new_log("Switched to nau mode", timeout=12)
@@ -503,7 +519,7 @@ def test_fun_time_quit_cleans_up_processes():
         session.start()
 
         child_pids = session.read_child_pids()
-        live_pids = {name: pid for name, pid in child_pids.items() if pid and is_process_alive(pid)}
+        live_pids = {name: pid for name, pid in child_pids.items() if pid and _is_pid_alive(pid)}
         assert live_pids, "Expected at least some child processes to be running after startup"
 
         session.quit_gracefully(timeout=15.0)
@@ -512,7 +528,7 @@ def test_fun_time_quit_cleans_up_processes():
 
         deadline = time.time() + 5.0
         while time.time() < deadline:
-            still_alive = {name: pid for name, pid in live_pids.items() if is_process_alive(pid)}
+            still_alive = {name: pid for name, pid in live_pids.items() if _is_pid_alive(pid)}
             if not still_alive:
                 break
             time.sleep(0.5)
