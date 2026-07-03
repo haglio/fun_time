@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,6 +11,7 @@ import pytest
 from fun_time.win32 import (
     close_window,
     get_process_image_name,
+    is_process_alive,
     wait_for_window,
     move_window,
     set_always_on_top,
@@ -167,6 +170,29 @@ class TestGetProcessImageName:
             mock.QueryFullProcessImageNameW.return_value = 0
             assert get_process_image_name(4242) is None
         mock.CloseHandle.assert_called_once_with(42)
+
+
+class TestIsProcessAlive:
+    def test_false_when_process_cannot_be_opened(self):
+        with patch("fun_time.win32._kernel32") as mock:
+            mock.OpenProcess.return_value = None
+            assert is_process_alive(4242) is False
+
+    def test_true_for_own_process(self):
+        assert is_process_alive(os.getpid()) is True
+
+    def test_false_for_pid_zero(self):
+        # Callers pass 0 for children that were never launched.
+        assert is_process_alive(0) is False
+
+    def test_false_for_exited_process_whose_handle_is_still_open(self):
+        # Popen holds the child's process handle, keeping the kernel object
+        # (and the PID) alive after exit — OpenProcess still succeeds on such
+        # a zombie, so liveness must come from GetExitCodeProcess.
+        proc = subprocess.Popen([sys.executable, "-c", ""])
+        proc.wait()
+
+        assert is_process_alive(proc.pid) is False
 
 
 class TestConstants:
