@@ -130,7 +130,6 @@ class OmniPauseFlowResult:
     action: str
     next_omni_paused: bool
     genau_branch: bool
-    disable_always_on_top: bool
     log_message: str
 
 
@@ -145,7 +144,6 @@ def build_omnipause_toggle(*, omni_paused: bool, primary_mode: str) -> OmniPause
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
         genau_branch=plan.genau_branch,
-        disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )
 
@@ -193,7 +191,6 @@ def apply_enter_omnipause(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
         genau_branch=plan.genau_branch,
-        disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )
 
@@ -245,6 +242,5 @@ def apply_leave_omnipause(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
         genau_branch=plan.genau_branch,
-        disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )

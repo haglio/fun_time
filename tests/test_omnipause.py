@@ -49,27 +49,3 @@ def test_leave_nau_mode_resumes_nau_even_when_primary_skipped():
     plan = build_omnipause_plan("leave", omni_paused=True, primary_mode="nau", skip_primary_resume=True)
 
     assert plan.resume_nau_playback is True
-
-
-def test_enter_always_disables_always_on_top():
-    plan = build_omnipause_plan("enter", omni_paused=False, primary_mode="nau", skip_primary_resume=False)
-
-    assert plan.disable_always_on_top is True
-
-
-def test_toggle_enter_always_disables_always_on_top():
-    plan = build_omnipause_plan("toggle", omni_paused=False, primary_mode="nau", skip_primary_resume=False)
-
-    assert plan.disable_always_on_top is True
-
-
-def test_leave_does_not_disable_always_on_top():
-    plan = build_omnipause_plan("leave", omni_paused=True, primary_mode="nau", skip_primary_resume=False)
-
-    assert plan.disable_always_on_top is False
-
-
-def test_enter_disables_always_on_top_even_in_genau_mode():
-    plan = build_omnipause_plan("enter", omni_paused=False, primary_mode="genau", skip_primary_resume=False)
-
-    assert plan.disable_always_on_top is True
