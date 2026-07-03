@@ -1,7 +1,8 @@
-"""Win32 window operations for the Python orchestrator.
+"""Win32 window and process operations for the Python orchestrator.
 
 Wraps ctypes calls for window manipulation that the startup sequencer
-needs: find/wait for windows by PID, move, set topmost, activate, query size.
+needs (find/wait for windows by PID, move, set topmost, activate, query
+size) and for process queries (liveness, executable image name).
 """
 from __future__ import annotations
 
@@ -62,8 +63,16 @@ _kernel32.QueryFullProcessImageNameW.argtypes = [
     ctypes.POINTER(ctypes.wintypes.DWORD),   # lpdwSize (in/out)
 ]
 _kernel32.QueryFullProcessImageNameW.restype = ctypes.wintypes.BOOL
+_kernel32.GetExitCodeProcess.argtypes = [
+    ctypes.wintypes.HANDLE,                  # hProcess
+    ctypes.POINTER(ctypes.wintypes.DWORD),   # lpExitCode
+]
+_kernel32.GetExitCodeProcess.restype = ctypes.wintypes.BOOL
 _kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
 _kernel32.CloseHandle.restype = ctypes.wintypes.BOOL
+
+# GetExitCodeProcess reports this while the process is still running.
+_STILL_ACTIVE = 259
 
 
 WNDENUMPROC = ctypes.WINFUNCTYPE(
@@ -102,6 +111,26 @@ def get_process_image_name(pid: int) -> str | None:
         if not _kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
             return None
         return buf.value
+    finally:
+        _kernel32.CloseHandle(handle)
+
+
+def is_process_alive(pid: int) -> bool:
+    """Check whether *pid* refers to a currently running process.
+
+    os.kill(pid, 0) raises WinError 87 for valid PIDs on Python 3.14 /
+    Windows 11, and OpenProcess alone still succeeds for exited processes
+    whose kernel object is kept alive by an open handle, so liveness comes
+    from GetExitCodeProcess reporting STILL_ACTIVE.
+    """
+    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return False
+    try:
+        exit_code = ctypes.wintypes.DWORD()
+        if not _kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return False
+        return exit_code.value == _STILL_ACTIVE
     finally:
         _kernel32.CloseHandle(handle)
 

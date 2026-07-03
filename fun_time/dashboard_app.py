@@ -42,6 +42,7 @@ from shared_ui.fonts import (
 from fun_time.config import LayoutConfig
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.vlc_actions import get_current_file_path, vlc_http_req
+from fun_time.win32 import is_process_alive
 from fun_time.dashboard_actions import (
     BROKER_PANEL,
     CLIPPER_SAVE,
@@ -238,25 +239,6 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         dashboard_state_file=Path(parser.get("commands", "dashboard_state_file", fallback="dashboard_state.ini")),
         dashboard_cmd_file=Path(parser.get("commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt")),
     )
-
-
-def is_process_alive(pid: int) -> bool:
-    """Check whether *pid* refers to a running process.
-
-    Uses OpenProcess on Windows because os.kill(pid, 0) raises
-    WinError 87 (ERROR_INVALID_PARAMETER) for valid PIDs on
-    Python 3.14 / Windows 11.
-    """
-    if pid <= 0:
-        return False
-    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-    handle = ctypes.windll.kernel32.OpenProcess(
-        PROCESS_QUERY_LIMITED_INFORMATION, False, pid,
-    )
-    if handle:
-        ctypes.windll.kernel32.CloseHandle(handle)
-        return True
-    return False
 
 
 @dataclass(frozen=True)
