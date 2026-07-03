@@ -8,6 +8,7 @@ from pathlib import Path
 PLAYLIST_PRIMARY = "primary_vlc_playlist"
 PLAYLIST_PORTRAIT = "portrait_vlc_playlist"
 PLAYLIST_LANDSCAPE = "landscape_vlc_playlist"
+PLAYLIST_NAU = "nau_playlist"
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class FModePlaylistPlan:
     primary_playlist_path: Path
     portrait_playlist_path: Path
     landscape_playlist_path: Path
+    nau_playlist_path: Path
 
 
 def is_supported_video_path(path: str) -> bool:
@@ -120,6 +122,19 @@ def write_playlist_file(path: Path, paths: list[str]) -> None:
     path.write_text(content, encoding="utf-8", newline="")
 
 
+def write_nau_playlist_file(path: Path, video_paths: list[str]) -> None:
+    """Write Nau's playlist: one video per line, TAB + funscript when it exists."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for video_path in video_paths:
+        mirrored = build_mirrored_funscript_path(video_path)
+        if mirrored and Path(mirrored).exists():
+            lines.append(f"{video_path}\t{mirrored}")
+        else:
+            lines.append(video_path)
+    path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
+
+
 def build_fmode_playlists(
     *,
     primary_sources: str,
@@ -137,10 +152,12 @@ def build_fmode_playlists(
     primary_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_PRIMARY)
     portrait_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
     landscape_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
+    nau_playlist_path = state_dir / f"{PLAYLIST_NAU}.tsv"
 
     write_playlist_file(primary_playlist_path, primary_paths)
     write_playlist_file(portrait_playlist_path, portrait_paths)
     write_playlist_file(landscape_playlist_path, landscape_paths)
+    write_nau_playlist_file(nau_playlist_path, primary_paths)
     return FModePlaylistPlan(
         success=True,
         primary_count=len(primary_paths),
@@ -149,4 +166,5 @@ def build_fmode_playlists(
         primary_playlist_path=primary_playlist_path,
         portrait_playlist_path=portrait_playlist_path,
         landscape_playlist_path=landscape_playlist_path,
+        nau_playlist_path=nau_playlist_path,
     )

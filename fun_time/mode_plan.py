@@ -10,6 +10,7 @@ class ModeSwitchPlan:
     genau_cmd: str | None
     hud_cmd: str | None
     vlc_should_play: bool | None
+    nau_should_play: bool | None
     log_message: str
 
 
@@ -29,6 +30,12 @@ def build_mode_switch_plan(
     target_mode: str,
     omni_paused: bool,
 ) -> ModeSwitchPlan:
+    """Plan a switch between the primary modes: nau, genau, hybrid.
+
+    Nau plays exactly when the mode is nau; Genau runs in genau and hybrid;
+    the primary VLC plays exactly when the mode is hybrid (it exists only to
+    display video under Genau's HUD).
+    """
     if current_mode == target_mode:
         return ModeSwitchPlan(
             target_mode=target_mode,
@@ -36,6 +43,7 @@ def build_mode_switch_plan(
             genau_cmd=None,
             hud_cmd=None,
             vlc_should_play=None,
+            nau_should_play=None,
             log_message=f"Already in {target_mode} mode",
         )
 
@@ -46,6 +54,7 @@ def build_mode_switch_plan(
             genau_cmd=None,
             hud_cmd=None,
             vlc_should_play=None,
+            nau_should_play=None,
             log_message=f"Mode set to {target_mode} (omnipaused)",
         )
 
@@ -59,16 +68,22 @@ def build_mode_switch_plan(
         genau_cmd = "PAUSE"
 
     hud_cmd: str | None = None
-    if target_mode == "hybrid" and current_mode != "hybrid":
+    if target_mode == "hybrid":
         hud_cmd = "HUD_ON"
-    elif current_mode == "hybrid" and target_mode != "hybrid":
+    elif current_mode == "hybrid":
         hud_cmd = "HUD_OFF"
 
     vlc_should_play: bool | None = None
-    if target_mode == "genau" and current_mode != "genau":
-        vlc_should_play = False
-    elif target_mode in ("vlc", "hybrid") and current_mode == "genau":
+    if target_mode == "hybrid":
         vlc_should_play = True
+    elif current_mode == "hybrid":
+        vlc_should_play = False
+
+    nau_should_play: bool | None = None
+    if target_mode == "nau":
+        nau_should_play = True
+    elif current_mode == "nau":
+        nau_should_play = False
 
     return ModeSwitchPlan(
         target_mode=target_mode,
@@ -76,5 +91,6 @@ def build_mode_switch_plan(
         genau_cmd=genau_cmd,
         hud_cmd=hud_cmd,
         vlc_should_play=vlc_should_play,
+        nau_should_play=nau_should_play,
         log_message=f"Switched to {target_mode} mode",
     )

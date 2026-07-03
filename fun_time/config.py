@@ -160,6 +160,22 @@ class ProjectConfig:
         return self.paths.state_dir / "genau_paused.txt"
 
     @property
+    def nau_cmd_file(self) -> Path:
+        return self.paths.state_dir / "nau_cmd.txt"
+
+    @property
+    def nau_paused_file(self) -> Path:
+        return self.paths.state_dir / "nau_paused.txt"
+
+    @property
+    def nau_status_file(self) -> Path:
+        return self.paths.state_dir / "nau_status.txt"
+
+    @property
+    def nau_playlist_file(self) -> Path:
+        return self.paths.state_dir / "nau_playlist.tsv"
+
+    @property
     def audio_cmd_file(self) -> Path:
         return self.paths.state_dir / "audio_cmd.txt"
 

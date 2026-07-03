@@ -34,6 +34,7 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
         },
         "modules": {
             "genau_module": "genau",
+            "nau_module": "nau",
             "audio_module": "fun_time.audio_companion_app",
             "dashboard_module": "fun_time.dashboard_app",
         },
@@ -45,6 +46,10 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "genau_mode_file": str(config.genau_mode_file),
             "genau_cmd_file": str(config.genau_cmd_file),
             "genau_paused_file": str(config.genau_paused_file),
+            "nau_cmd_file": str(config.nau_cmd_file),
+            "nau_paused_file": str(config.nau_paused_file),
+            "nau_status_file": str(config.nau_status_file),
+            "nau_playlist_file": str(config.nau_playlist_file),
             "broker_cmd_file": str(config.paths.state_dir / "broker_cmd.txt"),
             "broker_heartbeat_file": str(config.paths.state_dir / "broker_heartbeat.txt"),
             "broker_tray_launcher": str(config.paths.broker_tray_launcher or ""),

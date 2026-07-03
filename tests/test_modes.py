@@ -93,6 +93,37 @@ def test_build_fmode_playlists_writes_named_m3u_files(tmp_path: Path):
     assert str(primary_video) in (state_dir / "primary_vlc_playlist.m3u").read_text(encoding="utf-8")
 
 
+def test_build_fmode_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path: Path):
+    primary_root = tmp_path / "videos" / "videos" / "primary"
+    primary_root.mkdir(parents=True)
+    scripted_video = primary_root / "scripted.mp4"
+    plain_video = primary_root / "plain.mp4"
+    scripted_video.write_text("x", encoding="utf-8")
+    plain_video.write_text("x", encoding="utf-8")
+    mirrored = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "scripted.funscript"
+    mirrored.parent.mkdir(parents=True, exist_ok=True)
+    mirrored.write_text("{}", encoding="utf-8")
+    favs_file = tmp_path / "favs.csv"
+    state_dir = tmp_path / "state"
+
+    plan = build_fmode_playlists(
+        primary_sources=str(primary_root),
+        portrait_sources="",
+        landscape_sources="",
+        favs_file=favs_file,
+        state_dir=state_dir,
+        enabled=False,
+        rng=random.Random(1),
+    )
+
+    assert plan.nau_playlist_path == state_dir / "nau_playlist.tsv"
+    lines = plan.nau_playlist_path.read_text(encoding="utf-8").strip().splitlines()
+    assert sorted(lines) == sorted([
+        f"{scripted_video}\t{mirrored}",
+        f"{plain_video}",
+    ])
+
+
 # --- collect_video_files edge cases ---
 
 

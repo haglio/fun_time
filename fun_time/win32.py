@@ -260,8 +260,13 @@ def unlock_set_foreground_window() -> None:
     _user32.LockSetForegroundWindow(LSFW_UNLOCK)
 
 
-def find_window_by_title(title: str) -> int:
-    """Find a visible window whose title contains *title*. Returns 0 if not found."""
+def find_window_by_title(title: str, *, exact: bool = False) -> int:
+    """Find a visible window whose title contains (or, with *exact*, equals)
+    *title*. Returns 0 if not found.
+
+    Use exact=True when the title is a substring of another managed window's
+    title (e.g. "Nau" is contained in "Genau").
+    """
     best: int = 0
     buf = ctypes.create_unicode_buffer(256)
 
@@ -270,7 +275,8 @@ def find_window_by_title(title: str) -> int:
         if not _user32.IsWindowVisible(hwnd):
             return True
         _user32.GetWindowTextW(hwnd, buf, 256)
-        if title in buf.value:
+        matched = buf.value == title if exact else title in buf.value
+        if matched:
             best = hwnd
             return False
         return True
