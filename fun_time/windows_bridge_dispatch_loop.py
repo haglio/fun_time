@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
 from .mode_plan import genau_active
+from .modes import build_mirrored_funscript_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
@@ -84,7 +85,7 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
             continue
 
         if op.title:
-            hwnd = find_window_by_title(op.title)
+            hwnd = find_window_by_title(op.title, exact=op.exact)
             if not hwnd:
                 continue
         else:
@@ -132,12 +133,13 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
     if "state" not in parser:
         return None
     s = parser["state"]
-    raw_mode = s.get("primary_mode", s.get("genau_mode", "vlc"))
-    # Backward compat: old INI files used "1"/"0" for genau_mode
+    raw_mode = s.get("primary_mode", s.get("genau_mode", "nau"))
+    # Backward compat: old INI files used "1"/"0" for genau_mode, and Nau
+    # replaced the retired vlc mode as the primary player.
     if raw_mode == "1":
         primary_mode = "genau"
-    elif raw_mode == "0":
-        primary_mode = "vlc"
+    elif raw_mode in ("0", "vlc"):
+        primary_mode = "nau"
     else:
         primary_mode = raw_mode
     return BridgeState(
@@ -545,13 +547,21 @@ class DispatchLoopRunner:
             primary_hwnd = find_window_by_pid(self.primary_pid)
             selected = show_open_file_dialog(default_dir or "", owner_hwnd=primary_hwnd)
             if selected:
-                send_vlc_input_command(
-                    self.config.primary_port,
-                    "in_play",
-                    selected,
-                    self.config.vlc_password,
-                )
-                vlc_http_cmd(self.config.primary_port, "pl_play", self.config.vlc_password)
+                if self.state.primary_mode == "hybrid":
+                    send_vlc_input_command(
+                        self.config.primary_port,
+                        "in_play",
+                        selected,
+                        self.config.vlc_password,
+                    )
+                    vlc_http_cmd(self.config.primary_port, "pl_play", self.config.vlc_password)
+                else:
+                    mirrored = build_mirrored_funscript_path(selected)
+                    if mirrored and Path(mirrored).exists():
+                        command = f"PLAY_FILE {selected}\t{mirrored}"
+                    else:
+                        command = f"PLAY_FILE {selected}"
+                    self.config.nau_cmd_file.write_text(command, encoding="utf-8")
         finally:
             if should_manage_omnipause:
                 self._dispatch("leave_omnipause_skip_primary")
@@ -588,6 +598,9 @@ def build_bridge_config_from_manifest(
         genau_cmd_file=Path(manifest["commands"]["genau_cmd_file"]),
         genau_paused_file=Path(manifest["commands"]["genau_paused_file"]),
         audio_paused_file=Path(manifest["commands"]["audio_paused_file"]),
+        nau_cmd_file=Path(manifest["commands"]["nau_cmd_file"]),
+        nau_paused_file=Path(manifest["commands"]["nau_paused_file"]),
+        nau_status_file=Path(manifest["commands"]["nau_status_file"]),
         dashboard_state_file=Path(manifest["commands"]["dashboard_state_file"]),
         broker_cmd_file=Path(manifest["commands"]["broker_cmd_file"]),
         broker_heartbeat_file=Path(manifest["commands"]["broker_heartbeat_file"]),

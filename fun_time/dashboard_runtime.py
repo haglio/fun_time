@@ -76,6 +76,38 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
 
 
 @dataclass(frozen=True)
+class NauStatus:
+    """Snapshot of what Nau is playing, parsed from its status file.
+
+    Nau publishes more fields (duration_ms, has_funscript); only the ones
+    with consumers on this side are parsed.
+    """
+
+    video: str = ""
+    position_ms: int = 0
+    state: str = "normal"
+    paused: bool = False
+
+
+def read_nau_status(path: Path) -> NauStatus:
+    if not path.exists():
+        return NauStatus()
+    try:
+        text = path.read_text(encoding="utf-8")
+        values = dict(
+            line.split("=", 1) for line in text.splitlines() if "=" in line
+        )
+        return NauStatus(
+            video=values.get("video", "").strip(),
+            position_ms=int(values.get("position_ms", "0").strip() or 0),
+            state=values.get("state", "normal").strip(),
+            paused=_status_bool(values, "paused"),
+        )
+    except (OSError, ValueError):
+        return NauStatus()
+
+
+@dataclass(frozen=True)
 class GenauStatus:
     cruise_active: bool = False
     shape: str = "sine"

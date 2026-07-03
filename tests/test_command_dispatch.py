@@ -34,6 +34,9 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
+        nau_cmd_file=state_dir / "nau_cmd.txt",
+        nau_paused_file=state_dir / "nau_paused.txt",
+        nau_status_file=state_dir / "nau_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
     )
 
@@ -42,7 +45,7 @@ def _make_state(**overrides) -> BridgeState:
     defaults = dict(
         locked2=False,
         locked3=False,
-        primary_mode="vlc",
+        primary_mode="nau",
         f_mode_enabled=False,
         omni_paused=False,
     )
@@ -322,9 +325,9 @@ def test_landscape_next_ensures_playback_after_nav(tmp_path: Path):
 # --- primary_prev / primary_next ---
 
 
-def test_primary_prev_calls_vlc_nav_step(tmp_path: Path):
+def test_primary_prev_in_hybrid_calls_vlc_nav_step(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="vlc")
+    state = _make_state(primary_mode="hybrid")
     nav_calls: list[tuple] = []
 
     with patch("fun_time.command_dispatch.vlc_nav_step",
@@ -332,13 +335,14 @@ def test_primary_prev_calls_vlc_nav_step(tmp_path: Path):
         dispatch_command("primary_prev", state, config)
 
     assert nav_calls == [(config.primary_port, "prev")]
+    assert not config.nau_cmd_file.exists()
 
 
-def test_primary_next_calls_vlc_nav_step(tmp_path: Path):
-    """Primary VLC navigation uses vlc_nav_step (pl_play&id=N).
-    With --start-paused removed, VLC auto-plays on item transitions."""
+def test_primary_next_in_hybrid_calls_vlc_nav_step(tmp_path: Path):
+    """In hybrid mode the primary VLC displays video, so navigation goes to
+    it via vlc_nav_step (pl_play&id=N)."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="vlc")
+    state = _make_state(primary_mode="hybrid")
     nav_calls: list[tuple] = []
 
     with patch("fun_time.command_dispatch.vlc_nav_step",
@@ -346,6 +350,30 @@ def test_primary_next_calls_vlc_nav_step(tmp_path: Path):
         dispatch_command("primary_next", state, config)
 
     assert nav_calls == [(config.primary_port, "next")]
+
+
+def test_primary_next_in_nau_mode_writes_nau_cmd(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+    nav_calls: list[tuple] = []
+
+    with patch("fun_time.command_dispatch.vlc_nav_step",
+               side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
+        dispatch_command("primary_next", state, config)
+
+    assert nav_calls == []
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT"
+
+
+def test_primary_prev_in_genau_mode_writes_nau_cmd(tmp_path: Path):
+    """Outside hybrid, Nau is the primary player — even while Genau mode is
+    active, [ and ] navigate the paused Nau in the background."""
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="genau")
+
+    dispatch_command("primary_prev", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV"
 
 
 # --- landscape_prev / landscape_next ---
@@ -415,7 +443,9 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
     resumed_ports = [c[0] for c in playback_calls if c[2]]
     assert config.portrait_port in resumed_ports
     assert config.landscape_port in resumed_ports
-    assert config.primary_port in resumed_ports
+    # In nau mode the primary VLC stays paused — Nau resumes via its flag file
+    assert config.primary_port not in resumed_ports
+    assert config.nau_paused_file.read_text(encoding="utf-8") == "0"
 
 
 # --- fmode_toggle ---
@@ -466,20 +496,24 @@ def test_fmode_panel_click_dispatches_as_fmode_toggle(tmp_path: Path):
 # --- mode switch (genau_activate / vlc_activate / hybrid_activate) ---
 
 
-def test_vlc_activate_deactivates_genau(tmp_path: Path):
+def test_nau_activate_deactivates_genau_and_raises_nau(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="genau")
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("vlc_activate", state, config)
+        new_state, ops = dispatch_command("nau_activate", state, config)
 
-    assert new_state.primary_mode == "vlc"
+    assert new_state.primary_mode == "nau"
     assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
+    nau_top = [op for op in ops if op.op == "set_topmost" and op.title == "Nau" and op.value is True]
+    assert nau_top and nau_top[0].exact is True, "Nau ops must be exact-match (substring of Genau)"
+    nau_activate = [op for op in ops if op.op == "activate" and op.title == "Nau"]
+    assert nau_activate and nau_activate[0].exact is True
 
 
-def test_genau_activate_activates_genau(tmp_path: Path):
+def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="vlc")
+    state = _make_state(primary_mode="nau")
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("genau_activate", state, config)
@@ -487,11 +521,12 @@ def test_genau_activate_activates_genau(tmp_path: Path):
     assert new_state.primary_mode == "genau"
     assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
     assert any(op.op == "activate" and op.title == "Genau" for op in ops)
+    assert any(op.op == "set_topmost" and op.title == "Nau" and op.value is False and op.exact for op in ops)
 
 
 def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="vlc")
+    state = _make_state(primary_mode="nau")
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("hybrid_activate", state, config)
@@ -499,6 +534,7 @@ def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
     assert new_state.primary_mode == "hybrid"
     assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
     assert any(op.op == "activate" and op.title == "Genau" for op in ops)
+    assert any(op.op == "set_topmost" and op.title == "Nau" and op.value is False for op in ops)
 
 
 # --- genau command forwarding (_GENAU_CMD_MAP) ---
@@ -595,7 +631,7 @@ def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
 
 def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="vlc")
+    state = _make_state(primary_mode="nau")
 
     new_state, ops = dispatch_command("genau_speed_down", state, config)
 
@@ -638,7 +674,7 @@ def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
 
 def test_genau_numeric_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="vlc")
+    state = _make_state(primary_mode="nau")
 
     new_state, ops = dispatch_command("genau_amp_50", state, config)
 
@@ -765,6 +801,72 @@ def test_leave_omnipause_skip_primary_adds_genau_ops_when_in_genau_mode(tmp_path
     assert any(op.op == "activate" and op.title == "Genau" for op in ops)
 
 
+# --- primary nudge ---
+
+
+def test_primary_nudge_prev_in_hybrid_emits_http_seek(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="hybrid")
+
+    new_state, ops = dispatch_command("primary_nudge_prev", state, config)
+
+    assert len(ops) == 1
+    assert ops[0].op == "vlc_http_seek"
+    assert ops[0].key == "seek&val=-10"
+
+
+def test_primary_nudge_next_in_hybrid_emits_http_seek(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="hybrid")
+
+    new_state, ops = dispatch_command("primary_nudge_next", state, config)
+
+    assert len(ops) == 1
+    assert ops[0].op == "vlc_http_seek"
+    assert ops[0].key == "seek&val=%2B10"
+
+
+def test_primary_nudge_in_nau_mode_writes_nau_seek(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    new_state, ops = dispatch_command("primary_nudge_prev", state, config)
+    assert ops == []
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK"
+
+    dispatch_command("primary_nudge_next", state, config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_FWD"
+
+
+# --- nau record commands ---
+
+
+def test_nau_record_commands_write_nau_cmd_in_nau_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    for command, expected in [
+        ("nau_record_down", "RECORD_DOWN"),
+        ("nau_record_up", "RECORD_UP"),
+        ("nau_record_tap", "RECORD_TAP"),
+        ("nau_loop_cancel", "LOOP_CANCEL"),
+    ]:
+        new_state, ops = dispatch_command(command, state, config)
+        assert config.nau_cmd_file.read_text(encoding="utf-8") == expected
+        assert ops == []
+        config.nau_cmd_file.unlink()
+
+
+def test_nau_record_commands_noop_outside_nau_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    for mode in ("genau", "hybrid"):
+        state = _make_state(primary_mode=mode)
+        new_state, ops = dispatch_command("nau_record_tap", state, config)
+        assert not config.nau_cmd_file.exists()
+        assert ops == []
+
+
 # --- unknown command ---
 
 
@@ -781,9 +883,9 @@ def test_unknown_command_returns_unchanged_state(tmp_path: Path):
 # --- clipper_save ---
 
 
-def test_clipper_save_calls_subprocess_when_not_in_genau_mode(tmp_path: Path):
+def test_clipper_save_calls_subprocess_in_hybrid_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="vlc")
+    state = _make_state(primary_mode="hybrid")
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
          patch("fun_time.command_dispatch.get_playback_time", return_value=42.5), \
@@ -812,7 +914,7 @@ def test_clipper_save_calls_subprocess_when_not_in_genau_mode(tmp_path: Path):
 
 def test_clipper_save_no_tooltip_on_failure(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="vlc")
+    state = _make_state(primary_mode="hybrid")
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
          patch("fun_time.command_dispatch.get_playback_time", return_value=42.5), \
@@ -840,7 +942,7 @@ def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
 
 def test_clipper_save_skips_when_no_video_playing(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state()
+    state = _make_state(primary_mode="hybrid")
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=""), \
          patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
@@ -851,7 +953,7 @@ def test_clipper_save_skips_when_no_video_playing(tmp_path: Path):
 
 def test_clipper_save_skips_when_no_playback_time(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state()
+    state = _make_state(primary_mode="hybrid")
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
          patch("fun_time.command_dispatch.get_playback_time", return_value=None), \
@@ -859,3 +961,42 @@ def test_clipper_save_skips_when_no_playback_time(tmp_path: Path):
         new_state, ops = dispatch_command("clipper_save", state, config)
 
     mock_subprocess.run.assert_not_called()
+
+
+def test_clipper_save_in_nau_mode_uses_nau_status(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+    config.nau_status_file.write_text(
+        "video=C:\\videos\\naustuff.mp4\n"
+        "position_ms=42500\n"
+        "duration_ms=60000\n"
+        "has_funscript=1\n"
+        "state=normal\n"
+        "paused=0\n",
+        encoding="utf-8",
+    )
+
+    with patch("fun_time.command_dispatch.get_current_file_path") as mock_vlc, \
+         patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
+         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+        mock_subprocess.run.return_value.returncode = 0
+        mock_subprocess.run.return_value.stdout = "C:\\clipper\\sessions\\naustuff.json"
+        mock_subprocess.run.return_value.stderr = ""
+        new_state, ops = dispatch_command("clipper_save", state, config)
+
+    mock_vlc.assert_not_called()
+    cmd = mock_subprocess.run.call_args[0][0]
+    assert "C:\\videos\\naustuff.mp4" in cmd
+    assert "42.5" in cmd
+    assert len(ops) == 1 and ops[0].op == "tooltip"
+
+
+def test_clipper_save_in_nau_mode_skips_without_status(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+        new_state, ops = dispatch_command("clipper_save", state, config)
+
+    mock_subprocess.run.assert_not_called()
+    assert ops == []

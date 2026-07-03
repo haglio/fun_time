@@ -9,8 +9,10 @@ logger = logging.getLogger(__name__)
 
 from .modes import build_fmode_playlists
 from .omnipause import build_omnipause_plan
-from .mode_plan import build_mode_switch_plan, genau_active, vlc_primary_active
+from .mode_plan import build_mode_switch_plan, genau_active
 from .vlc_actions import ensure_playback_state, replace_playlist_from_file
+
+NAU_RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
 
 
 def read_flag_file(path: str | Path, default: bool) -> bool:
@@ -50,9 +52,10 @@ def apply_mode_switch(
     current_mode: str,
     target_mode: str,
     omni_paused: bool,
-    paused_file: str | Path,
+    genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
+    nau_paused_file: str | Path,
     primary_port: int,
     password: str,
     broker_cmd_file: str | Path | None = None,
@@ -64,15 +67,13 @@ def apply_mode_switch(
     )
     if plan.is_transition:
         will_genau = genau_active(plan.target_mode)
-        write_flag_file(paused_file, not will_genau)
+        write_flag_file(genau_paused_file, not will_genau)
         write_flag_file(audio_paused_file, not will_genau)
-        if plan.genau_cmd is not None:
-            cmds = [plan.genau_cmd]
-            if plan.hud_cmd is not None:
-                cmds.append(plan.hud_cmd)
+        if plan.nau_should_play is not None:
+            write_flag_file(nau_paused_file, not plan.nau_should_play)
+        cmds = [cmd for cmd in (plan.genau_cmd, plan.hud_cmd) if cmd is not None]
+        if cmds:
             Path(genau_cmd_file).write_text("\n".join(cmds), encoding="utf-8")
-        elif plan.hud_cmd is not None:
-            Path(genau_cmd_file).write_text(plan.hud_cmd, encoding="utf-8")
         if plan.vlc_should_play is not None:
             if not ensure_playback_state(primary_port, password, should_play=plan.vlc_should_play):
                 logger.warning("Primary VLC failed to reach desired mode-switch playback state")
@@ -97,6 +98,7 @@ def apply_toggle_fmode(
     portrait_port: int,
     landscape_port: int,
     password: str,
+    nau_cmd_file: str | Path,
 ) -> FModeFlowResult:
     target_enabled = not f_mode_enabled
     plan = build_fmode_playlists(
@@ -113,6 +115,7 @@ def apply_toggle_fmode(
         logger.warning("Portrait VLC failed to load F-mode playlist")
     if not replace_playlist_from_file(landscape_port, password, plan.landscape_playlist_path, repeat_mode="all"):
         logger.warning("Landscape VLC failed to load F-mode playlist")
+    Path(nau_cmd_file).write_text(NAU_RELOAD_PLAYLIST_CMD, encoding="utf-8")
     return FModeFlowResult(
         success=True,
         next_f_mode_enabled=target_enabled,
@@ -126,6 +129,8 @@ def apply_toggle_fmode(
 class OmniPauseFlowResult:
     action: str
     next_omni_paused: bool
+    genau_branch: bool
+    disable_always_on_top: bool
     log_message: str
 
 
@@ -133,12 +138,14 @@ def build_omnipause_toggle(*, omni_paused: bool, primary_mode: str) -> OmniPause
     plan = build_omnipause_plan(
         "toggle",
         omni_paused=omni_paused,
-        vlc_primary_active=vlc_primary_active(primary_mode),
+        primary_mode=primary_mode,
         skip_primary_resume=False,
     )
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
+        genau_branch=plan.genau_branch,
+        disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )
 
@@ -154,16 +161,18 @@ def apply_enter_omnipause(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
+    nau_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "enter",
         omni_paused=omni_paused,
-        vlc_primary_active=vlc_primary_active(primary_mode),
+        primary_mode=primary_mode,
         skip_primary_resume=False,
     )
     write_flag_file(genau_paused_file, True)
     write_flag_file(audio_paused_file, True)
+    write_flag_file(nau_paused_file, True)
     Path(genau_cmd_file).write_text("PAUSE", encoding="utf-8")
     if broker_cmd_file is not None:
         Path(broker_cmd_file).write_text("PARK", encoding="utf-8")
@@ -183,6 +192,8 @@ def apply_enter_omnipause(
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
+        genau_branch=plan.genau_branch,
+        disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )
 
@@ -199,18 +210,21 @@ def apply_leave_omnipause(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
+    nau_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "leave",
         omni_paused=omni_paused,
-        vlc_primary_active=vlc_primary_active(primary_mode),
+        primary_mode=primary_mode,
         skip_primary_resume=skip_primary_resume,
     )
-    if genau_active(primary_mode):
+    if plan.genau_branch:
         write_flag_file(genau_paused_file, False)
         write_flag_file(audio_paused_file, False)
         Path(genau_cmd_file).write_text("RESUME", encoding="utf-8")
+    if plan.resume_nau_playback:
+        write_flag_file(nau_paused_file, False)
     if broker_cmd_file is not None:
         Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
     vlc_targets = [
@@ -230,5 +244,7 @@ def apply_leave_omnipause(
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
+        genau_branch=plan.genau_branch,
+        disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )

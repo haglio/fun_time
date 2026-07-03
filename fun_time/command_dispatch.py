@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
-from .dashboard_runtime import genau_enabled_path, read_genau_enabled
+from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
 from .provider_regen import regen_url_for_video
 from .mode_plan import genau_active
@@ -23,8 +23,6 @@ from .runtime_flow import (
     apply_mode_switch,
     apply_toggle_fmode,
     build_omnipause_toggle,
-    read_flag_file,
-    write_flag_file,
 )
 from .vlc_actions import (
     ensure_playback_state,
@@ -43,7 +41,7 @@ logger = logging.getLogger(__name__)
 class BridgeState:
     locked2: bool = False
     locked3: bool = False
-    primary_mode: str = "vlc"
+    primary_mode: str = "nau"
     f_mode_enabled: bool = False
     omni_paused: bool = False
 
@@ -64,6 +62,9 @@ class BridgeConfig:
     genau_cmd_file: Path
     genau_paused_file: Path
     audio_paused_file: Path
+    nau_cmd_file: Path
+    nau_paused_file: Path
+    nau_status_file: Path
     dashboard_state_file: Path
     broker_cmd_file: Path | None = None
     broker_heartbeat_file: Path | None = None
@@ -82,6 +83,7 @@ class WindowOp:
     key: str = ""
     value: bool = True
     vk: int = 0
+    exact: bool = False
 
 
 _GENAU_CMD_MAP = {
@@ -98,6 +100,14 @@ _GENAU_CMD_MAP = {
     "genau_cruise_off": "CRUISE_OFF",
     "genau_prev_clip": "PREV",
     "genau_next_clip": "NEXT",
+}
+
+
+_NAU_CMD_MAP = {
+    "nau_record_down": "RECORD_DOWN",
+    "nau_record_up": "RECORD_UP",
+    "nau_record_tap": "RECORD_TAP",
+    "nau_loop_cancel": "LOOP_CANCEL",
 }
 
 
@@ -239,8 +249,32 @@ def dispatch_command(
         return state, ops
 
     if command in ("primary_prev", "primary_next"):
-        direction = "prev" if command == "primary_prev" else "next"
-        vlc_nav_step(config.primary_port, config.vlc_password, direction)
+        # The primary player is Nau in every mode except hybrid, where the
+        # primary VLC displays the video.
+        if state.primary_mode == "hybrid":
+            direction = "prev" if command == "primary_prev" else "next"
+            vlc_nav_step(config.primary_port, config.vlc_password, direction)
+        else:
+            config.nau_cmd_file.write_text(
+                "PREV" if command == "primary_prev" else "NEXT", encoding="utf-8",
+            )
+        return state, ops
+
+    if command in ("primary_nudge_prev", "primary_nudge_next"):
+        if state.primary_mode == "hybrid":
+            seek = "seek&val=-10" if command == "primary_nudge_prev" else "seek&val=%2B10"
+            ops.append(WindowOp(op="vlc_http_seek", key=seek))
+        else:
+            config.nau_cmd_file.write_text(
+                "SEEK_BACK" if command == "primary_nudge_prev" else "SEEK_FWD",
+                encoding="utf-8",
+            )
+        return state, ops
+
+    if command in _NAU_CMD_MAP:
+        # Loop recording only makes sense while Nau owns the primary display.
+        if state.primary_mode == "nau":
+            config.nau_cmd_file.write_text(_NAU_CMD_MAP[command], encoding="utf-8")
         return state, ops
 
     if command == "quarter_button":
@@ -259,8 +293,8 @@ def dispatch_command(
     if command in ("fmode_toggle", "fmode_panel"):
         return _dispatch_fmode_toggle(state, config)
 
-    if command in ("genau_activate", "vlc_activate", "hybrid_activate"):
-        target = {"genau_activate": "genau", "vlc_activate": "vlc", "hybrid_activate": "hybrid"}[command]
+    if command in ("genau_activate", "nau_activate", "hybrid_activate"):
+        target = {"genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid"}[command]
         return _dispatch_mode_switch(target, state, config, ops)
 
     if command == "genau_toggle_auto":
@@ -282,7 +316,7 @@ def dispatch_command(
 
     if command == "clipper_save":
         if state.primary_mode != "genau":
-            msg = _dispatch_clipper_save(config)
+            msg = _dispatch_clipper_save(state, config)
             if msg:
                 ops.append(WindowOp(op="tooltip", key=msg))
         return state, ops
@@ -309,6 +343,7 @@ def _dispatch_omnipause_toggle(
             genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
             genau_cmd_file=config.genau_cmd_file,
+            nau_paused_file=config.nau_paused_file,
             broker_cmd_file=config.broker_cmd_file,
         )
         state = replace(state, omni_paused=result.next_omni_paused)
@@ -326,14 +361,13 @@ def _dispatch_omnipause_toggle(
             genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
             genau_cmd_file=config.genau_cmd_file,
+            nau_paused_file=config.nau_paused_file,
             broker_cmd_file=config.broker_cmd_file,
         )
         state = replace(state, omni_paused=result.next_omni_paused)
         ops.append(WindowOp(op="restore_all_topmost"))
         ops.append(WindowOp(op="unsuspend_hotkeys"))
-        if genau_active(state.primary_mode):
-            ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
-            ops.append(WindowOp(op="activate", title="Genau"))
+        ops.extend(_primary_focus_ops(state.primary_mode))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
@@ -353,6 +387,7 @@ def _dispatch_enter_omnipause(
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
+        nau_paused_file=config.nau_paused_file,
         broker_cmd_file=config.broker_cmd_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
@@ -378,17 +413,29 @@ def _dispatch_leave_omnipause_skip_primary(
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
+        nau_paused_file=config.nau_paused_file,
         broker_cmd_file=config.broker_cmd_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops.append(WindowOp(op="restore_all_topmost"))
     ops.append(WindowOp(op="unsuspend_hotkeys"))
-    if genau_active(state.primary_mode):
-        ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
-        ops.append(WindowOp(op="activate", title="Genau"))
+    ops.extend(_primary_focus_ops(state.primary_mode))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
+
+
+def _primary_focus_ops(primary_mode: str) -> list[WindowOp]:
+    """Focus/topmost ops for the window that owns the primary display."""
+    if genau_active(primary_mode):
+        return [
+            WindowOp(op="set_topmost", title="Genau", value=True),
+            WindowOp(op="activate", title="Genau"),
+        ]
+    return [
+        WindowOp(op="set_topmost", title="Nau", value=True, exact=True),
+        WindowOp(op="activate", title="Nau", exact=True),
+    ]
 
 
 def _dispatch_fmode_toggle(
@@ -405,6 +452,7 @@ def _dispatch_fmode_toggle(
         portrait_port=config.portrait_port,
         landscape_port=config.landscape_port,
         password=config.vlc_password,
+        nau_cmd_file=config.nau_cmd_file,
     )
     if result.log_message:
         logger.info(result.log_message)
@@ -423,9 +471,10 @@ def _dispatch_mode_switch(
         current_mode=state.primary_mode,
         target_mode=target_mode,
         omni_paused=state.omni_paused,
-        paused_file=config.genau_paused_file,
+        genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
+        nau_paused_file=config.nau_paused_file,
         primary_port=config.primary_port,
         password=config.vlc_password,
         broker_cmd_file=config.broker_cmd_file,
@@ -433,10 +482,10 @@ def _dispatch_mode_switch(
     state = replace(state, primary_mode=result.next_mode)
     if result.is_transition:
         if genau_active(result.next_mode):
-            ops.append(WindowOp(op="set_topmost", title="Genau", value=True))
-            ops.append(WindowOp(op="activate", title="Genau"))
+            ops.append(WindowOp(op="set_topmost", title="Nau", value=False, exact=True))
         else:
             ops.append(WindowOp(op="set_topmost", title="Genau", value=False))
+        ops.extend(_primary_focus_ops(result.next_mode))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
@@ -452,16 +501,31 @@ def _clipper_python() -> str:
     return sys.executable
 
 
-def _dispatch_clipper_save(config: BridgeConfig) -> str:
-    """Save a Clipper session for the current Primary VLC video.
+def _current_primary_media(state: BridgeState, config: BridgeConfig) -> tuple[str, float | None]:
+    """The primary display's current video path and playback time (seconds).
+
+    Nau publishes them in its status file; in hybrid mode the primary VLC
+    answers over HTTP.
+    """
+    if state.primary_mode == "hybrid":
+        video_path = get_current_file_path(config.primary_port, config.vlc_password)
+        playback_time = get_playback_time(config.primary_port, config.vlc_password)
+        return video_path, playback_time
+    status = read_nau_status(config.nau_status_file)
+    if not status.video:
+        return "", None
+    return status.video, status.position_ms / 1000
+
+
+def _dispatch_clipper_save(state: BridgeState, config: BridgeConfig) -> str:
+    """Save a Clipper session for the primary display's current video.
 
     Returns a short user-visible message on success, or empty string on failure.
     """
-    video_path = get_current_file_path(config.primary_port, config.vlc_password)
+    video_path, playback_time = _current_primary_media(state, config)
     if not video_path:
-        logger.warning("clipper_save: no video playing in primary VLC")
+        logger.warning("clipper_save: no video playing on the primary display")
         return ""
-    playback_time = get_playback_time(config.primary_port, config.vlc_password)
     if playback_time is None:
         logger.warning("clipper_save: could not get playback time")
         return ""

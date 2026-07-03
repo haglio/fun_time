@@ -238,6 +238,9 @@ class TestDispatchLoopRunner:
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
+            nau_cmd_file=tmp_path / "nau_cmd.txt",
+            nau_paused_file=tmp_path / "nau_paused.txt",
+            nau_status_file=tmp_path / "nau_status.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
         return DispatchLoopRunner(
@@ -766,6 +769,9 @@ class TestOpenRfbTab:
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
+            nau_cmd_file=tmp_path / "nau_cmd.txt",
+            nau_paused_file=tmp_path / "nau_paused.txt",
+            nau_status_file=tmp_path / "nau_status.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
         return DispatchLoopRunner(
@@ -864,6 +870,9 @@ class TestGenauZOrder:
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
+            nau_cmd_file=tmp_path / "nau_cmd.txt",
+            nau_paused_file=tmp_path / "nau_paused.txt",
+            nau_status_file=tmp_path / "nau_status.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
         return DispatchLoopRunner(
@@ -1033,6 +1042,9 @@ class TestHandleOmniPauseToggle:
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
+            nau_cmd_file=tmp_path / "nau_cmd.txt",
+            nau_paused_file=tmp_path / "nau_paused.txt",
+            nau_status_file=tmp_path / "nau_status.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
         return DispatchLoopRunner(
@@ -1229,6 +1241,9 @@ class TestHandleOpenFileDialog:
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
+            nau_cmd_file=tmp_path / "nau_cmd.txt",
+            nau_paused_file=tmp_path / "nau_paused.txt",
+            nau_status_file=tmp_path / "nau_status.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
         return DispatchLoopRunner(
@@ -1310,6 +1325,9 @@ class TestHandleOpenFileDialog:
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
+            nau_cmd_file=tmp_path / "nau_cmd.txt",
+            nau_paused_file=tmp_path / "nau_paused.txt",
+            nau_status_file=tmp_path / "nau_status.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
         runner = DispatchLoopRunner(
@@ -1340,8 +1358,34 @@ class TestHandleOpenFileDialog:
 
         mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI", owner_hwnd=1001)
 
-    def test_sends_selected_file_to_vlc_via_http(self, tmp_path):
-        """When user selects a file, it's sent to VLC via HTTP in_play."""
+    def test_sends_selected_file_to_nau_by_default(self, tmp_path):
+        """In nau mode (the default) a selected file becomes a Nau PLAY_FILE
+        command, paired with its mirrored funscript when one exists."""
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False)
+
+        video = tmp_path / "videos" / "videos" / "movie.mp4"
+        video.parent.mkdir(parents=True)
+        video.write_text("x", encoding="utf-8")
+        mirrored = tmp_path / "videos" / "scripts" / "scripts" / "movie.funscript"
+        mirrored.parent.mkdir(parents=True)
+        mirrored.write_text("{}", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.z_order.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=str(video)), \
+             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc:
+            mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
+            runner._handle_open_file_dialog()
+
+        mock_vlc.assert_not_called()
+        command = runner.config.nau_cmd_file.read_text(encoding="utf-8")
+        assert command == f"PLAY_FILE {video}\t{mirrored}"
+
+    def test_sends_selected_file_to_vlc_via_http_in_hybrid(self, tmp_path):
+        """In hybrid mode a selected file is sent to the primary VLC via in_play."""
         config = BridgeConfig(
             primary_port=9090,
             portrait_port=9091,
@@ -1357,6 +1401,9 @@ class TestHandleOpenFileDialog:
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
+            nau_cmd_file=tmp_path / "nau_cmd.txt",
+            nau_paused_file=tmp_path / "nau_paused.txt",
+            nau_status_file=tmp_path / "nau_status.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
         runner = DispatchLoopRunner(
@@ -1371,7 +1418,7 @@ class TestHandleOpenFileDialog:
             dashboard_pid=500,
             dashboard_enabled=False,
         )
-        runner.state = BridgeState(omni_paused=False)
+        runner.state = BridgeState(omni_paused=False, primary_mode="hybrid")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
@@ -1380,7 +1427,7 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc, \
              patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd") as mock_http:
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
+            mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
             runner._handle_open_file_dialog()
 
         mock_vlc.assert_called_once_with(9090, "in_play", r"C:\videos\movie.mp4", "test")
@@ -1632,6 +1679,9 @@ class TestUpdateDashboardOsr2Off:
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
+            nau_cmd_file=tmp_path / "nau_cmd.txt",
+            nau_paused_file=tmp_path / "nau_paused.txt",
+            nau_status_file=tmp_path / "nau_status.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
         )
         return DispatchLoopRunner(
@@ -1724,6 +1774,9 @@ class TestIdempotentVoiceCommands:
             genau_cmd_file=tmp_path / "rh_cmd.txt",
             genau_paused_file=tmp_path / "rh_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
+            nau_cmd_file=tmp_path / "nau_cmd.txt",
+            nau_paused_file=tmp_path / "nau_paused.txt",
+            nau_status_file=tmp_path / "nau_status.txt",
             dashboard_state_file=tmp_path / "dashboard_state.ini",
             broker_heartbeat_file=tmp_path / "broker_heartbeat.txt",
         )
