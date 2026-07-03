@@ -804,26 +804,17 @@ def test_leave_omnipause_skip_primary_adds_genau_ops_when_in_genau_mode(tmp_path
 # --- primary nudge ---
 
 
-def test_primary_nudge_prev_in_hybrid_emits_http_seek(tmp_path: Path):
+def test_primary_nudge_in_hybrid_is_a_dispatch_noop(tmp_path: Path):
+    """Hybrid nudges are intercepted by the dispatch loop's seek
+    accumulator before dispatch_command ever sees them; if one arrives
+    anyway it must not touch Nau's command file."""
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="hybrid")
 
     new_state, ops = dispatch_command("primary_nudge_prev", state, config)
 
-    assert len(ops) == 1
-    assert ops[0].op == "vlc_http_seek"
-    assert ops[0].key == "seek&val=-10"
-
-
-def test_primary_nudge_next_in_hybrid_emits_http_seek(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
-
-    new_state, ops = dispatch_command("primary_nudge_next", state, config)
-
-    assert len(ops) == 1
-    assert ops[0].op == "vlc_http_seek"
-    assert ops[0].key == "seek&val=%2B10"
+    assert ops == []
+    assert not config.nau_cmd_file.exists()
 
 
 def test_primary_nudge_in_nau_mode_writes_nau_seek(tmp_path: Path):

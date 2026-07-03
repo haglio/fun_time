@@ -261,10 +261,10 @@ def dispatch_command(
         return state, ops
 
     if command in ("primary_nudge_prev", "primary_nudge_next"):
-        if state.primary_mode == "hybrid":
-            seek = "seek&val=-10" if command == "primary_nudge_prev" else "seek&val=%2B10"
-            ops.append(WindowOp(op="vlc_http_seek", key=seek))
-        else:
+        # In hybrid mode the dispatch loop intercepts nudges and stacks them
+        # into absolute Primary-VLC seeks (see PrimarySeekAccumulator), so
+        # only the Nau-owned modes reach this branch.
+        if state.primary_mode != "hybrid":
             config.nau_cmd_file.write_text(
                 "SEEK_BACK" if command == "primary_nudge_prev" else "SEEK_FWD",
                 encoding="utf-8",

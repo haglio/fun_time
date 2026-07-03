@@ -389,11 +389,11 @@ def test_fun_time_hybrid_nudge_seeks_vlc(shared_integration_session: FunTimeInte
     # Wait for the dispatch loop's own log confirmation that the HTTP
     # seek was sent and VLC responded 200.
     s.write_dashboard_command("primary_nudge_next")
-    s.wait_for_new_log("vlc_http_seek", timeout=10)
+    s.wait_for_new_log("primary_seek", timeout=10)
 
     # --- nudge backward ---
     s.write_dashboard_command("primary_nudge_prev")
-    s.wait_for_new_log("vlc_http_seek", timeout=10)
+    s.wait_for_new_log("primary_seek", timeout=10)
 
     s.write_dashboard_command("nau_activate")
     s.wait_for_new_log("Switched to nau mode", timeout=12)
