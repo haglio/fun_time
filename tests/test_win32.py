@@ -17,7 +17,6 @@ from fun_time.win32 import (
     set_always_on_top,
     is_window_topmost,
     activate_window,
-    get_window_rect,
     find_window_by_pid,
     minimize_window,
     send_vk_to_window,

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import configparser
 import os
-import random
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+from .modes import build_fmode_playlists
 from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
@@ -95,10 +95,17 @@ def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: s
     write_manifest(Path(output_path), profile_directory, urls)
 
 
-def seed_genau_state(paused_file: str | Path, audio_paused_file: str | Path) -> None:
+def seed_paused_states(
+    genau_paused_file: str | Path,
+    audio_paused_file: str | Path,
+    nau_paused_file: str | Path,
+) -> None:
+    """Seed pause flags for the startup mode (nau): Genau parked, Nau paused
+    until the sequencer's reveal unpauses it."""
     for path, value in (
-        (Path(paused_file), "1"),
+        (Path(genau_paused_file), "1"),
         (Path(audio_paused_file), "1"),
+        (Path(nau_paused_file), "1"),
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(value, encoding="utf-8")
@@ -110,13 +117,15 @@ def start_core_session(
     config_path: str | Path,
     broker_tray_launcher: Path | None = None,
     random_favs_browser_manifest_file: str | Path,
-    paused_file: str | Path,
+    genau_paused_file: str | Path,
     audio_paused_file: str | Path,
+    nau_paused_file: str | Path,
     vlc_exe: str | Path,
-    mfp_exe: str | Path,
     primary_sources: str,
     portrait_sources: str,
     landscape_sources: str,
+    favs_file: str | Path,
+    state_dir: str | Path,
     primary_port: int,
     portrait_port: int,
     landscape_port: int,
@@ -125,15 +134,24 @@ def start_core_session(
     hide_windows: bool = False,
 ) -> None:
     restart_broker(project_dir, broker_tray_launcher)
-    seed_genau_state(paused_file, audio_paused_file)
+    seed_paused_states(genau_paused_file, audio_paused_file, nau_paused_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
-    launch_core_apps(
-        project_dir=project_dir,
-        vlc_exe=vlc_exe,
-        mfp_exe=mfp_exe,
+    # One playlist authority: the same builder the F-mode toggle uses writes
+    # the three VLC playlists and Nau's video/funscript pair list.
+    playlist_plan = build_fmode_playlists(
         primary_sources=primary_sources,
         portrait_sources=portrait_sources,
         landscape_sources=landscape_sources,
+        favs_file=Path(favs_file),
+        state_dir=Path(state_dir),
+        enabled=False,
+    )
+    launch_core_apps(
+        project_dir=project_dir,
+        vlc_exe=vlc_exe,
+        primary_playlist=playlist_plan.primary_playlist_path,
+        portrait_playlist=playlist_plan.portrait_playlist_path,
+        landscape_playlist=playlist_plan.landscape_playlist_path,
         primary_port=primary_port,
         portrait_port=portrait_port,
         landscape_port=landscape_port,
@@ -183,6 +201,48 @@ def launch_genau(
     return proc.pid
 
 
+def launch_nau(
+    *,
+    python_exe: str | Path,
+    nau_module: str,
+    config_path: str | Path,
+    playlist_file: str | Path,
+    command_file: str | Path,
+    paused_file: str | Path,
+    status_file: str | Path,
+    nau_x: int,
+    nau_y: int,
+    nau_width: int,
+    nau_height: int,
+) -> int:
+    """Launch Nau subprocess, returning its PID."""
+    cmd = [
+        str(python_exe),
+        "-m",
+        nau_module,
+        "--config",
+        str(config_path),
+        "--playlist",
+        str(playlist_file),
+        "--command-file",
+        str(command_file),
+        "--paused-file",
+        str(paused_file),
+        "--status-file",
+        str(status_file),
+        "--x",
+        str(nau_x),
+        "--y",
+        str(nau_y),
+        "--width",
+        str(nau_width),
+        "--height",
+        str(nau_height),
+    ]
+    proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
+    return proc.pid
+
+
 def launch_ui_companions(
     *,
     python_exe: str | Path,
@@ -193,23 +253,14 @@ def launch_ui_companions(
     dashboard_y: int,
     dashboard_width: int,
     dashboard_height: int,
-    mfp_pid: int,
-    genau_module: str,
     audio_module: str,
     config_path: str | Path,
-    clips_folder: str | Path,
     audio_folder: str | Path,
-    genau_x: int,
-    genau_y: int,
-    genau_width: int,
-    genau_height: int,
-    genau_pid: int = 0,
     result_file: str | Path,
 ) -> None:
     python_exe = str(python_exe)
     windows_bridge_manifest_path = str(windows_bridge_manifest_path)
     config_path = str(config_path)
-    clips_folder = str(clips_folder)
     audio_folder = str(audio_folder)
 
     dashboard_pid = 0
@@ -228,24 +279,11 @@ def launch_ui_companions(
                 str(dashboard_width),
                 "--height",
                 str(dashboard_height),
-                "--mfp-pid",
-                str(mfp_pid),
             ],
             **subprocess_window_kwargs(),
         )
         dashboard_pid = dashboard_proc.pid
 
-    if not genau_pid:
-        genau_pid = launch_genau(
-            python_exe=python_exe,
-            genau_module=genau_module,
-            config_path=config_path,
-            clips_folder=clips_folder,
-            genau_x=genau_x,
-            genau_y=genau_y,
-            genau_width=genau_width,
-            genau_height=genau_height,
-        )
     audio_proc = subprocess.Popen(
         [
             python_exe,
@@ -263,7 +301,6 @@ def launch_ui_companions(
         result_file,
         {
             "dashboard_pid": dashboard_pid,
-            "genau_pid": genau_pid,
             "audio_pid": audio_proc.pid,
         },
     )
@@ -273,10 +310,9 @@ def launch_core_apps(
     *,
     project_dir: str | Path,
     vlc_exe: str | Path,
-    mfp_exe: str | Path,
-    primary_sources: str,
-    portrait_sources: str,
-    landscape_sources: str,
+    primary_playlist: str | Path,
+    portrait_playlist: str | Path,
+    landscape_playlist: str | Path,
     primary_port: int,
     portrait_port: int,
     landscape_port: int,
@@ -286,15 +322,6 @@ def launch_core_apps(
 ) -> None:
     project_dir = Path(project_dir)
     vlc_exe = str(vlc_exe)
-    mfp_exe = str(mfp_exe)
-
-    # Playlist files live in the state directory so they persist across launches
-    # and can be inspected for debugging.  They keep the VLC command lines well
-    # under Windows' 32 767-character limit even with hundreds of video files.
-    state_dir = project_dir / "state"
-    primary_playlist = state_dir / "vlc_primary_playlist.m3u"
-    portrait_playlist = state_dir / "vlc_portrait_playlist.m3u"
-    landscape_playlist = state_dir / "vlc_landscape_playlist.m3u"
 
     launch_kwargs = _no_activate_kwargs()
     is_integration = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
@@ -304,9 +331,11 @@ def launch_core_apps(
     # of audio before --volume 0 takes effect.  The playlist is loaded via
     # HTTP after volume is confirmed zero.
     should_mute = hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
+    # The primary VLC exists for hybrid mode only, so it never auto-plays at
+    # startup: its playlist is always enqueued over HTTP without pl_play.
     primary_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, primary_sources, primary_port, password, repeat_mode="repeat", mute=should_mute,
-                                   playlist_path=primary_playlist, defer_playlist=should_mute),
+        _build_vlc_launch_command(vlc_exe, primary_port, password, repeat_mode="repeat", mute=should_mute,
+                                   playlist_path=None),
         cwd=project_dir,
         **launch_kwargs,
     )
@@ -317,26 +346,19 @@ def launch_core_apps(
     time.sleep(0.3)
     if should_mute:
         vlc_http_cmd(primary_port, "volume&val=0", password)
-    if should_mute:
-        # enqueue_only during loading screen prevents playback; the
-        # sequencer's Phase 4 pl_play will start it when ready.
-        replace_playlist_from_file(primary_port, password, primary_playlist, enqueue_only=hide_windows)
-    if not hide_windows:
-        vlc_http_cmd(primary_port, "pl_next", password)
-
-    mfp_proc = subprocess.Popen([mfp_exe], cwd=project_dir, **launch_kwargs)
+    replace_playlist_from_file(primary_port, password, Path(primary_playlist), enqueue_only=True)
 
     portrait_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, portrait_sources, portrait_port, password, repeat_mode="loop", mute=should_mute,
-                                   playlist_path=portrait_playlist, defer_playlist=should_mute),
+        _build_vlc_launch_command(vlc_exe, portrait_port, password, repeat_mode="loop", mute=should_mute,
+                                   playlist_path=None if should_mute else Path(portrait_playlist)),
         cwd=project_dir,
         **launch_kwargs,
     )
     if is_integration:
         _park_window_offscreen(portrait_proc.pid)
     landscape_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, landscape_sources, landscape_port, password, repeat_mode="loop", mute=should_mute,
-                                   playlist_path=landscape_playlist, defer_playlist=should_mute),
+        _build_vlc_launch_command(vlc_exe, landscape_port, password, repeat_mode="loop", mute=should_mute,
+                                   playlist_path=None if should_mute else Path(landscape_playlist)),
         cwd=project_dir,
         **launch_kwargs,
     )
@@ -355,14 +377,14 @@ def launch_core_apps(
     if should_mute:
         vlc_http_cmd(portrait_port, "volume&val=0", password)
     if should_mute:
-        replace_playlist_from_file(portrait_port, password, portrait_playlist, enqueue_only=hide_windows)
+        replace_playlist_from_file(portrait_port, password, Path(portrait_playlist), enqueue_only=hide_windows)
     if not hide_windows:
         vlc_http_cmd(portrait_port, "pl_next", password)
     time.sleep(0.15)
     if should_mute:
         vlc_http_cmd(landscape_port, "volume&val=0", password)
     if should_mute:
-        replace_playlist_from_file(landscape_port, password, landscape_playlist, enqueue_only=hide_windows)
+        replace_playlist_from_file(landscape_port, password, Path(landscape_playlist), enqueue_only=hide_windows)
     if not hide_windows:
         vlc_http_cmd(landscape_port, "pl_next", password)
 
@@ -370,7 +392,6 @@ def launch_core_apps(
         result_file,
         {
             "primary_pid": primary_proc.pid,
-            "mfp_pid": mfp_proc.pid,
             "portrait_pid": portrait_proc.pid,
             "landscape_pid": landscape_proc.pid,
         },
@@ -378,7 +399,7 @@ def launch_core_apps(
 
 
 
-def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: str, *, repeat_mode: str, mute: bool = False, playlist_path: Path | None = None, defer_playlist: bool = False) -> list[str]:
+def _build_vlc_launch_command(vlc_exe: str, port: int, password: str, *, repeat_mode: str, mute: bool = False, playlist_path: Path | None = None) -> list[str]:
     command = [
         vlc_exe,
         "--no-one-instance",
@@ -395,9 +416,9 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
         command.extend(["--volume", "0"])
         # --start-paused must NEVER be used: VLC re-applies it on every item
         # transition, not just startup. This causes a black screen every time
-        # the user navigates.  When defer_playlist is True the playlist is
-        # loaded via HTTP after muting, so there is nothing to hear even if
-        # --volume 0 has a startup race.
+        # the user navigates.  When the playlist is loaded via HTTP after
+        # muting, there is nothing to hear even if --volume 0 has a startup
+        # race.
     # --no-random overrides VLC's saved vlcrc setting.  Without it, if the
     # user ever toggled shuffle inside VLC, the preference persists across
     # launches and VLC advances to random items instead of sequentially,
@@ -407,26 +428,6 @@ def _build_vlc_launch_command(vlc_exe: str, sources: str, port: int, password: s
         command.append("--repeat")
     elif repeat_mode == "loop":
         command.append("--loop")
-    sources_list: list[str] = []
-    for source in [part for part in sources.split("|") if part]:
-        p = Path(source)
-        if p.is_dir():
-            sources_list.extend(str(f) for f in sorted(p.rglob("*.mp4")))
-        else:
-            sources_list.append(source)
-    random.shuffle(sources_list)
-    if playlist_path is not None and sources_list:
-        # Always write the .m3u file — it is needed for later HTTP loading
-        # even when defer_playlist is True.  This keeps the command line well
-        # under Windows' 32 767-character limit when there are hundreds of
-        # video files.
-        playlist_path = Path(playlist_path)
-        playlist_path.parent.mkdir(parents=True, exist_ok=True)
-        playlist_path.write_text("\n".join(sources_list) + "\n", encoding="utf-8")
-        if not defer_playlist:
-            command.append(str(playlist_path))
-    elif not defer_playlist:
-        command.extend(sources_list)
+    if playlist_path is not None:
+        command.append(str(playlist_path))
     return command
-
-

@@ -26,8 +26,6 @@ def test_load_dashboard_snapshot_parses_controller_export(tmp_path: Path):
                 "enabled=1",
                 "[osr2]",
                 "mode=auto",
-                "[mfp]",
-                "alive=1",
                 "[primary]",
                 "responsive=1",
                 "uses_genau=0",
@@ -52,10 +50,9 @@ def test_load_dashboard_snapshot_parses_controller_export(tmp_path: Path):
     snapshot = load_dashboard_snapshot(snapshot_file)
 
     assert snapshot is not None
-    assert snapshot.mfp_alive is True
     assert snapshot.primary_responsive is True
     assert snapshot.osr2_mode == "auto"
-    assert snapshot.primary_mode == "vlc"
+    assert snapshot.primary_mode == "nau"
     assert snapshot.primary.path == "demo-primary.mp4"
     assert snapshot.primary.locked is False
     assert snapshot.portrait.locked is True
@@ -75,8 +72,6 @@ def test_load_dashboard_snapshot_supports_utf16_ahk_ini_exports(tmp_path: Path):
                 "enabled=0",
                 "[osr2]",
                 "mode=auto",
-                "[mfp]",
-                "alive=1",
                 "[primary]",
                 "responsive=1",
                 "uses_genau=1",
@@ -118,8 +113,6 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
                 "enabled=1",
                 "[osr2]",
                 "mode=controlled",
-                "[mfp]",
-                "alive=0",
                 "[primary]",
                 "uses_genau=0",
                 "locked=0",
@@ -154,8 +147,6 @@ def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
                 "enabled=1",
                 "[osr2]",
                 "mode=auto",
-                "[mfp]",
-                "alive=0",
                 "[omnipause]",
                 "active=1",
                 "[primary]",
@@ -187,8 +178,6 @@ def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
                 "enabled=1",
                 "[osr2]",
                 "mode=auto",
-                "[mfp]",
-                "alive=0",
                 "[primary]",
                 "uses_genau=0",
                 "locked=0",
@@ -216,8 +205,6 @@ def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
                 "enabled=0",
                 "[osr2]",
                 "mode=controlled",
-                "[mfp]",
-                "alive=0",
                 "[omnipause]",
                 "active=0",
                 "[voice]",
@@ -249,8 +236,6 @@ def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
                 "enabled=0",
                 "[osr2]",
                 "mode=controlled",
-                "[mfp]",
-                "alive=0",
                 "[primary]",
                 "uses_genau=0",
                 "locked=0",

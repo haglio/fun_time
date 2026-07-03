@@ -10,7 +10,6 @@ import ctypes
 import ctypes.wintypes
 import logging
 import os
-import socket
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -22,14 +21,12 @@ from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .startup_progress import NullProgress, ProgressReporter
 from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser, tab_placeholder_path
-from .runtime_flow import read_flag_file, write_flag_file
-from .windows_bridge_startup import launch_genau, start_core_session, launch_ui_companions
+from .runtime_flow import write_flag_file
+from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
 from .z_order import apply_z_order, compute_z_order
 from .win32 import (
-    activate_window,
     find_window_by_pid,
     get_captioned_window_chrome_height,
-    get_window_rect,
     move_window,
     wait_for_window,
     wait_for_window_by_title,
@@ -48,7 +45,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class StartupResult:
     primary_pid: int
-    mfp_pid: int
+    nau_pid: int
     portrait_pid: int
     landscape_pid: int
     dashboard_pid: int
@@ -108,13 +105,15 @@ def run_startup_sequence(
         config_path=m["runtime"]["config_path"],
         broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
         random_favs_browser_manifest_file=m["random_favs_browser"]["manifest_file"],
-        paused_file=m["commands"]["genau_paused_file"],
+        genau_paused_file=m["commands"]["genau_paused_file"],
         audio_paused_file=m["commands"]["audio_paused_file"],
+        nau_paused_file=m["commands"]["nau_paused_file"],
         vlc_exe=m["executables"]["vlc_exe"],
-        mfp_exe=m["executables"]["mfp_exe"],
         primary_sources=m["media"]["primary_vlc_sources"],
         portrait_sources=m["media"]["portrait_dirs"],
         landscape_sources=m["media"]["landscape_dirs"],
+        favs_file=m["media"]["favs_file"],
+        state_dir=state_dir,
         primary_port=int(m["vlc"]["primary_vlc_port"]),
         portrait_port=int(m["vlc"]["vlc2_port"]),
         landscape_port=int(m["vlc"]["vlc3_port"]),
@@ -124,40 +123,45 @@ def run_startup_sequence(
     )
     core_pids = _read_result_pids(core_result_file)
     primary_pid = core_pids["primary_pid"]
-    mfp_pid = core_pids["mfp_pid"]
     portrait_pid = core_pids["portrait_pid"]
     landscape_pid = core_pids["landscape_pid"]
     logger.info(
-        "Core session launched: primary=%d mfp=%d portrait=%d landscape=%d",
-        primary_pid, mfp_pid, portrait_pid, landscape_pid,
+        "Core session launched: primary=%d portrait=%d landscape=%d",
+        primary_pid, portrait_pid, landscape_pid,
     )
 
-    # Launch Genau as early as possible so it can initialise pygame,
-    # scan clips, and decode the first clip while the rest of startup
-    # continues.  Its rect depends only on secondary monitor + primary_top_ratio
-    # (same as Primary VLC), so no MFP window is needed.
-    rh_rect = _compute_genau_rect(m)
+    # Launch Genau and Nau as early as possible so they can initialise
+    # pygame, scan media, and decode first frames while the rest of startup
+    # continues.  Both share the Primary slot's rect, which depends only on
+    # the secondary monitor + primary_top_ratio.
+    primary_media_rect = _compute_primary_media_rect(m)
     genau_pid = launch_genau(
         python_exe=m["executables"]["genau_python_exe"],
         genau_module=m["modules"]["genau_module"],
         config_path=m["runtime"]["genau_config_path"],
         clips_folder=m["media"]["genau_clips"],
-        genau_x=rh_rect.x,
-        genau_y=rh_rect.y,
-        genau_width=rh_rect.width,
-        genau_height=rh_rect.height,
+        genau_x=primary_media_rect.x,
+        genau_y=primary_media_rect.y,
+        genau_width=primary_media_rect.width,
+        genau_height=primary_media_rect.height,
         command_file=m["commands"]["genau_cmd_file"],
         paused_file=m["commands"]["genau_paused_file"],
     )
+    nau_pid = launch_nau(
+        python_exe=m["executables"]["genau_python_exe"],
+        nau_module=m["modules"]["nau_module"],
+        config_path=m["runtime"]["genau_config_path"],
+        playlist_file=m["commands"]["nau_playlist_file"],
+        command_file=m["commands"]["nau_cmd_file"],
+        paused_file=m["commands"]["nau_paused_file"],
+        status_file=m["commands"]["nau_status_file"],
+        nau_x=primary_media_rect.x,
+        nau_y=primary_media_rect.y,
+        nau_width=primary_media_rect.width,
+        nau_height=primary_media_rect.height,
+    )
 
-    # --- Phase 2: Wait for MFP window and compute layout ---
-    progress.advance("Waiting for media player window...")
-    mfp_hwnd = wait_for_window(mfp_pid, timeout_s=15.0)
-    if not mfp_hwnd:
-        raise RuntimeError(f"MFP window did not appear (pid={mfp_pid})")
-    time.sleep(5.0)
-    logger.info("MFP window ready")
-
+    # --- Phase 2: Compute window layout ---
     progress.advance("Computing window layout...")
     layout_cfg = _layout_config_from_manifest(m)
     monitors = enumerate_monitors()
@@ -165,14 +169,10 @@ def run_startup_sequence(
         monitors, main_index=layout_cfg.main_monitor, secondary_index=layout_cfg.secondary_monitor,
     )
 
-    # Get MFP actual size for layout computation
-    mfp_w, mfp_h = _get_mfp_size(mfp_hwnd, main_rect, layout_cfg)
-
     plan = compute_window_layout(
         main_monitor=main_rect,
         secondary_monitor=secondary_rect,
         layout_config=layout_cfg,
-        mfp_size=Size(mfp_w, mfp_h),
         dashboard_chrome_height=get_captioned_window_chrome_height(),
     )
 
@@ -184,7 +184,6 @@ def run_startup_sequence(
         _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=not skip_activate)
         _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=not skip_activate)
         _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=not skip_activate)
-        _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg, activate=not skip_activate)
         logger.info("Core windows positioned")
 
         progress.advance("Finalizing window layout...")
@@ -195,20 +194,15 @@ def run_startup_sequence(
             landscape_hwnd=find_window_by_pid(landscape_pid),
             primary_hwnd=find_window_by_pid(primary_pid),
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
-            mfp_hwnd=find_window_by_pid(mfp_pid),
-            primary_mode="vlc",
+            nau_hwnd=wait_for_window(nau_pid, timeout_s=3.0),
+            primary_mode="nau",
         )
         apply_z_order(layers)
-        if not skip_activate:
-            for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
-                hwnd = find_window_by_pid(pid)
-                if hwnd:
-                    activate_window(hwnd)
         logger.info("Topmost set on core windows")
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("Launching browser...")
-    rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, mfp_pid, hide_windows=hide_windows)
+    rfb_hwnd = _maybe_launch_random_favs_browser(m, plan)
 
     # --- Phase 3: Launch UI companions ---
     progress.advance("Launching companions...")
@@ -225,17 +219,9 @@ def run_startup_sequence(
         dashboard_y=plan.dashboard.y,
         dashboard_width=plan.dashboard.width,
         dashboard_height=plan.dashboard.height,
-        mfp_pid=mfp_pid,
-        genau_module=m["modules"]["genau_module"],
         audio_module=m["modules"]["audio_module"],
         config_path=m["runtime"]["config_path"],
-        clips_folder=m["media"]["genau_clips"],
         audio_folder=m["media"]["genau_audio"],
-        genau_x=plan.genau.x,
-        genau_y=plan.genau.y,
-        genau_width=plan.genau.width,
-        genau_height=plan.genau.height,
-        genau_pid=genau_pid,
         result_file=str(ui_result_file),
     )
     ui_pids = _read_result_pids(ui_result_file)
@@ -245,37 +231,25 @@ def run_startup_sequence(
     if hide_windows:
         progress.advance("Positioning windows...")
 
-        # Genau starts inactive; user presses 'g' to activate
-        genau_active_at_startup = False
-
-        # Restore VLC audio (muted in launch_core_apps during loading)
+        # Restore VLC audio (muted in launch_core_apps during loading).
+        # Only the satellites start playing — the primary VLC exists for
+        # hybrid mode and sits idle with its playlist enqueued.
         primary_port = int(m["vlc"]["primary_vlc_port"])
         portrait_port = int(m["vlc"]["vlc2_port"])
         landscape_port = int(m["vlc"]["vlc3_port"])
         password = m["vlc"]["vlc_pass"]
         for port in [primary_port, portrait_port, landscape_port]:
             vlc_http_cmd(port, "volume&val=256", password)
-            if port == primary_port and genau_active_at_startup:
-                continue  # Don't start primary playback — Genau takes over
-            vlc_http_cmd(port, "pl_play", password)
-
-        if genau_active_at_startup:
-            write_flag_file(m["commands"]["genau_paused_file"], False)
-            write_flag_file(m["commands"]["audio_paused_file"], False)
-            # Send AUTO 1 directly to Genau — it may have missed the
-            # broker's initial UDP messages because the broker detected auto
-            # mode before Genau's UDP listener was bound.
-            _send_genau_auto(m, True)
-            logger.info("Genau auto-mode detected at startup — unpaused")
+            if port != primary_port:
+                vlc_http_cmd(port, "pl_play", password)
 
         _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=False)
         _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=False)
         _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=False)
-        _position_mfp_window(mfp_pid, plan.mfp, main_rect, layout_cfg, activate=False)
         logger.info("Core windows positioned (deferred reveal)")
 
         # Collect core window handles for StartupResult
-        for pid in [primary_pid, portrait_pid, landscape_pid, mfp_pid]:
+        for pid in [primary_pid, portrait_pid, landscape_pid, nau_pid]:
             hwnd = find_window_by_pid(pid)
             if hwnd:
                 collected_hwnds.append(hwnd)
@@ -297,17 +271,15 @@ def run_startup_sequence(
             landscape_hwnd=find_window_by_pid(landscape_pid),
             primary_hwnd=find_window_by_pid(primary_pid),
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=5.0),
-            mfp_hwnd=find_window_by_pid(mfp_pid),
+            nau_hwnd=wait_for_window(nau_pid, timeout_s=5.0),
             dashboard_hwnd=dash_hwnd,
-            primary_mode="genau" if genau_active_at_startup else "vlc",
+            primary_mode="nau",
         )
         apply_z_order(layers)
 
-        if genau_active_at_startup:
-            rh_hwnd = wait_for_window(genau_pid, timeout_s=2.0)
-            if rh_hwnd and not skip_activate:
-                activate_window(rh_hwnd)
-                logger.info("Genau activated as first-visible window")
+        # The reveal: startup mode is nau, so Nau starts playing now that
+        # the loading screen is about to come down.
+        write_flag_file(m["commands"]["nau_paused_file"], False)
 
         logger.info("Topmost set on core windows")
 
@@ -315,11 +287,11 @@ def run_startup_sequence(
 
     return StartupResult(
         primary_pid=primary_pid,
-        mfp_pid=mfp_pid,
+        nau_pid=nau_pid,
         portrait_pid=portrait_pid,
         landscape_pid=landscape_pid,
         dashboard_pid=ui_pids["dashboard_pid"],
-        genau_pid=ui_pids["genau_pid"],
+        genau_pid=genau_pid,
         audio_pid=ui_pids["audio_pid"],
         layout_plan=plan,
         core_hwnds=collected_hwnds,
@@ -327,34 +299,11 @@ def run_startup_sequence(
     )
 
 
-def _send_genau_auto(m: configparser.ConfigParser, active: bool) -> None:
-    """Send AUTO and seed BPM directly to Genau via UDP.
+def _compute_primary_media_rect(m: configparser.ConfigParser) -> WindowRect:
+    """The Primary display slot shared by Genau and Nau.
 
-    When activating, a seed BPM is sent so the playback engine can start
-    advancing frames immediately instead of waiting ~3-4 s for the first
-    real BPM from the broker.  The broker's real BPM replaces this seed
-    within seconds.
-    """
-    _SEED_BPM = 87
-    try:
-        host = m["genau"]["udp_host"]
-        port = int(m["genau"]["udp_port"])
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            sock.sendto(f"AUTO {1 if active else 0}".encode("utf-8"), (host, port))
-            if active:
-                sock.sendto(f"BPM {_SEED_BPM}".encode("utf-8"), (host, port))
-        finally:
-            sock.close()
-    except Exception:
-        logger.debug("Failed to send AUTO to Genau", exc_info=True)
-
-
-def _compute_genau_rect(m: configparser.ConfigParser) -> WindowRect:
-    """Compute Genau's window rect without needing MFP size.
-
-    Genau uses the same rect as Primary VLC, which depends only on
-    the secondary monitor dimensions and primary_top_ratio.
+    Depends only on the secondary monitor dimensions and primary_top_ratio,
+    so both apps can launch before the full layout is computed.
     """
     layout_cfg = _layout_config_from_manifest(m)
     monitors = enumerate_monitors()
@@ -378,25 +327,8 @@ def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
         secondary_monitor=int(m["layout"]["secondary_monitor"]),
         primary_top_ratio=float(m["layout"]["primary_top_ratio"]),
         landscape_width_ratio=float(m["layout"]["landscape_width_ratio"]),
-        mfp_width_ratio=float(m["layout"]["mfp_width_ratio"]),
-        mfp_height_ratio=float(m["layout"]["mfp_height_ratio"]),
         left_partition_top_ratio=float(m["layout"].get("left_partition_top_ratio", "0.0")),
         left_partition_bottom_ratio=float(m["layout"].get("left_partition_bottom_ratio", "0.0")),
-    )
-
-
-def _get_mfp_size(
-    mfp_hwnd: int, main_rect: MonitorRect, layout_cfg: LayoutConfig,
-) -> tuple[int, int]:
-    """Get the actual MFP window size, falling back to a config-based estimate."""
-    _, _, w, h = get_window_rect(mfp_hwnd)
-    if w > 0 and h > 0:
-        return w, h
-    landscape_w = int(main_rect.width * layout_cfg.landscape_width_ratio)
-    left_w = main_rect.width - landscape_w
-    return (
-        int(left_w * layout_cfg.mfp_width_ratio),
-        int(main_rect.height * layout_cfg.mfp_height_ratio),
     )
 
 
@@ -409,50 +341,6 @@ def _position_pid_window(pid: int, rect: WindowRect, label: str, *, activate: bo
                      label, pid, hwnd, rect.x, rect.y, rect.width, rect.height)
     else:
         logger.warning("Could not find window for %s (pid=%d)", label, pid)
-
-
-def _position_mfp_window(
-    mfp_pid: int, target: WindowRect, main_rect: MonitorRect, layout_cfg: LayoutConfig,
-    *, activate: bool = True,
-) -> None:
-    """Position MFP with a retry loop and delta correction.
-
-    Replicates AHK's ``PositionMfpWindow`` which retries up to 3 times,
-    adjusting for the difference between requested and actual position.
-    """
-    hwnd = find_window_by_pid(mfp_pid)
-    if not hwnd:
-        logger.warning("Could not find MFP window for positioning")
-        return
-
-    move_x, move_y = target.x, target.y
-    move_w, move_h = target.width, target.height
-
-    for attempt in range(3):
-        move_window(hwnd, move_x, move_y, move_w, move_h, activate=activate)
-        time.sleep(0.08)
-
-        actual_x, actual_y, actual_w, actual_h = get_window_rect(hwnd)
-
-        # Recompute the plan using the actual MFP size
-        plan = compute_window_layout(
-            main_monitor=main_rect,
-            secondary_monitor=MonitorRect(0, 0, 1, 1),  # not used for MFP
-            layout_config=layout_cfg,
-            mfp_size=Size(actual_w, actual_h),
-            dashboard_chrome_height=get_captioned_window_chrome_height(),
-        )
-
-        delta_x = plan.mfp.x - actual_x
-        delta_y = plan.mfp.y - actual_y
-        if abs(delta_x) <= 1 and abs(delta_y) <= 1:
-            break
-        move_x += delta_x
-        move_y += delta_y
-        move_w = actual_w
-        move_h = actual_h
-
-    logger.info("Positioned MFP (pid=%d) at %d,%d", mfp_pid, actual_x, actual_y)
 
 
 def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
@@ -492,11 +380,8 @@ def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
 def _maybe_launch_random_favs_browser(
     m: configparser.ConfigParser,
     plan: WindowLayoutPlan,
-    mfp_pid: int,
-    *,
-    hide_windows: bool = False,
 ) -> int:
-    """Launch the Random Favs Browser if enabled, position it, and restore MFP topmost.
+    """Launch the Random Favs Browser if enabled and position it.
 
     Returns the browser window handle (0 if not launched).  The handle is
     needed so the dispatch loop can include RFB in omnipause topmost management.

@@ -164,7 +164,7 @@ class DispatchLoopRunner:
         shared_state_file: Path,
         ahk_cmd_file: Path,
         primary_pid: int,
-        mfp_pid: int,
+        nau_pid: int,
         portrait_pid: int = 0,
         landscape_pid: int = 0,
         dashboard_pid: int = 0,
@@ -180,7 +180,7 @@ class DispatchLoopRunner:
         self.shared_state_file = shared_state_file
         self.ahk_cmd_file = ahk_cmd_file
         self.primary_pid = primary_pid
-        self.mfp_pid = mfp_pid
+        self.nau_pid = nau_pid
         self.portrait_pid = portrait_pid
         self.landscape_pid = landscape_pid
         self.dashboard_pid = dashboard_pid
@@ -376,7 +376,6 @@ class DispatchLoopRunner:
                 str(self.config.dashboard_state_file),
                 f_mode_enabled=self.state.f_mode_enabled,
                 osr2_mode=osr2_mode,
-                mfp_alive=bool(self.mfp_pid),
                 primary_mode=self.state.primary_mode,
                 portrait_locked=self.state.locked2,
                 landscape_locked=self.state.locked3,
@@ -398,7 +397,7 @@ class DispatchLoopRunner:
             landscape_hwnd=find_window_by_pid(self.landscape_pid),
             primary_hwnd=find_window_by_pid(self.primary_pid),
             genau_hwnd=find_window_by_title("Genau"),
-            mfp_hwnd=find_window_by_pid(self.mfp_pid),
+            nau_hwnd=find_window_by_pid(self.nau_pid),
             dashboard_hwnd=self._find_dashboard_hwnd(),
             primary_mode=self.state.primary_mode,
         )
@@ -486,7 +485,7 @@ class DispatchLoopRunner:
         """Minimize every managed window — the "omniminimize" command.
 
         Walks the same window roster as the z-order stack (RFB, the three
-        VLCs, Genau, MFP, and the dashboard itself) and minimizes each with
+        VLCs, Genau, Nau, and the dashboard itself) and minimizes each with
         ``activate=False`` so minimizing one never yanks focus to the next.
         """
         for hwnd, _topmost in self._window_layers():

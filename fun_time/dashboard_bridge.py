@@ -7,7 +7,6 @@ def build_dashboard_snapshot_text(
     *,
     f_mode_enabled: bool,
     osr2_mode: str,
-    mfp_alive: bool,
     primary_mode: str,
     portrait_locked: bool,
     landscape_locked: bool,
@@ -19,8 +18,6 @@ def build_dashboard_snapshot_text(
         f"enabled={'1' if f_mode_enabled else '0'}\n"
         "[osr2]\n"
         f"mode={osr2_mode}\n"
-        "[mfp]\n"
-        f"alive={'1' if mfp_alive else '0'}\n"
         "[omnipause]\n"
         f"active={'1' if omni_paused else '0'}\n"
         "[voice]\n"
@@ -53,7 +50,6 @@ def write_dashboard_snapshot(
     *,
     f_mode_enabled: bool,
     osr2_mode: str,
-    mfp_alive: bool,
     primary_mode: str,
     portrait_locked: bool,
     landscape_locked: bool,
@@ -64,7 +60,6 @@ def write_dashboard_snapshot(
     text = build_dashboard_snapshot_text(
         f_mode_enabled=f_mode_enabled,
         osr2_mode=osr2_mode,
-        mfp_alive=mfp_alive,
         primary_mode=primary_mode,
         portrait_locked=portrait_locked,
         landscape_locked=landscape_locked,

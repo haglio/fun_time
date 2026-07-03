@@ -4,14 +4,16 @@ import configparser
 from pathlib import Path
 from unittest.mock import patch
 
+from fun_time.modes import FModePlaylistPlan
 from fun_time.windows_bridge_startup import (
     _build_vlc_launch_command,
     launch_core_apps,
     launch_genau,
+    launch_nau,
     launch_ui_companions,
     prepare_random_favs_browser_manifest,
     restart_broker,
-    seed_genau_state,
+    seed_paused_states,
     start_core_session,
 )
 
@@ -56,35 +58,57 @@ def test_prepare_random_favs_browser_manifest_delegates_to_random_browser_builde
     write.assert_called_once_with(output_path, "Profile 2", ["https://example.com"])
 
 
-def test_seed_genau_state_writes_paused_files(tmp_path: Path):
-    paused_file = tmp_path / "genau_paused.txt"
+def test_seed_paused_states_writes_all_three_flags(tmp_path: Path):
+    genau_file = tmp_path / "genau_paused.txt"
     audio_file = tmp_path / "audio_paused.txt"
+    nau_file = tmp_path / "nau_paused.txt"
 
-    seed_genau_state(paused_file, audio_file)
+    seed_paused_states(genau_file, audio_file, nau_file)
 
-    assert paused_file.read_text(encoding="utf-8") == "1"
+    # Genau parked, audio parked, Nau paused until the sequencer's reveal.
+    assert genau_file.read_text(encoding="utf-8") == "1"
     assert audio_file.read_text(encoding="utf-8") == "1"
+    assert nau_file.read_text(encoding="utf-8") == "1"
 
 
-def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: Path):
+def _fake_playlist_plan(state_dir: Path) -> FModePlaylistPlan:
+    return FModePlaylistPlan(
+        success=True,
+        primary_count=2,
+        portrait_count=1,
+        landscape_count=1,
+        primary_playlist_path=state_dir / "primary_vlc_playlist.m3u",
+        portrait_playlist_path=state_dir / "portrait_vlc_playlist.m3u",
+        landscape_playlist_path=state_dir / "landscape_vlc_playlist.m3u",
+        nau_playlist_path=state_dir / "nau_playlist.tsv",
+    )
+
+
+def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path: Path):
     result_file = tmp_path / "core_session.ini"
+    state_dir = tmp_path / "state"
+    plan = _fake_playlist_plan(state_dir)
 
     with patch("fun_time.windows_bridge_startup.restart_broker") as restart, patch(
-        "fun_time.windows_bridge_startup.seed_genau_state"
+        "fun_time.windows_bridge_startup.seed_paused_states"
     ) as seed, patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
-    ) as prepare, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
+    ) as prepare, patch(
+        "fun_time.windows_bridge_startup.build_fmode_playlists", return_value=plan
+    ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
         start_core_session(
             project_dir=tmp_path,
             config_path="fun_time_config.json",
             random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
-            paused_file=tmp_path / "genau_paused.txt",
+            genau_paused_file=tmp_path / "genau_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
+            nau_paused_file=tmp_path / "nau_paused.txt",
             vlc_exe="vlc.exe",
-            mfp_exe="mfp.exe",
             primary_sources="primary_a|primary_b",
             portrait_sources="portrait_a",
             landscape_sources="landscape_a",
+            favs_file=tmp_path / "favs.csv",
+            state_dir=state_dir,
             primary_port=8090,
             portrait_port=8091,
             landscape_port=8092,
@@ -93,15 +117,27 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
         )
 
     restart.assert_called_once_with(tmp_path, None)
-    seed.assert_called_once()
+    seed.assert_called_once_with(
+        tmp_path / "genau_paused.txt",
+        tmp_path / "audio_paused.txt",
+        tmp_path / "nau_paused.txt",
+    )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
-    launch.assert_called_once_with(
-        project_dir=tmp_path,
-        vlc_exe="vlc.exe",
-        mfp_exe="mfp.exe",
+    # The same playlist builder the F-mode toggle uses, with F-mode off.
+    build.assert_called_once_with(
         primary_sources="primary_a|primary_b",
         portrait_sources="portrait_a",
         landscape_sources="landscape_a",
+        favs_file=tmp_path / "favs.csv",
+        state_dir=state_dir,
+        enabled=False,
+    )
+    launch.assert_called_once_with(
+        project_dir=tmp_path,
+        vlc_exe="vlc.exe",
+        primary_playlist=plan.primary_playlist_path,
+        portrait_playlist=plan.portrait_playlist_path,
+        landscape_playlist=plan.landscape_playlist_path,
         primary_port=8090,
         portrait_port=8091,
         landscape_port=8092,
@@ -109,6 +145,42 @@ def test_start_core_session_runs_broker_seed_manifest_and_core_launch(tmp_path: 
         result_file=result_file,
         hide_windows=False,
     )
+
+
+def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
+    """start_core_session forwards hide_windows to launch_core_apps."""
+    result_file = tmp_path / "core_session.ini"
+
+    with patch("fun_time.windows_bridge_startup.restart_broker"), patch(
+        "fun_time.windows_bridge_startup.seed_paused_states"
+    ), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch(
+        "fun_time.windows_bridge_startup.build_fmode_playlists",
+        return_value=_fake_playlist_plan(tmp_path / "state"),
+    ), patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
+        start_core_session(
+            project_dir=tmp_path,
+            config_path="cfg.json",
+            random_favs_browser_manifest_file=tmp_path / "m.txt",
+            genau_paused_file=tmp_path / "p.txt",
+            audio_paused_file=tmp_path / "a.txt",
+            nau_paused_file=tmp_path / "n.txt",
+            vlc_exe="vlc.exe",
+            primary_sources="a",
+            portrait_sources="b",
+            landscape_sources="c",
+            favs_file=tmp_path / "favs.csv",
+            state_dir=tmp_path / "state",
+            primary_port=8090,
+            portrait_port=8091,
+            landscape_port=8092,
+            password="pw",
+            result_file=result_file,
+            hide_windows=True,
+        )
+
+    assert launch.call_args.kwargs["hide_windows"] is True
 
 
 def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
@@ -191,7 +263,56 @@ def test_launch_genau_passes_fun_time_flag(tmp_path: Path):
     assert "--fun-time" in command
 
 
-def test_launch_ui_companions_skips_genau_when_pid_provided(tmp_path: Path):
+def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(43)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+    ):
+        pid = launch_nau(
+            python_exe="python.exe",
+            nau_module="nau",
+            config_path="cfg.json",
+            playlist_file="state/nau_playlist.tsv",
+            command_file="state/nau_cmd.txt",
+            paused_file="state/nau_paused.txt",
+            status_file="state/nau_status.txt",
+            nau_x=100,
+            nau_y=200,
+            nau_width=300,
+            nau_height=400,
+        )
+
+    assert pid == 43
+    assert popen.call_args.kwargs == {"creationflags": 1}
+    assert popen.call_args.args[0] == [
+        "python.exe",
+        "-m",
+        "nau",
+        "--config",
+        "cfg.json",
+        "--playlist",
+        "state/nau_playlist.tsv",
+        "--command-file",
+        "state/nau_cmd.txt",
+        "--paused-file",
+        "state/nau_paused.txt",
+        "--status-file",
+        "state/nau_status.txt",
+        "--x",
+        "100",
+        "--y",
+        "200",
+        "--width",
+        "300",
+        "--height",
+        "400",
+    ]
+
+
+def test_launch_ui_companions_launches_dashboard_and_audio(tmp_path: Path):
     result_file = tmp_path / "ui_companions.ini"
 
     class FakeProc:
@@ -210,74 +331,45 @@ def test_launch_ui_companions_skips_genau_when_pid_provided(tmp_path: Path):
             dashboard_y=20,
             dashboard_width=30,
             dashboard_height=40,
-            mfp_pid=55,
-            genau_module="fun_time.genau.app",
             audio_module="fun_time.audio_companion_app",
             config_path="cfg.json",
-            clips_folder="clips",
             audio_folder="audio",
-            genau_x=100,
-            genau_y=200,
-            genau_width=300,
-            genau_height=400,
-            genau_pid=22,
             result_file=result_file,
         )
 
     assert popen.call_count == 2
     dashboard_command = popen.call_args_list[0].args[0]
-    assert dashboard_command[:3] == ["python.exe", "-m", "fun_time.dashboard_app"]
+    assert dashboard_command == [
+        "python.exe",
+        "-m",
+        "fun_time.dashboard_app",
+        "windows_bridge_launch.ini",
+        "--x",
+        "10",
+        "--y",
+        "20",
+        "--width",
+        "30",
+        "--height",
+        "40",
+    ]
     audio_command = popen.call_args_list[1].args[0]
-    assert audio_command[:3] == ["python.exe", "-m", "fun_time.audio_companion_app"]
+    assert audio_command == [
+        "python.exe",
+        "-m",
+        "fun_time.audio_companion_app",
+        "--config",
+        "cfg.json",
+        "--audio-folder",
+        "audio",
+    ]
 
     parser = configparser.ConfigParser()
     parser.optionxform = str
     parser.read(result_file, encoding="utf-8")
     assert parser.get("result", "dashboard_pid") == "11"
-    assert parser.get("result", "genau_pid") == "22"
     assert parser.get("result", "audio_pid") == "33"
-
-
-def test_launch_ui_companions_launches_genau_when_pid_not_provided(tmp_path: Path):
-    result_file = tmp_path / "ui_companions.ini"
-
-    class FakeProc:
-        def __init__(self, pid: int):
-            self.pid = pid
-
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=[FakeProc(11), FakeProc(22), FakeProc(33)]) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
-    ):
-        launch_ui_companions(
-            python_exe="python.exe",
-            dashboard_module="fun_time.dashboard_app",
-            dashboard_enabled=True,
-            windows_bridge_manifest_path="windows_bridge_launch.ini",
-            dashboard_x=10,
-            dashboard_y=20,
-            dashboard_width=30,
-            dashboard_height=40,
-            mfp_pid=55,
-            genau_module="fun_time.genau.app",
-            audio_module="fun_time.audio_companion_app",
-            config_path="cfg.json",
-            clips_folder="clips",
-            audio_folder="audio",
-            genau_x=100,
-            genau_y=200,
-            genau_width=300,
-            genau_height=400,
-            result_file=result_file,
-        )
-
-    assert popen.call_count == 3
-    genau_command = popen.call_args_list[1].args[0]
-    assert genau_command[:3] == ["python.exe", "-m", "fun_time.genau.app"]
-
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser.read(result_file, encoding="utf-8")
-    assert parser.get("result", "genau_pid") == "22"
+    assert set(parser["result"].keys()) == {"dashboard_pid", "audio_pid"}
 
 
 def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
@@ -287,7 +379,7 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
         def __init__(self, pid: int):
             self.pid = pid
 
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=[FakeProc(22), FakeProc(33)]) as popen, patch(
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=[FakeProc(33)]) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
     ):
         launch_ui_companions(
@@ -299,49 +391,52 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
             dashboard_y=20,
             dashboard_width=30,
             dashboard_height=40,
-            mfp_pid=55,
-            genau_module="fun_time.genau.app",
             audio_module="fun_time.audio_companion_app",
             config_path="cfg.json",
-            clips_folder="clips",
             audio_folder="audio",
-            genau_x=100,
-            genau_y=200,
-            genau_width=300,
-            genau_height=400,
             result_file=result_file,
         )
 
-    assert popen.call_count == 2
+    assert popen.call_count == 1
+    audio_command = popen.call_args_list[0].args[0]
+    assert audio_command[:3] == ["python.exe", "-m", "fun_time.audio_companion_app"]
+
     parser = configparser.ConfigParser()
     parser.optionxform = str
     parser.read(result_file, encoding="utf-8")
     assert parser.get("result", "dashboard_pid") == "0"
-    assert parser.get("result", "genau_pid") == "22"
     assert parser.get("result", "audio_pid") == "33"
 
 
-def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: Path):
+def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     result_file = tmp_path / "core_apps.ini"
+    primary_playlist = tmp_path / "state" / "primary_vlc_playlist.m3u"
+    portrait_playlist = tmp_path / "state" / "portrait_vlc_playlist.m3u"
+    landscape_playlist = tmp_path / "state" / "landscape_vlc_playlist.m3u"
 
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
 
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=[FakeProc(101), FakeProc(202), FakeProc(303), FakeProc(404)]) as popen, patch(
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=[FakeProc(101), FakeProc(202), FakeProc(303)]) as popen, patch(
         "fun_time.windows_bridge_startup.wait_for_http", return_value=True
     ) as wait_http, patch(
         "fun_time.windows_bridge_startup.set_repeat_mode", return_value=True
-    ) as set_repeat, patch("fun_time.windows_bridge_startup.vlc_http_cmd", return_value=True) as vlc_cmd, patch(
+    ) as set_repeat, patch(
+        "fun_time.windows_bridge_startup.vlc_http_cmd", return_value=True
+    ) as vlc_cmd, patch(
+        "fun_time.windows_bridge_startup.replace_playlist_from_file", return_value=True
+    ), patch(
         "fun_time.windows_bridge_startup.time.sleep"
     ):
         launch_core_apps(
             project_dir=tmp_path,
             vlc_exe="vlc.exe",
-            mfp_exe="mfp.exe",
-            primary_sources="primary_a|primary_b",
-            portrait_sources="portrait_a",
-            landscape_sources="landscape_a|landscape_b",
+            primary_playlist=primary_playlist,
+            portrait_playlist=portrait_playlist,
+            landscape_playlist=landscape_playlist,
             primary_port=8090,
             portrait_port=8091,
             landscape_port=8092,
@@ -349,32 +444,24 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
             result_file=result_file,
         )
 
-    assert popen.call_count == 4
-    first_command = popen.call_args_list[0].args[0]
-    assert first_command[:2] == ["vlc.exe", "--no-one-instance"]
-
-    # Sources are written to .m3u playlist files to stay under Windows' command-line
-    # length limit.  Check the playlist file rather than the command for source paths.
-    primary_playlist = tmp_path / "state" / "vlc_primary_playlist.m3u"
-    portrait_playlist = tmp_path / "state" / "vlc_portrait_playlist.m3u"
-    landscape_playlist = tmp_path / "state" / "vlc_landscape_playlist.m3u"
-    assert str(primary_playlist) in first_command
-    assert primary_playlist.exists()
-    primary_content = primary_playlist.read_text(encoding="utf-8")
-    assert "primary_a" in primary_content
-    assert "primary_b" in primary_content
-    assert portrait_playlist.exists()
-    assert landscape_playlist.exists()
-    landscape_content = landscape_playlist.read_text(encoding="utf-8")
-    assert "landscape_a" in landscape_content
-    assert "landscape_b" in landscape_content
+    # Exactly three VLC processes: primary, portrait, landscape — no MFP.
+    assert popen.call_count == 3
+    primary_command = popen.call_args_list[0].args[0]
+    portrait_command = popen.call_args_list[1].args[0]
+    landscape_command = popen.call_args_list[2].args[0]
+    assert primary_command[:2] == ["vlc.exe", "--no-one-instance"]
+    assert "--repeat" in primary_command
+    # Satellites get their playlist on the command line in the unmuted path.
+    assert str(portrait_playlist) in portrait_command
+    assert str(landscape_playlist) in landscape_command
+    assert "--loop" in portrait_command
+    assert "--loop" in landscape_command
 
     wait_http.assert_any_call(8090, "pw", 7000)
     wait_http.assert_any_call(8091, "pw", 7000)
     wait_http.assert_any_call(8092, "pw", 7000)
     set_repeat.assert_any_call(8091, "pw", "all")
     set_repeat.assert_any_call(8092, "pw", "all")
-    vlc_cmd.assert_any_call(8090, "pl_next", "pw")
     vlc_cmd.assert_any_call(8091, "pl_next", "pw")
     vlc_cmd.assert_any_call(8092, "pl_next", "pw")
 
@@ -382,22 +469,23 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
     parser.optionxform = str
     parser.read(result_file, encoding="utf-8")
     assert parser.get("result", "primary_pid") == "101"
-    assert parser.get("result", "mfp_pid") == "202"
-    assert parser.get("result", "portrait_pid") == "303"
-    assert parser.get("result", "landscape_pid") == "404"
+    assert parser.get("result", "portrait_pid") == "202"
+    assert parser.get("result", "landscape_pid") == "303"
+    assert set(parser["result"].keys()) == {"primary_pid", "portrait_pid", "landscape_pid"}
 
 
-def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_path: Path):
-    """When hide_windows=True, VLC instances must:
-    1. Launch with no media (defer_playlist) so there is nothing to hear
-    2. Get muted via HTTP
-    3. Have their playlist enqueued (not played) via replace_playlist_from_file
-    4. NOT receive pl_next or pl_pause — VLC must be completely idle
-    """
+def test_launch_core_apps_primary_never_auto_plays(tmp_path: Path, monkeypatch):
+    """The primary VLC exists for hybrid mode only: it launches with no
+    playlist on its command line, its playlist is enqueued over HTTP
+    (enqueue_only=True), and it never receives pl_next/pl_play."""
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     result_file = tmp_path / "core_apps.ini"
+    primary_playlist = tmp_path / "state" / "primary_vlc_playlist.m3u"
 
     class FakeProc:
         _counter = 0
+
         def __init__(self, *_args, **_kwargs):
             FakeProc._counter += 1
             self.pid = FakeProc._counter * 100
@@ -423,10 +511,79 @@ def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_p
         launch_core_apps(
             project_dir=tmp_path,
             vlc_exe="vlc.exe",
-            mfp_exe="mfp.exe",
-            primary_sources="a",
-            portrait_sources="b",
-            landscape_sources="c",
+            primary_playlist=primary_playlist,
+            portrait_playlist=tmp_path / "state" / "portrait_vlc_playlist.m3u",
+            landscape_playlist=tmp_path / "state" / "landscape_vlc_playlist.m3u",
+            primary_port=8090,
+            portrait_port=8091,
+            landscape_port=8092,
+            password="pw",
+            result_file=result_file,
+        )
+
+    # No playlist on the primary command line, ever.
+    primary_command = popen.call_args_list[0].args[0]
+    assert not any(arg.endswith(".m3u") for arg in primary_command), \
+        f"Primary VLC must launch without a playlist: {primary_command}"
+
+    # Primary playlist is enqueued over HTTP without starting playback.
+    primary_replaces = [(port, path, kw) for port, path, kw in replace_calls if port == 8090]
+    assert primary_replaces == [(8090, str(primary_playlist), {"enqueue_only": True})]
+
+    # No playback commands are ever sent to the primary port.
+    primary_playback = [(port, cmd) for port, cmd in http_commands
+                        if port == 8090 and cmd in ("pl_next", "pl_play", "pl_pause")]
+    assert primary_playback == [], \
+        f"Primary VLC must stay idle at startup: {primary_playback}"
+
+
+def test_launch_core_apps_mutes_and_defers_playlists_when_hide_windows_true(tmp_path: Path, monkeypatch):
+    """When hide_windows=True, VLC instances must:
+    1. Launch with no media on the command line so there is nothing to hear
+    2. Get muted via HTTP
+    3. Have their playlist enqueued (not played) via replace_playlist_from_file
+    4. NOT receive pl_next, pl_pause, or pl_play — VLC must be completely idle
+    """
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    result_file = tmp_path / "core_apps.ini"
+    playlists = {
+        8090: tmp_path / "state" / "primary_vlc_playlist.m3u",
+        8091: tmp_path / "state" / "portrait_vlc_playlist.m3u",
+        8092: tmp_path / "state" / "landscape_vlc_playlist.m3u",
+    }
+
+    class FakeProc:
+        _counter = 0
+
+        def __init__(self, *_args, **_kwargs):
+            FakeProc._counter += 1
+            self.pid = FakeProc._counter * 100
+
+    FakeProc._counter = 0
+    http_commands: list[tuple[int, str]] = []
+    replace_calls: list[tuple[int, str, dict]] = []
+
+    def tracking_vlc_http_cmd(port, cmd, pw):
+        http_commands.append((port, cmd))
+        return True
+
+    def tracking_replace_playlist(port, pw, playlist_path, **kwargs):
+        replace_calls.append((port, str(playlist_path), kwargs))
+        return True
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=lambda *a, **kw: FakeProc()) as popen, \
+         patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True), \
+         patch("fun_time.windows_bridge_startup.set_repeat_mode", return_value=True), \
+         patch("fun_time.windows_bridge_startup.vlc_http_cmd", side_effect=tracking_vlc_http_cmd), \
+         patch("fun_time.windows_bridge_startup.replace_playlist_from_file", side_effect=tracking_replace_playlist), \
+         patch("fun_time.windows_bridge_startup.time.sleep"):
+        launch_core_apps(
+            project_dir=tmp_path,
+            vlc_exe="vlc.exe",
+            primary_playlist=playlists[8090],
+            portrait_playlist=playlists[8091],
+            landscape_playlist=playlists[8092],
             primary_port=8090,
             portrait_port=8091,
             landscape_port=8092,
@@ -450,11 +607,8 @@ def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_p
 
     # Playlists must be enqueued (not played) via replace_playlist_from_file
     assert len(replace_calls) == 3, f"Expected 3 playlist loads, got {replace_calls}"
-    loaded_ports = {port for port, _, _ in replace_calls}
-    assert loaded_ports == {8090, 8091, 8092}
-    state_dir = tmp_path / "state"
-    for _, path, kwargs in replace_calls:
-        assert str(state_dir) in path
+    for port, path, kwargs in replace_calls:
+        assert path == str(playlists[port])
         assert kwargs.get("enqueue_only") is True, \
             f"enqueue_only must be True to prevent playback during loading: {kwargs}"
 
@@ -465,15 +619,17 @@ def test_launch_core_apps_mutes_and_defers_playlist_when_hide_windows_true(tmp_p
         f"No playback commands allowed during loading screen: {playback_cmds}"
 
 
-def test_launch_core_apps_defers_playlist_when_mute_audio_env_set(tmp_path: Path, monkeypatch):
+def test_launch_core_apps_defers_playlists_when_mute_audio_env_set(tmp_path: Path, monkeypatch):
     """When FUN_TIME_MUTE_AUDIO=1 and hide_windows=False, VLC instances must
-    still defer playlist loading to prevent audio-leak races.
-    Unlike hide_windows=True, VLC should NOT be paused after loading."""
+    still defer playlist loading to prevent audio-leak races.  The satellites
+    load with enqueue_only=False and get pl_next; the primary stays idle."""
     monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     result_file = tmp_path / "core_apps.ini"
 
     class FakeProc:
         _counter = 0
+
         def __init__(self, *_args, **_kwargs):
             FakeProc._counter += 1
             self.pid = FakeProc._counter * 100
@@ -499,10 +655,9 @@ def test_launch_core_apps_defers_playlist_when_mute_audio_env_set(tmp_path: Path
         launch_core_apps(
             project_dir=tmp_path,
             vlc_exe="vlc.exe",
-            mfp_exe="mfp.exe",
-            primary_sources="a",
-            portrait_sources="b",
-            landscape_sources="c",
+            primary_playlist=tmp_path / "state" / "primary_vlc_playlist.m3u",
+            portrait_playlist=tmp_path / "state" / "portrait_vlc_playlist.m3u",
+            landscape_playlist=tmp_path / "state" / "landscape_vlc_playlist.m3u",
             primary_port=8090,
             portrait_port=8091,
             landscape_port=8092,
@@ -522,51 +677,20 @@ def test_launch_core_apps_defers_playlist_when_mute_audio_env_set(tmp_path: Path
     mute_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "volume&val=0"]
     assert len(mute_cmds) == 3, f"Expected 3 mute commands, got {mute_cmds}"
 
-    # Playlists must be loaded via HTTP — with enqueue_only=False so playback starts
+    # Satellites load via HTTP with enqueue_only=False so playback can start;
+    # the primary is always enqueue-only.
     assert len(replace_calls) == 3, f"Expected 3 playlist loads, got {replace_calls}"
-    for _, _, kwargs in replace_calls:
-        assert kwargs.get("enqueue_only") is False, \
-            f"enqueue_only must be False when hide_windows=False: {kwargs}"
+    enqueue_by_port = {port: kwargs.get("enqueue_only") for port, _, kwargs in replace_calls}
+    assert enqueue_by_port == {8090: True, 8091: False, 8092: False}
 
-    # pl_next SHOULD be sent — normal startup behavior
+    # pl_next goes to the satellites only — the primary never auto-plays.
     next_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "pl_next"]
-    assert len(next_cmds) == 3, f"Expected 3 pl_next commands, got {next_cmds}"
-
-
-def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
-    """start_core_session forwards hide_windows to launch_core_apps."""
-    result_file = tmp_path / "core_session.ini"
-
-    with patch("fun_time.windows_bridge_startup.restart_broker"), patch(
-        "fun_time.windows_bridge_startup.seed_genau_state"
-    ), patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
-    ), patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
-        start_core_session(
-            project_dir=tmp_path,
-            config_path="cfg.json",
-            random_favs_browser_manifest_file=tmp_path / "m.txt",
-            paused_file=tmp_path / "p.txt",
-            audio_paused_file=tmp_path / "a.txt",
-            vlc_exe="vlc.exe",
-            mfp_exe="mfp.exe",
-            primary_sources="a",
-            portrait_sources="b",
-            landscape_sources="c",
-            primary_port=8090,
-            portrait_port=8091,
-            landscape_port=8092,
-            password="pw",
-            result_file=result_file,
-            hide_windows=True,
-        )
-
-    assert launch.call_args.kwargs["hide_windows"] is True
+    assert next_cmds == [(8091, "pl_next"), (8092, "pl_next")]
 
 
 def test_build_vlc_launch_command_includes_volume_zero_when_mute_env_set(monkeypatch):
     monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
-    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4|b.mp4", 8090, "pw", repeat_mode="repeat")
+    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat")
     idx = cmd.index("--volume")
     assert cmd[idx + 1] == "0"
     assert "--repeat" in cmd
@@ -574,7 +698,7 @@ def test_build_vlc_launch_command_includes_volume_zero_when_mute_env_set(monkeyp
 
 def test_build_vlc_launch_command_omits_volume_when_mute_env_unset(monkeypatch):
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="loop")
+    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="loop")
     assert "--volume" not in cmd
 
 
@@ -584,7 +708,7 @@ def test_build_vlc_launch_command_never_includes_no_video(monkeypatch):
     tests must run with real video output to match production behavior."""
     monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat")
+    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat")
     assert "--no-video" not in cmd
 
 
@@ -592,7 +716,7 @@ def test_build_vlc_launch_command_includes_volume_zero_when_mute_for_loading(mon
     """VLC must start pre-muted during loading (hide_windows=True) so no
     audio blips before the HTTP mute command arrives."""
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="repeat", mute=True)
+    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat", mute=True)
     idx = cmd.index("--volume")
     assert cmd[idx + 1] == "0"
 
@@ -605,19 +729,19 @@ def test_build_vlc_launch_command_never_includes_start_paused(monkeypatch):
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     for repeat_mode in ("repeat", "loop"):
         for mute in (True, False):
-            cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode=repeat_mode, mute=mute)
+            cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode, mute=mute)
             assert "--start-paused" not in cmd, \
                 f"--start-paused must never appear (repeat_mode={repeat_mode}, mute={mute})"
 
 
 def test_build_vlc_launch_command_never_includes_random(monkeypatch):
     """--random must never appear: it causes VLC to re-pick a random item on every
-    navigation, making pl_play&id=N index arithmetic wrong. Python shuffles the
-    sources list at launch instead."""
+    navigation, making pl_play&id=N index arithmetic wrong. The playlist builder
+    shuffles the sources instead."""
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     for repeat_mode in ("repeat", "loop"):
-        cmd = _build_vlc_launch_command("vlc.exe", "a.mp4|b.mp4", 8090, "pw", repeat_mode=repeat_mode)
+        cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode)
         assert "--random" not in cmd, f"--random must not appear (repeat_mode={repeat_mode})"
 
 
@@ -629,129 +753,22 @@ def test_build_vlc_launch_command_includes_no_random(monkeypatch):
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     for repeat_mode in ("repeat", "loop"):
-        cmd = _build_vlc_launch_command("vlc.exe", "a.mp4|b.mp4", 8090, "pw", repeat_mode=repeat_mode)
+        cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode)
         assert "--no-random" in cmd, f"--no-random must appear to override saved vlcrc (repeat_mode={repeat_mode})"
 
 
-def test_build_vlc_launch_command_shuffles_sources_in_python(monkeypatch):
-    """Sources must be shuffled by Python before being passed to VLC (not by VLC's
-    --random flag), so the playlist insertion order is the playback order and
-    vlc_nav_step's index arithmetic is correct."""
+def test_build_vlc_launch_command_appends_playlist_path_when_given(tmp_path, monkeypatch):
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-    sources = "a.mp4|b.mp4|c.mp4"
-    shuffle_called = []
-
-    def fake_shuffle(lst):
-        shuffle_called.append(True)
-        lst.reverse()  # deterministic stand-in for testing
-
-    with patch("fun_time.windows_bridge_startup.random.shuffle", side_effect=fake_shuffle):
-        cmd = _build_vlc_launch_command("vlc.exe", sources, 8090, "pw", repeat_mode="repeat")
-
-    assert shuffle_called, "random.shuffle must be called on sources"
-    a_idx, b_idx, c_idx = cmd.index("a.mp4"), cmd.index("b.mp4"), cmd.index("c.mp4")
-    assert c_idx < b_idx < a_idx, "Sources should appear in the shuffled (reversed) order"
-
-
-def test_build_vlc_launch_command_omits_start_paused_for_satellite_vlc_when_muted(monkeypatch):
-    """Satellite VLCs (loop mode) must not get --start-paused even when muted.
-    --volume 0 already prevents audio blips; --start-paused would cause every
-    subsequent playlist item to start paused (VLC applies the flag to every
-    item transition), producing a black screen after the first video ends."""
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    cmd = _build_vlc_launch_command("vlc.exe", "a.mp4", 8090, "pw", repeat_mode="loop", mute=True)
-    assert "--start-paused" not in cmd
-
-
-def test_build_vlc_launch_command_expands_directory_to_individual_files(tmp_path, monkeypatch):
-    """Directory sources must be recursively expanded into individual .mp4 file
-    paths. This ensures every video is a leaf item in VLC's playlist so that
-    vlc_nav_step can resolve adjacent items by ID.  Without expansion VLC presents
-    the directory as a single folder node and vlc_nav_step finds no leaves."""
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-    sub = tmp_path / "sub"
-    sub.mkdir()
-    (tmp_path / "a.mp4").touch()
-    (tmp_path / "b.mp4").touch()
-    (sub / "c.mp4").touch()
-    (tmp_path / "ignore.txt").touch()  # non-mp4 must be ignored
-
-    with patch("fun_time.windows_bridge_startup.random.shuffle", side_effect=lambda x: None):
-        cmd = _build_vlc_launch_command("vlc.exe", str(tmp_path), 8090, "pw", repeat_mode="loop")
-
-    assert str(tmp_path / "a.mp4") in cmd
-    assert str(tmp_path / "b.mp4") in cmd
-    assert str(sub / "c.mp4") in cmd
-    assert str(tmp_path) not in cmd  # directory itself must not appear
-    assert not any("ignore.txt" in arg for arg in cmd)
-
-
-def test_build_vlc_launch_command_writes_playlist_file_when_playlist_path_given(tmp_path, monkeypatch):
-    """When playlist_path is provided, expanded sources must be written to that
-    file and only the playlist path added to the command (not individual file paths).
-    This is required to stay under Windows' 32 767-character command-line limit
-    when there are hundreds of video files."""
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-    playlist_path = tmp_path / "out" / "test.m3u"
-
-    with patch("fun_time.windows_bridge_startup.random.shuffle", side_effect=lambda x: None):
-        cmd = _build_vlc_launch_command(
-            "vlc.exe", "a.mp4|b.mp4|c.mp4", 8090, "pw", repeat_mode="loop",
-            playlist_path=playlist_path,
-        )
-
-    # Playlist file path must appear in the command
-    assert str(playlist_path) in cmd
-    # Individual file paths must NOT appear in the command
-    assert "a.mp4" not in cmd
-    assert "b.mp4" not in cmd
-    assert "c.mp4" not in cmd
-    # Playlist file must exist and contain all sources
-    assert playlist_path.exists()
-    content = playlist_path.read_text(encoding="utf-8")
-    assert "a.mp4" in content
-    assert "b.mp4" in content
-    assert "c.mp4" in content
-
-
-def test_build_vlc_launch_command_defers_playlist_when_requested(tmp_path, monkeypatch):
-    """When defer_playlist=True the .m3u file must still be written (needed for
-    later HTTP loading) but must NOT appear in the VLC command line.  This lets
-    VLC start with nothing to play, eliminating the audio-leak race during the
-    loading screen."""
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     playlist_path = tmp_path / "test.m3u"
-
-    with patch("fun_time.windows_bridge_startup.random.shuffle", side_effect=lambda x: None):
-        cmd = _build_vlc_launch_command(
-            "vlc.exe", "a.mp4|b.mp4", 8090, "pw", repeat_mode="repeat",
-            mute=True, playlist_path=playlist_path, defer_playlist=True,
-        )
-
-    # Playlist file must still be written to disk
-    assert playlist_path.exists()
-    content = playlist_path.read_text(encoding="utf-8")
-    assert "a.mp4" in content
-    assert "b.mp4" in content
-    # But the playlist path must NOT be in the VLC command
-    assert str(playlist_path) not in cmd
+    cmd = _build_vlc_launch_command(
+        "vlc.exe", 8090, "pw", repeat_mode="loop", playlist_path=playlist_path,
+    )
+    assert cmd[-1] == str(playlist_path)
 
 
-def test_build_vlc_launch_command_does_not_defer_playlist_by_default(tmp_path, monkeypatch):
-    """Default behavior: playlist path IS included in the command."""
+def test_build_vlc_launch_command_omits_playlist_when_not_given(monkeypatch):
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-    playlist_path = tmp_path / "test.m3u"
-
-    with patch("fun_time.windows_bridge_startup.random.shuffle", side_effect=lambda x: None):
-        cmd = _build_vlc_launch_command(
-            "vlc.exe", "a.mp4|b.mp4", 8090, "pw", repeat_mode="repeat",
-            playlist_path=playlist_path,
-        )
-
-    assert str(playlist_path) in cmd
-
+    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="loop")
+    assert not any(arg.endswith(".m3u") for arg in cmd)
+    # Without a playlist the command ends at the mode flags.
+    assert cmd[-1] == "--loop"

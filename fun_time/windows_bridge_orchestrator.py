@@ -46,7 +46,7 @@ def write_pids_file(path: Path, result: StartupResult) -> None:
     parser.optionxform = str
     parser["pids"] = {
         "primary_pid": str(result.primary_pid),
-        "mfp_pid": str(result.mfp_pid),
+        "nau_pid": str(result.nau_pid),
         "portrait_pid": str(result.portrait_pid),
         "landscape_pid": str(result.landscape_pid),
         "dashboard_pid": str(result.dashboard_pid),
@@ -109,7 +109,7 @@ def _minimize_all_windows(result: StartupResult) -> None:
     """
     for pid in [
         result.primary_pid,
-        result.mfp_pid,
+        result.nau_pid,
         result.portrait_pid,
         result.landscape_pid,
         result.genau_pid,
@@ -122,9 +122,9 @@ def _minimize_all_windows(result: StartupResult) -> None:
     logger.info("Minimized all windows for integration test run")
 
 
-# Number of progress steps reported by run_startup_sequence.
-# Number of progress steps in hide_windows mode (the only mode with a loading screen).
-_STARTUP_PROGRESS_STEPS = 7
+# Number of progress steps reported by run_startup_sequence in hide_windows
+# mode (the only mode with a loading screen).
+_STARTUP_PROGRESS_STEPS = 6
 
 
 def _shutdown_children(result: StartupResult) -> None:
@@ -132,7 +132,7 @@ def _shutdown_children(result: StartupResult) -> None:
     close_window(result.rfb_hwnd)
     for pid in [
         result.primary_pid,
-        result.mfp_pid,
+        result.nau_pid,
         result.portrait_pid,
         result.landscape_pid,
         result.dashboard_pid,
@@ -198,9 +198,9 @@ def _fix_post_loading_z_order(result: StartupResult) -> None:
         landscape_hwnd=find_window_by_pid(result.landscape_pid),
         primary_hwnd=find_window_by_pid(result.primary_pid),
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
-        mfp_hwnd=find_window_by_pid(result.mfp_pid),
+        nau_hwnd=find_window_by_pid(result.nau_pid),
         dashboard_hwnd=dash_hwnd,
-        primary_mode="vlc",
+        primary_mode="nau",
     )
     apply_z_order(layers)
     logger.info("Post-loading z-order corrected")
@@ -262,8 +262,8 @@ def run_python_orchestrated_bridge(
         raise
 
     logger.info(
-        "Startup complete: primary=%d mfp=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
-        result.primary_pid, result.mfp_pid, result.portrait_pid, result.landscape_pid,
+        "Startup complete: primary=%d nau=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
+        result.primary_pid, result.nau_pid, result.portrait_pid, result.landscape_pid,
         result.dashboard_pid, result.genau_pid, result.audio_pid,
     )
 
@@ -327,7 +327,7 @@ def run_python_orchestrated_bridge(
         shared_state_file=state_dir / "shared_bridge_state.ini",
         ahk_cmd_file=state_dir / "ahk_cmd.txt",
         primary_pid=result.primary_pid,
-        mfp_pid=result.mfp_pid,
+        nau_pid=result.nau_pid,
         portrait_pid=result.portrait_pid,
         landscape_pid=result.landscape_pid,
         dashboard_pid=result.dashboard_pid,

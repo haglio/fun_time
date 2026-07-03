@@ -15,9 +15,9 @@ def compute_z_order(
     landscape_hwnd: int = 0,
     primary_hwnd: int = 0,
     genau_hwnd: int = 0,
-    mfp_hwnd: int = 0,
+    nau_hwnd: int = 0,
     dashboard_hwnd: int = 0,
-    primary_mode: str = "vlc",
+    primary_mode: str = "nau",
 ) -> list[tuple[int, bool]]:
     """Compute the desired z-order stack (bottom to top).
 
@@ -27,10 +27,11 @@ def compute_z_order(
 
     Stack (bottom to top)::
 
-        RFB > Portrait > Landscape > [Primary|Genau] > MFP > Dashboard
+        RFB > Portrait > Landscape > [Nau|Primary VLC|Genau] > Dashboard
 
-    In VLC mode, Genau is non-topmost.  In Genau mode, Primary is
-    non-topmost.  In Hybrid mode, both are topmost with Genau on top.
+    Exactly one player owns the primary display per mode: Nau in nau
+    mode, Genau in genau mode.  In hybrid the primary VLC displays video
+    with Genau's HUD topmost above it; Nau stays non-topmost.
     """
     layers: list[tuple[int, bool]] = []
 
@@ -42,11 +43,15 @@ def compute_z_order(
         layers.append((landscape_hwnd, True))
 
     if primary_mode == "genau":
+        if nau_hwnd:
+            layers.append((nau_hwnd, False))
         if primary_hwnd:
             layers.append((primary_hwnd, False))
         if genau_hwnd:
             layers.append((genau_hwnd, True))
     elif primary_mode == "hybrid":
+        if nau_hwnd:
+            layers.append((nau_hwnd, False))
         if primary_hwnd:
             layers.append((primary_hwnd, True))
         if genau_hwnd:
@@ -55,10 +60,10 @@ def compute_z_order(
         if genau_hwnd:
             layers.append((genau_hwnd, False))
         if primary_hwnd:
-            layers.append((primary_hwnd, True))
+            layers.append((primary_hwnd, False))
+        if nau_hwnd:
+            layers.append((nau_hwnd, True))
 
-    if mfp_hwnd:
-        layers.append((mfp_hwnd, True))
     if dashboard_hwnd:
         layers.append((dashboard_hwnd, True))
 
@@ -70,14 +75,14 @@ def apply_z_order(layers: list[tuple[int, bool]], *, reorder: bool = True) -> No
 
     When *reorder* is True (default), demotes ALL windows first so the
     subsequent promote-from-bottom-to-top establishes the correct
-    stacking.  Use this at startup and after transitions (genau toggle,
+    stacking.  Use this at startup and after transitions (mode switches,
     omnipause leave) where the full ordering must be rebuilt.
 
     When *reorder* is False, only demotes windows that should NOT be
     topmost.  Already-topmost windows are left untouched, avoiding the
     visual flicker that a full demote-all causes.  Use this for periodic
-    drift correction (sync tick) where only the Primary/Genau pair may
-    need fixing.
+    drift correction (sync tick) where only the primary trio may need
+    fixing.
     """
     if reorder:
         for hwnd, _ in layers:

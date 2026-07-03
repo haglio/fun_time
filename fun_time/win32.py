@@ -342,13 +342,6 @@ def send_vk_to_window(hwnd: int, vk: int) -> None:
     _user32.PostMessageW(hwnd, WM_KEYUP, vk, 0)
 
 
-def get_window_rect(hwnd: int) -> tuple[int, int, int, int]:
-    """Return (x, y, width, height) for a window."""
-    rect = ctypes.wintypes.RECT()
-    _user32.GetWindowRect(hwnd, ctypes.byref(rect))
-    return rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top
-
-
 # --- File Open Dialog (COM IFileOpenDialog) ---
 
 import uuid

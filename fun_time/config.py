@@ -38,7 +38,6 @@ def _require_value(parent: dict[str, Any], key: str, source_path: Path, context:
 @dataclass(frozen=True)
 class PathsConfig:
     vlc_exe: Path
-    mfp_exe: Path
     ahk_exe: Path
     python_exe: Path
     primary_vlc_dirs: tuple[Path, ...]
@@ -72,8 +71,6 @@ class LayoutConfig:
     secondary_monitor: int
     primary_top_ratio: float
     landscape_width_ratio: float
-    mfp_width_ratio: float
-    mfp_height_ratio: float
     left_partition_top_ratio: float = 0.0
     left_partition_bottom_ratio: float = 0.0
 
@@ -234,7 +231,6 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path) -> PathsCon
 
     return PathsConfig(
         vlc_exe=_require_path_value(paths_raw, "vlc_exe", source_path, "config.paths"),
-        mfp_exe=_require_path_value(paths_raw, "mfp_exe", source_path, "config.paths"),
         ahk_exe=_require_path_value(paths_raw, "ahk_exe", source_path, "config.paths"),
         python_exe=_require_path_value(paths_raw, "python_exe", source_path, "config.paths"),
         primary_vlc_dirs=tuple(_resolve_path(PROJECT_DIR, str(value)) for value in primary_vlc_dirs_raw),
@@ -263,8 +259,6 @@ def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> Layout
         secondary_monitor=int(secondary_monitor),
         primary_top_ratio=_require_typed_value(layout_raw, "primary_top_ratio", source_path, "config.layout", float),
         landscape_width_ratio=_require_typed_value(layout_raw, "landscape_width_ratio", source_path, "config.layout", float),
-        mfp_width_ratio=_require_typed_value(layout_raw, "mfp_width_ratio", source_path, "config.layout", float),
-        mfp_height_ratio=_require_typed_value(layout_raw, "mfp_height_ratio", source_path, "config.layout", float),
         left_partition_top_ratio=float(layout_raw.get("left_partition_top_ratio", 0.0)),
         left_partition_bottom_ratio=float(layout_raw.get("left_partition_bottom_ratio", 0.0)),
     )
