@@ -278,14 +278,15 @@ def run_startup_sequence(
             primary_mode="nau",
         )
         apply_z_order(layers)
-
-        # The reveal: startup mode is nau, so Nau starts playing now that
-        # the loading screen is about to come down.
-        write_flag_file(m["commands"]["nau_paused_file"], False)
-
         logger.info("Topmost set on core windows")
 
         progress.advance("Finalizing...")
+
+    # The reveal: startup mode is nau, so Nau starts playing once startup
+    # completes. This runs in both paths — the loading-screen (hide_windows)
+    # path reveals everything at once, and the no-loading-screen path
+    # (integration) has nothing to hide behind but must still start Nau.
+    write_flag_file(m["commands"]["nau_paused_file"], False)
 
     return StartupResult(
         primary_pid=primary_pid,

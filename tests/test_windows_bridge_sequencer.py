@@ -218,6 +218,36 @@ class TestRunStartupSequence:
         assert result.layout_plan.portrait.x == 2560
         assert result.layout_plan.dashboard.width > 0
 
+    def test_non_hidden_path_unpauses_nau(self, cfg_factory, tmp_path):
+        """The no-loading-screen path (integration / normal without the
+        overlay) must still start Nau — the reveal that clears nau_paused
+        cannot live only in the hidden branch."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        m = configparser.ConfigParser()
+        m.optionxform = str
+        m.read(str(manifest_path), encoding="utf-8")
+        nau_paused = Path(m["commands"]["nau_paused_file"])
+        nau_paused.parent.mkdir(parents=True, exist_ok=True)
+        nau_paused.write_text("1", encoding="utf-8")  # seeded paused at startup
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.z_order.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
+
+        assert nau_paused.read_text(encoding="utf-8").strip() == "0"
+
 
 class TestNoActivateWindowDuringIntegration:
     """During integration tests, window moves must not steal focus."""
