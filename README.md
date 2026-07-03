@@ -2,20 +2,22 @@
 
 Fun Time is a Windows desktop setup that launches and coordinates:
 
-- a primary VLC instance
+- Nau, a funscript video player for the primary video library (lives in the separate `../genau` project, launched as `python -m nau`)
+- a primary VLC instance (displays video only in hybrid mode)
 - two secondary VLC instances
-- MultiFunPlayer (MFP)
 - Genau, a clip-based visualizer for OSR2 auto mode (the separate `../genau` project)
 - a Genau audio companion
 - a minimal AutoHotkey hotkey shell (window placement and command dispatch run in Python)
 
 It uses a serial broker for the OSR2 — the separate `../osr2_broker` project — that is intended to run continuously in the background.
 
-It is designed so that:
+The primary stack runs in one of three modes (startup mode is **nau**):
 
-- in **VLC mode**, MFP controls the OSR2 and the primary VLC is visible/active
-- in **Genau mode** (OSR2 auto/free mode), Genau appears in front of the primary VLC, the primary VLC pauses, and Genau takes over visual/audio playback
-- when auto/free mode ends, Genau hides and the primary VLC resumes
+- in **Nau mode**, Nau owns the primary display and the OSR2: it plays the whole primary library (videos without a funscript just play with no OSR2 output) and drives the OSR2 itself by sending funscript-derived T-Code over UDP to the broker
+- in **Genau mode** (OSR2 auto/free mode), Genau clips own both the primary display and the OSR2
+- in **Hybrid mode**, the primary VLC displays video under Genau's HUD while Genau drives the OSR2
+
+The primary VLC instance still launches at startup, but it sits idle with its playlist enqueued over HTTP and plays only in hybrid mode.
 
 ## Folder layout
 
@@ -33,6 +35,10 @@ Runtime state:
 - `state/genau_mode.txt`
 - `state/genau_paused.txt`
 - `state/genau_cmd.txt`
+- `state/nau_cmd.txt`
+- `state/nau_paused.txt`
+- `state/nau_status.txt`
+- `state/nau_playlist.tsv`
 - `state/audio_paused.txt`
 - `state/*.log`
 
@@ -113,32 +119,31 @@ The layout values that used to be hard-coded in AutoHotkey now live under `layou
 
 Monitor naming under `layout` now uses:
 
-- `main_monitor` — the monitor that shows portrait VLC, the primary VLC, and Genau
-- `secondary_monitor` — the monitor that shows landscape VLC, MFP, and the Random Favs Browser
+- `main_monitor` — the monitor that shows the landscape VLC, the dashboard, and the Random Favs Browser
+- `secondary_monitor` — the monitor that shows the portrait VLC and the shared primary display slot (Nau, Genau, and the primary VLC all use the same rect)
 
 ## High-level architecture
 
 Serial / mode control:
 
-- the real OSR2 is on `COM4`; a `com0com` virtual pair sits between MFP and the broker (MFP uses the `CNCA*` side, the broker the matching `CNCB*` side)
-- the **broker** — the separate `../osr2_broker` project — is the only process that talks to the real OSR2. It forwards MFP serial traffic in VLC mode, swallows MFP writes during OSR2 auto/free mode, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/genau_mode.txt`.
-- **Genau** — the separate `../genau` project — never opens `COM4`. It follows the broker-fed state, shows itself only in Genau mode, and reads clip/offset commands from `state/genau_cmd.txt`.
+- the real OSR2 is on `COM4`; the **broker** — the separate `../osr2_broker` project — is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/genau_mode.txt`.
+- **Nau** — a funscript video player in the `../genau` project — never opens `COM4`. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/nau_cmd.txt`, and publishes playback status to `state/nau_status.txt`.
+- **Genau** — the separate `../genau` project — never opens `COM4` either. It follows the broker-fed state, shows itself only in Genau/Hybrid mode, and reads clip/offset commands from `state/genau_cmd.txt`.
 
-See those projects for the serial parsing, COM-port recovery, and clip-playback internals.
+See those projects for the serial parsing, COM-port recovery, and playback internals.
 
 ## Requirements
 
 ### Windows apps
 
 - VLC
-- MultiFunPlayer
 - AutoHotkey v2
-- `com0com`
 
 ### Python / tools
 
 - Python (currently launched via Miniconda `pythonw.exe`)
 - Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), vosk + sounddevice (voice control), and Pillow / numpy / opencv-python.
+- Genau and Nau run out of the `../genau` project's venv (`paths.genau_python_exe`), launched as `python -m genau` and `python -m nau`.
 
 Install the declared dependencies into the project venv before first use.
 
@@ -185,99 +190,6 @@ cd "/c/path/to/suite-root/projects/fun_time" && bash ./main.sh
 
 The `--check` mode is the fastest way to validate config and path wiring before a full launch.
 
-## MFP setup
-
-### One-time `com0com` concept
-
-Fun Time expects a virtual serial pair created by `com0com`.
-
-That pair has two ends:
-
-- `CNCA*` side: this is the side MFP should connect to
-- `CNCB*` side: this is the side the broker should connect to
-
-Historically this project used:
-
-- MFP = `COM14` (`CNCA2`)
-- broker = `COM15` (`CNCB2`)
-
-But that is **not guaranteed forever**. If the pair is removed and recreated, Windows may assign different COM numbers and even a different `CNCA` / `CNCB` index, for example:
-
-- MFP = `COM7` (`CNCA1`)
-- broker = `COM8` (`CNCB1`)
-
-What matters is the pairing, not the exact COM numbers:
-
-- MFP must use the `CNCA*` side
-- broker must use the matching `CNCB*` side
-- broker still talks to the real OSR2 on `COM4`
-
-### Normal expected setup
-
-MFP should use:
-
-- the `CNCA*` side of the current `com0com` pair
-
-not `COM4`.
-
-The real OSR2 remains on:
-
-- `COM4`
-
-The broker sits between them using the matching `CNCB*` side.
-
-### Where MFP stores its serial choice
-
-MultiFunPlayer stores its selected serial device in:
-
-- `C:\Program Files\MultiFunPlayer-1.34.2-patreon\MultiFunPlayer.config.json`
-
-Look for:
-
-- `"SelectedSerialPort": "COM0COM\\PORT\\CNCA..."`
-
-If the old `CNCA` port disappears and `com0com` comes back with a different pair, MFP may still point at the dead one until you update it or reselect the port in MFP.
-
-### If the old pair disappears
-
-Symptoms:
-
-- broker log shows it cannot open the old configured virtual COM port
-- MFP no longer controls the OSR2
-- Windows shows a different `com0com` pair than the one in old notes
-
-Recovery steps:
-
-1. List current serial ports and identify the `com0com` pair.
-2. Point MFP at the `CNCA*` side.
-3. Point broker config at the matching `CNCB*` side, or rely on the broker's new auto-detection fallback.
-4. Keep `COM4` reserved for the real OSR2 only.
-
-Current broker behavior:
-
-- broker config may still say `COM15`
-- if `COM15` is missing, broker now detects the current `CNCB*` port and uses that automatically
-- launching Fun Time now also starts the broker if the broker is not already running
-
-This means broker startup is more resilient now, but MFP still needs its saved `CNCA*` selection to be correct.
-
-### MFP to primary VLC connection contract
-
-Fun Time depends on MFP auto-connecting to the primary VLC instance, not one of the satellites.
-
-The important runtime expectations are:
-
-- the primary VLC HTTP interface comes up before MFP launches
-- MFP starts before the portrait and landscape VLC instances
-- MFP's saved VLC endpoint points at the configured primary VLC HTTP port
-- Fun Time prefers the stable VLC HTTP password from `%APPDATA%\vlc\vlcrc` so MFP and the controller can agree on the same password across launches
-
-If MFP stops loading scripts for the primary VLC, check:
-
-- `C:\Program Files\MultiFunPlayer-1.34.2-patreon\MultiFunPlayer.config.json`
-- `MediaSource.VLC.Endpoint` should match Fun Time's primary VLC port, currently `127.0.0.1:8090`
-- `%APPDATA%\vlc\vlcrc` should contain the HTTP password that both VLC and MFP expect
-
 ## Hotkeys & voice
 
 Fun Time is driven by global hotkeys and, optionally, spoken voice commands. While Fun Time is running and not OmniPaused, the hotkeys are global — they fire regardless of which window is focused.
@@ -292,10 +204,18 @@ This README deliberately does not repeat the key table — open the **?** popup 
 
 ### Modes
 
-The primary stack runs in one of three modes, each selected by its own hotkey (see the popup): **Genau**, **Hybrid**, and **VLC**. The `\` key is mode-dependent:
+The primary stack runs in one of three modes, each selected by its own hotkey (see the popup): **Nau**, **Genau**, and **Hybrid**. The `\` key is mode-dependent:
 
-- in VLC mode, `\` opens the primary VLC open-file dialog. Fun Time enters OmniPause while the dialog is open and leaves it when the dialog closes, without toggling primary VLC playback.
-- in Genau mode, `\` offsets Genau playback by a quarter cycle.
+- in Nau mode, `\` opens a file-picker dialog; the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Fun Time enters OmniPause while the dialog is open and leaves it when the dialog closes. (The same dialog, reached by the "browse" voice command in Hybrid mode, sends the pick to the primary VLC instead.)
+- in Genau and Hybrid modes, `\` offsets Genau playback by a quarter cycle.
+
+The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode except Hybrid, where they drive the primary VLC. The `'` clip-save key likewise reads the current video/time from Nau's status file outside Hybrid mode.
+
+The Nau-mode voice trigger is spoken as "video" (the reference displays it as "nau" — "nau" itself is too close to Genau's "go now" trigger).
+
+### Loop recording (Nau mode)
+
+Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (amber loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows Nau's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".
 
 ### OmniPause
 
@@ -304,10 +224,12 @@ The primary stack runs in one of three modes, each selected by its own hotkey (s
 
 ### F-Mode
 
-Toggling F-Mode reloads all three VLC playlists immediately, rather than waiting for the next advance, and restricts each VLC to funscript-backed media:
+Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the next advance — the three VLC `.m3u` playlists plus Nau's `nau_playlist.tsv` (Nau is sent `RELOAD_PLAYLIST`) — and restricts playback to funscript-backed media:
 
-- the primary VLC plays only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
+- the primary playlist (Nau, and the primary VLC in Hybrid mode) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
 - each satellite VLC plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
+
+The same builder (`build_fmode_playlists`) writes all four playlist files at startup, so startup and the F-mode toggle share one playlist authority.
 
 ## Favorites CSV behavior
 
@@ -335,14 +257,14 @@ Written by the broker (the `../osr2_broker` project).
 
 Values:
 
-- `0` = VLC mode
-- `1` = Genau mode
+- `0` = Genau takeover not active (Nau or, in Hybrid mode, the primary VLC owns playback)
+- `1` = Genau takeover active
 
 The audio companion and the Python dispatch loop both read this file as the authoritative source of whether Genau takeover is actually active.
 
 ### `genau_cmd.txt`
 
-Written by `fun_time/command_dispatch.py` when Genau control commands are dispatched during Genau mode.
+Written by `fun_time/command_dispatch.py` when Genau control commands are dispatched while Genau is active (Genau/Hybrid mode).
 
 Values:
 
@@ -353,6 +275,32 @@ Values:
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
 Genau (the `../genau` project) consumes and clears this file.
+
+### `nau_cmd.txt`
+
+Written by the Python dispatch loop when Nau control commands are dispatched; Nau consumes and clears it.
+
+Commands:
+
+- `NEXT` / `PREV`
+- `SEEK_FWD` / `SEEK_BACK`
+- `RECORD_DOWN` / `RECORD_UP` / `RECORD_TAP`
+- `LOOP_CANCEL`
+- `PLAY_FILE video[TAB]funscript`
+- `RELOAD_PLAYLIST`
+- `QUIT`
+
+### `nau_paused.txt`
+
+Flag file — Nau's pause channel. Mode switches and OmniPause write it; Nau polls it every tick.
+
+### `nau_status.txt`
+
+Written by Nau: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, and `paused`. Read by `clipper_save` (for the current video/time outside Hybrid mode) and by the dashboard.
+
+### `nau_playlist.tsv`
+
+One video per line, with a TAB plus the funscript path when one exists. Written by `build_fmode_playlists` at startup and on every F-mode toggle (which also sends Nau `RELOAD_PLAYLIST`).
 
 ### Log files
 
@@ -368,27 +316,26 @@ The broker and Genau write their own logs (e.g. `broker.log`, `genau_listener.lo
 
 ### Why the broker exists
 
-Windows serial ports are effectively single-owner.
-
-Without the broker:
-
-- MFP and Genau would fight over `COM4`
+Windows serial ports are effectively single-owner, so exactly one process can own `COM4`.
 
 With the broker:
 
-- MFP uses virtual `COM14`
-- broker uses `COM15` and real `COM4`
+- the broker alone opens real `COM4`
+- Nau and Genau drive the OSR2 by sending T-Code to the broker over UDP; the broker forwards it and suppresses serial input while UDP flows
 - Genau gets mode/timing info over localhost instead of serial
 
-### Why Genau uses local files for commands/mode
+(Historically, MultiFunPlayer sat on the other side of a `com0com` virtual serial pair from the broker; MFP and that pair are gone now that UDP T-Code is the only control path.)
+
+### Why Genau and Nau use local files for commands/mode
 
 For this setup, file-based signaling turned out to be a reliable and simple way to let:
 
 - Python dispatch loop
 - broker
 - Genau
+- Nau
 
-coordinate mode and clip-switch commands without depending on focused windows.
+coordinate mode, playback, and clip-switch commands without depending on focused windows.
 
 ## Troubleshooting
 
@@ -419,17 +366,15 @@ If startup still fails, inspect:
 - `state/orchestrator.log`
 - `state/windows_bridge.log`
 
-### MFP does not control the OSR2
+### The OSR2 does not respond to Nau
 
 Check:
 
-- MFP is on the current `CNCA*` side of the `com0com` pair
 - broker is running
-- `com0com` pair exists
-- broker log shows which broker-side port it chose
-- OSR2 is still on `COM4`
 - scheduled task `FunTime Genau Broker` is present and running (`Get-ScheduledTask -TaskName "FunTime Genau Broker"`)
-- `C:\Program Files\MultiFunPlayer-1.34.2-patreon\MultiFunPlayer.config.json` does not still point at an old dead `CNCA*` device
+- OSR2 is still on `COM4`
+- the current video actually has a funscript (`state/nau_status.txt` shows `has_funscript`) — videos without one play with no OSR2 output by design
+- the broker's log (in `../osr2_broker`) for serial/COM-port errors
 
 ### Genau never appears
 
@@ -443,19 +388,9 @@ Check:
 
 ### Broker will not start
 
-The broker is the `../osr2_broker` project — check its logs and config there. Also confirm:
+The broker is the `../osr2_broker` project — check its logs and config there. Also confirm that current serial ports still include the real OSR2 on `COM4`.
 
-- current serial ports still include the real OSR2 on `COM4`
-- current serial ports still include a `com0com` pair
-
-If the broker's config still points at an old broker-side port such as `COM15`, the broker tries to recover automatically by selecting the current `CNCB*` port.
-
-If it still cannot recover, confirm that:
-
-- MFP is on the matching `CNCA*` side
-- the `com0com` pair actually exists in Windows Device Manager / serial-port enumeration
-
-### `[` and `]` do not switch Genau clips
+### `M` and `.` do not switch Genau clips
 
 Check:
 
@@ -492,7 +427,7 @@ These are the files that define the working system:
 - `fun_time/dashboard_app.py`
 - `fun_time/audio_companion_app.py`
 
-The broker, Genau, and Clipper are separate projects: `../osr2_broker`, `../genau`, `../clipper`.
+The broker, Genau/Nau, and Clipper are separate projects: `../osr2_broker`, `../genau`, `../clipper`.
 
 ## Refactors completed
 
