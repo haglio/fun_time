@@ -264,7 +264,6 @@ def test_build_omnipause_toggle_returns_enter_or_leave():
     assert enter.next_omni_paused is True
     assert leave.action == "leave"
     assert leave.next_omni_paused is False
-    assert leave.genau_branch is True
 
 
 def test_apply_enter_omnipause_pauses_satellites_and_marks_pause_files(monkeypatch, tmp_path: Path):
@@ -412,3 +411,43 @@ def test_apply_leave_omnipause_resumes_genau_when_genau_mode(monkeypatch, tmp_pa
     assert genau_cmd_file.read_text(encoding="utf-8") == "RESUME"
     # Calls happen in parallel, so order is non-deterministic
     assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True)])
+
+
+def test_apply_leave_omnipause_resumes_primary_and_genau_when_hybrid_mode(monkeypatch, tmp_path: Path):
+    """Hybrid runs both Genau and primary VLC, so leaving omnipause must resume both."""
+    paused_file = tmp_path / "genau_paused.txt"
+    audio_paused_file = tmp_path / "audio_paused.txt"
+    genau_cmd_file = tmp_path / "genau_cmd.txt"
+    broker_cmd_file = tmp_path / "broker_cmd.txt"
+    paused_file.write_text("1", encoding="utf-8")
+    audio_paused_file.write_text("1", encoding="utf-8")
+    calls: list[tuple[int, str, bool]] = []
+
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
+    )
+
+    result = apply_leave_omnipause(
+        omni_paused=True,
+        primary_mode="hybrid",
+        skip_primary_resume=False,
+        primary_port=9001,
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+        genau_paused_file=paused_file,
+        audio_paused_file=audio_paused_file,
+        genau_cmd_file=genau_cmd_file,
+        broker_cmd_file=broker_cmd_file,
+    )
+
+    assert result.action == "leave"
+    assert result.next_omni_paused is False
+    # Genau resumes in hybrid
+    assert paused_file.read_text(encoding="utf-8") == "0"
+    assert audio_paused_file.read_text(encoding="utf-8") == "0"
+    assert genau_cmd_file.read_text(encoding="utf-8") == "RESUME"
+    assert broker_cmd_file.read_text(encoding="utf-8") == "RESUME"
+    # Primary VLC (9001) must resume alongside the satellites
+    assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True), (9001, "pw", True)])

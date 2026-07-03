@@ -18,6 +18,11 @@ def genau_active(mode: str) -> bool:
     return mode in ("genau", "hybrid")
 
 
+def vlc_primary_active(mode: str) -> bool:
+    """Return True if the primary VLC is a playing surface in this mode."""
+    return mode in ("vlc", "hybrid")
+
+
 def build_mode_switch_plan(
     *,
     current_mode: str,
