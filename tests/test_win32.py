@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from fun_time.win32 import (
     close_window,
+    get_process_image_name,
     wait_for_window,
     move_window,
     set_always_on_top,
@@ -143,6 +146,27 @@ class TestIsWindowTopmost:
         with patch("fun_time.win32._user32") as mock:
             mock.GetWindowLongW.return_value = 0x100
             assert is_window_topmost(111) is False
+
+
+class TestGetProcessImageName:
+    def test_returns_own_executable_path(self):
+        path = get_process_image_name(os.getpid())
+
+        assert path is not None
+        assert Path(path).name.lower() in {"python.exe", "pythonw.exe"}
+        assert Path(path).is_file()
+
+    def test_returns_none_when_process_cannot_be_opened(self):
+        with patch("fun_time.win32._kernel32") as mock:
+            mock.OpenProcess.return_value = None
+            assert get_process_image_name(4242) is None
+
+    def test_returns_none_when_image_query_fails(self):
+        with patch("fun_time.win32._kernel32") as mock:
+            mock.OpenProcess.return_value = 42
+            mock.QueryFullProcessImageNameW.return_value = 0
+            assert get_process_image_name(4242) is None
+        mock.CloseHandle.assert_called_once_with(42)
 
 
 class TestConstants:

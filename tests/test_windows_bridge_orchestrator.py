@@ -11,6 +11,7 @@ from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANI
 from fun_time.windows_bridge_orchestrator import (
     _minimize_all_windows,
     _shutdown_children,
+    kill_process_tree,
     write_pids_file,
     run_python_orchestrated_bridge,
 )
@@ -37,6 +38,42 @@ def _fake_startup_result() -> StartupResult:
         audio_pid=700,
         layout_plan=_fake_plan(),
     )
+
+
+class TestKillProcessTree:
+    def test_kills_when_pid_still_runs_one_of_our_images(self):
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_image_name",
+            return_value=r"C:\Program Files\VideoLAN\VLC\VLC.EXE",
+        ), patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
+            kill_process_tree(1234)
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args[0][0] == ["taskkill", "/PID", "1234", "/T", "/F"]
+
+    def test_skips_recycled_pid_running_foreign_image(self, caplog):
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_image_name",
+            return_value=r"C:\Windows\System32\notepad.exe",
+        ), patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run, \
+             caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
+            kill_process_tree(1234)
+
+        mock_run.assert_not_called()
+        assert "notepad.exe" in caplog.text
+        assert "1234" in caplog.text
+
+    def test_skips_already_exited_pid_without_recycle_warning(self, caplog):
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_image_name",
+            return_value=None,
+        ), patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run, \
+             caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
+            kill_process_tree(1234)
+
+        mock_run.assert_not_called()
+        assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
+        assert "1234" in caplog.text
 
 
 class TestShutdownChildren:
