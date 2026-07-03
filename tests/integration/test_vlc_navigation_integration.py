@@ -430,7 +430,17 @@ def test_advance_and_remove_preserves_navigation(vlc_with_playlist):
     vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
 
     before = _current()
+    # vlc_nav_step reads the playlist itself, and right after a delete VLC
+    # can still blink current=-1 — a single attempt is racy no matter how
+    # stable the preceding reads were.  The contract under test is that
+    # navigation RECOVERS after advance_and_remove (real presses arrive at
+    # human timescales), so retry briefly instead of asserting the first
+    # microsecond-later attempt.
+    deadline = time.monotonic() + 5.0
     ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
+    while not ok and time.monotonic() < deadline:
+        time.sleep(0.3)
+        ok = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
     assert ok is True, "vlc_nav_step failed after advance_and_remove"
     vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
     after = _wait_for_item_change(TEST_PORT, before)
