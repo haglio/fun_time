@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 from .modes import build_fmode_playlists
 from .omnipause import build_omnipause_plan
-from .mode_plan import build_mode_switch_plan, genau_active
+from .mode_plan import build_mode_switch_plan, genau_active, vlc_primary_active
 from .vlc_actions import ensure_playback_state, replace_playlist_from_file
 
 
@@ -126,7 +126,6 @@ def apply_toggle_fmode(
 class OmniPauseFlowResult:
     action: str
     next_omni_paused: bool
-    genau_branch: bool
     disable_always_on_top: bool
     log_message: str
 
@@ -135,13 +134,12 @@ def build_omnipause_toggle(*, omni_paused: bool, primary_mode: str) -> OmniPause
     plan = build_omnipause_plan(
         "toggle",
         omni_paused=omni_paused,
-        genau_mode_on=genau_active(primary_mode),
+        vlc_primary_active=vlc_primary_active(primary_mode),
         skip_primary_resume=False,
     )
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        genau_branch=plan.genau_branch,
         disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )
@@ -163,7 +161,7 @@ def apply_enter_omnipause(
     plan = build_omnipause_plan(
         "enter",
         omni_paused=omni_paused,
-        genau_mode_on=genau_active(primary_mode),
+        vlc_primary_active=vlc_primary_active(primary_mode),
         skip_primary_resume=False,
     )
     write_flag_file(genau_paused_file, True)
@@ -187,7 +185,6 @@ def apply_enter_omnipause(
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        genau_branch=plan.genau_branch,
         disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )
@@ -210,7 +207,7 @@ def apply_leave_omnipause(
     plan = build_omnipause_plan(
         "leave",
         omni_paused=omni_paused,
-        genau_mode_on=genau_active(primary_mode),
+        vlc_primary_active=vlc_primary_active(primary_mode),
         skip_primary_resume=skip_primary_resume,
     )
     if genau_active(primary_mode):
@@ -236,7 +233,6 @@ def apply_leave_omnipause(
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        genau_branch=plan.genau_branch,
         disable_always_on_top=plan.disable_always_on_top,
         log_message=plan.log_message,
     )
