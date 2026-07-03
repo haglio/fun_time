@@ -978,6 +978,29 @@ class TestGenauZOrder:
         assert {3001, 4001, 5001} <= restored
         assert 2001 not in restored
 
+    def test_window_roster_finds_nau_by_exact_title_when_pid_fails(self, tmp_path):
+        """The venv pythonw launcher's PID differs from the interpreter that
+        owns the SDL window, so the roster must fall back to an exact-title
+        lookup — exact because 'Nau' is a substring of 'Genau'."""
+        runner = self._make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode="nau")
+
+        # Nau's pid (200) resolves to no window; everything else works.
+        pid_to_hwnd = {100: 1001, 300: 3001, 400: 4001, 500: 5001}
+        title_calls: list[tuple[str, bool]] = []
+
+        def title_lookup(title, exact=False):
+            title_calls.append((title, exact))
+            if title == "Nau" and exact:
+                return 2002
+            return 6001 if title == "Genau" else 0
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)),              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup):
+            layers = runner._window_layers()
+
+        assert ("Nau", True) in title_calls, "must try the exact-title fallback"
+        assert (2002, True) in layers, "Nau (via title) must be topmost in nau mode"
+
     def test_restore_all_topmost_toggles_dashboard_above_rfb(self, tmp_path):
         """Dashboard must end up above RFB and MFP in the topmost band."""
         runner = self._make_runner(tmp_path, rfb_hwnd=7777)

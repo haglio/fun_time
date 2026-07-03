@@ -397,7 +397,10 @@ class DispatchLoopRunner:
             landscape_hwnd=find_window_by_pid(self.landscape_pid),
             primary_hwnd=find_window_by_pid(self.primary_pid),
             genau_hwnd=find_window_by_title("Genau"),
-            nau_hwnd=find_window_by_pid(self.nau_pid),
+            # The venv pythonw launcher's PID differs from the interpreter
+            # that owns the SDL window, so fall back to the exact window
+            # title (exact: "Nau" is a substring of "Genau").
+            nau_hwnd=find_window_by_pid(self.nau_pid) or find_window_by_title("Nau", exact=True),
             dashboard_hwnd=self._find_dashboard_hwnd(),
             primary_mode=self.state.primary_mode,
         )

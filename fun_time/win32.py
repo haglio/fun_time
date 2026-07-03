@@ -181,15 +181,15 @@ def wait_for_window(pid: int, timeout_s: float = 15.0) -> int:
     return 0
 
 
-def wait_for_window_by_title(title: str, timeout_s: float = 5.0) -> int:
-    """Poll for a visible window whose title contains *title*.
+def wait_for_window_by_title(title: str, timeout_s: float = 5.0, *, exact: bool = False) -> int:
+    """Poll for a visible window whose title contains (or equals) *title*.
 
     Useful when the PID-based lookup fails (e.g. venv launcher PID differs
     from the interpreter PID that owns the window).
     """
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        hwnd = find_window_by_title(title)
+        hwnd = find_window_by_title(title, exact=exact)
         if hwnd:
             return hwnd
         time.sleep(0.1)

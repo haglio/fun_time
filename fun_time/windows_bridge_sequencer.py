@@ -194,7 +194,8 @@ def run_startup_sequence(
             landscape_hwnd=find_window_by_pid(landscape_pid),
             primary_hwnd=find_window_by_pid(primary_pid),
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
-            nau_hwnd=wait_for_window(nau_pid, timeout_s=3.0),
+            nau_hwnd=wait_for_window(nau_pid, timeout_s=3.0)
+            or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
             primary_mode="nau",
         )
         apply_z_order(layers)
@@ -271,7 +272,8 @@ def run_startup_sequence(
             landscape_hwnd=find_window_by_pid(landscape_pid),
             primary_hwnd=find_window_by_pid(primary_pid),
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=5.0),
-            nau_hwnd=wait_for_window(nau_pid, timeout_s=5.0),
+            nau_hwnd=wait_for_window(nau_pid, timeout_s=5.0)
+            or wait_for_window_by_title("Nau", timeout_s=5.0, exact=True),
             dashboard_hwnd=dash_hwnd,
             primary_mode="nau",
         )
