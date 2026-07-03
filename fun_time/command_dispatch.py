@@ -280,14 +280,6 @@ def dispatch_command(
             config.genau_cmd_file.write_text(genau_numeric, encoding="utf-8")
         return state, ops
 
-    if command == "vlc_nudge_prev":
-        ops.append(WindowOp(op="vlc_http_seek", key="seek&val=-10"))
-        return state, ops
-
-    if command == "vlc_nudge_next":
-        ops.append(WindowOp(op="vlc_http_seek", key="seek&val=%2B10"))
-        return state, ops
-
     if command == "clipper_save":
         if state.primary_mode != "genau":
             msg = _dispatch_clipper_save(config)
