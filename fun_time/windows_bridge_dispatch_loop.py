@@ -290,10 +290,15 @@ class DispatchLoopRunner:
                 self._handle_broker_stop()
             elif cmd in ("voice_off", "voice_toggle"):
                 self._handle_voice_toggle(cmd)
-            elif cmd == "vlc_nudge_next":
-                self._seek_accumulator.nudge(1)
-            elif cmd == "vlc_nudge_prev":
-                self._seek_accumulator.nudge(-1)
+            elif cmd in ("primary_nudge_next", "primary_nudge_prev"):
+                if self.state.primary_mode == "hybrid":
+                    # The primary VLC plays only in hybrid; stack rapid
+                    # nudges into absolute seeks on its behalf.
+                    self._seek_accumulator.nudge(1 if cmd == "primary_nudge_next" else -1)
+                else:
+                    # Nau owns the primary display: its SEEK commands apply
+                    # to a live local clock, so they stack naturally.
+                    self._dispatch(cmd)
             elif cmd in ("primary_prev", "primary_next"):
                 # A video change invalidates the running seek target.
                 self._seek_accumulator.invalidate()

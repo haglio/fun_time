@@ -137,6 +137,16 @@ def test_genau_to_nau_writes_broker_resume(monkeypatch, flow_files):
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "RESUME"
 
 
+def test_hybrid_to_nau_writes_broker_resume(monkeypatch, flow_files):
+    """Leaving genau-active hybrid for nau must un-PARK the broker —
+    previously only the genau->primary handoff had this coverage."""
+    calls: list[tuple[int, str, bool]] = []
+
+    _mode_switch(flow_files, monkeypatch, calls, current="hybrid", target="nau", broker=True)
+
+    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "RESUME"
+
+
 def test_nau_to_genau_does_not_write_broker_cmd(monkeypatch, flow_files):
     calls: list[tuple[int, str, bool]] = []
 

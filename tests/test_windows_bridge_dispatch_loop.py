@@ -3,7 +3,7 @@ from __future__ import annotations
 import socket
 import time
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
 
@@ -270,25 +270,38 @@ class TestDispatchLoopRunner:
         assert "portrait_next" in commands
         assert not cmd_file.exists()
 
-    def test_vlc_nudge_next_calls_seek_accumulator_forward(self, tmp_path):
+    def test_hybrid_nudges_call_seek_accumulator(self, tmp_path):
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        (tmp_path / "dashboard_cmd.txt").write_text("vlc_nudge_next", encoding="utf-8")
+        runner.state = BridgeState(primary_mode="hybrid")
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            "primary_nudge_next\nprimary_nudge_prev", encoding="utf-8",
+        )
         runner._seek_accumulator = Mock()
 
-        runner.tick()
+        # tick() re-reads shared state from disk; keep the hybrid mode.
+        with patch("fun_time.windows_bridge_dispatch_loop.read_shared_state",
+                   return_value=BridgeState(primary_mode="hybrid")):
+            runner.tick()
 
-        runner._seek_accumulator.nudge.assert_called_once_with(1)
+        assert runner._seek_accumulator.nudge.call_args_list == [call(1), call(-1)]
 
-    def test_vlc_nudge_prev_calls_seek_accumulator_backward(self, tmp_path):
+    def test_nau_mode_nudges_bypass_accumulator_and_dispatch(self, tmp_path):
+        """Outside hybrid the nudge goes to dispatch_command (Nau's SEEK
+        commands stack naturally against its live clock)."""
         runner = self._make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        (tmp_path / "dashboard_cmd.txt").write_text("vlc_nudge_prev", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("primary_nudge_next", encoding="utf-8")
         runner._seek_accumulator = Mock()
 
-        runner.tick()
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
 
-        runner._seek_accumulator.nudge.assert_called_once_with(-1)
+        runner._seek_accumulator.nudge.assert_not_called()
+        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        assert "primary_nudge_next" in commands
 
     def test_primary_nav_invalidates_seek_accumulator(self, tmp_path):
         # Changing the primary video makes the running seek target meaningless.
