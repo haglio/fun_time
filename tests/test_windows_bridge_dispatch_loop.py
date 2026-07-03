@@ -249,7 +249,7 @@ class TestDispatchLoopRunner:
             shared_state_file=tmp_path / "shared_state.ini",
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             primary_pid=100,
-            mfp_pid=200,
+            nau_pid=200,
             dashboard_enabled=False,
             **kwargs,
         )
@@ -780,7 +780,7 @@ class TestOpenRfbTab:
             shared_state_file=tmp_path / "shared_state.ini",
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             primary_pid=100,
-            mfp_pid=200,
+            nau_pid=200,
             dashboard_enabled=False,
             **kwargs,
         )
@@ -881,7 +881,7 @@ class TestGenauZOrder:
             shared_state_file=tmp_path / "shared_state.ini",
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             primary_pid=100,
-            mfp_pid=200,
+            nau_pid=200,
             portrait_pid=300,
             landscape_pid=400,
             dashboard_pid=500,
@@ -952,10 +952,11 @@ class TestGenauZOrder:
              patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        # Primary VLC must be demoted (it drifted to TOPMOST in genau mode)
+        # Primary VLC and Nau must both be demoted (non-topmost in genau mode)
         assert (1001, False) in topmost_calls
+        assert (2001, False) in topmost_calls
         # No other calls needed — everything else is already correct
-        assert len(topmost_calls) == 1
+        assert len(topmost_calls) == 2
 
     def test_restore_all_topmost_demotes_primary_in_genau_mode(self, tmp_path):
         """_restore_all_topmost must demote Primary and promote Genau
@@ -972,8 +973,10 @@ class TestGenauZOrder:
             runner._restore_all_topmost()
 
         assert (1001, False) in topmost_calls
+        assert (2001, False) in topmost_calls
         restored = {h for h, v in topmost_calls if v}
-        assert {2001, 3001, 4001, 5001} <= restored
+        assert {3001, 4001, 5001} <= restored
+        assert 2001 not in restored
 
     def test_restore_all_topmost_toggles_dashboard_above_rfb(self, tmp_path):
         """Dashboard must end up above RFB and MFP in the topmost band."""
@@ -1053,7 +1056,7 @@ class TestHandleOmniPauseToggle:
             shared_state_file=tmp_path / "shared_state.ini",
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             primary_pid=100,
-            mfp_pid=200,
+            nau_pid=200,
             portrait_pid=300,
             landscape_pid=400,
             dashboard_pid=500,
@@ -1097,8 +1100,11 @@ class TestHandleOmniPauseToggle:
             mock_dispatch.return_value = (BridgeState(omni_paused=False), [])
             runner._handle_omnipause_toggle()
 
+        # Default mode is nau: Nau + satellites + dashboard topmost; the
+        # hybrid-only primary VLC stays non-topmost.
         restored = {h for h, v in topmost_calls if v}
-        assert restored == {1001, 2001, 3001, 4001, 5001}
+        assert restored == {2001, 3001, 4001, 5001}
+        assert (1001, False) in topmost_calls
 
     def test_leaving_skips_primary_topmost_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path)
@@ -1116,8 +1122,9 @@ class TestHandleOmniPauseToggle:
             runner._handle_omnipause_toggle()
 
         restored = {h for h, v in topmost_calls if v}
-        assert 1001 not in restored
-        assert {2001, 3001, 4001, 5001} <= restored
+        assert 1001 not in restored, "primary VLC stays non-topmost in genau mode"
+        assert 2001 not in restored, "Nau stays non-topmost in genau mode"
+        assert {3001, 4001, 5001} <= restored
 
     def test_entering_omnipause_removes_genau_topmost(self, tmp_path):
         runner = self._make_runner(tmp_path)
@@ -1252,7 +1259,7 @@ class TestHandleOpenFileDialog:
             shared_state_file=tmp_path / "shared_state.ini",
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             primary_pid=100,
-            mfp_pid=200,
+            nau_pid=200,
             portrait_pid=300,
             landscape_pid=400,
             dashboard_pid=500,
@@ -1336,7 +1343,7 @@ class TestHandleOpenFileDialog:
             shared_state_file=tmp_path / "shared_state.ini",
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             primary_pid=100,
-            mfp_pid=200,
+            nau_pid=200,
             portrait_pid=300,
             landscape_pid=400,
             dashboard_pid=500,
@@ -1412,7 +1419,7 @@ class TestHandleOpenFileDialog:
             shared_state_file=tmp_path / "shared_state.ini",
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             primary_pid=100,
-            mfp_pid=200,
+            nau_pid=200,
             portrait_pid=300,
             landscape_pid=400,
             dashboard_pid=500,
@@ -1479,10 +1486,11 @@ class TestHandleOpenFileDialog:
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "leave_omnipause_skip_primary" in dispatched
 
-        # All 5 windows should have topmost restored (True) at the end
+        # Nau + satellites + dashboard restored; the hybrid-only primary VLC
+        # stays non-topmost in nau mode.
         restored = [(h, v) for h, v in topmost_calls if v]
         restored_hwnds = {h for h, _ in restored}
-        assert restored_hwnds == {1001, 2001, 3001, 4001, 5001}
+        assert restored_hwnds == {2001, 3001, 4001, 5001}
 
     def test_skips_primary_topmost_in_genau_mode(self, tmp_path):
         runner = self._make_runner(tmp_path)
@@ -1509,11 +1517,12 @@ class TestHandleOpenFileDialog:
             mock_dispatch.return_value = (BridgeState(omni_paused=True, primary_mode="genau"), [])
             runner._handle_open_file_dialog()
 
-        # Primary (1001) should NOT be restored to topmost in genau_mode
+        # Primary VLC (1001) and Nau (2001) stay non-topmost in genau mode
         restored = [(h, v) for h, v in topmost_calls if v]
         restored_hwnds = {h for h, _ in restored}
         assert 1001 not in restored_hwnds
-        assert {2001, 3001, 4001, 5001} <= restored_hwnds
+        assert 2001 not in restored_hwnds
+        assert {3001, 4001, 5001} <= restored_hwnds
 
     def test_topmost_removed_before_dialog(self, tmp_path):
         """Topmost removal happens before showing the file dialog."""
@@ -1690,7 +1699,7 @@ class TestUpdateDashboardOsr2Off:
             shared_state_file=tmp_path / "shared_state.ini",
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             primary_pid=100,
-            mfp_pid=200,
+            nau_pid=200,
             dashboard_enabled=False,
             **kwargs,
         )
@@ -1786,7 +1795,7 @@ class TestIdempotentVoiceCommands:
             shared_state_file=tmp_path / "shared_state.ini",
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             primary_pid=100,
-            mfp_pid=200,
+            nau_pid=200,
             portrait_pid=300,
             landscape_pid=400,
             dashboard_pid=500,

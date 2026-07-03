@@ -19,7 +19,6 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
         },
         "executables": {
             "vlc_exe": str(config.paths.vlc_exe),
-            "mfp_exe": str(config.paths.mfp_exe),
             "python_exe": str(config.paths.python_exe),
             "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
         },
@@ -72,8 +71,6 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "secondary_monitor": str(layout.secondary_monitor),
             "primary_top_ratio": str(layout.primary_top_ratio),
             "landscape_width_ratio": str(layout.landscape_width_ratio),
-            "mfp_width_ratio": str(layout.mfp_width_ratio),
-            "mfp_height_ratio": str(layout.mfp_height_ratio),
             "left_partition_top_ratio": str(layout.left_partition_top_ratio),
             "left_partition_bottom_ratio": str(layout.left_partition_bottom_ratio),
         },

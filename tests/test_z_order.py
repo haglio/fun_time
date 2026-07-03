@@ -5,81 +5,80 @@ from fun_time.z_order import apply_z_order, compute_z_order
 
 
 class TestComputeZOrder:
-    def test_genau_inactive_primary_topmost_genau_not(self):
-        """When Genau is not active, Primary is TOPMOST and Genau is not."""
+    def test_nau_mode_nau_topmost_others_not(self):
+        """In nau mode, Nau is TOPMOST; Primary VLC and Genau are not."""
         layers = compute_z_order(
             primary_hwnd=100,
             genau_hwnd=200,
-            primary_mode="vlc",
+            nau_hwnd=300,
+            primary_mode="nau",
         )
-        primary_entry = [(h, t) for h, t in layers if h == 100]
-        genau_entry = [(h, t) for h, t in layers if h == 200]
-        assert primary_entry == [(100, True)]
-        assert genau_entry == [(200, False)]
+        assert [(h, t) for h, t in layers if h == 100] == [(100, False)]
+        assert [(h, t) for h, t in layers if h == 200] == [(200, False)]
+        assert [(h, t) for h, t in layers if h == 300] == [(300, True)]
 
-    def test_genau_active_genau_topmost_primary_not(self):
-        """When Genau is active, Genau is TOPMOST and Primary is not."""
+    def test_genau_active_genau_topmost_others_not(self):
+        """When Genau is active, Genau is TOPMOST; Primary and Nau are not."""
         layers = compute_z_order(
             primary_hwnd=100,
             genau_hwnd=200,
+            nau_hwnd=300,
             primary_mode="genau",
         )
-        primary_entry = [(h, t) for h, t in layers if h == 100]
-        genau_entry = [(h, t) for h, t in layers if h == 200]
-        assert primary_entry == [(100, False)]
-        assert genau_entry == [(200, True)]
+        assert [(h, t) for h, t in layers if h == 100] == [(100, False)]
+        assert [(h, t) for h, t in layers if h == 200] == [(200, True)]
+        assert [(h, t) for h, t in layers if h == 300] == [(300, False)]
 
-    def test_full_stack_order_genau_inactive(self):
-        """Full stack bottom-to-top: RFB, Portrait, Landscape, Primary, MFP, Dashboard."""
+    def test_full_stack_order_nau_mode(self):
+        """Full stack bottom-to-top: RFB, Portrait, Landscape, Nau, Dashboard."""
         layers = compute_z_order(
             rfb_hwnd=1,
             portrait_hwnd=2,
             landscape_hwnd=3,
             primary_hwnd=4,
             genau_hwnd=5,
-            mfp_hwnd=6,
+            nau_hwnd=6,
             dashboard_hwnd=7,
-            primary_mode="vlc",
+            primary_mode="nau",
         )
         topmost_hwnds = [h for h, t in layers if t]
-        assert topmost_hwnds == [1, 2, 3, 4, 6, 7]
-        # Genau is the only non-topmost entry
+        assert topmost_hwnds == [1, 2, 3, 6, 7]
         not_topmost = [h for h, t in layers if not t]
-        assert not_topmost == [5]
+        assert sorted(not_topmost) == [4, 5]
 
     def test_full_stack_order_genau_active(self):
-        """When Genau is active, it replaces Primary in the topmost stack."""
+        """When Genau is active, it replaces Nau in the topmost stack."""
         layers = compute_z_order(
             rfb_hwnd=1,
             portrait_hwnd=2,
             landscape_hwnd=3,
             primary_hwnd=4,
             genau_hwnd=5,
-            mfp_hwnd=6,
+            nau_hwnd=6,
             dashboard_hwnd=7,
             primary_mode="genau",
         )
         topmost_hwnds = [h for h, t in layers if t]
-        assert topmost_hwnds == [1, 2, 3, 5, 6, 7]
+        assert topmost_hwnds == [1, 2, 3, 5, 7]
         not_topmost = [h for h, t in layers if not t]
-        assert not_topmost == [4]
+        assert sorted(not_topmost) == [4, 6]
 
-    def test_hybrid_both_topmost_genau_above_primary(self):
-        """In hybrid mode, both Primary and Genau are topmost, Genau above Primary."""
+    def test_hybrid_vlc_and_genau_topmost_genau_above_primary(self):
+        """In hybrid mode Primary VLC and Genau are topmost (Genau above); Nau is not."""
         layers = compute_z_order(
             rfb_hwnd=1,
             portrait_hwnd=2,
             landscape_hwnd=3,
             primary_hwnd=4,
             genau_hwnd=5,
-            mfp_hwnd=6,
+            nau_hwnd=6,
             dashboard_hwnd=7,
             primary_mode="hybrid",
         )
         topmost_hwnds = [h for h, t in layers if t]
-        assert topmost_hwnds == [1, 2, 3, 4, 5, 6, 7]
+        assert topmost_hwnds == [1, 2, 3, 4, 5, 7]
         not_topmost = [h for h, t in layers if not t]
-        assert not_topmost == []
+        assert not_topmost == [6]
         # Genau must come after Primary in the list (stacks on top)
         primary_idx = [h for h, _ in layers].index(4)
         genau_idx = [h for h, _ in layers].index(5)
@@ -89,20 +88,20 @@ class TestComputeZOrder:
         """Zero-valued HWNDs are omitted from layers."""
         layers = compute_z_order(
             primary_hwnd=100,
-            mfp_hwnd=200,
-            primary_mode="vlc",
+            nau_hwnd=200,
+            primary_mode="nau",
         )
         hwnds = [h for h, _ in layers]
         assert 0 not in hwnds
         assert hwnds == [100, 200]
 
     def test_dashboard_always_last_topmost(self):
-        """Dashboard must be the last TOPMOST entry regardless of genau state."""
-        for primary_mode in ["vlc", "genau", "hybrid"]:
+        """Dashboard must be the last TOPMOST entry regardless of mode."""
+        for primary_mode in ["nau", "genau", "hybrid"]:
             layers = compute_z_order(
                 primary_hwnd=1,
                 genau_hwnd=2,
-                mfp_hwnd=3,
+                nau_hwnd=3,
                 dashboard_hwnd=4,
                 primary_mode=primary_mode,
             )

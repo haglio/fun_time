@@ -40,7 +40,6 @@ class DashboardSnapshot:
     f_mode_enabled: bool
     primary_mode: str
     osr2_mode: str
-    mfp_alive: bool
     primary_responsive: bool
     omni_paused: bool
     primary: DashboardPanelSnapshot
@@ -64,7 +63,6 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         f_mode_enabled=_read_bool(parser, "fmode", "enabled"),
         primary_mode=_read_primary_mode(parser),
         osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
-        mfp_alive=_read_bool(parser, "mfp", "alive"),
         primary_responsive=_read_bool(parser, "primary", "responsive"),
         omni_paused=_read_bool(parser, "omnipause", "active"),
         voice_active=_read_bool(parser, "voice", "active") if parser.has_section("voice") else True,
@@ -179,11 +177,14 @@ def _read_dashboard_text(path: Path) -> str:
 
 def _read_primary_mode(parser: configparser.ConfigParser) -> str:
     mode = parser.get("primary", "mode", fallback="")
+    if mode == "vlc":
+        # Nau replaced the retired vlc mode as the primary player.
+        return "nau"
     if mode:
         return mode
     # Backward compat: old snapshots used uses_genau=1/0
     uses_genau = parser.get("primary", "uses_genau", fallback="0")
-    return "genau" if uses_genau.strip() not in {"", "0", "false", "False"} else "vlc"
+    return "genau" if uses_genau.strip() not in {"", "0", "false", "False"} else "nau"
 
 
 def _read_bool(parser: configparser.ConfigParser, section: str, option: str) -> bool:

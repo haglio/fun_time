@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 
 from .config import load_config
-from .mfp_config import ensure_mfp_vlc_endpoint
 from .manifest import write_windows_bridge_manifest
 from .windows_bridge_orchestrator import run_python_orchestrated_bridge
 from .logging_utils import configure_logging, install_exception_logging
@@ -44,7 +43,6 @@ def ensure_runtime_files(config) -> None:
 
 def validate_config(config) -> None:
     require_file(config.paths.vlc_exe)
-    require_file(config.paths.mfp_exe)
     require_file(config.paths.ahk_exe)
     require_file(config.paths.python_exe)
     if config.random_favs_browser.enabled:
@@ -226,7 +224,6 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Config validation succeeded")
         return 0
 
-    ensure_mfp_vlc_endpoint(config, logger)
     ensure_broker_running(config, logger)
     return run_windows_bridge(config, logger)
 

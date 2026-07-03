@@ -22,15 +22,15 @@ from fun_time.window_layout import WindowLayoutPlan, WindowRect
 def _fake_plan() -> WindowLayoutPlan:
     r = WindowRect(0, 0, 100, 100)
     return WindowLayoutPlan(
-        portrait=r, primary=r, landscape=r, mfp=r,
-        dashboard=r, random_favs_browser=r, genau=r,
+        portrait=r, primary=r, landscape=r,
+        dashboard=r, random_favs_browser=r,
     )
 
 
 def _fake_startup_result() -> StartupResult:
     return StartupResult(
         primary_pid=100,
-        mfp_pid=200,
+        nau_pid=200,
         portrait_pid=300,
         landscape_pid=400,
         dashboard_pid=500,
@@ -79,7 +79,7 @@ class TestKillProcessTree:
 class TestShutdownChildren:
     def test_closes_rfb_window(self):
         result = StartupResult(
-            primary_pid=100, mfp_pid=200, portrait_pid=300, landscape_pid=400,
+            primary_pid=100, nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
             layout_plan=_fake_plan(), rfb_hwnd=88888,
         )
@@ -108,7 +108,7 @@ class TestWritePidsFile:
         parser.read(str(pids_path), encoding="utf-8")
 
         assert parser.getint("pids", "primary_pid") == 100
-        assert parser.getint("pids", "mfp_pid") == 200
+        assert parser.getint("pids", "nau_pid") == 200
         assert parser.getint("pids", "portrait_pid") == 300
         assert parser.getint("pids", "landscape_pid") == 400
         assert parser.getint("pids", "dashboard_pid") == 500
@@ -438,7 +438,7 @@ class TestLoadingScreenLifecycle:
         )
 
         result_with_hwnds = StartupResult(
-            primary_pid=100, mfp_pid=200, portrait_pid=300, landscape_pid=400,
+            primary_pid=100, nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
             layout_plan=_fake_plan(),
             core_hwnds=[1010, 2020, 3030, 4040],
@@ -521,7 +521,7 @@ class TestPostLoadingZOrder:
         )
 
         result_with_hwnds = StartupResult(
-            primary_pid=100, mfp_pid=200, portrait_pid=300, landscape_pid=400,
+            primary_pid=100, nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
             layout_plan=_fake_plan(),
             core_hwnds=[1010, 2020, 3030, 4040],
@@ -568,9 +568,12 @@ class TestPostLoadingZOrder:
         dash_promoted = [(h, v) for h, v in topmost_calls if h == DASH_HWND and v]
         assert len(dash_promoted) >= 1, f"Dashboard not promoted: {topmost_calls}"
 
-        # Core windows must be set topmost
-        core_promoted = {h for h, v in topmost_calls if v and h in {1010, 2020, 3030, 4040}}
-        assert core_promoted == {1010, 2020, 3030, 4040}, f"Core not promoted: {topmost_calls}"
+        # Nau + satellites must be set topmost; the hybrid-only primary VLC
+        # stays out of the topmost band in nau mode.
+        promoted = {h for h, v in topmost_calls if v and h in {1010, 2020, 3030, 4040}}
+        assert promoted == {2020, 3030, 4040}, f"Wrong promotions: {topmost_calls}"
+        primary_promoted = [(h, v) for h, v in topmost_calls if h == 1010 and v]
+        assert not primary_promoted, f"Primary VLC must not be promoted: {topmost_calls}"
 
 
 class TestVoiceControlIntegration:

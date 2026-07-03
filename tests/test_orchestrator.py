@@ -259,7 +259,7 @@ class TestValidateConfig:
         """Load config and create all stub files validate_config needs."""
         cfg = load_config(cfg_path)
         # Create stub executable files
-        for p in (cfg.paths.vlc_exe, cfg.paths.mfp_exe, cfg.paths.ahk_exe, cfg.paths.python_exe):
+        for p in (cfg.paths.vlc_exe, cfg.paths.ahk_exe, cfg.paths.python_exe):
             p.touch()
         # Create AHK scripts
         (cfg.project_dir / "windows_bridge_hotkeys.ahk").touch()
@@ -372,19 +372,17 @@ class TestBrokerHelpers:
         broker_probe.assert_called_once_with()
         starter.assert_not_called()
 
-    def test_main_ensures_mfp_vlc_endpoint_before_broker_and_bridge(self, cfg_path: Path):
+    def test_main_ensures_broker_before_bridge(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
              patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.ensure_mfp_vlc_endpoint") as ensure_mfp_vlc_endpoint, \
              patch("fun_time.orchestrator.ensure_broker_running") as ensure_broker, \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_windows_bridge:
             result = main(["--config", str(cfg_path)])
 
         assert result == 0
-        ensure_mfp_vlc_endpoint.assert_called_once()
         ensure_broker.assert_called_once()
         run_windows_bridge.assert_called_once()
 

@@ -62,7 +62,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
     cfg: dict = {
         "paths": {
             "vlc_exe": str(tmp_path / "vlc.exe"),
-            "mfp_exe": str(tmp_path / "mfp.exe"),
             "ahk_exe": str(tmp_path / "ahk.exe"),
             "python_exe": str(tmp_path / "python.exe"),
             "primary_vlc_dirs": [str(tmp_path / "videos" / "videos" / "vlc_primary")],
@@ -84,8 +83,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "secondary_monitor": 2,
             "primary_top_ratio": 0.727,
             "landscape_width_ratio": 0.666,
-            "mfp_width_ratio": 0.9,
-            "mfp_height_ratio": 0.6,
         },
         "genau": {
             "shuffle_on_load": True,
