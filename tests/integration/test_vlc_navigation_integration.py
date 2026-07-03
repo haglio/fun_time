@@ -142,6 +142,27 @@ def _current(port: int = TEST_PORT) -> str:
     return get_current_file_path(port, TEST_PASSWORD)
 
 
+def _settled_current(port: int = TEST_PORT, timeout: float = 6.0) -> str:
+    """The current item once VLC reports the same non-empty path twice.
+
+    A raw _current() read can land in VLC's transient window during item
+    transitions, where the HTTP interface briefly reports no current file.
+    Assertions must never compare against that blink.
+    """
+    deadline = time.monotonic() + timeout
+    candidate = None
+    while time.monotonic() < deadline:
+        path = get_current_file_path(port, TEST_PASSWORD)
+        if path:
+            if path == candidate:
+                return path
+            candidate = path
+        else:
+            candidate = None
+        time.sleep(0.2)
+    return get_current_file_path(port, TEST_PASSWORD)
+
+
 def _wait_for_item_change(port: int, before: str, timeout: float = 6.0) -> str:
     """Poll until VLC's current item differs from *before* and is stable.
 
@@ -239,7 +260,7 @@ def _next():
     before = _current()
     vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
     vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
-    _wait_for_item_change(TEST_PORT, before)
+    return _wait_for_item_change(TEST_PORT, before)
 
 
 def _prev():
@@ -254,7 +275,7 @@ def _prev():
     before = _current()
     vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
     vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
-    _wait_for_item_change(TEST_PORT, before)
+    return _wait_for_item_change(TEST_PORT, before)
 
 
 # --- Phase 2: Do VLC basics work? ---
@@ -291,30 +312,31 @@ def test_pl_previous_goes_back(vlc_with_playlist):
 
 
 def test_next_then_previous_returns_to_same_video(vlc_with_playlist):
-    start = _current()
-    _next()
-    assert _current() != start
-    _prev()
-    assert _current() == start, f"next+prev did not return to start: expected {start}, got {_current()}"
+    start = _settled_current()
+    mid = _next()
+    assert mid != start
+    after = _prev()
+    assert after == start, f"next+prev did not return to start: expected {start}, got {after}"
 
 
 def test_next_next_prev_prev_returns_to_start(vlc_with_playlist):
-    start = _current()
+    start = _settled_current()
     _next()
     _next()
     _prev()
-    _prev()
-    assert _current() == start, f"next*2+prev*2 did not return to start: expected {start}, got {_current()}"
+    after = _prev()
+    assert after == start, f"next*2+prev*2 did not return to start: expected {start}, got {after}"
 
 
 def test_playlist_wraps_around(vlc_with_playlist):
     proc, videos = vlc_with_playlist
     # Go forward through all videos — loop mode should wrap back to start
-    start = _current()
+    start = _settled_current()
+    after = start
     for _ in range(len(videos)):
-        _next()
-    assert _current() == start, (
-        f"After wrapping through {len(videos)} items, expected {start!r}, got {_current()!r}"
+        after = _next()
+    assert after == start, (
+        f"After wrapping through {len(videos)} items, expected {start!r}, got {after!r}"
     )
 
 
@@ -355,8 +377,8 @@ def test_vlc_nav_step_next_then_prev_returns_to_start(vlc_with_playlist):
     ok_prev = vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
     assert ok_prev is True, "vlc_nav_step prev returned False"
     vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
-    _wait_for_item_change(TEST_PORT, mid)
-    assert _current() == start, f"next+prev did not return to start: expected {start}, got {_current()}"
+    after = _wait_for_item_change(TEST_PORT, mid)
+    assert after == start, f"next+prev did not return to start: expected {start}, got {after}"
 
 
 # --- vlc_advance_and_remove (discard path) ---
