@@ -49,7 +49,7 @@ build_mode_switch_plan  # noqa
 
 # --- Dashboard layout fields accessed through instances (vulture can't trace) ---
 hybrid_mode_button  # noqa
-vlc_mode_button  # noqa
+nau_mode_button  # noqa
 hybrid_quarter_button  # noqa
 hybrid_open_file_dialog  # noqa
 hybrid_genau_amp_label  # noqa

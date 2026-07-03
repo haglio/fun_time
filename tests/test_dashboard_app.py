@@ -76,9 +76,8 @@ def test_dashboard_highlights_primary_for_ai_video_with_funscript(cfg_path: Path
     heartbeat_file.write_text("100.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        primary_mode="vlc",
+        primary_mode="nau",
         osr2_mode="manual",
-        mfp_alive=False,
         primary_responsive=False,
         omni_paused=False,
         primary=DashboardPanelSnapshot(str(ai_video), False),
@@ -152,9 +151,8 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     heartbeat_file.write_text("100.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        primary_mode="vlc",
+        primary_mode="nau",
         osr2_mode="auto",
-        mfp_alive=True,
         primary_responsive=True,
         omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
@@ -173,7 +171,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     texts = {item.text for item in scene.texts}
     fills = {item.rect: item.fill for item in scene.rects}
     assert len(scene.lines) == 1, "Cable should be one straight line"
-    assert "Non-AI VLC" in texts
+    assert "Nau" in texts
     assert "Portrait\nAI VLC" in texts
     assert not any(".mp4" in item.text for item in scene.texts)
     assert fills[preview_layout.primary_panel] == COLOR_PINK, "Auto mode makes primary pink"
@@ -194,9 +192,8 @@ def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
     heartbeat_file.write_text("100.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        primary_mode="vlc",
+        primary_mode="nau",
         osr2_mode="auto",
-        mfp_alive=True,
         primary_responsive=True,
         omni_paused=False,
         primary=DashboardPanelSnapshot("C:\\clips\\primary.mp4", False),
@@ -225,9 +222,8 @@ def test_osr2_non_auto_uses_panel_color(cfg_path: Path):
     )
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        primary_mode="vlc",
+        primary_mode="nau",
         osr2_mode="controlled",
-        mfp_alive=False,
         primary_responsive=False,
         omni_paused=False,
         primary=DashboardPanelSnapshot("C:\\clips\\primary.mp4", False),
@@ -280,9 +276,8 @@ def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path:
     scene = build_dashboard_scene(preview_layout)
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        primary_mode="vlc",
+        primary_mode="nau",
         osr2_mode="controlled",
-        mfp_alive=False,
         primary_responsive=False,
         omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
@@ -321,83 +316,7 @@ def test_dashboard_window_geometry_prefers_launch_geometry_when_provided(cfg_pat
     assert (geo.x(), geo.y(), geo.width(), geo.height()) == (11, 22, 333, 444)
 
 
-def test_mfp_shows_green_when_alive_responsive_and_broker_fresh(cfg_path: Path):
-    """MFP panel must be COLOR_GREEN when all three conditions are met:
-    mfp_alive=True, primary_responsive=True, and broker heartbeat fresh."""
-    import time
-
-    config = load_config(cfg_path)
-    preview_layout = compute_dashboard_preview_layout(
-        Size(2560, 1392),
-        Size(1440, 3440),
-        config.layout,
-    )
-    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
-    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
-    heartbeat_file.write_text(str(time.time()), encoding="utf-8")
-    snapshot = DashboardSnapshot(
-        f_mode_enabled=False,
-        primary_mode="vlc",
-        osr2_mode="controlled",
-        mfp_alive=True,
-        primary_responsive=True,
-        omni_paused=False,
-        primary=DashboardPanelSnapshot("", False),
-        portrait=DashboardPanelSnapshot("", False),
-        landscape=DashboardPanelSnapshot("", False),
-        window=DashboardWindowSnapshot(111, 222, 333, 444),
-    )
-
-    scene = build_dashboard_scene(
-        preview_layout,
-        snapshot,
-        broker_heartbeat_file=heartbeat_file,
-    )
-
-    fills = {item.rect: item.fill for item in scene.rects}
-    assert fills[preview_layout.mfp_panel] == COLOR_GREEN
-
-
-def test_hydrate_sets_mfp_alive_true_for_current_process():
-    """hydrate_dashboard_snapshot must set mfp_alive=True when given a valid PID."""
-    import os
-    snapshot = DashboardSnapshot(
-        f_mode_enabled=False,
-        primary_mode="vlc",
-        osr2_mode="controlled",
-        mfp_alive=False,  # start as False
-        primary_responsive=False,
-        omni_paused=False,
-        primary=DashboardPanelSnapshot("", False),
-        portrait=DashboardPanelSnapshot("", False),
-        landscape=DashboardPanelSnapshot("", False),
-        window=DashboardWindowSnapshot(111, 222, 333, 444),
-    )
-    vlc = VlcHydration()
-    hydrated = hydrate_dashboard_snapshot(snapshot, vlc, mfp_pid=os.getpid())
-    assert hydrated.mfp_alive is True, f"is_process_alive({os.getpid()}) returned False"
-
-
-def test_hydrate_sets_mfp_alive_false_for_zero_pid():
-    """hydrate_dashboard_snapshot with mfp_pid=0 must set mfp_alive=False."""
-    snapshot = DashboardSnapshot(
-        f_mode_enabled=False,
-        primary_mode="vlc",
-        osr2_mode="controlled",
-        mfp_alive=True,  # start as True
-        primary_responsive=False,
-        omni_paused=False,
-        primary=DashboardPanelSnapshot("", False),
-        portrait=DashboardPanelSnapshot("", False),
-        landscape=DashboardPanelSnapshot("", False),
-        window=DashboardWindowSnapshot(111, 222, 333, 444),
-    )
-    vlc = VlcHydration()
-    hydrated = hydrate_dashboard_snapshot(snapshot, vlc, mfp_pid=0)
-    assert hydrated.mfp_alive is False
-
-
-def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale(cfg_path: Path):
+def test_dashboard_app_marks_broker_disconnected_when_heartbeat_is_stale(cfg_path: Path):
     config = load_config(cfg_path)
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
@@ -409,9 +328,8 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
     heartbeat_file.write_text("0.0", encoding="utf-8")
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        primary_mode="vlc",
+        primary_mode="nau",
         osr2_mode="controlled",
-        mfp_alive=True,
         primary_responsive=True,
         omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
@@ -428,7 +346,6 @@ def test_dashboard_app_marks_broker_and_mfp_disconnected_when_heartbeat_is_stale
 
     fills = {item.rect: item.fill for item in scene.rects}
     assert fills[preview_layout.broker_panel] == COLOR_RED
-    assert fills[preview_layout.mfp_panel] == COLOR_RED
 
 
 def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
@@ -669,9 +586,8 @@ def test_reference_dialog_renders_hotkeys_and_voice():
 def test_dashboard_app_hydrates_live_vlc_state():
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        primary_mode="vlc",
+        primary_mode="nau",
         osr2_mode="controlled",
-        mfp_alive=True,
         primary_responsive=False,
         omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
@@ -686,14 +602,12 @@ def test_dashboard_app_hydrates_live_vlc_state():
         primary_responsive=True,
     )
 
-    with patch("fun_time.dashboard_app.is_process_alive", return_value=False):
-        hydrated = hydrate_dashboard_snapshot(snapshot, vlc, mfp_pid=123)
+    hydrated = hydrate_dashboard_snapshot(snapshot, vlc)
 
     assert hydrated.primary.path == "primary.mp4"
     assert hydrated.portrait.path == "portrait.mp4"
     assert hydrated.landscape.path == "landscape.mp4"
     assert hydrated.primary_responsive is True
-    assert hydrated.mfp_alive is False
 
 
 def test_poll_vlc_returns_vlc_hydration(cfg_path: Path, tmp_path: Path):
@@ -810,9 +724,8 @@ def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_p
     )
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        primary_mode="vlc",
+        primary_mode="nau",
         osr2_mode="controlled",
-        mfp_alive=False,
         primary_responsive=False,
         omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
@@ -856,9 +769,8 @@ def test_dashboard_scene_omnipause_button_shows_play_icon_when_paused(cfg_path: 
     )
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
-        primary_mode="vlc",
+        primary_mode="nau",
         osr2_mode="controlled",
-        mfp_alive=False,
         primary_responsive=False,
         omni_paused=True,
         primary=DashboardPanelSnapshot("", False),
@@ -962,12 +874,11 @@ def test_dashboard_scene_pressed_button_has_lighter_fill(cfg_path: Path):
     assert pressed_fills[preview_layout.portrait_next] == normal_fills[preview_layout.portrait_next]
 
 
-def _make_snapshot(*, primary_mode: str = "vlc") -> DashboardSnapshot:
+def _make_snapshot(*, primary_mode: str = "nau") -> DashboardSnapshot:
     return DashboardSnapshot(
         f_mode_enabled=False,
         primary_mode=primary_mode,
         osr2_mode="auto",
-        mfp_alive=False,
         primary_responsive=False,
         omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
@@ -1071,8 +982,8 @@ def test_osr2_highlights_green_when_funscript_playing(cfg_path: Path):
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("s", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, primary_mode="vlc",
-        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        f_mode_enabled=False, primary_mode="nau",
+        osr2_mode="controlled", primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(0, 0, 0, 0),
@@ -1101,7 +1012,7 @@ def test_osr2_auto_mode_stays_pink_even_with_funscript(cfg_path: Path):
     script_path.write_text("s", encoding="utf-8")
     snapshot = DashboardSnapshot(
         f_mode_enabled=False, primary_mode="genau",
-        osr2_mode="auto", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        osr2_mode="auto", primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(0, 0, 0, 0),
@@ -1137,8 +1048,8 @@ def test_active_chips_and_locks_use_correct_colors(cfg_path: Path):
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
     heartbeat_file.write_text(str(_time.time()), encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, primary_mode="vlc",
-        osr2_mode="controlled", mfp_alive=True, primary_responsive=True, omni_paused=False,
+        f_mode_enabled=False, primary_mode="nau",
+        osr2_mode="controlled", primary_responsive=True, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", True), landscape=DashboardPanelSnapshot("", True),
         window=DashboardWindowSnapshot(0, 0, 0, 0),
@@ -1152,14 +1063,12 @@ def test_active_chips_and_locks_use_correct_colors(cfg_path: Path):
     assert fills[layout.landscape_lock] == COLOR_GREEN
 
 
-def test_mfp_and_osr2_labels_are_top_justified(cfg_path: Path):
+def test_osr2_label_is_top_justified(cfg_path: Path):
     layout = _make_layout(cfg_path)
 
     scene = build_dashboard_scene(layout)
 
-    mfp_texts = [item for item in scene.texts if item.rect == layout.mfp_panel]
     osr2_texts = [item for item in scene.texts if item.rect == layout.osr2_panel]
-    assert mfp_texts[0].anchor == "n"
     assert osr2_texts[0].anchor == "n"
 
 
@@ -1178,8 +1087,8 @@ def test_osr2_controlled_with_funscript_shows_funscript_control(cfg_path: Path):
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("s", encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, primary_mode="vlc",
-        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        f_mode_enabled=False, primary_mode="nau",
+        osr2_mode="controlled", primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot(str(primary_path), False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(0, 0, 0, 0),
@@ -1194,8 +1103,8 @@ def test_osr2_controlled_with_funscript_shows_funscript_control(cfg_path: Path):
 def test_osr2_controlled_without_funscript_shows_idle(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, primary_mode="vlc",
-        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        f_mode_enabled=False, primary_mode="nau",
+        osr2_mode="controlled", primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(0, 0, 0, 0),
@@ -1220,8 +1129,8 @@ def test_osr2_auto_mode_shows_parenthesized_auto(cfg_path: Path):
 def test_osr2_off_mode_shows_off_label_and_dim_color(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, primary_mode="vlc",
-        osr2_mode="off", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        f_mode_enabled=False, primary_mode="nau",
+        osr2_mode="off", primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(0, 0, 0, 0),
@@ -1245,34 +1154,11 @@ def test_portrait_label_is_split_across_two_lines(cfg_path: Path):
     assert "Portrait AI VLC" not in texts
 
 
-def test_mfp_label_has_no_connection_status_text(cfg_path: Path):
-    config = load_config(cfg_path)
-    layout = compute_dashboard_preview_layout(
-        Size(2560, 1392), Size(1440, 3440), config.layout,
-    )
-    heartbeat_file = config.paths.state_dir / "broker_heartbeat.txt"
-    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
-    heartbeat_file.write_text("100.0", encoding="utf-8")
-    snapshot = DashboardSnapshot(
-        f_mode_enabled=False, primary_mode="vlc",
-        osr2_mode="controlled", mfp_alive=True, primary_responsive=True, omni_paused=False,
-        primary=DashboardPanelSnapshot("", False),
-        portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
-        window=DashboardWindowSnapshot(0, 0, 0, 0),
-    )
-
-    scene = build_dashboard_scene(layout, snapshot, broker_heartbeat_file=heartbeat_file)
-
-    mfp_texts = [item for item in scene.texts if item.rect == layout.mfp_panel]
-    assert len(mfp_texts) == 1
-    assert mfp_texts[0].text == "MFP"
-
-
 def test_omnipause_resume_button_is_not_green_when_paused(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, primary_mode="vlc",
-        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=True,
+        f_mode_enabled=False, primary_mode="nau",
+        osr2_mode="controlled", primary_responsive=False, omni_paused=True,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(0, 0, 0, 0),
@@ -1284,22 +1170,22 @@ def test_omnipause_resume_button_is_not_green_when_paused(cfg_path: Path):
     assert fills[layout.omnipause_button] == COLOR_PANEL
 
 
-def test_vlc_mode_shows_vlc_buttons_not_quarter(cfg_path: Path):
-    """Non-AI VLC box should show file dialog, clipper, and nudge buttons — not 1/4."""
+def test_nau_mode_shows_nau_buttons_not_quarter(cfg_path: Path):
+    """Nau box should show file dialog, clipper, and nudge buttons — not 1/4."""
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_mode="vlc")
+    snapshot = _make_snapshot(primary_mode="nau")
 
     scene = build_dashboard_scene(layout, snapshot)
 
     action_ids = [a for a, _r in scene.actions]
     assert "open_file_dialog" in action_ids
     assert "clipper_save" in action_ids
-    assert "vlc_nudge_prev" in action_ids
-    assert "vlc_nudge_next" in action_ids
+    assert "primary_nudge_prev" in action_ids
+    assert "primary_nudge_next" in action_ids
     assert "quarter_button" not in action_ids
 
 
-def test_genau_mode_shows_quarter_not_vlc_buttons(cfg_path: Path):
+def test_genau_mode_shows_quarter_not_nau_buttons(cfg_path: Path):
     """Genau box should show 1/4 button only."""
     layout = _make_layout(cfg_path)
     snapshot = _make_snapshot(primary_mode="genau")
@@ -1310,12 +1196,12 @@ def test_genau_mode_shows_quarter_not_vlc_buttons(cfg_path: Path):
     assert "quarter_button" in action_ids
     assert "open_file_dialog" not in action_ids
     assert "clipper_save" not in action_ids
-    assert "vlc_nudge_prev" not in action_ids
-    assert "vlc_nudge_next" not in action_ids
+    assert "primary_nudge_prev" not in action_ids
+    assert "primary_nudge_next" not in action_ids
 
 
-def test_default_scene_shows_vlc_buttons(cfg_path: Path):
-    """Default (no snapshot) is Non-AI VLC, so should show VLC buttons."""
+def test_default_scene_shows_nau_buttons(cfg_path: Path):
+    """Default (no snapshot) is Nau, so should show Nau buttons."""
     layout = _make_layout(cfg_path)
 
     scene = build_dashboard_scene(layout)
@@ -1325,46 +1211,46 @@ def test_default_scene_shows_vlc_buttons(cfg_path: Path):
     assert "quarter_button" not in action_ids
 
 
-def test_vlc_buttons_text_labels(cfg_path: Path):
+def test_nau_buttons_text_labels(cfg_path: Path):
     """File dialog button shows folder icon, nudge shows - and +, clipper is an image."""
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_mode="vlc")
+    snapshot = _make_snapshot(primary_mode="nau")
 
     scene = build_dashboard_scene(layout, snapshot)
 
     text_at = {item.rect: item.text for item in scene.texts}
     assert text_at[layout.open_file_dialog] == "\U0001F4C2"
-    assert text_at[layout.vlc_nudge_prev] == "\u2212"  # minus sign
-    assert text_at[layout.vlc_nudge_next] == "+"
+    assert text_at[layout.primary_nudge_prev] == "\u2212"  # minus sign
+    assert text_at[layout.primary_nudge_next] == "+"
     # Clipper save is now an image item, not a text item
     image_rects = {item.rect for item in scene.images}
     assert layout.clipper_save in image_rects
 
 
-def test_vlc_nudge_buttons_are_adjacent_not_edge_justified(cfg_path: Path):
+def test_primary_nudge_buttons_are_adjacent_not_edge_justified(cfg_path: Path):
     """Nudge buttons should be next to each other, centered — not at panel edges."""
     layout = _make_layout(cfg_path)
 
-    gap = layout.vlc_nudge_next.x - (layout.vlc_nudge_prev.x + layout.vlc_nudge_prev.width)
+    gap = layout.primary_nudge_next.x - (layout.primary_nudge_prev.x + layout.primary_nudge_prev.width)
     assert gap <= 8, f"Nudge buttons should be adjacent (gap={gap})"
     # Both should be roughly centered in the primary panel
     panel_cx = layout.primary_panel.x + layout.primary_panel.width // 2
-    nudge_cx = (layout.vlc_nudge_prev.x + layout.vlc_nudge_next.x + layout.vlc_nudge_next.width) // 2
+    nudge_cx = (layout.primary_nudge_prev.x + layout.primary_nudge_next.x + layout.primary_nudge_next.width) // 2
     assert abs(panel_cx - nudge_cx) <= 2, "Nudge pair should be centered in panel"
 
 
-def test_vlc_buttons_light_up_when_pressed(cfg_path: Path):
+def test_nau_buttons_light_up_when_pressed(cfg_path: Path):
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_mode="vlc")
+    snapshot = _make_snapshot(primary_mode="nau")
 
     scene_normal = build_dashboard_scene(layout, snapshot)
     scene_pressed = build_dashboard_scene(
-        layout, snapshot, pressed_actions=frozenset({"open_file_dialog", "clipper_save", "vlc_nudge_prev", "vlc_nudge_next"}),
+        layout, snapshot, pressed_actions=frozenset({"open_file_dialog", "clipper_save", "primary_nudge_prev", "primary_nudge_next"}),
     )
 
     normal_fills = {item.rect: item.fill for item in scene_normal.rects}
     pressed_fills = {item.rect: item.fill for item in scene_pressed.rects}
-    for rect_name in ("open_file_dialog", "clipper_save", "vlc_nudge_prev", "vlc_nudge_next"):
+    for rect_name in ("open_file_dialog", "clipper_save", "primary_nudge_prev", "primary_nudge_next"):
         rect = getattr(layout, rect_name)
         assert pressed_fills[rect] == lighten_color(COLOR_PANEL), f"{rect_name} should light up"
         assert pressed_fills[rect] != normal_fills[rect], f"{rect_name} pressed should differ from normal"
@@ -1374,19 +1260,19 @@ def test_nudge_buttons_above_file_dialog_clipper_below(cfg_path: Path):
     """Nudge buttons should be above the file dialog; clipper should be below."""
     layout = _make_layout(cfg_path)
 
-    assert layout.vlc_nudge_prev.y + layout.vlc_nudge_prev.height <= layout.open_file_dialog.y
-    assert layout.vlc_nudge_next.y + layout.vlc_nudge_next.height <= layout.open_file_dialog.y
+    assert layout.primary_nudge_prev.y + layout.primary_nudge_prev.height <= layout.open_file_dialog.y
+    assert layout.primary_nudge_next.y + layout.primary_nudge_next.height <= layout.open_file_dialog.y
     assert layout.open_file_dialog.y + layout.open_file_dialog.height <= layout.clipper_save.y
 
 
 def test_nudge_buttons_clear_of_title_area(cfg_path: Path):
-    """Nudge buttons (topmost VLC buttons) must not overlap the panel label."""
+    """Nudge buttons (topmost Nau buttons) must not overlap the panel label."""
     layout = _make_layout(cfg_path)
 
     # Title is anchored at "n" — roughly the top 14px of the panel
     title_bottom = layout.primary_panel.y + 14
-    assert layout.vlc_nudge_prev.y >= title_bottom, (
-        f"nudge_prev.y={layout.vlc_nudge_prev.y} overlaps title_bottom={title_bottom}"
+    assert layout.primary_nudge_prev.y >= title_bottom, (
+        f"nudge_prev.y={layout.primary_nudge_prev.y} overlaps title_bottom={title_bottom}"
     )
 
 
@@ -1490,8 +1376,8 @@ def test_genau_cruise_button_neutral_when_inactive(cfg_path: Path):
     assert fills[layout.genau_cruise] == COLOR_PANEL
 
 
-def test_takeover_toggle_in_vlc_and_hybrid_not_genau(cfg_path: Path):
-    """The takeover toggle belongs where Genau isn't the primary: VLC and Hybrid."""
+def test_takeover_toggle_in_nau_and_hybrid_not_genau(cfg_path: Path):
+    """The takeover toggle belongs where Genau isn't the primary: Nau and Hybrid."""
     layout = _make_layout(cfg_path)
 
     # Genau mode: cc owns the bottom-left; no takeover toggle (Genau already active).
@@ -1502,16 +1388,16 @@ def test_takeover_toggle_in_vlc_and_hybrid_not_genau(cfg_path: Path):
     assert g_actions.get("genau_toggle_cruise") == layout.genau_cruise
     assert g_text[layout.genau_cruise] == "cc"
 
-    # VLC mode: takeover toggle at the bottom-left, green when allowed / red when not.
-    vlc = build_dashboard_scene(layout, _make_snapshot(primary_mode="vlc"), genau_takeover_allowed=True)
-    v_actions = {a: r for a, r in vlc.actions}
-    v_text = {item.rect: item.text for item in vlc.texts}
+    # Nau mode: takeover toggle at the bottom-left, green when allowed / red when not.
+    nau = build_dashboard_scene(layout, _make_snapshot(primary_mode="nau"), genau_takeover_allowed=True)
+    v_actions = {a: r for a, r in nau.actions}
+    v_text = {item.rect: item.text for item in nau.texts}
     assert v_actions.get("genau_toggle_auto") == layout.genau_takeover
     assert "genau_toggle_cruise" not in v_actions
     assert v_text[layout.genau_takeover] == "GA"
-    assert {i.rect: i.fill for i in vlc.rects}[layout.genau_takeover] == COLOR_GREEN
-    vlc_off = build_dashboard_scene(layout, _make_snapshot(primary_mode="vlc"), genau_takeover_allowed=False)
-    assert {i.rect: i.fill for i in vlc_off.rects}[layout.genau_takeover] == COLOR_RED
+    assert {i.rect: i.fill for i in nau.rects}[layout.genau_takeover] == COLOR_GREEN
+    nau_off = build_dashboard_scene(layout, _make_snapshot(primary_mode="nau"), genau_takeover_allowed=False)
+    assert {i.rect: i.fill for i in nau_off.rects}[layout.genau_takeover] == COLOR_RED
 
     # Hybrid mode: takeover bottom-left, cc shifted to hybrid_cruise beside it.
     hybrid = build_dashboard_scene(layout, _make_snapshot(primary_mode="hybrid"))
@@ -1562,10 +1448,10 @@ def test_genau_buttons_greyed_at_limits(cfg_path: Path):
     assert "genau_center_up" in action_ids, "not-at-max button should be clickable"
 
 
-def test_vlc_mode_does_not_show_genau_param_actions(cfg_path: Path):
-    """VLC mode should NOT have AMP/CTR/SPD or cruise/shape actions."""
+def test_nau_mode_does_not_show_genau_param_actions(cfg_path: Path):
+    """Nau mode should NOT have AMP/CTR/SPD or cruise/shape actions."""
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_mode="vlc")
+    snapshot = _make_snapshot(primary_mode="nau")
 
     scene = build_dashboard_scene(layout, snapshot)
 
@@ -1574,7 +1460,7 @@ def test_vlc_mode_does_not_show_genau_param_actions(cfg_path: Path):
         "genau_amplitude_up", "genau_amplitude_down",
         "genau_toggle_cruise", "genau_cycle_shape",
     ):
-        assert unexpected not in action_ids, f"unexpected action {unexpected} in VLC mode"
+        assert unexpected not in action_ids, f"unexpected action {unexpected} in Nau mode"
 
 
 # ---------------------------------------------------------------------------
@@ -1617,8 +1503,8 @@ def test_dashboard_widget_emits_action_on_click(cfg_path: Path):
 def test_voice_panel_blue_when_active(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, primary_mode="vlc",
-        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        f_mode_enabled=False, primary_mode="nau",
+        osr2_mode="controlled", primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(0, 0, 0, 0),
@@ -1634,8 +1520,8 @@ def test_voice_panel_blue_when_active(cfg_path: Path):
 def test_voice_panel_neutral_when_inactive(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, primary_mode="vlc",
-        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        f_mode_enabled=False, primary_mode="nau",
+        osr2_mode="controlled", primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(0, 0, 0, 0),
@@ -1658,8 +1544,8 @@ def test_broker_panel_blue_when_running(cfg_path: Path):
     heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
     heartbeat_file.write_text(str(_time.time()), encoding="utf-8")
     snapshot = DashboardSnapshot(
-        f_mode_enabled=False, primary_mode="vlc",
-        osr2_mode="controlled", mfp_alive=False, primary_responsive=False, omni_paused=False,
+        f_mode_enabled=False, primary_mode="nau",
+        osr2_mode="controlled", primary_responsive=False, omni_paused=False,
         primary=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False), landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(0, 0, 0, 0),
@@ -1723,10 +1609,10 @@ def test_dashboard_widget_ignores_click_outside_actions(cfg_path: Path):
     assert received == []
 
 
-def test_vlc_mode_has_hybrid_activate_action(cfg_path: Path):
-    """VLC mode should have a hybrid_activate action at the hybrid_mode_button."""
+def test_nau_mode_has_hybrid_activate_action(cfg_path: Path):
+    """Nau mode should have a hybrid_activate action at the hybrid_mode_button."""
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_mode="vlc")
+    snapshot = _make_snapshot(primary_mode="nau")
 
     scene = build_dashboard_scene(layout, snapshot)
 
@@ -1736,10 +1622,10 @@ def test_vlc_mode_has_hybrid_activate_action(cfg_path: Path):
     assert action_rects["hybrid_activate"] == layout.hybrid_mode_button
 
 
-def test_vlc_mode_has_h_text_on_hybrid_button(cfg_path: Path):
-    """VLC mode should show 'h' text at the hybrid_mode_button position."""
+def test_nau_mode_has_h_text_on_hybrid_button(cfg_path: Path):
+    """Nau mode should show 'h' text at the hybrid_mode_button position."""
     layout = _make_layout(cfg_path)
-    snapshot = _make_snapshot(primary_mode="vlc")
+    snapshot = _make_snapshot(primary_mode="nau")
 
     scene = build_dashboard_scene(layout, snapshot)
 
@@ -1760,31 +1646,60 @@ def test_genau_mode_has_hybrid_activate_action(cfg_path: Path):
     assert action_rects["hybrid_activate"] == layout.hybrid_mode_button
 
 
-def test_genau_mode_has_vlc_activate_at_toggle(cfg_path: Path):
-    """Genau mode: genau_mode_toggle shows 'VLC' text and maps to vlc_activate."""
+def test_genau_mode_has_nau_activate_at_toggle(cfg_path: Path):
+    """Genau mode: genau_mode_toggle shows 'Nau' text and maps to nau_activate."""
     layout = _make_layout(cfg_path)
     snapshot = _make_snapshot(primary_mode="genau")
 
     scene = build_dashboard_scene(layout, snapshot)
 
     action_rects = {a: r for a, r in scene.actions}
-    assert "vlc_activate" in action_rects
-    assert action_rects["vlc_activate"] == layout.genau_mode_toggle
+    assert "nau_activate" in action_rects
+    assert action_rects["nau_activate"] == layout.genau_mode_toggle
     text_at = {item.rect: item.text for item in scene.texts}
-    assert text_at[layout.genau_mode_toggle] == "VLC"
+    assert text_at[layout.genau_mode_toggle] == "Nau"
 
 
-def test_hybrid_mode_shows_all_vlc_and_genau_actions(cfg_path: Path):
-    """Hybrid mode should include both VLC and genau actions."""
+def test_genau_mode_toggle_action_switches_by_mode(cfg_path: Path):
+    """The genau_mode_toggle switches to Genau from Nau mode, and back to Nau from Genau mode."""
+    from fun_time.dashboard_actions import GENAU_ACTIVATE, NAU_ACTIVATE
+    layout = _make_layout(cfg_path)
+
+    nau_actions = {a: r for a, r in build_dashboard_scene(layout, _make_snapshot(primary_mode="nau")).actions}
+    assert nau_actions.get(GENAU_ACTIVATE) == layout.genau_mode_toggle
+    assert NAU_ACTIVATE not in nau_actions or nau_actions[NAU_ACTIVATE] != layout.genau_mode_toggle
+
+    genau_actions = {a: r for a, r in build_dashboard_scene(layout, _make_snapshot(primary_mode="genau")).actions}
+    assert genau_actions.get(NAU_ACTIVATE) == layout.genau_mode_toggle
+    assert GENAU_ACTIVATE not in genau_actions or genau_actions[GENAU_ACTIVATE] != layout.genau_mode_toggle
+
+
+def test_nau_mode_exposes_record_button_absent_in_genau_and_hybrid(cfg_path: Path):
+    """The nau_record button appears only in Nau mode's primary panel."""
+    from fun_time.dashboard_actions import NAU_RECORD
+    layout = _make_layout(cfg_path)
+
+    nau_actions = {a: r for a, r in build_dashboard_scene(layout, _make_snapshot(primary_mode="nau")).actions}
+    assert nau_actions.get(NAU_RECORD) == layout.nau_record
+
+    genau_action_ids = [a for a, _r in build_dashboard_scene(layout, _make_snapshot(primary_mode="genau")).actions]
+    assert NAU_RECORD not in genau_action_ids
+
+    hybrid_action_ids = [a for a, _r in build_dashboard_scene(layout, _make_snapshot(primary_mode="hybrid")).actions]
+    assert NAU_RECORD not in hybrid_action_ids
+
+
+def test_hybrid_mode_shows_all_nau_and_genau_actions(cfg_path: Path):
+    """Hybrid mode should include both Nau and genau actions."""
     layout = _make_layout(cfg_path)
     snapshot = _make_snapshot(primary_mode="hybrid")
 
     scene = build_dashboard_scene(layout, snapshot)
 
     action_ids = [a for a, _r in scene.actions]
-    # VLC actions
-    assert "vlc_nudge_prev" in action_ids
-    assert "vlc_nudge_next" in action_ids
+    # Nau actions
+    assert "primary_nudge_prev" in action_ids
+    assert "primary_nudge_next" in action_ids
     assert "clipper_save" in action_ids
     # Genau actions
     assert "quarter_button" in action_ids
@@ -1805,20 +1720,20 @@ def test_hybrid_mode_uses_hybrid_positioned_rects(cfg_path: Path):
 
 
 def test_hybrid_mode_toggle_buttons(cfg_path: Path):
-    """Hybrid mode: hybrid_mode_button maps to vlc_activate, genau_mode_toggle maps to genau_activate."""
+    """Hybrid mode: hybrid_mode_button maps to nau_activate, genau_mode_toggle maps to genau_activate."""
     layout = _make_layout(cfg_path)
     snapshot = _make_snapshot(primary_mode="hybrid")
 
     scene = build_dashboard_scene(layout, snapshot)
 
     action_rects = {a: r for a, r in scene.actions}
-    assert "vlc_activate" in action_rects
-    assert action_rects["vlc_activate"] == layout.hybrid_mode_button
+    assert "nau_activate" in action_rects
+    assert action_rects["nau_activate"] == layout.hybrid_mode_button
     assert "genau_activate" in action_rects
     assert action_rects["genau_activate"] == layout.genau_mode_toggle
 
     text_at = {item.rect: item.text for item in scene.texts}
-    assert text_at[layout.hybrid_mode_button] == "VLC"
+    assert text_at[layout.hybrid_mode_button] == "Nau"
 
 
 def test_hybrid_mode_has_genau_param_labels(cfg_path: Path):

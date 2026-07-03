@@ -71,13 +71,14 @@ from fun_time.dashboard_actions import (
     PORTRAIT_NEXT,
     PORTRAIT_PREV,
     PORTRAIT_TRASH,
+    NAU_ACTIVATE,
+    NAU_RECORD,
     PRIMARY_NEXT,
+    PRIMARY_NUDGE_NEXT,
+    PRIMARY_NUDGE_PREV,
     PRIMARY_PREV,
     QUARTER_BUTTON,
     QUIT_BUTTON,
-    VLC_NUDGE_NEXT,
-    VLC_ACTIVATE,
-    VLC_NUDGE_PREV,
     VOICE_TOGGLE,
 )
 from fun_time.command_reference import render_reference_html
@@ -85,12 +86,11 @@ from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, comput
 from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status
 from fun_time.dashboard_state import (
     LABEL_LANDSCAPE_VLC,
-    LABEL_MFP,
     LABEL_OSR2,
     LABEL_PORTRAIT_VLC,
     LABEL_PRIMARY_GENAU,
     LABEL_PRIMARY_HYBRID,
-    LABEL_PRIMARY_VLC,
+    LABEL_PRIMARY_NAU,
     has_matching_funscript,
     is_favorite_path,
     primary_panel_should_highlight,
@@ -221,8 +221,6 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         secondary_monitor=parser.getint("layout", "secondary_monitor"),
         primary_top_ratio=parser.getfloat("layout", "primary_top_ratio"),
         landscape_width_ratio=parser.getfloat("layout", "landscape_width_ratio"),
-        mfp_width_ratio=parser.getfloat("layout", "mfp_width_ratio"),
-        mfp_height_ratio=parser.getfloat("layout", "mfp_height_ratio"),
         left_partition_top_ratio=parser.getfloat("layout", "left_partition_top_ratio", fallback=0.0),
         left_partition_bottom_ratio=parser.getfloat("layout", "left_partition_bottom_ratio", fallback=0.0),
     )
@@ -262,11 +260,10 @@ def poll_vlc(app_config: DashboardAppConfig) -> VlcHydration:
     )
 
 
-def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, vlc: VlcHydration, *, mfp_pid: int = 0) -> DashboardSnapshot:
+def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, vlc: VlcHydration) -> DashboardSnapshot:
     return replace(
         snapshot,
         primary_responsive=vlc.primary_responsive,
-        mfp_alive=is_process_alive(mfp_pid),
         primary=replace(snapshot.primary, path=vlc.primary_path),
         portrait=replace(snapshot.portrait, path=vlc.portrait_path),
         landscape=replace(snapshot.landscape, path=vlc.landscape_path),
@@ -439,16 +436,14 @@ def build_dashboard_scene(
     genau_takeover_allowed: bool = True,
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
-    primary_label = LABEL_PRIMARY_VLC
+    primary_label = LABEL_PRIMARY_NAU
     portrait_label = LABEL_PORTRAIT_VLC
     landscape_label = LABEL_LANDSCAPE_VLC
     osr2_label = LABEL_OSR2
-    mfp_label = LABEL_MFP
     primary_fill = COLOR_PANEL
     portrait_fill = COLOR_PANEL
     landscape_fill = COLOR_PANEL
     osr2_fill = COLOR_PANEL
-    mfp_fill = COLOR_PANEL
     broker_fill = COLOR_PANEL
     fmode_fill = COLOR_PANEL
     voice_fill = COLOR_PANEL
@@ -458,9 +453,8 @@ def build_dashboard_scene(
     if snapshot is not None:
         favs_content = read_favs_content(favs_file) if favs_file is not None else ""
         broker_running = is_broker_heartbeat_fresh(broker_heartbeat_file) if broker_heartbeat_file is not None else False
-        mfp_connected = snapshot.mfp_alive and snapshot.primary_responsive and broker_running
-        _mode_labels = {"vlc": LABEL_PRIMARY_VLC, "genau": LABEL_PRIMARY_GENAU, "hybrid": LABEL_PRIMARY_HYBRID}
-        primary_label_name = _mode_labels.get(snapshot.primary_mode, LABEL_PRIMARY_VLC)
+        _mode_labels = {"nau": LABEL_PRIMARY_NAU, "genau": LABEL_PRIMARY_GENAU, "hybrid": LABEL_PRIMARY_HYBRID}
+        primary_label_name = _mode_labels.get(snapshot.primary_mode, LABEL_PRIMARY_NAU)
         primary_label = primary_label_name
         portrait_label = LABEL_PORTRAIT_VLC
         landscape_label = LABEL_LANDSCAPE_VLC
@@ -474,7 +468,6 @@ def build_dashboard_scene(
             osr2_label = f"{LABEL_OSR2}\n(funscript\ncontrol)"
         else:
             osr2_label = f"{LABEL_OSR2}\n(idle; no\nfunscript)"
-        mfp_label = LABEL_MFP
         if snapshot.osr2_mode == "auto":
             primary_fill = COLOR_PINK
         elif snapshot.primary_mode == "genau":
@@ -503,7 +496,6 @@ def build_dashboard_scene(
             osr2_fill = COLOR_GREEN
         else:
             osr2_fill = COLOR_PANEL
-        mfp_fill = COLOR_GREEN if mfp_connected else COLOR_RED
         broker_fill = COLOR_BLUE if broker_running else COLOR_RED
         fmode_fill = COLOR_GREEN if snapshot.f_mode_enabled else COLOR_PANEL
         voice_fill = COLOR_BLUE if snapshot.voice_active else COLOR_PANEL
@@ -537,7 +529,6 @@ def build_dashboard_scene(
         DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
         DashboardRectItem(layout.omnipause_button, fill=_press_fill(omnipause_fill, OMNIPAUSE_TOGGLE)),
         DashboardRectItem(layout.help_button, fill=COLOR_PANEL),
-        DashboardRectItem(layout.mfp_panel, fill=mfp_fill),
         DashboardRectItem(layout.landscape_panel, fill=landscape_fill),
         DashboardRectItem(layout.portrait_panel, fill=portrait_fill),
         DashboardRectItem(layout.primary_shadow, outline=COLOR_CABLE_DIM, fill=COLOR_PANEL),
@@ -563,8 +554,8 @@ def build_dashboard_scene(
                 DashboardRectItem(layout.hybrid_mode_button, fill=_press_fill(COLOR_PANEL, HYBRID_ACTIVATE)),
             )
             if _is_genau else (
-                DashboardRectItem(layout.vlc_nudge_prev, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_PREV)),
-                DashboardRectItem(layout.vlc_nudge_next, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_NEXT)),
+                DashboardRectItem(layout.primary_nudge_prev, fill=_press_fill(COLOR_PANEL, PRIMARY_NUDGE_PREV)),
+                DashboardRectItem(layout.primary_nudge_next, fill=_press_fill(COLOR_PANEL, PRIMARY_NUDGE_NEXT)),
                 DashboardRectItem(layout.hybrid_quarter_button, fill=_press_fill(COLOR_PANEL, QUARTER_BUTTON)),
                 DashboardRectItem(layout.hybrid_open_file_dialog, fill=_press_fill(COLOR_PANEL, OPEN_FILE_DIALOG)),
                 DashboardRectItem(layout.clipper_save, fill=_press_fill(COLOR_PANEL, CLIPPER_SAVE)),
@@ -579,10 +570,11 @@ def build_dashboard_scene(
                 DashboardRectItem(layout.genau_shape, fill=_press_fill(COLOR_PANEL, GENAU_SHAPE)),
             )
             if _is_hybrid else (
-                DashboardRectItem(layout.vlc_nudge_prev, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_PREV)),
-                DashboardRectItem(layout.vlc_nudge_next, fill=_press_fill(COLOR_PANEL, VLC_NUDGE_NEXT)),
+                DashboardRectItem(layout.primary_nudge_prev, fill=_press_fill(COLOR_PANEL, PRIMARY_NUDGE_PREV)),
+                DashboardRectItem(layout.primary_nudge_next, fill=_press_fill(COLOR_PANEL, PRIMARY_NUDGE_NEXT)),
                 DashboardRectItem(layout.open_file_dialog, fill=_press_fill(COLOR_PANEL, OPEN_FILE_DIALOG)),
                 DashboardRectItem(layout.clipper_save, fill=_press_fill(COLOR_PANEL, CLIPPER_SAVE)),
+                DashboardRectItem(layout.nau_record, fill=_press_fill(COLOR_PANEL, NAU_RECORD)),
                 DashboardRectItem(layout.genau_takeover, fill=_press_fill(takeover_fill, GENAU_TOGGLE_AUTO)),
                 DashboardRectItem(layout.hybrid_mode_button, fill=_press_fill(COLOR_PANEL, HYBRID_ACTIVATE)),
             )
@@ -605,7 +597,6 @@ def build_dashboard_scene(
         DashboardTextItem("\u23FB", layout.quit_button, font=_font_symbol),
         DashboardTextItem(omnipause_icon, layout.omnipause_button, font=_font_symbol),
         DashboardTextItem("?", layout.help_button, font=_font_ui_sm),
-        DashboardTextItem(mfp_label, layout.mfp_panel, anchor="n"),
         DashboardTextItem(landscape_label, layout.landscape_panel, anchor="n"),
         DashboardTextItem(portrait_label, layout.portrait_panel, anchor="n"),
         DashboardTextItem(primary_label, layout.primary_panel, anchor="n"),
@@ -632,8 +623,8 @@ def build_dashboard_scene(
                 DashboardTextItem("h", layout.hybrid_mode_button, font=_font_ui_tiny),
             )
             if _is_genau else (
-                DashboardTextItem("\u2212", layout.vlc_nudge_prev, font=_font_ui_sm),
-                DashboardTextItem("+", layout.vlc_nudge_next, font=_font_ui_sm),
+                DashboardTextItem("\u2212", layout.primary_nudge_prev, font=_font_ui_sm),
+                DashboardTextItem("+", layout.primary_nudge_next, font=_font_ui_sm),
                 DashboardTextItem("1/4", layout.hybrid_quarter_button, font=_font_ui_tiny),
                 DashboardTextItem("\U0001F4C2", layout.hybrid_open_file_dialog, font=_font_emoji),
                 DashboardTextItem("^", layout.hybrid_genau_amp_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.amp_at_max else COLOR_TEXT),
@@ -647,12 +638,13 @@ def build_dashboard_scene(
                 DashboardTextItem("SPD", layout.hybrid_genau_spd_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("GA", layout.genau_takeover, font=_font_ui_tiny),
                 DashboardTextItem("cc", layout.hybrid_cruise, font=_font_ui_tiny),
-                DashboardTextItem("VLC", layout.hybrid_mode_button, font=_font_ui_tiny),
+                DashboardTextItem("Nau", layout.hybrid_mode_button, font=_font_ui_tiny),
             )
             if _is_hybrid else (
-                DashboardTextItem("\u2212", layout.vlc_nudge_prev, font=_font_ui_sm),
-                DashboardTextItem("+", layout.vlc_nudge_next, font=_font_ui_sm),
+                DashboardTextItem("\u2212", layout.primary_nudge_prev, font=_font_ui_sm),
+                DashboardTextItem("+", layout.primary_nudge_next, font=_font_ui_sm),
                 DashboardTextItem("\U0001F4C2", layout.open_file_dialog, font=_font_emoji),
+                DashboardTextItem("\u23fa", layout.nau_record, font=_font_symbol),
                 DashboardTextItem("GA", layout.genau_takeover, font=_font_ui_tiny),
                 DashboardTextItem("h", layout.hybrid_mode_button, font=_font_ui_tiny),
             )
@@ -663,7 +655,7 @@ def build_dashboard_scene(
         DashboardTextItem(ICON_TRASH, layout.landscape_trash, font=_font_emoji),
         DashboardTextItem("v", layout.voice_panel, font=_font_ui_tiny),
         *(
-            (DashboardTextItem("VLC", layout.genau_mode_toggle, font=_font_ui_tiny),)
+            (DashboardTextItem("Nau", layout.genau_mode_toggle, font=_font_ui_tiny),)
             if _is_genau else ()
         ),
     )
@@ -744,6 +736,7 @@ def build_dashboard_scene(
                 )
                 if _is_hybrid else (
                     (layout.genau_takeover, takeover_hover),
+                    (layout.nau_record, "Record loop"),
                 )
             ),
         ),
@@ -772,11 +765,11 @@ def build_dashboard_scene(
                     (GENAU_CRUISE, layout.genau_cruise),
                     (GENAU_SHAPE, layout.genau_shape),
                     (HYBRID_ACTIVATE, layout.hybrid_mode_button),
-                    (VLC_ACTIVATE, layout.genau_mode_toggle),
+                    (NAU_ACTIVATE, layout.genau_mode_toggle),
                 )
                 if _is_genau else (
-                    (VLC_NUDGE_PREV, layout.vlc_nudge_prev),
-                    (VLC_NUDGE_NEXT, layout.vlc_nudge_next),
+                    (PRIMARY_NUDGE_PREV, layout.primary_nudge_prev),
+                    (PRIMARY_NUDGE_NEXT, layout.primary_nudge_next),
                     (QUARTER_BUTTON, layout.hybrid_quarter_button),
                     (OPEN_FILE_DIALOG, layout.hybrid_open_file_dialog),
                     (CLIPPER_SAVE, layout.clipper_save),
@@ -789,14 +782,15 @@ def build_dashboard_scene(
                     (GENAU_TOGGLE_AUTO, layout.genau_takeover),
                     (GENAU_CRUISE, layout.hybrid_cruise),
                     (GENAU_SHAPE, layout.genau_shape),
-                    (VLC_ACTIVATE, layout.hybrid_mode_button),
+                    (NAU_ACTIVATE, layout.hybrid_mode_button),
                     (GENAU_ACTIVATE, layout.genau_mode_toggle),
                 )
                 if _is_hybrid else (
-                    (VLC_NUDGE_PREV, layout.vlc_nudge_prev),
-                    (VLC_NUDGE_NEXT, layout.vlc_nudge_next),
+                    (PRIMARY_NUDGE_PREV, layout.primary_nudge_prev),
+                    (PRIMARY_NUDGE_NEXT, layout.primary_nudge_next),
                     (OPEN_FILE_DIALOG, layout.open_file_dialog),
                     (CLIPPER_SAVE, layout.clipper_save),
+                    (NAU_RECORD, layout.nau_record),
                     (GENAU_TOGGLE_AUTO, layout.genau_takeover),
                     (HYBRID_ACTIVATE, layout.hybrid_mode_button),
                     (GENAU_ACTIVATE, layout.genau_mode_toggle),
@@ -1032,13 +1026,11 @@ class DashboardWindow(QMainWindow):
         preview_layout: DashboardPreviewLayout,
         *,
         launch_geometry: DashboardLaunchGeometry | None = None,
-        mfp_pid: int = 0,
     ) -> None:
         super().__init__()
         self._app_config = app_config
         self._preview_layout = preview_layout
         self._launch_geometry = launch_geometry
-        self._mfp_pid = mfp_pid
 
         self._pressed: dict[str, float] = {}
         self._reference_dialog: ReferenceDialog | None = None
@@ -1248,7 +1240,7 @@ class DashboardWindow(QMainWindow):
     def _refresh(self) -> None:
         snapshot = load_dashboard_snapshot(self._app_config.dashboard_state_file)
         if snapshot is not None:
-            snapshot = hydrate_dashboard_snapshot(snapshot, self._vlc_cache[0], mfp_pid=self._mfp_pid)
+            snapshot = hydrate_dashboard_snapshot(snapshot, self._vlc_cache[0])
         genau_status_path = self._app_config.dashboard_state_file.parent / "genau_status.txt"
         genau_status = read_genau_status(genau_status_path)
         self._do_render(snapshot, self._compute_pressed(), genau_status=genau_status)
@@ -1258,13 +1250,12 @@ def build_dashboard_window(
     app_config: DashboardAppConfig,
     *,
     launch_geometry: DashboardLaunchGeometry | None = None,
-    mfp_pid: int = 0,
 ) -> DashboardWindow:
     main_monitor, secondary_monitor = get_preview_monitor_sizes(app_config)
     preview_layout = compute_dashboard_preview_layout(main_monitor, secondary_monitor, app_config.layout)
     return DashboardWindow(
         app_config, preview_layout,
-        launch_geometry=launch_geometry, mfp_pid=mfp_pid,
+        launch_geometry=launch_geometry,
     )
 
 
@@ -1280,7 +1271,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--y", type=int)
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
-    parser.add_argument("--mfp-pid", type=int, default=0)
     return parser.parse_args(argv)
 
 
@@ -1306,7 +1296,7 @@ def main(argv: list[str] | None = None) -> int:
             width=args.width,
             height=args.height,
         )
-    _window = build_dashboard_window(app_config, launch_geometry=launch_geometry, mfp_pid=args.mfp_pid)
+    _window = build_dashboard_window(app_config, launch_geometry=launch_geometry)
     return app.exec()
 
 
