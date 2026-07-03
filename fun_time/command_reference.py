@@ -66,12 +66,18 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         ),
     ),
     (
-        "Primary VLC",
+        "Nau",
         (
-            _Row("Previous primary clip", ("[",), ("primary_prev",)),
-            _Row("Next primary clip", ("]",), ("primary_next",)),
-            _Row("Nudge primary back 10 seconds", ("-",), ("vlc_nudge_prev",)),
-            _Row("Nudge primary forward 10 seconds", ("=",), ("vlc_nudge_next",)),
+            _Row("Previous video", ("[",), ("primary_prev",)),
+            _Row("Next video", ("]",), ("primary_next",)),
+            _Row("Nudge back 10 seconds", ("-",), ("primary_nudge_prev",)),
+            _Row("Nudge forward 10 seconds", ("=",), ("primary_nudge_next",)),
+            _Row(
+                "Record a loop (hold to mark, release to loop)",
+                ("R",),
+                ("nau_record_down", "nau_record_up", "nau_record_tap"),
+            ),
+            _Row("Cancel loop", ("R",), ("nau_loop_cancel",)),
             _Row("Open file dialog", ("\\",), ("backslash_key", "open_file_dialog")),
             _Row("Save clip (Clipper)", ("'",), ("clipper_save",)),
         ),
@@ -98,7 +104,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         "Modes",
         (
             _Row("Genau mode", ("G",), ("genau_activate",), voice_display=("genau",)),
-            _Row("VLC mode", ("V",), ("vlc_activate",), voice_display=("VLC",)),
+            _Row("Nau mode", ("N",), ("nau_activate",), voice_display=("nau",)),
             _Row("Hybrid mode", ("H",), ("hybrid_activate",)),
         ),
     ),

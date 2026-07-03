@@ -61,14 +61,14 @@ SC01B::QueueCommand("primary_next")
 ; Mode activation hotkeys
 g::QueueCommand("genau_activate")
 h::QueueCommand("hybrid_activate")
-v::QueueCommand("vlc_activate")
+n::QueueCommand("nau_activate")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 Backspace::QueueCommand("voice_toggle")
 
 \::QueueCommand("backslash_key")
--::QueueCommand("vlc_nudge_prev")
-=::QueueCommand("vlc_nudge_next")
+-::QueueCommand("primary_nudge_prev")
+=::QueueCommand("primary_nudge_next")
 Left::QueueCommand("portrait_prev")
 Right::QueueCommand("portrait_next")
 Up::QueueCommand("portrait_trash")
@@ -78,6 +78,22 @@ d::QueueCommand("landscape_next")
 w::QueueCommand("landscape_trash")
 s::QueueCommand("landscape_lock")
 '::QueueCommand("clipper_save")
+
+; Nau loop recording: hold R to mark, release to loop, press again to cancel.
+; The held flag suppresses key-repeat so only one RECORD_DOWN is queued.
+global RecordHeld := false
+r:: {
+    global RecordHeld
+    if RecordHeld
+        return
+    RecordHeld := true
+    QueueCommand("nau_record_down")
+}
+r up:: {
+    global RecordHeld
+    RecordHeld := false
+    QueueCommand("nau_record_up")
+}
 
 ; Genau direct control hotkeys
 u::QueueCommand("genau_center_down")

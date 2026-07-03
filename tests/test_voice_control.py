@@ -27,14 +27,17 @@ class TestVoiceCommands:
             "f mode on": "fmode_on",
             "f mode off": "fmode_off",
             "go now": "genau_activate",
-            "v l c": "vlc_activate",
+            "video": "nau_activate",
             "hybrid": "hybrid_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
             "next primary": "primary_next",
             "previous primary": "primary_prev",
-            "skip": "vlc_nudge_next",
-            "back": "vlc_nudge_prev",
+            "skip": "primary_nudge_next",
+            "back": "primary_nudge_prev",
+            "record": "nau_record_down",
+            "loop": "nau_record_up",
+            "cancel": "nau_loop_cancel",
             "browse": "open_file_dialog",
             "clip": "clipper_save",
             "slow down": "genau_speed_down",
@@ -66,8 +69,9 @@ class TestVoiceCommands:
         for phrase in ("enable genau", "disable genau"):
             assert phrase not in VOICE_COMMANDS
 
-    def test_v_l_c_activates_vlc(self):
-        assert VOICE_COMMANDS["v l c"] == "vlc_activate"
+    def test_video_activates_nau(self):
+        assert VOICE_COMMANDS["video"] == "nau_activate"
+        assert "v l c" not in VOICE_COMMANDS
 
     def test_hybrid_activates_hybrid(self):
         assert VOICE_COMMANDS["hybrid"] == "hybrid_activate"
