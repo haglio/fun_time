@@ -12,6 +12,7 @@ import time
 _user32 = ctypes.windll.user32  # type: ignore[attr-defined]
 _ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
 _shell32 = ctypes.windll.shell32  # type: ignore[attr-defined]
+_kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
 
 # AppUserModelID — must match the value set on the pinned taskbar shortcut.
 APP_USER_MODEL_ID = "FunTime.App"
@@ -44,6 +45,26 @@ _user32.SetWindowPos.argtypes = [
 ]
 _user32.SetWindowPos.restype = ctypes.wintypes.BOOL
 
+# Process-query bindings. HANDLE argtypes/restype matter on 64-bit for the
+# same reason as the HWND declarations above.
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+_kernel32.OpenProcess.argtypes = [
+    ctypes.wintypes.DWORD,  # dwDesiredAccess
+    ctypes.wintypes.BOOL,   # bInheritHandle
+    ctypes.wintypes.DWORD,  # dwProcessId
+]
+_kernel32.OpenProcess.restype = ctypes.wintypes.HANDLE
+_kernel32.QueryFullProcessImageNameW.argtypes = [
+    ctypes.wintypes.HANDLE,                  # hProcess
+    ctypes.wintypes.DWORD,                   # dwFlags
+    ctypes.wintypes.LPWSTR,                  # lpExeName
+    ctypes.POINTER(ctypes.wintypes.DWORD),   # lpdwSize (in/out)
+]
+_kernel32.QueryFullProcessImageNameW.restype = ctypes.wintypes.BOOL
+_kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
+_kernel32.CloseHandle.restype = ctypes.wintypes.BOOL
+
 
 WNDENUMPROC = ctypes.WINFUNCTYPE(
     ctypes.wintypes.BOOL,
@@ -64,6 +85,25 @@ def set_app_user_model_id(app_id: str) -> None:
     hr = _shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
     if hr < 0:  # FAILED() macro
         raise OSError(f"SetCurrentProcessExplicitAppUserModelID failed: HRESULT 0x{hr:08x}")
+
+
+def get_process_image_name(pid: int) -> str | None:
+    """Return the full executable path of the process *pid*.
+
+    Returns None when the process no longer exists (or cannot be opened),
+    which callers use to detect that a recorded PID is stale.
+    """
+    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return None
+    try:
+        size = ctypes.wintypes.DWORD(32768)
+        buf = ctypes.create_unicode_buffer(size.value)
+        if not _kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+            return None
+        return buf.value
+    finally:
+        _kernel32.CloseHandle(handle)
 
 
 def close_window(hwnd: int) -> None:

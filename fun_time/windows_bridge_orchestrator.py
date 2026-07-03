@@ -30,6 +30,7 @@ from .win32 import (
     close_window,
     find_window_by_pid,
     get_foreground_window,
+    get_process_image_name,
     lock_set_foreground_window,
     minimize_window,
     unlock_set_foreground_window,
@@ -57,9 +58,37 @@ def write_pids_file(path: Path, result: StartupResult) -> None:
         parser.write(fp)
 
 
+# Executables our children run as. A recorded PID whose current image is not
+# in this set has been recycled by Windows to an unrelated process and must
+# not be killed.
+_CHILD_IMAGE_NAMES = {
+    "vlc.exe",
+    "multifunplayer.exe",
+    "python.exe",
+    "pythonw.exe",
+    "autohotkey64.exe",
+}
+
+
 def kill_process_tree(pid: int) -> None:
-    """Kill a process and its children via taskkill."""
+    """Kill a process and its children via taskkill.
+
+    PIDs are recorded at startup; a child that died mid-session may have had
+    its PID recycled to an unrelated process by shutdown time. Verify the
+    PID's current image name is one of ours before killing.
+    """
     if not pid:
+        return
+    image = get_process_image_name(pid)
+    if image is None:
+        logger.info("Not killing PID %d: process already exited", pid)
+        return
+    if Path(image).name.lower() not in _CHILD_IMAGE_NAMES:
+        logger.warning(
+            "Not killing PID %d: image name %r is not one of our children (PID recycled?)",
+            pid,
+            image,
+        )
         return
     try:
         subprocess.run(
