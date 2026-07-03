@@ -69,4 +69,5 @@ MUTEX_BROKER  # noqa
 consume_command_file  # noqa
 start_daemon_thread  # noqa
 restore_vlcrc_volume  # noqa
+is_process_alive  # noqa
 _read_shortcut_app_user_model_id  # noqa

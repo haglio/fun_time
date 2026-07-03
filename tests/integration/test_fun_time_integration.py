@@ -13,32 +13,19 @@ from pathlib import Path
 import pytest
 
 from fun_time.vlc_actions import ensure_playback_state, get_playback_state
-from fun_time.win32 import find_window_by_pid, find_window_by_title, get_foreground_window, is_window_topmost
+from fun_time.win32 import (
+    find_window_by_pid,
+    find_window_by_title,
+    get_foreground_window,
+    is_process_alive,
+    is_window_topmost,
+)
 
 from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
 )
-
-
-def _is_pid_alive(pid: int) -> bool:
-    """Check whether a process with the given PID is still running.
-
-    On Windows, os.kill(pid, 0) can return True for zombie processes
-    whose kernel objects haven't been released.  GetExitCodeProcess
-    reliably distinguishes running (STILL_ACTIVE) from terminated.
-    """
-    import ctypes
-    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-    STILL_ACTIVE = 259
-    handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-    if not handle:
-        return False
-    exit_code = ctypes.c_ulong()
-    ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
-    ctypes.windll.kernel32.CloseHandle(handle)
-    return exit_code.value == STILL_ACTIVE
 
 
 def _read_vlc_config_from_manifest(session: FunTimeIntegrationSession) -> tuple[int, str]:
@@ -84,11 +71,9 @@ def isolated_integration_session():
         shutil.rmtree(temp_root, ignore_errors=True)
 
 
-
 def test_fun_time_startup_runtime_smoke(shared_integration_session: FunTimeIntegrationSession):
     assert shared_integration_session.windows_bridge_log.exists()
     assert shared_integration_session.orchestrator_log.exists()
-
 
 
 def test_fun_time_portrait_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
@@ -99,7 +84,6 @@ def test_fun_time_portrait_lock_unlock_flow(shared_integration_session: FunTimeI
     shared_integration_session.wait_for_new_log("Unlocked portrait VLC", timeout=12)
 
 
-
 def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("omnipause_toggle")
     shared_integration_session.wait_for_new_log("OmniPause: entering", timeout=12)
@@ -108,14 +92,12 @@ def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeInteg
     shared_integration_session.wait_for_new_log("OmniPause: leaving", timeout=12)
 
 
-
 def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("fmode_toggle")
     shared_integration_session.wait_for_new_log("F-mode hotkey: enabled", timeout=12)
 
     shared_integration_session.write_dashboard_command("fmode_toggle")
     shared_integration_session.wait_for_new_log("F-mode hotkey: disabled", timeout=12)
-
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
@@ -148,7 +130,6 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
         timeout=12,
         description="Nau paused file to flip back off (active)",
     )
-
 
 
 def test_fun_time_nau_window_not_topmost_in_genau_mode(shared_integration_session: FunTimeIntegrationSession):
@@ -200,7 +181,6 @@ def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTime
     shared_integration_session.wait_for_new_log("Unlocked landscape VLC", timeout=12)
 
 
-
 def test_fun_time_portrait_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("portrait_lock")
     shared_integration_session.wait_for_new_log("Locked portrait VLC", timeout=12)
@@ -215,7 +195,6 @@ def test_fun_time_portrait_next_cancels_lock(shared_integration_session: FunTime
     shared_integration_session.wait_for_new_log("Unlocked portrait VLC", timeout=12)
 
 
-
 def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("landscape_lock")
     shared_integration_session.wait_for_new_log("Locked landscape VLC", timeout=12)
@@ -228,7 +207,6 @@ def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTim
 
     shared_integration_session.write_dashboard_command("landscape_lock")
     shared_integration_session.wait_for_new_log("Unlocked landscape VLC", timeout=12)
-
 
 
 def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTimeIntegrationSession):
@@ -255,7 +233,6 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
     shared_integration_session.wait_for_new_log("Switched to nau mode", timeout=12)
 
 
-
 def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunTimeIntegrationSession):
     """Regression: omnipause must pause Genau, not close it.
 
@@ -268,7 +245,7 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     """
     s = shared_integration_session
     rh_pid = s.read_genau_pid()
-    assert _is_pid_alive(rh_pid), "Genau should be alive before test"
+    assert is_process_alive(rh_pid), "Genau should be alive before test"
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode", timeout=12)
@@ -282,7 +259,7 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     )
 
     # Genau must still be running — omnipause should pause, not close.
-    assert _is_pid_alive(rh_pid), (
+    assert is_process_alive(rh_pid), (
         "Genau process died during omnipause — "
         "Esc should pause Genau, not close it"
     )
@@ -290,11 +267,10 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: leaving", timeout=12)
 
-    assert _is_pid_alive(rh_pid), "Genau should survive leaving omnipause"
+    assert is_process_alive(rh_pid), "Genau should survive leaving omnipause"
 
     s.write_dashboard_command("nau_activate")
     s.wait_for_new_log("Switched to nau mode", timeout=12)
-
 
 
 def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
@@ -399,7 +375,6 @@ def test_fun_time_hybrid_nudge_seeks_vlc(shared_integration_session: FunTimeInte
     s.wait_for_new_log("Switched to nau mode", timeout=12)
 
 
-
 @contextlib.contextmanager
 def _foreground_sentinel():
     """Create a tiny popup window and make it the foreground window.
@@ -469,7 +444,6 @@ def test_fun_time_startup_does_not_steal_foreground():
             shutil.rmtree(temp_root, ignore_errors=True)
 
 
-
 def test_fun_time_landscape_trash_updates_temp_state(isolated_integration_session: FunTimeIntegrationSession):
     isolated_integration_session.write_dashboard_command("landscape_trash")
     chunk = isolated_integration_session.wait_for_new_log("Discarding from player 3:", timeout=12)
@@ -487,7 +461,6 @@ def test_fun_time_landscape_trash_updates_temp_state(isolated_integration_sessio
         timeout=12,
         description="landscape sample to be moved into the integration weird dir",
     )
-
 
 
 def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session: FunTimeIntegrationSession):
@@ -509,7 +482,6 @@ def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session
     )
 
 
-
 def test_fun_time_quit_cleans_up_processes():
     """The real quit path (AHK exit → orchestrator cleanup) must kill all child processes."""
     temp_root = build_integration_temp_root()
@@ -519,7 +491,7 @@ def test_fun_time_quit_cleans_up_processes():
         session.start()
 
         child_pids = session.read_child_pids()
-        live_pids = {name: pid for name, pid in child_pids.items() if pid and _is_pid_alive(pid)}
+        live_pids = {name: pid for name, pid in child_pids.items() if pid and is_process_alive(pid)}
         assert live_pids, "Expected at least some child processes to be running after startup"
 
         session.quit_gracefully(timeout=15.0)
@@ -528,7 +500,7 @@ def test_fun_time_quit_cleans_up_processes():
 
         deadline = time.time() + 5.0
         while time.time() < deadline:
-            still_alive = {name: pid for name, pid in live_pids.items() if _is_pid_alive(pid)}
+            still_alive = {name: pid for name, pid in live_pids.items() if is_process_alive(pid)}
             if not still_alive:
                 break
             time.sleep(0.5)

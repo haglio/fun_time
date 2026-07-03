@@ -63,7 +63,6 @@ def write_pids_file(path: Path, result: StartupResult) -> None:
 # not be killed.
 _CHILD_IMAGE_NAMES = {
     "vlc.exe",
-    "multifunplayer.exe",
     "python.exe",
     "pythonw.exe",
     "autohotkey64.exe",
