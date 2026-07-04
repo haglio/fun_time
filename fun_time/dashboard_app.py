@@ -42,6 +42,7 @@ from shared_ui.fonts import (
 from fun_time.config import LayoutConfig
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.vlc_actions import get_current_file_path, vlc_http_req
+from fun_time.win32 import get_captioned_window_chrome_height
 from fun_time.dashboard_actions import (
     BROKER_PANEL,
     CLIPPER_SAVE,
@@ -81,7 +82,7 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.command_reference import render_reference_html
-from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
+from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_fitted_preview_layout
 from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status
 from fun_time.dashboard_state import (
     LABEL_LANDSCAPE_VLC,
@@ -1023,11 +1024,16 @@ class DashboardWindow(QMainWindow):
         preview_layout: DashboardPreviewLayout,
         *,
         launch_geometry: DashboardLaunchGeometry | None = None,
+        start_minimized: bool = False,
     ) -> None:
         super().__init__()
         self._app_config = app_config
         self._preview_layout = preview_layout
         self._launch_geometry = launch_geometry
+        # While the loading overlay is up the dashboard starts minimized so
+        # its always-on-top window cannot flash above the overlay.  The
+        # initial minimize must not be mirrored onto the other windows.
+        self._suppress_minimize_routing = start_minimized
 
         self._pressed: dict[str, float] = {}
         self._reference_dialog: ReferenceDialog | None = None
@@ -1068,7 +1074,10 @@ class DashboardWindow(QMainWindow):
         self.show()
         _hwnd = int(self.winId())
         SW_SHOW = 5
-        ctypes.windll.user32.ShowWindow(_hwnd, SW_SHOW)
+        SW_SHOWMINNOACTIVE = 7
+        ctypes.windll.user32.ShowWindow(
+            _hwnd, SW_SHOWMINNOACTIVE if start_minimized else SW_SHOW
+        )
         WS_SYSMENU = 0x00080000
         WS_MINIMIZEBOX = 0x00020000
         WS_MAXIMIZEBOX = 0x00010000
@@ -1126,11 +1135,17 @@ class DashboardWindow(QMainWindow):
 
     def _maybe_route_omniminimize(self, *, now_minimized: bool, was_minimized: bool) -> None:
         """Write the omniminimize command on the not-minimized -> minimized edge only."""
+        if self._suppress_minimize_routing:
+            return  # startup minimize (loading overlay) — not a user gesture
         if now_minimized and not was_minimized:
             write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIMINIMIZE)
 
     def _maybe_route_omnirestore(self, *, now_minimized: bool, was_minimized: bool) -> None:
         """Write the omnirestore command on the minimized -> not-minimized edge only."""
+        if was_minimized and not now_minimized and self._suppress_minimize_routing:
+            # The post-loading reveal restored us; routing is live from here.
+            self._suppress_minimize_routing = False
+            return
         if was_minimized and not now_minimized:
             write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIRESTORE)
 
@@ -1249,7 +1264,10 @@ def build_dashboard_window(
     launch_geometry: DashboardLaunchGeometry | None = None,
 ) -> DashboardWindow:
     main_monitor, secondary_monitor = get_preview_monitor_sizes(app_config)
-    preview_layout = compute_dashboard_preview_layout(main_monitor, secondary_monitor, app_config.layout)
+    preview_layout = compute_fitted_preview_layout(
+        main_monitor, secondary_monitor, app_config.layout,
+        chrome_height=get_captioned_window_chrome_height(),
+    )
     return DashboardWindow(
         app_config, preview_layout,
         launch_geometry=launch_geometry,
@@ -1268,6 +1286,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--y", type=int)
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
+    parser.add_argument(
+        "--start-minimized",
+        action="store_true",
+        help="Start minimized (used while the loading screen covers startup)",
+    )
     return parser.parse_args(argv)
 
 
