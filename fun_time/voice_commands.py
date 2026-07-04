@@ -27,9 +27,9 @@ VOICE_COMMANDS: dict[str, str] = {
     # Recognizer listens for "go now" (reliably recognized); the reference
     # displays this as "genau" via the row's voice_display override.
     "go now": "genau_activate",
-    # Recognizer listens for "video" ("nau" is too close to "go now");
+    # Recognizer listens for "now now" ("nau" is not in the vosk vocabulary);
     # the reference displays this as "nau".
-    "video": "nau_activate",
+    "now now": "nau_activate",
     "hybrid": "hybrid_activate",
     "start broker": "broker_start",
     "stop broker": "broker_stop",
