@@ -41,3 +41,14 @@ class TestLoadIconImage:
     def test_returns_none_for_missing_file(self):
         result = load_icon_image(Path("nonexistent.ico"), 128)
         assert result is None
+
+
+class TestWindowTitle:
+    def test_title_cannot_be_mistaken_for_the_dashboard(self):
+        """Dashboard lookups match the exact title "Fun Time"; the borderless
+        loading overlay must present a different exact title so it can never
+        be resolved (and z-order-managed) as the dashboard."""
+        from fun_time.loading_screen import WINDOW_TITLE
+
+        assert WINDOW_TITLE != "Fun Time"
+        assert "Fun Time" in WINDOW_TITLE  # still recognizably ours

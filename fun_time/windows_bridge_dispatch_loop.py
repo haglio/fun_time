@@ -481,7 +481,7 @@ class DispatchLoopRunner:
         """
         hwnd = find_window_by_pid(self.dashboard_pid) if self.dashboard_pid else 0
         if not hwnd:
-            hwnd = find_window_by_title("Fun Time")
+            hwnd = find_window_by_title("Fun Time", exact=True)
             if hwnd:
                 logger.info(
                     "Dashboard found by title (hwnd=%d) but NOT by pid %d",

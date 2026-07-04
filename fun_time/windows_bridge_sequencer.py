@@ -264,7 +264,7 @@ def run_startup_sequence(
         if dashboard_pid:
             dash_hwnd = find_window_by_pid(dashboard_pid)
             if not dash_hwnd:
-                dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=5.0)
+                dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=5.0, exact=True)
 
         layers = compute_z_order(
             rfb_hwnd=rfb_hwnd,
