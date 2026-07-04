@@ -61,6 +61,12 @@ def load_icon_image(ico_path: Path, size: int) -> PILImage | None:
 POLL_MS = 200
 STALE_TIMEOUT_S = 60.0
 
+# Distinct from the dashboard's "Fun Time": title-based window lookups must
+# never resolve the loading overlay when they mean the dashboard (both are
+# python processes whose venv-launcher pids don't own their windows). The
+# overlay is borderless, so the title is never rendered anywhere.
+WINDOW_TITLE = "Fun Time Loading"
+
 
 class LoadingScreen:
     def __init__(self, progress_file: Path) -> None:
@@ -73,7 +79,7 @@ class LoadingScreen:
         TEXT_DIM = "#c0c0d8"
 
         self._root = tk.Tk()
-        self._root.title("Fun Time")
+        self._root.title(WINDOW_TITLE)
         self._root.resizable(False, False)
         self._root.attributes("-topmost", True)
         self._root.overrideredirect(True)
@@ -165,6 +171,10 @@ class LoadingScreen:
         self._root.after(POLL_MS, self._poll)
 
     def _poll(self) -> None:
+        # Startup promotes windows into the TOPMOST band while this overlay
+        # is up (the newest topmost window wins), so re-assert on every tick
+        # to stay visually on top until destroyed.
+        self._root.attributes("-topmost", True)
         try:
             if self._progress_file.exists():
                 mtime = self._progress_file.stat().st_mtime

@@ -1046,7 +1046,7 @@ class TestGenauZOrder:
         # Dashboard PID 500 maps to 0 (not found) — simulates PID mismatch
         pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001}
 
-        def title_lookup(title):
+        def title_lookup(title, exact=False):
             return 9999 if title == "Fun Time" else 0
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \

@@ -189,7 +189,7 @@ def _fix_post_loading_z_order(result: StartupResult) -> None:
     if result.dashboard_pid:
         dash_hwnd = find_window_by_pid(result.dashboard_pid)
         if not dash_hwnd:
-            dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0)
+            dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0, exact=True)
 
     layers = compute_z_order(
         rfb_hwnd=result.rfb_hwnd,
