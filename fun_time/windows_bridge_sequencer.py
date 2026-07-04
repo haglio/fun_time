@@ -280,10 +280,9 @@ def run_startup_sequence(
             if hwnd:
                 collected_hwnds.append(hwnd)
 
-        # Apply z-order using centralized module.
-        # The post-loading fix and dispatch loop's continuous enforcement
-        # will correct any drift, but setting it here makes windows visible
-        # in the right order when the loading screen closes.
+        # Apply the static window state (topmost flags + nau-mode visibility)
+        # now so everything is correct the moment the loading screen closes;
+        # the post-loading fix re-asserts it once the overlay is gone.
         dashboard_pid = ui_pids["dashboard_pid"]
         dash_hwnd = 0
         if dashboard_pid:
@@ -447,9 +446,8 @@ def _maybe_launch_random_favs_browser(
     no_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height, activate=not no_activate)
 
-    # Z-order for RFB is handled by Phase 2/4's centralized apply_z_order
-    # call and the dispatch loop's continuous enforcement.  No individual
-    # set_always_on_top calls needed here.
+    # The RFB's static topmost flag is applied by Phase 4's
+    # _apply_startup_window_state; nothing window-related to do here.
 
     logger.info("Random Favs Browser positioned")
     return new_hwnd
