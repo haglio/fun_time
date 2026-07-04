@@ -500,6 +500,69 @@ def test_do_render_skips_geometry_reapply_while_minimized(cfg_path: Path):
         window.close()
 
 
+def test_dashboard_stays_hidden_during_loading(cfg_path: Path):
+    """During the loading overlay the dashboard is fully hidden (SW_HIDE) — never
+    shown, never minimized — so there is no flash and no minimize animation."""
+    import ctypes
+    from unittest.mock import MagicMock
+
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    show_window = MagicMock()
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))), \
+         patch("fun_time.dashboard_app.loading_screen_active", return_value=True), \
+         patch.object(ctypes.windll.user32, "ShowWindow", show_window):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        assert window._deferred_for_loading is True
+        assert not window.isVisible()
+        SW_HIDE, SW_SHOWMINNOACTIVE = 0, 7
+        modes = [c.args[1] for c in show_window.call_args_list if c.args[0] == window._dash_hwnd]
+        assert SW_HIDE in modes
+        assert SW_SHOWMINNOACTIVE not in modes
+    finally:
+        window.close()
+
+
+def test_dashboard_reveals_with_show_after_loading(cfg_path: Path):
+    """Once the overlay is gone the dashboard is shown (SW_SHOW) and minimize
+    routing is re-enabled — a reveal from hidden fires no restore edge to do it."""
+    import ctypes
+    from unittest.mock import MagicMock
+
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))), \
+         patch("fun_time.dashboard_app.loading_screen_active", return_value=True):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        assert window._deferred_for_loading is True
+        assert window._suppress_minimize_routing is True
+
+        show_window = MagicMock()
+        with patch("fun_time.dashboard_app.loading_screen_active", return_value=False), \
+             patch.object(ctypes.windll.user32, "ShowWindow", show_window), \
+             patch.object(window, "show") as mock_show:
+            window._maybe_reveal_after_loading()
+
+        assert window._deferred_for_loading is False
+        assert window._suppress_minimize_routing is False
+        mock_show.assert_called_once()
+        SW_SHOW = 5
+        modes = [c.args[1] for c in show_window.call_args_list if c.args[0] == window._dash_hwnd]
+        assert SW_SHOW in modes
+    finally:
+        window.close()
+
+
 def test_help_action_opens_dialog_locally_without_routing_command(cfg_path: Path):
     """Help is a pure UI concern — it opens a dialog and must not write a dispatch command."""
     from unittest.mock import MagicMock
