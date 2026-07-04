@@ -27,7 +27,7 @@ class TestVoiceCommands:
             "f mode on": "fmode_on",
             "f mode off": "fmode_off",
             "go now": "genau_activate",
-            "video": "nau_activate",
+            "now now": "nau_activate",
             "hybrid": "hybrid_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
@@ -70,7 +70,7 @@ class TestVoiceCommands:
             assert phrase not in VOICE_COMMANDS
 
     def test_video_activates_nau(self):
-        assert VOICE_COMMANDS["video"] == "nau_activate"
+        assert VOICE_COMMANDS["now now"] == "nau_activate"
         assert "v l c" not in VOICE_COMMANDS
 
     def test_hybrid_activates_hybrid(self):

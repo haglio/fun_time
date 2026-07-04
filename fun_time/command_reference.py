@@ -104,7 +104,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         "Modes",
         (
             _Row("Genau mode", ("G",), ("genau_activate",), voice_display=("genau",)),
-            _Row("Nau mode", ("N",), ("nau_activate",), voice_display=("nau",)),
+            _Row("Nau mode", ("N",), ("nau_activate",), voice_display=("nau nau",)),
             _Row("Hybrid mode", ("H",), ("hybrid_activate",)),
         ),
     ),

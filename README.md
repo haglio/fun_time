@@ -211,7 +211,7 @@ The primary stack runs in one of three modes, each selected by its own hotkey (s
 
 The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode except Hybrid, where they drive the primary VLC. The `'` clip-save key likewise reads the current video/time from Nau's status file outside Hybrid mode.
 
-The Nau-mode voice trigger is spoken as "video" (the reference displays it as "nau" — "nau" itself is too close to Genau's "go now" trigger).
+The Nau-mode voice trigger is spoken as "now now" (the reference displays it as "nau nau" — "nau" itself is not in the recognizer's vocabulary).
 
 ### Loop recording (Nau mode)
 

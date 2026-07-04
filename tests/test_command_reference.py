@@ -127,11 +127,11 @@ def test_section_titles_and_backslash_split():
     assert len(genau_backslash) == 1, "expected a separate '\\' offset row in Genau"
 
 
-def test_nau_mode_row_displays_nau_but_recognizer_uses_video():
-    assert VOICE_COMMANDS["video"] == "nau_activate"
+def test_nau_mode_row_displays_nau_nau_but_recognizer_uses_now_now():
+    assert VOICE_COMMANDS["now now"] == "nau_activate"
     assert "nau" not in VOICE_COMMANDS  # display-only alias, not a recognizer phrase
     nau_rows = [r for r in _all_rows() if "nau_activate" in r.commands]
-    assert nau_rows and nau_rows[0].voice == ("nau",)
+    assert nau_rows and nau_rows[0].voice == ("nau nau",)
 
 
 def test_record_loop_row_lists_r_key_and_voice_phrases():
