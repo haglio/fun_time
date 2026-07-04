@@ -211,6 +211,16 @@ class DashboardScene:
     arcs: tuple[DashboardArcItem, ...] = ()
 
 
+def loading_screen_active(state_dir: Path) -> bool:
+    """True while the startup loading overlay is up.
+
+    The overlay writes ``startup_progress.txt`` in the state dir for the
+    duration of startup and deletes it when it closes, so its presence is
+    the dashboard's cue to stay minimized (and out of the overlay's way).
+    """
+    return (Path(state_dir) / "startup_progress.txt").exists()
+
+
 def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
     parser = configparser.ConfigParser()
     parser.optionxform = str
@@ -1031,9 +1041,15 @@ class DashboardWindow(QMainWindow):
         self._preview_layout = preview_layout
         self._launch_geometry = launch_geometry
         # While the loading overlay is up the dashboard starts minimized so
-        # its always-on-top window cannot flash above the overlay.  The
-        # initial minimize must not be mirrored onto the other windows.
-        self._suppress_minimize_routing = start_minimized
+        # its always-on-top window cannot flash above the overlay (a minimized
+        # window renders nothing and the geometry re-assert is gated on
+        # not-minimized).  We auto-detect that from the loading screen's
+        # progress file and reveal ourselves once it is gone — the launcher
+        # does not have to pass --start-minimized.  The initial minimize must
+        # not be mirrored onto the other windows.
+        self._deferred_for_loading = loading_screen_active(app_config.manifest_path.parent)
+        minimized_start = start_minimized or self._deferred_for_loading
+        self._suppress_minimize_routing = minimized_start
 
         self._pressed: dict[str, float] = {}
         self._reference_dialog: ReferenceDialog | None = None
@@ -1073,10 +1089,11 @@ class DashboardWindow(QMainWindow):
         # which PyQt6 inherits.  An explicit ShowWindow(SW_SHOW) overrides it.
         self.show()
         _hwnd = int(self.winId())
+        self._dash_hwnd = _hwnd
         SW_SHOW = 5
         SW_SHOWMINNOACTIVE = 7
         ctypes.windll.user32.ShowWindow(
-            _hwnd, SW_SHOWMINNOACTIVE if start_minimized else SW_SHOW
+            _hwnd, SW_SHOWMINNOACTIVE if minimized_start else SW_SHOW
         )
         WS_SYSMENU = 0x00080000
         WS_MINIMIZEBOX = 0x00020000
@@ -1148,6 +1165,25 @@ class DashboardWindow(QMainWindow):
             return
         if was_minimized and not now_minimized:
             write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIRESTORE)
+
+    def _maybe_reveal_after_loading(self) -> None:
+        """Un-minimize once the loading overlay is gone.
+
+        The dashboard starts minimized while the overlay is up so it cannot
+        flash above it; the overlay deletes its progress file when it closes,
+        which is our cue to reveal.  Un-minimizing fires changeEvent, where
+        _maybe_route_omnirestore clears the startup-minimize suppression.
+        """
+        if not self._deferred_for_loading:
+            return
+        if loading_screen_active(self._app_config.manifest_path.parent):
+            return
+        self._deferred_for_loading = False
+        SW_SHOW = 5
+        ctypes.windll.user32.ShowWindow(self._dash_hwnd, SW_SHOW)
+        ctypes.windll.user32.SetWindowPos(
+            self._dash_hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0020,
+        )
 
     def _compute_pressed(self) -> frozenset[str]:
         now = time.monotonic()
@@ -1250,6 +1286,7 @@ class DashboardWindow(QMainWindow):
             time.sleep(0.5)
 
     def _refresh(self) -> None:
+        self._maybe_reveal_after_loading()
         snapshot = load_dashboard_snapshot(self._app_config.dashboard_state_file)
         if snapshot is not None:
             snapshot = hydrate_dashboard_snapshot(snapshot, self._vlc_cache[0])

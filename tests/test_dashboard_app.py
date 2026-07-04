@@ -1747,3 +1747,14 @@ def test_hybrid_mode_has_genau_param_labels(cfg_path: Path):
     assert text_at[layout.hybrid_genau_amp_label] == "AMP"
     assert text_at[layout.hybrid_genau_ctr_label] == "CTR"
     assert text_at[layout.hybrid_genau_spd_label] == "SPD"
+
+
+class TestLoadingScreenActive:
+    def test_true_while_progress_file_present(self, tmp_path):
+        from fun_time.dashboard_app import loading_screen_active
+        (tmp_path / "startup_progress.txt").write_text("1/9", encoding="utf-8")
+        assert loading_screen_active(tmp_path) is True
+
+    def test_false_once_progress_file_gone(self, tmp_path):
+        from fun_time.dashboard_app import loading_screen_active
+        assert loading_screen_active(tmp_path) is False
