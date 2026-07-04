@@ -24,7 +24,6 @@ from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
 from .vlc_actions import get_playback_time_and_length, send_vlc_input_command, vlc_http_cmd
 from .vlc_seek import PrimarySeekAccumulator
-from .z_order import apply_z_order, compute_z_order
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -68,7 +67,8 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
     for op in ops:
         if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "tooltip",
                       "disable_all_topmost", "restore_all_topmost",
-                      "open_rfb_tab"):
+                      "open_rfb_tab",
+                      "show_role", "hide_role", "activate_role"):
             remaining.append(op)
             continue
 
@@ -197,6 +197,8 @@ class DispatchLoopRunner:
         self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._press_port: int | None = None
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
+        self._role_hwnds: dict[str, int] = {}
+        self._minimized_hwnds: list[int] = []
         self.voice_controller: VoiceController | None = None
         self._seek_accumulator = PrimarySeekAccumulator(
             read_position=lambda: get_playback_time_and_length(
@@ -310,24 +312,32 @@ class DispatchLoopRunner:
         now = time.monotonic()
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
-            if not self.state.omni_paused:
-                self._apply_z_order(reorder=False)
             if self.dashboard_enabled:
                 self._update_dashboard()
 
     def _dispatch(self, command: str) -> None:
         logger.info("Dispatching command: %s", command)
-        prev_mode = self.state.primary_mode
         new_state, ops = dispatch_command(command, self.state, self.config)
         self.state = new_state
         remaining = execute_window_ops(ops, self.primary_pid)
-        # Any mode change can reshuffle the Primary/Genau stack — compute_z_order
-        # gives vlc, genau, and hybrid three distinct stacks — so reorder on the
-        # actual mode, not on genau_active() (which collapses genau and hybrid).
-        if self.state.primary_mode != prev_mode:
-            self._apply_z_order()
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
+            if op.op == "show_role":
+                hwnd = self._resolve_role(op.key)
+                if hwnd:
+                    show_window(hwnd)
+                continue
+            if op.op == "hide_role":
+                hwnd = self._resolve_role(op.key)
+                if hwnd:
+                    hide_window(hwnd)
+                continue
+            if op.op == "activate_role":
+                if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+                    hwnd = self._resolve_role(op.key)
+                    if hwnd:
+                        activate_window(hwnd)
+                continue
             if op.op == "disable_all_topmost":
                 self._remove_all_topmost()
                 continue
@@ -390,45 +400,74 @@ class DispatchLoopRunner:
         except Exception:
             pass
 
-    def _window_layers(self) -> list[tuple[int, bool]]:
-        """The centralized (hwnd, should_be_topmost) stack for every managed window.
+    # Windows never stack anymore (the dashboard/RFB got their own screen
+    # rects), so z-order management is gone: every managed window carries a
+    # STATIC topmost flag — True for all except the hybrid-only primary VLC,
+    # which lives under Genau's transparent HUD and must never rise above it.
+    _ROLE_TOPMOST: dict[str, bool] = {
+        "rfb": True,
+        "portrait": True,
+        "landscape": True,
+        "genau": True,
+        "nau": True,
+        "dashboard": True,
+        "primary": False,
+    }
 
-        Single source of truth for the window roster — z-order application,
-        topmost removal, and omniminimize all walk this same list.
+    def _resolve_role(self, role: str) -> int:
+        """HWND for a managed window role, cached on first sight.
+
+        Hidden windows are invisible to the pid/title lookups, so a
+        window's HWND must be captured while it is visible (startup shows
+        everything) and reused to show it again later.
         """
-        return compute_z_order(
-            rfb_hwnd=self.rfb_hwnd,
-            portrait_hwnd=find_window_by_pid(self.portrait_pid),
-            landscape_hwnd=find_window_by_pid(self.landscape_pid),
-            primary_hwnd=find_window_by_pid(self.primary_pid),
-            genau_hwnd=find_window_by_title("Genau"),
+        hwnd = self._role_hwnds.get(role, 0)
+        if hwnd:
+            return hwnd
+        if role == "primary":
+            hwnd = find_window_by_pid(self.primary_pid)
+        elif role == "genau":
+            hwnd = find_window_by_title("Genau")
+        elif role == "nau":
             # The venv pythonw launcher's PID differs from the interpreter
             # that owns the SDL window, so fall back to the exact window
             # title (exact: "Nau" is a substring of "Genau").
-            nau_hwnd=find_window_by_pid(self.nau_pid) or find_window_by_title("Nau", exact=True),
-            dashboard_hwnd=self._find_dashboard_hwnd(),
-            primary_mode=self.state.primary_mode,
-        )
+            hwnd = find_window_by_pid(self.nau_pid) or find_window_by_title("Nau", exact=True)
+        elif role == "portrait":
+            hwnd = find_window_by_pid(self.portrait_pid)
+        elif role == "landscape":
+            hwnd = find_window_by_pid(self.landscape_pid)
+        elif role == "dashboard":
+            hwnd = self._find_dashboard_hwnd()
+        elif role == "rfb":
+            hwnd = self.rfb_hwnd
+        if hwnd:
+            self._role_hwnds[role] = hwnd
+        return hwnd
 
-    def _apply_z_order(self, *, reorder: bool = True) -> None:
-        """Look up all window HWNDs and apply the centralized z-order stack.
-
-        *reorder=True* (default) rebuilds the full stack (demote all,
-        then promote bottom-to-top).  Use after transitions.
-
-        *reorder=False* only corrects drift — demotes windows that
-        should not be topmost without touching the rest.  Use for the
-        periodic sync tick to avoid visual flicker.
-        """
-        apply_z_order(self._window_layers(), reorder=reorder)
+    def _visible_roles(self) -> list[str]:
+        """Roles whose windows the current mode keeps on screen."""
+        slot = {
+            "genau": ["genau"],
+            "hybrid": ["primary", "genau"],
+        }.get(self.state.primary_mode, ["nau"])
+        return ["rfb", "portrait", "landscape", "dashboard", *slot]
 
     def _remove_all_topmost(self) -> None:
-        """Demote all windows from the TOPMOST band (omnipause)."""
-        apply_z_order([(h, False) for h, _ in self._window_layers()])
+        """Drop every window out of the TOPMOST band (omnipause frees the desktop)."""
+        for role, topmost in self._ROLE_TOPMOST.items():
+            if topmost:
+                hwnd = self._resolve_role(role)
+                if hwnd:
+                    set_always_on_top(hwnd, False)
 
     def _restore_all_topmost(self) -> None:
-        """Restore the correct z-order stack after omnipause."""
-        self._apply_z_order()
+        """Re-apply the static topmost flags after omnipause."""
+        for role, topmost in self._ROLE_TOPMOST.items():
+            if topmost:
+                hwnd = self._resolve_role(role)
+                if hwnd:
+                    set_always_on_top(hwnd, True)
 
     def _is_broker_alive(self) -> bool:
         hb = self.config.broker_heartbeat_file
@@ -490,24 +529,25 @@ class DispatchLoopRunner:
         return hwnd
 
     def _handle_omniminimize(self) -> None:
-        """Minimize every managed window — the "omniminimize" command.
+        """Minimize the windows the current mode shows — the "omniminimize" command.
 
-        Walks the same window roster as the z-order stack (RFB, the three
-        VLCs, Genau, Nau, and the dashboard itself) and minimizes each with
-        ``activate=False`` so minimizing one never yanks focus to the next.
+        Only mode-visible windows are minimized (SW_MINIMIZE would drag a
+        hidden slot-mate back into view), each with ``activate=False`` so
+        minimizing one never yanks focus to the next.  The minimized set is
+        remembered so omnirestore brings back exactly these windows.
         """
-        for hwnd, _topmost in self._window_layers():
-            minimize_window(hwnd, activate=False)
+        self._minimized_hwnds = []
+        for role in self._visible_roles():
+            hwnd = self._resolve_role(role)
+            if hwnd:
+                minimize_window(hwnd, activate=False)
+                self._minimized_hwnds.append(hwnd)
 
     def _handle_omnirestore(self) -> None:
-        """Un-minimize every managed window — the mirror of omniminimize.
-
-        Restores each window with ``activate=False`` to avoid focus churn,
-        then re-applies the z-order so the stack comes back in the right order.
-        """
-        for hwnd, _topmost in self._window_layers():
+        """Un-minimize exactly the windows omniminimize minimized."""
+        for hwnd in self._minimized_hwnds:
             restore_window(hwnd, activate=False)
-        self._apply_z_order()
+        self._minimized_hwnds = []
 
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows.

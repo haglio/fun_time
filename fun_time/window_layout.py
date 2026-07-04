@@ -72,18 +72,20 @@ def compute_window_layout(
         height=main_monitor.height,
     )
 
-    random_favs_browser = WindowRect(
+    # The left column stacks the dashboard (top-left) above the RFB so every
+    # managed window is fully visible at once — no two windows overlap.
+    dashboard = WindowRect(
         x=main_monitor.x,
         y=main_monitor.y,
-        width=main_monitor.width - landscape_width,
-        height=main_monitor.height,
+        width=dashboard_size.width,
+        height=dashboard_size.height,
     )
-
-    dashboard = compute_left_partition_dashboard(
-        main_monitor=main_monitor,
-        layout_config=layout_config,
-        dashboard_size=dashboard_size,
-        dashboard_chrome_height=dashboard_chrome_height,
+    dashboard_outer_h = dashboard_size.height + dashboard_chrome_height
+    random_favs_browser = WindowRect(
+        x=main_monitor.x,
+        y=main_monitor.y + dashboard_outer_h,
+        width=main_monitor.width - landscape_width,
+        height=main_monitor.height - dashboard_outer_h,
     )
 
     return WindowLayoutPlan(
@@ -108,25 +110,3 @@ def compute_dashboard_size(
     )
     return Size(preview.dashboard_width, preview.dashboard_height)
 
-
-def compute_left_partition_dashboard(
-    *,
-    main_monitor: MonitorRect,
-    layout_config: LayoutConfig,
-    dashboard_size: Size,
-    dashboard_chrome_height: int = 0,
-) -> WindowRect:
-    """Center the dashboard in the left partition (beside the landscape VLC)."""
-    landscape_width = int(main_monitor.width * clamp01(layout_config.landscape_width_ratio))
-    left_width = main_monitor.width - landscape_width
-    top_margin = int(main_monitor.height * clamp01(layout_config.left_partition_top_ratio))
-    bottom_margin = int(main_monitor.height * clamp01(layout_config.left_partition_bottom_ratio))
-    dashboard_outer_h = dashboard_size.height + dashboard_chrome_height
-    usable_height = main_monitor.height - top_margin - bottom_margin
-    gap_y = (usable_height - dashboard_outer_h) // 2
-    return WindowRect(
-        x=main_monitor.x + (left_width - dashboard_size.width) // 2,
-        y=main_monitor.y + top_margin + gap_y,
-        width=dashboard_size.width,
-        height=dashboard_size.height,
-    )

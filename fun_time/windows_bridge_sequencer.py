@@ -23,11 +23,12 @@ from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser, tab_placeholder_path
 from .runtime_flow import write_flag_file
 from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
-from .z_order import apply_z_order, compute_z_order
 from .win32 import (
     find_window_by_pid,
     get_captioned_window_chrome_height,
+    hide_window,
     move_window,
+    set_always_on_top,
     wait_for_window,
     wait_for_window_by_title,
 )
@@ -72,6 +73,34 @@ def _read_result_pids(result_file: str | Path) -> dict[str, int]:
 
 def _build_unique_result_path(state_dir: Path, prefix: str) -> Path:
     return state_dir / f"{prefix}_{int(time.monotonic() * 1000)}.ini"
+
+
+def _apply_startup_window_state(
+    *,
+    portrait_hwnd: int,
+    landscape_hwnd: int,
+    primary_hwnd: int,
+    genau_hwnd: int,
+    nau_hwnd: int,
+    dashboard_hwnd: int = 0,
+    rfb_hwnd: int = 0,
+) -> None:
+    """Set the static window state for the nau startup mode.
+
+    No window overlaps another anymore, so there is no z-order to manage:
+    every managed window is simply always-on-top — except the hybrid-only
+    primary VLC, which lives under Genau's transparent HUD and must never
+    rise above it.  The primary slot is arbitrated by visibility: startup
+    mode is nau, so Genau and the primary VLC start hidden.
+    """
+    for hwnd in (rfb_hwnd, portrait_hwnd, landscape_hwnd, genau_hwnd, nau_hwnd, dashboard_hwnd):
+        if hwnd:
+            set_always_on_top(hwnd, True)
+    if primary_hwnd:
+        set_always_on_top(primary_hwnd, False)
+    for hwnd in (genau_hwnd, primary_hwnd):
+        if hwnd:
+            hide_window(hwnd)
 
 
 def run_startup_sequence(
@@ -187,19 +216,15 @@ def run_startup_sequence(
         logger.info("Core windows positioned")
 
         progress.advance("Finalizing window layout...")
-        # Z-order is set here for immediate visibility; the dispatch loop's
-        # continuous enforcement will correct any drift after startup.
-        layers = compute_z_order(
+        _apply_startup_window_state(
             portrait_hwnd=find_window_by_pid(portrait_pid),
             landscape_hwnd=find_window_by_pid(landscape_pid),
             primary_hwnd=find_window_by_pid(primary_pid),
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
             nau_hwnd=wait_for_window(nau_pid, timeout_s=3.0)
             or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
-            primary_mode="nau",
         )
-        apply_z_order(layers)
-        logger.info("Topmost set on core windows")
+        logger.info("Startup window state applied")
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("Launching browser...")
@@ -266,7 +291,7 @@ def run_startup_sequence(
             if not dash_hwnd:
                 dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=5.0, exact=True)
 
-        layers = compute_z_order(
+        _apply_startup_window_state(
             rfb_hwnd=rfb_hwnd,
             portrait_hwnd=find_window_by_pid(portrait_pid),
             landscape_hwnd=find_window_by_pid(landscape_pid),
@@ -275,10 +300,8 @@ def run_startup_sequence(
             nau_hwnd=wait_for_window(nau_pid, timeout_s=5.0)
             or wait_for_window_by_title("Nau", timeout_s=5.0, exact=True),
             dashboard_hwnd=dash_hwnd,
-            primary_mode="nau",
         )
-        apply_z_order(layers)
-        logger.info("Topmost set on core windows")
+        logger.info("Startup window state applied")
 
         progress.advance("Finalizing...")
 
@@ -330,8 +353,6 @@ def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
         secondary_monitor=int(m["layout"]["secondary_monitor"]),
         primary_top_ratio=float(m["layout"]["primary_top_ratio"]),
         landscape_width_ratio=float(m["layout"]["landscape_width_ratio"]),
-        left_partition_top_ratio=float(m["layout"].get("left_partition_top_ratio", "0.0")),
-        left_partition_bottom_ratio=float(m["layout"].get("left_partition_bottom_ratio", "0.0")),
     )
 
 

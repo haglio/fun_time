@@ -512,7 +512,7 @@ class TestLoadingScreenLifecycle:
         assert len(loading_cmds) == 0, "Loading screen launched in integration mode"
 
 
-class TestPostLoadingZOrder:
+class TestPostLoadingWindowState:
     """Z-order must be re-asserted AFTER the loading screen closes.
 
     Phase 4 sets topmost while the loading screen overlay is still up.
@@ -520,7 +520,7 @@ class TestPostLoadingZOrder:
     orchestrator must correct this after the loading screen exits.
     """
 
-    def test_genau_demoted_and_dashboard_toggled_after_loading_closes(self, cfg_factory, tmp_path, monkeypatch):
+    def test_window_state_reasserted_after_loading_closes(self, cfg_factory, tmp_path, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -547,6 +547,7 @@ class TestPostLoadingZOrder:
             return fake_ahk_proc
 
         topmost_calls: list[tuple] = []
+        hide_calls: list[int] = []
         GENAU_HWND = 6060
         DASH_HWND = 5050
         pid_to_hwnd = {100: 1010, 200: 2020, 300: 3030, 400: 4040, 500: DASH_HWND}
@@ -556,7 +557,8 @@ class TestPostLoadingZOrder:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.windows_bridge_sequencer.hide_window", side_effect=hide_calls.append), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)):
 
             run_python_orchestrated_bridge(
@@ -567,20 +569,18 @@ class TestPostLoadingZOrder:
                 project_dir=tmp_path,
             )
 
-        # Genau must be demoted (topmost=False)
-        genau_demoted = [(h, v) for h, v in topmost_calls if h == GENAU_HWND and not v]
-        assert len(genau_demoted) >= 1, f"Genau not demoted: {topmost_calls}"
+        # nau startup mode: the inactive slot-mates are hidden.
+        assert GENAU_HWND in hide_calls, f"Genau not hidden: {hide_calls}"
+        assert 1010 in hide_calls, f"Primary VLC not hidden: {hide_calls}"
 
-        # Dashboard must be set topmost
-        dash_promoted = [(h, v) for h, v in topmost_calls if h == DASH_HWND and v]
-        assert len(dash_promoted) >= 1, f"Dashboard not promoted: {topmost_calls}"
-
-        # Nau + satellites must be set topmost; the hybrid-only primary VLC
-        # stays out of the topmost band in nau mode.
-        promoted = {h for h, v in topmost_calls if v and h in {1010, 2020, 3030, 4040}}
-        assert promoted == {2020, 3030, 4040}, f"Wrong promotions: {topmost_calls}"
-        primary_promoted = [(h, v) for h, v in topmost_calls if h == 1010 and v]
-        assert not primary_promoted, f"Primary VLC must not be promoted: {topmost_calls}"
+        # Static topmost flags for everything managed...
+        promoted = {h for h, v in topmost_calls if v}
+        assert {DASH_HWND, GENAU_HWND, 2020, 3030, 4040, 55555} <= promoted, (
+            f"Wrong promotions: {topmost_calls}"
+        )
+        # ...except the primary VLC, which must never enter the topmost band.
+        assert (1010, False) in topmost_calls
+        assert not any(h == 1010 and v for h, v in topmost_calls)
 
 
 class TestVoiceControlIntegration:

@@ -426,15 +426,38 @@ def _dispatch_leave_omnipause_skip_primary(
 
 
 def _primary_focus_ops(primary_mode: str) -> list[WindowOp]:
-    """Focus/topmost ops for the window that owns the primary display."""
-    if genau_active(primary_mode):
+    """Re-activate the window that owns the primary display (omnipause leave)."""
+    role = "genau" if genau_active(primary_mode) else "nau"
+    return [WindowOp(op="activate_role", key=role)]
+
+
+def _primary_slot_ops(primary_mode: str) -> list[WindowOp]:
+    """Visibility ops for the primary-slot windows on a mode switch.
+
+    The three players (Nau, Genau, the hybrid-only primary VLC) share one
+    screen rect; exactly the mode's player(s) are shown and the inactive
+    slot-mates hidden.  The new window is shown and activated BEFORE the
+    old one hides so focus never falls through to another application.
+    """
+    if primary_mode == "genau":
         return [
-            WindowOp(op="set_topmost", title="Genau", value=True),
-            WindowOp(op="activate", title="Genau"),
+            WindowOp(op="show_role", key="genau"),
+            WindowOp(op="activate_role", key="genau"),
+            WindowOp(op="hide_role", key="nau"),
+            WindowOp(op="hide_role", key="primary"),
+        ]
+    if primary_mode == "hybrid":
+        return [
+            WindowOp(op="show_role", key="primary"),
+            WindowOp(op="show_role", key="genau"),
+            WindowOp(op="activate_role", key="genau"),
+            WindowOp(op="hide_role", key="nau"),
         ]
     return [
-        WindowOp(op="set_topmost", title="Nau", value=True, exact=True),
-        WindowOp(op="activate", title="Nau", exact=True),
+        WindowOp(op="show_role", key="nau"),
+        WindowOp(op="activate_role", key="nau"),
+        WindowOp(op="hide_role", key="genau"),
+        WindowOp(op="hide_role", key="primary"),
     ]
 
 
@@ -482,11 +505,7 @@ def _dispatch_mode_switch(
     )
     state = replace(state, primary_mode=result.next_mode)
     if result.is_transition:
-        if genau_active(result.next_mode):
-            ops.append(WindowOp(op="set_topmost", title="Nau", value=False, exact=True))
-        else:
-            ops.append(WindowOp(op="set_topmost", title="Genau", value=False))
-        ops.extend(_primary_focus_ops(result.next_mode))
+        ops.extend(_primary_slot_ops(result.next_mode))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops

@@ -504,11 +504,15 @@ def test_nau_activate_deactivates_genau_and_raises_nau(tmp_path: Path):
         new_state, ops = dispatch_command("nau_activate", state, config)
 
     assert new_state.primary_mode == "nau"
-    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
-    nau_top = [op for op in ops if op.op == "set_topmost" and op.title == "Nau" and op.value is True]
-    assert nau_top and nau_top[0].exact is True, "Nau ops must be exact-match (substring of Genau)"
-    nau_activate = [op for op in ops if op.op == "activate" and op.title == "Nau"]
-    assert nau_activate and nau_activate[0].exact is True
+    slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
+    # Nau is shown and activated BEFORE the old slot-mates hide, so focus
+    # never falls through to another application.
+    assert slot_ops == [
+        ("show_role", "nau"),
+        ("activate_role", "nau"),
+        ("hide_role", "genau"),
+        ("hide_role", "primary"),
+    ]
 
 
 def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
@@ -519,9 +523,13 @@ def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
         new_state, ops = dispatch_command("genau_activate", state, config)
 
     assert new_state.primary_mode == "genau"
-    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
-    assert any(op.op == "activate" and op.title == "Genau" for op in ops)
-    assert any(op.op == "set_topmost" and op.title == "Nau" and op.value is False and op.exact for op in ops)
+    slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
+    assert slot_ops == [
+        ("show_role", "genau"),
+        ("activate_role", "genau"),
+        ("hide_role", "nau"),
+        ("hide_role", "primary"),
+    ]
 
 
 def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
@@ -532,9 +540,14 @@ def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
         new_state, ops = dispatch_command("hybrid_activate", state, config)
 
     assert new_state.primary_mode == "hybrid"
-    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
-    assert any(op.op == "activate" and op.title == "Genau" for op in ops)
-    assert any(op.op == "set_topmost" and op.title == "Nau" and op.value is False for op in ops)
+    slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
+    # Hybrid shows the primary VLC underneath Genau's transparent HUD.
+    assert slot_ops == [
+        ("show_role", "primary"),
+        ("show_role", "genau"),
+        ("activate_role", "genau"),
+        ("hide_role", "nau"),
+    ]
 
 
 # --- genau command forwarding (_GENAU_CMD_MAP) ---
@@ -756,7 +769,7 @@ def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("enter_omnipause", state, config)
 
-    assert not any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
+    assert not any(op.op == "hide_role" and op.key == "genau" for op in ops)
 
 
 def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
@@ -767,7 +780,7 @@ def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
-    assert not any(op.op == "set_topmost" and op.title == "Genau" and op.value is False for op in ops)
+    assert not any(op.op == "hide_role" and op.key == "genau" for op in ops)
 
 
 def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):
@@ -797,8 +810,7 @@ def test_leave_omnipause_skip_primary_adds_genau_ops_when_in_genau_mode(tmp_path
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
         new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
 
-    assert any(op.op == "set_topmost" and op.title == "Genau" and op.value is True for op in ops)
-    assert any(op.op == "activate" and op.title == "Genau" for op in ops)
+    assert any(op.op == "activate_role" and op.key == "genau" for op in ops)
 
 
 # --- primary nudge ---

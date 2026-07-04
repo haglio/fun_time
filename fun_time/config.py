@@ -71,8 +71,6 @@ class LayoutConfig:
     secondary_monitor: int
     primary_top_ratio: float
     landscape_width_ratio: float
-    left_partition_top_ratio: float = 0.0
-    left_partition_bottom_ratio: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -259,8 +257,6 @@ def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> Layout
         secondary_monitor=int(secondary_monitor),
         primary_top_ratio=_require_typed_value(layout_raw, "primary_top_ratio", source_path, "config.layout", float),
         landscape_width_ratio=_require_typed_value(layout_raw, "landscape_width_ratio", source_path, "config.layout", float),
-        left_partition_top_ratio=float(layout_raw.get("left_partition_top_ratio", 0.0)),
-        left_partition_bottom_ratio=float(layout_raw.get("left_partition_bottom_ratio", 0.0)),
     )
 
 
