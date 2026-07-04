@@ -43,9 +43,10 @@ def test_compute_window_layout_uses_main_monitor_for_landscape_and_random_favs_b
     assert plan.random_favs_browser.width + plan.landscape.width == 2560
 
 
-def test_dashboard_sits_at_main_monitor_top_left(cfg_path: Path):
+def test_dashboard_sits_at_top_centered_in_left_column(cfg_path: Path):
     """The dashboard and the RFB stack in the left column so every window
-    is fully visible at once — nothing overlaps anything anymore."""
+    is fully visible at once.  The dashboard is at the top, centered
+    horizontally within the column."""
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
@@ -55,23 +56,26 @@ def test_dashboard_sits_at_main_monitor_top_left(cfg_path: Path):
         dashboard_chrome_height=40,
     )
 
-    assert plan.dashboard.x == 0
     assert plan.dashboard.y == 0
+    left_width = plan.random_favs_browser.width
+    # centered horizontally in the left column
+    assert plan.dashboard.x == (left_width - plan.dashboard.width) // 2
 
 
-def test_rfb_fills_left_column_below_dashboard(cfg_path: Path):
+def test_rfb_reaches_up_to_the_dashboard_with_no_gap(cfg_path: Path):
     config = load_config(cfg_path)
-    chrome = 40
 
     plan = compute_window_layout(
         main_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
-        dashboard_chrome_height=chrome,
+        dashboard_chrome_height=40,
     )
 
     assert plan.random_favs_browser.x == 0
-    assert plan.random_favs_browser.y == plan.dashboard.height + chrome
+    # RFB reaches the dashboard's client bottom — no chrome gap; any residual
+    # frame tucks behind the always-on-top dashboard.
+    assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
     assert plan.random_favs_browser.width + plan.landscape.width == 2560
     assert (
         plan.random_favs_browser.y + plan.random_favs_browser.height == 1392
@@ -88,8 +92,10 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
         dashboard_chrome_height=0,
     )
 
-    assert plan.dashboard.x == 100
+    left_width = plan.random_favs_browser.width
+    assert plan.dashboard.x == 100 + (left_width - plan.dashboard.width) // 2
     assert plan.dashboard.y == 50
+    assert plan.random_favs_browser.x == 100
     assert plan.random_favs_browser.y == 50 + plan.dashboard.height
 
 

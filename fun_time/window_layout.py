@@ -73,20 +73,25 @@ def compute_window_layout(
         height=main_monitor.height,
     )
 
-    # The left column stacks the dashboard (top-left) above the RFB so every
-    # managed window is fully visible at once — no two windows overlap.
+    # The left column stacks the dashboard above the RFB.  The dashboard is
+    # centered horizontally in the column, and the RFB fills the whole column
+    # below it, reaching up to the dashboard's client bottom.  It tucks under
+    # by the window chrome so there is never a visible gap — the dashboard is
+    # always-on-top, so the few overlapping pixels sit behind it rather than
+    # leaving a strip of empty desktop (the previous behaviour, which added a
+    # thick-resizable-frame chrome the fixed-size dashboard never has).
+    left_width = main_monitor.width - landscape_width
     dashboard = WindowRect(
-        x=main_monitor.x,
+        x=main_monitor.x + max(0, (left_width - dashboard_size.width) // 2),
         y=main_monitor.y,
         width=dashboard_size.width,
         height=dashboard_size.height,
     )
-    dashboard_outer_h = dashboard_size.height + dashboard_chrome_height
     random_favs_browser = WindowRect(
         x=main_monitor.x,
-        y=main_monitor.y + dashboard_outer_h,
-        width=main_monitor.width - landscape_width,
-        height=main_monitor.height - dashboard_outer_h,
+        y=main_monitor.y + dashboard_size.height,
+        width=left_width,
+        height=main_monitor.height - dashboard_size.height,
     )
 
     return WindowLayoutPlan(
