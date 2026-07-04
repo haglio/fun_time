@@ -25,7 +25,6 @@ from .runtime_flow import write_flag_file
 from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
 from .win32 import (
     find_window_by_pid,
-    get_captioned_window_chrome_height,
     hide_window,
     move_window,
     set_always_on_top,
@@ -215,7 +214,6 @@ def run_startup_sequence(
         main_monitor=main_rect,
         secondary_monitor=secondary_rect,
         layout_config=layout_cfg,
-        dashboard_chrome_height=get_captioned_window_chrome_height(),
     )
 
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"

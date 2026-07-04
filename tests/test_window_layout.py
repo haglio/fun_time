@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.dashboard_layout import Size
+from fun_time.dashboard_layout import Size, compute_dashboard_preview_layout
 from fun_time.window_layout import (
     MonitorRect,
     compute_dashboard_size,
     compute_window_layout,
 )
 from fun_time import load_config
-from fun_time.config import LayoutConfig
 
 
 def test_compute_window_layout_uses_secondary_monitor_for_portrait_and_primary_players(cfg_path: Path):
@@ -53,7 +52,6 @@ def test_dashboard_sits_at_top_centered_in_left_column(cfg_path: Path):
         main_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
-        dashboard_chrome_height=40,
     )
 
     assert plan.dashboard.y == 0
@@ -62,21 +60,21 @@ def test_dashboard_sits_at_top_centered_in_left_column(cfg_path: Path):
     assert plan.dashboard.x == (left_width - plan.dashboard.width) // 2
 
 
-def test_rfb_reaches_up_to_the_dashboard_with_no_gap(cfg_path: Path):
+def test_rfb_fills_the_rectangle_below_the_dashboard(cfg_path: Path):
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
         main_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
-        dashboard_chrome_height=40,
     )
 
     assert plan.random_favs_browser.x == 0
-    # RFB reaches the dashboard's client bottom — no chrome gap; any residual
-    # frame tucks behind the always-on-top dashboard.
+    # The RFB starts exactly at the dashboard's bottom (no gap) ...
     assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
+    # ... spans the full left-column width ...
     assert plan.random_favs_browser.width + plan.landscape.width == 2560
+    # ... and reaches down to the monitor's bottom edge.
     assert (
         plan.random_favs_browser.y + plan.random_favs_browser.height == 1392
     )
@@ -89,7 +87,6 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
         main_monitor=MonitorRect(100, 50, 2560, 1392),
         secondary_monitor=MonitorRect(2660, 50, 1440, 3440),
         layout_config=config.layout,
-        dashboard_chrome_height=0,
     )
 
     left_width = plan.random_favs_browser.width
@@ -99,26 +96,29 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
     assert plan.random_favs_browser.y == 50 + plan.dashboard.height
 
 
-def test_dashboard_fills_its_screen_slot(cfg_path: Path):
-    """The dashboard scene scales up until it hits the left-column width
-    or half the monitor height — as much space as it can take while the
-    RFB keeps the other half of the column."""
+def test_dashboard_uses_its_natural_size(cfg_path: Path):
+    """The dashboard keeps its natural (fixed-scale) scene size — the shape it
+    has always had — rather than being stretched to fill the column, and it is
+    small enough to leave horizontal room to be centered."""
     config = load_config(cfg_path)
-    chrome = 40
     main = MonitorRect(0, 0, 2560, 1392)
+    secondary = MonitorRect(2560, 0, 1440, 3440)
 
     size = compute_dashboard_size(
         main_monitor=main,
-        secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
+        secondary_monitor=secondary,
         layout_config=config.layout,
-        dashboard_chrome_height=chrome,
     )
 
+    natural = compute_dashboard_preview_layout(
+        Size(main.width, main.height),
+        Size(secondary.width, secondary.height),
+        config.layout,
+    )
+    assert size.width == natural.dashboard_width
+    assert size.height == natural.dashboard_height
+
+    # Fits within the left column with room to spare (so centering is visible).
     landscape_w = int(2560 * config.layout.landscape_width_ratio)
-    width_budget = 2560 - landscape_w
-    height_budget = 1392 // 2 - chrome
-    assert size.width <= width_budget
-    assert size.height <= height_budget
-    # It actually grew to (nearly) fill one of the budgets.
-    assert size.width >= width_budget * 0.9 or size.height >= height_budget * 0.9
-    assert size.width > 481  # bigger than the old fixed-scale scene
+    left_width = 2560 - landscape_w
+    assert size.width < left_width
