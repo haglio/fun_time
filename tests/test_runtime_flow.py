@@ -342,3 +342,98 @@ def test_apply_leave_omnipause_skip_primary_in_hybrid_skips_vlc(monkeypatch, flo
     )
 
     assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True)])
+
+
+def test_entering_hybrid_hands_off_naus_video_and_position(monkeypatch, flow_files, tmp_path: Path):
+    """Nau and the primary VLC share the same library, so entering hybrid
+    must continue the video Nau was playing at Nau's position — not start
+    the playlist from scratch (the user sees that as 'restarting the
+    current video')."""
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text(
+        "video=C:/vids/current.mp4\nposition_ms=93500\nstate=normal\npaused=0\n",
+        encoding="utf-8",
+    )
+    handoffs: list[tuple] = []
+    ensures: list[tuple] = []
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.play_item_at",
+        lambda port, password, video, seconds: handoffs.append((port, video, seconds)) or True,
+    )
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: ensures.append((port, should_play)) or True,
+    )
+
+    result = apply_mode_switch(
+        current_mode="nau",
+        target_mode="hybrid",
+        omni_paused=False,
+        genau_paused_file=flow_files["genau_paused_file"],
+        audio_paused_file=flow_files["audio_paused_file"],
+        genau_cmd_file=flow_files["genau_cmd_file"],
+        nau_paused_file=flow_files["nau_paused_file"],
+        nau_status_file=status_file,
+        primary_port=9001,
+        password="pw",
+    )
+
+    assert result.is_transition
+    assert handoffs == [(9001, "C:/vids/current.mp4", 93.5)]
+    assert ensures == []  # the handoff already made VLC play
+
+
+def test_entering_hybrid_falls_back_to_resume_without_nau_status(monkeypatch, flow_files, tmp_path: Path):
+    ensures: list[tuple] = []
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.play_item_at",
+        lambda port, password, video, seconds: (_ for _ in ()).throw(AssertionError("no video to hand off")),
+    )
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: ensures.append((port, should_play)) or True,
+    )
+
+    apply_mode_switch(
+        current_mode="nau",
+        target_mode="hybrid",
+        omni_paused=False,
+        genau_paused_file=flow_files["genau_paused_file"],
+        audio_paused_file=flow_files["audio_paused_file"],
+        genau_cmd_file=flow_files["genau_cmd_file"],
+        nau_paused_file=flow_files["nau_paused_file"],
+        nau_status_file=tmp_path / "missing_status.txt",
+        primary_port=9001,
+        password="pw",
+    )
+
+    assert ensures == [(9001, True)]
+
+
+def test_entering_hybrid_falls_back_when_video_not_in_playlist(monkeypatch, flow_files, tmp_path: Path):
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text("video=C:/vids/gone.mp4\nposition_ms=5000\n", encoding="utf-8")
+    ensures: list[tuple] = []
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.play_item_at",
+        lambda port, password, video, seconds: False,
+    )
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.ensure_playback_state",
+        lambda port, password, should_play: ensures.append((port, should_play)) or True,
+    )
+
+    apply_mode_switch(
+        current_mode="genau",
+        target_mode="hybrid",
+        omni_paused=False,
+        genau_paused_file=flow_files["genau_paused_file"],
+        audio_paused_file=flow_files["audio_paused_file"],
+        genau_cmd_file=flow_files["genau_cmd_file"],
+        nau_paused_file=flow_files["nau_paused_file"],
+        nau_status_file=status_file,
+        primary_port=9001,
+        password="pw",
+    )
+
+    assert ensures == [(9001, True)]

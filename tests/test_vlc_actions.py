@@ -444,3 +444,70 @@ def test_restore_vlcrc_volume_ignores_missing_vlcrc(tmp_path: Path, monkeypatch)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     # Should not raise even with no vlcrc file
     vlc_actions.restore_vlcrc_volume(256)
+
+
+_HANDOFF_XML = (
+    '<root><item id="plid_1"><item id="plid_4" '
+    'uri="file:///C:/vids/videos/First%20Clip.mp4" name="First Clip"/>'
+    '<item id="plid_5" current="current" '
+    'uri="file:///C:/vids/videos/second&amp;half.mkv" name="second"/></item></root>'
+)
+
+
+def _capture_cmds(monkeypatch, xml=_HANDOFF_XML, state="playing"):
+    cmds: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, password: cmds.append(cmd) or True)
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: state)
+    return cmds
+
+
+def test_play_item_at_plays_matching_item_and_seeks(monkeypatch):
+    cmds = _capture_cmds(monkeypatch)
+
+    ok = vlc_actions.play_item_at(8090, "pw", "C:/vids/videos/First Clip.mp4", 62.7, sleep_fn=lambda s: None)
+
+    assert ok is True
+    assert "pl_play&id=4" in cmds
+    assert "seek&val=62" in cmds
+
+
+def test_play_item_at_matches_backslash_paths_case_insensitively(monkeypatch):
+    cmds = _capture_cmds(monkeypatch)
+
+    windows_path = "c:" + "\\" + "VIDS" + "\\" + "videos" + "\\" + "SECOND&HALF.MKV"
+    ok = vlc_actions.play_item_at(8090, "pw", windows_path, 0, sleep_fn=lambda s: None)
+
+    assert ok is True
+    assert "pl_play&id=5" in cmds
+    # position 0: nothing to seek to
+    assert not any(c.startswith("seek") for c in cmds)
+
+
+def test_play_item_at_returns_false_when_path_not_in_playlist(monkeypatch):
+    cmds = _capture_cmds(monkeypatch)
+
+    ok = vlc_actions.play_item_at(8090, "pw", "C:/vids/videos/missing.mp4", 30, sleep_fn=lambda s: None)
+
+    assert ok is False
+    assert cmds == []
+
+
+def test_play_item_at_returns_false_when_playlist_unreadable(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (404, ""))
+
+    assert vlc_actions.play_item_at(8090, "pw", "C:/vids/x.mp4", 5, sleep_fn=lambda s: None) is False
+
+
+def test_ensure_playback_state_never_pauses_a_stopped_vlc(monkeypatch):
+    """pl_pause on a stopped VLC STARTS the current item (VLC toggle
+    semantics), phantom-loading item 1 during omnipause. Stopped already
+    satisfies should_play=False, so no command may be sent."""
+    cmds: list[str] = []
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: "stopped")
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, password: cmds.append(cmd) or True)
+
+    ok = vlc_actions.ensure_playback_state(8090, "pw", should_play=False, sleep_fn=lambda s: None)
+
+    assert ok is True
+    assert cmds == []

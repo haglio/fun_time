@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import logging
+import html
 import re
+from urllib.parse import unquote, urlparse
 import time
 import urllib.parse
 import urllib.request
@@ -168,7 +170,12 @@ def ensure_playback_state(
             break
         if state == target:
             return True
-        if state == "stopped" and should_play:
+        if state == "stopped":
+            if not should_play:
+                # Stopped already satisfies "not playing".  pl_pause on a
+                # stopped VLC STARTS the current item (toggle semantics),
+                # phantom-loading item 1 — never send it from here.
+                return True
             vlc_http_cmd(port, "pl_play", password)
         else:
             vlc_http_cmd(port, "pl_pause", password)
@@ -192,6 +199,70 @@ def set_repeat_mode(
         vlc_http_cmd(port, "pl_repeat" if target == "one" else "pl_loop", password)
         sleep_fn(0.12)
     return False
+
+
+def _normalize_media_path(path: str) -> str:
+    return path.replace("/", "\\").casefold().rstrip("\\")
+
+
+def _find_item_id_by_path(xml: str, video_path: str) -> int:
+    """Resolve a playlist item id whose file URI matches *video_path*.
+
+    Returns -1 when no item matches.  Comparison is slash- and
+    case-insensitive so an OS path from Nau's status file matches the
+    percent-encoded file:/// URI VLC reports.
+    """
+    want = _normalize_media_path(video_path)
+    for attrs in re.findall(r'<item\b([^>]*)>', xml):
+        uri_m = re.search(r'\buri="([^"]*)"', attrs)
+        id_m = re.search(r'\bid="plid_(\d+)"', attrs)
+        if not uri_m or not id_m:
+            continue
+        parsed = urlparse(html.unescape(uri_m.group(1)))
+        if parsed.scheme != "file":
+            continue
+        item_path = unquote(parsed.path)
+        # file:///C:/x → path "/C:/x"; drop the leading slash before the drive.
+        if re.match(r"/[A-Za-z]:", item_path):
+            item_path = item_path[1:]
+        if _normalize_media_path(item_path) == want:
+            return int(id_m.group(1))
+    return -1
+
+
+def play_item_at(
+    port: int,
+    password: str,
+    video_path: str,
+    seconds: float,
+    *,
+    sleep_fn=time.sleep,
+) -> bool:
+    """Play the playlist item matching *video_path*, seeking to *seconds*.
+
+    The hybrid-entry handoff: the primary VLC picks up the video (and
+    position) Nau was playing.  Returns False when the video is not in
+    VLC's playlist so the caller can fall back to plain resume.
+    """
+    status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
+    if status != 200 or not xml:
+        return False
+    item_id = _find_item_id_by_path(xml, video_path)
+    if item_id < 0:
+        return False
+    if not vlc_http_cmd(port, f"pl_play&id={item_id}", password):
+        return False
+    target = int(seconds)
+    if target <= 0:
+        return True
+    # Seeks sent before the item finishes opening are silently dropped —
+    # wait for the input to report playing before positioning it.
+    for _ in range(10):
+        if get_playback_state(port, password) == "playing":
+            break
+        sleep_fn(0.15)
+    vlc_http_cmd(port, f"seek&val={target}", password)
+    return True
 
 
 def _parse_playlist_ids(xml: str) -> tuple[list[int], int]:
