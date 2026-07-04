@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.vlc_actions import ensure_playback_state, get_playback_state
+from fun_time.vlc_actions import ensure_playback_state, get_current_file_path, get_playback_state
 from fun_time.win32 import (
     find_window_by_pid,
     find_window_by_title,
@@ -351,8 +351,18 @@ def test_fun_time_hybrid_nudge_seeks_vlc(shared_integration_session: FunTimeInte
     s = shared_integration_session
     port, password = _read_vlc_config_from_manifest(s)
 
+    nau_video_before = s.read_nau_status().video
     s.write_dashboard_command("hybrid_activate")
     s.wait_for_new_log("Switched to hybrid mode", timeout=12)
+
+    # Hybrid picks up the video Nau was playing (shared library handoff),
+    # not the head of VLC's own playlist.
+    s.wait_until(
+        lambda: get_current_file_path(port, password).lower()
+        == nau_video_before.lower(),
+        timeout=12,
+        description="primary VLC to continue Nau's current video",
+    )
 
     ensure_playback_state(port, password, should_play=True)
     s.wait_until(

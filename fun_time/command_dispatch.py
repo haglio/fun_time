@@ -478,6 +478,7 @@ def _dispatch_mode_switch(
         primary_port=config.primary_port,
         password=config.vlc_password,
         broker_cmd_file=config.broker_cmd_file,
+        nau_status_file=config.nau_status_file,
     )
     state = replace(state, primary_mode=result.next_mode)
     if result.is_transition:

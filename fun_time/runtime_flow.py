@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 from .modes import build_fmode_playlists
 from .omnipause import build_omnipause_plan
 from .mode_plan import build_mode_switch_plan, genau_active
-from .vlc_actions import ensure_playback_state, replace_playlist_from_file
+from .dashboard_runtime import read_nau_status
+from .vlc_actions import ensure_playback_state, play_item_at, replace_playlist_from_file
 
 NAU_RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
 
@@ -47,6 +48,26 @@ class FModeFlowResult:
     log_message: str
 
 
+def _start_hybrid_playback(
+    primary_port: int, password: str, nau_status_file: str | Path | None
+) -> bool:
+    """Make the primary VLC play for hybrid mode.
+
+    Nau and the primary VLC share the same library, so hybrid picks up the
+    video (and position) Nau was playing rather than resuming whatever the
+    idle primary last had — to the user, hybrid continues "the current
+    video".  Falls back to a plain resume when Nau's status is missing or
+    its video is not in VLC's playlist (e.g. F-mode filtered it out).
+    """
+    if nau_status_file is not None:
+        status = read_nau_status(Path(nau_status_file))
+        if status.video and play_item_at(
+            primary_port, password, status.video, status.position_ms / 1000
+        ):
+            return True
+    return ensure_playback_state(primary_port, password, should_play=True)
+
+
 def apply_mode_switch(
     *,
     current_mode: str,
@@ -59,6 +80,7 @@ def apply_mode_switch(
     primary_port: int,
     password: str,
     broker_cmd_file: str | Path | None = None,
+    nau_status_file: str | Path | None = None,
 ) -> ModeSwitchFlowResult:
     plan = build_mode_switch_plan(
         current_mode=current_mode,
@@ -75,7 +97,11 @@ def apply_mode_switch(
         if cmds:
             Path(genau_cmd_file).write_text("\n".join(cmds), encoding="utf-8")
         if plan.vlc_should_play is not None:
-            if not ensure_playback_state(primary_port, password, should_play=plan.vlc_should_play):
+            if plan.vlc_should_play:
+                started = _start_hybrid_playback(primary_port, password, nau_status_file)
+            else:
+                started = ensure_playback_state(primary_port, password, should_play=False)
+            if not started:
                 logger.warning("Primary VLC failed to reach desired mode-switch playback state")
         if not will_genau and broker_cmd_file is not None:
             Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
