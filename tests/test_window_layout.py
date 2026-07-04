@@ -93,13 +93,26 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
     assert plan.random_favs_browser.y == 50 + plan.dashboard.height
 
 
-def test_compute_dashboard_size_matches_preview_layout(cfg_path: Path):
+def test_dashboard_fills_its_screen_slot(cfg_path: Path):
+    """The dashboard scene scales up until it hits the left-column width
+    or half the monitor height — as much space as it can take while the
+    RFB keeps the other half of the column."""
     config = load_config(cfg_path)
+    chrome = 40
+    main = MonitorRect(0, 0, 2560, 1392)
 
     size = compute_dashboard_size(
-        main_monitor=MonitorRect(0, 0, 2560, 1392),
+        main_monitor=main,
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
+        dashboard_chrome_height=chrome,
     )
 
-    assert size == Size(481, 399)
+    landscape_w = int(2560 * config.layout.landscape_width_ratio)
+    width_budget = 2560 - landscape_w
+    height_budget = 1392 // 2 - chrome
+    assert size.width <= width_budget
+    assert size.height <= height_budget
+    # It actually grew to (nearly) fill one of the budgets.
+    assert size.width >= width_budget * 0.9 or size.height >= height_budget * 0.9
+    assert size.width > 481  # bigger than the old fixed-scale scene

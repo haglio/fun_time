@@ -91,12 +91,13 @@ def compute_dashboard_preview_layout(
     main_monitor: Size,
     secondary_monitor: Size,
     layout_config: LayoutConfig,
+    *,
+    preview_max_h: float = 375,
 ) -> DashboardPreviewLayout:
     outer_pad = 15
     bottom_pad = 9
     top_y = outer_pad
     monitor_gap = 15
-    preview_max_h = 375
     base_scale = preview_max_h / max(main_monitor.height, secondary_monitor.height)
 
     left_w = round(main_monitor.width * base_scale)
@@ -328,3 +329,44 @@ def compute_dashboard_preview_layout(
         fmode_panel=Rect(status_row_x + mini_button_w + mini_button_gap, chip_row_y, mini_button_w, mini_button_h),
         voice_panel=Rect(status_row_x + (mini_button_w + mini_button_gap) * 2, chip_row_y, mini_button_w, mini_button_h),
     )
+
+
+def compute_fitted_preview_layout(
+    main_monitor: Size,
+    secondary_monitor: Size,
+    layout_config: LayoutConfig,
+    *,
+    chrome_height: int = 0,
+) -> DashboardPreviewLayout:
+    """The preview layout scaled up to fill the dashboard's screen slot.
+
+    The dashboard owns the top of the left column (beside the landscape
+    VLC), so its scene grows until it hits the column width or half the
+    monitor height (the RFB below gets the other half).  The scene is
+    roughly linear in the scale, so fit in two passes and shrink while
+    the fixed paddings push it over budget.
+    """
+    landscape_w = int(main_monitor.width * max(0.0, min(1.0, layout_config.landscape_width_ratio)))
+    width_budget = main_monitor.width - landscape_w
+    height_budget = main_monitor.height // 2 - chrome_height
+
+    scale = 375.0
+    layout = compute_dashboard_preview_layout(
+        main_monitor, secondary_monitor, layout_config, preview_max_h=scale,
+    )
+    factor = min(
+        width_budget / max(1, layout.dashboard_width),
+        height_budget / max(1, layout.dashboard_height),
+    )
+    scale *= factor
+    layout = compute_dashboard_preview_layout(
+        main_monitor, secondary_monitor, layout_config, preview_max_h=scale,
+    )
+    while (
+        layout.dashboard_width > width_budget or layout.dashboard_height > height_budget
+    ) and scale > 50:
+        scale *= 0.97
+        layout = compute_dashboard_preview_layout(
+            main_monitor, secondary_monitor, layout_config, preview_max_h=scale,
+        )
+    return layout

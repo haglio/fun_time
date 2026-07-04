@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fun_time.config import LayoutConfig
-from fun_time.dashboard_layout import Size, compute_dashboard_preview_layout
+from fun_time.dashboard_layout import Size, compute_fitted_preview_layout
 
 
 def clamp01(value: float) -> float:
@@ -46,6 +46,7 @@ def compute_window_layout(
         main_monitor=main_monitor,
         secondary_monitor=secondary_monitor,
         layout_config=layout_config,
+        dashboard_chrome_height=dashboard_chrome_height,
     )
     portrait_height = int(secondary_monitor.height * clamp01(layout_config.primary_top_ratio))
     primary_height = secondary_monitor.height - portrait_height
@@ -102,11 +103,13 @@ def compute_dashboard_size(
     main_monitor: MonitorRect,
     secondary_monitor: MonitorRect,
     layout_config: LayoutConfig,
+    dashboard_chrome_height: int = 0,
 ) -> Size:
-    preview = compute_dashboard_preview_layout(
+    preview = compute_fitted_preview_layout(
         Size(main_monitor.width, main_monitor.height),
         Size(secondary_monitor.width, secondary_monitor.height),
         layout_config,
+        chrome_height=dashboard_chrome_height,
     )
     return Size(preview.dashboard_width, preview.dashboard_height)
 
