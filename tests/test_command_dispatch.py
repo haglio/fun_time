@@ -376,6 +376,47 @@ def test_primary_prev_in_genau_mode_writes_nau_cmd(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV"
 
 
+# --- nau cycle-version / length-mode ---
+
+
+def test_nau_cycle_version_writes_nau_cmd(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    dispatch_command("nau_cycle_version", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION"
+
+
+def test_nau_length_shorts_writes_set_length_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    dispatch_command("nau_length_shorts", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts"
+
+
+def test_nau_length_full_writes_set_length_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    dispatch_command("nau_length_full", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full"
+
+
+def test_nau_length_mode_not_written_outside_nau_mode(tmp_path: Path):
+    """Length/version actions target the Nau display, so they are inert unless
+    Nau owns the primary slot."""
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="hybrid")
+
+    dispatch_command("nau_length_shorts", state, config)
+
+    assert not config.nau_cmd_file.exists()
+
+
 # --- landscape_prev / landscape_next ---
 
 

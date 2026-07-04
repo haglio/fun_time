@@ -95,6 +95,9 @@ r up:: {
     QueueCommand("nau_record_up")
 }
 
+; Nau: cycle to another same-content version of the current video.
+v::QueueCommand("nau_cycle_version")
+
 ; Genau direct control hotkeys
 u::QueueCommand("genau_center_down")
 i::QueueCommand("genau_amplitude_up")
