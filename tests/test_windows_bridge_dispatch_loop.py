@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import socket
+import threading
 import time
 from pathlib import Path
 from unittest.mock import Mock, call, patch
 
 from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
-
-
-# These imports will fail until the module exists (red step)
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     execute_window_ops,
@@ -16,6 +14,85 @@ from fun_time.windows_bridge_dispatch_loop import (
     read_shared_state,
     DispatchLoopRunner,
 )
+
+
+# HWNDs the runner's role lookups resolve to in these tests: primary,
+# portrait, landscape and dashboard by pid; Nau by pid (with an exact-title
+# fallback); Genau by title; RFB from the hwnd captured at startup.
+PRIMARY_HWND = 1001
+NAU_HWND = 2001
+PORTRAIT_HWND = 3001
+LANDSCAPE_HWND = 4001
+DASHBOARD_HWND = 5001
+GENAU_HWND = 6001
+RFB_HWND = 7777
+
+PID_TO_HWND = {
+    100: PRIMARY_HWND,
+    200: NAU_HWND,
+    300: PORTRAIT_HWND,
+    400: LANDSCAPE_HWND,
+    500: DASHBOARD_HWND,
+}
+
+# Every managed window carries a static topmost flag — True for all except
+# the hybrid-only primary VLC, which lives under Genau's HUD.
+TOPMOST_HWNDS = {
+    RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, GENAU_HWND, NAU_HWND, DASHBOARD_HWND,
+}
+
+
+def lookup_pid(pid):
+    return PID_TO_HWND.get(pid, 0)
+
+
+def lookup_title(title, exact=False):
+    return GENAU_HWND if title == "Genau" and not exact else 0
+
+
+def make_config(tmp_path, **overrides) -> BridgeConfig:
+    settings = dict(
+        primary_port=9090,
+        portrait_port=9091,
+        landscape_port=9092,
+        vlc_password="test",
+        favs_file=tmp_path / "favs.txt",
+        weird_dir=tmp_path / "weird",
+        state_dir=tmp_path,
+        primary_sources="",
+        portrait_sources="",
+        landscape_sources="",
+        genau_mode_file=tmp_path / "rh_mode.txt",
+        genau_cmd_file=tmp_path / "rh_cmd.txt",
+        genau_paused_file=tmp_path / "rh_paused.txt",
+        audio_paused_file=tmp_path / "audio_paused.txt",
+        nau_cmd_file=tmp_path / "nau_cmd.txt",
+        nau_paused_file=tmp_path / "nau_paused.txt",
+        nau_status_file=tmp_path / "nau_status.txt",
+        dashboard_state_file=tmp_path / "dashboard_state.ini",
+        broker_heartbeat_file=tmp_path / "broker_heartbeat.txt",
+    )
+    settings.update(overrides)
+    return BridgeConfig(**settings)
+
+
+def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
+    settings = dict(
+        primary_pid=100,
+        nau_pid=200,
+        portrait_pid=300,
+        landscape_pid=400,
+        dashboard_pid=500,
+        dashboard_enabled=False,
+    )
+    settings.update(kwargs)
+    return DispatchLoopRunner(
+        config=config or make_config(tmp_path),
+        dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+        shared_state_file=tmp_path / "shared_state.ini",
+        ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+        **settings,
+    )
 
 
 class TestPollDashboardCommands:
@@ -169,7 +246,7 @@ class TestExecuteWindowOps:
     def test_skips_op_when_window_not_found(self):
         ops = [WindowOp(op="set_topmost", title="Nonexistent", value=True)]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top") as mock_topmost:
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost:
             remaining = execute_window_ops(ops, primary_pid=1)
 
         mock_topmost.assert_not_called()
@@ -188,6 +265,20 @@ class TestExecuteWindowOps:
 
         assert len(remaining) == 1
         assert remaining[0].op == "restore_all_topmost"
+
+    def test_role_ops_returned_as_remaining(self):
+        """show_role/hide_role/activate_role resolve against the runner's
+        role cache, not window titles — execute_window_ops must hand them
+        back untouched.  Dropping them here silently broke mode switches
+        once (the title-less ops fell through the title branch)."""
+        ops = [
+            WindowOp(op="show_role", key="nau"),
+            WindowOp(op="activate_role", key="nau"),
+            WindowOp(op="hide_role", key="genau"),
+        ]
+        remaining = execute_window_ops(ops, primary_pid=1)
+
+        assert remaining == ops
 
     def test_open_rfb_tab_returned_as_remaining(self):
         ops = [WindowOp(op="open_rfb_tab", key="https://example.com")]
@@ -220,43 +311,9 @@ class TestSharedState:
 
 
 class TestDispatchLoopRunner:
-    def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.command_dispatch import BridgeConfig
-
-        config = BridgeConfig(
-            primary_port=9090,
-            portrait_port=9091,
-            landscape_port=9092,
-            vlc_password="test",
-            favs_file=tmp_path / "favs.txt",
-            weird_dir=tmp_path / "weird",
-            state_dir=tmp_path,
-            primary_sources="",
-            portrait_sources="",
-            landscape_sources="",
-            genau_mode_file=tmp_path / "rh_mode.txt",
-            genau_cmd_file=tmp_path / "rh_cmd.txt",
-            genau_paused_file=tmp_path / "rh_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            nau_cmd_file=tmp_path / "nau_cmd.txt",
-            nau_paused_file=tmp_path / "nau_paused.txt",
-            nau_status_file=tmp_path / "nau_status.txt",
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
-        )
-        return DispatchLoopRunner(
-            config=config,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            shared_state_file=tmp_path / "shared_state.ini",
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            primary_pid=100,
-            nau_pid=200,
-            dashboard_enabled=False,
-            **kwargs,
-        )
-
     def test_dispatches_dashboard_command(self, tmp_path):
         # Use huge sync interval so genau sync doesn't fire
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_next", encoding="utf-8")
@@ -271,7 +328,7 @@ class TestDispatchLoopRunner:
         assert not cmd_file.exists()
 
     def test_hybrid_nudges_call_seek_accumulator(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         runner.state = BridgeState(primary_mode="hybrid")
         (tmp_path / "dashboard_cmd.txt").write_text(
@@ -289,7 +346,7 @@ class TestDispatchLoopRunner:
     def test_nau_mode_nudges_bypass_accumulator_and_dispatch(self, tmp_path):
         """Outside hybrid the nudge goes to dispatch_command (Nau's SEEK
         commands stack naturally against its live clock)."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("primary_nudge_next", encoding="utf-8")
         runner._seek_accumulator = Mock()
@@ -305,7 +362,7 @@ class TestDispatchLoopRunner:
 
     def test_primary_nav_invalidates_seek_accumulator(self, tmp_path):
         # Changing the primary video makes the running seek target meaningless.
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("primary_next", encoding="utf-8")
         runner._seek_accumulator = Mock()
@@ -320,7 +377,7 @@ class TestDispatchLoopRunner:
     def test_seek_accumulator_reads_primary_and_issues_absolute_seek(self, tmp_path):
         # The accumulator's read/seek callbacks must target the primary port,
         # and the seek must be VLC's *absolute* form (no +/- sign).
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         with patch("fun_time.windows_bridge_dispatch_loop.get_playback_time_and_length",
                    return_value=(50.0, 300.0)) as read, \
              patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd",
@@ -330,62 +387,66 @@ class TestDispatchLoopRunner:
         read.assert_called_once_with(9090, "test")
         seek.assert_called_once_with(9090, "seek&val=60", "test")
 
-    def test_omnipause_removes_rfb_topmost_before_others(self, tmp_path):
-        """RFB must be removed before MFP/Dashboard so it stays below them."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=99999)
+    def test_omnipause_enter_via_tick_drops_topmost_on_managed_windows(self, tmp_path):
+        """Entering omnipause frees the desktop: every window with a True
+        static topmost flag leaves the TOPMOST band; the hybrid-only primary
+        VLC (static False) is never touched."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("omnipause_toggle", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
 
-        topmost_calls: list[tuple] = []
-
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
+        topmost_calls: list[tuple[int, bool]] = []
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=88888), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost):
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        removals = [(h, t) for h, t in topmost_calls if t is False]
-        assert removals[0] == (99999, False), (
-            f"RFB must be the first window removed, got: {removals}"
-        )
+        assert runner.state.omni_paused is True
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS
+        assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
 
-    def test_omnipause_restores_rfb_topmost_before_others(self, tmp_path):
-        """RFB must be restored before MFP/Dashboard so it ends up below them."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=99999)
+    def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
+        self, tmp_path, monkeypatch,
+    ):
+        """Leaving omnipause gives every True-flagged window its TOPMOST bit
+        back (the primary VLC stays untouched) and re-activates the window
+        that owns the primary display — Nau in nau mode."""
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         runner.state = BridgeState(omni_paused=True)
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("omnipause_toggle", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
 
-        topmost_calls: list[tuple] = []
-
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
+        topmost_calls: list[tuple[int, bool]] = []
+        activated: list[int] = []
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=88888), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost):
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window", side_effect=activated.append), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        # RFB topmost should have been restored first (before PID-based
-        # windows) so it ends up below MFP/Dashboard in the topmost z-band.
-        restores = [(h, t) for h, t in topmost_calls if t is True]
-        assert restores[0] == (99999, True), (
-            f"RFB must be the first window restored, got: {restores}"
-        )
+        assert runner.state.omni_paused is False
+        assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS
+        assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
+        assert activated == [NAU_HWND]
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omnipause_toggle", encoding="utf-8")
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"):
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner.tick()
 
         assert runner.state.omni_paused is True
@@ -394,7 +455,7 @@ class TestDispatchLoopRunner:
         assert loaded.omni_paused is True
 
     def test_backslash_key_dispatches_quarter_button_in_genau_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         runner.state = BridgeState(primary_mode="genau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -416,8 +477,7 @@ class TestDispatchLoopRunner:
         port_file = tmp_path / "dashboard_press_port.txt"
         port_file.write_text(str(port), encoding="utf-8")
 
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.dashboard_enabled = True
+        runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
         runner._last_sync = float("inf")
         runner.state = BridgeState(primary_mode="genau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -439,7 +499,7 @@ class TestDispatchLoopRunner:
         recv_sock.close()
         assert "quarter_button" in messages
 
-    def test_backslash_key_sends_open_file_dialog_press_in_vlc_mode(self, tmp_path):
+    def test_backslash_key_sends_open_file_dialog_press_in_nau_mode(self, tmp_path):
         recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         recv_sock.bind(("127.0.0.1", 0))
         recv_sock.settimeout(1.0)
@@ -447,20 +507,20 @@ class TestDispatchLoopRunner:
         port_file = tmp_path / "dashboard_press_port.txt"
         port_file.write_text(str(port), encoding="utf-8")
 
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.dashboard_enabled = True
+        runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="vlc")
+        runner.state = BridgeState(primary_mode="nau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"), \
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             runner.tick()
-            import time as _time
-            _time.sleep(0.15)
+            time.sleep(0.15)
 
         messages = []
         while True:
@@ -473,27 +533,27 @@ class TestDispatchLoopRunner:
         assert "open_file_dialog" in messages
 
     def test_backslash_key_enters_omnipause_when_not_in_genau_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="vlc")
+        runner.state = BridgeState(primary_mode="nau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"), \
+        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             runner.tick()
-            import time
             time.sleep(0.15)  # background thread needs a moment
 
         assert runner.state.omni_paused is False  # leaves omnipause after dialog closes
 
     def test_dispatch_forwards_remaining_ops_to_ahk(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
-
 
         suspend_op = WindowOp(op="suspend_hotkeys")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
@@ -505,7 +565,7 @@ class TestDispatchLoopRunner:
 
     def test_dispatch_suppresses_unsuspend_during_integration(self, tmp_path, monkeypatch):
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
@@ -519,7 +579,7 @@ class TestDispatchLoopRunner:
 
     def test_dispatch_allows_unsuspend_outside_integration(self, tmp_path, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
@@ -532,7 +592,7 @@ class TestDispatchLoopRunner:
         assert ahk_cmd_file.read_text(encoding="utf-8") == "unsuspend_hotkeys"
 
     def test_dispatch_writes_tooltip_with_message_to_ahk_cmd_file(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
@@ -544,42 +604,17 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "tooltip Clipper: MyVideo"
 
-    def test_sync_tick_applies_z_order(self, tmp_path):
-        """Sync tick enforces z-order unconditionally (not just in genau mode)."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=100)
-        runner._last_sync = -999
-        runner.state = BridgeState(primary_mode="vlc")
-
-        with patch.object(runner, "_apply_z_order") as mock_apply, \
-             patch.object(runner, "_update_dashboard"):
-            runner.tick()
-
-        mock_apply.assert_called_once()
-
-    def test_sync_tick_skips_z_order_during_omnipause(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=100)
-        runner._last_sync = -999
-        runner.state = BridgeState(primary_mode="genau", omni_paused=True)
-
-        with patch.object(runner, "_apply_z_order") as mock_apply, \
-             patch.object(runner, "_update_dashboard"):
-            runner.tick()
-
-        mock_apply.assert_not_called()
-
     def test_sync_tick_calls_update_dashboard_when_enabled(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=100)
+        runner = make_runner(tmp_path, sync_interval_ms=100, dashboard_enabled=True)
         runner._last_sync = -999
-        runner.dashboard_enabled = True
 
-        with patch.object(runner, "_apply_z_order"), \
-             patch.object(runner, "_update_dashboard") as mock_update:
+        with patch.object(runner, "_update_dashboard") as mock_update:
             runner.tick()
 
         mock_update.assert_called_once()
 
     def test_reads_shared_state_at_tick_start(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         assert runner.state.omni_paused is False
 
@@ -590,7 +625,7 @@ class TestDispatchLoopRunner:
         assert runner.state.omni_paused is True
 
     def test_writes_shared_state_after_dispatch(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("landscape_lock", encoding="utf-8")
         state_file = tmp_path / "shared_state.ini"
@@ -605,7 +640,7 @@ class TestDispatchLoopRunner:
         assert loaded.locked3 is True
 
     def test_quit_command_writes_exit_to_ahk(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("quit", encoding="utf-8")
@@ -615,36 +650,52 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
 
-    def test_omniminimize_minimizes_every_window(self, tmp_path):
-        """omniminimize minimizes every managed window without stealing focus."""
-        runner = self._make_runner(
-            tmp_path,
-            sync_interval_ms=999999,
-            portrait_pid=300,
-            landscape_pid=400,
-            dashboard_pid=500,
-            rfb_hwnd=7777,
-        )
+    def test_omniminimize_minimizes_only_mode_visible_windows(self, tmp_path):
+        """omniminimize minimizes the windows the current mode shows, without
+        stealing focus.  In nau mode the hidden slot-mates (Genau and the
+        hybrid-only primary VLC) are NOT minimized — SW_MINIMIZE would drag
+        a hidden window back into view."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
 
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
         minimized: list[tuple[int, dict]] = []
 
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
             runner.tick()
 
-        # Every window: RFB, portrait, landscape, primary, Genau, MFP, dashboard.
-        assert {h for h, _ in minimized} == {7777, 3001, 4001, 1001, 6001, 2001, 5001}
+        assert {h for h, _ in minimized} == {
+            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, NAU_HWND,
+        }
         # Minimized without activation so focus isn't yanked between windows.
         assert all(kw.get("activate") is False for _, kw in minimized)
 
+    def test_omniminimize_in_hybrid_includes_primary_and_genau(self, tmp_path):
+        """Hybrid shows the primary VLC under Genau's HUD; Nau is hidden."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(primary_mode="hybrid")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("omniminimize", encoding="utf-8")
+
+        minimized: list[int] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+            runner.tick()
+
+        assert set(minimized) == {
+            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
+            PRIMARY_HWND, GENAU_HWND,
+        }
+
     def test_omniminimize_skips_windows_that_are_not_found(self, tmp_path):
         """Windows whose lookup returns 0 are skipped — no minimize call for them."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=0)
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=0)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
@@ -657,32 +708,35 @@ class TestDispatchLoopRunner:
 
         assert minimized == []
 
-    def test_omnirestore_restores_every_window_then_reapplies_z_order(self, tmp_path):
-        """omnirestore un-minimizes every managed window without stealing focus, then re-stacks."""
-        runner = self._make_runner(
-            tmp_path,
-            sync_interval_ms=999999,
-            portrait_pid=300,
-            landscape_pid=400,
-            dashboard_pid=500,
-            rfb_hwnd=7777,
-        )
+    def test_omnirestore_restores_exactly_the_minimized_windows(self, tmp_path):
+        """omnirestore un-minimizes the windows omniminimize minimized — no
+        more (a second omnirestore is a no-op), no less, never activating."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("omnirestore", encoding="utf-8")
 
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
         restored: list[tuple[int, dict]] = []
 
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))), \
-             patch.object(runner, "_apply_z_order") as mock_z:
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))):
+            cmd_file.write_text("omniminimize", encoding="utf-8")
+            runner.tick()
+            minimized_hwnds = list(runner._minimized_hwnds)
+
+            cmd_file.write_text("omnirestore", encoding="utf-8")
             runner.tick()
 
-        assert {h for h, _ in restored} == {7777, 3001, 4001, 1001, 6001, 2001, 5001}
-        assert all(kw.get("activate") is False for _, kw in restored)
-        mock_z.assert_called_once()
+            assert [h for h, _ in restored] == minimized_hwnds
+            assert all(kw.get("activate") is False for _, kw in restored)
+            assert runner._minimized_hwnds == []
+
+            # The minimized set was consumed: another omnirestore does nothing.
+            cmd_file.write_text("omnirestore", encoding="utf-8")
+            runner.tick()
+
+        assert [h for h, _ in restored] == minimized_hwnds
 
     def test_sends_press_via_udp_on_button_command(self, tmp_path):
         recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -692,8 +746,7 @@ class TestDispatchLoopRunner:
         port_file = tmp_path / "dashboard_press_port.txt"
         port_file.write_text(str(port), encoding="utf-8")
 
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.dashboard_enabled = True
+        runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_lock", encoding="utf-8")
@@ -708,8 +761,7 @@ class TestDispatchLoopRunner:
         assert data.decode("utf-8") == "portrait_lock"
 
     def test_udp_press_skipped_when_no_port_file(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.dashboard_enabled = True
+        runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_lock", encoding="utf-8")
@@ -722,7 +774,7 @@ class TestDispatchLoopRunner:
     def test_voice_off_mutes_voice_controller(self, tmp_path):
         from fun_time.voice_control import VoiceController
 
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         runner.voice_controller = vc
@@ -736,7 +788,7 @@ class TestDispatchLoopRunner:
     def test_voice_toggle_unmutes_when_muted(self, tmp_path):
         from fun_time.voice_control import VoiceController
 
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         vc.mute()
@@ -751,7 +803,7 @@ class TestDispatchLoopRunner:
     def test_voice_toggle_mutes_when_not_muted(self, tmp_path):
         from fun_time.voice_control import VoiceController
 
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         runner.voice_controller = vc
@@ -764,42 +816,8 @@ class TestDispatchLoopRunner:
 
 
 class TestOpenRfbTab:
-    def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.command_dispatch import BridgeConfig
-
-        config = BridgeConfig(
-            primary_port=9090,
-            portrait_port=9091,
-            landscape_port=9092,
-            vlc_password="test",
-            favs_file=tmp_path / "favs.txt",
-            weird_dir=tmp_path / "weird",
-            state_dir=tmp_path,
-            primary_sources="",
-            portrait_sources="",
-            landscape_sources="",
-            genau_mode_file=tmp_path / "rh_mode.txt",
-            genau_cmd_file=tmp_path / "rh_cmd.txt",
-            genau_paused_file=tmp_path / "rh_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            nau_cmd_file=tmp_path / "nau_cmd.txt",
-            nau_paused_file=tmp_path / "nau_paused.txt",
-            nau_status_file=tmp_path / "nau_status.txt",
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
-        )
-        return DispatchLoopRunner(
-            config=config,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            shared_state_file=tmp_path / "shared_state.ini",
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            primary_pid=100,
-            nau_pid=200,
-            dashboard_enabled=False,
-            **kwargs,
-        )
-
     def test_open_rfb_tab_op_calls_open_rfb_tab_when_rfb_running(self, tmp_path):
-        runner = self._make_runner(
+        runner = make_runner(
             tmp_path,
             sync_interval_ms=999999,
             rfb_hwnd=12345,
@@ -824,7 +842,7 @@ class TestOpenRfbTab:
         )
 
     def test_open_rfb_tab_op_skipped_when_rfb_not_running(self, tmp_path):
-        runner = self._make_runner(
+        runner = make_runner(
             tmp_path,
             sync_interval_ms=999999,
             rfb_hwnd=0,
@@ -844,7 +862,7 @@ class TestOpenRfbTab:
         mock_open.assert_not_called()
 
     def test_open_rfb_tab_op_skipped_when_no_shortcut_target(self, tmp_path):
-        runner = self._make_runner(
+        runner = make_runner(
             tmp_path,
             sync_interval_ms=999999,
             rfb_hwnd=12345,
@@ -861,404 +879,198 @@ class TestOpenRfbTab:
         mock_open.assert_not_called()
 
 
-class TestGenauZOrder:
-    """Primary VLC must leave the TOPMOST z-band while Genau mode is
-    active so VLC video transitions cannot bring it above Genau."""
+class TestModeSwitchVisibility:
+    """The primary-slot players (Nau, Genau, the hybrid-only primary VLC)
+    share one screen rect.  A mode switch swaps window VISIBILITY: the
+    incoming player is shown and activated BEFORE the outgoing ones hide,
+    so focus never falls through to another application.
 
-    def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.command_dispatch import BridgeConfig
+    These tests run the real dispatch_command and the real
+    execute_window_ops, pinning the whole path from command string to
+    win32 call — including execute_window_ops' pass-through of the
+    show_role/activate_role/hide_role ops, whose silent dropping broke
+    mode switches once.
+    """
 
-        config = BridgeConfig(
-            primary_port=9090,
-            portrait_port=9091,
-            landscape_port=9092,
-            vlc_password="test",
-            favs_file=tmp_path / "favs.txt",
-            weird_dir=tmp_path / "weird",
-            state_dir=tmp_path,
-            primary_sources="",
-            portrait_sources="",
-            landscape_sources="",
-            genau_mode_file=tmp_path / "rh_mode.txt",
-            genau_cmd_file=tmp_path / "rh_cmd.txt",
-            genau_paused_file=tmp_path / "rh_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            nau_cmd_file=tmp_path / "nau_cmd.txt",
-            nau_paused_file=tmp_path / "nau_paused.txt",
-            nau_status_file=tmp_path / "nau_status.txt",
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
+    def _run_mode_switch(self, tmp_path, monkeypatch, *, from_mode, command,
+                         integration_env=False):
+        if integration_env:
+            monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+        else:
+            monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode=from_mode)
+
+        calls: list[tuple[str, int]] = []
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.show_window",
+                   side_effect=lambda h: calls.append(("show", h))), \
+             patch("fun_time.windows_bridge_dispatch_loop.hide_window",
+                   side_effect=lambda h: calls.append(("hide", h))), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window",
+                   side_effect=lambda h: calls.append(("activate", h))), \
+             patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
+            runner._dispatch(command)
+
+        assert runner.state.primary_mode == {
+            "genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid",
+        }[command]
+        return calls
+
+    def test_genau_activate_shows_genau_before_hiding_nau_and_primary(self, tmp_path, monkeypatch):
+        calls = self._run_mode_switch(
+            tmp_path, monkeypatch, from_mode="nau", command="genau_activate",
         )
-        return DispatchLoopRunner(
-            config=config,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            shared_state_file=tmp_path / "shared_state.ini",
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            primary_pid=100,
-            nau_pid=200,
-            portrait_pid=300,
-            landscape_pid=400,
-            dashboard_pid=500,
-            dashboard_enabled=False,
-            **kwargs,
+        assert calls == [
+            ("show", GENAU_HWND),
+            ("activate", GENAU_HWND),
+            ("hide", NAU_HWND),
+            ("hide", PRIMARY_HWND),
+        ]
+
+    def test_nau_activate_shows_nau_before_hiding_genau_and_primary(self, tmp_path, monkeypatch):
+        calls = self._run_mode_switch(
+            tmp_path, monkeypatch, from_mode="genau", command="nau_activate",
         )
+        assert calls == [
+            ("show", NAU_HWND),
+            ("activate", NAU_HWND),
+            ("hide", GENAU_HWND),
+            ("hide", PRIMARY_HWND),
+        ]
 
-    def test_genau_activate_applies_z_order(self, tmp_path):
-        """Activating genau mode must trigger a full z-order apply."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="vlc")
+    def test_hybrid_activate_shows_primary_and_genau(self, tmp_path, monkeypatch):
+        calls = self._run_mode_switch(
+            tmp_path, monkeypatch, from_mode="nau", command="hybrid_activate",
+        )
+        assert calls == [
+            ("show", PRIMARY_HWND),
+            ("show", GENAU_HWND),
+            ("activate", GENAU_HWND),
+            ("hide", NAU_HWND),
+        ]
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch.object(runner, "_apply_z_order") as mock_apply:
-            mock_dispatch.return_value = (BridgeState(primary_mode="genau"), [])
-            runner._dispatch("genau_activate")
+    def test_hybrid_to_genau_hides_primary(self, tmp_path, monkeypatch):
+        """Hybrid and Genau differ only in the primary VLC's visibility, so
+        the transition must still swap windows.  Regression — a guard that
+        compared genau_active() instead of the mode missed this pair."""
+        calls = self._run_mode_switch(
+            tmp_path, monkeypatch, from_mode="hybrid", command="genau_activate",
+        )
+        assert calls == [
+            ("show", GENAU_HWND),
+            ("activate", GENAU_HWND),
+            ("hide", NAU_HWND),
+            ("hide", PRIMARY_HWND),
+        ]
 
-        mock_apply.assert_called_once()
+    def test_activation_suppressed_during_integration_runs(self, tmp_path, monkeypatch):
+        """FUN_TIME_RUN_INTEGRATION=1 keeps mode switches from stealing the
+        real desktop's focus; show/hide still happen."""
+        calls = self._run_mode_switch(
+            tmp_path, monkeypatch, from_mode="nau", command="genau_activate",
+            integration_env=True,
+        )
+        assert calls == [
+            ("show", GENAU_HWND),
+            ("hide", NAU_HWND),
+            ("hide", PRIMARY_HWND),
+        ]
 
-    def test_vlc_activate_applies_z_order(self, tmp_path):
-        """Deactivating genau mode must trigger a full z-order apply."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="genau")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch.object(runner, "_apply_z_order") as mock_apply:
-            mock_dispatch.return_value = (BridgeState(primary_mode="vlc"), [])
-            runner._dispatch("vlc_activate")
-
-        mock_apply.assert_called_once()
-
-    def test_hybrid_to_genau_applies_z_order(self, tmp_path):
-        """Hybrid and Genau are both genau-active but have DIFFERENT stacks
-        (Primary is topmost in hybrid, non-topmost in genau), so the transition
-        must trigger a full z-order apply.  Regression — comparing genau_active()
-        instead of the mode missed this pair."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="hybrid")
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch.object(runner, "_apply_z_order") as mock_apply:
-            mock_dispatch.return_value = (BridgeState(primary_mode="genau"), [])
-            runner._dispatch("genau_activate")
-
-        mock_apply.assert_called_once()
-
-    def test_tick_enforces_z_order_during_sync(self, tmp_path):
-        """Periodic sync must correct drift — if Primary VLC re-asserts TOPMOST
-        during a video transition while in genau mode, the sync tick demotes it."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=0)
-        runner.state = BridgeState(primary_mode="genau")
-        runner._last_sync = 0
-
-        topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-        # Simulate VLC drift: Primary (1001) has re-asserted TOPMOST
-        hwnd_topmost = {1001: True, 2001: True, 3001: True, 4001: True, 5001: True, 9999: True}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=9999), \
-             patch("fun_time.z_order.is_window_topmost", side_effect=lambda h: hwnd_topmost.get(h, False)), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            runner.tick()
-
-        # Primary VLC and Nau must both be demoted (non-topmost in genau mode)
-        assert (1001, False) in topmost_calls
-        assert (2001, False) in topmost_calls
-        # No other calls needed — everything else is already correct
-        assert len(topmost_calls) == 2
-
-    def test_restore_all_topmost_demotes_primary_in_genau_mode(self, tmp_path):
-        """_restore_all_topmost must demote Primary and promote Genau
-        when genau mode is active."""
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="genau")
-
-        topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=9999), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            runner._restore_all_topmost()
-
-        assert (1001, False) in topmost_calls
-        assert (2001, False) in topmost_calls
-        restored = {h for h, v in topmost_calls if v}
-        assert {3001, 4001, 5001} <= restored
-        assert 2001 not in restored
-
-    def test_window_roster_finds_nau_by_exact_title_when_pid_fails(self, tmp_path):
+class TestResolveRole:
+    def test_nau_falls_back_to_exact_title_when_pid_fails(self, tmp_path):
         """The venv pythonw launcher's PID differs from the interpreter that
-        owns the SDL window, so the roster must fall back to an exact-title
+        owns the SDL window, so resolution must fall back to an exact-title
         lookup — exact because 'Nau' is a substring of 'Genau'."""
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="nau")
+        runner = make_runner(tmp_path)
 
-        # Nau's pid (200) resolves to no window; everything else works.
-        pid_to_hwnd = {100: 1001, 300: 3001, 400: 4001, 500: 5001}
         title_calls: list[tuple[str, bool]] = []
 
         def title_lookup(title, exact=False):
             title_calls.append((title, exact))
-            if title == "Nau" and exact:
-                return 2002
-            return 6001 if title == "Genau" else 0
+            return 2002 if (title == "Nau" and exact) else 0
 
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)),              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup):
-            layers = runner._window_layers()
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup):
+            hwnd = runner._resolve_role("nau")
 
         assert ("Nau", True) in title_calls, "must try the exact-title fallback"
-        assert (2002, True) in layers, "Nau (via title) must be topmost in nau mode"
+        assert hwnd == 2002
 
-    def test_restore_all_topmost_toggles_dashboard_above_rfb(self, tmp_path):
-        """Dashboard must end up above RFB and MFP in the topmost band."""
-        runner = self._make_runner(tmp_path, rfb_hwnd=7777)
-        runner.state = BridgeState()
-
-        topmost_calls: list[tuple[int, bool]] = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            runner._restore_all_topmost()
-
-        # Dashboard must get a demote then promote (apply_z_order demotes all first)
-        dash_calls = [(h, v) for h, v in topmost_calls if h == 5001]
-        assert (5001, False) in dash_calls
-        assert (5001, True) in dash_calls
-
-        # MFP must also be set topmost
-        mfp_calls = [(h, v) for h, v in topmost_calls if h == 4001]
-        assert (4001, True) in mfp_calls
-
-    def test_restore_falls_back_to_title_when_pid_lookup_fails(self, tmp_path):
-        """When find_window_by_pid cannot find Dashboard (PID mismatch
-        from venv launcher), _find_dashboard_hwnd falls back to title."""
-        runner = self._make_runner(tmp_path, rfb_hwnd=7777)
-        runner.state = BridgeState()
-
-        topmost_calls: list[tuple[int, bool]] = []
-        # Dashboard PID 500 maps to 0 (not found) — simulates PID mismatch
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001}
+    def test_dashboard_falls_back_to_title_when_pid_fails(self, tmp_path):
+        """When find_window_by_pid cannot find the Dashboard (PID mismatch
+        from the venv launcher), resolution falls back to its title."""
+        runner = make_runner(tmp_path)
 
         def title_lookup(title, exact=False):
             return 9999 if title == "Fun Time" else 0
 
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            runner._restore_all_topmost()
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup):
+            assert runner._resolve_role("dashboard") == 9999
 
-        # Dashboard found via title (hwnd 9999) must be in the z-order stack
-        dash_calls = [(h, v) for h, v in topmost_calls if h == 9999]
-        assert (9999, False) in dash_calls
-        assert (9999, True) in dash_calls
+    def test_cached_hwnd_survives_hiding_and_show_role_reaches_it(self, tmp_path):
+        """Hidden windows are invisible to the pid/title lookups, so the
+        HWND captured while a window was visible must be cached and reused —
+        otherwise a hidden slot-mate could never be shown again."""
+        runner = make_runner(tmp_path)
 
+        # Nau is visible: the pid lookup finds it once, populating the cache.
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid",
+                   side_effect=lookup_pid):
+            assert runner._resolve_role("nau") == NAU_HWND
 
-class TestHandleOmniPauseToggle:
-    """Tests for omnipause toggle moved from AHK to Python."""
-
-    def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.command_dispatch import BridgeConfig
-
-        config = BridgeConfig(
-            primary_port=9090,
-            portrait_port=9091,
-            landscape_port=9092,
-            vlc_password="test",
-            favs_file=tmp_path / "favs.txt",
-            weird_dir=tmp_path / "weird",
-            state_dir=tmp_path,
-            primary_sources="",
-            portrait_sources="",
-            landscape_sources="",
-            genau_mode_file=tmp_path / "rh_mode.txt",
-            genau_cmd_file=tmp_path / "rh_cmd.txt",
-            genau_paused_file=tmp_path / "rh_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            nau_cmd_file=tmp_path / "nau_cmd.txt",
-            nau_paused_file=tmp_path / "nau_paused.txt",
-            nau_status_file=tmp_path / "nau_status.txt",
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
-        )
-        return DispatchLoopRunner(
-            config=config,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            shared_state_file=tmp_path / "shared_state.ini",
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            primary_pid=100,
-            nau_pid=200,
-            portrait_pid=300,
-            landscape_pid=400,
-            dashboard_pid=500,
-            dashboard_enabled=False,
-            **kwargs,
-        )
-
-    def test_entering_omnipause_removes_topmost(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False)
-
-        topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
-                   return_value=[WindowOp(op="disable_all_topmost")]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+        # Nau is now hidden: every lookup fails, but the cache still answers,
+        # and a show_role op dispatched for it reaches the cached hwnd.
+        shown: list[int] = []
+        show_op = WindowOp(op="show_role", key="nau")
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
-            runner._handle_omnipause_toggle()
+             patch("fun_time.windows_bridge_dispatch_loop.show_window", side_effect=shown.append), \
+             patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
+                   return_value=(runner.state, [show_op])):
+            assert runner._resolve_role("nau") == NAU_HWND
+            runner._dispatch("nau_activate")
 
-        dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "omnipause_toggle" in dispatched
-        removed = {h for h, v in topmost_calls if not v}
-        assert removed == {1001, 2001, 3001, 4001, 5001}
+        assert shown == [NAU_HWND]
 
-    def test_leaving_omnipause_restores_topmost(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True)
 
-        topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+class TestStaticTopmost:
+    """Windows never stack (every managed window has its own screen rect),
+    so each role carries a STATIC topmost flag: True for everything except
+    the hybrid-only primary VLC, which lives under Genau's transparent HUD
+    and must never rise above it — in any mode."""
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
-                   return_value=[WindowOp(op="restore_all_topmost")]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False), [])
-            runner._handle_omnipause_toggle()
+    def _topmost_calls(self, runner, method_name):
+        calls: list[tuple[int, bool]] = []
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda h, v: calls.append((h, v))):
+            getattr(runner, method_name)()
+        return calls
 
-        # Default mode is nau: Nau + satellites + dashboard topmost; the
-        # hybrid-only primary VLC stays non-topmost.
-        restored = {h for h, v in topmost_calls if v}
-        assert restored == {2001, 3001, 4001, 5001}
-        assert (1001, False) in topmost_calls
+    def test_remove_all_topmost_drops_every_true_flagged_role(self, tmp_path):
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
 
-    def test_leaving_skips_primary_topmost_in_genau_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True, primary_mode="genau")
+        calls = self._topmost_calls(runner, "_remove_all_topmost")
 
-        topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
+        assert {h for h, v in calls if v is False} == TOPMOST_HWNDS
+        assert PRIMARY_HWND not in {h for h, _ in calls}
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
-                   return_value=[WindowOp(op="restore_all_topmost")]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, primary_mode="genau"), [])
-            runner._handle_omnipause_toggle()
+    def test_restore_all_topmost_is_mode_independent_and_never_touches_primary(self, tmp_path):
+        """The flags do not vary with the mode: in hybrid the primary VLC is
+        VISIBLE yet still stays out of the TOPMOST band, and the hidden Nau
+        window harmlessly gets its flag back."""
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
+        runner.state = BridgeState(primary_mode="hybrid")
 
-        restored = {h for h, v in topmost_calls if v}
-        assert 1001 not in restored, "primary VLC stays non-topmost in genau mode"
-        assert 2001 not in restored, "Nau stays non-topmost in genau mode"
-        assert {3001, 4001, 5001} <= restored
+        calls = self._topmost_calls(runner, "_restore_all_topmost")
 
-    def test_entering_omnipause_removes_genau_topmost(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False, primary_mode="genau")
-
-        topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
-                   return_value=[WindowOp(op="disable_all_topmost")]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
-            runner._handle_omnipause_toggle()
-
-        removed = {h for h, v in topmost_calls if not v}
-        assert 6001 in removed
-
-    def test_leaving_omnipause_sets_genau_topmost_last_in_genau_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True, primary_mode="genau")
-
-        topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
-                   return_value=[WindowOp(op="restore_all_topmost")]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=6001), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, primary_mode="genau"), [])
-            runner._handle_omnipause_toggle()
-
-        restored = [(h, v) for h, v in topmost_calls if v]
-        assert 6001 in {h for h, _ in restored}
-        # Genau must be topmost; Dashboard is always last in the stack
-        genau_pos = next(i for i, (h, _) in enumerate(restored) if h == 6001)
-        dash_pos = next(i for i, (h, _) in enumerate(restored) if h == 5001)
-        assert genau_pos < dash_pos, "Genau must be below Dashboard"
-
-    def test_entering_omnipause_removes_genau_topmost_via_title_when_pid_fails(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False, primary_mode="genau")
-
-        topmost_calls = []
-        # PID lookup returns 0 for Genau (simulates pythonw launcher mismatch)
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
-                   return_value=[WindowOp(op="disable_all_topmost")]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=7777), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
-            runner._handle_omnipause_toggle()
-
-        removed = {h for h, v in topmost_calls if not v}
-        assert 7777 in removed, "Genau topmost should be removed via title lookup"
-
-    def test_leaving_omnipause_restores_genau_topmost_via_title_when_pid_fails(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True, primary_mode="genau")
-
-        topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops",
-                   return_value=[WindowOp(op="restore_all_topmost")]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=7777), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, primary_mode="genau"), [])
-            runner._handle_omnipause_toggle()
-
-        restored = {h for h, v in topmost_calls if v}
-        assert 7777 in restored, "Genau topmost should be restored via title lookup"
-
-    def test_leaving_omnipause_skips_genau_topmost_when_not_in_genau_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True, primary_mode="vlc")
-
-        topmost_calls = []
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001, 600: 6001}
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))):
-            mock_dispatch.return_value = (BridgeState(omni_paused=False, primary_mode="vlc"), [])
-            runner._handle_omnipause_toggle()
-
-        restored = {h for h, v in topmost_calls if v}
-        assert 6001 not in restored
+        assert {h for h, v in calls if v is True} == TOPMOST_HWNDS
+        assert PRIMARY_HWND not in {h for h, _ in calls}
 
 
 class TestHandleOpenFileDialog:
@@ -1266,51 +1078,14 @@ class TestHandleOpenFileDialog:
     AHK's OpenPrimaryVlcFileDialogWithManagedOmniPause to Python.
     """
 
-    def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.command_dispatch import BridgeConfig
-
-        config = BridgeConfig(
-            primary_port=9090,
-            portrait_port=9091,
-            landscape_port=9092,
-            vlc_password="test",
-            favs_file=tmp_path / "favs.txt",
-            weird_dir=tmp_path / "weird",
-            state_dir=tmp_path,
-            primary_sources="",
-            portrait_sources="",
-            landscape_sources="",
-            genau_mode_file=tmp_path / "rh_mode.txt",
-            genau_cmd_file=tmp_path / "rh_cmd.txt",
-            genau_paused_file=tmp_path / "rh_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            nau_cmd_file=tmp_path / "nau_cmd.txt",
-            nau_paused_file=tmp_path / "nau_paused.txt",
-            nau_status_file=tmp_path / "nau_status.txt",
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
-        )
-        return DispatchLoopRunner(
-            config=config,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            shared_state_file=tmp_path / "shared_state.ini",
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            primary_pid=100,
-            nau_pid=200,
-            portrait_pid=300,
-            landscape_pid=400,
-            dashboard_pid=500,
-            dashboard_enabled=False,
-            **kwargs,
-        )
-
     def test_enters_omnipause_when_not_paused(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
@@ -1319,17 +1094,14 @@ class TestHandleOpenFileDialog:
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "enter_omnipause" in dispatched
 
-    def test_removes_topmost_from_all_windows(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+    def test_removes_topmost_from_true_flagged_windows(self, tmp_path):
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
         topmost_calls = []
 
         def track_topmost(hwnd, on_top):
             topmost_calls.append((hwnd, on_top))
-
-        # Map each PID to a unique hwnd
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         exec_returns = iter([
             [WindowOp(op="disable_all_topmost")],
@@ -1338,73 +1110,40 @@ class TestHandleOpenFileDialog:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        # All 5 windows should have topmost removed (False) at the start
-        removed = [(h, v) for h, v in topmost_calls if not v]
-        removed_hwnds = {h for h, _ in removed}
-        assert removed_hwnds == {1001, 2001, 3001, 4001, 5001}
+        removed = {h for h, v in topmost_calls if not v}
+        assert removed == TOPMOST_HWNDS
+        assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
 
     def test_shows_file_dialog_with_primary_sources_dir(self, tmp_path):
         """Shows our own file dialog with the first primary_sources directory."""
-        config = BridgeConfig(
-            primary_port=9090,
-            portrait_port=9091,
-            landscape_port=9092,
-            vlc_password="test",
-            favs_file=tmp_path / "favs.txt",
-            weird_dir=tmp_path / "weird",
-            state_dir=tmp_path,
-            primary_sources=r"C:\videos\2D\non_AI|C:\other",
-            portrait_sources="",
-            landscape_sources="",
-            genau_mode_file=tmp_path / "rh_mode.txt",
-            genau_cmd_file=tmp_path / "rh_cmd.txt",
-            genau_paused_file=tmp_path / "rh_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            nau_cmd_file=tmp_path / "nau_cmd.txt",
-            nau_paused_file=tmp_path / "nau_paused.txt",
-            nau_status_file=tmp_path / "nau_status.txt",
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
-        )
-        runner = DispatchLoopRunner(
-            config=config,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            shared_state_file=tmp_path / "shared_state.ini",
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            primary_pid=100,
-            nau_pid=200,
-            portrait_pid=300,
-            landscape_pid=400,
-            dashboard_pid=500,
-            dashboard_enabled=False,
-        )
+        config = make_config(tmp_path, primary_sources=r"C:\videos\2D\non_AI|C:\other")
+        runner = make_runner(tmp_path, config=config)
         runner.state = BridgeState(omni_paused=False)
-
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.z_order.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
              patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI", owner_hwnd=1001)
+        mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI", owner_hwnd=PRIMARY_HWND)
 
     def test_sends_selected_file_to_nau_by_default(self, tmp_path):
         """In nau mode (the default) a selected file becomes a Nau PLAY_FILE
         command, paired with its mirrored funscript when one exists."""
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
         video = tmp_path / "videos" / "videos" / "movie.mp4"
@@ -1417,7 +1156,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=str(video)), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc:
             mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
@@ -1429,44 +1168,14 @@ class TestHandleOpenFileDialog:
 
     def test_sends_selected_file_to_vlc_via_http_in_hybrid(self, tmp_path):
         """In hybrid mode a selected file is sent to the primary VLC via in_play."""
-        config = BridgeConfig(
-            primary_port=9090,
-            portrait_port=9091,
-            landscape_port=9092,
-            vlc_password="test",
-            favs_file=tmp_path / "favs.txt",
-            weird_dir=tmp_path / "weird",
-            state_dir=tmp_path,
-            primary_sources=r"C:\videos",
-            portrait_sources="",
-            landscape_sources="",
-            genau_mode_file=tmp_path / "rh_mode.txt",
-            genau_cmd_file=tmp_path / "rh_cmd.txt",
-            genau_paused_file=tmp_path / "rh_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            nau_cmd_file=tmp_path / "nau_cmd.txt",
-            nau_paused_file=tmp_path / "nau_paused.txt",
-            nau_status_file=tmp_path / "nau_status.txt",
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
-        )
-        runner = DispatchLoopRunner(
-            config=config,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            shared_state_file=tmp_path / "shared_state.ini",
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            primary_pid=100,
-            nau_pid=200,
-            portrait_pid=300,
-            landscape_pid=400,
-            dashboard_pid=500,
-            dashboard_enabled=False,
-        )
+        config = make_config(tmp_path, primary_sources=r"C:\videos")
+        runner = make_runner(tmp_path, config=config)
         runner.state = BridgeState(omni_paused=False, primary_mode="hybrid")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc, \
              patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd") as mock_http:
@@ -1478,13 +1187,13 @@ class TestHandleOpenFileDialog:
 
     def test_does_not_send_to_vlc_on_cancel(self, tmp_path):
         """When user cancels the dialog, no HTTP command is sent."""
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc, \
              patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd") as mock_http:
@@ -1495,15 +1204,13 @@ class TestHandleOpenFileDialog:
         mock_http.assert_not_called()
 
     def test_restores_topmost_in_finally(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
         topmost_calls = []
 
         def track_topmost(hwnd, on_top):
             topmost_calls.append((hwnd, on_top))
-
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         exec_returns = iter([
             [WindowOp(op="disable_all_topmost")],
@@ -1512,8 +1219,9 @@ class TestHandleOpenFileDialog:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
@@ -1522,14 +1230,13 @@ class TestHandleOpenFileDialog:
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "leave_omnipause_skip_primary" in dispatched
 
-        # Nau + satellites + dashboard restored; the hybrid-only primary VLC
-        # stays non-topmost in nau mode.
-        restored = [(h, v) for h, v in topmost_calls if v]
-        restored_hwnds = {h for h, _ in restored}
-        assert restored_hwnds == {2001, 3001, 4001, 5001}
+        # Every True-flagged window gets its TOPMOST bit back; the
+        # hybrid-only primary VLC is never touched.
+        restored = {h for h, v in topmost_calls if v}
+        assert restored == TOPMOST_HWNDS
 
-    def test_skips_primary_topmost_in_genau_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+    def test_never_restores_primary_topmost_even_in_genau_mode(self, tmp_path):
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False, primary_mode="genau")
 
         topmost_calls = []
@@ -1537,8 +1244,6 @@ class TestHandleOpenFileDialog:
         def track_topmost(hwnd, on_top):
             topmost_calls.append((hwnd, on_top))
 
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
-
         exec_returns = iter([
             [WindowOp(op="disable_all_topmost")],
             [WindowOp(op="restore_all_topmost")],
@@ -1546,28 +1251,26 @@ class TestHandleOpenFileDialog:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True, primary_mode="genau"), [])
             runner._handle_open_file_dialog()
 
-        # Primary VLC (1001) and Nau (2001) stay non-topmost in genau mode
-        restored = [(h, v) for h, v in topmost_calls if v]
-        restored_hwnds = {h for h, _ in restored}
-        assert 1001 not in restored_hwnds
-        assert 2001 not in restored_hwnds
-        assert {3001, 4001, 5001} <= restored_hwnds
+        # The static flags are mode-independent: the hidden Nau window still
+        # gets its flag back, the primary VLC never does.
+        restored = {h for h, v in topmost_calls if v}
+        assert restored == TOPMOST_HWNDS
+        assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
 
     def test_topmost_removed_before_dialog(self, tmp_path):
         """Topmost removal happens before showing the file dialog."""
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
         call_log: list[str] = []
-
-        pid_to_hwnd = {100: 1001, 200: 2001, 300: 3001, 400: 4001, 500: 5001}
 
         exec_returns = iter([
             [WindowOp(op="disable_all_topmost")],
@@ -1576,8 +1279,9 @@ class TestHandleOpenFileDialog:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d, **kw: (call_log.append("dialog"), None)[-1]), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
@@ -1588,12 +1292,12 @@ class TestHandleOpenFileDialog:
         assert first_remove < call_log.index("dialog")
 
     def test_skips_omnipause_when_already_paused(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=1001), \
-             patch("fun_time.z_order.set_always_on_top") as mock_topmost, \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=PRIMARY_HWND), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
              patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd"):
@@ -1604,17 +1308,17 @@ class TestHandleOpenFileDialog:
         # Should not touch topmost
         mock_topmost.assert_not_called()
         # Should still show the file dialog with primary hwnd
-        mock_dialog.assert_called_once_with("", owner_hwnd=1001)
+        mock_dialog.assert_called_once_with("", owner_hwnd=PRIMARY_HWND)
 
     def test_shows_dialog_with_empty_dir_when_no_primary_sources(self, tmp_path):
         """When primary_sources is empty, dialog opens with empty initial dir."""
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
@@ -1623,9 +1327,9 @@ class TestHandleOpenFileDialog:
         mock_dialog.assert_called_once_with("", owner_hwnd=0)
 
     def test_forwards_suspend_and_unsuspend_via_dispatch(self, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         """Suspend/unsuspend reach AHK via _dispatch forwarding remaining ops."""
-        runner = self._make_runner(tmp_path)
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
@@ -1646,7 +1350,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
              patch.object(Path, "write_text", capture_write):
@@ -1658,10 +1362,8 @@ class TestHandleOpenFileDialog:
         assert ahk_commands_written.index("suspend_hotkeys") < ahk_commands_written.index("unsuspend_hotkeys")
 
     def test_concurrent_invocations_prevented(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)  # fast path — no omnipause
-
-        import threading
 
         with patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
@@ -1689,7 +1391,7 @@ class TestHandleOpenFileDialog:
         assert hasattr(runner, "_file_dialog_lock")
 
     def test_open_file_dialog_routed_from_tick(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("open_file_dialog", encoding="utf-8")
@@ -1697,7 +1399,6 @@ class TestHandleOpenFileDialog:
         with patch.object(runner, "_handle_open_file_dialog") as mock_handle:
             runner.tick()
             # Give the background thread a moment to start
-            import time
             time.sleep(0.1)
 
         mock_handle.assert_called_once()
@@ -1705,40 +1406,6 @@ class TestHandleOpenFileDialog:
 
 class TestUpdateDashboardOsr2Off:
     """_update_dashboard should write osr2_mode='off' when the device is off."""
-
-    def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.command_dispatch import BridgeConfig
-
-        config = BridgeConfig(
-            primary_port=9090,
-            portrait_port=9091,
-            landscape_port=9092,
-            vlc_password="test",
-            favs_file=tmp_path / "favs.txt",
-            weird_dir=tmp_path / "weird",
-            state_dir=tmp_path,
-            primary_sources="",
-            portrait_sources="",
-            landscape_sources="",
-            genau_mode_file=tmp_path / "rh_mode.txt",
-            genau_cmd_file=tmp_path / "rh_cmd.txt",
-            genau_paused_file=tmp_path / "rh_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            nau_cmd_file=tmp_path / "nau_cmd.txt",
-            nau_paused_file=tmp_path / "nau_paused.txt",
-            nau_status_file=tmp_path / "nau_status.txt",
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
-        )
-        return DispatchLoopRunner(
-            config=config,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            shared_state_file=tmp_path / "shared_state.ini",
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            primary_pid=100,
-            nau_pid=200,
-            dashboard_enabled=False,
-            **kwargs,
-        )
 
     def _read_osr2_mode(self, tmp_path):
         import configparser
@@ -1748,7 +1415,7 @@ class TestUpdateDashboardOsr2Off:
         return parser.get("osr2", "mode")
 
     def test_osr2_mode_off_when_rx_file_missing(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         # No osr2_serial_rx.txt exists
 
         runner._update_dashboard()
@@ -1756,7 +1423,7 @@ class TestUpdateDashboardOsr2Off:
         assert self._read_osr2_mode(tmp_path) == "off"
 
     def test_osr2_mode_off_when_rx_timestamp_stale(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         rx_file = tmp_path / "osr2_serial_rx.txt"
         rx_file.write_text("100.0", encoding="utf-8")
 
@@ -1767,7 +1434,7 @@ class TestUpdateDashboardOsr2Off:
         assert self._read_osr2_mode(tmp_path) == "off"
 
     def test_osr2_mode_controlled_when_device_on(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         rx_file = tmp_path / "osr2_serial_rx.txt"
         rx_file.write_text("100.0", encoding="utf-8")
 
@@ -1778,7 +1445,7 @@ class TestUpdateDashboardOsr2Off:
         assert self._read_osr2_mode(tmp_path) == "controlled"
 
     def test_osr2_mode_auto_when_device_on_and_genau(self, tmp_path):
-        runner = self._make_runner(tmp_path)
+        runner = make_runner(tmp_path)
         rx_file = tmp_path / "osr2_serial_rx.txt"
         rx_file.write_text("100.0", encoding="utf-8")
         (tmp_path / "rh_mode.txt").write_text("1", encoding="utf-8")
@@ -1801,63 +1468,10 @@ class TestIdempotentVoiceCommands:
     already paused is a no-op, not an unpause.
     """
 
-    def _make_runner(self, tmp_path, **kwargs):
-        from fun_time.command_dispatch import BridgeConfig
-
-        config = BridgeConfig(
-            primary_port=9090,
-            portrait_port=9091,
-            landscape_port=9092,
-            vlc_password="test",
-            favs_file=tmp_path / "favs.txt",
-            weird_dir=tmp_path / "weird",
-            state_dir=tmp_path,
-            primary_sources="",
-            portrait_sources="",
-            landscape_sources="",
-            genau_mode_file=tmp_path / "rh_mode.txt",
-            genau_cmd_file=tmp_path / "rh_cmd.txt",
-            genau_paused_file=tmp_path / "rh_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            nau_cmd_file=tmp_path / "nau_cmd.txt",
-            nau_paused_file=tmp_path / "nau_paused.txt",
-            nau_status_file=tmp_path / "nau_status.txt",
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
-            broker_heartbeat_file=tmp_path / "broker_heartbeat.txt",
-        )
-        return DispatchLoopRunner(
-            config=config,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            shared_state_file=tmp_path / "shared_state.ini",
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            primary_pid=100,
-            nau_pid=200,
-            portrait_pid=300,
-            landscape_pid=400,
-            dashboard_pid=500,
-            dashboard_enabled=False,
-            **kwargs,
-        )
-
-    def _queue_and_tick(self, runner, tmp_path, cmd):
-        """Write a command and tick the runner with mocked externals."""
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text(cmd, encoding="utf-8")
-        runner._last_sync = float("inf")
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", wraps=None) as mock_dc:
-            # Let dispatch_command return current state unchanged
-            mock_dc.return_value = (runner.state, [])
-            runner.tick()
-            return mock_dc
-
     # -- pause / play --
 
     def test_pause_enters_omnipause_when_not_paused(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(omni_paused=False)
         with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1867,7 +1481,7 @@ class TestIdempotentVoiceCommands:
         mock_toggle.assert_called_once()
 
     def test_pause_noop_when_already_paused(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(omni_paused=True)
         with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1877,7 +1491,7 @@ class TestIdempotentVoiceCommands:
         mock_toggle.assert_not_called()
 
     def test_play_leaves_omnipause_when_paused(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(omni_paused=True)
         with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1887,7 +1501,7 @@ class TestIdempotentVoiceCommands:
         mock_toggle.assert_called_once()
 
     def test_play_noop_when_not_paused(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(omni_paused=False)
         with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1899,7 +1513,7 @@ class TestIdempotentVoiceCommands:
     # -- enter_omnipause (Space hotkey) --
 
     def test_enter_omnipause_enters_when_not_paused(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         runner.state = BridgeState(omni_paused=False)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1907,33 +1521,33 @@ class TestIdempotentVoiceCommands:
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.z_order.set_always_on_top"):
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner.tick()
 
         assert runner.state.omni_paused is True
 
     def test_enter_omnipause_removes_topmost(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=99999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         runner.state = BridgeState(omni_paused=False)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("enter_omnipause", encoding="utf-8")
 
-        topmost_calls: list[tuple] = []
-
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
+        topmost_calls: list[tuple[int, bool]] = []
 
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=88888), \
-             patch("fun_time.z_order.set_always_on_top", side_effect=track_topmost):
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        removals = [(h, t) for h, t in topmost_calls if t is False]
-        assert len(removals) > 0, "enter_omnipause must remove topmost from windows"
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS
+        assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
 
     def test_enter_omnipause_noop_when_already_paused(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         runner.state = BridgeState(omni_paused=True)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1947,7 +1561,7 @@ class TestIdempotentVoiceCommands:
     # -- lock portrait / lock landscape --
 
     def test_portrait_lock_on_dispatches_when_unlocked(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(locked2=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1957,7 +1571,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("portrait_lock")
 
     def test_portrait_lock_on_noop_when_locked(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(locked2=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1967,7 +1581,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_not_called()
 
     def test_landscape_lock_on_dispatches_when_unlocked(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(locked3=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1977,7 +1591,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("landscape_lock")
 
     def test_landscape_lock_on_noop_when_locked(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(locked3=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1989,7 +1603,7 @@ class TestIdempotentVoiceCommands:
     # -- fmode on / fmode off --
 
     def test_fmode_on_dispatches_when_disabled(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(f_mode_enabled=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1999,7 +1613,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("fmode_toggle")
 
     def test_fmode_on_noop_when_enabled(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(f_mode_enabled=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2009,7 +1623,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_not_called()
 
     def test_fmode_off_dispatches_when_enabled(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(f_mode_enabled=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2019,7 +1633,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("fmode_toggle")
 
     def test_fmode_off_noop_when_disabled(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(f_mode_enabled=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2031,8 +1645,8 @@ class TestIdempotentVoiceCommands:
     # -- genau activate --
 
     def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(primary_mode="vlc")
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(primary_mode="nau")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
@@ -2044,7 +1658,7 @@ class TestIdempotentVoiceCommands:
         """Hybrid mode is genau-active but is NOT genau mode: the Genau-mode
         button must still switch to full Genau.  Regression — the old guard
         used genau_active(), which is True for hybrid, so it swallowed this."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(primary_mode="hybrid")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2057,7 +1671,7 @@ class TestIdempotentVoiceCommands:
         """The loop forwards genau_activate unconditionally — switching to the
         mode you are already in is a no-op at the planner level (see
         test_mode_plan.test_same_mode_is_noop), not a special case here."""
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(primary_mode="genau")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2069,7 +1683,7 @@ class TestIdempotentVoiceCommands:
     # -- lock off (idempotent unlock) --
 
     def test_portrait_lock_off_unlocks_when_locked(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(locked2=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2079,7 +1693,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("portrait_lock")
 
     def test_portrait_lock_off_noop_when_already_unlocked(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(locked2=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2089,7 +1703,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_not_called()
 
     def test_landscape_lock_off_unlocks_when_locked(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(locked3=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2099,7 +1713,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("landscape_lock")
 
     def test_landscape_lock_off_noop_when_already_unlocked(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(locked3=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2111,21 +1725,20 @@ class TestIdempotentVoiceCommands:
     # -- broker start / broker stop --
 
     def test_broker_start_starts_when_not_running(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         # No heartbeat file → broker not running
         with patch("fun_time.windows_bridge_dispatch_loop.restart_broker") as mock_restart:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_start", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-            import time; time.sleep(0.2)  # daemon thread
+            time.sleep(0.2)  # daemon thread
         mock_restart.assert_called_once()
 
     def test_broker_start_noop_when_already_running(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         # Fresh heartbeat → broker running
-        import time as _time
-        (tmp_path / "broker_heartbeat.txt").write_text(str(_time.time()), encoding="utf-8")
+        (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
         with patch("fun_time.windows_bridge_dispatch_loop.restart_broker") as mock_restart:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_start", encoding="utf-8")
@@ -2134,19 +1747,18 @@ class TestIdempotentVoiceCommands:
         mock_restart.assert_not_called()
 
     def test_broker_stop_stops_when_running(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
-        import time as _time
-        (tmp_path / "broker_heartbeat.txt").write_text(str(_time.time()), encoding="utf-8")
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
         with patch("fun_time.windows_bridge_dispatch_loop.stop_broker_processes") as mock_stop:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_stop", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-            import time; time.sleep(0.2)  # daemon thread
+            time.sleep(0.2)  # daemon thread
         mock_stop.assert_called_once()
 
     def test_broker_stop_noop_when_not_running(self, tmp_path):
-        runner = self._make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
         # No heartbeat file → broker not running
         with patch("fun_time.windows_bridge_dispatch_loop.stop_broker_processes") as mock_stop:
             cmd_file = tmp_path / "dashboard_cmd.txt"

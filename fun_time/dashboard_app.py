@@ -220,8 +220,6 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         secondary_monitor=parser.getint("layout", "secondary_monitor"),
         primary_top_ratio=parser.getfloat("layout", "primary_top_ratio"),
         landscape_width_ratio=parser.getfloat("layout", "landscape_width_ratio"),
-        left_partition_top_ratio=parser.getfloat("layout", "left_partition_top_ratio", fallback=0.0),
-        left_partition_bottom_ratio=parser.getfloat("layout", "left_partition_bottom_ratio", fallback=0.0),
     )
     return DashboardAppConfig(
         layout=layout,

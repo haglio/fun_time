@@ -132,44 +132,58 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
     )
 
 
-def test_fun_time_nau_window_not_topmost_in_genau_mode(shared_integration_session: FunTimeIntegrationSession):
-    """Nau must leave the TOPMOST z-band while Genau mode is active, and
-    regain it when Nau mode returns; the hybrid-only primary VLC must
-    never be TOPMOST in either mode."""
+def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integration_session: FunTimeIntegrationSession):
+    """The primary-slot players share one screen rect, so a mode switch
+    swaps window VISIBILITY: exactly the active mode's player is on screen
+    (find_window_by_title only sees visible windows — a hidden window's
+    lookup returns 0) and keeps its static TOPMOST flag while visible."""
     s = shared_integration_session
-    pids = s.read_child_pids()
-    # Same lookup production uses: the venv pythonw launcher pid does not
-    # own the SDL window, so fall back to the exact title.
-    nau_hwnd = find_window_by_pid(pids["nau_pid"]) or find_window_by_title("Nau", exact=True)
-    assert nau_hwnd, f"Nau window not found for pid {pids['nau_pid']}"
 
+    # nau mode: Nau visible (and TOPMOST), Genau hidden.  The lookup is
+    # exact because 'Nau' is a substring of 'Genau'.
+    s.wait_until(
+        lambda: find_window_by_title("Nau", exact=True) != 0,
+        timeout=12,
+        description="Nau window to be visible in nau mode",
+    )
+    nau_hwnd = find_window_by_title("Nau", exact=True)
     s.wait_until(
         lambda: is_window_topmost(nau_hwnd),
         timeout=5,
-        description="Nau to be TOPMOST before Genau activation",
+        description="Nau to be TOPMOST while visible",
     )
-    primary_hwnd = find_window_by_pid(pids["primary_pid"])
-    assert primary_hwnd, "Primary VLC window not found"
-    assert not is_window_topmost(primary_hwnd), (
-        "Primary VLC must not be TOPMOST in nau mode (it plays only in hybrid)"
+    s.wait_until(
+        lambda: find_window_by_title("Genau") == 0,
+        timeout=12,
+        description="Genau window to be hidden in nau mode",
     )
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode", timeout=12)
 
     s.wait_until(
-        lambda: not is_window_topmost(nau_hwnd),
+        lambda: find_window_by_title("Nau", exact=True) == 0,
         timeout=12,
-        description="Nau to lose TOPMOST when Genau is active",
+        description="Nau window to hide when Genau mode activates",
+    )
+    s.wait_until(
+        lambda: find_window_by_title("Genau") != 0,
+        timeout=12,
+        description="Genau window to become visible in genau mode",
     )
 
     s.write_dashboard_command("nau_activate")
     s.wait_for_new_log("Switched to nau mode", timeout=12)
 
     s.wait_until(
-        lambda: is_window_topmost(nau_hwnd),
+        lambda: find_window_by_title("Nau", exact=True) != 0,
         timeout=12,
-        description="Nau to regain TOPMOST after Genau deactivated",
+        description="Nau window to reappear in nau mode",
+    )
+    s.wait_until(
+        lambda: find_window_by_title("Genau") == 0,
+        timeout=12,
+        description="Genau window to hide again in nau mode",
     )
 
 

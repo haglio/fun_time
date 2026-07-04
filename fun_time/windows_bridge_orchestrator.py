@@ -22,9 +22,13 @@ from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
 )
-from .windows_bridge_sequencer import StartupResult, resolve_shortcut, run_startup_sequence
+from .windows_bridge_sequencer import (
+    StartupResult,
+    _apply_startup_window_state,
+    resolve_shortcut,
+    run_startup_sequence,
+)
 from .windows_bridge_startup import _no_activate_kwargs
-from .z_order import apply_z_order, compute_z_order
 from .win32 import (
     activate_window,
     close_window,
@@ -179,19 +183,17 @@ def _add_dispatch_file_handler(log_path: Path) -> None:
         lg.addHandler(handler)
 
 
-def _fix_post_loading_z_order(result: StartupResult) -> None:
-    """Re-assert z-order after the loading screen overlay is destroyed.
-
-    Uses the centralized z-order module to set the correct stacking
-    in one pass: demote all, then promote bottom-to-top.
-    """
+def _fix_post_loading_windows(result: StartupResult) -> None:
+    """Re-assert static topmost + nau-mode visibility after the loading
+    screen overlay is destroyed (its teardown can shuffle activation, and
+    the dashboard may only become resolvable this late)."""
     dash_hwnd = 0
     if result.dashboard_pid:
         dash_hwnd = find_window_by_pid(result.dashboard_pid)
         if not dash_hwnd:
             dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0, exact=True)
 
-    layers = compute_z_order(
+    _apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=find_window_by_pid(result.portrait_pid),
         landscape_hwnd=find_window_by_pid(result.landscape_pid),
@@ -200,10 +202,8 @@ def _fix_post_loading_z_order(result: StartupResult) -> None:
         nau_hwnd=find_window_by_pid(result.nau_pid)
         or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
         dashboard_hwnd=dash_hwnd,
-        primary_mode="nau",
     )
-    apply_z_order(layers)
-    logger.info("Post-loading z-order corrected")
+    logger.info("Post-loading window state corrected")
 
 
 def run_python_orchestrated_bridge(
@@ -282,7 +282,7 @@ def run_python_orchestrated_bridge(
         # Re-assert z-order AFTER the loading screen overlay is gone.
         # Phase 4 set topmost while the overlay was still covering everything;
         # destroying the overlay can rearrange z-order.  Correct it now.
-        _fix_post_loading_z_order(result)
+        _fix_post_loading_windows(result)
 
     if integration_mode:
         _minimize_all_windows(result)
