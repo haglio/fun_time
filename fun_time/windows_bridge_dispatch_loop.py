@@ -174,6 +174,7 @@ class DispatchLoopRunner:
         rfb_shortcut_work_dir: str = "",
         rfb_shortcut_args: str = "",
         sync_interval_ms: int = 200,
+        role_hwnds: dict[str, int] | None = None,
     ) -> None:
         self.config = config
         self.dashboard_cmd_file = dashboard_cmd_file
@@ -197,7 +198,11 @@ class DispatchLoopRunner:
         self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._press_port: int | None = None
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
-        self._role_hwnds: dict[str, int] = {}
+        # Seeded from the startup sequencer, which resolved every window
+        # while it was still visible — startup then hides the inactive
+        # primary-slot windows, and hidden windows are invisible to the
+        # pid/title lookups.
+        self._role_hwnds: dict[str, int] = dict(role_hwnds or {})
         self._minimized_hwnds: list[int] = []
         self.voice_controller: VoiceController | None = None
         self._seek_accumulator = PrimarySeekAccumulator(

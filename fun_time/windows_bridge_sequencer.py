@@ -55,6 +55,10 @@ class StartupResult:
     layout_plan: WindowLayoutPlan
     core_hwnds: list[int] = field(default_factory=list)
     rfb_hwnd: int = 0
+    # HWNDs resolved while every window was still visible; the dispatch
+    # loop's role cache is seeded from this (hidden windows cannot be
+    # re-resolved by pid/title lookups).
+    role_hwnds: dict[str, int] = field(default_factory=dict)
 
 
 def _read_manifest(path: str | Path) -> configparser.ConfigParser:
@@ -84,7 +88,7 @@ def _apply_startup_window_state(
     nau_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
-) -> None:
+) -> dict[str, int]:
     """Set the static window state for the nau startup mode.
 
     No window overlaps another anymore, so there is no z-order to manage:
@@ -101,6 +105,15 @@ def _apply_startup_window_state(
     for hwnd in (genau_hwnd, primary_hwnd):
         if hwnd:
             hide_window(hwnd)
+    return {
+        "portrait": portrait_hwnd,
+        "landscape": landscape_hwnd,
+        "primary": primary_hwnd,
+        "genau": genau_hwnd,
+        "nau": nau_hwnd,
+        "dashboard": dashboard_hwnd,
+        "rfb": rfb_hwnd,
+    }
 
 
 def run_startup_sequence(
@@ -206,6 +219,7 @@ def run_startup_sequence(
     )
 
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
+    role_hwnds: dict[str, int] = {}
 
     if not hide_windows:
         # --- Normal mode: position immediately ---
@@ -216,7 +230,7 @@ def run_startup_sequence(
         logger.info("Core windows positioned")
 
         progress.advance("Finalizing window layout...")
-        _apply_startup_window_state(
+        role_hwnds = _apply_startup_window_state(
             portrait_hwnd=find_window_by_pid(portrait_pid),
             landscape_hwnd=find_window_by_pid(landscape_pid),
             primary_hwnd=find_window_by_pid(primary_pid),
@@ -290,7 +304,7 @@ def run_startup_sequence(
             if not dash_hwnd:
                 dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=5.0, exact=True)
 
-        _apply_startup_window_state(
+        role_hwnds = _apply_startup_window_state(
             rfb_hwnd=rfb_hwnd,
             portrait_hwnd=find_window_by_pid(portrait_pid),
             landscape_hwnd=find_window_by_pid(landscape_pid),
@@ -320,6 +334,7 @@ def run_startup_sequence(
         audio_pid=ui_pids["audio_pid"],
         layout_plan=plan,
         core_hwnds=collected_hwnds,
+        role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,
     )
 
