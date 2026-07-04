@@ -72,6 +72,8 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Next video", ("]",), ("primary_next",)),
             _Row("Nudge back 10 seconds", ("-",), ("primary_nudge_prev",)),
             _Row("Nudge forward 10 seconds", ("=",), ("primary_nudge_next",)),
+            _Row("Cycle to another version of this video", ("V",), ("nau_cycle_version",)),
+            _Row("Shorts / full-length library", (), ("nau_length_shorts", "nau_length_full")),
             _Row(
                 "Record a loop (hold to mark, release to loop)",
                 ("R",),

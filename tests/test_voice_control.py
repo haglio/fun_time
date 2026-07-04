@@ -38,6 +38,9 @@ class TestVoiceCommands:
             "record": "nau_record_down",
             "loop": "nau_record_up",
             "cancel": "nau_loop_cancel",
+            "cycle version": "nau_cycle_version",
+            "shorts": "nau_length_shorts",
+            "full length": "nau_length_full",
             "browse": "open_file_dialog",
             "clip": "clipper_save",
             "slow down": "genau_speed_down",
@@ -75,6 +78,11 @@ class TestVoiceCommands:
 
     def test_hybrid_activates_hybrid(self):
         assert VOICE_COMMANDS["hybrid"] == "hybrid_activate"
+
+    def test_nau_cycle_version_and_length_phrases(self):
+        assert VOICE_COMMANDS["cycle version"] == "nau_cycle_version"
+        assert VOICE_COMMANDS["shorts"] == "nau_length_shorts"
+        assert VOICE_COMMANDS["full length"] == "nau_length_full"
 
     def test_unlock_phrases_map_to_lock_off(self):
         assert VOICE_COMMANDS["unlock portrait"] == "portrait_lock_off"
