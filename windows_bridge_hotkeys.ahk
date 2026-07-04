@@ -112,7 +112,26 @@ SC035::QueueCommand("genau_toggle_auto")
 
 QueueCommand(cmd) {
     global DASHBOARD_CMD_FILE
-    FileAppend(cmd . "`n", DASHBOARD_CMD_FILE, "UTF-8-RAW")
+    ; The Python dispatch loop drains this file by renaming it (~20 Hz). A held
+    ; key appends fast enough to overlap that rename, and Windows then refuses
+    ; the open with "(32) ... being used by another process". Retry briefly so a
+    ; transient collision drops at most one keypress instead of crashing the
+    ; hotkey script with an unhandled FileAppend error.
+    if !AppendWithRetry(cmd . "`n", DASHBOARD_CMD_FILE)
+        Log("QueueCommand dropped (file busy): " . cmd)
+}
+
+AppendWithRetry(text, path, attempts := 5, delayMs := 5) {
+    ; FileAppend past transient Windows sharing violations (error 32) that occur
+    ; when another process briefly holds the file. Returns true once written.
+    loop attempts {
+        try {
+            FileAppend(text, path, "UTF-8-RAW")
+            return true
+        }
+        Sleep(delayMs)
+    }
+    return false
 }
 
 ProcessAhkCommand() {
@@ -168,13 +187,7 @@ RequireManifestValue(section, key) {
 Log(msg) {
     global WINDOWS_BRIDGE_LOG_FILE
     line := FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n"
-    loop 3 {
-        try {
-            FileAppend(line, WINDOWS_BRIDGE_LOG_FILE, "UTF-8-RAW")
-            return
-        }
-        Sleep(50)
-    }
+    AppendWithRetry(line, WINDOWS_BRIDGE_LOG_FILE, 3, 50)
 }
 
 ShowWindowsBridgeLog(*) {
