@@ -42,7 +42,6 @@ from shared_ui.fonts import (
 from fun_time.config import LayoutConfig
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.vlc_actions import get_current_file_path, vlc_http_req
-from fun_time.win32 import get_captioned_window_chrome_height
 from fun_time.dashboard_actions import (
     BROKER_PANEL,
     CLIPPER_SAVE,
@@ -82,7 +81,7 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.command_reference import render_reference_html
-from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_fitted_preview_layout
+from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
 from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status
 from fun_time.dashboard_state import (
     LABEL_LANDSCAPE_VLC,
@@ -1314,9 +1313,8 @@ def build_dashboard_window(
     launch_geometry: DashboardLaunchGeometry | None = None,
 ) -> DashboardWindow:
     main_monitor, secondary_monitor = get_preview_monitor_sizes(app_config)
-    preview_layout = compute_fitted_preview_layout(
+    preview_layout = compute_dashboard_preview_layout(
         main_monitor, secondary_monitor, app_config.layout,
-        chrome_height=get_captioned_window_chrome_height(),
     )
     return DashboardWindow(
         app_config, preview_layout,

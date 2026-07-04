@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fun_time.config import LayoutConfig
-from fun_time.dashboard_layout import Size, compute_fitted_preview_layout
+from fun_time.dashboard_layout import Size, compute_dashboard_preview_layout
 
 
 def clamp01(value: float) -> float:
@@ -40,13 +40,11 @@ def compute_window_layout(
     main_monitor: MonitorRect,
     secondary_monitor: MonitorRect,
     layout_config: LayoutConfig,
-    dashboard_chrome_height: int = 0,
 ) -> WindowLayoutPlan:
     dashboard_size = compute_dashboard_size(
         main_monitor=main_monitor,
         secondary_monitor=secondary_monitor,
         layout_config=layout_config,
-        dashboard_chrome_height=dashboard_chrome_height,
     )
     portrait_height = int(secondary_monitor.height * clamp01(layout_config.primary_top_ratio))
     primary_height = secondary_monitor.height - portrait_height
@@ -73,13 +71,10 @@ def compute_window_layout(
         height=main_monitor.height,
     )
 
-    # The left column stacks the dashboard above the RFB.  The dashboard is
-    # centered horizontally in the column, and the RFB fills the whole column
-    # below it, reaching up to the dashboard's client bottom.  It tucks under
-    # by the window chrome so there is never a visible gap — the dashboard is
-    # always-on-top, so the few overlapping pixels sit behind it rather than
-    # leaving a strip of empty desktop (the previous behaviour, which added a
-    # thick-resizable-frame chrome the fixed-size dashboard never has).
+    # The left column stacks the dashboard above the RFB.  The dashboard keeps
+    # its natural size and is centered horizontally within the column; the RFB
+    # then fills the whole rectangle from the dashboard's bottom down to the
+    # monitor's bottom edge, spanning the full column width.
     left_width = main_monitor.width - landscape_width
     dashboard = WindowRect(
         x=main_monitor.x + max(0, (left_width - dashboard_size.width) // 2),
@@ -108,13 +103,16 @@ def compute_dashboard_size(
     main_monitor: MonitorRect,
     secondary_monitor: MonitorRect,
     layout_config: LayoutConfig,
-    dashboard_chrome_height: int = 0,
 ) -> Size:
-    preview = compute_fitted_preview_layout(
+    """The dashboard's natural (fixed-scale) scene size.
+
+    Must match the scene ``build_dashboard_window`` renders, so both derive it
+    from the same :func:`compute_dashboard_preview_layout`.
+    """
+    preview = compute_dashboard_preview_layout(
         Size(main_monitor.width, main_monitor.height),
         Size(secondary_monitor.width, secondary_monitor.height),
         layout_config,
-        chrome_height=dashboard_chrome_height,
     )
     return Size(preview.dashboard_width, preview.dashboard_height)
 

@@ -196,22 +196,6 @@ def wait_for_window_by_title(title: str, timeout_s: float = 5.0, *, exact: bool 
     return 0
 
 
-def get_captioned_window_chrome_height() -> int:
-    """Return vertical non-client height for a Tkinter captioned window.
-
-    Tkinter uses WS_THICKFRAME even when resizable(False, False), so the
-    border metric is SM_CYFRAME + SM_CXPADDEDBORDER per side, not
-    SM_CYFIXEDFRAME.
-    """
-    SM_CYCAPTION = 4
-    SM_CYFRAME = 33
-    SM_CXPADDEDBORDER = 92
-    caption = _user32.GetSystemMetrics(SM_CYCAPTION)
-    frame = _user32.GetSystemMetrics(SM_CYFRAME)
-    padded = _user32.GetSystemMetrics(SM_CXPADDEDBORDER)
-    return caption + 2 * (frame + padded)
-
-
 def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = True) -> None:
     """Restore and reposition a window (WinRestore + WinMove equivalent).
 
