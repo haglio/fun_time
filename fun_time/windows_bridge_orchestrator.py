@@ -322,6 +322,7 @@ def run_python_orchestrated_bridge(
         rfb_target, rfb_work_dir, rfb_args = resolve_shortcut(rfb_shortcut_path)
 
     dispatch_runner = DispatchLoopRunner(
+        role_hwnds=result.role_hwnds,
         config=bridge_config,
         dashboard_cmd_file=Path(manifest["commands"]["dashboard_cmd_file"]),
         shared_state_file=state_dir / "shared_bridge_state.ini",

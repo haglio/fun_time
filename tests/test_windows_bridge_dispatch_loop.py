@@ -1766,3 +1766,24 @@ class TestIdempotentVoiceCommands:
             runner._last_sync = float("inf")
             runner.tick()
         mock_stop.assert_not_called()
+
+
+class TestSeededRoleHwnds:
+    def test_startup_seed_lets_hidden_windows_be_shown_again(self, tmp_path):
+        """Startup hides Genau and the primary VLC BEFORE the dispatch loop
+        ever resolves them, and hidden windows are invisible to the pid/title
+        lookups — so the runner must be seeded with the hwnds the startup
+        sequencer resolved while everything was still visible, or genau/
+        hybrid modes could never bring their windows back."""
+        runner = make_runner(
+            tmp_path,
+            role_hwnds={"genau": 6001, "primary": 1001},
+        )
+        shown: list[int] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0),              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0),              patch("fun_time.windows_bridge_dispatch_loop.show_window", side_effect=shown.append):
+            assert runner._resolve_role("genau") == 6001
+            assert runner._resolve_role("primary") == 1001
+            runner._dispatch("hybrid_activate")
+
+        assert shown == [1001, 6001]  # hybrid shows primary VLC then the Genau HUD
