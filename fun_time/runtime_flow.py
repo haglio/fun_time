@@ -64,6 +64,7 @@ def apply_mode_switch(
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
     nau_paused_file: str | Path,
+    nau_cmd_file: str | Path,
     broker_cmd_file: str | Path | None = None,
 ) -> ModeSwitchFlowResult:
     plan = build_mode_switch_plan(
@@ -80,6 +81,11 @@ def apply_mode_switch(
         cmds = [cmd for cmd in (plan.genau_cmd, plan.hud_cmd) if cmd is not None]
         if cmds:
             Path(genau_cmd_file).write_text("\n".join(cmds), encoding="utf-8")
+        if plan.nau_tcode_muted is not None:
+            Path(nau_cmd_file).write_text(
+                "SET_TCODE_ENABLED 0" if plan.nau_tcode_muted else "SET_TCODE_ENABLED 1",
+                encoding="utf-8",
+            )
         if not will_genau and broker_cmd_file is not None:
             Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
     return ModeSwitchFlowResult(

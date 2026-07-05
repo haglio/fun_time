@@ -22,6 +22,7 @@ def flow_files(tmp_path: Path) -> dict[str, Path]:
         "audio_paused_file": tmp_path / "audio_paused.txt",
         "genau_cmd_file": tmp_path / "genau_cmd.txt",
         "nau_paused_file": tmp_path / "nau_paused.txt",
+        "nau_cmd_file": tmp_path / "nau_cmd.txt",
         "broker_cmd_file": tmp_path / "broker_cmd.txt",
     }
 
@@ -35,6 +36,7 @@ def _mode_switch(files, *, current, target, omni_paused=False, broker=False):
         audio_paused_file=files["audio_paused_file"],
         genau_cmd_file=files["genau_cmd_file"],
         nau_paused_file=files["nau_paused_file"],
+        nau_cmd_file=files["nau_cmd_file"],
         broker_cmd_file=files["broker_cmd_file"] if broker else None,
     )
 
@@ -68,6 +70,35 @@ def test_nau_to_hybrid_keeps_nau_playing(flow_files):
     assert result.is_transition is True
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON"
     assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
+
+
+def test_nau_to_hybrid_mutes_nau_tcode(flow_files):
+    # Genau drives the OSR2 in hybrid, so Nau's funscript T-Code is muted to
+    # stop the two double-driving the broker.
+    _mode_switch(flow_files, current="nau", target="hybrid")
+
+    assert flow_files["nau_cmd_file"].read_text(encoding="utf-8") == "SET_TCODE_ENABLED 0"
+
+
+def test_hybrid_to_nau_unmutes_nau_tcode(flow_files):
+    _mode_switch(flow_files, current="hybrid", target="nau")
+
+    assert flow_files["nau_cmd_file"].read_text(encoding="utf-8") == "SET_TCODE_ENABLED 1"
+
+
+def test_non_hybrid_transition_leaves_nau_cmd_untouched(flow_files):
+    # nau<->genau never involves hybrid, so the T-Code command is not written.
+    _mode_switch(flow_files, current="nau", target="genau")
+
+    assert not flow_files["nau_cmd_file"].exists()
+
+
+def test_hybrid_switch_during_omnipause_leaves_nau_cmd_untouched(flow_files):
+    # Omnipause short-circuits before any transition side effects, so even a
+    # hybrid target does not write the T-Code mute.
+    _mode_switch(flow_files, current="nau", target="hybrid", omni_paused=True)
+
+    assert not flow_files["nau_cmd_file"].exists()
 
 
 def test_hybrid_to_nau_keeps_nau_playing(flow_files):
