@@ -154,6 +154,18 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
     )
 
 
+def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 90.0) -> float | None:
+    """Elapsed seconds if the loop stalled far longer than its tick cadence.
+
+    The dispatch thread freezes while Windows is asleep or in modern standby;
+    on resume the wall clock has jumped forward by the sleep duration.  A gap
+    far above the ~50 ms tick interval means we just woke — the moment AHK's
+    hotkeys are prone to not firing until the bridge is restarted.  Returns
+    None for ordinary iterations (and for merely slow ticks, e.g. a stuck VLC
+    HTTP call, which the threshold clears).
+    """
+    gap = now_wall - prev_wall
+    return gap if gap >= threshold_s else None
 
 
 class DispatchLoopRunner:
@@ -623,7 +635,17 @@ class DispatchLoopRunner:
 
     def run(self) -> None:
         """Main loop — call from a background thread."""
+        last_wall = time.time()
         while not self._stop.is_set():
+            now = time.time()
+            gap = detect_sleep_gap(last_wall, now)
+            if gap is not None:
+                logger.warning(
+                    "Dispatch loop resumed after %.0fs stall — likely system "
+                    "sleep/standby; AHK hotkeys may be dead until Fun Time is restarted",
+                    gap,
+                )
+            last_wall = now
             try:
                 self.tick()
             except Exception:
