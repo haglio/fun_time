@@ -61,7 +61,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             # Space and "pause" both enter Omnipause; "pause" is shown for parity.
             _Row("Omnipause", ("Space",), ("enter_omnipause",), ("pause",)),
             _Row("Toggle F-Mode", ("F",), ("fmode_toggle", "fmode_on", "fmode_off")),
-            _Row("Toggle newest-first order (Portrait/Landscape VLC)", ("Y",), ("recency_order_toggle",)),
+            _Row("Premiere — play Portrait/Landscape newest-first", ("P",), ("recency_order_toggle",)),
             _Row("Disable voice control", ("Backspace",), ("voice_toggle", "voice_off")),
             _Row("Start / stop broker", ("B",), ("broker_panel", "broker_start", "broker_stop")),
         ),

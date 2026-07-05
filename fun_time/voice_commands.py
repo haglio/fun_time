@@ -25,6 +25,8 @@ VOICE_COMMANDS: dict[str, str] = {
     "f mode": "fmode_toggle",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
+    # "Premiere": order the Portrait/Landscape VLC playlists newest-first.
+    "premiere": "recency_order_toggle",
     # Recognizer listens for "go now" (reliably recognized); the reference
     # displays this as "genau" via the row's voice_display override.
     "go now": "genau_activate",
