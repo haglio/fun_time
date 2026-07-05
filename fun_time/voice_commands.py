@@ -22,15 +22,18 @@ VOICE_COMMANDS: dict[str, str] = {
     "previous portrait": "portrait_prev",
     "weird landscape": "landscape_trash",
     "weird portrait": "portrait_trash",
+    "f mode": "fmode_toggle",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
     # Recognizer listens for "go now" (reliably recognized); the reference
     # displays this as "genau" via the row's voice_display override.
     "go now": "genau_activate",
-    # Recognizer listens for "now now" ("nau" is not in the vosk vocabulary);
-    # the reference displays this as "nau".
+    # "nau" is not in the vosk vocabulary, so the recognizer listens for the
+    # sound-alikes "now now"/"now mode"; the reference displays "nau mode".
     "now now": "nau_activate",
+    "now mode": "nau_activate",
     "hybrid": "hybrid_activate",
+    "hybrid mode": "hybrid_activate",
     "start broker": "broker_start",
     "stop broker": "broker_stop",
     "next primary": "primary_next",
@@ -39,10 +42,12 @@ VOICE_COMMANDS: dict[str, str] = {
     "back": "primary_nudge_prev",
     "browse": "open_file_dialog",
     "clip": "clipper_save",
+    "save clip": "clipper_save",
     "record": "nau_record_down",
     "loop": "nau_record_up",
-    "cancel": "nau_loop_cancel",
+    "end loop": "nau_loop_cancel",
     "cycle version": "nau_cycle_version",
+    "next version": "nau_cycle_version",
     "shorts": "nau_length_shorts",
     "full length": "nau_length_full",
     "slow down": "genau_speed_down",
