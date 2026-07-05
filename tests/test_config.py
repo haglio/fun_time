@@ -101,14 +101,14 @@ class TestLoadConfig:
         with pytest.raises(TypeError):
             load_config(cfg_file)
 
-    def test_raises_when_primary_vlc_dirs_empty(self, cfg_factory):
-        path = cfg_factory({"paths": {"primary_vlc_dirs": []}})
-        with pytest.raises(ValueError, match="primary_vlc_dirs"):
+    def test_raises_when_nau_library_dirs_empty(self, cfg_factory):
+        path = cfg_factory({"paths": {"nau_library_dirs": []}})
+        with pytest.raises(ValueError, match="nau_library_dirs"):
             load_config(path)
 
-    def test_primary_vlc_dirs_not_a_list(self, tmp_path: Path, cfg_factory):
-        path = cfg_factory({"paths": {"primary_vlc_dirs": "not-a-list"}})
-        with pytest.raises(TypeError, match="primary_vlc_dirs"):
+    def test_nau_library_dirs_not_a_list(self, tmp_path: Path, cfg_factory):
+        path = cfg_factory({"paths": {"nau_library_dirs": "not-a-list"}})
+        with pytest.raises(TypeError, match="nau_library_dirs"):
             load_config(path)
 
     def test_loads_paths_correctly(self, cfg_path: Path, tmp_path: Path):
@@ -230,19 +230,19 @@ class TestProviderRegenConfig:
         assert cfg.random_favs_browser.enabled is True
         assert cfg.random_favs_browser.shortcut_path.name == "chrome.exe"
 
-    def test_primary_vlc_dir_property(self, cfg_path: Path, tmp_path: Path):
+    def test_nau_library_dir_property(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.paths.primary_vlc_dir == (tmp_path / "videos" / "videos" / "vlc_primary").resolve()
+        assert cfg.paths.nau_library_dir == (tmp_path / "videos" / "videos" / "nau_library").resolve()
 
-    def test_multiple_primary_vlc_dirs(self, tmp_path: Path, cfg_factory):
-        extra = tmp_path / "vlc_extra"
+    def test_multiple_nau_library_dirs(self, tmp_path: Path, cfg_factory):
+        extra = tmp_path / "extra"
         extra.mkdir()
-        path = cfg_factory({"paths": {"primary_vlc_dirs": [
-            str(tmp_path / "vlc_primary"),
+        path = cfg_factory({"paths": {"nau_library_dirs": [
+            str(tmp_path / "nau_library"),
             str(extra),
         ]}})
         cfg = load_config(path)
-        assert len(cfg.paths.primary_vlc_dirs) == 2
+        assert len(cfg.paths.nau_library_dirs) == 2
 
     def test_multiple_portrait_and_landscape_dirs(self, tmp_path: Path, cfg_factory):
         portrait_extra = tmp_path / "portrait_extra"

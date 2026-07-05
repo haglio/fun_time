@@ -47,8 +47,8 @@ def validate_config(config) -> None:
     require_file(config.paths.python_exe)
     if config.random_favs_browser.enabled:
         require_file(config.random_favs_browser.shortcut_path)
-    for primary_vlc_dir in config.paths.primary_vlc_dirs:
-        require_dir(primary_vlc_dir)
+    for nau_library_dir in config.paths.nau_library_dirs:
+        require_dir(nau_library_dir)
     for portrait_dir in config.paths.portrait_dirs:
         require_dir(portrait_dir)
     for landscape_dir in config.paths.landscape_dirs:

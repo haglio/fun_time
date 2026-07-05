@@ -606,7 +606,7 @@ def build_bridge_config_from_manifest(
         favs_file=Path(manifest["media"]["favs_file"]),
         weird_dir=Path(manifest["media"]["weird_dir"]),
         state_dir=Path(manifest["commands"]["dashboard_state_file"]).parent,
-        primary_sources=manifest["media"]["primary_vlc_sources"],
+        primary_sources=manifest["media"]["nau_library_sources"],
         portrait_sources=manifest["media"]["portrait_dirs"],
         landscape_sources=manifest["media"]["landscape_dirs"],
         genau_mode_file=Path(manifest["commands"]["genau_mode_file"]),

@@ -83,16 +83,14 @@ For the satellite AI libraries, Fun Time can now read either a single folder or 
 
 If the list form is used, the portrait or landscape VLC gets all listed folders joined into one rotating source set.
 
-Primary VLC source folders are configured with:
-
-- preferred: `paths.primary_vlc_dirs` (list of one or more folders)
+Nau's video library folders are configured with `paths.nau_library_dirs` (a list of one or more folders):
 
 Example:
 
 ```json
 {
   "paths": {
-    "primary_vlc_dirs": [
+    "nau_library_dirs": [
       "C:/videos/set_a",
       "C:/videos/set_b"
     ]

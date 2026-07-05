@@ -130,7 +130,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
         Size(1440, 3440),
         config.layout,
     )
-    primary_root = config.paths.primary_vlc_dirs[0]
+    primary_root = config.paths.nau_library_dirs[0]
     primary_root.mkdir(parents=True, exist_ok=True)
     primary_path = primary_root / "primary.mp4"
     primary_path.write_text("video", encoding="utf-8")
@@ -1046,7 +1046,7 @@ def test_osr2_highlights_green_when_funscript_playing(cfg_path: Path):
     layout = compute_dashboard_preview_layout(
         Size(2560, 1392), Size(1440, 3440), config.layout,
     )
-    primary_root = config.paths.primary_vlc_dirs[0]
+    primary_root = config.paths.nau_library_dirs[0]
     primary_root.mkdir(parents=True, exist_ok=True)
     primary_path = primary_root / "vid.mp4"
     primary_path.write_text("v", encoding="utf-8")
@@ -1075,7 +1075,7 @@ def test_osr2_auto_mode_stays_pink_even_with_funscript(cfg_path: Path):
     layout = compute_dashboard_preview_layout(
         Size(2560, 1392), Size(1440, 3440), config.layout,
     )
-    primary_root = config.paths.primary_vlc_dirs[0]
+    primary_root = config.paths.nau_library_dirs[0]
     primary_root.mkdir(parents=True, exist_ok=True)
     primary_path = primary_root / "vid.mp4"
     primary_path.write_text("v", encoding="utf-8")
@@ -1151,7 +1151,7 @@ def test_osr2_controlled_with_funscript_shows_funscript_control(cfg_path: Path):
     layout = compute_dashboard_preview_layout(
         Size(2560, 1392), Size(1440, 3440), config.layout,
     )
-    primary_root = config.paths.primary_vlc_dirs[0]
+    primary_root = config.paths.nau_library_dirs[0]
     primary_root.mkdir(parents=True, exist_ok=True)
     primary_path = primary_root / "vid.mp4"
     primary_path.write_text("v", encoding="utf-8")
