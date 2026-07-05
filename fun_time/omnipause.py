@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .mode_plan import genau_active
+from .mode_plan import genau_active, nau_displays
 
 
 @dataclass(frozen=True)
@@ -10,12 +10,11 @@ class OmniPausePlan:
     action: str
     next_omni_paused: bool
     genau_branch: bool
-    resume_primary_playback: bool
     resume_nau_playback: bool
     log_message: str
 
 
-def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str, skip_primary_resume: bool) -> OmniPausePlan:
+def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str) -> OmniPausePlan:
     if action == "toggle":
         action = "leave" if omni_paused else "enter"
 
@@ -24,7 +23,6 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str, s
             action="enter",
             next_omni_paused=True,
             genau_branch=genau_active(primary_mode),
-            resume_primary_playback=False,
             resume_nau_playback=False,
             log_message="OmniPause: entering",
         )
@@ -34,11 +32,9 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str, s
             action="leave",
             next_omni_paused=False,
             genau_branch=genau_active(primary_mode),
-            # The primary VLC plays only in hybrid mode; Nau is the primary
-            # player in nau mode. skip_primary_resume guards the VLC path
-            # only (the file dialog already started VLC playback itself).
-            resume_primary_playback=(primary_mode == "hybrid" and not skip_primary_resume),
-            resume_nau_playback=(primary_mode == "nau"),
+            # Nau owns the display in nau and hybrid, so leaving omnipause
+            # resumes its playback there (in genau mode Genau owns the display).
+            resume_nau_playback=nau_displays(primary_mode),
             log_message="OmniPause: leaving",
         )
 

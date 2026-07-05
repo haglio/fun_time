@@ -9,15 +9,22 @@ class ModeSwitchPlan:
     is_transition: bool
     genau_cmd: str | None
     hud_cmd: str | None
-    vlc_should_play: bool | None
     nau_should_play: bool | None
     log_message: str
 
 
 def genau_active(mode: str) -> bool:
-    """Return True if Genau should receive commands in this mode."""
+    """Return True if Genau drives the OSR2 (and shows its HUD) in this mode."""
     return mode in ("genau", "hybrid")
 
+
+def nau_displays(mode: str) -> bool:
+    """Return True if Nau owns the on-screen display (and its interaction).
+
+    Nau is the primary player in both nau and hybrid; in hybrid Genau merely
+    drives the OSR2 and paints its HUD over Nau's video.
+    """
+    return mode in ("nau", "hybrid")
 
 
 def build_mode_switch_plan(
@@ -28,9 +35,9 @@ def build_mode_switch_plan(
 ) -> ModeSwitchPlan:
     """Plan a switch between the primary modes: nau, genau, hybrid.
 
-    Nau plays exactly when the mode is nau; Genau runs in genau and hybrid;
-    the primary VLC plays exactly when the mode is hybrid (it exists only to
-    display video under Genau's HUD).
+    Nau owns the display in nau and hybrid; Genau drives the OSR2 and shows its
+    HUD in genau and hybrid.  So Nau keeps playing across a nau<->hybrid switch
+    and only starts or stops when the display actually returns to or leaves it.
     """
     if current_mode == target_mode:
         return ModeSwitchPlan(
@@ -38,7 +45,6 @@ def build_mode_switch_plan(
             is_transition=False,
             genau_cmd=None,
             hud_cmd=None,
-            vlc_should_play=None,
             nau_should_play=None,
             log_message=f"Already in {target_mode} mode",
         )
@@ -49,18 +55,17 @@ def build_mode_switch_plan(
             is_transition=False,
             genau_cmd=None,
             hud_cmd=None,
-            vlc_should_play=None,
             nau_should_play=None,
             log_message=f"Mode set to {target_mode} (omnipaused)",
         )
 
-    wasgenau_active = genau_active(current_mode)
-    willgenau_active = genau_active(target_mode)
+    was_genau = genau_active(current_mode)
+    will_genau = genau_active(target_mode)
 
     genau_cmd: str | None = None
-    if willgenau_active and not wasgenau_active:
+    if will_genau and not was_genau:
         genau_cmd = "RESUME"
-    elif not willgenau_active and wasgenau_active:
+    elif not will_genau and was_genau:
         genau_cmd = "PAUSE"
 
     hud_cmd: str | None = None
@@ -69,16 +74,12 @@ def build_mode_switch_plan(
     elif current_mode == "hybrid":
         hud_cmd = "HUD_OFF"
 
-    vlc_should_play: bool | None = None
-    if target_mode == "hybrid":
-        vlc_should_play = True
-    elif current_mode == "hybrid":
-        vlc_should_play = False
-
+    was_nau_display = nau_displays(current_mode)
+    will_nau_display = nau_displays(target_mode)
     nau_should_play: bool | None = None
-    if target_mode == "nau":
+    if will_nau_display and not was_nau_display:
         nau_should_play = True
-    elif current_mode == "nau":
+    elif was_nau_display and not will_nau_display:
         nau_should_play = False
 
     return ModeSwitchPlan(
@@ -86,7 +87,6 @@ def build_mode_switch_plan(
         is_transition=True,
         genau_cmd=genau_cmd,
         hud_cmd=hud_cmd,
-        vlc_should_play=vlc_should_play,
         nau_should_play=nau_should_play,
         log_message=f"Switched to {target_mode} mode",
     )

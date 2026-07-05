@@ -16,7 +16,7 @@ from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
 from .provider_regen import regen_url_for_video
-from .mode_plan import genau_active
+from .mode_plan import genau_active, nau_displays
 from .runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
@@ -28,7 +28,6 @@ from .runtime_flow import (
 from .vlc_actions import (
     ensure_playback_state,
     get_current_file_path,
-    get_playback_time,
     set_repeat_mode,
     vlc_advance_and_remove,
     vlc_http_cmd,
@@ -255,31 +254,26 @@ def dispatch_command(
         return state, ops
 
     if command in ("primary_prev", "primary_next"):
-        # The primary player is Nau in every mode except hybrid, where the
-        # primary VLC displays the video.
-        if state.primary_mode == "hybrid":
-            direction = "prev" if command == "primary_prev" else "next"
-            vlc_nav_step(config.primary_port, config.vlc_password, direction)
-        else:
-            config.nau_cmd_file.write_text(
-                "PREV" if command == "primary_prev" else "NEXT", encoding="utf-8",
-            )
+        # Nau owns the primary display in nau and hybrid; in genau mode the
+        # paused Nau still navigates in the background.
+        config.nau_cmd_file.write_text(
+            "PREV" if command == "primary_prev" else "NEXT", encoding="utf-8",
+        )
         return state, ops
 
     if command in ("primary_nudge_prev", "primary_nudge_next"):
-        # In hybrid mode the dispatch loop intercepts nudges and stacks them
-        # into absolute Primary-VLC seeks (see PrimarySeekAccumulator), so
-        # only the Nau-owned modes reach this branch.
-        if state.primary_mode != "hybrid":
-            config.nau_cmd_file.write_text(
-                "SEEK_BACK" if command == "primary_nudge_prev" else "SEEK_FWD",
-                encoding="utf-8",
-            )
+        # Nau owns the primary display; its SEEK commands apply to a live local
+        # clock, so rapid nudges stack naturally.
+        config.nau_cmd_file.write_text(
+            "SEEK_BACK" if command == "primary_nudge_prev" else "SEEK_FWD",
+            encoding="utf-8",
+        )
         return state, ops
 
     if command in _NAU_CMD_MAP:
-        # Loop recording only makes sense while Nau owns the primary display.
-        if state.primary_mode == "nau":
+        # Loop recording, versions and length only make sense while Nau owns the
+        # primary display — nau and hybrid, but not genau.
+        if nau_displays(state.primary_mode):
             config.nau_cmd_file.write_text(_NAU_CMD_MAP[command], encoding="utf-8")
         return state, ops
 
@@ -293,8 +287,8 @@ def dispatch_command(
     if command == "enter_omnipause":
         return _dispatch_enter_omnipause(state, config)
 
-    if command == "leave_omnipause_skip_primary":
-        return _dispatch_leave_omnipause_skip_primary(state, config)
+    if command == "leave_omnipause":
+        return _dispatch_leave_omnipause(state, config)
 
     if command in ("fmode_toggle", "fmode_panel"):
         return _dispatch_fmode_toggle(state, config)
@@ -325,7 +319,7 @@ def dispatch_command(
 
     if command == "clipper_save":
         if state.primary_mode != "genau":
-            msg = _dispatch_clipper_save(state, config)
+            msg = _dispatch_clipper_save(config)
             if msg:
                 ops.append(WindowOp(op="tooltip", key=msg))
         return state, ops
@@ -347,7 +341,6 @@ def _dispatch_omnipause_toggle(
             primary_mode=state.primary_mode,
             portrait_port=config.portrait_port,
             landscape_port=config.landscape_port,
-            primary_port=config.primary_port,
             password=config.vlc_password,
             genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
@@ -362,8 +355,6 @@ def _dispatch_omnipause_toggle(
         result = apply_leave_omnipause(
             omni_paused=state.omni_paused,
             primary_mode=state.primary_mode,
-            skip_primary_resume=False,
-            primary_port=config.primary_port,
             portrait_port=config.portrait_port,
             landscape_port=config.landscape_port,
             password=config.vlc_password,
@@ -391,7 +382,6 @@ def _dispatch_enter_omnipause(
         primary_mode=state.primary_mode,
         portrait_port=config.portrait_port,
         landscape_port=config.landscape_port,
-        primary_port=config.primary_port,
         password=config.vlc_password,
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
@@ -407,15 +397,13 @@ def _dispatch_enter_omnipause(
     return state, ops
 
 
-def _dispatch_leave_omnipause_skip_primary(
+def _dispatch_leave_omnipause(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     ops: list[WindowOp] = []
     result = apply_leave_omnipause(
         omni_paused=state.omni_paused,
         primary_mode=state.primary_mode,
-        skip_primary_resume=True,
-        primary_port=config.primary_port,
         portrait_port=config.portrait_port,
         landscape_port=config.landscape_port,
         password=config.vlc_password,
@@ -457,10 +445,9 @@ def _primary_slot_ops(primary_mode: str) -> list[WindowOp]:
         ]
     if primary_mode == "hybrid":
         return [
-            WindowOp(op="show_role", key="primary"),
+            WindowOp(op="show_role", key="nau"),
             WindowOp(op="show_role", key="genau"),
             WindowOp(op="activate_role", key="genau"),
-            WindowOp(op="hide_role", key="nau"),
         ]
     return [
         WindowOp(op="show_role", key="nau"),
@@ -531,10 +518,7 @@ def _dispatch_mode_switch(
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
         nau_paused_file=config.nau_paused_file,
-        primary_port=config.primary_port,
-        password=config.vlc_password,
         broker_cmd_file=config.broker_cmd_file,
-        nau_status_file=config.nau_status_file,
     )
     state = replace(state, primary_mode=result.next_mode)
     if result.is_transition:
@@ -554,33 +538,24 @@ def _clipper_python() -> str:
     return sys.executable
 
 
-def _current_primary_media(state: BridgeState, config: BridgeConfig) -> tuple[str, float | None]:
+def _current_primary_media(config: BridgeConfig) -> tuple[str, float]:
     """The primary display's current video path and playback time (seconds).
 
-    Nau publishes them in its status file; in hybrid mode the primary VLC
-    answers over HTTP.
+    Nau owns the primary display in every mode it appears (nau and hybrid) and
+    publishes both in its status file; the path is empty when nothing is playing.
     """
-    if state.primary_mode == "hybrid":
-        video_path = get_current_file_path(config.primary_port, config.vlc_password)
-        playback_time = get_playback_time(config.primary_port, config.vlc_password)
-        return video_path, playback_time
     status = read_nau_status(config.nau_status_file)
-    if not status.video:
-        return "", None
     return status.video, status.position_ms / 1000
 
 
-def _dispatch_clipper_save(state: BridgeState, config: BridgeConfig) -> str:
+def _dispatch_clipper_save(config: BridgeConfig) -> str:
     """Save a Clipper session for the primary display's current video.
 
     Returns a short user-visible message on success, or empty string on failure.
     """
-    video_path, playback_time = _current_primary_media(state, config)
+    video_path, playback_time = _current_primary_media(config)
     if not video_path:
         logger.warning("clipper_save: no video playing on the primary display")
-        return ""
-    if playback_time is None:
-        logger.warning("clipper_save: could not get playback time")
         return ""
     try:
         result = subprocess.run(

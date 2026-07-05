@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
-import configparser
 import os
 import re
 import shutil
@@ -12,7 +11,6 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.vlc_actions import ensure_playback_state, get_current_file_path, get_playback_state
 from fun_time.win32 import (
     find_window_by_pid,
     find_window_by_title,
@@ -26,17 +24,6 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
 )
-
-
-def _read_vlc_config_from_manifest(session: FunTimeIntegrationSession) -> tuple[int, str]:
-    """Return (primary_vlc_port, vlc_password) from the runtime manifest."""
-    manifest_path = session.config.paths.state_dir / "windows_bridge_launch.ini"
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser.read(str(manifest_path), encoding="utf-8")
-    port = int(parser["vlc"]["primary_vlc_port"])
-    password = parser["vlc"]["vlc_pass"]
-    return port, password
 
 
 pytestmark = pytest.mark.skipif(
@@ -392,50 +379,37 @@ def test_fun_time_nau_record_loop_cancel_cycle(shared_integration_session: FunTi
     )
 
 
-def test_fun_time_hybrid_nudge_seeks_vlc(shared_integration_session: FunTimeIntegrationSession):
-    """In hybrid mode primary_nudge_next/prev dispatch through to the
-    primary VLC's HTTP seek.
+def test_fun_time_hybrid_keeps_nau_as_the_display(shared_integration_session: FunTimeIntegrationSession):
+    """Hybrid keeps Nau as the on-screen player while Genau drives the OSR2, so
+    the video Nau was playing simply continues — there is no separate primary-VLC
+    handoff — and prev/next/nudge dispatch to Nau just as they do in nau mode.
 
-    Confirms the full path: dashboard command file → dispatch loop →
-    vlc_http_cmd → VLC HTTP 200.  Does NOT assert on playback position
-    — that would test VLC's seek implementation on specific video
-    lengths, which varies with the randomly-selected test video.
+    (The precise +10s Nau seek is covered by the nau-mode nudge test above,
+    which exercises the identical dispatch path.)
 
     Must run before isolated-session tests (trash), whose teardown kills all
     recent VLC processes and would leave the shared session's VLC dead.
     """
     s = shared_integration_session
-    port, password = _read_vlc_config_from_manifest(s)
 
     nau_video_before = s.read_nau_status().video
+    assert nau_video_before, "expected Nau to be playing before switching to hybrid"
+
     s.write_dashboard_command("hybrid_activate")
     s.wait_for_new_log("Switched to hybrid mode", timeout=12)
 
-    # Hybrid picks up the video Nau was playing (shared library handoff),
-    # not the head of VLC's own playlist.
+    # Nau stays the display and keeps playing its current video — no handoff to
+    # a separate primary VLC.
     s.wait_until(
-        lambda: get_current_file_path(port, password).lower()
-        == nau_video_before.lower(),
+        lambda: s.read_nau_status().video == nau_video_before,
         timeout=12,
-        description="primary VLC to continue Nau's current video",
+        description="Nau to keep playing its current video in hybrid mode",
     )
 
-    ensure_playback_state(port, password, should_play=True)
-    s.wait_until(
-        lambda: get_playback_state(port, password) == "playing",
-        timeout=10,
-        description="Primary VLC to play in hybrid mode before nudge test",
-    )
-
-    # --- nudge forward ---
-    # Wait for the dispatch loop's own log confirmation that the HTTP
-    # seek was sent and VLC responded 200.
+    # A nudge in hybrid now reaches the normal dispatch path (previously it was
+    # intercepted and stacked into a primary-VLC seek).
     s.write_dashboard_command("primary_nudge_next")
-    s.wait_for_new_log("primary_seek", timeout=10)
-
-    # --- nudge backward ---
-    s.write_dashboard_command("primary_nudge_prev")
-    s.wait_for_new_log("primary_seek", timeout=10)
+    s.wait_for_new_log("Dispatching command: primary_nudge_next", timeout=10)
 
     s.write_dashboard_command("nau_activate")
     s.wait_for_new_log("Switched to nau mode", timeout=12)
