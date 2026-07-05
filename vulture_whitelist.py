@@ -79,3 +79,10 @@ build_group_index  # noqa
 _.contains  # noqa
 cached_group_index  # noqa
 reset_group_index_cache  # noqa
+# watch_stats: production consumers land with playlist weighting and the
+# dispatch-loop watch tracker; entries removed as each lands.
+load_watch_stats  # noqa
+record_watch_event  # noqa
+weight_for  # noqa
+weighted_shuffle  # noqa
+passes_inclusion  # noqa
