@@ -44,7 +44,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class StartupResult:
-    primary_pid: int
     nau_pid: int
     portrait_pid: int
     landscape_pid: int
@@ -82,7 +81,6 @@ def _apply_startup_window_state(
     *,
     portrait_hwnd: int,
     landscape_hwnd: int,
-    primary_hwnd: int,
     genau_hwnd: int,
     nau_hwnd: int,
     dashboard_hwnd: int = 0,
@@ -91,23 +89,18 @@ def _apply_startup_window_state(
     """Set the static window state for the nau startup mode.
 
     No window overlaps another anymore, so there is no z-order to manage:
-    every managed window is simply always-on-top — except the hybrid-only
-    primary VLC, which lives under Genau's transparent HUD and must never
-    rise above it.  The primary slot is arbitrated by visibility: startup
-    mode is nau, so Genau and the primary VLC start hidden.
+    every managed window is simply always-on-top.  The primary slot is
+    arbitrated by visibility: startup mode is nau, so Nau is shown and Genau
+    starts hidden.
     """
     for hwnd in (rfb_hwnd, portrait_hwnd, landscape_hwnd, genau_hwnd, nau_hwnd, dashboard_hwnd):
         if hwnd:
             set_always_on_top(hwnd, True)
-    if primary_hwnd:
-        set_always_on_top(primary_hwnd, False)
-    for hwnd in (genau_hwnd, primary_hwnd):
-        if hwnd:
-            hide_window(hwnd)
+    if genau_hwnd:
+        hide_window(genau_hwnd)
     return {
         "portrait": portrait_hwnd,
         "landscape": landscape_hwnd,
-        "primary": primary_hwnd,
         "genau": genau_hwnd,
         "nau": nau_hwnd,
         "dashboard": dashboard_hwnd,
@@ -155,7 +148,6 @@ def run_startup_sequence(
         landscape_sources=m["media"]["landscape_dirs"],
         favs_file=m["media"]["favs_file"],
         state_dir=state_dir,
-        primary_port=int(m["vlc"]["primary_vlc_port"]),
         portrait_port=int(m["vlc"]["vlc2_port"]),
         landscape_port=int(m["vlc"]["vlc3_port"]),
         password=m["vlc"]["vlc_pass"],
@@ -163,12 +155,11 @@ def run_startup_sequence(
         hide_windows=hide_windows,
     )
     core_pids = _read_result_pids(core_result_file)
-    primary_pid = core_pids["primary_pid"]
     portrait_pid = core_pids["portrait_pid"]
     landscape_pid = core_pids["landscape_pid"]
     logger.info(
-        "Core session launched: primary=%d portrait=%d landscape=%d",
-        primary_pid, portrait_pid, landscape_pid,
+        "Core session launched: portrait=%d landscape=%d",
+        portrait_pid, landscape_pid,
     )
 
     # Launch Genau and Nau as early as possible so they can initialise
@@ -223,7 +214,6 @@ def run_startup_sequence(
         # --- Normal mode: position immediately ---
         progress.advance("Positioning windows...")
         _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=not skip_activate)
-        _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=not skip_activate)
         _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=not skip_activate)
         logger.info("Core windows positioned")
 
@@ -231,7 +221,6 @@ def run_startup_sequence(
         role_hwnds = _apply_startup_window_state(
             portrait_hwnd=find_window_by_pid(portrait_pid),
             landscape_hwnd=find_window_by_pid(landscape_pid),
-            primary_hwnd=find_window_by_pid(primary_pid),
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
             nau_hwnd=wait_for_window(nau_pid, timeout_s=3.0)
             or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
@@ -269,25 +258,21 @@ def run_startup_sequence(
     if hide_windows:
         progress.advance("Positioning windows...")
 
-        # Restore VLC audio (muted in launch_core_apps during loading).
-        # Only the satellites start playing — the primary VLC exists for
-        # hybrid mode and sits idle with its playlist enqueued.
-        primary_port = int(m["vlc"]["primary_vlc_port"])
+        # Restore VLC audio (muted in launch_core_apps during loading) and
+        # start the two satellites playing.
         portrait_port = int(m["vlc"]["vlc2_port"])
         landscape_port = int(m["vlc"]["vlc3_port"])
         password = m["vlc"]["vlc_pass"]
-        for port in [primary_port, portrait_port, landscape_port]:
+        for port in [portrait_port, landscape_port]:
             vlc_http_cmd(port, "volume&val=256", password)
-            if port != primary_port:
-                vlc_http_cmd(port, "pl_play", password)
+            vlc_http_cmd(port, "pl_play", password)
 
         _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=False)
-        _position_pid_window(primary_pid, plan.primary, "primary VLC", activate=False)
         _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=False)
         logger.info("Core windows positioned (deferred reveal)")
 
         # Collect core window handles for StartupResult
-        for pid in [primary_pid, portrait_pid, landscape_pid, nau_pid]:
+        for pid in [portrait_pid, landscape_pid, nau_pid]:
             hwnd = find_window_by_pid(pid)
             if hwnd:
                 collected_hwnds.append(hwnd)
@@ -313,7 +298,6 @@ def run_startup_sequence(
             rfb_hwnd=rfb_hwnd,
             portrait_hwnd=find_window_by_pid(portrait_pid),
             landscape_hwnd=find_window_by_pid(landscape_pid),
-            primary_hwnd=find_window_by_pid(primary_pid),
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=5.0),
             nau_hwnd=wait_for_window(nau_pid, timeout_s=5.0)
             or wait_for_window_by_title("Nau", timeout_s=5.0, exact=True),
@@ -330,7 +314,6 @@ def run_startup_sequence(
     write_flag_file(m["commands"]["nau_paused_file"], False)
 
     return StartupResult(
-        primary_pid=primary_pid,
         nau_pid=nau_pid,
         portrait_pid=portrait_pid,
         landscape_pid=landscape_pid,

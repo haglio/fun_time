@@ -59,8 +59,11 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
-def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
-    """Execute window operations via Python win32, returning any that need AHK."""
+def execute_window_ops(ops: list[WindowOp], nau_pid: int) -> list[WindowOp]:
+    """Execute window operations via Python win32, returning any that need AHK.
+
+    ``send_key``/``send_vk`` target Nau, which owns the primary display.
+    """
     remaining: list[WindowOp] = []
     for op in ops:
         if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "tooltip",
@@ -71,13 +74,13 @@ def execute_window_ops(ops: list[WindowOp], primary_pid: int) -> list[WindowOp]:
             continue
 
         if op.op == "send_key":
-            hwnd = find_window_by_pid(primary_pid)
+            hwnd = find_window_by_pid(nau_pid)
             if hwnd:
                 send_key_to_window(hwnd, op.key)
             continue
 
         if op.op == "send_vk":
-            hwnd = find_window_by_pid(primary_pid)
+            hwnd = find_window_by_pid(nau_pid)
             if hwnd:
                 send_vk_to_window(hwnd, op.vk)
             continue
@@ -161,7 +164,6 @@ class DispatchLoopRunner:
         dashboard_cmd_file: Path,
         shared_state_file: Path,
         ahk_cmd_file: Path,
-        primary_pid: int,
         nau_pid: int,
         portrait_pid: int = 0,
         landscape_pid: int = 0,
@@ -178,7 +180,6 @@ class DispatchLoopRunner:
         self.dashboard_cmd_file = dashboard_cmd_file
         self.shared_state_file = shared_state_file
         self.ahk_cmd_file = ahk_cmd_file
-        self.primary_pid = primary_pid
         self.nau_pid = nau_pid
         self.portrait_pid = portrait_pid
         self.landscape_pid = landscape_pid
@@ -297,7 +298,7 @@ class DispatchLoopRunner:
         logger.info("Dispatching command: %s", command)
         new_state, ops = dispatch_command(command, self.state, self.config)
         self.state = new_state
-        remaining = execute_window_ops(ops, self.primary_pid)
+        remaining = execute_window_ops(ops, self.nau_pid)
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
             if op.op == "show_role":
@@ -380,9 +381,8 @@ class DispatchLoopRunner:
 
     # Windows never stack anymore (the dashboard/RFB got their own screen
     # rects), so z-order management is gone: every managed window carries a
-    # STATIC topmost flag — True for all except the primary-slot video windows
-    # (Nau and the primary VLC), which live under Genau's transparent HUD in
-    # hybrid mode and must never rise above it.
+    # STATIC topmost flag — True for all except Nau, which lives under Genau's
+    # transparent HUD in hybrid mode and must never rise above it.
     _ROLE_TOPMOST: dict[str, bool] = {
         "rfb": True,
         "portrait": True,
@@ -390,7 +390,6 @@ class DispatchLoopRunner:
         "genau": True,
         "nau": False,
         "dashboard": True,
-        "primary": False,
     }
 
     def _resolve_role(self, role: str) -> int:
@@ -403,9 +402,7 @@ class DispatchLoopRunner:
         hwnd = self._role_hwnds.get(role, 0)
         if hwnd:
             return hwnd
-        if role == "primary":
-            hwnd = find_window_by_pid(self.primary_pid)
-        elif role == "genau":
+        if role == "genau":
             hwnd = find_window_by_title("Genau")
         elif role == "nau":
             # The venv pythonw launcher's PID differs from the interpreter
@@ -603,7 +600,6 @@ def build_bridge_config_from_manifest(
 ) -> BridgeConfig:
     """Build a BridgeConfig from the windows bridge manifest INI."""
     return BridgeConfig(
-        primary_port=int(manifest["vlc"]["primary_vlc_port"]),
         portrait_port=int(manifest["vlc"]["vlc2_port"]),
         landscape_port=int(manifest["vlc"]["vlc3_port"]),
         vlc_password=manifest["vlc"]["vlc_pass"],

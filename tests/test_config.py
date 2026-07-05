@@ -118,7 +118,6 @@ class TestLoadConfig:
 
     def test_loads_vlc_ports(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.vlc.primary_vlc_http_port == 8090
         assert cfg.vlc.vlc2_http_port == 8091
         assert cfg.vlc.vlc3_http_port == 8092
 

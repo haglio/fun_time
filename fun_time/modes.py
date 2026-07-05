@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-PLAYLIST_PRIMARY = "primary_vlc_playlist"
 PLAYLIST_PORTRAIT = "portrait_vlc_playlist"
 PLAYLIST_LANDSCAPE = "landscape_vlc_playlist"
 PLAYLIST_NAU = "nau_playlist"
@@ -17,7 +16,6 @@ class FModePlaylistPlan:
     primary_count: int
     portrait_count: int
     landscape_count: int
-    primary_playlist_path: Path
     portrait_playlist_path: Path
     landscape_playlist_path: Path
     nau_playlist_path: Path
@@ -221,17 +219,13 @@ def build_fmode_playlists(
         rng=rng,
     )
 
-    primary_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_PRIMARY)
     nau_playlist_path = state_dir / f"{PLAYLIST_NAU}.tsv"
-
-    write_playlist_file(primary_playlist_path, primary_paths)
     write_nau_playlist_file(nau_playlist_path, primary_paths)
     return FModePlaylistPlan(
         success=True,
         primary_count=len(primary_paths),
         portrait_count=satellites.portrait_count,
         landscape_count=satellites.landscape_count,
-        primary_playlist_path=primary_playlist_path,
         portrait_playlist_path=satellites.portrait_playlist_path,
         landscape_playlist_path=satellites.landscape_playlist_path,
         nau_playlist_path=nau_playlist_path,

@@ -3,8 +3,7 @@
 Fun Time is a Windows desktop setup that launches and coordinates:
 
 - Nau, a funscript video player for the primary video library (lives in the separate `../genau` project, launched as `python -m nau`)
-- a primary VLC instance (displays video only in hybrid mode)
-- two secondary VLC instances
+- two satellite VLC instances (portrait and landscape)
 - Genau, a clip-based visualizer for OSR2 auto mode (the separate `../genau` project)
 - a Genau audio companion
 - a minimal AutoHotkey hotkey shell (window placement and command dispatch run in Python)
@@ -15,9 +14,7 @@ The primary stack runs in one of three modes (startup mode is **nau**):
 
 - in **Nau mode**, Nau owns the primary display and the OSR2: it plays the whole primary library (videos without a funscript just play with no OSR2 output) and drives the OSR2 itself by sending funscript-derived T-Code over UDP to the broker
 - in **Genau mode** (OSR2 auto/free mode), Genau clips own both the primary display and the OSR2
-- in **Hybrid mode**, the primary VLC displays video under Genau's HUD while Genau drives the OSR2
-
-The primary VLC instance still launches at startup, but it sits idle with its playlist enqueued over HTTP and plays only in hybrid mode.
+- in **Hybrid mode**, Nau displays video under Genau's HUD while Genau drives the OSR2
 
 ## Folder layout
 
@@ -120,7 +117,7 @@ The layout values that used to be hard-coded in AutoHotkey now live under `layou
 Monitor naming under `layout` now uses:
 
 - `main_monitor` — the monitor that shows the landscape VLC, the dashboard, and the Random Favs Browser
-- `secondary_monitor` — the monitor that shows the portrait VLC and the shared primary display slot (Nau, Genau, and the primary VLC all use the same rect)
+- `secondary_monitor` — the monitor that shows the portrait VLC and the shared primary display slot (Nau and Genau use the same rect)
 
 ## High-level architecture
 
@@ -206,10 +203,10 @@ This README deliberately does not repeat the key table — open the **?** popup 
 
 The primary stack runs in one of three modes, each selected by its own hotkey (see the popup): **Nau**, **Genau**, and **Hybrid**. The `\` key is mode-dependent:
 
-- in Nau mode, `\` opens a file-picker dialog; the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Fun Time enters OmniPause while the dialog is open and leaves it when the dialog closes. (The same dialog, reached by the "browse" voice command in Hybrid mode, sends the pick to the primary VLC instead.)
+- in Nau mode, `\` opens a file-picker dialog; the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Fun Time enters OmniPause while the dialog is open and leaves it when the dialog closes.
 - in Genau and Hybrid modes, `\` offsets Genau playback by a quarter cycle.
 
-The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode except Hybrid, where they drive the primary VLC. The `'` clip-save key likewise reads the current video/time from Nau's status file outside Hybrid mode.
+The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode (in Genau mode the paused Nau still navigates in the background). The `'` clip-save key reads the current video/time from Nau's status file in Nau and Hybrid modes.
 
 The Nau-mode voice trigger is spoken as "now now" (the reference displays it as "nau nau" — "nau" itself is not in the recognizer's vocabulary).
 
@@ -226,7 +223,7 @@ Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recor
 
 Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the next advance — the three VLC `.m3u` playlists plus Nau's `nau_playlist.tsv` (Nau is sent `RELOAD_PLAYLIST`) — and restricts playback to funscript-backed media:
 
-- the primary playlist (Nau, and the primary VLC in Hybrid mode) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
+- the primary playlist (Nau) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
 - each satellite VLC plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
 The same builder (`build_fmode_playlists`) writes all four playlist files at startup, so startup and the F-mode toggle share one playlist authority.
@@ -257,7 +254,7 @@ Written by the broker (the `../osr2_broker` project).
 
 Values:
 
-- `0` = Genau takeover not active (Nau or, in Hybrid mode, the primary VLC owns playback)
+- `0` = Genau takeover not active (Nau owns playback)
 - `1` = Genau takeover active
 
 The audio companion and the Python dispatch loop both read this file as the authoritative source of whether Genau takeover is actually active.

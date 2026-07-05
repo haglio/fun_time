@@ -29,7 +29,6 @@ class WindowRect:
 @dataclass(frozen=True)
 class WindowLayoutPlan:
     portrait: WindowRect
-    primary: WindowRect
     landscape: WindowRect
     dashboard: WindowRect
     random_favs_browser: WindowRect
@@ -47,20 +46,12 @@ def compute_window_layout(
         layout_config=layout_config,
     )
     portrait_height = int(secondary_monitor.height * clamp01(layout_config.primary_top_ratio))
-    primary_height = secondary_monitor.height - portrait_height
 
     portrait = WindowRect(
         x=secondary_monitor.x,
         y=secondary_monitor.y,
         width=secondary_monitor.width,
         height=portrait_height,
-    )
-    # The three primary-display players (VLC, Genau, Nau) share one slot.
-    primary = WindowRect(
-        x=secondary_monitor.x,
-        y=secondary_monitor.y + portrait_height,
-        width=secondary_monitor.width,
-        height=primary_height,
     )
 
     landscape_width = int(main_monitor.width * clamp01(layout_config.landscape_width_ratio))
@@ -91,7 +82,6 @@ def compute_window_layout(
 
     return WindowLayoutPlan(
         portrait=portrait,
-        primary=primary,
         landscape=landscape,
         dashboard=dashboard,
         random_favs_browser=random_favs_browser,

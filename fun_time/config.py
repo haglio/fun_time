@@ -75,7 +75,6 @@ class LayoutConfig:
 
 @dataclass(frozen=True)
 class VlcConfig:
-    primary_vlc_http_port: int
     vlc2_http_port: int
     vlc3_http_port: int
 
@@ -262,7 +261,6 @@ def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> Layout
 
 def _load_vlc_config(vlc_raw: dict[str, Any], source_path: Path) -> VlcConfig:
     return VlcConfig(
-        primary_vlc_http_port=_require_typed_value(vlc_raw, "primary_vlc_http_port", source_path, "config.vlc", int),
         vlc2_http_port=_require_typed_value(vlc_raw, "vlc2_http_port", source_path, "config.vlc", int),
         vlc3_http_port=_require_typed_value(vlc_raw, "vlc3_http_port", source_path, "config.vlc", int),
     )

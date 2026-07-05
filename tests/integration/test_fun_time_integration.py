@@ -281,8 +281,8 @@ def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIn
 
     # Let the orchestrator finish processing commands from prior tests.
     time.sleep(2.0)
-    # Ensure Nau owns the primary slot so the nudges drive Nau's seek rather
-    # than the primary VLC (which is what they'd hit in hybrid mode).
+    # Ensure we're in nau mode so Nau is the active display and its seek is
+    # observable in the published status.
     s.write_dashboard_command("nau_activate")
     # Wait for a *loaded* video: a non-zero duration means mpv knows the
     # length, so a seek target won't be clamped to 0 by an as-yet-unknown

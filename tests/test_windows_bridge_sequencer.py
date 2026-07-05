@@ -24,7 +24,7 @@ FAKE_MONITORS = [
     MonitorInfo(x=2560, y=0, width=1440, height=3440),
 ]
 
-CORE_PIDS = {"primary_pid": 10, "portrait_pid": 30, "landscape_pid": 40}
+CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
 UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
 GENAU_PID = 60
 NAU_PID = 25
@@ -92,7 +92,6 @@ class TestRunStartupSequence:
 
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert result.primary_pid == 10
         assert result.nau_pid == NAU_PID
         assert result.portrait_pid == 30
         assert result.landscape_pid == 40
@@ -166,7 +165,7 @@ class TestRunStartupSequence:
     def test_positions_vlc_windows_and_sets_nau_topmost(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        pid_to_hwnd = {10: 1010, 30: 3030, 40: 4040, NAU_PID: 2525}
+        pid_to_hwnd = {30: 3030, 40: 4040, NAU_PID: 2525}
         title_to_hwnd = {"Genau": 6060}
         move_calls: list[tuple] = []
         topmost_calls: list[tuple] = []
@@ -188,15 +187,14 @@ class TestRunStartupSequence:
 
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        # The three VLC windows are positioned immediately in normal mode.
+        # The two satellite VLC windows are positioned immediately in normal mode.
         moved_hwnds = {c[0] for c in move_calls}
-        assert {1010, 3030, 4040} <= moved_hwnds
+        assert {3030, 4040} <= moved_hwnds
 
-        # Static topmost flags: everything managed except the primary VLC,
-        # which lives under Genau's HUD in hybrid and must never rise above it.
+        # Static topmost flags: every managed window (portrait, landscape, Nau,
+        # Genau) is promoted at startup.
         promoted = {h for h, on in topmost_calls if on}
         assert promoted == {3030, 4040, 2525, 6060}
-        assert (1010, False) in topmost_calls
 
     def test_returns_layout_plan(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -431,7 +429,7 @@ class TestProgressReporting:
                 progress=NullProgress(),
             )
 
-        assert result.primary_pid == 10
+        assert result.nau_pid == NAU_PID
 
 
 class TestLoadingScreenStartup:
@@ -440,7 +438,7 @@ class TestLoadingScreenStartup:
     def test_defers_positioning_and_collects_hwnds(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        pid_to_hwnd = {10: 1010, 30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
+        pid_to_hwnd = {30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
         move_calls: list[tuple] = []
         move_activates: list[bool] = []
 
@@ -470,16 +468,16 @@ class TestLoadingScreenStartup:
                 hide_windows=True,
             )
 
-        # The three VLC windows are positioned at final locations during Phase 4
+        # The two satellite VLC windows are positioned at final locations during Phase 4
         positioned_hwnds = {hwnd for hwnd, x, y, w, h in move_calls}
-        assert {1010, 3030, 4040} <= positioned_hwnds
+        assert {3030, 4040} <= positioned_hwnds
 
         # Nothing may be activated while the loading screen is up
         assert all(activate is False for activate in move_activates), \
             f"move_window must not activate in loading screen mode: {move_activates}"
 
-        # core_hwnds contains the VLC windows plus Nau
-        assert set(result.core_hwnds) == {1010, 3030, 4040, 2525}
+        # core_hwnds contains the two satellite VLC windows plus Nau
+        assert set(result.core_hwnds) == {3030, 4040, 2525}
 
     def test_passes_hide_windows_to_start_core_session(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -519,7 +517,7 @@ class TestPhase4Reveal:
     """Phase 4 (hide_windows only): restore volume, play satellites, unpause Nau."""
 
     def _run_hidden(self, manifest_path, tmp_path, *, vlc_http_cmd, pid_to_hwnd=None, title_to_hwnd=None, topmost_calls=None):
-        pid_map = pid_to_hwnd or {10: 1010, 30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
+        pid_map = pid_to_hwnd or {30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
         title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060}
         topmost_tracker = (lambda h, v: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v: None)
         hide_calls = self._hide_calls = []
@@ -546,7 +544,7 @@ class TestPhase4Reveal:
                 hide_windows=True,
             )
 
-    def test_restores_volume_everywhere_but_plays_satellites_only(self, cfg_factory, tmp_path):
+    def test_restores_volume_and_plays_both_satellites(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = configparser.ConfigParser()
         m.optionxform = str
@@ -560,18 +558,14 @@ class TestPhase4Reveal:
 
         self._run_hidden(manifest_path, tmp_path, vlc_http_cmd=track_vlc)
 
-        primary_port = int(m["vlc"]["primary_vlc_port"])
         portrait_port = int(m["vlc"]["vlc2_port"])
         landscape_port = int(m["vlc"]["vlc3_port"])
 
-        # Volume restored on all three VLCs
-        assert (primary_port, "volume&val=256") in vlc_cmds
+        # Volume restored and playback started on both satellites.
         assert (portrait_port, "volume&val=256") in vlc_cmds
         assert (landscape_port, "volume&val=256") in vlc_cmds
-        # Only the satellites start playing — the primary VLC stays idle for hybrid mode
         assert (portrait_port, "pl_play") in vlc_cmds
         assert (landscape_port, "pl_play") in vlc_cmds
-        assert (primary_port, "pl_play") not in vlc_cmds
 
     def test_unpauses_nau_and_keeps_genau_parked(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -593,9 +587,8 @@ class TestPhase4Reveal:
         assert Path(m["commands"]["audio_paused_file"]).read_text(encoding="utf-8").strip() == "1"
 
     def test_startup_window_state_static_topmost_and_nau_only_visible(self, cfg_factory, tmp_path):
-        """No z-order: every managed window gets its STATIC topmost flag
-        (primary VLC excepted — it lives under Genau's HUD in hybrid), and
-        the nau startup mode hides the inactive slot-mates."""
+        """No z-order: every managed window gets its STATIC topmost flag, and
+        the nau startup mode hides the inactive slot-mate (Genau)."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         topmost_calls: list[tuple] = []
@@ -603,12 +596,10 @@ class TestPhase4Reveal:
             manifest_path, tmp_path, vlc_http_cmd=lambda *a: True, topmost_calls=topmost_calls,
         )
 
-        NAU_HWND, GENAU_HWND, PRIMARY_HWND = 2525, 6060, 1010
+        NAU_HWND, GENAU_HWND = 2525, 6060
         assert (NAU_HWND, True) in topmost_calls
         assert (GENAU_HWND, True) in topmost_calls  # static flag even while hidden
-        assert (PRIMARY_HWND, False) in topmost_calls
-        assert (PRIMARY_HWND, True) not in topmost_calls
-        assert set(self._hide_calls) == {GENAU_HWND, PRIMARY_HWND}
+        assert set(self._hide_calls) == {GENAU_HWND}
         assert NAU_HWND not in self._hide_calls
 
     def test_dashboard_found_by_title_gets_topmost(self, cfg_factory, tmp_path):
@@ -619,7 +610,7 @@ class TestPhase4Reveal:
 
         DASH_HWND = 5050
         # No entry for the dashboard pid (50): pid lookup returns 0
-        pid_to_hwnd = {10: 1010, 30: 3030, 40: 4040, NAU_PID: 2525}
+        pid_to_hwnd = {30: 3030, 40: 4040, NAU_PID: 2525}
         title_to_hwnd = {"Fun Time": DASH_HWND, "Genau": 6060}
 
         topmost_calls: list[tuple] = []

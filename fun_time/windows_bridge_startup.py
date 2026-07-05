@@ -126,7 +126,6 @@ def start_core_session(
     landscape_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
-    primary_port: int,
     portrait_port: int,
     landscape_port: int,
     password: str,
@@ -149,10 +148,8 @@ def start_core_session(
     launch_core_apps(
         project_dir=project_dir,
         vlc_exe=vlc_exe,
-        primary_playlist=playlist_plan.primary_playlist_path,
         portrait_playlist=playlist_plan.portrait_playlist_path,
         landscape_playlist=playlist_plan.landscape_playlist_path,
-        primary_port=primary_port,
         portrait_port=portrait_port,
         landscape_port=landscape_port,
         password=password,
@@ -310,10 +307,8 @@ def launch_core_apps(
     *,
     project_dir: str | Path,
     vlc_exe: str | Path,
-    primary_playlist: str | Path,
     portrait_playlist: str | Path,
     landscape_playlist: str | Path,
-    primary_port: int,
     portrait_port: int,
     landscape_port: int,
     password: str,
@@ -331,22 +326,6 @@ def launch_core_apps(
     # of audio before --volume 0 takes effect.  The playlist is loaded via
     # HTTP after volume is confirmed zero.
     should_mute = hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
-    # The primary VLC exists for hybrid mode only, so it never auto-plays at
-    # startup: its playlist is always enqueued over HTTP without pl_play.
-    primary_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, primary_port, password, repeat_mode="repeat", mute=should_mute,
-                                   playlist_path=None),
-        cwd=project_dir,
-        **launch_kwargs,
-    )
-    if is_integration:
-        _park_window_offscreen(primary_proc.pid)
-    if not wait_for_http(primary_port, password, 7000):
-        raise RuntimeError("Primary VLC HTTP did not come up")
-    time.sleep(0.3)
-    if should_mute:
-        vlc_http_cmd(primary_port, "volume&val=0", password)
-    replace_playlist_from_file(primary_port, password, Path(primary_playlist), enqueue_only=True)
 
     portrait_proc = subprocess.Popen(
         _build_vlc_launch_command(vlc_exe, portrait_port, password, repeat_mode="loop", mute=should_mute,
@@ -391,7 +370,6 @@ def launch_core_apps(
     _write_result_file(
         result_file,
         {
-            "primary_pid": primary_proc.pid,
             "portrait_pid": portrait_proc.pid,
             "landscape_pid": landscape_proc.pid,
         },

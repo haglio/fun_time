@@ -11,7 +11,7 @@ from fun_time.window_layout import (
 from fun_time import load_config
 
 
-def test_compute_window_layout_uses_secondary_monitor_for_portrait_and_primary_players(cfg_path: Path):
+def test_compute_window_layout_uses_secondary_monitor_for_portrait(cfg_path: Path):
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
@@ -23,8 +23,6 @@ def test_compute_window_layout_uses_secondary_monitor_for_portrait_and_primary_p
     assert plan.portrait.x == 2560
     assert plan.portrait.y == 0
     assert plan.portrait.width == 1440
-    assert plan.primary.x == 2560
-    assert plan.primary.y == plan.portrait.height
 
 
 def test_compute_window_layout_uses_main_monitor_for_landscape_and_random_favs_browser(cfg_path: Path):

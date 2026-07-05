@@ -74,7 +74,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "state_dir": str(tmp_path / "state"),
         },
         "vlc": {
-            "primary_vlc_http_port": 8090,
             "vlc2_http_port": 8091,
             "vlc3_http_port": 8092,
         },
