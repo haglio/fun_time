@@ -23,7 +23,7 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
         },
         "media": {
-            "primary_vlc_sources": "|".join(str(path) for path in config.paths.primary_vlc_dirs),
+            "nau_library_sources": "|".join(str(path) for path in config.paths.nau_library_dirs),
             "portrait_dirs": "|".join(str(path) for path in config.paths.portrait_dirs),
             "landscape_dirs": "|".join(str(path) for path in config.paths.landscape_dirs),
             "weird_dir": str(config.paths.weird_dir),

@@ -312,7 +312,7 @@ def build_integration_config(tmp_path: Path) -> Path:
         ensure_in_favs(favs_file, str(path.resolve()))
 
     config = json.loads(real.config_path.read_text(encoding="utf-8"))
-    config["paths"]["primary_vlc_dirs"] = [str(primary_dir)]
+    config["paths"]["nau_library_dirs"] = [str(primary_dir)]
     config["paths"]["portrait_dirs"] = [str(portrait_dir)]
     config["paths"]["landscape_dirs"] = [str(landscape_dir)]
     config["paths"]["weird_dir"] = str(weird_dir)
@@ -347,7 +347,7 @@ def build_integration_temp_root() -> Path:
 
 def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> list[Path]:
     candidates: list[tuple[Path, Path]] = []  # (candidate, source_root)
-    for source_root in real_config.paths.primary_vlc_dirs:
+    for source_root in real_config.paths.nau_library_dirs:
         for candidate in source_root.rglob("*"):
             if candidate.suffix.lower() not in VIDEO_EXTENSIONS or not candidate.is_file():
                 continue

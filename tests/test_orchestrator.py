@@ -112,17 +112,17 @@ class TestControllerManifest:
         result = build_windows_bridge_manifest(cfg, "pw")
         assert result["runtime"]["config_path"] == str(cfg.config_path)
 
-    def test_primary_vlc_dirs_joined_with_pipe(self, tmp_path: Path, cfg_factory):
-        extra = tmp_path / "extra_vlc"
+    def test_nau_library_dirs_joined_with_pipe(self, tmp_path: Path, cfg_factory):
+        extra = tmp_path / "extra"
         extra.mkdir()
-        path = cfg_factory({"paths": {"primary_vlc_dirs": [
-            str(tmp_path / "vlc_primary"),
+        path = cfg_factory({"paths": {"nau_library_dirs": [
+            str(tmp_path / "nau_library"),
             str(extra),
         ]}})
         cfg = load_config(path)
         manifest = build_windows_bridge_manifest(cfg, "pw")
-        joined = manifest["media"]["primary_vlc_sources"]
-        assert str(tmp_path / "vlc_primary") in joined
+        joined = manifest["media"]["nau_library_sources"]
+        assert str(tmp_path / "nau_library") in joined
         assert str(extra) in joined
         assert "|" in joined
 

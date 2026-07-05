@@ -40,7 +40,7 @@ class PathsConfig:
     vlc_exe: Path
     ahk_exe: Path
     python_exe: Path
-    primary_vlc_dirs: tuple[Path, ...]
+    nau_library_dirs: tuple[Path, ...]
     portrait_dirs: tuple[Path, ...]
     landscape_dirs: tuple[Path, ...]
     weird_dir: Path
@@ -53,8 +53,8 @@ class PathsConfig:
     broker_tray_launcher: Path | None = None
 
     @property
-    def primary_vlc_dir(self) -> Path:
-        return self.primary_vlc_dirs[0]
+    def nau_library_dir(self) -> Path:
+        return self.nau_library_dirs[0]
 
     @property
     def portrait_dir(self) -> Path:
@@ -220,17 +220,17 @@ def _require_typed_value(
 
 
 def _load_paths_config(paths_raw: dict[str, Any], source_path: Path) -> PathsConfig:
-    primary_vlc_dirs_raw = _require_value(paths_raw, "primary_vlc_dirs", source_path, "config.paths")
-    if not isinstance(primary_vlc_dirs_raw, list):
-        raise TypeError("paths.primary_vlc_dirs must be a list of folder paths")
-    if not primary_vlc_dirs_raw:
-        raise ValueError("paths.primary_vlc_dirs must include at least one folder path")
+    nau_library_dirs_raw = _require_value(paths_raw, "nau_library_dirs", source_path, "config.paths")
+    if not isinstance(nau_library_dirs_raw, list):
+        raise TypeError("paths.nau_library_dirs must be a list of folder paths")
+    if not nau_library_dirs_raw:
+        raise ValueError("paths.nau_library_dirs must include at least one folder path")
 
     return PathsConfig(
         vlc_exe=_require_path_value(paths_raw, "vlc_exe", source_path, "config.paths"),
         ahk_exe=_require_path_value(paths_raw, "ahk_exe", source_path, "config.paths"),
         python_exe=_require_path_value(paths_raw, "python_exe", source_path, "config.paths"),
-        primary_vlc_dirs=tuple(_resolve_path(PROJECT_DIR, str(value)) for value in primary_vlc_dirs_raw),
+        nau_library_dirs=tuple(_resolve_path(PROJECT_DIR, str(value)) for value in nau_library_dirs_raw),
         portrait_dirs=_load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", source_path),
         landscape_dirs=_load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", source_path),
         weird_dir=_require_path_value(paths_raw, "weird_dir", source_path, "config.paths"),

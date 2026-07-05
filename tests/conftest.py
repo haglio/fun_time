@@ -57,14 +57,14 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
     (tmp_path / "videos" / "videos" / "portrait").mkdir(parents=True, exist_ok=True)
     (tmp_path / "videos" / "videos" / "landscape").mkdir(parents=True, exist_ok=True)
     (tmp_path / "weird").mkdir(exist_ok=True)
-    (tmp_path / "videos" / "videos" / "vlc_primary").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "videos" / "videos" / "nau_library").mkdir(parents=True, exist_ok=True)
 
     cfg: dict = {
         "paths": {
             "vlc_exe": str(tmp_path / "vlc.exe"),
             "ahk_exe": str(tmp_path / "ahk.exe"),
             "python_exe": str(tmp_path / "python.exe"),
-            "primary_vlc_dirs": [str(tmp_path / "videos" / "videos" / "vlc_primary")],
+            "nau_library_dirs": [str(tmp_path / "videos" / "videos" / "nau_library")],
             "portrait_dir": str(tmp_path / "videos" / "videos" / "portrait"),
             "landscape_dir": str(tmp_path / "videos" / "videos" / "landscape"),
             "weird_dir": str(tmp_path / "weird"),

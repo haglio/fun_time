@@ -143,7 +143,7 @@ def run_startup_sequence(
         audio_paused_file=m["commands"]["audio_paused_file"],
         nau_paused_file=m["commands"]["nau_paused_file"],
         vlc_exe=m["executables"]["vlc_exe"],
-        primary_sources=m["media"]["primary_vlc_sources"],
+        primary_sources=m["media"]["nau_library_sources"],
         portrait_sources=m["media"]["portrait_dirs"],
         landscape_sources=m["media"]["landscape_dirs"],
         favs_file=m["media"]["favs_file"],
