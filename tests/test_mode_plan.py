@@ -73,6 +73,7 @@ def test_same_mode_is_noop():
         assert plan.genau_cmd is None
         assert plan.hud_cmd is None
         assert plan.nau_should_play is None
+        assert plan.nau_tcode_muted is None
 
 
 def test_omnipaused_skips_transition():
@@ -81,3 +82,34 @@ def test_omnipaused_skips_transition():
     assert plan.is_transition is False
     assert plan.genau_cmd is None
     assert plan.nau_should_play is None
+    assert plan.nau_tcode_muted is None
+
+
+def test_nau_to_hybrid_mutes_nau_tcode():
+    # Entering Hybrid: Genau drives the OSR2, so Nau's funscript T-Code must be
+    # muted or the two double-drive the broker.
+    plan = build_mode_switch_plan(current_mode="nau", target_mode="hybrid", omni_paused=False)
+    assert plan.nau_tcode_muted is True
+
+
+def test_genau_to_hybrid_mutes_nau_tcode():
+    plan = build_mode_switch_plan(current_mode="genau", target_mode="hybrid", omni_paused=False)
+    assert plan.nau_tcode_muted is True
+
+
+def test_hybrid_to_nau_unmutes_nau_tcode():
+    plan = build_mode_switch_plan(current_mode="hybrid", target_mode="nau", omni_paused=False)
+    assert plan.nau_tcode_muted is False
+
+
+def test_hybrid_to_genau_unmutes_nau_tcode():
+    # Leaving hybrid for genau still un-mutes Nau, so a later genau->nau switch
+    # (which never touches T-Code) lands with Nau's funscript output restored.
+    plan = build_mode_switch_plan(current_mode="hybrid", target_mode="genau", omni_paused=False)
+    assert plan.nau_tcode_muted is False
+
+
+def test_non_hybrid_transition_leaves_nau_tcode_alone():
+    for current, target in (("nau", "genau"), ("genau", "nau")):
+        plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=False)
+        assert plan.nau_tcode_muted is None

@@ -518,6 +518,7 @@ def _dispatch_mode_switch(
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
         nau_paused_file=config.nau_paused_file,
+        nau_cmd_file=config.nau_cmd_file,
         broker_cmd_file=config.broker_cmd_file,
     )
     state = replace(state, primary_mode=result.next_mode)

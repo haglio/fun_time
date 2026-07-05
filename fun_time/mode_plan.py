@@ -10,6 +10,7 @@ class ModeSwitchPlan:
     genau_cmd: str | None
     hud_cmd: str | None
     nau_should_play: bool | None
+    nau_tcode_muted: bool | None
     log_message: str
 
 
@@ -46,6 +47,7 @@ def build_mode_switch_plan(
             genau_cmd=None,
             hud_cmd=None,
             nau_should_play=None,
+            nau_tcode_muted=None,
             log_message=f"Already in {target_mode} mode",
         )
 
@@ -56,6 +58,7 @@ def build_mode_switch_plan(
             genau_cmd=None,
             hud_cmd=None,
             nau_should_play=None,
+            nau_tcode_muted=None,
             log_message=f"Mode set to {target_mode} (omnipaused)",
         )
 
@@ -82,11 +85,20 @@ def build_mode_switch_plan(
     elif was_nau_display and not will_nau_display:
         nau_should_play = False
 
+    # Genau drives the OSR2 in hybrid, so Nau's funscript T-Code must be muted
+    # while hybrid owns the display and re-enabled when it hands back.
+    nau_tcode_muted: bool | None = None
+    if target_mode == "hybrid" and current_mode != "hybrid":
+        nau_tcode_muted = True
+    elif current_mode == "hybrid" and target_mode != "hybrid":
+        nau_tcode_muted = False
+
     return ModeSwitchPlan(
         target_mode=target_mode,
         is_transition=True,
         genau_cmd=genau_cmd,
         hud_cmd=hud_cmd,
         nau_should_play=nau_should_play,
+        nau_tcode_muted=nau_tcode_muted,
         log_message=f"Switched to {target_mode} mode",
     )
