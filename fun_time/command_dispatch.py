@@ -469,6 +469,8 @@ def _dispatch_fmode_toggle(
         landscape_port=config.landscape_port,
         password=config.vlc_password,
         nau_cmd_file=config.nau_cmd_file,
+        provider_media_root=config.provider_media_root,
+        provider_metadata_root=config.provider_metadata_root,
     )
     if result.log_message:
         logger.info(result.log_message)

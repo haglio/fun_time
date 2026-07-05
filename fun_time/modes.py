@@ -4,7 +4,8 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
-from .media_metadata import normalize_path_key
+from .media_metadata import build_group_index, normalize_path_key
+from .watch_stats import load_watch_stats, passes_inclusion, weight_for, weighted_shuffle
 
 PLAYLIST_PORTRAIT = "portrait_vlc_playlist"
 PLAYLIST_LANDSCAPE = "landscape_vlc_playlist"
@@ -28,6 +29,17 @@ class SatellitePlaylistPlan:
     landscape_count: int
     portrait_playlist_path: Path
     landscape_playlist_path: Path
+
+
+@dataclass(frozen=True)
+class SatelliteLibraryContext:
+    """What a satellite build needs beyond its source dirs: the metadata
+    roots for action-group collapsing and the watch-stats file for
+    frequency weighting.  Any None simply disables that refinement."""
+
+    media_root: Path | None
+    metadata_root: Path | None
+    watch_stats_file: Path | None
 
 
 def is_supported_video_path(path: str) -> bool:
@@ -125,6 +137,47 @@ def build_primary_playlist_paths(primary_sources: str, f_mode: bool, *, rng: ran
     return shuffle_paths(filtered, rng=rng)
 
 
+def _collapse_and_weigh(
+    paths: list[str],
+    library: SatelliteLibraryContext,
+    rng: random.Random | None,
+) -> list[str]:
+    """Shuffle *paths* with watch-stats weighting, one slot per action group.
+
+    Chronically-skipped videos sit the build out proportionally to their
+    weight; each action group (same subject(s)+situation) contributes a single
+    member, drawn weighted so preferred actions surface more.  The final
+    order is a weighted shuffle: loved videos land early, and with no stats
+    on record every step degenerates to today's uniform shuffle.
+    """
+    randomizer = rng or random.Random()
+    stats = (
+        load_watch_stats(library.watch_stats_file)
+        if library.watch_stats_file is not None
+        else {}
+    )
+
+    def weight(path: str) -> float:
+        return weight_for(stats.get(normalize_path_key(path)))
+
+    survivors = [path for path in paths if passes_inclusion(weight(path), randomizer)]
+    index = build_group_index(survivors, library.media_root, library.metadata_root)
+    slots: list[str] = []
+    seen_groups: set[str] = set()
+    for path in survivors:
+        group_key = index.action_key_by_path.get(normalize_path_key(path))
+        if group_key is None:
+            slots.append(path)
+            continue
+        if group_key in seen_groups:
+            continue
+        seen_groups.add(group_key)
+        members = index.action_members[group_key]
+        picked = randomizer.choices(members, weights=[weight(m) for m in members], k=1)[0]
+        slots.append(picked)
+    return weighted_shuffle(slots, weight, randomizer)
+
+
 def build_satellite_playlist_paths(
     source_spec: str,
     f_mode: bool,
@@ -132,13 +185,17 @@ def build_satellite_playlist_paths(
     *,
     recent: bool = False,
     rng: random.Random | None = None,
+    library: SatelliteLibraryContext | None = None,
 ) -> list[str]:
     files = collect_video_files(source_spec)
-    if not f_mode:
+    if f_mode:
+        favs_content = read_favs_content(favs_file)
+        files = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
+    # Premiere (recent) deliberately skips collapsing and weighting: it exists
+    # to review new arrivals, so every file stays visible, newest first.
+    if recent or library is None:
         return order_paths(files, recent=recent, rng=rng)
-    favs_content = read_favs_content(favs_file)
-    filtered = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
-    return order_paths(filtered, recent=recent, rng=rng)
+    return _collapse_and_weigh(files, library, rng)
 
 
 def build_playlist_file_path(state_dir: Path, name: str) -> Path:
@@ -173,13 +230,19 @@ def build_satellite_playlists(
     f_mode: bool,
     recent: bool,
     rng: random.Random | None = None,
+    library: SatelliteLibraryContext | None = None,
 ) -> SatellitePlaylistPlan:
     """Build and write the Portrait/Landscape VLC playlists (the two satellites).
 
-    Ordering follows ``recent``: newest-first when set, otherwise shuffled.
+    Ordering follows ``recent``: newest-first when set, otherwise shuffled
+    (with action-group collapse and watch weighting when *library* is given).
     """
-    portrait_paths = build_satellite_playlist_paths(portrait_sources, f_mode, favs_file, recent=recent, rng=rng)
-    landscape_paths = build_satellite_playlist_paths(landscape_sources, f_mode, favs_file, recent=recent, rng=rng)
+    portrait_paths = build_satellite_playlist_paths(
+        portrait_sources, f_mode, favs_file, recent=recent, rng=rng, library=library
+    )
+    landscape_paths = build_satellite_playlist_paths(
+        landscape_sources, f_mode, favs_file, recent=recent, rng=rng, library=library
+    )
 
     portrait_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
     landscape_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
@@ -204,6 +267,7 @@ def build_fmode_playlists(
     enabled: bool,
     recent: bool = False,
     rng: random.Random | None = None,
+    library: SatelliteLibraryContext | None = None,
 ) -> FModePlaylistPlan:
     primary_paths = build_primary_playlist_paths(primary_sources, enabled, rng=rng)
     satellites = build_satellite_playlists(
@@ -214,6 +278,7 @@ def build_fmode_playlists(
         f_mode=enabled,
         recent=recent,
         rng=rng,
+        library=library,
     )
 
     nau_playlist_path = state_dir / f"{PLAYLIST_NAU}.tsv"

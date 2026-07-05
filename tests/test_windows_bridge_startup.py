@@ -7,6 +7,7 @@ from unittest.mock import ANY, patch
 import pytest
 
 from fun_time.modes import FModePlaylistPlan
+from fun_time.modes import SatelliteLibraryContext
 from fun_time.windows_bridge_startup import (
     _VLC_HTTP_BIND_TIMEOUT_MS,
     _await_vlc_http,
@@ -116,6 +117,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
             landscape_port=8092,
             password="pw",
             result_file=result_file,
+            provider_media_root=tmp_path / "media",
+            provider_metadata_root=tmp_path / "metadata",
         )
 
     restart.assert_called_once_with(tmp_path, None)
@@ -133,6 +136,11 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         enabled=False,
+        library=SatelliteLibraryContext(
+            media_root=tmp_path / "media",
+            metadata_root=tmp_path / "metadata",
+            watch_stats_file=state_dir / "watch_stats.json",
+        ),
     )
     launch.assert_called_once_with(
         project_dir=tmp_path,

@@ -62,7 +62,15 @@ def _fake_ui(**kwargs):
 
 class TestRunStartupSequence:
     def test_calls_start_core_session_and_launch_ui_companions(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        cfg = load_config(cfg_factory({
+            "provider_regen": {
+                "media_root": str(tmp_path / "media"),
+                "metadata_root": str(tmp_path / "metadata"),
+            }
+        }))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
 
         core_called = {}
         ui_called = {}
@@ -103,6 +111,9 @@ class TestRunStartupSequence:
         assert core_called["favs_file"] == str(cfg.paths.favs_file)
         assert core_called["state_dir"] == tmp_path
         assert core_called["nau_paused_file"] == str(cfg.nau_paused_file)
+        # Provider roots flow through so the startup build can collapse action groups.
+        assert core_called["provider_media_root"] == tmp_path / "media"
+        assert core_called["provider_metadata_root"] == tmp_path / "metadata"
         # MFP is gone: no mfp_exe/mfp_pid plumbing anywhere.
         assert not any("mfp" in key for key in core_called)
         assert not any("mfp" in key for key in ui_called)

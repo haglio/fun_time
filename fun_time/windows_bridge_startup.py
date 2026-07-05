@@ -7,7 +7,8 @@ import sys
 import time
 from pathlib import Path
 
-from .modes import build_fmode_playlists
+from .modes import SatelliteLibraryContext, build_fmode_playlists
+from .watch_stats import watch_stats_path
 from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
@@ -131,6 +132,8 @@ def start_core_session(
     password: str,
     result_file: str | Path,
     hide_windows: bool = False,
+    provider_media_root: Path | None = None,
+    provider_metadata_root: Path | None = None,
 ) -> None:
     restart_broker(project_dir, broker_tray_launcher)
     seed_paused_states(genau_paused_file, audio_paused_file, nau_paused_file)
@@ -144,6 +147,11 @@ def start_core_session(
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         enabled=False,
+        library=SatelliteLibraryContext(
+            media_root=provider_media_root,
+            metadata_root=provider_metadata_root,
+            watch_stats_file=watch_stats_path(state_dir),
+        ),
     )
     launch_core_apps(
         project_dir=project_dir,

@@ -4,7 +4,10 @@ import os
 import random
 from pathlib import Path
 
+import json
+
 from fun_time.modes import (
+    SatelliteLibraryContext,
     build_fmode_playlists,
     build_mirrored_funscript_path,
     build_primary_playlist_paths,
@@ -17,12 +20,47 @@ from fun_time.modes import (
     shuffle_paths,
     sort_paths_by_recency,
 )
+from fun_time.media_metadata import metadata_path_for
 
 
 def _touch_with_mtime(path: Path, mtime: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("x", encoding="utf-8")
     os.utime(path, (mtime, mtime))
+
+
+def _i2v_meta(image_seed: str, action: str) -> dict:
+    return {
+        "video": {"prompt": f"do {action}", "action": action, "seed": "77"},
+        "source_image": {
+            "positive_prompt": "cute subject, cafe",
+            "negative_prompt": "bad",
+            "seed": image_seed,
+        },
+    }
+
+
+def _grouped_library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, SatelliteLibraryContext, dict[str, str]]:
+    """A satellite source dir whose videos (optionally) carry sidecars."""
+    media_root = tmp_path / "media"
+    metadata_root = tmp_path / "metadata"
+    source_dir = media_root / "portrait"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, str] = {}
+    for name, meta in videos.items():
+        video = source_dir / f"{name}.mp4"
+        video.write_text("x", encoding="utf-8")
+        paths[name] = str(video)
+        if meta is not None:
+            sidecar = metadata_path_for(video, media_root, metadata_root)
+            sidecar.parent.mkdir(parents=True, exist_ok=True)
+            sidecar.write_text(json.dumps(meta), encoding="utf-8")
+    library = SatelliteLibraryContext(
+        media_root=media_root,
+        metadata_root=metadata_root,
+        watch_stats_file=tmp_path / "state" / "watch_stats.json",
+    )
+    return source_dir, library, paths
 
 
 def test_build_mirrored_funscript_path_uses_video_path_directly(tmp_path: Path):
@@ -356,5 +394,146 @@ def test_build_primary_playlist_paths_includes_funscripted_ai_subdir_in_f_mode(t
     path_strs = {str(p) for p in paths}
     assert str(non_ai_video) in path_strs
     assert str(ai_video) in path_strs
+
+
+# --- action-group collapse and watch weighting (satellites) ---
+
+
+def test_shuffled_satellite_build_plays_one_member_per_action_group(tmp_path: Path):
+    """Same subject+situation in several actions = one playlist slot, one random member."""
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
+        "subject1_alpha": _i2v_meta("111", "Alpha"),
+        "subject1_epsilon": _i2v_meta("111", "Pov Epsilon"),
+        "subject2_solo": _i2v_meta("222", "Dancing"),
+        "no_metadata": None,
+    })
+    group = {paths["subject1_zeta"], paths["subject1_alpha"], paths["subject1_epsilon"]}
+
+    seen: set[str] = set()
+    for round_no in range(30):
+        built = build_satellite_playlist_paths(
+            str(source_dir), False, tmp_path / "favs.csv",
+            rng=random.Random(round_no), library=library,
+        )
+        chosen = group.intersection(built)
+        assert len(chosen) == 1, "exactly one action of the group per build"
+        assert paths["subject2_solo"] in built
+        assert paths["no_metadata"] in built
+        seen |= chosen
+
+    assert seen == group, "every action should get picked across builds"
+
+
+def test_group_member_choice_follows_watch_weights(tmp_path: Path):
+    from fun_time.watch_stats import record_watch_event
+
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "loved": _i2v_meta("111", "Zeta Massage"),
+        "skipped": _i2v_meta("111", "Alpha"),
+    })
+    for _ in range(9):
+        record_watch_event(library.watch_stats_file, paths["loved"], "completion")
+        record_watch_event(library.watch_stats_file, paths["skipped"], "skip")
+
+    loved_picks = sum(
+        paths["loved"] in build_satellite_playlist_paths(
+            str(source_dir), False, tmp_path / "favs.csv",
+            rng=random.Random(round_no), library=library,
+        )
+        for round_no in range(40)
+    )
+
+    assert loved_picks >= 36, "the loved action should almost always represent its group"
+
+
+def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Path):
+    from fun_time.watch_stats import record_watch_event
+
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "disliked": _i2v_meta("111", "Alpha"),
+        "neutral": _i2v_meta("222", "Dancing"),
+    })
+    for _ in range(9):
+        record_watch_event(library.watch_stats_file, paths["disliked"], "skip")
+
+    appearances = sum(
+        paths["disliked"] in build_satellite_playlist_paths(
+            str(source_dir), False, tmp_path / "favs.csv",
+            rng=random.Random(round_no), library=library,
+        )
+        for round_no in range(40)
+    )
+
+    assert appearances < 15, "a weight-1/8 video should miss most builds"
+
+
+def test_premiere_recent_build_keeps_every_group_member_visible(tmp_path: Path):
+    """Newest-first review of arrivals must not hide siblings behind collapse."""
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
+        "subject1_alpha": _i2v_meta("111", "Alpha"),
+    })
+
+    built = build_satellite_playlist_paths(
+        str(source_dir), False, tmp_path / "favs.csv",
+        recent=True, rng=random.Random(1), library=library,
+    )
+
+    assert set(built) == set(paths.values())
+
+
+def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path: Path):
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
+        "subject1_alpha": _i2v_meta("111", "Alpha"),
+    })
+    state_dir = tmp_path / "state"
+
+    plan = build_satellite_playlists(
+        portrait_sources=str(source_dir),
+        landscape_sources=str(source_dir),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=state_dir,
+        f_mode=False,
+        recent=False,
+        rng=random.Random(5),
+        library=library,
+    )
+
+    for playlist in (plan.portrait_playlist_path, plan.landscape_playlist_path):
+        listed = [
+            line for line in playlist.read_text(encoding="utf-8").splitlines()
+            if line and not line.startswith("#")
+        ]
+        assert len(listed) == 1, "the two-action group must collapse to one entry"
+        assert listed[0] in paths.values()
+
+
+def test_build_fmode_playlists_forwards_library_to_satellites(tmp_path: Path):
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
+        "subject1_alpha": _i2v_meta("111", "Alpha"),
+    })
+    primary_dir = tmp_path / "primary"
+    primary_dir.mkdir()
+    (primary_dir / "main.mp4").write_text("x", encoding="utf-8")
+
+    plan = build_fmode_playlists(
+        primary_sources=str(primary_dir),
+        portrait_sources=str(source_dir),
+        landscape_sources=str(source_dir),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        enabled=False,
+        rng=random.Random(5),
+        library=library,
+    )
+
+    listed = [
+        line for line in plan.portrait_playlist_path.read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+    ]
+    assert len(listed) == 1, "satellite collapse must apply on the F-mode/startup build"
 
 
