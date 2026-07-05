@@ -1,27 +1,86 @@
 from __future__ import annotations
 
 import base64
+import http.client
 import logging
 import re
+import threading
 import time
 import urllib.parse
-import urllib.request
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+_VLC_HOST = "127.0.0.1"
+# One keep-alive connection per (thread, port).  VLC's httpd closes every
+# connection it serves, so opening a fresh socket per call floods the port with
+# server-side TIME_WAIT sockets; under the rapid polling the navigation paths do
+# they pile up (measured: 1331 for 1500 calls) and collide on ephemeral ports,
+# stalling new connects until VLC's HTTP interface returns nothing at all.
+# Reusing one connection per port keeps the socket count flat.  Thread-local so
+# concurrent callers never share a socket's protocol state.
+_conn_pool = threading.local()
+
+
+def _get_pooled_conn(port: int) -> tuple[http.client.HTTPConnection, bool]:
+    """Return (connection, was_fresh) for *port* from this thread's pool.
+
+    ``was_fresh`` is True when the connection was just created, letting callers
+    tell a genuine "VLC unreachable" failure (a fresh connect fails) apart from
+    a stale keep-alive socket (a pooled connection VLC closed while idle).
+    """
+    pool = getattr(_conn_pool, "by_port", None)
+    if pool is None:
+        pool = _conn_pool.by_port = {}
+    conn = pool.get(port)
+    if conn is not None:
+        return conn, False
+    conn = pool[port] = http.client.HTTPConnection(_VLC_HOST, port, timeout=5)
+    return conn, True
+
+
+def _issue_request(
+    conn: http.client.HTTPConnection, path: str, headers: dict[str, str]
+) -> tuple[int, str]:
+    conn.request("GET", path, headers=headers)
+    response = conn.getresponse()
+    status = getattr(response, "status", 200)
+    return status, response.read().decode("utf-8", errors="replace")
+
+
+def _drop_pooled_conn(port: int, conn: http.client.HTTPConnection) -> None:
+    try:
+        conn.close()
+    except Exception:
+        pass
+    pool = getattr(_conn_pool, "by_port", None)
+    if pool is not None and pool.get(port) is conn:
+        del pool[port]
+
 
 def vlc_http_req(port: int, path: str, password: str, user: str = "") -> tuple[int, str]:
-    url = f"http://127.0.0.1:{port}{path}"
     credentials = f"{user}:{password}".encode("utf-8")
-    auth = "Basic " + base64.b64encode(credentials).decode("ascii")
-    request = urllib.request.Request(url, headers={"Authorization": auth})
+    headers = {"Authorization": "Basic " + base64.b64encode(credentials).decode("ascii")}
+    conn, was_fresh = _get_pooled_conn(port)
     try:
-        with urllib.request.urlopen(request, timeout=5) as response:
-            status = getattr(response, "status", 200)
-            return status, response.read().decode("utf-8", errors="replace")
+        return _issue_request(conn, path, headers)
     except Exception as exc:
-        logger.debug("vlc_http_req port=%s path=%s error=%r", port, path, exc)
+        _drop_pooled_conn(port, conn)
+        if was_fresh:
+            # A brand-new connection failed → VLC is unreachable.  Keep the
+            # original single-attempt contract: callers read (0, "") as "down".
+            logger.debug("vlc_http_req port=%s path=%s error=%r", port, path, exc)
+            return 0, ""
+    # The failure was on a REUSED connection VLC had closed while idle, so the
+    # request never reached it.  Reconnect once and re-issue — transparent
+    # keep-alive recovery, safe even for non-idempotent commands because the
+    # command was not delivered on the dead socket.
+    conn, _ = _get_pooled_conn(port)
+    try:
+        return _issue_request(conn, path, headers)
+    except Exception as exc:
+        logger.debug("vlc_http_req port=%s path=%s retry error=%r", port, path, exc)
+        _drop_pooled_conn(port, conn)
         return 0, ""
 
 

@@ -275,9 +275,21 @@ def test_vlc_advance_and_remove_single_item_playlist(monkeypatch):
 
 
 def test_vlc_http_req_returns_zero_on_connection_error(monkeypatch):
-    def _raise(*args, **kwargs):
-        raise ConnectionRefusedError("refused")
-    monkeypatch.setattr(vlc_actions.urllib.request, "urlopen", _raise)
+    class _DeadConn:
+        def __init__(self, *a, **k):
+            pass
+
+        def request(self, *a, **k):
+            raise ConnectionRefusedError("refused")
+
+        def getresponse(self):
+            raise AssertionError("should not be reached")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(vlc_actions.http.client, "HTTPConnection", _DeadConn)
+    vlc_actions._conn_pool.by_port = {}
     status, body = vlc_actions.vlc_http_req(9999, "/requests/status.xml", "pw")
     assert status == 0
     assert body == ""
@@ -418,3 +430,117 @@ def test_ensure_playback_state_never_pauses_a_stopped_vlc(monkeypatch):
 
     assert ok is True
     assert cmds == []
+
+
+# --- vlc_http_req connection reuse ---
+#
+# vlc_http_req used to open a fresh TCP connection per call.  VLC's httpd closes
+# each connection it serves, so a connect-per-call pattern floods the port with
+# server-side TIME_WAIT sockets (measured: 1331 for 1500 rapid calls).  Under the
+# rapid polling the navigation paths do, those collide on ephemeral ports and
+# stall new connects, so VLC's HTTP interface intermittently returns nothing.
+# Reusing one keep-alive connection per port keeps the socket count flat.
+
+
+class _FakeResp:
+    def __init__(self, status: int, body: str):
+        self.status = status
+        self._body = body.encode("utf-8")
+
+    def read(self):
+        return self._body
+
+
+class _FakeConn:
+    """Records instantiations and requests so tests can assert on reuse."""
+
+    instances: list["_FakeConn"] = []
+
+    def __init__(self, host, port, timeout=None):
+        self.host, self.port, self.timeout = host, port, timeout
+        self.requests: list[tuple] = []
+        self.closed = False
+        _FakeConn.instances.append(self)
+
+    def request(self, method, url, headers=None):
+        self.requests.append((method, url, headers))
+
+    def getresponse(self):
+        return _FakeResp(200, "<root/>")
+
+    def close(self):
+        self.closed = True
+
+
+def test_vlc_http_req_reuses_one_connection_across_calls(monkeypatch):
+    _FakeConn.instances = []
+    monkeypatch.setattr(vlc_actions.http.client, "HTTPConnection", _FakeConn)
+    vlc_actions._conn_pool.by_port = {}
+
+    vlc_actions.vlc_http_req(8080, "/requests/status.xml", "pw")
+    vlc_actions.vlc_http_req(8080, "/requests/status.xml", "pw")
+
+    assert len(_FakeConn.instances) == 1, "should reuse one keep-alive connection per port"
+    assert len(_FakeConn.instances[0].requests) == 2
+
+
+def test_vlc_http_req_reconnects_when_pooled_connection_is_stale(monkeypatch):
+    """A keep-alive socket VLC closed while idle raises on reuse.  vlc_http_req
+    must transparently reconnect and still return the response, not (0, '') —
+    the request never reached VLC on the dead socket, so re-issuing it is safe."""
+    made: list = []
+
+    class _Conn:
+        def __init__(self, host, port, timeout=None):
+            self.n = len(made)
+            self.stale = False
+            made.append(self)
+
+        def request(self, *a, **k):
+            if self.stale:
+                raise vlc_actions.http.client.RemoteDisconnected("closed")
+
+        def getresponse(self):
+            return _FakeResp(200, f"<c{self.n}/>")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(vlc_actions.http.client, "HTTPConnection", _Conn)
+    vlc_actions._conn_pool.by_port = {}
+
+    # First call establishes and pools connection #0.
+    assert vlc_actions.vlc_http_req(8080, "/requests/status.xml", "pw") == (200, "<c0/>")
+
+    # VLC drops the idle socket → the pooled connection is now stale.
+    made[0].stale = True
+
+    # Second call: request() on #0 raises → reconnect to #1 → success.
+    assert vlc_actions.vlc_http_req(8080, "/requests/status.xml", "pw") == (200, "<c1/>")
+    assert len(made) == 2, "should have reconnected exactly once"
+
+
+def test_vlc_http_req_does_not_retry_a_fresh_connection_failure(monkeypatch):
+    """A brand-new connection failing means VLC is unreachable, not a stale
+    socket — vlc_http_req must return (0, '') after one attempt, never retry
+    (which for a command would risk delivering it twice)."""
+    attempts: list = []
+
+    class _DeadConn:
+        def __init__(self, *a, **k):
+            attempts.append(self)
+
+        def request(self, *a, **k):
+            raise ConnectionRefusedError("refused")
+
+        def getresponse(self):
+            raise AssertionError("should not be reached")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(vlc_actions.http.client, "HTTPConnection", _DeadConn)
+    vlc_actions._conn_pool.by_port = {}
+
+    assert vlc_actions.vlc_http_req(9999, "/requests/status.xml", "pw") == (0, "")
+    assert len(attempts) == 1, "a fresh connection failure must not be retried"
