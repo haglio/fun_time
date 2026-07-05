@@ -26,6 +26,10 @@ _EVENT_FIELDS = {
 }
 
 
+def watch_stats_path(state_dir: str | Path) -> Path:
+    return Path(state_dir) / "watch_stats.json"
+
+
 def load_watch_stats(stats_file: str | Path) -> dict[str, dict[str, int]]:
     try:
         with open(stats_file, encoding="utf-8") as fh:

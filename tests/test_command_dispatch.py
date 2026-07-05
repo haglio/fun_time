@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -556,6 +557,29 @@ def test_fmode_toggle_passes_current_recency_order(tmp_path: Path):
         dispatch_command("fmode_toggle", state, config)
 
     assert mock_fmode.call_args.kwargs["recent"] is True
+
+
+def test_fmode_toggle_passes_provider_roots_for_group_collapse(tmp_path: Path):
+    config = replace(
+        _make_config(tmp_path),
+        provider_media_root=tmp_path / "media",
+        provider_metadata_root=tmp_path / "metadata",
+    )
+    state = _make_state(f_mode_enabled=False)
+
+    with patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode:
+        mock_fmode.return_value = type("R", (), {
+            "success": True,
+            "next_f_mode_enabled": True,
+            "next_locked2": False,
+            "next_locked3": False,
+            "log_message": "F-mode hotkey: enabled",
+        })()
+        dispatch_command("fmode_toggle", state, config)
+
+    kwargs = mock_fmode.call_args.kwargs
+    assert kwargs["provider_media_root"] == tmp_path / "media"
+    assert kwargs["provider_metadata_root"] == tmp_path / "metadata"
 
 
 # --- recency_order_refresh ---

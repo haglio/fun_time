@@ -7,10 +7,11 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from .modes import build_fmode_playlists, build_satellite_playlists
+from .modes import SatelliteLibraryContext, build_fmode_playlists, build_satellite_playlists
 from .omnipause import build_omnipause_plan
 from .mode_plan import build_mode_switch_plan, genau_active
 from .vlc_actions import ensure_playback_state, replace_playlist_from_file
+from .watch_stats import watch_stats_path
 
 NAU_RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
 
@@ -108,6 +109,8 @@ def apply_toggle_fmode(
     landscape_port: int,
     password: str,
     nau_cmd_file: str | Path,
+    provider_media_root: Path | None = None,
+    provider_metadata_root: Path | None = None,
 ) -> FModeFlowResult:
     target_enabled = not f_mode_enabled
     plan = build_fmode_playlists(
@@ -118,6 +121,11 @@ def apply_toggle_fmode(
         state_dir=Path(state_dir),
         enabled=target_enabled,
         recent=recent,
+        library=SatelliteLibraryContext(
+            media_root=provider_media_root,
+            metadata_root=provider_metadata_root,
+            watch_stats_file=watch_stats_path(state_dir),
+        ),
     )
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
         logger.warning("Portrait VLC failed to load F-mode playlist")

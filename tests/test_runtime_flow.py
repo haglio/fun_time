@@ -208,6 +208,49 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(monkeypatch, tmp_path: 
     assert (tmp_path / "state" / "nau_playlist.tsv").exists()
 
 
+def test_toggle_fmode_collapses_action_groups_with_provider_roots(monkeypatch, tmp_path: Path):
+    """With the provider roots supplied, the rebuilt satellite playlists collapse
+    same-source-image action groups to one entry."""
+    import json
+
+    media_root = tmp_path / "media"
+    metadata_root = tmp_path / "metadata"
+    portrait_root = media_root / "portrait"
+    portrait_root.mkdir(parents=True)
+    meta = {
+        "video": {"prompt": "act", "action": "Alpha", "seed": "1"},
+        "source_image": {"positive_prompt": "subject", "seed": "111"},
+    }
+    for name in ("first.mp4", "second.mp4"):
+        video = portrait_root / name
+        video.write_text("x", encoding="utf-8")
+        sidecar = metadata_root / "portrait" / f"{Path(name).stem}.json"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(json.dumps(meta), encoding="utf-8")
+    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
+
+    apply_toggle_fmode(
+        f_mode_enabled=True,
+        recent=False,
+        primary_sources="",
+        portrait_sources=str(portrait_root),
+        landscape_sources="",
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        primary_port=9001,
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+        nau_cmd_file=tmp_path / "nau_cmd.txt",
+        provider_media_root=media_root,
+        provider_metadata_root=metadata_root,
+    )
+
+    portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
+    entries = [line for line in portrait_lines if line and not line.startswith("#")]
+    assert len(entries) == 1
+
+
 def test_toggle_fmode_preserves_recency_ordering(monkeypatch, tmp_path: Path):
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
