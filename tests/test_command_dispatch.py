@@ -48,6 +48,7 @@ def _make_state(**overrides) -> BridgeState:
         primary_mode="nau",
         f_mode_enabled=False,
         omni_paused=False,
+        recency_order=False,
     )
     defaults.update(overrides)
     return BridgeState(**defaults)
@@ -541,6 +542,49 @@ def test_fmode_panel_click_dispatches_as_fmode_toggle(tmp_path: Path):
     assert new_state.f_mode_enabled is True
     assert new_state.locked2 is False
     assert new_state.locked3 is False
+
+
+def test_fmode_toggle_passes_current_recency_order(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(f_mode_enabled=False, recency_order=True)
+
+    with patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode:
+        mock_fmode.return_value = type("R", (), {
+            "success": True,
+            "next_f_mode_enabled": True,
+            "next_locked2": False,
+            "next_locked3": False,
+            "log_message": "F-mode hotkey: enabled",
+        })()
+        dispatch_command("fmode_toggle", state, config)
+
+    assert mock_fmode.call_args.kwargs["recent"] is True
+
+
+# --- recency_order_toggle ---
+
+
+def test_recency_order_toggle_flips_state_and_resets_locks(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(recency_order=False, locked2=True, locked3=True)
+
+    with patch("fun_time.command_dispatch.apply_toggle_recency_order") as mock_recency:
+        mock_recency.return_value = type("R", (), {
+            "next_recency_order": True,
+            "next_locked2": False,
+            "next_locked3": False,
+            "log_message": "Recency order: enabled",
+        })()
+        new_state, ops = dispatch_command("recency_order_toggle", state, config)
+
+    assert new_state.recency_order is True
+    assert new_state.locked2 is False
+    assert new_state.locked3 is False
+    kwargs = mock_recency.call_args.kwargs
+    assert kwargs["recency_order"] is False
+    assert kwargs["f_mode_enabled"] is False
+    assert kwargs["portrait_port"] == config.portrait_port
+    assert kwargs["landscape_port"] == config.landscape_port
 
 
 # --- mode switch (genau_activate / vlc_activate / hybrid_activate) ---

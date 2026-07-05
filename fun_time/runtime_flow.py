@@ -7,7 +7,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from .modes import build_fmode_playlists
+from .modes import build_fmode_playlists, build_satellite_playlists
 from .omnipause import build_omnipause_plan
 from .mode_plan import build_mode_switch_plan, genau_active
 from .dashboard_runtime import read_nau_status
@@ -43,6 +43,14 @@ class ModeSwitchFlowResult:
 class FModeFlowResult:
     success: bool
     next_f_mode_enabled: bool
+    next_locked2: bool
+    next_locked3: bool
+    log_message: str
+
+
+@dataclass(frozen=True)
+class RecencyOrderFlowResult:
+    next_recency_order: bool
     next_locked2: bool
     next_locked3: bool
     log_message: str
@@ -115,6 +123,7 @@ def apply_mode_switch(
 def apply_toggle_fmode(
     *,
     f_mode_enabled: bool,
+    recent: bool,
     primary_sources: str,
     portrait_sources: str,
     landscape_sources: str,
@@ -134,6 +143,7 @@ def apply_toggle_fmode(
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         enabled=target_enabled,
+        recent=recent,
     )
     if not replace_playlist_from_file(primary_port, password, plan.primary_playlist_path):
         logger.warning("Primary VLC failed to load F-mode playlist")
@@ -148,6 +158,46 @@ def apply_toggle_fmode(
         next_locked2=False,
         next_locked3=False,
         log_message=f"F-mode hotkey: {'enabled' if target_enabled else 'disabled'}",
+    )
+
+
+def apply_toggle_recency_order(
+    *,
+    recency_order: bool,
+    f_mode_enabled: bool,
+    portrait_sources: str,
+    landscape_sources: str,
+    favs_file: str | Path,
+    state_dir: str | Path,
+    portrait_port: int,
+    landscape_port: int,
+    password: str,
+) -> RecencyOrderFlowResult:
+    """Toggle newest-first ordering for the Portrait/Landscape VLC playlists.
+
+    Rebuilds only the two satellite playlists (honouring the current F-mode
+    filter) and reloads them into their VLCs.  The primary/Nau player is left
+    alone.  Pushing a fresh playlist with repeat-all clears any per-window lock,
+    so the caller's lock flags reset to match.
+    """
+    target = not recency_order
+    plan = build_satellite_playlists(
+        portrait_sources=portrait_sources,
+        landscape_sources=landscape_sources,
+        favs_file=Path(favs_file),
+        state_dir=Path(state_dir),
+        f_mode=f_mode_enabled,
+        recent=target,
+    )
+    if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
+        logger.warning("Portrait VLC failed to load recency-ordered playlist")
+    if not replace_playlist_from_file(landscape_port, password, plan.landscape_playlist_path, repeat_mode="all"):
+        logger.warning("Landscape VLC failed to load recency-ordered playlist")
+    return RecencyOrderFlowResult(
+        next_recency_order=target,
+        next_locked2=False,
+        next_locked3=False,
+        log_message=f"Recency order: {'enabled' if target else 'disabled'}",
     )
 
 
