@@ -9,8 +9,8 @@ from fun_time.runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_mode_switch,
+    apply_refresh_recency_order,
     apply_toggle_fmode,
-    apply_toggle_recency_order,
     build_omnipause_toggle,
 )
 
@@ -240,7 +240,7 @@ def test_toggle_fmode_preserves_recency_ordering(monkeypatch, tmp_path: Path):
     assert portrait_lines[1:] == [str(p_new), str(p_old)]
 
 
-def test_toggle_recency_order_reorders_only_satellites(monkeypatch, tmp_path: Path):
+def test_refresh_recency_order_reorders_only_satellites(monkeypatch, tmp_path: Path):
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
     for root in (portrait_root, landscape_root):
@@ -258,8 +258,7 @@ def test_toggle_recency_order_reorders_only_satellites(monkeypatch, tmp_path: Pa
 
     monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", fake_replace)
 
-    result = apply_toggle_recency_order(
-        recency_order=False,
+    result = apply_refresh_recency_order(
         f_mode_enabled=False,
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
@@ -280,6 +279,38 @@ def test_toggle_recency_order_reorders_only_satellites(monkeypatch, tmp_path: Pa
     landscape_lines = (tmp_path / "state" / "landscape_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
     assert portrait_lines[1:] == [str(p_new), str(p_old)]
     assert landscape_lines[1:] == [str(l_new), str(l_old)]
+
+
+def test_refresh_recency_order_repicks_up_new_files(monkeypatch, tmp_path: Path):
+    """A repeat press rescans the sources so newly-arrived files land on top."""
+    portrait_root = tmp_path / "portrait"
+    portrait_root.mkdir(parents=True)
+    old = portrait_root / "old.mp4"
+    old.write_text("x", encoding="utf-8")
+    os.utime(old, (1000, 1000))
+    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
+
+    def refresh():
+        apply_refresh_recency_order(
+            f_mode_enabled=False,
+            portrait_sources=str(portrait_root),
+            landscape_sources="",
+            favs_file=tmp_path / "favs.csv",
+            state_dir=tmp_path / "state",
+            portrait_port=9002,
+            landscape_port=9003,
+            password="pw",
+        )
+
+    portrait = tmp_path / "state" / "portrait_vlc_playlist.m3u"
+    refresh()
+    assert portrait.read_text(encoding="utf-8").splitlines()[1:] == [str(old)]
+
+    new = portrait_root / "new.mp4"
+    new.write_text("x", encoding="utf-8")
+    os.utime(new, (2000, 2000))
+    refresh()
+    assert portrait.read_text(encoding="utf-8").splitlines()[1:] == [str(new), str(old)]
 
 
 def test_build_omnipause_toggle_returns_enter_or_leave():

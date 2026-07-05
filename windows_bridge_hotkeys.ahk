@@ -78,8 +78,9 @@ d::QueueCommand("landscape_next")
 w::QueueCommand("landscape_trash")
 s::QueueCommand("landscape_lock")
 '::QueueCommand("clipper_save")
-; Premiere: toggle Portrait/Landscape VLC between shuffled and newest-first.
-p::QueueCommand("recency_order_toggle")
+; Premiere: (re)load Portrait/Landscape VLC newest-first, restarting from the
+; top; press again to pick up newly-arrived files.
+p::QueueCommand("recency_order_refresh")
 
 ; Nau loop recording: hold R to mark, release to loop, press again to cancel.
 ; The held flag suppresses key-repeat so only one RECORD_DOWN is queued.

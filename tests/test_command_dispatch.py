@@ -561,27 +561,29 @@ def test_fmode_toggle_passes_current_recency_order(tmp_path: Path):
     assert mock_fmode.call_args.kwargs["recent"] is True
 
 
-# --- recency_order_toggle ---
+# --- recency_order_refresh ---
 
 
-def test_recency_order_toggle_flips_state_and_resets_locks(tmp_path: Path):
+def test_recency_order_refresh_keeps_recent_and_resets_locks(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(recency_order=False, locked2=True, locked3=True)
+    # Already in Premiere: pressing again must keep newest-first, never toggle off.
+    state = _make_state(recency_order=True, locked2=True, locked3=True)
 
-    with patch("fun_time.command_dispatch.apply_toggle_recency_order") as mock_recency:
+    with patch("fun_time.command_dispatch.apply_refresh_recency_order") as mock_recency:
         mock_recency.return_value = type("R", (), {
             "next_recency_order": True,
             "next_locked2": False,
             "next_locked3": False,
-            "log_message": "Recency order: enabled",
+            "log_message": "Premiere: Portrait/Landscape reloaded newest-first",
         })()
-        new_state, ops = dispatch_command("recency_order_toggle", state, config)
+        new_state, ops = dispatch_command("recency_order_refresh", state, config)
 
     assert new_state.recency_order is True
     assert new_state.locked2 is False
     assert new_state.locked3 is False
     kwargs = mock_recency.call_args.kwargs
-    assert kwargs["recency_order"] is False
+    # The refresh always targets newest-first, so it takes no prior-order input.
+    assert "recency_order" not in kwargs
     assert kwargs["f_mode_enabled"] is False
     assert kwargs["portrait_port"] == config.portrait_port
     assert kwargs["landscape_port"] == config.landscape_port
