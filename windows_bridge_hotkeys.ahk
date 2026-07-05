@@ -44,6 +44,13 @@ A_TrayMenu.AddStandard()
 
 SetTimer(ProcessAhkCommand, 150)
 
+; Liveness beacon: a periodic line proving the hotkey script's message pump is
+; still running. If it stops (then resumes after a gap), AHK froze — e.g. the
+; machine slept. If it keeps ticking while keys stop reaching Python, the
+; hotkeys/hook died while the process stayed alive. Diagnostic for the
+; resume-after-idle failure; pair with the dispatch loop's wake warning.
+SetTimer(Heartbeat, 60000)
+
 Log("Hotkey script started")
 
 ; -------------------- HOTKEYS --------------------
@@ -170,6 +177,10 @@ ProcessAhkCommand() {
     } else if (SubStr(action, 1, 8) = "tooltip ") {
         ShowBriefTooltip(SubStr(action, 9))
     }
+}
+
+Heartbeat() {
+    Log("AHK heartbeat (suspended=" . A_IsSuspended . ")")
 }
 
 ShowBriefTooltip(msg) {

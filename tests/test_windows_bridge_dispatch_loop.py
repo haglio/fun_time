@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import socket
 import threading
 import time
@@ -12,6 +13,7 @@ from fun_time.windows_bridge_dispatch_loop import (
     execute_window_ops,
     write_shared_state,
     read_shared_state,
+    detect_sleep_gap,
     DispatchLoopRunner,
 )
 
@@ -89,6 +91,56 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
         ahk_cmd_file=tmp_path / "ahk_cmd.txt",
         **settings,
     )
+
+
+class TestDetectSleepGap:
+    def test_reports_gap_when_stall_exceeds_threshold(self):
+        # The dispatch thread freezes during system sleep; a wall-clock jump
+        # far above the tick cadence means we just woke.
+        assert detect_sleep_gap(1000.0, 1000.0 + 300, threshold_s=90.0) == 300
+
+    def test_no_gap_for_normal_iteration(self):
+        assert detect_sleep_gap(1000.0, 1000.05) is None
+
+    def test_default_threshold_ignores_a_slow_vlc_tick(self):
+        # A wholly unresponsive VLC can stall one tick ~40s (8 HTTP calls at a
+        # 5s timeout). The default threshold must clear that, not misread it as
+        # a wake.
+        assert detect_sleep_gap(1000.0, 1000.0 + 40) is None
+
+
+class TestRunLoopWakeLogging:
+    def test_run_logs_warning_after_wall_clock_jump(self, tmp_path, caplog):
+        """A wall-clock jump between iterations is logged so the next
+        resume-after-idle failure is anchored to a confirmed sleep/wake."""
+        runner = make_runner(tmp_path)
+        ticks = {"n": 0}
+
+        def fake_tick():
+            ticks["n"] += 1
+            if ticks["n"] >= 2:
+                runner.stop()
+
+        # last_wall init, iter-1 now (no jump), iter-2 now (1000s jump).
+        scripted = [1000.0, 1000.0, 2000.0]
+        cursor = {"i": 0}
+
+        def fake_time():
+            i = cursor["i"]
+            if i < len(scripted):
+                cursor["i"] += 1
+                return scripted[i]
+            return scripted[-1]  # logging's own time.time() calls land here
+
+        with patch.object(runner, "tick", side_effect=fake_tick), \
+             patch("fun_time.windows_bridge_dispatch_loop.time.time", side_effect=fake_time), \
+             caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_dispatch_loop"):
+            runner.run()
+
+        assert any(
+            "sleep" in r.message.lower() or "stall" in r.message.lower()
+            for r in caplog.records
+        ), "expected a wake/stall warning after the wall-clock jump"
 
 
 class TestPollDashboardCommands:
