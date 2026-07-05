@@ -1021,6 +1021,16 @@ def test_dashboard_scene_chips_have_hover_texts(cfg_path: Path):
     assert "broker" in hover[layout.broker_panel].lower()
 
 
+def test_dashboard_scene_every_action_has_a_tooltip(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+
+    for primary_mode in ("nau", "genau", "hybrid"):
+        scene = build_dashboard_scene(layout, _make_snapshot(primary_mode=primary_mode))
+        hover = {rect: text for rect, text in scene.hover_texts}
+        for action_id, rect in scene.actions:
+            assert hover.get(rect), f"action {action_id!r} ({primary_mode}) has no tooltip"
+
+
 def test_dashboard_scene_default_cable_connected_without_snapshot(cfg_path: Path):
     layout = _make_layout(cfg_path)
 

@@ -433,6 +433,53 @@ def _draw_waveform_pixmap(shape: str, w: int, h: int) -> QPixmap:
     return _dashboard_pixmap_cache[key]
 
 
+# Short hover labels for every clickable dashboard action, so no button is
+# left without a tooltip. GENAU_TOGGLE_AUTO is overridden at build time with
+# its live allowed/suppressed state.
+_ACTION_TOOLTIPS: dict[str, str] = {
+    QUIT_BUTTON: "Quit",
+    OMNIPAUSE_TOGGLE: "Pause all",
+    HELP_REFERENCE: "Hotkeys & Voice",
+    PORTRAIT_PREV: "Previous portrait clip",
+    PORTRAIT_NEXT: "Next portrait clip",
+    PORTRAIT_LOCK: "Lock / unlock portrait",
+    PORTRAIT_TRASH: "Mark portrait weird",
+    PRIMARY_PREV: "Previous video",
+    PRIMARY_NEXT: "Next video",
+    PRIMARY_NUDGE_PREV: "Nudge back 10s",
+    PRIMARY_NUDGE_NEXT: "Nudge forward 10s",
+    QUARTER_BUTTON: "Offset ¼ cycle",
+    GENAU_AMP_UP: "Amplitude up",
+    GENAU_AMP_DOWN: "Amplitude down",
+    GENAU_CTR_UP: "Center up",
+    GENAU_CTR_DOWN: "Center down",
+    GENAU_SPD_UP: "Speed up",
+    GENAU_SPD_DOWN: "Speed down",
+    GENAU_CRUISE: "Cruise control",
+    GENAU_SHAPE: "Cycle waveform shape",
+    GENAU_TOGGLE_AUTO: "Genau takeover",
+    HYBRID_ACTIVATE: "Hybrid mode",
+    NAU_ACTIVATE: "Nau mode",
+    GENAU_ACTIVATE: "Genau mode",
+    OPEN_FILE_DIALOG: "Open file browser",
+    CLIPPER_SAVE: "Save clip",
+    NAU_RECORD: "Record loop",
+    LANDSCAPE_PREV: "Previous landscape clip",
+    LANDSCAPE_NEXT: "Next landscape clip",
+    LANDSCAPE_LOCK: "Lock / unlock landscape",
+    LANDSCAPE_TRASH: "Mark landscape weird",
+    BROKER_PANEL: "Broker",
+    FMODE_PANEL: "F-Mode",
+    VOICE_TOGGLE: "Voice",
+}
+
+
+def _action_tooltip(action_id: str, takeover_hover: str) -> str:
+    if action_id == GENAU_TOGGLE_AUTO:
+        return takeover_hover  # live allowed/suppressed state
+    return _ACTION_TOOLTIPS.get(action_id, "")
+
+
 def build_dashboard_scene(
     layout: DashboardPreviewLayout,
     snapshot: DashboardSnapshot | None = None,
@@ -722,31 +769,13 @@ def build_dashboard_scene(
     )
     cable_arcs: tuple[DashboardArcItem, ...] = ()
 
-    return DashboardScene(
+    scene = DashboardScene(
         width=layout.dashboard_width,
         height=layout.dashboard_height,
         rects=rects,
         texts=texts,
         images=images,
-        hover_texts=(
-            (layout.quit_button, "Quit"),
-            (layout.omnipause_button, "Pause all"),
-            (layout.help_button, "Hotkeys & Voice"),
-            (layout.broker_panel, "Broker"),
-            (layout.fmode_panel, "F-Mode"),
-            (layout.voice_panel, "Voice"),
-            *(
-                ((layout.genau_cruise, "Cruise control"),)
-                if _is_genau else (
-                    (layout.genau_takeover, takeover_hover),
-                    (layout.hybrid_cruise, "Cruise control"),
-                )
-                if _is_hybrid else (
-                    (layout.genau_takeover, takeover_hover),
-                    (layout.nau_record, "Record loop"),
-                )
-            ),
-        ),
+        hover_texts=(),  # derived from actions below so every button has one
         lines=cable_lines,
         ovals=cable_ovals,
         arcs=cable_arcs,
@@ -812,6 +841,12 @@ def build_dashboard_scene(
             (VOICE_TOGGLE, layout.voice_panel),
         ),
     )
+    hover_texts = tuple(
+        (rect, text)
+        for action_id, rect in scene.actions
+        if (text := _action_tooltip(action_id, takeover_hover))
+    )
+    return replace(scene, hover_texts=hover_texts)
 
 
 # ---------------------------------------------------------------------------
