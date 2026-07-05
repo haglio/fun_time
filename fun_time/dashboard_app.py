@@ -41,7 +41,7 @@ from shared_ui.fonts import (
 
 from fun_time.config import LayoutConfig
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.vlc_actions import get_current_file_path, vlc_http_req
+from fun_time.vlc_actions import get_current_file_path
 from fun_time.dashboard_actions import (
     BROKER_PANEL,
     CLIPPER_SAVE,
@@ -82,7 +82,7 @@ from fun_time.dashboard_actions import (
 )
 from fun_time.command_reference import render_reference_html
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
-from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status
+from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status, read_nau_status
 from fun_time.dashboard_state import (
     LABEL_LANDSCAPE_VLC,
     LABEL_OSR2,
@@ -125,9 +125,8 @@ def lighten_color(color: QColor, amount: int = 50) -> QColor:
 class DashboardAppConfig:
     layout: LayoutConfig
     manifest_path: Path
-    primary_sources: str
     favs_file: Path
-    primary_vlc_port: int
+    nau_status_file: Path
     portrait_vlc_port: int
     landscape_vlc_port: int
     vlc_password: str
@@ -234,9 +233,8 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
     return DashboardAppConfig(
         layout=layout,
         manifest_path=manifest_path,
-        primary_sources=parser.get("media", "primary_vlc_sources", fallback=""),
         favs_file=Path(parser.get("media", "favs_file", fallback="favs.csv")),
-        primary_vlc_port=parser.getint("vlc", "primary_vlc_port", fallback=8090),
+        nau_status_file=Path(parser.get("commands", "nau_status_file", fallback="nau_status.txt")),
         portrait_vlc_port=parser.getint("vlc", "vlc2_port", fallback=8091),
         landscape_vlc_port=parser.getint("vlc", "vlc3_port", fallback=8092),
         vlc_password=parser.get("vlc", "vlc_pass", fallback=""),
@@ -255,15 +253,16 @@ class VlcHydration:
 
 
 def poll_vlc(app_config: DashboardAppConfig) -> VlcHydration:
-    primary_path = get_current_file_path(app_config.primary_vlc_port, app_config.vlc_password)
+    # Nau owns the primary display, so the primary panel's video and liveness
+    # come from Nau's status file; only the two satellites are still VLC.
+    nau = read_nau_status(app_config.nau_status_file)
     portrait_path = get_current_file_path(app_config.portrait_vlc_port, app_config.vlc_password)
     landscape_path = get_current_file_path(app_config.landscape_vlc_port, app_config.vlc_password)
-    status, xml = vlc_http_req(app_config.primary_vlc_port, "/requests/status.xml", app_config.vlc_password)
     return VlcHydration(
-        primary_path=primary_path,
+        primary_path=nau.video,
         portrait_path=portrait_path,
         landscape_path=landscape_path,
-        primary_responsive=status == 200 and "<state>" in xml,
+        primary_responsive=bool(nau.video),
     )
 
 

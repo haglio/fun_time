@@ -32,7 +32,7 @@ from fun_time.dashboard_app import (
     resolve_logical_monitor_sizes,
     write_dashboard_command,
 )
-from fun_time.dashboard_runtime import DashboardPanelSnapshot, DashboardSnapshot, DashboardWindowSnapshot
+from fun_time.dashboard_runtime import DashboardPanelSnapshot, DashboardSnapshot, DashboardWindowSnapshot, NauStatus
 from fun_time.dashboard_layout import DashboardPreviewLayout, Size, compute_dashboard_preview_layout
 from fun_time import load_config
 
@@ -46,9 +46,8 @@ def test_dashboard_app_loads_layout_from_manifest(cfg_path: Path, tmp_path: Path
     assert app_config.layout.main_monitor == 1
     assert app_config.layout.secondary_monitor == 2
     assert app_config.layout.landscape_width_ratio == config.layout.landscape_width_ratio
-    assert app_config.primary_sources == "|".join(str(path) for path in config.paths.primary_vlc_dirs)
     assert app_config.favs_file == config.paths.favs_file
-    assert app_config.primary_vlc_port == config.vlc.primary_vlc_http_port
+    assert app_config.nau_status_file == config.paths.state_dir / "nau_status.txt"
     assert app_config.portrait_vlc_port == config.vlc.vlc2_http_port
     assert app_config.landscape_vlc_port == config.vlc.vlc3_http_port
     assert app_config.vlc_password == "vlc-pass"
@@ -673,14 +672,16 @@ def test_dashboard_app_hydrates_live_vlc_state():
     assert hydrated.primary_responsive is True
 
 
-def test_poll_vlc_returns_vlc_hydration(cfg_path: Path, tmp_path: Path):
+def test_poll_vlc_reads_primary_from_nau_status(cfg_path: Path, tmp_path: Path):
+    """The primary panel's video comes from Nau (which owns the primary
+    display), while the two satellites still come from their VLC HTTP ports."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
     app_config = load_dashboard_app_config(manifest_path)
 
     with (
-        patch("fun_time.dashboard_app.get_current_file_path", side_effect=["p.mp4", "po.mp4", "l.mp4"]),
-        patch("fun_time.dashboard_app.vlc_http_req", return_value=(200, "<state>playing</state>")),
+        patch("fun_time.dashboard_app.read_nau_status", return_value=NauStatus(video="p.mp4")),
+        patch("fun_time.dashboard_app.get_current_file_path", side_effect=["po.mp4", "l.mp4"]),
     ):
         result = poll_vlc(app_config)
 
@@ -691,14 +692,14 @@ def test_poll_vlc_returns_vlc_hydration(cfg_path: Path, tmp_path: Path):
     assert result.primary_responsive is True
 
 
-def test_poll_vlc_marks_unresponsive_on_vlc_failure(cfg_path: Path, tmp_path: Path):
+def test_poll_vlc_marks_primary_unresponsive_when_nau_reports_no_video(cfg_path: Path, tmp_path: Path):
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
     app_config = load_dashboard_app_config(manifest_path)
 
     with (
+        patch("fun_time.dashboard_app.read_nau_status", return_value=NauStatus()),
         patch("fun_time.dashboard_app.get_current_file_path", return_value=""),
-        patch("fun_time.dashboard_app.vlc_http_req", return_value=(0, "")),
     ):
         result = poll_vlc(app_config)
 
