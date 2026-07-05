@@ -305,11 +305,33 @@ def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIn
         timeout=15,
         description="Nau to report a loaded video with a known duration",
     )
-    duration = s.read_nau_duration_ms()
 
-    # The shared session leaves the looping playhead at an arbitrary spot; if it
-    # sits near the end, a forward seek clamps at the duration and never advances.
-    # Nudge back until there is comfortable forward headroom first.
+    # The library is a random sample of real clips with mixed lengths, and a
+    # ±10s nudge is only observable on a video long enough to hold ~15s of
+    # forward headroom. Advance through the playlist until one loads that is
+    # long enough for the seek assertions below.
+    MIN_DURATION_MS = 25_000
+    for _ in range(12):
+        if s.read_nau_duration_ms() >= MIN_DURATION_MS:
+            break
+        prev_video = s.read_nau_status().video
+        s.write_dashboard_command("primary_next")
+        s.wait_until(
+            lambda pv=prev_video: (
+                s.read_nau_status().video not in ("", pv)
+                and s.read_nau_duration_ms() > 0
+            ),
+            timeout=15,
+            description="Nau to load the next video",
+        )
+    duration = s.read_nau_duration_ms()
+    assert duration >= MIN_DURATION_MS, (
+        f"no sampled video long enough for a ±10s nudge test: duration={duration}"
+    )
+
+    # The looping playhead sits at an arbitrary spot; if it is near the end, a
+    # forward seek clamps at the duration and never advances. Nudge back until
+    # there is comfortable forward headroom first.
     for _ in range(30):
         if s.read_nau_status().position_ms <= duration - 15_000:
             break
