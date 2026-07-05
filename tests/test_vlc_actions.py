@@ -305,46 +305,6 @@ def test_get_repeat_mode_returns_off_when_tags_missing(monkeypatch):
     assert vlc_actions.get_repeat_mode(8080, "pw") == "off"
 
 
-def test_get_playback_time_returns_none_on_http_failure(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
-    assert vlc_actions.get_playback_time(8080, "pw") is None
-
-
-def test_get_playback_time_returns_none_when_time_tag_missing(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<root></root>"))
-    assert vlc_actions.get_playback_time(8080, "pw") is None
-
-
-def test_get_playback_time_returns_none_on_non_numeric_value(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<time>not_a_number</time>"))
-    assert vlc_actions.get_playback_time(8080, "pw") is None
-
-
-def test_get_playback_time_returns_float_on_success(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<time>42.5</time>"))
-    assert vlc_actions.get_playback_time(8080, "pw") == 42.5
-
-
-def test_get_playback_time_and_length_returns_both(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<time>42</time><length>300</length>"))
-    assert vlc_actions.get_playback_time_and_length(8080, "pw") == (42.0, 300.0)
-
-
-def test_get_playback_time_and_length_defaults_length_to_zero_when_missing(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<time>42</time>"))
-    assert vlc_actions.get_playback_time_and_length(8080, "pw") == (42.0, 0.0)
-
-
-def test_get_playback_time_and_length_returns_none_when_time_missing(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<length>300</length>"))
-    assert vlc_actions.get_playback_time_and_length(8080, "pw") is None
-
-
-def test_get_playback_time_and_length_returns_none_on_http_failure(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
-    assert vlc_actions.get_playback_time_and_length(8080, "pw") is None
-
-
 def test_get_playback_state_returns_none_on_http_failure(monkeypatch):
     monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
     assert vlc_actions.get_playback_state(8080, "pw") is None
@@ -444,59 +404,6 @@ def test_restore_vlcrc_volume_ignores_missing_vlcrc(tmp_path: Path, monkeypatch)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     # Should not raise even with no vlcrc file
     vlc_actions.restore_vlcrc_volume(256)
-
-
-_HANDOFF_XML = (
-    '<root><item id="plid_1"><item id="plid_4" '
-    'uri="file:///C:/vids/videos/First%20Clip.mp4" name="First Clip"/>'
-    '<item id="plid_5" current="current" '
-    'uri="file:///C:/vids/videos/second&amp;half.mkv" name="second"/></item></root>'
-)
-
-
-def _capture_cmds(monkeypatch, xml=_HANDOFF_XML, state="playing"):
-    cmds: list[str] = []
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, xml))
-    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, password: cmds.append(cmd) or True)
-    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: state)
-    return cmds
-
-
-def test_play_item_at_plays_matching_item_and_seeks(monkeypatch):
-    cmds = _capture_cmds(monkeypatch)
-
-    ok = vlc_actions.play_item_at(8090, "pw", "C:/vids/videos/First Clip.mp4", 62.7, sleep_fn=lambda s: None)
-
-    assert ok is True
-    assert "pl_play&id=4" in cmds
-    assert "seek&val=62" in cmds
-
-
-def test_play_item_at_matches_backslash_paths_case_insensitively(monkeypatch):
-    cmds = _capture_cmds(monkeypatch)
-
-    windows_path = "c:" + "\\" + "VIDS" + "\\" + "videos" + "\\" + "SECOND&HALF.MKV"
-    ok = vlc_actions.play_item_at(8090, "pw", windows_path, 0, sleep_fn=lambda s: None)
-
-    assert ok is True
-    assert "pl_play&id=5" in cmds
-    # position 0: nothing to seek to
-    assert not any(c.startswith("seek") for c in cmds)
-
-
-def test_play_item_at_returns_false_when_path_not_in_playlist(monkeypatch):
-    cmds = _capture_cmds(monkeypatch)
-
-    ok = vlc_actions.play_item_at(8090, "pw", "C:/vids/videos/missing.mp4", 30, sleep_fn=lambda s: None)
-
-    assert ok is False
-    assert cmds == []
-
-
-def test_play_item_at_returns_false_when_playlist_unreadable(monkeypatch):
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (404, ""))
-
-    assert vlc_actions.play_item_at(8090, "pw", "C:/vids/x.mp4", 5, sleep_fn=lambda s: None) is False
 
 
 def test_ensure_playback_state_never_pauses_a_stopped_vlc(monkeypatch):

@@ -326,31 +326,23 @@ def test_landscape_next_ensures_playback_after_nav(tmp_path: Path):
 # --- primary_prev / primary_next ---
 
 
-def test_primary_prev_in_hybrid_calls_vlc_nav_step(tmp_path: Path):
+def test_primary_prev_in_hybrid_writes_nau_cmd(tmp_path: Path):
+    """Hybrid displays Nau, so navigation goes to Nau's command file, not VLC."""
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="hybrid")
-    nav_calls: list[tuple] = []
 
-    with patch("fun_time.command_dispatch.vlc_nav_step",
-               side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
-        dispatch_command("primary_prev", state, config)
+    dispatch_command("primary_prev", state, config)
 
-    assert nav_calls == [(config.primary_port, "prev")]
-    assert not config.nau_cmd_file.exists()
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV"
 
 
-def test_primary_next_in_hybrid_calls_vlc_nav_step(tmp_path: Path):
-    """In hybrid mode the primary VLC displays video, so navigation goes to
-    it via vlc_nav_step (pl_play&id=N)."""
+def test_primary_next_in_hybrid_writes_nau_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="hybrid")
-    nav_calls: list[tuple] = []
 
-    with patch("fun_time.command_dispatch.vlc_nav_step",
-               side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
-        dispatch_command("primary_next", state, config)
+    dispatch_command("primary_next", state, config)
 
-    assert nav_calls == [(config.primary_port, "next")]
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
 def test_primary_next_in_nau_mode_writes_nau_cmd(tmp_path: Path):
@@ -416,11 +408,20 @@ def test_nau_length_full_writes_set_length_mode(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full"
 
 
-def test_nau_length_mode_not_written_outside_nau_mode(tmp_path: Path):
-    """Length/version actions target the Nau display, so they are inert unless
-    Nau owns the primary slot."""
+def test_nau_length_mode_written_in_hybrid_mode(tmp_path: Path):
+    """Nau owns the display in hybrid too, so length/version actions apply."""
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="hybrid")
+
+    dispatch_command("nau_length_shorts", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts"
+
+
+def test_nau_length_mode_not_written_in_genau_mode(tmp_path: Path):
+    """Length/version actions are inert in genau mode, where Genau owns the display."""
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="genau")
 
     dispatch_command("nau_length_shorts", state, config)
 
@@ -474,7 +475,7 @@ def test_omnipause_toggle_enters_pause_from_unpaused(tmp_path: Path):
     paused_ports = [c[0] for c in playback_calls if not c[2]]
     assert config.portrait_port in paused_ports
     assert config.landscape_port in paused_ports
-    assert config.primary_port in paused_ports
+    assert config.primary_port not in paused_ports
 
 
 def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
@@ -637,12 +638,11 @@ def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
 
     assert new_state.primary_mode == "hybrid"
     slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
-    # Hybrid shows the primary VLC underneath Genau's transparent HUD.
+    # Hybrid shows Nau underneath Genau's transparent HUD (Genau drives the OSR2).
     assert slot_ops == [
-        ("show_role", "primary"),
+        ("show_role", "nau"),
         ("show_role", "genau"),
         ("activate_role", "genau"),
-        ("hide_role", "nau"),
     ]
 
 
@@ -792,7 +792,7 @@ def test_genau_numeric_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     assert ops == []
 
 
-def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
+def test_enter_omnipause_pauses_satellites_and_suspends(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
     playback_calls: list[tuple[int, str, bool]] = []
@@ -809,7 +809,7 @@ def test_enter_omnipause_pauses_all_vlcs_and_suspends(tmp_path: Path):
     paused_ports = [c[0] for c in playback_calls if not c[2]]
     assert config.portrait_port in paused_ports
     assert config.landscape_port in paused_ports
-    assert config.primary_port in paused_ports
+    assert config.primary_port not in paused_ports
 
 
 def test_enter_omnipause_emits_disable_all_topmost(tmp_path: Path):
@@ -847,12 +847,12 @@ def test_omnipause_toggle_leave_emits_restore_all_topmost(tmp_path: Path):
     assert any(op.op == "restore_all_topmost" for op in ops)
 
 
-def test_leave_omnipause_skip_primary_emits_restore_all_topmost(tmp_path: Path):
+def test_leave_omnipause_emits_restore_all_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
+        new_state, ops = dispatch_command("leave_omnipause", state, config)
 
     assert any(op.op == "restore_all_topmost" for op in ops)
 
@@ -879,7 +879,7 @@ def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
     assert not any(op.op == "hide_role" and op.key == "genau" for op in ops)
 
 
-def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):
+def test_leave_omnipause_resumes_satellites_only(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
     playback_calls: list[tuple[int, str, bool]] = []
@@ -889,7 +889,7 @@ def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):
         return True
 
     with patch("fun_time.runtime_flow.ensure_playback_state", side_effect=track_playback):
-        new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
+        new_state, ops = dispatch_command("leave_omnipause", state, config)
 
     assert new_state.omni_paused is False
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
@@ -899,12 +899,12 @@ def test_leave_omnipause_skip_primary_resumes_satellites_only(tmp_path: Path):
     assert config.primary_port not in resumed_ports
 
 
-def test_leave_omnipause_skip_primary_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
+def test_leave_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True, primary_mode="genau")
 
     with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("leave_omnipause_skip_primary", state, config)
+        new_state, ops = dispatch_command("leave_omnipause", state, config)
 
     assert any(op.op == "activate_role" and op.key == "genau" for op in ops)
 
@@ -912,17 +912,15 @@ def test_leave_omnipause_skip_primary_adds_genau_ops_when_in_genau_mode(tmp_path
 # --- primary nudge ---
 
 
-def test_primary_nudge_in_hybrid_is_a_dispatch_noop(tmp_path: Path):
-    """Hybrid nudges are intercepted by the dispatch loop's seek
-    accumulator before dispatch_command ever sees them; if one arrives
-    anyway it must not touch Nau's command file."""
+def test_primary_nudge_in_hybrid_writes_nau_seek(tmp_path: Path):
+    """Hybrid displays Nau, so nudges seek Nau just like in nau mode."""
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="hybrid")
 
     new_state, ops = dispatch_command("primary_nudge_prev", state, config)
 
     assert ops == []
-    assert not config.nau_cmd_file.exists()
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK"
 
 
 def test_primary_nudge_in_nau_mode_writes_nau_seek(tmp_path: Path):
@@ -956,14 +954,25 @@ def test_nau_record_commands_write_nau_cmd_in_nau_mode(tmp_path: Path):
         config.nau_cmd_file.unlink()
 
 
-def test_nau_record_commands_noop_outside_nau_mode(tmp_path: Path):
+def test_nau_record_commands_work_in_hybrid_mode(tmp_path: Path):
+    """Hybrid displays Nau, so loop recording works there too."""
     config = _make_config(tmp_path)
+    state = _make_state(primary_mode="hybrid")
 
-    for mode in ("genau", "hybrid"):
-        state = _make_state(primary_mode=mode)
-        new_state, ops = dispatch_command("nau_record_tap", state, config)
-        assert not config.nau_cmd_file.exists()
-        assert ops == []
+    new_state, ops = dispatch_command("nau_record_tap", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "RECORD_TAP"
+    assert ops == []
+
+
+def test_nau_record_commands_noop_in_genau_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="genau")
+
+    new_state, ops = dispatch_command("nau_record_tap", state, config)
+
+    assert not config.nau_cmd_file.exists()
+    assert ops == []
 
 
 # --- unknown command ---
@@ -983,12 +992,15 @@ def test_unknown_command_returns_unchanged_state(tmp_path: Path):
 
 
 def test_clipper_save_calls_subprocess_in_hybrid_mode(tmp_path: Path):
+    """Hybrid displays Nau, so clipper reads the current video/time from Nau's status."""
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="hybrid")
+    config.nau_status_file.write_text(
+        "video=C:\\videos\\test.mp4\nposition_ms=42500\nstate=normal\npaused=0\n",
+        encoding="utf-8",
+    )
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
-         patch("fun_time.command_dispatch.get_playback_time", return_value=42.5), \
-         patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
+    with patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
          patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
         mock_subprocess.run.return_value.returncode = 0
         mock_subprocess.run.return_value.stdout = r"C:\clipper\sessions\test.json"
@@ -1014,10 +1026,11 @@ def test_clipper_save_calls_subprocess_in_hybrid_mode(tmp_path: Path):
 def test_clipper_save_no_tooltip_on_failure(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="hybrid")
+    config.nau_status_file.write_text(
+        "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
+    )
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
-         patch("fun_time.command_dispatch.get_playback_time", return_value=42.5), \
-         patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
+    with patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
          patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
         mock_subprocess.run.return_value.returncode = 1
         mock_subprocess.run.return_value.stdout = ""
@@ -1042,21 +1055,9 @@ def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
 def test_clipper_save_skips_when_no_video_playing(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="hybrid")
+    # No nau_status file → no current video → nothing to clip.
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=""), \
-         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
-        new_state, ops = dispatch_command("clipper_save", state, config)
-
-    mock_subprocess.run.assert_not_called()
-
-
-def test_clipper_save_skips_when_no_playback_time(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
-
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\test.mp4"), \
-         patch("fun_time.command_dispatch.get_playback_time", return_value=None), \
-         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+    with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
         new_state, ops = dispatch_command("clipper_save", state, config)
 
     mock_subprocess.run.assert_not_called()

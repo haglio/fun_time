@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import base64
 import logging
-import html
 import re
-from urllib.parse import unquote, urlparse
 import time
 import urllib.parse
 import urllib.request
@@ -116,38 +114,6 @@ def get_repeat_mode(port: int, password: str) -> str | None:
     return "off"
 
 
-def get_playback_time_and_length(port: int, password: str) -> tuple[float, float] | None:
-    """Return VLC's ``(time, length)`` in seconds, or None if time is unavailable.
-
-    ``length`` is 0.0 when VLC does not report one (streams / unprobed media);
-    callers treat 0 as "unknown", not "zero-length".
-    """
-    status, xml = vlc_http_req(port, "/requests/status.xml", password)
-    if status != 200 or not xml:
-        return None
-    time_match = re.search(r"<time>([^<]+)</time>", xml)
-    if not time_match:
-        return None
-    try:
-        time_s = float(time_match.group(1))
-    except ValueError:
-        return None
-    length_s = 0.0
-    length_match = re.search(r"<length>([^<]+)</length>", xml)
-    if length_match:
-        try:
-            length_s = float(length_match.group(1))
-        except ValueError:
-            length_s = 0.0
-    return time_s, length_s
-
-
-def get_playback_time(port: int, password: str) -> float | None:
-    """Return VLC's current playback position in seconds, or None on error."""
-    pos = get_playback_time_and_length(port, password)
-    return pos[0] if pos else None
-
-
 def get_playback_state(port: int, password: str) -> str | None:
     status, xml = vlc_http_req(port, "/requests/status.xml", password)
     if status != 200 or not xml:
@@ -199,70 +165,6 @@ def set_repeat_mode(
         vlc_http_cmd(port, "pl_repeat" if target == "one" else "pl_loop", password)
         sleep_fn(0.12)
     return False
-
-
-def _normalize_media_path(path: str) -> str:
-    return path.replace("/", "\\").casefold().rstrip("\\")
-
-
-def _find_item_id_by_path(xml: str, video_path: str) -> int:
-    """Resolve a playlist item id whose file URI matches *video_path*.
-
-    Returns -1 when no item matches.  Comparison is slash- and
-    case-insensitive so an OS path from Nau's status file matches the
-    percent-encoded file:/// URI VLC reports.
-    """
-    want = _normalize_media_path(video_path)
-    for attrs in re.findall(r'<item\b([^>]*)>', xml):
-        uri_m = re.search(r'\buri="([^"]*)"', attrs)
-        id_m = re.search(r'\bid="plid_(\d+)"', attrs)
-        if not uri_m or not id_m:
-            continue
-        parsed = urlparse(html.unescape(uri_m.group(1)))
-        if parsed.scheme != "file":
-            continue
-        item_path = unquote(parsed.path)
-        # file:///C:/x → path "/C:/x"; drop the leading slash before the drive.
-        if re.match(r"/[A-Za-z]:", item_path):
-            item_path = item_path[1:]
-        if _normalize_media_path(item_path) == want:
-            return int(id_m.group(1))
-    return -1
-
-
-def play_item_at(
-    port: int,
-    password: str,
-    video_path: str,
-    seconds: float,
-    *,
-    sleep_fn=time.sleep,
-) -> bool:
-    """Play the playlist item matching *video_path*, seeking to *seconds*.
-
-    The hybrid-entry handoff: the primary VLC picks up the video (and
-    position) Nau was playing.  Returns False when the video is not in
-    VLC's playlist so the caller can fall back to plain resume.
-    """
-    status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
-    if status != 200 or not xml:
-        return False
-    item_id = _find_item_id_by_path(xml, video_path)
-    if item_id < 0:
-        return False
-    if not vlc_http_cmd(port, f"pl_play&id={item_id}", password):
-        return False
-    target = int(seconds)
-    if target <= 0:
-        return True
-    # Seeks sent before the item finishes opening are silently dropped —
-    # wait for the input to report playing before positioning it.
-    for _ in range(10):
-        if get_playback_state(port, password) == "playing":
-            break
-        sleep_fn(0.15)
-    vlc_http_cmd(port, f"seek&val={target}", password)
-    return True
 
 
 def _parse_playlist_ids(xml: str) -> tuple[list[int], int]:

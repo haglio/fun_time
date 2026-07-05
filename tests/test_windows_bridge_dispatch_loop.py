@@ -4,7 +4,7 @@ import socket
 import threading
 import time
 from pathlib import Path
-from unittest.mock import Mock, call, patch
+from unittest.mock import patch
 
 from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
 from fun_time.windows_bridge_dispatch_loop import (
@@ -35,10 +35,11 @@ PID_TO_HWND = {
     500: DASHBOARD_HWND,
 }
 
-# Every managed window carries a static topmost flag — True for all except
-# the hybrid-only primary VLC, which lives under Genau's HUD.
+# Every managed window carries a static topmost flag — True for all except the
+# primary-slot video windows (Nau and the primary VLC), which live under Genau's
+# HUD in hybrid mode.
 TOPMOST_HWNDS = {
-    RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, GENAU_HWND, NAU_HWND, DASHBOARD_HWND,
+    RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, GENAU_HWND, DASHBOARD_HWND,
 }
 
 
@@ -327,70 +328,25 @@ class TestDispatchLoopRunner:
         assert "portrait_next" in commands
         assert not cmd_file.exists()
 
-    def test_hybrid_nudges_call_seek_accumulator(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="hybrid")
-        (tmp_path / "dashboard_cmd.txt").write_text(
-            "primary_nudge_next\nprimary_nudge_prev", encoding="utf-8",
-        )
-        runner._seek_accumulator = Mock()
-
-        # tick() re-reads shared state from disk; keep the hybrid mode.
-        with patch("fun_time.windows_bridge_dispatch_loop.read_shared_state",
-                   return_value=BridgeState(primary_mode="hybrid")):
-            runner.tick()
-
-        assert runner._seek_accumulator.nudge.call_args_list == [call(1), call(-1)]
-
-    def test_nau_mode_nudges_bypass_accumulator_and_dispatch(self, tmp_path):
-        """Outside hybrid the nudge goes to dispatch_command (Nau's SEEK
-        commands stack naturally against its live clock)."""
+    def test_nudge_dispatches_to_command(self, tmp_path):
+        """Nau owns the primary display in every mode it appears, so a nudge
+        dispatches to Nau's SEEK command (which stacks against its live clock)."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("primary_nudge_next", encoding="utf-8")
-        runner._seek_accumulator = Mock()
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
-        runner._seek_accumulator.nudge.assert_not_called()
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "primary_nudge_next" in commands
 
-    def test_primary_nav_invalidates_seek_accumulator(self, tmp_path):
-        # Changing the primary video makes the running seek target meaningless.
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
-        (tmp_path / "dashboard_cmd.txt").write_text("primary_next", encoding="utf-8")
-        runner._seek_accumulator = Mock()
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
-                   return_value=(runner.state, [])), \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
-            runner.tick()
-
-        runner._seek_accumulator.invalidate.assert_called_once()
-
-    def test_seek_accumulator_reads_primary_and_issues_absolute_seek(self, tmp_path):
-        # The accumulator's read/seek callbacks must target the primary port,
-        # and the seek must be VLC's *absolute* form (no +/- sign).
-        runner = make_runner(tmp_path)
-        with patch("fun_time.windows_bridge_dispatch_loop.get_playback_time_and_length",
-                   return_value=(50.0, 300.0)) as read, \
-             patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd",
-                   return_value=True) as seek:
-            runner._seek_accumulator.nudge(1)
-
-        read.assert_called_once_with(9090, "test")
-        seek.assert_called_once_with(9090, "seek&val=60", "test")
-
     def test_omnipause_enter_via_tick_drops_topmost_on_managed_windows(self, tmp_path):
         """Entering omnipause frees the desktop: every window with a True
-        static topmost flag leaves the TOPMOST band; the hybrid-only primary
-        VLC (static False) is never touched."""
+        static topmost flag leaves the TOPMOST band; the primary-slot video
+        windows (static False) are never touched."""
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
@@ -517,8 +473,7 @@ class TestDispatchLoopRunner:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
             runner.tick()
             time.sleep(0.15)
 
@@ -543,8 +498,7 @@ class TestDispatchLoopRunner:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
             runner.tick()
             time.sleep(0.15)  # background thread needs a moment
 
@@ -673,8 +627,8 @@ class TestDispatchLoopRunner:
         # Minimized without activation so focus isn't yanked between windows.
         assert all(kw.get("activate") is False for _, kw in minimized)
 
-    def test_omniminimize_in_hybrid_includes_primary_and_genau(self, tmp_path):
-        """Hybrid shows the primary VLC under Genau's HUD; Nau is hidden."""
+    def test_omniminimize_in_hybrid_includes_nau_and_genau(self, tmp_path):
+        """Hybrid shows Nau under Genau's HUD (Genau drives the OSR2)."""
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         runner.state = BridgeState(primary_mode="hybrid")
@@ -690,7 +644,7 @@ class TestDispatchLoopRunner:
 
         assert set(minimized) == {
             RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
-            PRIMARY_HWND, GENAU_HWND,
+            NAU_HWND, GENAU_HWND,
         }
 
     def test_omniminimize_skips_windows_that_are_not_found(self, tmp_path):
@@ -940,15 +894,14 @@ class TestModeSwitchVisibility:
             ("hide", PRIMARY_HWND),
         ]
 
-    def test_hybrid_activate_shows_primary_and_genau(self, tmp_path, monkeypatch):
+    def test_hybrid_activate_shows_nau_and_genau(self, tmp_path, monkeypatch):
         calls = self._run_mode_switch(
             tmp_path, monkeypatch, from_mode="nau", command="hybrid_activate",
         )
         assert calls == [
-            ("show", PRIMARY_HWND),
+            ("show", NAU_HWND),
             ("show", GENAU_HWND),
             ("activate", GENAU_HWND),
-            ("hide", NAU_HWND),
         ]
 
     def test_hybrid_to_genau_hides_primary(self, tmp_path, monkeypatch):
@@ -1086,8 +1039,7 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
@@ -1113,8 +1065,7 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
@@ -1132,13 +1083,11 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
-             patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd"):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI", owner_hwnd=PRIMARY_HWND)
+        mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI", owner_hwnd=NAU_HWND)
 
     def test_sends_selected_file_to_nau_by_default(self, tmp_path):
         """In nau mode (the default) a selected file becomes a Nau PLAY_FILE
@@ -1157,17 +1106,16 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=str(video)), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc:
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=str(video)):
             mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
             runner._handle_open_file_dialog()
 
-        mock_vlc.assert_not_called()
         command = runner.config.nau_cmd_file.read_text(encoding="utf-8")
         assert command == f"PLAY_FILE {video}\t{mirrored}"
 
-    def test_sends_selected_file_to_vlc_via_http_in_hybrid(self, tmp_path):
-        """In hybrid mode a selected file is sent to the primary VLC via in_play."""
+    def test_sends_selected_file_to_nau_in_hybrid(self, tmp_path):
+        """Hybrid displays Nau, so a selected file becomes a Nau PLAY_FILE
+        command there too (no funscript pairing when none exists)."""
         config = make_config(tmp_path, primary_sources=r"C:\videos")
         runner = make_runner(tmp_path, config=config)
         runner.state = BridgeState(omni_paused=False, primary_mode="hybrid")
@@ -1176,17 +1124,14 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc, \
-             patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd") as mock_http:
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"):
             mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
             runner._handle_open_file_dialog()
 
-        mock_vlc.assert_called_once_with(9090, "in_play", r"C:\videos\movie.mp4", "test")
-        mock_http.assert_called_once_with(9090, "pl_play", "test")
+        assert runner.config.nau_cmd_file.read_text(encoding="utf-8") == r"PLAY_FILE C:\videos\movie.mp4"
 
-    def test_does_not_send_to_vlc_on_cancel(self, tmp_path):
-        """When user cancels the dialog, no HTTP command is sent."""
+    def test_does_not_play_anything_on_cancel(self, tmp_path):
+        """When the user cancels the dialog, nothing is sent to Nau."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
@@ -1194,14 +1139,11 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command") as mock_vlc, \
-             patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd") as mock_http:
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        mock_vlc.assert_not_called()
-        mock_http.assert_not_called()
+        assert not runner.config.nau_cmd_file.exists()
 
     def test_restores_topmost_in_finally(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
@@ -1222,16 +1164,15 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "leave_omnipause_skip_primary" in dispatched
+        assert "leave_omnipause" in dispatched
 
-        # Every True-flagged window gets its TOPMOST bit back; the
-        # hybrid-only primary VLC is never touched.
+        # Every True-flagged window gets its TOPMOST bit back; the primary-slot
+        # video windows (Nau and the primary VLC) are never touched.
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS
 
@@ -1254,16 +1195,16 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
             mock_dispatch.return_value = (BridgeState(omni_paused=True, primary_mode="genau"), [])
             runner._handle_open_file_dialog()
 
-        # The static flags are mode-independent: the hidden Nau window still
-        # gets its flag back, the primary VLC never does.
+        # The static flags are mode-independent: the primary-slot video windows
+        # (Nau and the primary VLC) never get a topmost flag.
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS
         assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
+        assert NAU_HWND not in {h for h, _ in topmost_calls}
 
     def test_topmost_removed_before_dialog(self, tmp_path):
         """Topmost removal happens before showing the file dialog."""
@@ -1282,8 +1223,7 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d, **kw: (call_log.append("dialog"), None)[-1]), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d, **kw: (call_log.append("dialog"), None)[-1]):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
@@ -1296,19 +1236,17 @@ class TestHandleOpenFileDialog:
         runner.state = BridgeState(omni_paused=True)
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=PRIMARY_HWND), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=NAU_HWND), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
-             patch("fun_time.windows_bridge_dispatch_loop.vlc_http_cmd"):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
             runner._handle_open_file_dialog()
 
         # Should not dispatch enter/leave omnipause
         mock_dispatch.assert_not_called()
         # Should not touch topmost
         mock_topmost.assert_not_called()
-        # Should still show the file dialog with primary hwnd
-        mock_dialog.assert_called_once_with("", owner_hwnd=PRIMARY_HWND)
+        # Should still show the file dialog owned by the Nau window
+        mock_dialog.assert_called_once_with("", owner_hwnd=NAU_HWND)
 
     def test_shows_dialog_with_empty_dir_when_no_primary_sources(self, tmp_path):
         """When primary_sources is empty, dialog opens with empty initial dir."""
@@ -1319,8 +1257,7 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog, \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
@@ -1352,7 +1289,6 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"), \
              patch.object(Path, "write_text", capture_write):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
@@ -1365,8 +1301,7 @@ class TestHandleOpenFileDialog:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)  # fast path — no omnipause
 
-        with patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vlc_input_command"):
+        with patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
             original_handle = runner._handle_open_file_dialog
 
             barrier = threading.Barrier(2, timeout=2.0)
@@ -1770,20 +1705,20 @@ class TestIdempotentVoiceCommands:
 
 class TestSeededRoleHwnds:
     def test_startup_seed_lets_hidden_windows_be_shown_again(self, tmp_path):
-        """Startup hides Genau and the primary VLC BEFORE the dispatch loop
-        ever resolves them, and hidden windows are invisible to the pid/title
-        lookups — so the runner must be seeded with the hwnds the startup
-        sequencer resolved while everything was still visible, or genau/
+        """Startup hides the primary-slot windows (Nau, Genau) BEFORE the
+        dispatch loop ever resolves them, and hidden windows are invisible to
+        the pid/title lookups — so the runner must be seeded with the hwnds the
+        startup sequencer resolved while everything was still visible, or genau/
         hybrid modes could never bring their windows back."""
         runner = make_runner(
             tmp_path,
-            role_hwnds={"genau": 6001, "primary": 1001},
+            role_hwnds={"genau": 6001, "nau": 2001},
         )
         shown: list[int] = []
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0),              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0),              patch("fun_time.windows_bridge_dispatch_loop.show_window", side_effect=shown.append):
             assert runner._resolve_role("genau") == 6001
-            assert runner._resolve_role("primary") == 1001
+            assert runner._resolve_role("nau") == 2001
             runner._dispatch("hybrid_activate")
 
-        assert shown == [1001, 6001]  # hybrid shows primary VLC then the Genau HUD
+        assert shown == [2001, 6001]  # hybrid shows Nau then the Genau HUD

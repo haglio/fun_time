@@ -22,8 +22,6 @@ from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on
 from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
-from .vlc_actions import get_playback_time_and_length, send_vlc_input_command, vlc_http_cmd
-from .vlc_seek import PrimarySeekAccumulator
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -205,20 +203,8 @@ class DispatchLoopRunner:
         self._role_hwnds: dict[str, int] = dict(role_hwnds or {})
         self._minimized_hwnds: list[int] = []
         self.voice_controller: VoiceController | None = None
-        self._seek_accumulator = PrimarySeekAccumulator(
-            read_position=lambda: get_playback_time_and_length(
-                config.primary_port, config.vlc_password
-            ),
-            seek=self._seek_primary_absolute,
-        )
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
-
-    def _seek_primary_absolute(self, target_seconds: float) -> None:
-        """Seek the Primary VLC to an absolute position (seconds)."""
-        val = int(round(target_seconds))
-        ok = vlc_http_cmd(self.config.primary_port, f"seek&val={val}", self.config.vlc_password)
-        logger.info("primary_seek → %ds → %s", val, "ok" if ok else "FAILED")
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
@@ -297,19 +283,6 @@ class DispatchLoopRunner:
                 self._handle_broker_stop()
             elif cmd in ("voice_off", "voice_toggle"):
                 self._handle_voice_toggle(cmd)
-            elif cmd in ("primary_nudge_next", "primary_nudge_prev"):
-                if self.state.primary_mode == "hybrid":
-                    # The primary VLC plays only in hybrid; stack rapid
-                    # nudges into absolute seeks on its behalf.
-                    self._seek_accumulator.nudge(1 if cmd == "primary_nudge_next" else -1)
-                else:
-                    # Nau owns the primary display: its SEEK commands apply
-                    # to a live local clock, so they stack naturally.
-                    self._dispatch(cmd)
-            elif cmd in ("primary_prev", "primary_next"):
-                # A video change invalidates the running seek target.
-                self._seek_accumulator.invalidate()
-                self._dispatch(cmd)
             else:
                 self._dispatch(cmd)
 
@@ -407,14 +380,15 @@ class DispatchLoopRunner:
 
     # Windows never stack anymore (the dashboard/RFB got their own screen
     # rects), so z-order management is gone: every managed window carries a
-    # STATIC topmost flag — True for all except the hybrid-only primary VLC,
-    # which lives under Genau's transparent HUD and must never rise above it.
+    # STATIC topmost flag — True for all except the primary-slot video windows
+    # (Nau and the primary VLC), which live under Genau's transparent HUD in
+    # hybrid mode and must never rise above it.
     _ROLE_TOPMOST: dict[str, bool] = {
         "rfb": True,
         "portrait": True,
         "landscape": True,
         "genau": True,
-        "nau": True,
+        "nau": False,
         "dashboard": True,
         "primary": False,
     }
@@ -454,7 +428,7 @@ class DispatchLoopRunner:
         """Roles whose windows the current mode keeps on screen."""
         slot = {
             "genau": ["genau"],
-            "hybrid": ["primary", "genau"],
+            "hybrid": ["nau", "genau"],
         }.get(self.state.primary_mode, ["nau"])
         return ["rfb", "portrait", "landscape", "dashboard", *slot]
 
@@ -596,27 +570,20 @@ class DispatchLoopRunner:
 
         try:
             default_dir = self.config.primary_sources.split("|")[0] if self.config.primary_sources else ""
-            primary_hwnd = find_window_by_pid(self.primary_pid)
-            selected = show_open_file_dialog(default_dir or "", owner_hwnd=primary_hwnd)
+            owner_hwnd = self._resolve_role("nau")
+            selected = show_open_file_dialog(default_dir or "", owner_hwnd=owner_hwnd)
             if selected:
-                if self.state.primary_mode == "hybrid":
-                    send_vlc_input_command(
-                        self.config.primary_port,
-                        "in_play",
-                        selected,
-                        self.config.vlc_password,
-                    )
-                    vlc_http_cmd(self.config.primary_port, "pl_play", self.config.vlc_password)
+                # Nau owns the primary display; play the pick there, paired with
+                # its funscript when one exists at the mirrored path.
+                mirrored = build_mirrored_funscript_path(selected)
+                if mirrored and Path(mirrored).exists():
+                    command = f"PLAY_FILE {selected}\t{mirrored}"
                 else:
-                    mirrored = build_mirrored_funscript_path(selected)
-                    if mirrored and Path(mirrored).exists():
-                        command = f"PLAY_FILE {selected}\t{mirrored}"
-                    else:
-                        command = f"PLAY_FILE {selected}"
-                    self.config.nau_cmd_file.write_text(command, encoding="utf-8")
+                    command = f"PLAY_FILE {selected}"
+                self.config.nau_cmd_file.write_text(command, encoding="utf-8")
         finally:
             if should_manage_omnipause:
-                self._dispatch("leave_omnipause_skip_primary")
+                self._dispatch("leave_omnipause")
 
     def run(self) -> None:
         """Main loop — call from a background thread."""

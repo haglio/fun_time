@@ -10,8 +10,7 @@ logger = logging.getLogger(__name__)
 from .modes import build_fmode_playlists, build_satellite_playlists
 from .omnipause import build_omnipause_plan
 from .mode_plan import build_mode_switch_plan, genau_active
-from .dashboard_runtime import read_nau_status
-from .vlc_actions import ensure_playback_state, play_item_at, replace_playlist_from_file
+from .vlc_actions import ensure_playback_state, replace_playlist_from_file
 
 NAU_RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
 
@@ -56,26 +55,6 @@ class RecencyOrderFlowResult:
     log_message: str
 
 
-def _start_hybrid_playback(
-    primary_port: int, password: str, nau_status_file: str | Path | None
-) -> bool:
-    """Make the primary VLC play for hybrid mode.
-
-    Nau and the primary VLC share the same library, so hybrid picks up the
-    video (and position) Nau was playing rather than resuming whatever the
-    idle primary last had — to the user, hybrid continues "the current
-    video".  Falls back to a plain resume when Nau's status is missing or
-    its video is not in VLC's playlist (e.g. F-mode filtered it out).
-    """
-    if nau_status_file is not None:
-        status = read_nau_status(Path(nau_status_file))
-        if status.video and play_item_at(
-            primary_port, password, status.video, status.position_ms / 1000
-        ):
-            return True
-    return ensure_playback_state(primary_port, password, should_play=True)
-
-
 def apply_mode_switch(
     *,
     current_mode: str,
@@ -85,10 +64,7 @@ def apply_mode_switch(
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
     nau_paused_file: str | Path,
-    primary_port: int,
-    password: str,
     broker_cmd_file: str | Path | None = None,
-    nau_status_file: str | Path | None = None,
 ) -> ModeSwitchFlowResult:
     plan = build_mode_switch_plan(
         current_mode=current_mode,
@@ -104,13 +80,6 @@ def apply_mode_switch(
         cmds = [cmd for cmd in (plan.genau_cmd, plan.hud_cmd) if cmd is not None]
         if cmds:
             Path(genau_cmd_file).write_text("\n".join(cmds), encoding="utf-8")
-        if plan.vlc_should_play is not None:
-            if plan.vlc_should_play:
-                started = _start_hybrid_playback(primary_port, password, nau_status_file)
-            else:
-                started = ensure_playback_state(primary_port, password, should_play=False)
-            if not started:
-                logger.warning("Primary VLC failed to reach desired mode-switch playback state")
         if not will_genau and broker_cmd_file is not None:
             Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
     return ModeSwitchFlowResult(
@@ -214,7 +183,6 @@ def build_omnipause_toggle(*, omni_paused: bool, primary_mode: str) -> OmniPause
         "toggle",
         omni_paused=omni_paused,
         primary_mode=primary_mode,
-        skip_primary_resume=False,
     )
     return OmniPauseFlowResult(
         action=plan.action,
@@ -230,7 +198,6 @@ def apply_enter_omnipause(
     primary_mode: str,
     portrait_port: int,
     landscape_port: int,
-    primary_port: int,
     password: str,
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
@@ -242,7 +209,6 @@ def apply_enter_omnipause(
         "enter",
         omni_paused=omni_paused,
         primary_mode=primary_mode,
-        skip_primary_resume=False,
     )
     write_flag_file(genau_paused_file, True)
     write_flag_file(audio_paused_file, True)
@@ -253,7 +219,6 @@ def apply_enter_omnipause(
     vlc_targets = [
         (portrait_port, "Portrait"),
         (landscape_port, "Landscape"),
-        (primary_port, "Primary"),
     ]
     with ThreadPoolExecutor(max_workers=len(vlc_targets)) as pool:
         futures = {
@@ -275,8 +240,6 @@ def apply_leave_omnipause(
     *,
     omni_paused: bool,
     primary_mode: str,
-    skip_primary_resume: bool,
-    primary_port: int,
     portrait_port: int,
     landscape_port: int,
     password: str,
@@ -290,7 +253,6 @@ def apply_leave_omnipause(
         "leave",
         omni_paused=omni_paused,
         primary_mode=primary_mode,
-        skip_primary_resume=skip_primary_resume,
     )
     if plan.genau_branch:
         write_flag_file(genau_paused_file, False)
@@ -304,8 +266,6 @@ def apply_leave_omnipause(
         (portrait_port, "Portrait"),
         (landscape_port, "Landscape"),
     ]
-    if plan.resume_primary_playback:
-        vlc_targets.append((primary_port, "Primary"))
     with ThreadPoolExecutor(max_workers=len(vlc_targets)) as pool:
         futures = {
             pool.submit(ensure_playback_state, port, password, should_play=True): label
