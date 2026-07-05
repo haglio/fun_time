@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
+from .media_metadata import load_metadata, metadata_path_for
+
 # (label, metadata key) in display order for the floating note / auto-fill.
 _IMAGE_SETTINGS = [
     ("Model", "model"),
@@ -32,37 +34,6 @@ _VIDEO_SETTINGS = [
     ("Seed", "seed"),
     ("Created", "created"),
 ]
-
-
-def _norm(path: str | Path) -> Path:
-    try:
-        return Path(path).resolve()
-    except OSError:
-        return Path(path)
-
-
-def metadata_path_for(
-    video_path: str | Path,
-    media_root: str | Path | None,
-    metadata_root: str | Path | None,
-) -> Path | None:
-    """Map a video file under *media_root* to its metadata JSON under *metadata_root*."""
-    if media_root is None or metadata_root is None:
-        return None
-    try:
-        rel = _norm(video_path).relative_to(_norm(media_root))
-    except ValueError:
-        return None
-    return Path(metadata_root) / rel.with_suffix(".json")
-
-
-def load_metadata(json_path: str | Path) -> dict:
-    try:
-        with open(json_path, encoding="utf-8") as fh:
-            data = json.load(fh)
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return data if isinstance(data, dict) else {}
 
 
 def _settings_pairs(block: dict, keys: list[tuple[str, str]]) -> list[list[str]]:
