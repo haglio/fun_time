@@ -21,8 +21,8 @@ from .runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_mode_switch,
+    apply_refresh_recency_order,
     apply_toggle_fmode,
-    apply_toggle_recency_order,
     build_omnipause_toggle,
 )
 from .vlc_actions import (
@@ -299,8 +299,8 @@ def dispatch_command(
     if command in ("fmode_toggle", "fmode_panel"):
         return _dispatch_fmode_toggle(state, config)
 
-    if command == "recency_order_toggle":
-        return _dispatch_recency_order_toggle(state, config)
+    if command == "recency_order_refresh":
+        return _dispatch_recency_order_refresh(state, config)
 
     if command in ("genau_activate", "nau_activate", "hybrid_activate"):
         target = {"genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid"}[command]
@@ -497,11 +497,10 @@ def _dispatch_fmode_toggle(
     ), []
 
 
-def _dispatch_recency_order_toggle(
+def _dispatch_recency_order_refresh(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    result = apply_toggle_recency_order(
-        recency_order=state.recency_order,
+    result = apply_refresh_recency_order(
         f_mode_enabled=state.f_mode_enabled,
         portrait_sources=config.portrait_sources,
         landscape_sources=config.landscape_sources,

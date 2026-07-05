@@ -161,9 +161,8 @@ def apply_toggle_fmode(
     )
 
 
-def apply_toggle_recency_order(
+def apply_refresh_recency_order(
     *,
-    recency_order: bool,
     f_mode_enabled: bool,
     portrait_sources: str,
     landscape_sources: str,
@@ -173,31 +172,32 @@ def apply_toggle_recency_order(
     landscape_port: int,
     password: str,
 ) -> RecencyOrderFlowResult:
-    """Toggle newest-first ordering for the Portrait/Landscape VLC playlists.
+    """Refresh the Portrait/Landscape VLC playlists to newest-first (Premiere).
 
-    Rebuilds only the two satellite playlists (honouring the current F-mode
-    filter) and reloads them into their VLCs.  The primary/Nau player is left
-    alone.  Pushing a fresh playlist with repeat-all clears any per-window lock,
-    so the caller's lock flags reset to match.
+    Rescans the satellite sources (honouring the current F-mode filter),
+    rebuilds their playlists newest-first, and reloads them — so a repeat press
+    picks up any newly-arrived files and restarts each player from the top
+    (``replace_playlist_from_file`` empties then re-plays from item 0).  The
+    primary/Nau player is left alone.  Pushing a fresh playlist with repeat-all
+    clears any per-window lock, so the caller's lock flags reset to match.
     """
-    target = not recency_order
     plan = build_satellite_playlists(
         portrait_sources=portrait_sources,
         landscape_sources=landscape_sources,
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         f_mode=f_mode_enabled,
-        recent=target,
+        recent=True,
     )
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
         logger.warning("Portrait VLC failed to load recency-ordered playlist")
     if not replace_playlist_from_file(landscape_port, password, plan.landscape_playlist_path, repeat_mode="all"):
         logger.warning("Landscape VLC failed to load recency-ordered playlist")
     return RecencyOrderFlowResult(
-        next_recency_order=target,
+        next_recency_order=True,
         next_locked2=False,
         next_locked3=False,
-        log_message=f"Recency order: {'enabled' if target else 'disabled'}",
+        log_message="Premiere: Portrait/Landscape reloaded newest-first",
     )
 
 
