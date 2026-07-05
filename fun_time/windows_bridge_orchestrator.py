@@ -49,7 +49,6 @@ def write_pids_file(path: Path, result: StartupResult) -> None:
     parser = configparser.ConfigParser()
     parser.optionxform = str
     parser["pids"] = {
-        "primary_pid": str(result.primary_pid),
         "nau_pid": str(result.nau_pid),
         "portrait_pid": str(result.portrait_pid),
         "landscape_pid": str(result.landscape_pid),
@@ -111,7 +110,6 @@ def _minimize_all_windows(result: StartupResult) -> None:
     focus transfers that steals the user's foreground window.
     """
     hwnds = [
-        find_window_by_pid(result.primary_pid),
         find_window_by_pid(result.portrait_pid),
         find_window_by_pid(result.landscape_pid),
         # Genau and Nau run behind venv pythonw launchers whose PIDs differ
@@ -134,7 +132,6 @@ def _shutdown_children(result: StartupResult) -> None:
     """Kill all child processes launched during startup."""
     close_window(result.rfb_hwnd)
     for pid in [
-        result.primary_pid,
         result.nau_pid,
         result.portrait_pid,
         result.landscape_pid,
@@ -197,7 +194,6 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=find_window_by_pid(result.portrait_pid),
         landscape_hwnd=find_window_by_pid(result.landscape_pid),
-        primary_hwnd=find_window_by_pid(result.primary_pid),
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
         nau_hwnd=find_window_by_pid(result.nau_pid)
         or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
@@ -262,8 +258,8 @@ def run_python_orchestrated_bridge(
         raise
 
     logger.info(
-        "Startup complete: primary=%d nau=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
-        result.primary_pid, result.nau_pid, result.portrait_pid, result.landscape_pid,
+        "Startup complete: nau=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
+        result.nau_pid, result.portrait_pid, result.landscape_pid,
         result.dashboard_pid, result.genau_pid, result.audio_pid,
     )
 
@@ -327,7 +323,6 @@ def run_python_orchestrated_bridge(
         dashboard_cmd_file=Path(manifest["commands"]["dashboard_cmd_file"]),
         shared_state_file=state_dir / "shared_bridge_state.ini",
         ahk_cmd_file=state_dir / "ahk_cmd.txt",
-        primary_pid=result.primary_pid,
         nau_pid=result.nau_pid,
         portrait_pid=result.portrait_pid,
         landscape_pid=result.landscape_pid,

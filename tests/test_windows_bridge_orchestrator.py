@@ -22,14 +22,13 @@ from fun_time.window_layout import WindowLayoutPlan, WindowRect
 def _fake_plan() -> WindowLayoutPlan:
     r = WindowRect(0, 0, 100, 100)
     return WindowLayoutPlan(
-        portrait=r, primary=r, landscape=r,
+        portrait=r, landscape=r,
         dashboard=r, random_favs_browser=r,
     )
 
 
 def _fake_startup_result() -> StartupResult:
     return StartupResult(
-        primary_pid=100,
         nau_pid=200,
         portrait_pid=300,
         landscape_pid=400,
@@ -79,7 +78,7 @@ class TestKillProcessTree:
 class TestShutdownChildren:
     def test_closes_rfb_window(self):
         result = StartupResult(
-            primary_pid=100, nau_pid=200, portrait_pid=300, landscape_pid=400,
+            nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
             layout_plan=_fake_plan(), rfb_hwnd=88888,
         )
@@ -107,7 +106,6 @@ class TestWritePidsFile:
         parser = configparser.ConfigParser()
         parser.read(str(pids_path), encoding="utf-8")
 
-        assert parser.getint("pids", "primary_pid") == 100
         assert parser.getint("pids", "nau_pid") == 200
         assert parser.getint("pids", "portrait_pid") == 300
         assert parser.getint("pids", "landscape_pid") == 400
@@ -137,7 +135,6 @@ class TestMinimizeAllWindows:
              patch("fun_time.windows_bridge_orchestrator.minimize_window", side_effect=fake_minimize):
             _minimize_all_windows(result)
 
-        assert 1000 in minimized_hwnds  # primary
         assert 3000 in minimized_hwnds  # portrait
         assert 4000 in minimized_hwnds  # landscape
         assert 6001 in minimized_hwnds  # genau (by title)
@@ -174,7 +171,7 @@ class TestMinimizeAllWindows:
             _minimize_all_windows(result)
 
         assert 3000 not in minimized_hwnds
-        assert minimized_hwnds == [1000, 4000]
+        assert minimized_hwnds == [4000]
 
     def test_called_during_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
@@ -341,9 +338,8 @@ class TestRunPythonOrchestratedBridge:
         assert calls == ["launch_loading", "startup_sequence", "launch_ahk"]
         assert code == 0
 
-        # Should have killed all 7 child processes
-        assert 100 in killed_pids  # primary
-        assert 200 in killed_pids  # mfp
+        # Should have killed all 6 child processes
+        assert 200 in killed_pids  # nau
         assert 300 in killed_pids  # portrait
         assert 400 in killed_pids  # landscape
         assert 500 in killed_pids  # dashboard
@@ -445,7 +441,7 @@ class TestLoadingScreenLifecycle:
         )
 
         result_with_hwnds = StartupResult(
-            primary_pid=100, nau_pid=200, portrait_pid=300, landscape_pid=400,
+            nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
             layout_plan=_fake_plan(),
             core_hwnds=[1010, 2020, 3030, 4040],
@@ -528,7 +524,7 @@ class TestPostLoadingWindowState:
         )
 
         result_with_hwnds = StartupResult(
-            primary_pid=100, nau_pid=200, portrait_pid=300, landscape_pid=400,
+            nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
             layout_plan=_fake_plan(),
             core_hwnds=[1010, 2020, 3030, 4040],
@@ -550,7 +546,7 @@ class TestPostLoadingWindowState:
         hide_calls: list[int] = []
         GENAU_HWND = 6060
         DASH_HWND = 5050
-        pid_to_hwnd = {100: 1010, 200: 2020, 300: 3030, 400: 4040, 500: DASH_HWND}
+        pid_to_hwnd = {200: 2020, 300: 3030, 400: 4040, 500: DASH_HWND}
         title_to_hwnd = {"Fun Time": DASH_HWND, "Genau": GENAU_HWND}
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=result_with_hwnds), \
@@ -569,18 +565,14 @@ class TestPostLoadingWindowState:
                 project_dir=tmp_path,
             )
 
-        # nau startup mode: the inactive slot-mates are hidden.
+        # nau startup mode: the inactive slot-mate (Genau) is hidden.
         assert GENAU_HWND in hide_calls, f"Genau not hidden: {hide_calls}"
-        assert 1010 in hide_calls, f"Primary VLC not hidden: {hide_calls}"
 
-        # Static topmost flags for everything managed...
+        # Static topmost flags for everything managed.
         promoted = {h for h, v in topmost_calls if v}
         assert {DASH_HWND, GENAU_HWND, 2020, 3030, 4040, 55555} <= promoted, (
             f"Wrong promotions: {topmost_calls}"
         )
-        # ...except the primary VLC, which must never enter the topmost band.
-        assert (1010, False) in topmost_calls
-        assert not any(h == 1010 and v for h, v in topmost_calls)
 
 
 class TestVoiceControlIntegration:

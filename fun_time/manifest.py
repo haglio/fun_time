@@ -61,7 +61,6 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "enabled": "1" if dashboard_enabled else "0",
         },
         "vlc": {
-            "primary_vlc_port": str(config.vlc.primary_vlc_http_port),
             "vlc2_port": str(config.vlc.vlc2_http_port),
             "vlc3_port": str(config.vlc.vlc3_http_port),
             "vlc_pass": vlc_http_pass,

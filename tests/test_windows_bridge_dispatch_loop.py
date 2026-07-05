@@ -16,10 +16,9 @@ from fun_time.windows_bridge_dispatch_loop import (
 )
 
 
-# HWNDs the runner's role lookups resolve to in these tests: primary,
-# portrait, landscape and dashboard by pid; Nau by pid (with an exact-title
-# fallback); Genau by title; RFB from the hwnd captured at startup.
-PRIMARY_HWND = 1001
+# HWNDs the runner's role lookups resolve to in these tests: portrait,
+# landscape and dashboard by pid; Nau by pid (with an exact-title fallback);
+# Genau by title; RFB from the hwnd captured at startup.
 NAU_HWND = 2001
 PORTRAIT_HWND = 3001
 LANDSCAPE_HWND = 4001
@@ -28,16 +27,14 @@ GENAU_HWND = 6001
 RFB_HWND = 7777
 
 PID_TO_HWND = {
-    100: PRIMARY_HWND,
     200: NAU_HWND,
     300: PORTRAIT_HWND,
     400: LANDSCAPE_HWND,
     500: DASHBOARD_HWND,
 }
 
-# Every managed window carries a static topmost flag — True for all except the
-# primary-slot video windows (Nau and the primary VLC), which live under Genau's
-# HUD in hybrid mode.
+# Every managed window carries a static topmost flag — True for all except Nau,
+# which lives under Genau's HUD in hybrid mode.
 TOPMOST_HWNDS = {
     RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, GENAU_HWND, DASHBOARD_HWND,
 }
@@ -53,7 +50,6 @@ def lookup_title(title, exact=False):
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
     settings = dict(
-        primary_port=9090,
         portrait_port=9091,
         landscape_port=9092,
         vlc_password="test",
@@ -79,7 +75,6 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
 
 def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
     settings = dict(
-        primary_pid=100,
         nau_pid=200,
         portrait_pid=300,
         landscape_pid=400,
@@ -177,7 +172,7 @@ class TestExecuteWindowOps:
         ops = [WindowOp(op="set_topmost", title="Genau", value=True)]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost:
-            remaining = execute_window_ops(ops, primary_pid=1)
+            remaining = execute_window_ops(ops, nau_pid=1)
 
         mock_topmost.assert_called_once_with(12345, True)
         assert remaining == []
@@ -187,7 +182,7 @@ class TestExecuteWindowOps:
         ops = [WindowOp(op="activate", title="Genau")]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
-            remaining = execute_window_ops(ops, primary_pid=1)
+            remaining = execute_window_ops(ops, nau_pid=1)
 
         mock_activate.assert_called_once_with(12345)
         assert remaining == []
@@ -197,7 +192,7 @@ class TestExecuteWindowOps:
         ops = [WindowOp(op="show", title="Genau")]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
              patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show:
-            remaining = execute_window_ops(ops, primary_pid=1)
+            remaining = execute_window_ops(ops, nau_pid=1)
 
         mock_show.assert_called_once_with(12345)
         assert remaining == []
@@ -206,7 +201,7 @@ class TestExecuteWindowOps:
         ops = [WindowOp(op="hide", title="Genau")]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
              patch("fun_time.windows_bridge_dispatch_loop.hide_window") as mock_hide:
-            remaining = execute_window_ops(ops, primary_pid=1)
+            remaining = execute_window_ops(ops, nau_pid=1)
 
         mock_hide.assert_called_once_with(12345)
         assert remaining == []
@@ -214,14 +209,14 @@ class TestExecuteWindowOps:
     def test_suspend_returned_as_remaining(self):
         """suspend_hotkeys can only be done by AHK — returned for forwarding."""
         ops = [WindowOp(op="suspend_hotkeys")]
-        remaining = execute_window_ops(ops, primary_pid=1)
+        remaining = execute_window_ops(ops, nau_pid=1)
 
         assert len(remaining) == 1
         assert remaining[0].op == "suspend_hotkeys"
 
     def test_unsuspend_returned_as_remaining(self):
         ops = [WindowOp(op="unsuspend_hotkeys")]
-        remaining = execute_window_ops(ops, primary_pid=1)
+        remaining = execute_window_ops(ops, nau_pid=1)
 
         assert len(remaining) == 1
         assert remaining[0].op == "unsuspend_hotkeys"
@@ -230,7 +225,7 @@ class TestExecuteWindowOps:
         ops = [WindowOp(op="send_key", key="p")]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=99), \
              patch("fun_time.windows_bridge_dispatch_loop.send_key_to_window") as mock_send:
-            remaining = execute_window_ops(ops, primary_pid=42)
+            remaining = execute_window_ops(ops, nau_pid=42)
 
         mock_send.assert_called_once_with(99, "p")
         assert remaining == []
@@ -239,7 +234,7 @@ class TestExecuteWindowOps:
         ops = [WindowOp(op="send_vk", vk=0x25)]  # VK_LEFT
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=99), \
              patch("fun_time.windows_bridge_dispatch_loop.send_vk_to_window") as mock_send:
-            remaining = execute_window_ops(ops, primary_pid=42)
+            remaining = execute_window_ops(ops, nau_pid=42)
 
         mock_send.assert_called_once_with(99, 0x25)
         assert remaining == []
@@ -248,21 +243,21 @@ class TestExecuteWindowOps:
         ops = [WindowOp(op="set_topmost", title="Nonexistent", value=True)]
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost:
-            remaining = execute_window_ops(ops, primary_pid=1)
+            remaining = execute_window_ops(ops, nau_pid=1)
 
         mock_topmost.assert_not_called()
         assert remaining == []
 
     def test_disable_all_topmost_returned_as_remaining(self):
         ops = [WindowOp(op="disable_all_topmost")]
-        remaining = execute_window_ops(ops, primary_pid=1)
+        remaining = execute_window_ops(ops, nau_pid=1)
 
         assert len(remaining) == 1
         assert remaining[0].op == "disable_all_topmost"
 
     def test_restore_all_topmost_returned_as_remaining(self):
         ops = [WindowOp(op="restore_all_topmost")]
-        remaining = execute_window_ops(ops, primary_pid=1)
+        remaining = execute_window_ops(ops, nau_pid=1)
 
         assert len(remaining) == 1
         assert remaining[0].op == "restore_all_topmost"
@@ -277,13 +272,13 @@ class TestExecuteWindowOps:
             WindowOp(op="activate_role", key="nau"),
             WindowOp(op="hide_role", key="genau"),
         ]
-        remaining = execute_window_ops(ops, primary_pid=1)
+        remaining = execute_window_ops(ops, nau_pid=1)
 
         assert remaining == ops
 
     def test_open_rfb_tab_returned_as_remaining(self):
         ops = [WindowOp(op="open_rfb_tab", key="https://example.com")]
-        remaining = execute_window_ops(ops, primary_pid=1)
+        remaining = execute_window_ops(ops, nau_pid=1)
 
         assert len(remaining) == 1
         assert remaining[0].op == "open_rfb_tab"
@@ -345,8 +340,8 @@ class TestDispatchLoopRunner:
 
     def test_omnipause_enter_via_tick_drops_topmost_on_managed_windows(self, tmp_path):
         """Entering omnipause frees the desktop: every window with a True
-        static topmost flag leaves the TOPMOST band; the primary-slot video
-        windows (static False) are never touched."""
+        static topmost flag leaves the TOPMOST band; Nau (static False) is
+        never touched."""
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
@@ -362,13 +357,13 @@ class TestDispatchLoopRunner:
 
         assert runner.state.omni_paused is True
         assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS
-        assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
+        assert NAU_HWND not in {h for h, _ in topmost_calls}
 
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
         self, tmp_path, monkeypatch,
     ):
         """Leaving omnipause gives every True-flagged window its TOPMOST bit
-        back (the primary VLC stays untouched) and re-activates the window
+        back (Nau, static-False, is never promoted) and re-activates the window
         that owns the primary display — Nau in nau mode."""
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
@@ -390,7 +385,7 @@ class TestDispatchLoopRunner:
 
         assert runner.state.omni_paused is False
         assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS
-        assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
+        assert NAU_HWND not in {h for h, _ in topmost_calls}
         assert activated == [NAU_HWND]
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
@@ -606,9 +601,8 @@ class TestDispatchLoopRunner:
 
     def test_omniminimize_minimizes_only_mode_visible_windows(self, tmp_path):
         """omniminimize minimizes the windows the current mode shows, without
-        stealing focus.  In nau mode the hidden slot-mates (Genau and the
-        hybrid-only primary VLC) are NOT minimized — SW_MINIMIZE would drag
-        a hidden window back into view."""
+        stealing focus.  In nau mode the hidden slot-mate (Genau) is NOT
+        minimized — SW_MINIMIZE would drag a hidden window back into view."""
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -834,10 +828,10 @@ class TestOpenRfbTab:
 
 
 class TestModeSwitchVisibility:
-    """The primary-slot players (Nau, Genau, the hybrid-only primary VLC)
-    share one screen rect.  A mode switch swaps window VISIBILITY: the
-    incoming player is shown and activated BEFORE the outgoing ones hide,
-    so focus never falls through to another application.
+    """The two primary-slot players (Nau and Genau) share one screen rect.
+    A mode switch swaps window VISIBILITY: the incoming player is shown and
+    activated BEFORE the outgoing one hides, so focus never falls through to
+    another application.
 
     These tests run the real dispatch_command and the real
     execute_window_ops, pinning the whole path from command string to
@@ -872,7 +866,7 @@ class TestModeSwitchVisibility:
         }[command]
         return calls
 
-    def test_genau_activate_shows_genau_before_hiding_nau_and_primary(self, tmp_path, monkeypatch):
+    def test_genau_activate_shows_genau_before_hiding_nau(self, tmp_path, monkeypatch):
         calls = self._run_mode_switch(
             tmp_path, monkeypatch, from_mode="nau", command="genau_activate",
         )
@@ -880,10 +874,9 @@ class TestModeSwitchVisibility:
             ("show", GENAU_HWND),
             ("activate", GENAU_HWND),
             ("hide", NAU_HWND),
-            ("hide", PRIMARY_HWND),
         ]
 
-    def test_nau_activate_shows_nau_before_hiding_genau_and_primary(self, tmp_path, monkeypatch):
+    def test_nau_activate_shows_nau_before_hiding_genau(self, tmp_path, monkeypatch):
         calls = self._run_mode_switch(
             tmp_path, monkeypatch, from_mode="genau", command="nau_activate",
         )
@@ -891,7 +884,6 @@ class TestModeSwitchVisibility:
             ("show", NAU_HWND),
             ("activate", NAU_HWND),
             ("hide", GENAU_HWND),
-            ("hide", PRIMARY_HWND),
         ]
 
     def test_hybrid_activate_shows_nau_and_genau(self, tmp_path, monkeypatch):
@@ -904,10 +896,10 @@ class TestModeSwitchVisibility:
             ("activate", GENAU_HWND),
         ]
 
-    def test_hybrid_to_genau_hides_primary(self, tmp_path, monkeypatch):
-        """Hybrid and Genau differ only in the primary VLC's visibility, so
-        the transition must still swap windows.  Regression — a guard that
-        compared genau_active() instead of the mode missed this pair."""
+    def test_hybrid_to_genau_hides_nau(self, tmp_path, monkeypatch):
+        """Hybrid and Genau differ only in Nau's visibility, so the transition
+        must still swap windows.  Regression — a guard that compared
+        genau_active() instead of the mode missed this pair."""
         calls = self._run_mode_switch(
             tmp_path, monkeypatch, from_mode="hybrid", command="genau_activate",
         )
@@ -915,7 +907,6 @@ class TestModeSwitchVisibility:
             ("show", GENAU_HWND),
             ("activate", GENAU_HWND),
             ("hide", NAU_HWND),
-            ("hide", PRIMARY_HWND),
         ]
 
     def test_activation_suppressed_during_integration_runs(self, tmp_path, monkeypatch):
@@ -928,7 +919,6 @@ class TestModeSwitchVisibility:
         assert calls == [
             ("show", GENAU_HWND),
             ("hide", NAU_HWND),
-            ("hide", PRIMARY_HWND),
         ]
 
 
@@ -993,8 +983,8 @@ class TestResolveRole:
 class TestStaticTopmost:
     """Windows never stack (every managed window has its own screen rect),
     so each role carries a STATIC topmost flag: True for everything except
-    the hybrid-only primary VLC, which lives under Genau's transparent HUD
-    and must never rise above it — in any mode."""
+    Nau, which lives under Genau's transparent HUD and must never rise above
+    it — in any mode."""
 
     def _topmost_calls(self, runner, method_name):
         calls: list[tuple[int, bool]] = []
@@ -1011,19 +1001,18 @@ class TestStaticTopmost:
         calls = self._topmost_calls(runner, "_remove_all_topmost")
 
         assert {h for h, v in calls if v is False} == TOPMOST_HWNDS
-        assert PRIMARY_HWND not in {h for h, _ in calls}
+        assert NAU_HWND not in {h for h, _ in calls}
 
-    def test_restore_all_topmost_is_mode_independent_and_never_touches_primary(self, tmp_path):
-        """The flags do not vary with the mode: in hybrid the primary VLC is
-        VISIBLE yet still stays out of the TOPMOST band, and the hidden Nau
-        window harmlessly gets its flag back."""
+    def test_restore_all_topmost_is_mode_independent_and_never_touches_nau(self, tmp_path):
+        """The flags do not vary with the mode: in hybrid Nau is VISIBLE yet
+        still stays out of the TOPMOST band."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(primary_mode="hybrid")
 
         calls = self._topmost_calls(runner, "_restore_all_topmost")
 
         assert {h for h, v in calls if v is True} == TOPMOST_HWNDS
-        assert PRIMARY_HWND not in {h for h, _ in calls}
+        assert NAU_HWND not in {h for h, _ in calls}
 
 
 class TestHandleOpenFileDialog:
@@ -1071,7 +1060,7 @@ class TestHandleOpenFileDialog:
 
         removed = {h for h, v in topmost_calls if not v}
         assert removed == TOPMOST_HWNDS
-        assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
+        assert NAU_HWND not in {h for h, _ in topmost_calls}
 
     def test_shows_file_dialog_with_primary_sources_dir(self, tmp_path):
         """Shows our own file dialog with the first primary_sources directory."""
@@ -1171,12 +1160,12 @@ class TestHandleOpenFileDialog:
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "leave_omnipause" in dispatched
 
-        # Every True-flagged window gets its TOPMOST bit back; the primary-slot
-        # video windows (Nau and the primary VLC) are never touched.
+        # Every True-flagged window gets its TOPMOST bit back; Nau (static
+        # False) is never touched.
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS
 
-    def test_never_restores_primary_topmost_even_in_genau_mode(self, tmp_path):
+    def test_never_restores_nau_topmost_even_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False, primary_mode="genau")
 
@@ -1199,11 +1188,9 @@ class TestHandleOpenFileDialog:
             mock_dispatch.return_value = (BridgeState(omni_paused=True, primary_mode="genau"), [])
             runner._handle_open_file_dialog()
 
-        # The static flags are mode-independent: the primary-slot video windows
-        # (Nau and the primary VLC) never get a topmost flag.
+        # The static flags are mode-independent: Nau never gets a topmost flag.
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS
-        assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
         assert NAU_HWND not in {h for h, _ in topmost_calls}
 
     def test_topmost_removed_before_dialog(self, tmp_path):
@@ -1479,7 +1466,7 @@ class TestIdempotentVoiceCommands:
             runner.tick()
 
         assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS
-        assert PRIMARY_HWND not in {h for h, _ in topmost_calls}
+        assert NAU_HWND not in {h for h, _ in topmost_calls}
 
     def test_enter_omnipause_noop_when_already_paused(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)

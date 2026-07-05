@@ -190,7 +190,6 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(monkeypatch, tmp_path: 
         landscape_sources=str(landscape_root),
         favs_file=favs_file,
         state_dir=tmp_path / "state",
-        primary_port=9001,
         portrait_port=9002,
         landscape_port=9003,
         password="pw",
@@ -201,9 +200,10 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(monkeypatch, tmp_path: 
     assert result.next_f_mode_enabled is True
     assert result.next_locked2 is False
     assert result.next_locked3 is False
-    assert [call[0] for call in playlist_calls] == [9001, 9002, 9003]
+    # Only the two satellites reload over HTTP; Nau reloads via its command file.
+    assert [call[0] for call in playlist_calls] == [9002, 9003]
+    assert playlist_calls[0][3] == "all"
     assert playlist_calls[1][3] == "all"
-    assert playlist_calls[2][3] == "all"
     assert nau_cmd_file.read_text(encoding="utf-8") == "RELOAD_PLAYLIST"
     assert (tmp_path / "state" / "nau_playlist.tsv").exists()
 
@@ -226,7 +226,6 @@ def test_toggle_fmode_preserves_recency_ordering(monkeypatch, tmp_path: Path):
         landscape_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        primary_port=9001,
         portrait_port=9002,
         landscape_port=9003,
         password="pw",

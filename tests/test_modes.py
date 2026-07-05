@@ -64,7 +64,7 @@ def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path:
     assert paths == [str(first)]
 
 
-def test_build_fmode_playlists_writes_named_m3u_files(tmp_path: Path):
+def test_build_fmode_playlists_writes_satellite_m3u_files(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
@@ -99,8 +99,12 @@ def test_build_fmode_playlists_writes_named_m3u_files(tmp_path: Path):
     assert plan.primary_count == 1
     assert plan.portrait_count == 1
     assert plan.landscape_count == 1
-    assert (state_dir / "primary_vlc_playlist.m3u").read_text(encoding="utf-8").startswith("#EXTM3U")
-    assert str(primary_video) in (state_dir / "primary_vlc_playlist.m3u").read_text(encoding="utf-8")
+    # Only the two satellites get m3u files now; the primary slot is Nau, which
+    # reads its own .tsv playlist.
+    assert (state_dir / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").startswith("#EXTM3U")
+    assert (state_dir / "landscape_vlc_playlist.m3u").read_text(encoding="utf-8").startswith("#EXTM3U")
+    assert not (state_dir / "primary_vlc_playlist.m3u").exists()
+    assert str(primary_video) in (state_dir / "nau_playlist.tsv").read_text(encoding="utf-8")
 
 
 def test_build_fmode_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path: Path):

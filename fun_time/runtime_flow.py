@@ -104,7 +104,6 @@ def apply_toggle_fmode(
     landscape_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
-    primary_port: int,
     portrait_port: int,
     landscape_port: int,
     password: str,
@@ -120,8 +119,6 @@ def apply_toggle_fmode(
         enabled=target_enabled,
         recent=recent,
     )
-    if not replace_playlist_from_file(primary_port, password, plan.primary_playlist_path):
-        logger.warning("Primary VLC failed to load F-mode playlist")
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
         logger.warning("Portrait VLC failed to load F-mode playlist")
     if not replace_playlist_from_file(landscape_port, password, plan.landscape_playlist_path, repeat_mode="all"):

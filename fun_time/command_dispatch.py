@@ -49,7 +49,6 @@ class BridgeState:
 
 @dataclass
 class BridgeConfig:
-    primary_port: int
     portrait_port: int
     landscape_port: int
     vlc_password: str
@@ -431,17 +430,16 @@ def _primary_focus_ops(primary_mode: str) -> list[WindowOp]:
 def _primary_slot_ops(primary_mode: str) -> list[WindowOp]:
     """Visibility ops for the primary-slot windows on a mode switch.
 
-    The three players (Nau, Genau, the hybrid-only primary VLC) share one
-    screen rect; exactly the mode's player(s) are shown and the inactive
-    slot-mates hidden.  The new window is shown and activated BEFORE the
-    old one hides so focus never falls through to another application.
+    The two players (Nau and Genau) share one screen rect; exactly the mode's
+    player(s) are shown and the inactive slot-mate hidden.  The new window is
+    shown and activated BEFORE the old one hides so focus never falls through
+    to another application.
     """
     if primary_mode == "genau":
         return [
             WindowOp(op="show_role", key="genau"),
             WindowOp(op="activate_role", key="genau"),
             WindowOp(op="hide_role", key="nau"),
-            WindowOp(op="hide_role", key="primary"),
         ]
     if primary_mode == "hybrid":
         return [
@@ -453,7 +451,6 @@ def _primary_slot_ops(primary_mode: str) -> list[WindowOp]:
         WindowOp(op="show_role", key="nau"),
         WindowOp(op="activate_role", key="nau"),
         WindowOp(op="hide_role", key="genau"),
-        WindowOp(op="hide_role", key="primary"),
     ]
 
 
@@ -468,7 +465,6 @@ def _dispatch_fmode_toggle(
         landscape_sources=config.landscape_sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
-        primary_port=config.primary_port,
         portrait_port=config.portrait_port,
         landscape_port=config.landscape_port,
         password=config.vlc_password,

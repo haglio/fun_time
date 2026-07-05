@@ -20,7 +20,6 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
     weird_dir = tmp_path / "weird"
     weird_dir.mkdir(exist_ok=True)
     return BridgeConfig(
-        primary_port=8090,
         portrait_port=8091,
         landscape_port=8092,
         vlc_password="pw",
@@ -475,7 +474,6 @@ def test_omnipause_toggle_enters_pause_from_unpaused(tmp_path: Path):
     paused_ports = [c[0] for c in playback_calls if not c[2]]
     assert config.portrait_port in paused_ports
     assert config.landscape_port in paused_ports
-    assert config.primary_port not in paused_ports
 
 
 def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
@@ -495,8 +493,6 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
     resumed_ports = [c[0] for c in playback_calls if c[2]]
     assert config.portrait_port in resumed_ports
     assert config.landscape_port in resumed_ports
-    # In nau mode the primary VLC stays paused — Nau resumes via its flag file
-    assert config.primary_port not in resumed_ports
     assert config.nau_paused_file.read_text(encoding="utf-8") == "0"
 
 
@@ -608,7 +604,6 @@ def test_nau_activate_deactivates_genau_and_raises_nau(tmp_path: Path):
         ("show_role", "nau"),
         ("activate_role", "nau"),
         ("hide_role", "genau"),
-        ("hide_role", "primary"),
     ]
 
 
@@ -625,7 +620,6 @@ def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
         ("show_role", "genau"),
         ("activate_role", "genau"),
         ("hide_role", "nau"),
-        ("hide_role", "primary"),
     ]
 
 
@@ -829,7 +823,6 @@ def test_enter_omnipause_pauses_satellites_and_suspends(tmp_path: Path):
     paused_ports = [c[0] for c in playback_calls if not c[2]]
     assert config.portrait_port in paused_ports
     assert config.landscape_port in paused_ports
-    assert config.primary_port not in paused_ports
 
 
 def test_enter_omnipause_emits_disable_all_topmost(tmp_path: Path):
@@ -916,7 +909,6 @@ def test_leave_omnipause_resumes_satellites_only(tmp_path: Path):
     resumed_ports = [c[0] for c in playback_calls if c[2]]
     assert config.portrait_port in resumed_ports
     assert config.landscape_port in resumed_ports
-    assert config.primary_port not in resumed_ports
 
 
 def test_leave_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):

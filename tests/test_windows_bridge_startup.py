@@ -77,7 +77,6 @@ def _fake_playlist_plan(state_dir: Path) -> FModePlaylistPlan:
         primary_count=2,
         portrait_count=1,
         landscape_count=1,
-        primary_playlist_path=state_dir / "primary_vlc_playlist.m3u",
         portrait_playlist_path=state_dir / "portrait_vlc_playlist.m3u",
         landscape_playlist_path=state_dir / "landscape_vlc_playlist.m3u",
         nau_playlist_path=state_dir / "nau_playlist.tsv",
@@ -109,7 +108,6 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
             landscape_sources="landscape_a",
             favs_file=tmp_path / "favs.csv",
             state_dir=state_dir,
-            primary_port=8090,
             portrait_port=8091,
             landscape_port=8092,
             password="pw",
@@ -135,10 +133,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     launch.assert_called_once_with(
         project_dir=tmp_path,
         vlc_exe="vlc.exe",
-        primary_playlist=plan.primary_playlist_path,
         portrait_playlist=plan.portrait_playlist_path,
         landscape_playlist=plan.landscape_playlist_path,
-        primary_port=8090,
         portrait_port=8091,
         landscape_port=8092,
         password="pw",
@@ -172,7 +168,6 @@ def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
             landscape_sources="c",
             favs_file=tmp_path / "favs.csv",
             state_dir=tmp_path / "state",
-            primary_port=8090,
             portrait_port=8091,
             landscape_port=8092,
             password="pw",
@@ -412,7 +407,6 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     result_file = tmp_path / "core_apps.ini"
-    primary_playlist = tmp_path / "state" / "primary_vlc_playlist.m3u"
     portrait_playlist = tmp_path / "state" / "portrait_vlc_playlist.m3u"
     landscape_playlist = tmp_path / "state" / "landscape_vlc_playlist.m3u"
 
@@ -420,7 +414,7 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
         def __init__(self, pid: int):
             self.pid = pid
 
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=[FakeProc(101), FakeProc(202), FakeProc(303)]) as popen, patch(
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=[FakeProc(202), FakeProc(303)]) as popen, patch(
         "fun_time.windows_bridge_startup.wait_for_http", return_value=True
     ) as wait_http, patch(
         "fun_time.windows_bridge_startup.set_repeat_mode", return_value=True
@@ -434,30 +428,25 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
         launch_core_apps(
             project_dir=tmp_path,
             vlc_exe="vlc.exe",
-            primary_playlist=primary_playlist,
             portrait_playlist=portrait_playlist,
             landscape_playlist=landscape_playlist,
-            primary_port=8090,
             portrait_port=8091,
             landscape_port=8092,
             password="pw",
             result_file=result_file,
         )
 
-    # Exactly three VLC processes: primary, portrait, landscape — no MFP.
-    assert popen.call_count == 3
-    primary_command = popen.call_args_list[0].args[0]
-    portrait_command = popen.call_args_list[1].args[0]
-    landscape_command = popen.call_args_list[2].args[0]
-    assert primary_command[:2] == ["vlc.exe", "--no-one-instance"]
-    assert "--repeat" in primary_command
+    # Exactly two VLC processes now: portrait and landscape (the primary VLC is gone).
+    assert popen.call_count == 2
+    portrait_command = popen.call_args_list[0].args[0]
+    landscape_command = popen.call_args_list[1].args[0]
+    assert portrait_command[:2] == ["vlc.exe", "--no-one-instance"]
     # Satellites get their playlist on the command line in the unmuted path.
     assert str(portrait_playlist) in portrait_command
     assert str(landscape_playlist) in landscape_command
     assert "--loop" in portrait_command
     assert "--loop" in landscape_command
 
-    wait_http.assert_any_call(8090, "pw", 7000)
     wait_http.assert_any_call(8091, "pw", 7000)
     wait_http.assert_any_call(8092, "pw", 7000)
     set_repeat.assert_any_call(8091, "pw", "all")
@@ -468,73 +457,9 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
     parser = configparser.ConfigParser()
     parser.optionxform = str
     parser.read(result_file, encoding="utf-8")
-    assert parser.get("result", "primary_pid") == "101"
     assert parser.get("result", "portrait_pid") == "202"
     assert parser.get("result", "landscape_pid") == "303"
-    assert set(parser["result"].keys()) == {"primary_pid", "portrait_pid", "landscape_pid"}
-
-
-def test_launch_core_apps_primary_never_auto_plays(tmp_path: Path, monkeypatch):
-    """The primary VLC exists for hybrid mode only: it launches with no
-    playlist on its command line, its playlist is enqueued over HTTP
-    (enqueue_only=True), and it never receives pl_next/pl_play."""
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-    result_file = tmp_path / "core_apps.ini"
-    primary_playlist = tmp_path / "state" / "primary_vlc_playlist.m3u"
-
-    class FakeProc:
-        _counter = 0
-
-        def __init__(self, *_args, **_kwargs):
-            FakeProc._counter += 1
-            self.pid = FakeProc._counter * 100
-
-    FakeProc._counter = 0
-    http_commands: list[tuple[int, str]] = []
-    replace_calls: list[tuple[int, str, dict]] = []
-
-    def tracking_vlc_http_cmd(port, cmd, pw):
-        http_commands.append((port, cmd))
-        return True
-
-    def tracking_replace_playlist(port, pw, playlist_path, **kwargs):
-        replace_calls.append((port, str(playlist_path), kwargs))
-        return True
-
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=lambda *a, **kw: FakeProc()) as popen, \
-         patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True), \
-         patch("fun_time.windows_bridge_startup.set_repeat_mode", return_value=True), \
-         patch("fun_time.windows_bridge_startup.vlc_http_cmd", side_effect=tracking_vlc_http_cmd), \
-         patch("fun_time.windows_bridge_startup.replace_playlist_from_file", side_effect=tracking_replace_playlist), \
-         patch("fun_time.windows_bridge_startup.time.sleep"):
-        launch_core_apps(
-            project_dir=tmp_path,
-            vlc_exe="vlc.exe",
-            primary_playlist=primary_playlist,
-            portrait_playlist=tmp_path / "state" / "portrait_vlc_playlist.m3u",
-            landscape_playlist=tmp_path / "state" / "landscape_vlc_playlist.m3u",
-            primary_port=8090,
-            portrait_port=8091,
-            landscape_port=8092,
-            password="pw",
-            result_file=result_file,
-        )
-
-    # No playlist on the primary command line, ever.
-    primary_command = popen.call_args_list[0].args[0]
-    assert not any(arg.endswith(".m3u") for arg in primary_command), \
-        f"Primary VLC must launch without a playlist: {primary_command}"
-
-    # Primary playlist is enqueued over HTTP without starting playback.
-    primary_replaces = [(port, path, kw) for port, path, kw in replace_calls if port == 8090]
-    assert primary_replaces == [(8090, str(primary_playlist), {"enqueue_only": True})]
-
-    # No playback commands are ever sent to the primary port.
-    primary_playback = [(port, cmd) for port, cmd in http_commands
-                        if port == 8090 and cmd in ("pl_next", "pl_play", "pl_pause")]
-    assert primary_playback == [], \
-        f"Primary VLC must stay idle at startup: {primary_playback}"
+    assert set(parser["result"].keys()) == {"portrait_pid", "landscape_pid"}
 
 
 def test_launch_core_apps_mutes_and_defers_playlists_when_hide_windows_true(tmp_path: Path, monkeypatch):
@@ -548,7 +473,6 @@ def test_launch_core_apps_mutes_and_defers_playlists_when_hide_windows_true(tmp_
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     result_file = tmp_path / "core_apps.ini"
     playlists = {
-        8090: tmp_path / "state" / "primary_vlc_playlist.m3u",
         8091: tmp_path / "state" / "portrait_vlc_playlist.m3u",
         8092: tmp_path / "state" / "landscape_vlc_playlist.m3u",
     }
@@ -581,10 +505,8 @@ def test_launch_core_apps_mutes_and_defers_playlists_when_hide_windows_true(tmp_
         launch_core_apps(
             project_dir=tmp_path,
             vlc_exe="vlc.exe",
-            primary_playlist=playlists[8090],
             portrait_playlist=playlists[8091],
             landscape_playlist=playlists[8092],
-            primary_port=8090,
             portrait_port=8091,
             landscape_port=8092,
             password="pw",
@@ -601,12 +523,12 @@ def test_launch_core_apps_mutes_and_defers_playlists_when_hide_windows_true(tmp_
 
     # Each VLC should get volume mute
     mute_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "volume&val=0"]
-    assert len(mute_cmds) == 3, f"Expected 3 mute commands, got {mute_cmds}"
+    assert len(mute_cmds) == 2, f"Expected 2 mute commands, got {mute_cmds}"
     muted_ports = {port for port, _ in mute_cmds}
-    assert muted_ports == {8090, 8091, 8092}
+    assert muted_ports == {8091, 8092}
 
     # Playlists must be enqueued (not played) via replace_playlist_from_file
-    assert len(replace_calls) == 3, f"Expected 3 playlist loads, got {replace_calls}"
+    assert len(replace_calls) == 2, f"Expected 2 playlist loads, got {replace_calls}"
     for port, path, kwargs in replace_calls:
         assert path == str(playlists[port])
         assert kwargs.get("enqueue_only") is True, \
@@ -622,7 +544,7 @@ def test_launch_core_apps_mutes_and_defers_playlists_when_hide_windows_true(tmp_
 def test_launch_core_apps_defers_playlists_when_mute_audio_env_set(tmp_path: Path, monkeypatch):
     """When FUN_TIME_MUTE_AUDIO=1 and hide_windows=False, VLC instances must
     still defer playlist loading to prevent audio-leak races.  The satellites
-    load with enqueue_only=False and get pl_next; the primary stays idle."""
+    load with enqueue_only=False and get pl_next."""
     monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     result_file = tmp_path / "core_apps.ini"
@@ -655,10 +577,8 @@ def test_launch_core_apps_defers_playlists_when_mute_audio_env_set(tmp_path: Pat
         launch_core_apps(
             project_dir=tmp_path,
             vlc_exe="vlc.exe",
-            primary_playlist=tmp_path / "state" / "primary_vlc_playlist.m3u",
             portrait_playlist=tmp_path / "state" / "portrait_vlc_playlist.m3u",
             landscape_playlist=tmp_path / "state" / "landscape_vlc_playlist.m3u",
-            primary_port=8090,
             portrait_port=8091,
             landscape_port=8092,
             password="pw",
@@ -675,15 +595,14 @@ def test_launch_core_apps_defers_playlists_when_mute_audio_env_set(tmp_path: Pat
 
     # Each VLC should get volume mute
     mute_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "volume&val=0"]
-    assert len(mute_cmds) == 3, f"Expected 3 mute commands, got {mute_cmds}"
+    assert len(mute_cmds) == 2, f"Expected 2 mute commands, got {mute_cmds}"
 
-    # Satellites load via HTTP with enqueue_only=False so playback can start;
-    # the primary is always enqueue-only.
-    assert len(replace_calls) == 3, f"Expected 3 playlist loads, got {replace_calls}"
+    # Satellites load via HTTP with enqueue_only=False so playback can start.
+    assert len(replace_calls) == 2, f"Expected 2 playlist loads, got {replace_calls}"
     enqueue_by_port = {port: kwargs.get("enqueue_only") for port, _, kwargs in replace_calls}
-    assert enqueue_by_port == {8090: True, 8091: False, 8092: False}
+    assert enqueue_by_port == {8091: False, 8092: False}
 
-    # pl_next goes to the satellites only — the primary never auto-plays.
+    # pl_next goes to both satellites.
     next_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "pl_next"]
     assert next_cmds == [(8091, "pl_next"), (8092, "pl_next")]
 
