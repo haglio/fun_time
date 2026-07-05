@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import random
 from pathlib import Path
 
@@ -8,11 +9,20 @@ from fun_time.modes import (
     build_mirrored_funscript_path,
     build_primary_playlist_paths,
     build_satellite_playlist_paths,
+    build_satellite_playlists,
     collect_video_files,
     is_favorite_path,
+    order_paths,
     read_favs_content,
     shuffle_paths,
+    sort_paths_by_recency,
 )
+
+
+def _touch_with_mtime(path: Path, mtime: float) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("x", encoding="utf-8")
+    os.utime(path, (mtime, mtime))
 
 
 def test_build_mirrored_funscript_path_uses_video_path_directly(tmp_path: Path):
@@ -181,6 +191,110 @@ def test_read_favs_content_returns_empty_for_missing_file(tmp_path: Path):
 def test_is_favorite_path_returns_false_for_empty_inputs():
     assert is_favorite_path("", "some content") is False
     assert is_favorite_path("video.mp4", "") is False
+
+
+# --- recency ordering ---
+
+
+def test_sort_paths_by_recency_orders_newest_first(tmp_path: Path):
+    d = tmp_path / "vids"
+    old = d / "old.mp4"
+    mid = d / "mid.mp4"
+    new = d / "new.mp4"
+    _touch_with_mtime(old, 1000)
+    _touch_with_mtime(mid, 2000)
+    _touch_with_mtime(new, 3000)
+
+    result = sort_paths_by_recency([str(old), str(mid), str(new)])
+
+    assert result == [str(new), str(mid), str(old)]
+
+
+def test_order_paths_recent_orders_by_recency(tmp_path: Path):
+    d = tmp_path / "vids"
+    old = d / "old.mp4"
+    new = d / "new.mp4"
+    _touch_with_mtime(old, 1000)
+    _touch_with_mtime(new, 2000)
+
+    assert order_paths([str(old), str(new)], recent=True) == [str(new), str(old)]
+
+
+def test_order_paths_not_recent_shuffles(tmp_path: Path):
+    paths = [f"clip{i}.mp4" for i in range(12)]
+
+    assert order_paths(list(paths), recent=False, rng=random.Random(7)) == shuffle_paths(
+        list(paths), rng=random.Random(7)
+    )
+
+
+def test_build_satellite_playlist_paths_recent_orders_newest_first(tmp_path: Path):
+    d = tmp_path / "portrait"
+    old = d / "old.mp4"
+    new = d / "new.mp4"
+    _touch_with_mtime(old, 1000)
+    _touch_with_mtime(new, 2000)
+
+    paths = build_satellite_playlist_paths(str(d), False, tmp_path / "favs.csv", recent=True)
+
+    assert paths == [str(new), str(old)]
+
+
+def test_build_satellite_playlists_writes_both_recency_ordered_files(tmp_path: Path):
+    portrait_root = tmp_path / "portrait"
+    landscape_root = tmp_path / "landscape"
+    p_old, p_new = portrait_root / "p_old.mp4", portrait_root / "p_new.mp4"
+    l_old, l_new = landscape_root / "l_old.mp4", landscape_root / "l_new.mp4"
+    _touch_with_mtime(p_old, 1000)
+    _touch_with_mtime(p_new, 2000)
+    _touch_with_mtime(l_old, 1000)
+    _touch_with_mtime(l_new, 2000)
+    state_dir = tmp_path / "state"
+
+    plan = build_satellite_playlists(
+        portrait_sources=str(portrait_root),
+        landscape_sources=str(landscape_root),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=state_dir,
+        f_mode=False,
+        recent=True,
+    )
+
+    assert plan.portrait_count == 2
+    assert plan.landscape_count == 2
+    assert plan.portrait_playlist_path == state_dir / "portrait_vlc_playlist.m3u"
+    assert plan.landscape_playlist_path == state_dir / "landscape_vlc_playlist.m3u"
+    portrait_lines = plan.portrait_playlist_path.read_text(encoding="utf-8").splitlines()
+    landscape_lines = plan.landscape_playlist_path.read_text(encoding="utf-8").splitlines()
+    assert portrait_lines[1:] == [str(p_new), str(p_old)]
+    assert landscape_lines[1:] == [str(l_new), str(l_old)]
+
+
+def test_build_fmode_playlists_recent_orders_satellites(tmp_path: Path):
+    portrait_root = tmp_path / "portrait"
+    landscape_root = tmp_path / "landscape"
+    p_old, p_new = portrait_root / "p_old.mp4", portrait_root / "p_new.mp4"
+    l_old, l_new = landscape_root / "l_old.mp4", landscape_root / "l_new.mp4"
+    _touch_with_mtime(p_old, 1000)
+    _touch_with_mtime(p_new, 2000)
+    _touch_with_mtime(l_old, 1000)
+    _touch_with_mtime(l_new, 2000)
+    state_dir = tmp_path / "state"
+
+    plan = build_fmode_playlists(
+        primary_sources="",
+        portrait_sources=str(portrait_root),
+        landscape_sources=str(landscape_root),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=state_dir,
+        enabled=False,
+        recent=True,
+    )
+
+    portrait_lines = plan.portrait_playlist_path.read_text(encoding="utf-8").splitlines()
+    landscape_lines = plan.landscape_playlist_path.read_text(encoding="utf-8").splitlines()
+    assert portrait_lines[1:] == [str(p_new), str(p_old)]
+    assert landscape_lines[1:] == [str(l_new), str(l_old)]
 
 
 # --- shuffle_paths edge cases ---

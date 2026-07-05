@@ -23,6 +23,14 @@ class FModePlaylistPlan:
     nau_playlist_path: Path
 
 
+@dataclass(frozen=True)
+class SatellitePlaylistPlan:
+    portrait_count: int
+    landscape_count: int
+    portrait_playlist_path: Path
+    landscape_playlist_path: Path
+
+
 def is_supported_video_path(path: str) -> bool:
     return Path(path).suffix.lower() in {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
 
@@ -95,6 +103,25 @@ def shuffle_paths(paths: list[str], *, rng: random.Random | None = None) -> list
     return result
 
 
+def _path_mtime(path: str) -> float:
+    try:
+        return Path(path).stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def sort_paths_by_recency(paths: list[str]) -> list[str]:
+    """Order paths most-recently-modified first; unreadable files sort last."""
+    return sorted(paths, key=_path_mtime, reverse=True)
+
+
+def order_paths(paths: list[str], *, recent: bool, rng: random.Random | None = None) -> list[str]:
+    """Order a playlist: newest-first when ``recent`` else shuffled."""
+    if recent:
+        return sort_paths_by_recency(paths)
+    return shuffle_paths(paths, rng=rng)
+
+
 def build_primary_playlist_paths(primary_sources: str, f_mode: bool, *, rng: random.Random | None = None) -> list[str]:
     files = collect_video_files(primary_sources)
     if not f_mode:
@@ -103,13 +130,20 @@ def build_primary_playlist_paths(primary_sources: str, f_mode: bool, *, rng: ran
     return shuffle_paths(filtered, rng=rng)
 
 
-def build_satellite_playlist_paths(source_spec: str, f_mode: bool, favs_file: Path, *, rng: random.Random | None = None) -> list[str]:
+def build_satellite_playlist_paths(
+    source_spec: str,
+    f_mode: bool,
+    favs_file: Path,
+    *,
+    recent: bool = False,
+    rng: random.Random | None = None,
+) -> list[str]:
     files = collect_video_files(source_spec)
     if not f_mode:
-        return shuffle_paths(files, rng=rng)
+        return order_paths(files, recent=recent, rng=rng)
     favs_content = read_favs_content(favs_file)
     filtered = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
-    return shuffle_paths(filtered, rng=rng)
+    return order_paths(filtered, recent=recent, rng=rng)
 
 
 def build_playlist_file_path(state_dir: Path, name: str) -> Path:
@@ -135,6 +169,36 @@ def write_nau_playlist_file(path: Path, video_paths: list[str]) -> None:
     path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
 
 
+def build_satellite_playlists(
+    *,
+    portrait_sources: str,
+    landscape_sources: str,
+    favs_file: Path,
+    state_dir: Path,
+    f_mode: bool,
+    recent: bool,
+    rng: random.Random | None = None,
+) -> SatellitePlaylistPlan:
+    """Build and write the Portrait/Landscape VLC playlists (the two satellites).
+
+    Ordering follows ``recent``: newest-first when set, otherwise shuffled.
+    """
+    portrait_paths = build_satellite_playlist_paths(portrait_sources, f_mode, favs_file, recent=recent, rng=rng)
+    landscape_paths = build_satellite_playlist_paths(landscape_sources, f_mode, favs_file, recent=recent, rng=rng)
+
+    portrait_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
+    landscape_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
+
+    write_playlist_file(portrait_playlist_path, portrait_paths)
+    write_playlist_file(landscape_playlist_path, landscape_paths)
+    return SatellitePlaylistPlan(
+        portrait_count=len(portrait_paths),
+        landscape_count=len(landscape_paths),
+        portrait_playlist_path=portrait_playlist_path,
+        landscape_playlist_path=landscape_playlist_path,
+    )
+
+
 def build_fmode_playlists(
     *,
     primary_sources: str,
@@ -143,28 +207,32 @@ def build_fmode_playlists(
     favs_file: Path,
     state_dir: Path,
     enabled: bool,
+    recent: bool = False,
     rng: random.Random | None = None,
 ) -> FModePlaylistPlan:
     primary_paths = build_primary_playlist_paths(primary_sources, enabled, rng=rng)
-    portrait_paths = build_satellite_playlist_paths(portrait_sources, enabled, favs_file, rng=rng)
-    landscape_paths = build_satellite_playlist_paths(landscape_sources, enabled, favs_file, rng=rng)
+    satellites = build_satellite_playlists(
+        portrait_sources=portrait_sources,
+        landscape_sources=landscape_sources,
+        favs_file=favs_file,
+        state_dir=state_dir,
+        f_mode=enabled,
+        recent=recent,
+        rng=rng,
+    )
 
     primary_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_PRIMARY)
-    portrait_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
-    landscape_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
     nau_playlist_path = state_dir / f"{PLAYLIST_NAU}.tsv"
 
     write_playlist_file(primary_playlist_path, primary_paths)
-    write_playlist_file(portrait_playlist_path, portrait_paths)
-    write_playlist_file(landscape_playlist_path, landscape_paths)
     write_nau_playlist_file(nau_playlist_path, primary_paths)
     return FModePlaylistPlan(
         success=True,
         primary_count=len(primary_paths),
-        portrait_count=len(portrait_paths),
-        landscape_count=len(landscape_paths),
+        portrait_count=satellites.portrait_count,
+        landscape_count=satellites.landscape_count,
         primary_playlist_path=primary_playlist_path,
-        portrait_playlist_path=portrait_playlist_path,
-        landscape_playlist_path=landscape_playlist_path,
+        portrait_playlist_path=satellites.portrait_playlist_path,
+        landscape_playlist_path=satellites.landscape_playlist_path,
         nau_playlist_path=nau_playlist_path,
     )
