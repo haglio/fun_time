@@ -22,6 +22,7 @@ from .runtime_flow import (
     apply_leave_omnipause,
     apply_mode_switch,
     apply_toggle_fmode,
+    apply_toggle_recency_order,
     build_omnipause_toggle,
 )
 from .vlc_actions import (
@@ -44,6 +45,7 @@ class BridgeState:
     primary_mode: str = "nau"
     f_mode_enabled: bool = False
     omni_paused: bool = False
+    recency_order: bool = False
 
 
 @dataclass
@@ -297,6 +299,9 @@ def dispatch_command(
     if command in ("fmode_toggle", "fmode_panel"):
         return _dispatch_fmode_toggle(state, config)
 
+    if command == "recency_order_toggle":
+        return _dispatch_recency_order_toggle(state, config)
+
     if command in ("genau_activate", "nau_activate", "hybrid_activate"):
         target = {"genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid"}[command]
         return _dispatch_mode_switch(target, state, config, ops)
@@ -470,6 +475,7 @@ def _dispatch_fmode_toggle(
 ) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_toggle_fmode(
         f_mode_enabled=state.f_mode_enabled,
+        recent=state.recency_order,
         primary_sources=config.primary_sources,
         portrait_sources=config.portrait_sources,
         landscape_sources=config.landscape_sources,
@@ -486,6 +492,30 @@ def _dispatch_fmode_toggle(
     return replace(
         state,
         f_mode_enabled=result.next_f_mode_enabled,
+        locked2=result.next_locked2,
+        locked3=result.next_locked3,
+    ), []
+
+
+def _dispatch_recency_order_toggle(
+    state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    result = apply_toggle_recency_order(
+        recency_order=state.recency_order,
+        f_mode_enabled=state.f_mode_enabled,
+        portrait_sources=config.portrait_sources,
+        landscape_sources=config.landscape_sources,
+        favs_file=config.favs_file,
+        state_dir=config.state_dir,
+        portrait_port=config.portrait_port,
+        landscape_port=config.landscape_port,
+        password=config.vlc_password,
+    )
+    if result.log_message:
+        logger.info(result.log_message)
+    return replace(
+        state,
+        recency_order=result.next_recency_order,
         locked2=result.next_locked2,
         locked3=result.next_locked3,
     ), []

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from fun_time.runtime_flow import (
     apply_leave_omnipause,
     apply_mode_switch,
     apply_toggle_fmode,
+    apply_toggle_recency_order,
     build_omnipause_toggle,
 )
 
@@ -185,6 +187,7 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(monkeypatch, tmp_path: 
 
     result = apply_toggle_fmode(
         f_mode_enabled=False,
+        recent=False,
         primary_sources=str(primary_root),
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
@@ -206,6 +209,77 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(monkeypatch, tmp_path: 
     assert playlist_calls[2][3] == "all"
     assert nau_cmd_file.read_text(encoding="utf-8") == "RELOAD_PLAYLIST"
     assert (tmp_path / "state" / "nau_playlist.tsv").exists()
+
+
+def test_toggle_fmode_preserves_recency_ordering(monkeypatch, tmp_path: Path):
+    portrait_root = tmp_path / "portrait"
+    portrait_root.mkdir(parents=True)
+    p_old, p_new = portrait_root / "p_old.mp4", portrait_root / "p_new.mp4"
+    for path, mtime in ((p_old, 1000), (p_new, 2000)):
+        path.write_text("x", encoding="utf-8")
+        os.utime(path, (mtime, mtime))
+    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
+
+    # Toggling F-mode off must keep the satellite playlists newest-first, not reshuffle.
+    apply_toggle_fmode(
+        f_mode_enabled=True,
+        recent=True,
+        primary_sources="",
+        portrait_sources=str(portrait_root),
+        landscape_sources="",
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        primary_port=9001,
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+        nau_cmd_file=tmp_path / "nau_cmd.txt",
+    )
+
+    portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
+    assert portrait_lines[1:] == [str(p_new), str(p_old)]
+
+
+def test_toggle_recency_order_reorders_only_satellites(monkeypatch, tmp_path: Path):
+    portrait_root = tmp_path / "portrait"
+    landscape_root = tmp_path / "landscape"
+    for root in (portrait_root, landscape_root):
+        root.mkdir(parents=True)
+    p_old, p_new = portrait_root / "p_old.mp4", portrait_root / "p_new.mp4"
+    l_old, l_new = landscape_root / "l_old.mp4", landscape_root / "l_new.mp4"
+    for path, mtime in ((p_old, 1000), (p_new, 2000), (l_old, 1000), (l_new, 2000)):
+        path.write_text("x", encoding="utf-8")
+        os.utime(path, (mtime, mtime))
+    playlist_calls: list[tuple[int, str, str, str]] = []
+
+    def fake_replace(port, password, playlist_path, repeat_mode=""):
+        playlist_calls.append((port, password, str(playlist_path), repeat_mode))
+        return True
+
+    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", fake_replace)
+
+    result = apply_toggle_recency_order(
+        recency_order=False,
+        f_mode_enabled=False,
+        portrait_sources=str(portrait_root),
+        landscape_sources=str(landscape_root),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+    )
+
+    assert result.next_recency_order is True
+    assert result.next_locked2 is False
+    assert result.next_locked3 is False
+    # Only the two satellite VLCs are touched — never the primary/Nau.
+    assert [call[0] for call in playlist_calls] == [9002, 9003]
+    assert all(call[3] == "all" for call in playlist_calls)
+    portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
+    landscape_lines = (tmp_path / "state" / "landscape_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
+    assert portrait_lines[1:] == [str(p_new), str(p_old)]
+    assert landscape_lines[1:] == [str(l_new), str(l_old)]
 
 
 def test_build_omnipause_toggle_returns_enter_or_leave():
