@@ -142,12 +142,17 @@ def close_window(hwnd: int) -> None:
     _user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
 
 
-def find_window_by_pid(pid: int) -> int:
-    """Find a visible top-level window belonging to *pid*. Returns 0 if not found.
+def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
+    """Find a top-level window belonging to *pid*. Returns 0 if not found.
 
     Matches AHK's ``DetectHiddenWindows False`` behavior: only considers
     windows that are visible (``IsWindowVisible``) and have a non-empty title.
     This avoids grabbing internal surfaces like Direct3D rendering windows.
+
+    Set *include_hidden* to also match windows with WS_VISIBLE cleared — needed
+    for the dashboard, which is hidden (SW_HIDE) behind the loading overlay when
+    the startup sequencer resolves its handle.  The non-empty-title filter still
+    applies, so this does not match untitled internal surfaces.
     """
     best: int = 0
 
@@ -157,7 +162,7 @@ def find_window_by_pid(pid: int) -> int:
         _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
         if window_pid.value != pid:
             return True
-        if not _user32.IsWindowVisible(hwnd):
+        if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return True
         # Check for non-empty title (skip internal/unnamed windows)
         title_len = _user32.GetWindowTextLengthW(hwnd)
@@ -181,15 +186,18 @@ def wait_for_window(pid: int, timeout_s: float = 15.0) -> int:
     return 0
 
 
-def wait_for_window_by_title(title: str, timeout_s: float = 5.0, *, exact: bool = False) -> int:
+def wait_for_window_by_title(
+    title: str, timeout_s: float = 5.0, *, exact: bool = False, include_hidden: bool = False
+) -> int:
     """Poll for a visible window whose title contains (or equals) *title*.
 
     Useful when the PID-based lookup fails (e.g. venv launcher PID differs
-    from the interpreter PID that owns the window).
+    from the interpreter PID that owns the window).  *include_hidden* is
+    forwarded to :func:`find_window_by_title` for SW_HIDE'd windows.
     """
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        hwnd = find_window_by_title(title, exact=exact)
+        hwnd = find_window_by_title(title, exact=exact, include_hidden=include_hidden)
         if hwnd:
             return hwnd
         time.sleep(0.1)
@@ -244,19 +252,22 @@ def unlock_set_foreground_window() -> None:
     _user32.LockSetForegroundWindow(LSFW_UNLOCK)
 
 
-def find_window_by_title(title: str, *, exact: bool = False) -> int:
+def find_window_by_title(title: str, *, exact: bool = False, include_hidden: bool = False) -> int:
     """Find a visible window whose title contains (or, with *exact*, equals)
     *title*. Returns 0 if not found.
 
     Use exact=True when the title is a substring of another managed window's
-    title (e.g. "Nau" is contained in "Genau").
+    title (e.g. "Nau" is contained in "Genau").  Set *include_hidden* to also
+    match windows with WS_VISIBLE cleared (SW_HIDE) — needed to resolve the
+    dashboard while it is hidden behind the loading overlay, whose window PID
+    differs from the launcher PID so only the title lookup can find it.
     """
     best: int = 0
     buf = ctypes.create_unicode_buffer(256)
 
     def callback(hwnd: int, _lparam: int) -> bool:
         nonlocal best
-        if not _user32.IsWindowVisible(hwnd):
+        if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return True
         _user32.GetWindowTextW(hwnd, buf, 256)
         matched = buf.value == title if exact else title in buf.value

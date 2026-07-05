@@ -177,7 +177,7 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
@@ -454,7 +454,7 @@ class TestLoadingScreenStartup:
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=track_move), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
@@ -530,7 +530,7 @@ class TestPhase4Reveal:
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_map.get(pid, 0)), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid: pid_map.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid, **kw: pid_map.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_map.get(title, 0)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=topmost_tracker), \
