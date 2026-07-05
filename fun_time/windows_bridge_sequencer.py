@@ -298,9 +298,16 @@ def run_startup_sequence(
         dashboard_pid = ui_pids["dashboard_pid"]
         dash_hwnd = 0
         if dashboard_pid:
-            dash_hwnd = find_window_by_pid(dashboard_pid)
+            # The dashboard is hidden (SW_HIDE) behind the loading overlay here,
+            # so both lookups must include hidden windows — a visible-only lookup
+            # returns 0 and leaves the dispatch loop unable to manage it.  The
+            # window PID also differs from the venv-launcher PID, so the exact
+            # title lookup is the path that actually resolves it in production.
+            dash_hwnd = find_window_by_pid(dashboard_pid, include_hidden=True)
             if not dash_hwnd:
-                dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=5.0, exact=True)
+                dash_hwnd = wait_for_window_by_title(
+                    "Fun Time", timeout_s=5.0, exact=True, include_hidden=True
+                )
 
         role_hwnds = _apply_startup_window_state(
             rfb_hwnd=rfb_hwnd,

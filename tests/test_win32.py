@@ -34,6 +34,47 @@ from fun_time.win32 import (
 )
 
 
+class TestFindWindowByPid:
+    """The EnumWindows visibility filter, and the include_hidden override the
+    startup sequencer needs to resolve the dashboard while it is hidden behind
+    the loading overlay (a hidden window has WS_VISIBLE cleared)."""
+
+    @staticmethod
+    def _mock_user32(mock, *, hwnd: int, pid: int, visible: bool, title_len: int = 8):
+        def gwtpid(_hwnd, pid_byref):
+            pid_byref._obj.value = pid  # write the out-param DWORD
+            return 1
+
+        def enum(proc, _lparam):
+            proc(hwnd, 0)  # invoke the enumeration callback with our window
+            return True
+
+        mock.GetWindowThreadProcessId.side_effect = gwtpid
+        mock.EnumWindows.side_effect = enum
+        mock.IsWindowVisible.return_value = 1 if visible else 0
+        mock.GetWindowTextLengthW.return_value = title_len
+
+    def test_skips_hidden_window_by_default(self):
+        with patch("fun_time.win32._user32") as mock:
+            self._mock_user32(mock, hwnd=555, pid=42, visible=False)
+            assert find_window_by_pid(42) == 0
+
+    def test_include_hidden_finds_hidden_window(self):
+        with patch("fun_time.win32._user32") as mock:
+            self._mock_user32(mock, hwnd=555, pid=42, visible=False)
+            assert find_window_by_pid(42, include_hidden=True) == 555
+
+    def test_visible_window_found_regardless_of_flag(self):
+        with patch("fun_time.win32._user32") as mock:
+            self._mock_user32(mock, hwnd=777, pid=42, visible=True)
+            assert find_window_by_pid(42) == 777
+
+    def test_untitled_window_skipped_even_when_hidden_included(self):
+        with patch("fun_time.win32._user32") as mock:
+            self._mock_user32(mock, hwnd=555, pid=42, visible=False, title_len=0)
+            assert find_window_by_pid(42, include_hidden=True) == 0
+
+
 class TestWaitForWindow:
     def test_returns_hwnd_immediately_if_found(self):
         with patch("fun_time.win32.find_window_by_pid", return_value=12345):
