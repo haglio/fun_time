@@ -320,6 +320,22 @@ def build_integration_config(tmp_path: Path) -> Path:
     config["paths"]["state_dir"] = str(state_dir)
     config["random_favs_browser"]["enabled"] = False
 
+    # Nau builds its version-index / length-mode source from nau.videos_dir, so
+    # point the genau config's Nau dirs at the copied test library — otherwise it
+    # would scan the real one. Mirrors the videos->scripts layout that
+    # _link_primary_samples writes the funscripts into.
+    scripts_root = Path(str(primary_dir).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\"))
+    nau_clips_dir = integration_root / "nau_clips"
+    nau_clips_dir.mkdir(parents=True, exist_ok=True)
+    genau_config = json.loads(Path(config["paths"]["genau_config_path"]).read_text(encoding="utf-8"))
+    genau_config.setdefault("nau", {})
+    genau_config["nau"]["videos_dir"] = str(primary_dir)
+    genau_config["nau"]["scripts_dir"] = str(scripts_root)
+    genau_config["nau"]["clips_dir"] = str(nau_clips_dir)
+    test_genau_config = integration_root / "genau_integration_config.json"
+    test_genau_config.write_text(json.dumps(genau_config), encoding="utf-8")
+    config["paths"]["genau_config_path"] = str(test_genau_config)
+
     config_path = integration_root / "fun_time_integration_config.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
     return config_path
