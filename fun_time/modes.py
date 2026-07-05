@@ -4,6 +4,7 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
+from .media_metadata import normalize_path_key
 
 PLAYLIST_PORTRAIT = "portrait_vlc_playlist"
 PLAYLIST_LANDSCAPE = "landscape_vlc_playlist"
@@ -31,10 +32,6 @@ class SatellitePlaylistPlan:
 
 def is_supported_video_path(path: str) -> bool:
     return Path(path).suffix.lower() in {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
-
-
-def normalize_path_key(path: str) -> str:
-    return path.strip().lower()
 
 
 def collect_video_files(source_spec: str) -> list[str]:

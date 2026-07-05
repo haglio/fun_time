@@ -71,3 +71,11 @@ start_daemon_thread  # noqa
 restore_vlcrc_volume  # noqa
 is_process_alive  # noqa
 _read_shortcut_app_user_model_id  # noqa
+# media_metadata grouping: production consumers land with the playlist
+# collapse and cycle-command wiring; entries removed as each lands.
+action_group_key  # noqa
+seed_group_key  # noqa
+build_group_index  # noqa
+_.contains  # noqa
+cached_group_index  # noqa
+reset_group_index_cache  # noqa
