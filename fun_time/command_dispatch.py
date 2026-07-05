@@ -109,6 +109,7 @@ _NAU_CMD_MAP = {
     "nau_record_tap": "RECORD_TAP",
     "nau_loop_cancel": "LOOP_CANCEL",
     "nau_cycle_version": "CYCLE_VERSION",
+    "nau_toggle_length": "TOGGLE_LENGTH_MODE",
     "nau_length_shorts": "SET_LENGTH_MODE shorts",
     "nau_length_full": "SET_LENGTH_MODE full",
 }

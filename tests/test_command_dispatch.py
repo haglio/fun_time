@@ -388,6 +388,15 @@ def test_nau_cycle_version_writes_nau_cmd(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION"
 
 
+def test_nau_toggle_length_writes_toggle_command(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    dispatch_command("nau_toggle_length", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LENGTH_MODE"
+
+
 def test_nau_length_shorts_writes_set_length_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="nau")

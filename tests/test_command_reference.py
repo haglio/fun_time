@@ -127,23 +127,26 @@ def test_section_titles_and_backslash_split():
     assert len(genau_backslash) == 1, "expected a separate '\\' offset row in Genau"
 
 
-def test_nau_mode_row_displays_nau_nau_but_recognizer_uses_now_now():
-    assert VOICE_COMMANDS["now now"] == "nau_activate"
+def test_nau_mode_row_displays_nau_mode_but_recognizer_uses_sound_alikes():
+    # "nau" isn't in the vosk vocabulary, so the recognizer listens for the
+    # sound-alikes while the reference shows the friendly "nau mode".
+    assert VOICE_COMMANDS["now mode"] == "nau_activate"
     assert "nau" not in VOICE_COMMANDS  # display-only alias, not a recognizer phrase
     nau_rows = [r for r in _all_rows() if "nau_activate" in r.commands]
-    assert nau_rows and nau_rows[0].voice == ("nau nau",)
+    assert nau_rows and nau_rows[0].voice == ("nau mode",)
 
 
-def test_record_loop_row_lists_r_key_and_voice_phrases():
+def test_loop_control_row_consolidates_record_and_cancel():
     rows = _all_rows()
-    record_rows = [r for r in rows if "nau_record_down" in r.commands]
-    assert record_rows, "expected a record row"
-    row = record_rows[0]
+    loop_rows = [r for r in rows if "nau_record_down" in r.commands]
+    assert loop_rows, "expected a loop control row"
+    row = loop_rows[0]
     assert "R" in row.hotkeys
     assert "record" in row.voice
     assert "loop" in row.voice
-    cancel_rows = [r for r in rows if "nau_loop_cancel" in r.commands]
-    assert cancel_rows and "cancel" in cancel_rows[0].voice
+    # Record and cancel are one row now; cancel's phrase is "end loop".
+    assert "nau_loop_cancel" in row.commands
+    assert "end loop" in row.voice
 
 
 def test_previous_shape_is_a_separate_keyless_line():
