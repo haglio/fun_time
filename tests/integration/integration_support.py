@@ -61,6 +61,21 @@ class FunTimeIntegrationSession:
         """Parse Nau's published status file."""
         return read_nau_status(self.config.nau_status_file)
 
+    def read_nau_duration_ms(self) -> int:
+        """Nau's current video duration in ms (published, but not carried on
+        NauStatus, which only parses fields with production consumers).  A
+        non-zero value means mpv has loaded the file and knows its length."""
+        path = self.config.nau_status_file
+        if not path.exists():
+            return 0
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.startswith("duration_ms="):
+                try:
+                    return int(line.split("=", 1)[1].strip() or 0)
+                except ValueError:
+                    return 0
+        return 0
+
     def read_child_pids(self) -> dict[str, int]:
         """Read all child PIDs from bridge_pids.ini."""
         pids_file = self.config.paths.state_dir / "bridge_pids.ini"
