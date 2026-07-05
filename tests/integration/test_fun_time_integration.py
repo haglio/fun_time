@@ -294,18 +294,38 @@ def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIn
 
     # Let the orchestrator finish processing commands from prior tests.
     time.sleep(2.0)
+    # Ensure Nau owns the primary slot so the nudges drive Nau's seek rather
+    # than the primary VLC (which is what they'd hit in hybrid mode).
+    s.write_dashboard_command("nau_activate")
+    # Wait for a *loaded* video: a non-zero duration means mpv knows the
+    # length, so a seek target won't be clamped to 0 by an as-yet-unknown
+    # duration (which would make the forward seek a no-op).
     s.wait_until(
-        lambda: s.read_nau_status().video != "",
+        lambda: s.read_nau_status().video != "" and s.read_nau_duration_ms() > 0,
         timeout=15,
-        description="Nau status file to report a current video",
+        description="Nau to report a loaded video with a known duration",
     )
+    duration = s.read_nau_duration_ms()
+
+    # The shared session leaves the looping playhead at an arbitrary spot; if it
+    # sits near the end, a forward seek clamps at the duration and never advances.
+    # Nudge back until there is comfortable forward headroom first.
+    for _ in range(30):
+        if s.read_nau_status().position_ms <= duration - 15_000:
+            break
+        s.write_dashboard_command("primary_nudge_prev")
+        time.sleep(0.4)
 
     before = s.read_nau_status().position_ms
+    assert before <= duration - 12_000, (
+        f"could not create forward headroom: pos={before} duration={duration}"
+    )
+
     s.write_dashboard_command("primary_nudge_next")
     s.wait_until(
         lambda: s.read_nau_status().position_ms >= before + 9_000,
         timeout=10,
-        description="Nau position to jump forward ~10s after nudge",
+        description=f"Nau to jump forward ~10s after nudge (before={before}, duration={duration})",
     )
 
     after_fwd = s.read_nau_status().position_ms
@@ -313,7 +333,7 @@ def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIn
     s.wait_until(
         lambda: s.read_nau_status().position_ms <= after_fwd - 9_000,
         timeout=10,
-        description="Nau position to jump back ~10s after nudge",
+        description=f"Nau to jump back ~10s after nudge (after_fwd={after_fwd})",
     )
 
 
