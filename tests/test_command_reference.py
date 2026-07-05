@@ -73,6 +73,16 @@ def test_every_ahk_hotkey_command_is_represented_with_a_hotkey():
         )
 
 
+def test_premiere_row_uses_p_key_and_premiere_voice():
+    """The newest-first toggle is branded "Premiere": P key, spoken "premiere"."""
+    assert VOICE_COMMANDS["premiere"] == "recency_order_toggle"
+    rows = [r for r in _all_rows() if "recency_order_toggle" in r.commands]
+    assert len(rows) == 1, "expected exactly one Premiere row"
+    row = rows[0]
+    assert row.hotkeys == ("P",)
+    assert "premiere" in row.voice
+
+
 def test_voice_phrases_are_derived_from_voice_commands():
     """Each row's voice must include every phrase VOICE_COMMANDS assigns to its
     commands — except rows with an explicit voice_display alias."""
