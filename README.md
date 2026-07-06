@@ -226,6 +226,30 @@ Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the
 
 The same builder (`build_fmode_playlists`) writes all four playlist files at startup, so startup and the F-mode toggle share one playlist authority.
 
+### Cycle action & cycle seed (satellites)
+
+AI videos under the provider media root carry metadata sidecars (see `provider_regen.media_root` / `metadata_root` in the config) recording the prompts, settings, and seeds they were generated from. Fun Time groups the satellite libraries by that metadata (`fun_time/media_metadata.py`):
+
+- an **action group** is every video generated from the *same source image* — the same subject(s) and situation doing different things (for text-to-video, the same prompt+seed with a different action)
+- a **seed family** is every video whose generation config differs *only by seed* — the same scenario cast with a different subject
+
+Two command pairs ride on those groups (keys: `Del`/`End` portrait, `E`/`Q` landscape; voice: "portrait action", "portrait seed", "landscape action", "landscape seed"):
+
+- **Cycle action** switches the current video to the next action of its group, in a fixed order so repeated presses tour every act. A brief tooltip names the action that came up. If the sibling is not in the playlist (shuffled builds collapse groups — see below), it is swapped in place of the current entry.
+- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries.
+
+During shuffled satellite builds, each action group **collapses to one playlist slot**: exactly one member plays per pass (drawn weighted by the watch stats below), so the same subject+scene doesn't recur once per action. Premiere (`P`, newest-first) deliberately skips collapsing so new arrivals are all visible. Videos without a metadata sidecar behave exactly as before.
+
+### Watch stats — videos "breed" by attention
+
+Fun Time watches how you treat each satellite video and adjusts how often it comes up (`fun_time/watch_stats.py`, persisted in `state/watch_stats.json`):
+
+- playing a video through to ~the end counts a **completion**; while locked on repeat, every loop counts again
+- pressing next/prev (or a cycle key) early in a video counts a **skip**
+- **locking** a video is the strongest positive signal
+
+Counts become a playback weight — `2^((completions + 3·locks − skips)/3)`, clamped to between ⅛× and 8× — applied at every shuffled satellite build: weighted shuffle order (loved videos surface early), weighted pick inside collapsed action groups (the acts you finish win the slot), and probabilistic inclusion (a weight-⅛ video sits out ~7 of 8 builds). This is the continuous companion to mark-as-weird: hated videos fade away instead of leaving. Neutral videos are never excluded, and the transitions the system causes itself (unlock's auto-advance, discards) never penalize anything.
+
 ## Favorites CSV behavior
 
 When a satellite VLC is locked, the current media item is added to `favs.csv`.
@@ -292,6 +316,10 @@ Flag file — Nau's pause channel. Mode switches and OmniPause write it; Nau pol
 ### `nau_status.txt`
 
 Written by Nau: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, and `paused`. Read by `clipper_save` (for the current video/time outside Hybrid mode) and by the dashboard.
+
+### `watch_stats.json`
+
+Per-video watch counts (`completions` / `skips` / `locks`) keyed by normalized path — the input to the frequency weighting described under "Watch stats". Written by the dispatch loop's ~1 Hz satellite sampler and by lock commands; entries whose file vanished (e.g. marked weird) are pruned on the next write. Delete the file to reset all weights to neutral.
 
 ### `nau_playlist.tsv`
 
