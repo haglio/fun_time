@@ -71,9 +71,11 @@ start_daemon_thread  # noqa
 restore_vlcrc_volume  # noqa
 is_process_alive  # noqa
 _read_shortcut_app_user_model_id  # noqa
-# media_metadata / watch_stats: remaining production consumers land with the
-# cycle-command wiring and the dispatch-loop watch tracker (next commits).
+# media_metadata / watch_stats / vlc_actions: remaining production consumers
+# land with the cycle-command wiring and the dispatch-loop watch tracker
+# (next commits).
 _.contains  # noqa
 cached_group_index  # noqa
 reset_group_index_cache  # noqa
 record_watch_event  # noqa
+vlc_swap_current_with  # noqa
