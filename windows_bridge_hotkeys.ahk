@@ -73,10 +73,16 @@ Left::QueueCommand("portrait_prev")
 Right::QueueCommand("portrait_next")
 Up::QueueCommand("portrait_trash")
 Down::QueueCommand("portrait_lock")
+; Cycle the current portrait video's siblings: same subject(s)+scene doing
+; another action (Del), or the same config under another seed (End).
+Del::QueueCommand("portrait_cycle_action")
+End::QueueCommand("portrait_cycle_seed")
 a::QueueCommand("landscape_prev")
 d::QueueCommand("landscape_next")
 w::QueueCommand("landscape_trash")
 s::QueueCommand("landscape_lock")
+e::QueueCommand("landscape_cycle_action")
+q::QueueCommand("landscape_cycle_seed")
 '::QueueCommand("clipper_save")
 ; Premiere: (re)load Portrait/Landscape VLC newest-first, restarting from the
 ; top; press again to pick up newly-arrived files.
