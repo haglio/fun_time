@@ -714,7 +714,9 @@ def test_portrait_cycle_action_tooltips_when_video_has_no_siblings(tmp_path: Pat
     assert [op.key for op in ops if op.op == "tooltip"] == ["No other actions"]
 
 
-def test_portrait_cycle_action_cancels_an_active_lock(tmp_path: Path):
+def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
+    """Cycling is 'show me this subject differently', not 'move on' — a lock
+    (and its repeat-one) must survive and apply to the sibling."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
@@ -730,8 +732,29 @@ def test_portrait_cycle_action_cancels_an_active_lock(tmp_path: Path):
     ):
         new_state, _ops = dispatch_command("portrait_cycle_action", state, config)
 
-    assert new_state.locked2 is False
-    repeat.assert_called_once_with(config.portrait_port, "pw", "all")
+    assert new_state.locked2 is True
+    repeat.assert_not_called()
+
+
+def test_portrait_cycle_seed_keeps_an_active_lock(tmp_path: Path):
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_a": _cycle_meta("111", "Alpha"),
+        "subject_b": _cycle_meta("222", "Alpha"),
+    })
+    state = _make_state(locked2=True)
+    entries = [(3, paths["subject_a"]), (5, paths["subject_b"])]
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=(entries, 3)),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True) as repeat,
+        patch("fun_time.command_dispatch.vlc_play_playlist_item", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        new_state, _ops = dispatch_command("portrait_cycle_seed", state, config)
+
+    assert new_state.locked2 is True
+    repeat.assert_not_called()
 
 
 def test_portrait_cycle_seed_jumps_to_sister_seed_in_playlist(tmp_path: Path):
@@ -820,13 +843,12 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
     with (
         patch("fun_time.command_dispatch.get_current_file_path", return_value=videos["subject_zeta"]) as current,
         patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, videos["subject_zeta"])], 3)) as entries,
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
         patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
         patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
     ):
         new_state, _ops = dispatch_command("landscape_cycle_action", state, config)
 
-    assert new_state.locked3 is False
+    assert new_state.locked3 is True, "cycling must not release the landscape lock"
     current.assert_called_with(config.landscape_port, "pw")
     entries.assert_called_once_with(config.landscape_port, "pw")
     swap.assert_called_once_with(config.landscape_port, "pw", videos["subject_alpha"])
