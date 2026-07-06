@@ -237,7 +237,6 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(monkeypatch, t
         landscape_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        primary_port=9001,
         portrait_port=9002,
         landscape_port=9003,
         password="pw",
