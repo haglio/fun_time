@@ -89,13 +89,24 @@ def wait_for_http(
     password: str,
     timeout_ms: int = 5000,
     *,
+    is_alive=None,
     sleep_fn=time.sleep,
 ) -> bool:
+    """Poll VLC's HTTP interface until it answers, or the deadline passes.
+
+    When *is_alive* is given it is called each iteration; if it returns False
+    the wait aborts immediately (a VLC that has already exited will never bind
+    its HTTP interface, so there is no point polling out the timeout).  This
+    lets callers set a generous timeout to absorb slow binds under load while
+    still failing fast on a genuine startup crash.
+    """
     deadline = time.monotonic() + max(0, timeout_ms) / 1000
     while time.monotonic() <= deadline:
         status, xml = vlc_http_req(port, "/requests/status.xml", password)
         if status == 200 and "<state>" in xml:
             return True
+        if is_alive is not None and not is_alive():
+            return False
         sleep_fn(0.2)
     return False
 
