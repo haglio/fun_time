@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import configparser
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
+
+import pytest
 
 from fun_time.modes import FModePlaylistPlan
 from fun_time.windows_bridge_startup import (
+    _VLC_HTTP_BIND_TIMEOUT_MS,
+    _await_vlc_http,
     _build_vlc_launch_command,
     launch_core_apps,
     launch_genau,
@@ -403,6 +407,44 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
     assert parser.get("result", "audio_pid") == "33"
 
 
+class _FakeVlcProc:
+    """Stand-in for a VLC Popen handle with a controllable liveness signal."""
+
+    def __init__(self, *, alive: bool = True, returncode: int = 0):
+        self._alive = alive
+        self.returncode = returncode
+
+    def poll(self):
+        return None if self._alive else self.returncode
+
+
+def test_await_vlc_http_raises_with_exit_code_when_process_dies_before_binding():
+    """A VLC that exits before its HTTP interface binds must fail immediately
+    with its exit code, not wait out the full bind timeout."""
+    proc = _FakeVlcProc(alive=False, returncode=3)
+    with patch("fun_time.windows_bridge_startup.wait_for_http", return_value=False):
+        with pytest.raises(RuntimeError, match="exited.*3"):
+            _await_vlc_http(8091, "pw", proc, "Portrait")
+
+
+def test_await_vlc_http_raises_timeout_when_process_alive_but_unresponsive():
+    """A VLC that stays alive but never binds HTTP must raise a timeout error,
+    distinct from the exit-code path so the failure is diagnosable."""
+    proc = _FakeVlcProc(alive=True)
+    with patch("fun_time.windows_bridge_startup.wait_for_http", return_value=False):
+        with pytest.raises(RuntimeError, match="did not come up"):
+            _await_vlc_http(8091, "pw", proc, "Landscape")
+
+
+def test_await_vlc_http_returns_when_http_binds():
+    """When wait_for_http succeeds, the helper returns without raising and does
+    not consult the exit code."""
+    proc = _FakeVlcProc(alive=True)
+    with patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True) as wait_http:
+        _await_vlc_http(8091, "pw", proc, "Portrait")
+    wait_http.assert_called_once_with(8091, "pw", _VLC_HTTP_BIND_TIMEOUT_MS, is_alive=ANY)
+
+
 def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: Path, monkeypatch):
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
@@ -447,8 +489,8 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
     assert "--loop" in portrait_command
     assert "--loop" in landscape_command
 
-    wait_http.assert_any_call(8091, "pw", 7000)
-    wait_http.assert_any_call(8092, "pw", 7000)
+    wait_http.assert_any_call(8091, "pw", _VLC_HTTP_BIND_TIMEOUT_MS, is_alive=ANY)
+    wait_http.assert_any_call(8092, "pw", _VLC_HTTP_BIND_TIMEOUT_MS, is_alive=ANY)
     set_repeat.assert_any_call(8091, "pw", "all")
     set_repeat.assert_any_call(8092, "pw", "all")
     vlc_cmd.assert_any_call(8091, "pl_next", "pw")

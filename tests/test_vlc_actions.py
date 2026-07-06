@@ -338,6 +338,26 @@ def test_wait_for_http_returns_false_on_timeout(monkeypatch):
     assert vlc_actions.wait_for_http(8080, "pw", 0, sleep_fn=lambda _: None) is False
 
 
+def test_wait_for_http_aborts_early_when_process_dies(monkeypatch):
+    """A dead VLC will never bind its HTTP interface, so wait_for_http must
+    abort as soon as is_alive() reports the process gone instead of polling
+    out the whole (deliberately generous) timeout."""
+    calls = {"n": 0}
+
+    def fake_req(port, path, password, user=""):
+        calls["n"] += 1
+        return (0, "")
+
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", fake_req)
+
+    result = vlc_actions.wait_for_http(
+        8080, "pw", 60000, is_alive=lambda: False, sleep_fn=lambda _: None
+    )
+
+    assert result is False
+    assert calls["n"] == 1, "should probe once then abort, not loop to the deadline"
+
+
 def test_replace_playlist_from_file_succeeds_without_repeat_mode(monkeypatch, tmp_path: Path):
     playlist = tmp_path / "playlist.m3u"
     playlist.write_text("#EXTM3U\n", encoding="utf-8")

@@ -303,6 +303,27 @@ def launch_ui_companions(
     )
 
 
+# A full integration run spawns and kills VLC many times; on a loaded machine
+# the HTTP interface occasionally takes several seconds longer than a naive
+# fixed timeout to bind.  Wait generously — _await_vlc_http still fails fast if
+# the process dies, so the ceiling only bites a genuinely hung-but-alive VLC.
+_VLC_HTTP_BIND_TIMEOUT_MS = 20000
+
+
+def _await_vlc_http(port: int, password: str, proc, label: str) -> None:
+    """Block until VLC's HTTP interface binds, or fail with a precise error.
+
+    Waits up to _VLC_HTTP_BIND_TIMEOUT_MS, but only while *proc* is alive: a
+    VLC that has already exited will never bind, so we surface its exit code
+    immediately instead of waiting out the whole timeout.
+    """
+    if wait_for_http(port, password, _VLC_HTTP_BIND_TIMEOUT_MS, is_alive=lambda: proc.poll() is None):
+        return
+    if proc.poll() is not None:
+        raise RuntimeError(f"{label} VLC exited before its HTTP interface bound (exit code {proc.returncode})")
+    raise RuntimeError(f"{label} VLC HTTP did not come up within {_VLC_HTTP_BIND_TIMEOUT_MS // 1000}s")
+
+
 def launch_core_apps(
     *,
     project_dir: str | Path,
@@ -344,10 +365,8 @@ def launch_core_apps(
     if is_integration:
         _park_window_offscreen(landscape_proc.pid)
 
-    if not wait_for_http(portrait_port, password, 7000):
-        raise RuntimeError("Portrait VLC HTTP did not come up")
-    if not wait_for_http(landscape_port, password, 7000):
-        raise RuntimeError("Landscape VLC HTTP did not come up")
+    _await_vlc_http(portrait_port, password, portrait_proc, "Portrait")
+    _await_vlc_http(landscape_port, password, landscape_proc, "Landscape")
 
     set_repeat_mode(portrait_port, password, "all")
     set_repeat_mode(landscape_port, password, "all")
