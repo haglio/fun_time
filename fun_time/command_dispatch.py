@@ -44,6 +44,7 @@ from .vlc_actions import (
     vlc_play_playlist_item,
     vlc_swap_current_with,
 )
+from .watch_stats import record_watch_event, watch_stats_path
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +173,8 @@ def _toggle_lock(which: int, state: BridgeState, config: BridgeConfig) -> tuple[
         set_repeat_mode(port, config.vlc_password, plan.repeat_mode)
     if plan.ensure_in_favs and current_path:
         ensure_in_favs(config.favs_file, current_path)
+        # Locking is the strongest positive watch signal ("breeding" weight).
+        record_watch_event(watch_stats_path(config.state_dir), current_path, "lock")
     if plan.advance_playlist:
         vlc_http_cmd(port, "pl_next", config.vlc_password)
     if plan.log_message:

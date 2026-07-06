@@ -16,6 +16,8 @@ from pathlib import Path
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
+from .vlc_actions import get_current_file_path, get_playback_fraction
+from .watch_stats import SatelliteWatchTracker, record_watch_event, watch_stats_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
@@ -204,8 +206,26 @@ class DispatchLoopRunner:
         self._role_hwnds: dict[str, int] = dict(role_hwnds or {})
         self._minimized_hwnds: list[int] = []
         self.voice_controller: VoiceController | None = None
+        # Watch tracking ("breeding"): each satellite's playback is sampled
+        # ~1 Hz and classified into completions/skips for the stats file.
+        self._watch_trackers: dict[int, SatelliteWatchTracker] = {
+            2: SatelliteWatchTracker(),
+            3: SatelliteWatchTracker(),
+        }
+        self._watch_ports = {2: config.portrait_port, 3: config.landscape_port}
+        self._watch_stats_file = watch_stats_path(config.state_dir)
+        self._last_watch_sample = 0.0
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
+
+    _WATCH_SAMPLE_INTERVAL_S = 1.0
+
+    _WATCH_NAV_COMMANDS: dict[int, frozenset[str]] = {
+        2: frozenset({"portrait_prev", "portrait_next", "portrait_cycle_action", "portrait_cycle_seed"}),
+        3: frozenset({"landscape_prev", "landscape_next", "landscape_cycle_action", "landscape_cycle_seed"}),
+    }
+
+    _WATCH_DISCARD_COMMANDS: dict[str, int] = {"portrait_trash": 2, "landscape_trash": 3}
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
@@ -293,9 +313,28 @@ class DispatchLoopRunner:
             self._last_sync = now
             if self.dashboard_enabled:
                 self._update_dashboard()
+        if not self.state.omni_paused and now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
+            self._last_watch_sample = now
+            self._sample_watch_trackers()
+
+    def _sample_watch_trackers(self) -> None:
+        for which, tracker in self._watch_trackers.items():
+            port = self._watch_ports[which]
+            fraction = get_playback_fraction(port, self.config.vlc_password)
+            if fraction is None:
+                continue
+            path = get_current_file_path(port, self.config.vlc_password)
+            for event, video in tracker.observe(path, fraction):
+                record_watch_event(self._watch_stats_file, video, event)
 
     def _dispatch(self, command: str) -> None:
         logger.info("Dispatching command: %s", command)
+        for which, nav_commands in self._WATCH_NAV_COMMANDS.items():
+            if command in nav_commands:
+                self._watch_trackers[which].note_user_nav()
+        discard_which = self._WATCH_DISCARD_COMMANDS.get(command)
+        if discard_which is not None:
+            self._watch_trackers[discard_which].note_discard()
         new_state, ops = dispatch_command(command, self.state, self.config)
         self.state = new_state
         remaining = execute_window_ops(ops, self.nau_pid)

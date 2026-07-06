@@ -239,6 +239,26 @@ def test_vlc_play_playlist_item_false_when_item_never_changes(monkeypatch):
     assert vlc_actions.vlc_play_playlist_item(8090, "pw", 4, sleep_fn=lambda _s: None) is False
 
 
+# --- get_playback_fraction ---
+
+
+def test_get_playback_fraction_reads_position(monkeypatch):
+    monkeypatch.setattr(
+        vlc_actions, "vlc_http_req",
+        lambda port, path, password, user="": (200, "<state>playing</state><position>0.4375</position>"),
+    )
+
+    assert vlc_actions.get_playback_fraction(8090, "pw") == 0.4375
+
+
+def test_get_playback_fraction_none_when_unreachable_or_absent(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
+    assert vlc_actions.get_playback_fraction(8090, "pw") is None
+
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, "<state>stopped</state>"))
+    assert vlc_actions.get_playback_fraction(8090, "pw") is None
+
+
 # --- vlc_swap_current_with ---
 
 _PLAYLIST_XML_WITH_D = _PLAYLIST_XML.replace(

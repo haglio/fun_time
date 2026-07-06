@@ -186,6 +186,20 @@ def get_repeat_mode(port: int, password: str) -> str | None:
     return "off"
 
 
+def get_playback_fraction(port: int, password: str) -> float | None:
+    """How far through the current item playback is, 0..1 (None if unknown)."""
+    status, xml = vlc_http_req(port, "/requests/status.xml", password)
+    if status != 200 or not xml:
+        return None
+    match = re.search(r"<position>([^<]+)</position>", xml)
+    if not match:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
+
+
 def get_playback_state(port: int, password: str) -> str | None:
     status, xml = vlc_http_req(port, "/requests/status.xml", password)
     if status != 200 or not xml:
