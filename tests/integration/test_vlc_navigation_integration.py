@@ -247,35 +247,45 @@ def _wait_for_playlist_count(port: int, expected: int, timeout: float = 5.0) -> 
     return _parse_playlist_ids(xml)
 
 
-def _next():
-    """Navigate to the next playlist item via ID-based pl_play.
+# vlc_nav_step already retries a stale-ID pl_play internally, but a pl_play
+# issued during VLC's transition window can still be silently dropped, leaving
+# the current item unchanged.  In a tight navigation loop (e.g.
+# test_playlist_wraps_around) that off-by-one desyncs the expected position, so
+# re-issue the whole step until the item actually advances.
+_NAV_MAX_ATTEMPTS = 3
 
-    Uses vlc_nav_step so that _next() and _prev() share the same
-    ordering (jstree document order).  Raw pl_next uses VLC's internal
-    cursor, which can diverge from jstree order after pl_play&id=N
-    commands — making pl_next and vlc_nav_step("prev") non-inverse.
-    Raw pl_next is still tested directly in test_pl_next_advances_video.
+
+def _nav(direction: str) -> str:
+    """Navigate one step ("next"/"prev") and return the settled current path.
+
+    Uses vlc_nav_step (ID-based pl_play&id=N) rather than raw pl_next/
+    pl_previous so _next and _prev stay exact inverses: raw pl_next follows
+    VLC's internal cursor, which diverges from jstree order after pl_play&id
+    commands, and raw pl_previous restarts the current track once you are past
+    VLC's ~3 s restart threshold.  Raw pl_next/pl_previous are still exercised
+    directly by test_pl_next_advances_video / test_pl_previous_goes_back.
+
+    Retries the step if VLC drops the pl_play mid-transition (the item never
+    changed) so a tight nav loop never silently lands one item short.
     """
-    _wait_for_stable_current()
-    before = _current()
-    vlc_nav_step(TEST_PORT, TEST_PASSWORD, "next")
-    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
-    return _wait_for_item_change(TEST_PORT, before)
+    after = _current()
+    for _ in range(_NAV_MAX_ATTEMPTS):
+        _wait_for_stable_current()
+        before = _current()
+        vlc_nav_step(TEST_PORT, TEST_PASSWORD, direction)
+        vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
+        after = _wait_for_item_change(TEST_PORT, before)
+        if after != before:
+            return after
+    return after
+
+
+def _next():
+    return _nav("next")
 
 
 def _prev():
-    """Navigate to the previous playlist item via ID-based pl_play.
-
-    Uses vlc_nav_step instead of raw pl_previous to bypass VLC's
-    restart-threshold (~3 s) which makes pl_previous restart the
-    current track instead of going back.  Raw pl_previous is still
-    tested directly in test_pl_previous_goes_back.
-    """
-    _wait_for_stable_current()
-    before = _current()
-    vlc_nav_step(TEST_PORT, TEST_PASSWORD, "prev")
-    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
-    return _wait_for_item_change(TEST_PORT, before)
+    return _nav("prev")
 
 
 # --- Phase 2: Do VLC basics work? ---
