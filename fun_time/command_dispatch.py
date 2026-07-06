@@ -13,8 +13,16 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
+from .media_metadata import (
+    GroupIndex,
+    cached_group_index,
+    load_metadata,
+    metadata_path_for,
+    normalize_path_key,
+)
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
+from .modes import collect_video_files
 from .provider_regen import regen_url_for_video
 from .mode_plan import genau_active, nau_displays
 from .runtime_flow import (
@@ -28,10 +36,13 @@ from .runtime_flow import (
 from .vlc_actions import (
     ensure_playback_state,
     get_current_file_path,
+    get_playlist_entries,
     set_repeat_mode,
     vlc_advance_and_remove,
     vlc_http_cmd,
     vlc_nav_step,
+    vlc_play_playlist_item,
+    vlc_swap_current_with,
 )
 
 logger = logging.getLogger(__name__)
@@ -202,6 +213,116 @@ def _discard(which: int, state: BridgeState, config: BridgeConfig) -> BridgeStat
     return replace(state, locked3=plan.next_locked)
 
 
+# display slot (2=portrait, 3=landscape) and variation axis per cycle command.
+_CYCLE_COMMANDS = {
+    "portrait_cycle_action": (2, "action"),
+    "portrait_cycle_seed": (2, "seed"),
+    "landscape_cycle_action": (3, "action"),
+    "landscape_cycle_seed": (3, "seed"),
+}
+
+
+def _next_action_sibling(index: GroupIndex, current: str) -> str | None:
+    """The action-group member after *current*, cycling in sorted order."""
+    group_key = index.action_key_by_path.get(normalize_path_key(current))
+    if group_key is None:
+        return None
+    members = [m for m in index.action_members[group_key] if Path(m).exists()]
+    if len(members) < 2:
+        return None
+    current_key = normalize_path_key(current)
+    for position, member in enumerate(members):
+        if normalize_path_key(member) == current_key:
+            return members[(position + 1) % len(members)]
+    return members[0]
+
+
+def _next_seed_sibling(
+    index: GroupIndex, current: str, entries: list[tuple[int, str]]
+) -> str | None:
+    """A same-config different-seed video, preferring ones already in the playlist.
+
+    Sisters are toured in seed order: the first seed above the current one,
+    wrapping to the lowest, so repeated presses visit every subject.
+    """
+    seed_key = index.seed_key_by_path.get(normalize_path_key(current))
+    if seed_key is None:
+        return None
+    family, current_seed = seed_key
+
+    def sisters(paths) -> list[tuple[str, str]]:
+        found: list[tuple[str, str]] = []
+        for path in paths:
+            candidate = index.seed_key_by_path.get(normalize_path_key(path))
+            if candidate and candidate[0] == family and candidate[1] != current_seed:
+                found.append((candidate[1], path))
+        return sorted(found)
+
+    pool = sisters(path for _item_id, path in entries)
+    if not pool:
+        pool = sisters(m for m in index.seed_members.get(family, []) if Path(m).exists())
+    if not pool:
+        return None
+    for seed, path in pool:
+        if seed > current_seed:
+            return path
+    return pool[0][1]
+
+
+def _video_action_label(video_path: str, config: BridgeConfig) -> str:
+    meta_path = metadata_path_for(video_path, config.provider_media_root, config.provider_metadata_root)
+    if meta_path is None or not meta_path.is_file():
+        return ""
+    video = load_metadata(meta_path).get("video") or {}
+    return str(video.get("action") or "").strip()
+
+
+def _cycle_variant(
+    which: int, kind: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Switch the satellite's current video to a sibling: another action of the
+    same subject(s)+situation, or the same configuration under another seed."""
+    port = config.portrait_port if which == 2 else config.landscape_port
+    sources = config.portrait_sources if which == 2 else config.landscape_sources
+    ops: list[WindowOp] = []
+    state = _cancel_lock(which, state, config)
+    current = get_current_file_path(port, config.vlc_password)
+    if not current:
+        return state, ops
+    index = cached_group_index(
+        sources,
+        paths_supplier=lambda: collect_video_files(sources),
+        media_root=config.provider_media_root,
+        metadata_root=config.provider_metadata_root,
+        must_contain=current,
+    )
+    entries, _current_id = get_playlist_entries(port, config.vlc_password)
+    if kind == "action":
+        target = _next_action_sibling(index, current)
+        missing_message = "No other actions"
+    else:
+        target = _next_seed_sibling(index, current, entries)
+        missing_message = "No other seeds"
+    if target is None:
+        ops.append(WindowOp(op="tooltip", key=missing_message))
+        return state, ops
+    entry_ids = {normalize_path_key(path): item_id for item_id, path in entries}
+    target_id = entry_ids.get(normalize_path_key(target))
+    if target_id is not None:
+        switched = vlc_play_playlist_item(port, config.vlc_password, target_id)
+    else:
+        switched = vlc_swap_current_with(port, config.vlc_password, target)
+    if not switched:
+        logger.warning("cycle %s: could not switch to %s", kind, target)
+        return state, ops
+    ensure_playback_state(port, config.vlc_password, should_play=True)
+    if kind == "action":
+        action = _video_action_label(target, config)
+        if action:
+            ops.append(WindowOp(op="tooltip", key=f"Action: {action}"))
+    return state, ops
+
+
 def dispatch_command(
     command: str,
     state: BridgeState,
@@ -209,6 +330,11 @@ def dispatch_command(
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Dispatch a dashboard/hotkey command, returning updated state and window operations."""
     ops: list[WindowOp] = []
+
+    cycle_target = _CYCLE_COMMANDS.get(command)
+    if cycle_target is not None:
+        which, kind = cycle_target
+        return _cycle_variant(which, kind, state, config)
 
     if command == "portrait_prev":
         state = _cancel_lock(2, state, config)

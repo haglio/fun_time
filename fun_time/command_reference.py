@@ -95,6 +95,8 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Next portrait clip", ("Right",), ("portrait_next",)),
             _Row("Mark portrait clip as weird", ("Up",), ("portrait_trash",)),
             _Row("Lock / unlock portrait", ("Down",), ("portrait_lock", "portrait_lock_on", "portrait_lock_off")),
+            _Row("Cycle action — same subject(s) & scene, another act", ("Del",), ("portrait_cycle_action",)),
+            _Row("Cycle seed — same config, different subject", ("End",), ("portrait_cycle_seed",)),
         ),
     ),
     (
@@ -104,6 +106,8 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Next landscape clip", ("D",), ("landscape_next",)),
             _Row("Mark landscape clip as weird", ("W",), ("landscape_trash",)),
             _Row("Lock / unlock landscape", ("S",), ("landscape_lock", "landscape_lock_on", "landscape_lock_off")),
+            _Row("Cycle action — same subject(s) & scene, another act", ("E",), ("landscape_cycle_action",)),
+            _Row("Cycle seed — same config, different subject", ("Q",), ("landscape_cycle_seed",)),
         ),
     ),
     (

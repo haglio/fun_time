@@ -22,6 +22,16 @@ VOICE_COMMANDS: dict[str, str] = {
     "previous portrait": "portrait_prev",
     "weird landscape": "landscape_trash",
     "weird portrait": "portrait_trash",
+    # Cycle a video's siblings: same subject(s)+scene doing another action, or
+    # the same generation config under another seed (a different subject).
+    "portrait action": "portrait_cycle_action",
+    "cycle portrait action": "portrait_cycle_action",
+    "portrait seed": "portrait_cycle_seed",
+    "cycle portrait seed": "portrait_cycle_seed",
+    "landscape action": "landscape_cycle_action",
+    "cycle landscape action": "landscape_cycle_action",
+    "landscape seed": "landscape_cycle_seed",
+    "cycle landscape seed": "landscape_cycle_seed",
     "f mode": "fmode_toggle",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",

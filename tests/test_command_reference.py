@@ -73,6 +73,23 @@ def test_every_ahk_hotkey_command_is_represented_with_a_hotkey():
         )
 
 
+def test_cycle_action_and_seed_rows_have_keys_and_voice():
+    """Del/End cycle the portrait's action/seed; E/Q do the same for landscape."""
+    expected = {
+        "portrait_cycle_action": ("Del", "portrait action"),
+        "portrait_cycle_seed": ("End", "portrait seed"),
+        "landscape_cycle_action": ("E", "landscape action"),
+        "landscape_cycle_seed": ("Q", "landscape seed"),
+    }
+    rows = _all_rows()
+    for cmd, (key, phrase) in expected.items():
+        assert VOICE_COMMANDS[phrase] == cmd
+        owning = [r for r in rows if cmd in r.commands]
+        assert len(owning) == 1, f"expected exactly one row for {cmd}"
+        assert owning[0].hotkeys == (key,)
+        assert phrase in owning[0].voice
+
+
 def test_premiere_row_uses_p_key_and_premiere_voice():
     """The newest-first refresh is branded "Premiere": P key, spoken "premiere"."""
     assert VOICE_COMMANDS["premiere"] == "recency_order_refresh"

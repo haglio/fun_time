@@ -582,6 +582,220 @@ def test_fmode_toggle_passes_provider_roots_for_group_collapse(tmp_path: Path):
     assert kwargs["provider_metadata_root"] == tmp_path / "metadata"
 
 
+# --- portrait/landscape cycle action & cycle seed ---
+
+
+def _cycle_meta(image_seed: str, action: str) -> dict:
+    return {
+        "video": {"prompt": f"do {action}", "action": action, "seed": "5"},
+        "source_image": {"positive_prompt": "subject at the beach", "seed": image_seed},
+    }
+
+
+def _make_grouped_config(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[BridgeConfig, dict[str, str]]:
+    """A BridgeConfig whose portrait source dir holds *videos* (+ sidecars)."""
+    from fun_time.media_metadata import metadata_path_for, reset_group_index_cache
+
+    reset_group_index_cache()
+    media_root = tmp_path / "media"
+    metadata_root = tmp_path / "metadata"
+    portrait_dir = media_root / "portrait"
+    portrait_dir.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, str] = {}
+    for name, meta in videos.items():
+        video = portrait_dir / f"{name}.mp4"
+        video.write_text("x", encoding="utf-8")
+        paths[name] = str(video)
+        if meta is not None:
+            sidecar = metadata_path_for(video, media_root, metadata_root)
+            sidecar.parent.mkdir(parents=True, exist_ok=True)
+            sidecar.write_text(json.dumps(meta), encoding="utf-8")
+    config = replace(
+        _make_config(tmp_path),
+        portrait_sources=str(portrait_dir),
+        provider_media_root=media_root,
+        provider_metadata_root=metadata_root,
+    )
+    return config, paths
+
+
+def test_portrait_cycle_action_swaps_to_next_action_of_the_group(tmp_path: Path):
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_zeta": _cycle_meta("111", "Zeta Massage"),
+        "subject_alpha": _cycle_meta("111", "Alpha"),
+        "other_subject": _cycle_meta("222", "Alpha"),
+    })
+    state = _make_state()
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_zeta"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_zeta"])], 3)),
+        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
+
+    swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_alpha"])
+    tooltips = [op.key for op in ops if op.op == "tooltip"]
+    assert tooltips == ["Action: Alpha"]
+
+
+def test_portrait_cycle_action_jumps_when_sibling_already_in_playlist(tmp_path: Path):
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_zeta": _cycle_meta("111", "Zeta Massage"),
+        "subject_alpha": _cycle_meta("111", "Alpha"),
+    })
+    state = _make_state()
+    entries = [(3, paths["subject_zeta"]), (4, paths["subject_alpha"])]
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_zeta"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=(entries, 3)),
+        patch("fun_time.command_dispatch.vlc_play_playlist_item", return_value=True) as play,
+        patch("fun_time.command_dispatch.vlc_swap_current_with") as swap,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        dispatch_command("portrait_cycle_action", state, config)
+
+    play.assert_called_once_with(config.portrait_port, "pw", 4)
+    swap.assert_not_called()
+
+
+def test_portrait_cycle_action_tooltips_when_video_has_no_siblings(tmp_path: Path):
+    config, paths = _make_grouped_config(tmp_path, {
+        "loner": _cycle_meta("111", "Alpha"),
+    })
+    state = _make_state()
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["loner"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["loner"])], 3)),
+        patch("fun_time.command_dispatch.vlc_swap_current_with") as swap,
+    ):
+        _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
+
+    swap.assert_not_called()
+    assert [op.key for op in ops if op.op == "tooltip"] == ["No other actions"]
+
+
+def test_portrait_cycle_action_cancels_an_active_lock(tmp_path: Path):
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_zeta": _cycle_meta("111", "Zeta Massage"),
+        "subject_alpha": _cycle_meta("111", "Alpha"),
+    })
+    state = _make_state(locked2=True)
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_zeta"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_zeta"])], 3)),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True) as repeat,
+        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        new_state, _ops = dispatch_command("portrait_cycle_action", state, config)
+
+    assert new_state.locked2 is False
+    repeat.assert_called_once_with(config.portrait_port, "pw", "all")
+
+
+def test_portrait_cycle_seed_jumps_to_sister_seed_in_playlist(tmp_path: Path):
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_a": _cycle_meta("111", "Alpha"),
+        "subject_b": _cycle_meta("222", "Alpha"),
+        "subject_a_other_action": _cycle_meta("111", "Zeta Massage"),
+    })
+    state = _make_state()
+    entries = [
+        (3, paths["subject_a"]),
+        (4, paths["subject_a_other_action"]),  # same seed as current: not a target
+        (5, paths["subject_b"]),
+    ]
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=(entries, 3)),
+        patch("fun_time.command_dispatch.vlc_play_playlist_item", return_value=True) as play,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        dispatch_command("portrait_cycle_seed", state, config)
+
+    play.assert_called_once_with(config.portrait_port, "pw", 5)
+
+
+def test_portrait_cycle_seed_swaps_in_library_sister_when_none_in_playlist(tmp_path: Path):
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_a": _cycle_meta("111", "Alpha"),
+        "subject_b": _cycle_meta("222", "Alpha"),
+    })
+    state = _make_state()
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_a"])], 3)),
+        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        dispatch_command("portrait_cycle_seed", state, config)
+
+    swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_b"])
+
+
+def test_portrait_cycle_seed_tooltips_without_seed_siblings(tmp_path: Path):
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_a": _cycle_meta("111", "Alpha"),
+        "no_meta": None,
+    })
+    state = _make_state()
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_a"])], 3)),
+        patch("fun_time.command_dispatch.vlc_swap_current_with") as swap,
+    ):
+        _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
+
+    swap.assert_not_called()
+    assert [op.key for op in ops if op.op == "tooltip"] == ["No other seeds"]
+
+
+def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
+    """The landscape variants must hit the landscape port and lock flag."""
+    from fun_time.media_metadata import metadata_path_for, reset_group_index_cache
+
+    reset_group_index_cache()
+    config, paths = _make_grouped_config(tmp_path, {})
+    media_root = config.provider_media_root
+    landscape_dir = media_root / "landscape"
+    landscape_dir.mkdir(parents=True, exist_ok=True)
+    videos: dict[str, str] = {}
+    for name, meta in (
+        ("subject_zeta", _cycle_meta("111", "Zeta Massage")),
+        ("subject_alpha", _cycle_meta("111", "Alpha")),
+    ):
+        video = landscape_dir / f"{name}.mp4"
+        video.write_text("x", encoding="utf-8")
+        videos[name] = str(video)
+        sidecar = metadata_path_for(video, media_root, config.provider_metadata_root)
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(json.dumps(meta), encoding="utf-8")
+    config = replace(config, landscape_sources=str(landscape_dir))
+    state = _make_state(locked3=True)
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=videos["subject_zeta"]) as current,
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, videos["subject_zeta"])], 3)) as entries,
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        new_state, _ops = dispatch_command("landscape_cycle_action", state, config)
+
+    assert new_state.locked3 is False
+    current.assert_called_with(config.landscape_port, "pw")
+    entries.assert_called_once_with(config.landscape_port, "pw")
+    swap.assert_called_once_with(config.landscape_port, "pw", videos["subject_alpha"])
+
+
 # --- recency_order_refresh ---
 
 
