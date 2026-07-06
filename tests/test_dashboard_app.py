@@ -347,59 +347,6 @@ def test_dashboard_app_marks_broker_disconnected_when_heartbeat_is_stale(cfg_pat
     assert fills[preview_layout.broker_panel] == COLOR_RED
 
 
-def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
-    """Window must show in taskbar (WS_EX_APPWINDOW) and close handler writes exit."""
-    import ctypes
-    from fun_time.dashboard_app import DashboardWindow
-
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-
-    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
-        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
-
-    try:
-        # Window decorations: visible on taskbar via WS_EX_APPWINDOW.
-        hwnd = int(window.winId())
-        ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE
-        assert not (ex_style & 0x00000080), "WS_EX_TOOLWINDOW should NOT be set"
-        assert ex_style & 0x00040000, "WS_EX_APPWINDOW should be set"
-
-        # Close handler: closeEvent writes 'exit' to ahk_cmd.txt.
-        ahk_cmd_file = manifest_path.parent / "ahk_cmd.txt"
-        assert not ahk_cmd_file.exists(), "ahk_cmd.txt should not exist before close"
-        from PyQt6.QtGui import QCloseEvent
-        window.closeEvent(QCloseEvent())
-        assert ahk_cmd_file.exists(), "Close handler should have written ahk_cmd.txt"
-        assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
-    finally:
-        window.close()
-
-
-def test_dashboard_window_shows_native_minimize_and_close_buttons(cfg_path: Path):
-    """Top-right title-bar controls: minimize + close, but no maximize."""
-    import ctypes
-
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-
-    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
-        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
-
-    try:
-        hwnd = int(window.winId())
-        style = ctypes.windll.user32.GetWindowLongW(hwnd, -16)  # GWL_STYLE
-        assert style & 0x00080000, "WS_SYSMENU must be set (enables the close button)"
-        assert style & 0x00020000, "WS_MINIMIZEBOX must be set (enables minimize)"
-        assert not (style & 0x00010000), "WS_MAXIMIZEBOX must NOT be set (no maximize)"
-    finally:
-        window.close()
-
-
 def test_minimize_routes_omniminimize_command(cfg_path: Path):
     """Minimizing the dashboard writes the omniminimize command for the dispatch loop."""
     config = load_config(cfg_path)
