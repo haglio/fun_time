@@ -23,17 +23,3 @@ voice = [
     "vosk",
     "sounddevice",
 ]
-
-[tool.pytest.ini_options]
-addopts = "-p no:cacheprovider"
-testpaths = ["tests"]
-norecursedirs = [
-    "archive",
-    "state",
-    "integration",
-    ".tmp-pytest-local",
-    ".tmp-pytest-fresh",
-    ".tmp-pytest-int",
-    ".tmp-pytest-int-one",
-    "pytest-cache-files-*",
-]
