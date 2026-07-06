@@ -23,6 +23,7 @@ from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser, tab_placeholder_path
 from .runtime_flow import write_flag_file
 from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
+from .window_roles import ROLE_TOPMOST
 from .win32 import (
     find_window_by_pid,
     hide_window,
@@ -88,17 +89,14 @@ def _apply_startup_window_state(
 ) -> dict[str, int]:
     """Set the static window state for the nau startup mode.
 
-    No window overlaps another anymore, so there is no z-order to manage:
-    every managed window is simply always-on-top.  The primary slot is
-    arbitrated by visibility: startup mode is nau, so Nau is shown and Genau
-    starts hidden.
+    No window overlaps another anymore, so there is no z-order to manage: each
+    managed window just gets its static topmost flag from the shared
+    ``ROLE_TOPMOST`` policy — the same one omnipause honors, so startup and
+    omnipause never disagree (True for all except Nau, which stays under Genau's
+    HUD). The primary slot is arbitrated by visibility: startup mode is nau, so
+    Nau is shown and Genau starts hidden.
     """
-    for hwnd in (rfb_hwnd, portrait_hwnd, landscape_hwnd, genau_hwnd, nau_hwnd, dashboard_hwnd):
-        if hwnd:
-            set_always_on_top(hwnd, True)
-    if genau_hwnd:
-        hide_window(genau_hwnd)
-    return {
+    role_hwnds = {
         "portrait": portrait_hwnd,
         "landscape": landscape_hwnd,
         "genau": genau_hwnd,
@@ -106,6 +104,12 @@ def _apply_startup_window_state(
         "dashboard": dashboard_hwnd,
         "rfb": rfb_hwnd,
     }
+    for role, hwnd in role_hwnds.items():
+        if hwnd:
+            set_always_on_top(hwnd, ROLE_TOPMOST[role])
+    if genau_hwnd:
+        hide_window(genau_hwnd)
+    return role_hwnds
 
 
 def run_startup_sequence(

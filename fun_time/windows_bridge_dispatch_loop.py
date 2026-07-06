@@ -24,6 +24,7 @@ from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on
 from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
+from .window_roles import ROLE_TOPMOST
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -430,19 +431,6 @@ class DispatchLoopRunner:
         except Exception:
             pass
 
-    # Windows never stack anymore (the dashboard/RFB got their own screen
-    # rects), so z-order management is gone: every managed window carries a
-    # STATIC topmost flag — True for all except Nau, which lives under Genau's
-    # transparent HUD in hybrid mode and must never rise above it.
-    _ROLE_TOPMOST: dict[str, bool] = {
-        "rfb": True,
-        "portrait": True,
-        "landscape": True,
-        "genau": True,
-        "nau": False,
-        "dashboard": True,
-    }
-
     def _resolve_role(self, role: str) -> int:
         """HWND for a managed window role, cached on first sight.
 
@@ -482,7 +470,7 @@ class DispatchLoopRunner:
 
     def _remove_all_topmost(self) -> None:
         """Drop every window out of the TOPMOST band (omnipause frees the desktop)."""
-        for role, topmost in self._ROLE_TOPMOST.items():
+        for role, topmost in ROLE_TOPMOST.items():
             if topmost:
                 hwnd = self._resolve_role(role)
                 if hwnd:
@@ -490,7 +478,7 @@ class DispatchLoopRunner:
 
     def _restore_all_topmost(self) -> None:
         """Re-apply the static topmost flags after omnipause."""
-        for role, topmost in self._ROLE_TOPMOST.items():
+        for role, topmost in ROLE_TOPMOST.items():
             if topmost:
                 hwnd = self._resolve_role(role)
                 if hwnd:

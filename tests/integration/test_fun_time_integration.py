@@ -123,11 +123,12 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
     """The primary-slot players share one screen rect, so a mode switch
     swaps window VISIBILITY: exactly the active mode's player is on screen
     (find_window_by_title only sees visible windows — a hidden window's
-    lookup returns 0) and keeps its static TOPMOST flag while visible."""
+    lookup returns 0). Nau carries its static non-topmost band (it rides under
+    Genau's HUD), so it stays OUT of the topmost band even while visible."""
     s = shared_integration_session
 
-    # nau mode: Nau visible (and TOPMOST), Genau hidden.  The lookup is
-    # exact because 'Nau' is a substring of 'Genau'.
+    # nau mode: Nau visible (and non-topmost, per its static band), Genau
+    # hidden.  The lookup is exact because 'Nau' is a substring of 'Genau'.
     s.wait_until(
         lambda: find_window_by_title("Nau", exact=True) != 0,
         timeout=12,
@@ -135,9 +136,9 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
     )
     nau_hwnd = find_window_by_title("Nau", exact=True)
     s.wait_until(
-        lambda: is_window_topmost(nau_hwnd),
+        lambda: not is_window_topmost(nau_hwnd),
         timeout=5,
-        description="Nau to be TOPMOST while visible",
+        description="Nau to stay out of the topmost band while visible",
     )
     s.wait_until(
         lambda: find_window_by_title("Genau") == 0,
