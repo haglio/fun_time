@@ -139,7 +139,8 @@ def render_breeding_report(rows: list[BreedingRow], *, top: int) -> str:
     )
     lines = [
         f"Breeding leaderboard - {len(rows)} clips tracked "
-        f"({len(rising)} at or above neutral, {len(fading)} fading)",
+        f"({len(rising)} rising, {len(fading)} fading) | "
+        "C=completions  L=locks  S=skips  O=orientation (P/L)",
         "",
     ]
     if rising:
@@ -150,7 +151,14 @@ def render_breeding_report(rows: list[BreedingRow], *, top: int) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Watch-stats leaderboard (breeding state)")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Watch-stats leaderboard (breeding state). Columns: WEIGHT = the "
+            "shuffle-frequency multiplier, C = completions (full watches, one "
+            "per repeat loop while locked), L = locks, S = skips, "
+            "O = orientation (P portrait / L landscape)."
+        )
+    )
     parser.add_argument("--top", type=int, default=15, help="rows per section (default 15)")
     parser.add_argument("--all", action="store_true", help="show every tracked clip")
     parser.add_argument("--config", default=None, help="alternate fun_time_config.json")

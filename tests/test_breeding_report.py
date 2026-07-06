@@ -82,6 +82,11 @@ def test_render_breeding_report_shows_rising_and_fading_sections(tmp_path: Path)
     report = render_breeding_report(rows, top=10)
 
     assert "3 clips tracked" in report
+    first_line = report.splitlines()[0]
+    assert "C=completions" in first_line
+    assert "L=locks" in first_line
+    assert "S=skips" in first_line
+    assert "O=orientation (P/L)" in first_line
     assert "Rising" in report and "Fading" in report
     lines = report.splitlines()
     loved_line = next(line for line in lines if "loved.mp4" in line)

@@ -258,7 +258,7 @@ Check the current standings any time with the leaderboard (from the project root
 ./.venv/Scripts/python.exe -m fun_time.breeding_report
 ```
 
-It ranks every tracked clip by weight — "Rising" then "Fading" — with its action, image seed, and prompt pulled from the metadata sidecars. Options: `--top N` (rows per section, default 15), `--all`.
+It ranks every tracked clip by weight — "Rising" then "Fading" — with its action, image seed, and prompt pulled from the metadata sidecars. Columns: **WEIGHT** is the shuffle-frequency multiplier; **C** = completions (full watches — one per repeat loop while locked), **L** = locks, **S** = skips, **O** = orientation (P portrait / L landscape). Options: `--top N` (rows per section, default 15), `--all`.
 
 ## Favorites CSV behavior
 
