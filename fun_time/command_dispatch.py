@@ -284,11 +284,15 @@ def _cycle_variant(
     which: int, kind: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Switch the satellite's current video to a sibling: another action of the
-    same subject(s)+situation, or the same configuration under another seed."""
+    same subject(s)+situation, or the same configuration under another seed.
+
+    Unlike prev/next, cycling deliberately leaves an active lock alone: it
+    means "show me this differently", not "move on" — the lock's repeat-one
+    carries over to the sibling, which simply loops in its place.
+    """
     port = config.portrait_port if which == 2 else config.landscape_port
     sources = config.portrait_sources if which == 2 else config.landscape_sources
     ops: list[WindowOp] = []
-    state = _cancel_lock(which, state, config)
     current = get_current_file_path(port, config.vlc_password)
     if not current:
         return state, ops
