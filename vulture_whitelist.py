@@ -72,7 +72,5 @@ restore_vlcrc_volume  # noqa
 is_process_alive  # noqa
 _read_shortcut_app_user_model_id  # noqa
 # reset_group_index_cache is test isolation support for the module-level
-# group-index cache; record_watch_event's production consumer lands with the
-# dispatch-loop watch tracker (next commit).
+# group-index cache (same reason as consume_command_file above).
 reset_group_index_cache  # noqa
-record_watch_event  # noqa

@@ -1691,6 +1691,122 @@ class TestIdempotentVoiceCommands:
         mock_stop.assert_not_called()
 
 
+class TestWatchTracking:
+    """The runner samples both satellites ~1 Hz and turns transitions into
+    watch-stats events, with user nav commands marking skips."""
+
+    def _run_samples(self, runner, monkeypatch, timeline):
+        """Drive tick() through (t, portrait_path, portrait_fraction) samples."""
+        current = {"value": ("", None)}
+        fake_now = {"t": 0.0}
+        monkeypatch.setattr(
+            "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
+        )
+
+        def fake_path(port, pw):
+            return current["value"][0] if port == 9091 else ""
+
+        def fake_fraction(port, pw):
+            return current["value"][1] if port == 9091 else None
+
+        monkeypatch.setattr(
+            "fun_time.windows_bridge_dispatch_loop.get_current_file_path", fake_path
+        )
+        monkeypatch.setattr(
+            "fun_time.windows_bridge_dispatch_loop.get_playback_fraction", fake_fraction
+        )
+        for t, path, fraction in timeline:
+            fake_now["t"] = t
+            current["value"] = (path, fraction)
+            runner.tick()
+
+    def test_tick_records_a_completion_for_a_fully_watched_video(self, tmp_path, monkeypatch):
+        from fun_time.media_metadata import normalize_path_key
+        from fun_time.watch_stats import load_watch_stats
+
+        runner = make_runner(tmp_path)
+        a = tmp_path / "a.mp4"
+        a.write_text("x", encoding="utf-8")
+
+        self._run_samples(runner, monkeypatch, [
+            (100.0, str(a), 0.1),
+            (101.1, str(a), 0.9),
+            (102.2, "", None),          # unreadable sample is ignored
+            (103.3, str(tmp_path / "b.mp4"), 0.0),
+        ])
+
+        stats = load_watch_stats(tmp_path / "watch_stats.json")
+        assert stats[normalize_path_key(str(a))]["completions"] == 1
+
+    def test_user_next_marks_an_early_departed_video_as_skipped(self, tmp_path, monkeypatch):
+        from fun_time.media_metadata import normalize_path_key
+        from fun_time.watch_stats import load_watch_stats
+
+        runner = make_runner(tmp_path)
+        a = tmp_path / "a.mp4"
+        a.write_text("x", encoding="utf-8")
+
+        with (
+            patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
+            patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+        ):
+            current = {"value": (str(a), 0.2)}
+            fake_now = {"t": 100.0}
+            monkeypatch.setattr(
+                "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
+            )
+            monkeypatch.setattr(
+                "fun_time.windows_bridge_dispatch_loop.get_current_file_path",
+                lambda port, pw: current["value"][0] if port == 9091 else "",
+            )
+            monkeypatch.setattr(
+                "fun_time.windows_bridge_dispatch_loop.get_playback_fraction",
+                lambda port, pw: current["value"][1] if port == 9091 else None,
+            )
+            runner.tick()                       # samples a.mp4 at 20%
+            runner._dispatch("portrait_next")   # user skips
+            fake_now["t"] = 101.1
+            current["value"] = (str(tmp_path / "b.mp4"), 0.0)
+            runner.tick()
+
+        stats = load_watch_stats(tmp_path / "watch_stats.json")
+        assert stats[normalize_path_key(str(a))]["skips"] == 1
+
+    def test_trash_suppresses_classifying_the_discarded_video(self, tmp_path, monkeypatch):
+        from fun_time.watch_stats import load_watch_stats
+
+        config = make_config(tmp_path, weird_dir=tmp_path / "weird")
+        runner = make_runner(tmp_path, config=config)
+        a = tmp_path / "a.mp4"
+        a.write_text("x", encoding="utf-8")
+
+        with (
+            patch("fun_time.command_dispatch.get_current_file_path", return_value=str(a)),
+            patch("fun_time.command_dispatch.vlc_advance_and_remove", return_value=True),
+            patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+        ):
+            current = {"value": (str(a), 0.2)}
+            fake_now = {"t": 100.0}
+            monkeypatch.setattr(
+                "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
+            )
+            monkeypatch.setattr(
+                "fun_time.windows_bridge_dispatch_loop.get_current_file_path",
+                lambda port, pw: current["value"][0] if port == 9091 else "",
+            )
+            monkeypatch.setattr(
+                "fun_time.windows_bridge_dispatch_loop.get_playback_fraction",
+                lambda port, pw: current["value"][1] if port == 9091 else None,
+            )
+            runner.tick()
+            runner._dispatch("portrait_trash")  # moves the file to weird
+            fake_now["t"] = 101.1
+            current["value"] = (str(tmp_path / "b.mp4"), 0.0)
+            runner.tick()
+
+        assert load_watch_stats(tmp_path / "watch_stats.json") == {}
+
+
 class TestSeededRoleHwnds:
     def test_startup_seed_lets_hidden_windows_be_shown_again(self, tmp_path):
         """Startup hides the primary-slot windows (Nau, Genau) BEFORE the

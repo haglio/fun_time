@@ -74,6 +74,42 @@ def test_portrait_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     assert rfb_ops[0].key == "https://example.net/image/abc"
 
 
+def test_portrait_lock_records_a_lock_watch_event(tmp_path: Path):
+    """Locking is the strongest 'I like this' signal — it must feed the
+    watch stats that drive playback frequency."""
+    from fun_time.media_metadata import normalize_path_key
+    from fun_time.watch_stats import load_watch_stats
+
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+    video = tmp_path / "clip.mp4"
+    video.write_text("x", encoding="utf-8")
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=str(video)),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.ensure_in_favs"),
+    ):
+        dispatch_command("portrait_lock", state, config)
+
+    stats = load_watch_stats(config.state_dir / "watch_stats.json")
+    assert stats[normalize_path_key(str(video))]["locks"] == 1
+
+
+def test_portrait_unlock_records_no_watch_event(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=True)
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=str(tmp_path / "clip.mp4")),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
+    ):
+        dispatch_command("portrait_lock", state, config)
+
+    assert not (config.state_dir / "watch_stats.json").exists()
+
+
 def test_portrait_lock_no_open_rfb_tab_op_for_unknown_video(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)

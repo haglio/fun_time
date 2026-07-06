@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import math
 import random
+import time
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -86,6 +87,56 @@ def passes_inclusion(weight: float, rng: random.Random) -> bool:
     proportionally — the continuous version of mark-as-weird.
     """
     return weight >= 1.0 or rng.random() < weight
+
+
+class SatelliteWatchTracker:
+    """Classify one satellite's playback into completions and skips.
+
+    Fed with periodic (path, position-fraction) samples plus notifications of
+    user navigation and discards, it emits ("completion" | "skip", path)
+    events: a video that reached ~the end counts as watched (each repeat-one
+    wrap while locked counts again); a video the user navigated away from
+    early counts as skipped; anything else — e.g. the automatic advance on
+    unlock or discard — is neutral.
+    """
+
+    COMPLETE_FRACTION = 0.85
+    SKIP_FRACTION = 0.60
+    NAV_WINDOW_S = 3.0
+
+    def __init__(self, *, clock=time.monotonic) -> None:
+        self._clock = clock
+        self._path = ""
+        self._max_fraction = 0.0
+        self._last_nav_at = float("-inf")
+        self._suppress_departed = False
+
+    def note_user_nav(self) -> None:
+        self._last_nav_at = self._clock()
+
+    def note_discard(self) -> None:
+        self._suppress_departed = True
+
+    def observe(self, path: str, fraction: float) -> list[tuple[str, str]]:
+        if path == self._path:
+            # A large backwards jump from ~the end is a repeat-one wrap
+            # (satellites have no seek control): one full watch completed.
+            if path and self._max_fraction >= self.COMPLETE_FRACTION and fraction < self._max_fraction - 0.5:
+                self._max_fraction = max(0.0, fraction)
+                return [("completion", path)]
+            self._max_fraction = max(self._max_fraction, fraction)
+            return []
+        events = []
+        if self._path and not self._suppress_departed:
+            nav_recent = (self._clock() - self._last_nav_at) <= self.NAV_WINDOW_S
+            if self._max_fraction >= self.COMPLETE_FRACTION:
+                events.append(("completion", self._path))
+            elif nav_recent and self._max_fraction <= self.SKIP_FRACTION:
+                events.append(("skip", self._path))
+        self._path = path
+        self._max_fraction = max(0.0, fraction)
+        self._suppress_departed = False
+        return events
 
 
 def record_watch_event(stats_file: str | Path, video_path: str, event: str) -> None:
