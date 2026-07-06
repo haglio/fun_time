@@ -1243,6 +1243,7 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
