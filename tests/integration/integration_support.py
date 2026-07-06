@@ -16,6 +16,7 @@ from fun_time.dashboard_runtime import NauStatus, read_nau_status
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.vlc_actions import restore_vlcrc_volume
+from fun_time.windows_bridge_orchestrator import kill_process_tree
 
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
@@ -138,6 +139,11 @@ class FunTimeIntegrationSession:
                 self._proc.kill()
         if hasattr(self, "_stderr_fh") and self._stderr_fh:
             self._stderr_fh.close()
+        # Deterministically kill the children by their recorded PIDs first —
+        # hard-terminating the orchestrator above skips its graceful
+        # _shutdown_children(), so the satellite VLCs would otherwise survive
+        # until the racy name+StartTime sweep happens to catch them.
+        self._kill_recorded_children()
         self._kill_recent_runtime_processes()
         # Patch vlcrc AFTER all VLC processes are dead — avoids the audio
         # blast that restore_vlc_volume (HTTP) caused by unmuting while playing.
@@ -243,10 +249,40 @@ class FunTimeIntegrationSession:
         except OSError:
             return ""
 
+    def _kill_recorded_children(self) -> None:
+        """Deterministically kill this session's children by their recorded PIDs.
+
+        stop() hard-terminates the orchestrator with TerminateProcess, so the
+        orchestrator's own graceful _shutdown_children() never runs and the
+        processes it launched (the two satellite VLCs, plus Nau/Genau/dashboard/
+        audio) are orphaned.  Kill them by the exact PIDs the orchestrator wrote
+        to bridge_pids.ini at startup, reusing the production kill_process_tree
+        (``taskkill /PID <pid> /T /F``; /T also kills the worker behind each
+        pythonw launcher, and the image-name check skips a PID that Windows has
+        recycled to an unrelated process).
+
+        This is deterministic where the name+StartTime sweep is not: a VLC dies
+        because we recorded its PID, not because it happens to match an image
+        name inside a five-minute window.  bridge_pids.ini is absent only when
+        startup failed before writing it — then there is nothing of ours to kill.
+        """
+        try:
+            pids = self.read_child_pids()
+        except (KeyError, OSError, ValueError):
+            return
+        for pid in pids.values():
+            if pid:
+                kill_process_tree(pid)
+
     def _kill_recent_runtime_processes(self) -> None:
+        # StartTime is wrapped in try/catch: reading it throws if a process
+        # exited between the Get-Process snapshot and this evaluation, or if it
+        # is owned by another user.  An unguarded throw drops that item and can
+        # stop a live VLC we own from being evaluated; catching it per-process
+        # (treat as "not recent") keeps the pipeline going to the rest.
         ps = (
             "Get-Process AutoHotkey64,pythonw,vlc -ErrorAction SilentlyContinue | "
-            "Where-Object { $_.StartTime -gt (Get-Date).AddMinutes(-5) } | "
+            "Where-Object { try { $_.StartTime -gt (Get-Date).AddMinutes(-5) } catch { $false } } | "
             "Stop-Process -Force -ErrorAction SilentlyContinue"
         )
         subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], check=False)
