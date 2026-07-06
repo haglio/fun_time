@@ -9,6 +9,8 @@ import time
 import urllib.parse
 from pathlib import Path
 
+from .media_metadata import normalize_path_key
+
 logger = logging.getLogger(__name__)
 
 _VLC_HOST = "127.0.0.1"
@@ -237,8 +239,8 @@ def set_repeat_mode(
     return False
 
 
-def _parse_playlist_ids(xml: str) -> tuple[list[int], int]:
-    """Return (ordered_ids, current_id) from a playlist_jstree.xml response.
+def _parse_playlist_entries(xml: str) -> tuple[list[tuple[int, str]], int]:
+    """Return ([(id, windows_path)...], current_id) from playlist_jstree.xml.
 
     Returns ([], -1) if the playlist cannot be parsed.
 
@@ -247,19 +249,57 @@ def _parse_playlist_ids(xml: str) -> tuple[list[int], int]:
     and must be excluded from the navigation sequence.  The numeric suffix N
     is what VLC's ``pl_play&id=N`` command expects.
     """
-    all_ids: list[int] = []
+    entries: list[tuple[int, str]] = []
     current_id = -1
     for attrs in re.findall(r'<item\b([^>]*)>', xml):
-        if 'uri=' not in attrs:
+        uri_m = re.search(r'\buri="([^"]+)"', attrs)
+        if not uri_m:
             continue  # skip container nodes (no uri= means not a media item)
         id_m = re.search(r'\bid="plid_(\d+)"', attrs)
         if not id_m:
             continue
         item_id = int(id_m.group(1))
-        all_ids.append(item_id)
+        entries.append((item_id, decode_file_uri(uri_m.group(1))))
         if 'current="current"' in attrs:
             current_id = item_id
-    return all_ids, current_id
+    return entries, current_id
+
+
+def _parse_playlist_ids(xml: str) -> tuple[list[int], int]:
+    entries, current_id = _parse_playlist_entries(xml)
+    return [item_id for item_id, _path in entries], current_id
+
+
+def get_playlist_entries(port: int, password: str) -> tuple[list[tuple[int, str]], int]:
+    """The live playlist as [(plid, windows_path)...] plus the current plid."""
+    status, xml = vlc_http_req(port, "/requests/playlist_jstree.xml", password)
+    if status != 200 or not xml:
+        return [], -1
+    return _parse_playlist_entries(xml)
+
+
+def vlc_play_playlist_item(
+    port: int,
+    password: str,
+    target_id: int,
+    *,
+    sleep_fn=time.sleep,
+    timeout_s: float = 2.0,
+) -> bool:
+    """Play a playlist item by id, confirming the current item changed.
+
+    pl_play&id can be silently ignored by VLC when jstree IDs are stale
+    (e.g. after a playlist wrap), so success means an observed change.
+    """
+    current_path = get_current_file_path(port, password)
+    if not vlc_http_cmd(port, f"pl_play&id={target_id}", password):
+        return False
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if get_current_file_path(port, password) != current_path:
+            return True
+        sleep_fn(0.05)
+    return False
 
 
 def vlc_nav_step(port: int, password: str, direction: str) -> bool:
@@ -270,10 +310,8 @@ def vlc_nav_step(port: int, password: str, direction: str) -> bool:
     more than a few seconds in).  The target item is resolved from the
     live playlist and played directly by ID.
 
-    Returns True only if the item actually changed — pl_play&id can be
-    silently ignored by VLC when jstree IDs are stale (e.g. after a
-    playlist wrap).  Retries once with fresh IDs if the first attempt
-    produces no change within 2 seconds.
+    Returns True only if the item actually changed; retries once with
+    fresh IDs if the first attempt produces no change within 2 seconds.
 
     direction: "prev" or "next"
     """
@@ -294,20 +332,52 @@ def vlc_nav_step(port: int, password: str, direction: str) -> bool:
             "vlc_nav_step port=%s dir=%s attempt=%d playlist_len=%d idx=%d/%d current_id=%d target_id=%d",
             port, direction, attempt, len(all_ids), idx, len(all_ids) - 1, current_id, target_id,
         )
-        current_path = get_current_file_path(port, password)
-        if not vlc_http_cmd(port, f"pl_play&id={target_id}", password):
-            return False
-        deadline = time.monotonic() + 2.0
-        while time.monotonic() < deadline:
-            if get_current_file_path(port, password) != current_path:
-                return True
-            time.sleep(0.05)
+        if vlc_play_playlist_item(port, password, target_id):
+            return True
         logger.warning(
             "vlc_nav_step: no item change after pl_play&id=%d (attempt %d), %s",
             target_id, attempt, "retrying with fresh jstree" if attempt == 0 else "giving up",
         )
         time.sleep(0.1)
     return False
+
+
+def vlc_swap_current_with(
+    port: int,
+    password: str,
+    new_path: str,
+    *,
+    sleep_fn=time.sleep,
+) -> bool:
+    """Replace the currently-playing item with *new_path* (a file not in the
+    playlist): enqueue it, play it by id, then delete the old entry.
+
+    VLC's HTTP interface has no insert-at-position, so the newcomer lands at
+    the end of the playlist — acceptable for a shuffled repeat-all loop.  The
+    old entry is only deleted after the newcomer demonstrably started, so a
+    failed swap leaves the playlist intact.
+    """
+    entries, current_id = get_playlist_entries(port, password)
+    if not entries or current_id < 0:
+        logger.warning("vlc_swap_current_with: could not resolve playlist position")
+        return False
+    if not send_vlc_input_command(port, "in_enqueue", new_path, password):
+        return False
+    sleep_fn(0.1)
+    known_ids = {item_id for item_id, _path in entries}
+    new_entries, _ = get_playlist_entries(port, password)
+    new_key = normalize_path_key(new_path)
+    added = [
+        item_id for item_id, path in new_entries
+        if item_id not in known_ids and normalize_path_key(path) == new_key
+    ]
+    if not added:
+        logger.warning("vlc_swap_current_with: enqueued item did not appear: %s", new_path)
+        return False
+    if not vlc_play_playlist_item(port, password, added[0], sleep_fn=sleep_fn):
+        return False
+    vlc_http_cmd(port, f"pl_delete&id={current_id}", password)
+    return True
 
 
 def vlc_advance_and_remove(

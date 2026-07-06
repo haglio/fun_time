@@ -198,6 +198,99 @@ def test_vlc_advance_and_remove_plays_next_then_deletes_current(monkeypatch):
     assert calls == ["pl_play&id=5", "pl_delete&id=4"]
 
 
+# --- get_playlist_entries ---
+
+
+def test_get_playlist_entries_returns_ids_with_windows_paths(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, _PLAYLIST_XML))
+
+    entries, current_id = vlc_actions.get_playlist_entries(8090, "pw")
+
+    assert entries == [(3, r"C:\a.mp4"), (4, r"C:\b.mp4"), (5, r"C:\c.mp4")]
+    assert current_id == 3
+
+
+def test_get_playlist_entries_empty_when_unreachable(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (0, ""))
+
+    assert vlc_actions.get_playlist_entries(8090, "pw") == ([], -1)
+
+
+# --- vlc_play_playlist_item ---
+
+
+def test_vlc_play_playlist_item_plays_id_and_confirms_change(monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+    monkeypatch.setattr(vlc_actions, "get_current_file_path", lambda port, pw: "C:/a.mp4" if not calls else "C:/b.mp4")
+
+    result = vlc_actions.vlc_play_playlist_item(8090, "pw", 4, sleep_fn=lambda _s: None)
+
+    assert result is True
+    assert calls == ["pl_play&id=4"]
+
+
+def test_vlc_play_playlist_item_false_when_item_never_changes(monkeypatch):
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: True)
+    monkeypatch.setattr(vlc_actions, "get_current_file_path", lambda port, pw: "C:/a.mp4")
+    clock = iter(float(t) for t in range(100))
+    monkeypatch.setattr(vlc_actions.time, "monotonic", lambda: next(clock))
+
+    assert vlc_actions.vlc_play_playlist_item(8090, "pw", 4, sleep_fn=lambda _s: None) is False
+
+
+# --- vlc_swap_current_with ---
+
+_PLAYLIST_XML_WITH_D = _PLAYLIST_XML.replace(
+    '<item id="plid_5" uri="file:///C:/c.mp4" name="c.mp4" ro="rw" duration="60000">'
+    "<content><name>c.mp4</name></content></item>",
+    '<item id="plid_5" uri="file:///C:/c.mp4" name="c.mp4" ro="rw" duration="60000">'
+    "<content><name>c.mp4</name></content></item>"
+    '<item id="plid_6" uri="file:///C:/d.mp4" name="d.mp4" ro="rw" duration="60000">'
+    "<content><name>d.mp4</name></content></item>",
+)
+
+
+def test_vlc_swap_current_with_enqueues_plays_and_deletes_old(monkeypatch):
+    """Swapping a.mp4 (current, plid_3) for d.mp4: enqueue, play new id, drop old."""
+    jstrees = iter([_PLAYLIST_XML, _PLAYLIST_XML_WITH_D])
+    enqueued: list[tuple[str, str]] = []
+    commands: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, next(jstrees)))
+    monkeypatch.setattr(
+        vlc_actions, "send_vlc_input_command",
+        lambda port, command, full_path, password: enqueued.append((command, full_path)) or True,
+    )
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: commands.append(cmd) or True)
+    monkeypatch.setattr(
+        vlc_actions, "get_current_file_path",
+        lambda port, pw: r"C:\a.mp4" if not commands else r"C:\d.mp4",
+    )
+
+    result = vlc_actions.vlc_swap_current_with(8090, "pw", r"C:\d.mp4", sleep_fn=lambda _s: None)
+
+    assert result is True
+    assert enqueued == [("in_enqueue", r"C:\d.mp4")]
+    assert commands == ["pl_play&id=6", "pl_delete&id=3"]
+
+
+def test_vlc_swap_current_with_keeps_old_entry_when_play_fails(monkeypatch):
+    """If the new item never starts, the old entry must not be deleted."""
+    jstrees = iter([_PLAYLIST_XML, _PLAYLIST_XML_WITH_D])
+    commands: list[str] = []
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", lambda port, path, password, user="": (200, next(jstrees)))
+    monkeypatch.setattr(vlc_actions, "send_vlc_input_command", lambda port, command, full_path, password: True)
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: commands.append(cmd) or True)
+    monkeypatch.setattr(vlc_actions, "get_current_file_path", lambda port, pw: r"C:\a.mp4")
+    clock = iter(float(t) for t in range(100))
+    monkeypatch.setattr(vlc_actions.time, "monotonic", lambda: next(clock))
+
+    result = vlc_actions.vlc_swap_current_with(8090, "pw", r"C:\d.mp4", sleep_fn=lambda _s: None)
+
+    assert result is False
+    assert commands == ["pl_play&id=6"], "no pl_delete after a failed swap"
+
+
 def test_vlc_advance_and_remove_wraps_at_end(monkeypatch):
     """Removing plid_5 (last) should wrap to plid_3 (first) then delete plid_5."""
     calls: list[str] = []
