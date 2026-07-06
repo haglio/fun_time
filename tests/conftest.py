@@ -7,6 +7,15 @@ import shutil
 import uuid
 from pathlib import Path
 
+# Render Qt offscreen for the whole unit suite. Agents run these GUI tests on every
+# commit; without this, each test that shows a widget throws a real window onto the
+# screen for a few milliseconds, so a run flashes a burst of windows across the
+# monitors. Must be set before any QApplication is created (the _qapp fixture below).
+# setdefault lets a developer override it to watch a test on a real display, and lets
+# tests/integration/conftest.py restore the native platform — the integration tests
+# inspect real windows and need real HWNDs, which the offscreen platform cannot give.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
 from PyQt6.QtWidgets import QApplication
 
