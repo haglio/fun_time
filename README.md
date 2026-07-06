@@ -238,6 +238,8 @@ Two command pairs ride on those groups (keys: `Del`/`End` portrait, `E`/`Q` land
 - **Cycle action** switches the current video to the next action of its group, in a fixed order so repeated presses tour every act. A brief tooltip names the action that came up. If the sibling is not in the playlist (shuffled builds collapse groups — see below), it is swapped in place of the current entry.
 - **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries.
 
+Unlike prev/next, cycling does **not** release an active lock: it means "show me this differently", so the lock's repeat-one simply carries over to the sibling.
+
 During shuffled satellite builds, each action group **collapses to one playlist slot**: exactly one member plays per pass (drawn weighted by the watch stats below), so the same subject+scene doesn't recur once per action. Premiere (`P`, newest-first) deliberately skips collapsing so new arrivals are all visible. Videos without a metadata sidecar behave exactly as before.
 
 ### Watch stats — videos "breed" by attention
@@ -249,6 +251,14 @@ Fun Time watches how you treat each satellite video and adjusts how often it com
 - **locking** a video is the strongest positive signal
 
 Counts become a playback weight — `2^((completions + 3·locks − skips)/3)`, clamped to between ⅛× and 8× — applied at every shuffled satellite build: weighted shuffle order (loved videos surface early), weighted pick inside collapsed action groups (the acts you finish win the slot), and probabilistic inclusion (a weight-⅛ video sits out ~7 of 8 builds). This is the continuous companion to mark-as-weird: hated videos fade away instead of leaving. Neutral videos are never excluded, and the transitions the system causes itself (unlock's auto-advance, discards) never penalize anything.
+
+Check the current standings any time with the leaderboard (from the project root):
+
+```bash
+./.venv/Scripts/python.exe -m fun_time.breeding_report
+```
+
+It ranks every tracked clip by weight — "Rising" then "Fading" — with its action, image seed, and prompt pulled from the metadata sidecars. Options: `--top N` (rows per section, default 15), `--all`.
 
 ## Favorites CSV behavior
 
