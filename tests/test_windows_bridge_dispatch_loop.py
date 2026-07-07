@@ -1892,95 +1892,119 @@ class TestSeededRoleHwnds:
 
 
 class TestHybridFunscriptHandoff:
-    """In hybrid the OSR2 follows the current video: its funscript drives when
-    the video has one (Genau yields), and Genau drives when it does not."""
+    """In hybrid the OSR2 follows the current video moment-to-moment: the
+    funscript drives its scripted stretches (Genau yields), and Genau drives
+    the unscripted ones — a funscript's quiet lead-in and its interior gaps,
+    which Nau flags as ``funscript_resting``."""
 
-    def _write_status(self, runner, *, has_funscript):
+    def _write_status(self, runner, *, has_funscript=True, resting=False):
         runner.config.nau_status_file.write_text(
             "video=C:\\clip.mp4\nposition_ms=10\n"
-            f"has_funscript={1 if has_funscript else 0}\n",
+            f"has_funscript={1 if has_funscript else 0}\n"
+            f"funscript_resting={1 if resting else 0}\n",
             encoding="utf-8",
         )
 
-    def test_funscripted_video_pauses_genau(self, tmp_path):
+    def _genau(self, runner):
+        return runner.config.genau_cmd_file.read_text(encoding="utf-8")
+
+    def _nau(self, runner):
+        return runner.config.nau_cmd_file.read_text(encoding="utf-8")
+
+    def test_scripted_stretch_drives_from_the_funscript(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(primary_mode="hybrid")
-        self._write_status(runner, has_funscript=True)
+        self._write_status(runner, has_funscript=True, resting=False)
 
         runner._sync_hybrid_driver()
 
-        assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "PAUSE"
+        assert self._genau(runner) == "PAUSE"               # Genau yields
+        assert self._nau(runner) == "SET_TCODE_ENABLED 1"   # funscript drives
 
-    def test_unscripted_video_resumes_genau(self, tmp_path):
+    def test_funscript_gap_hands_the_stretch_to_genau(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=True)
+
+        runner._sync_hybrid_driver()
+
+        assert self._genau(runner) == "RESUME"              # Genau fills the gap
+        assert self._nau(runner) == "SET_TCODE_ENABLED 0"   # funscript muted
+
+    def test_unscripted_video_drives_from_genau(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(primary_mode="hybrid")
         self._write_status(runner, has_funscript=False)
 
         runner._sync_hybrid_driver()
 
-        assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "RESUME"
+        assert self._genau(runner) == "RESUME"
+        assert self._nau(runner) == "SET_TCODE_ENABLED 0"
 
-    def test_command_written_only_on_change(self, tmp_path):
+    def test_commands_written_only_on_change(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(primary_mode="hybrid")
-        self._write_status(runner, has_funscript=True)
+        self._write_status(runner, has_funscript=True, resting=False)
         runner._sync_hybrid_driver()
         runner.config.genau_cmd_file.unlink()
+        runner.config.nau_cmd_file.unlink()
 
-        # Same funscript state next tick must not re-issue the command (edge-only).
-        runner._sync_hybrid_driver()
+        runner._sync_hybrid_driver()  # unchanged driver -> no re-issue (edge-only)
 
         assert not runner.config.genau_cmd_file.exists()
+        assert not runner.config.nau_cmd_file.exists()
 
-    def test_handoff_flips_when_next_video_differs(self, tmp_path):
+    def test_entering_a_gap_flips_the_driver(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(primary_mode="hybrid")
-        self._write_status(runner, has_funscript=True)
+        self._write_status(runner, has_funscript=True, resting=False)
         runner._sync_hybrid_driver()
 
-        self._write_status(runner, has_funscript=False)
+        self._write_status(runner, has_funscript=True, resting=True)  # gap begins
         runner._sync_hybrid_driver()
 
-        assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "RESUME"
+        assert self._genau(runner) == "RESUME"
+        assert self._nau(runner) == "SET_TCODE_ENABLED 0"
 
     def test_no_arbitration_outside_hybrid(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(primary_mode="genau")
-        self._write_status(runner, has_funscript=True)
+        self._write_status(runner, has_funscript=True, resting=False)
 
         runner._sync_hybrid_driver()
 
         assert not runner.config.genau_cmd_file.exists()
+        assert not runner.config.nau_cmd_file.exists()
 
     def test_no_arbitration_when_omnipaused(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(primary_mode="hybrid", omni_paused=True)
-        self._write_status(runner, has_funscript=True)
+        self._write_status(runner, has_funscript=True, resting=False)
 
         runner._sync_hybrid_driver()
 
         assert not runner.config.genau_cmd_file.exists()
+        assert not runner.config.nau_cmd_file.exists()
 
     def test_leaving_hybrid_resets_so_reentry_reapplies(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(primary_mode="hybrid")
-        self._write_status(runner, has_funscript=True)
-        runner._sync_hybrid_driver()  # PAUSE, remembers "funscript driving"
+        self._write_status(runner, has_funscript=True, resting=False)
+        runner._sync_hybrid_driver()  # funscript driving
 
         runner.state = BridgeState(primary_mode="genau")
         runner._sync_hybrid_driver()  # leaves hybrid -> forgets
         runner.config.genau_cmd_file.unlink()
 
-        # Re-entering hybrid on a still-funscripted video must re-issue PAUSE.
         runner.state = BridgeState(primary_mode="hybrid")
         runner._sync_hybrid_driver()
 
-        assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "PAUSE"
+        assert self._genau(runner) == "PAUSE"
 
     def test_tick_runs_the_handoff(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(primary_mode="hybrid")
-        self._write_status(runner, has_funscript=True)
+        self._write_status(runner, has_funscript=True, resting=False)
 
         with patch(
             "fun_time.windows_bridge_dispatch_loop.get_playback_fraction",
@@ -1988,7 +2012,7 @@ class TestHybridFunscriptHandoff:
         ):
             runner.tick()
 
-        assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "PAUSE"
+        assert self._genau(runner) == "PAUSE"
 
 
 class TestExpandBothCommand:

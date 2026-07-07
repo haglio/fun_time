@@ -78,9 +78,10 @@ class NauStatus:
     """Snapshot of what Nau is playing, parsed from its status file.
 
     Nau publishes duration_ms too; only the fields with consumers on this
-    side are parsed.  ``has_funscript`` tells the hybrid handoff arbiter
-    whether the current video's funscript should drive the OSR2 in place
-    of Genau.
+    side are parsed.  The hybrid handoff arbiter drives the OSR2 from the
+    funscript while ``has_funscript`` and not ``funscript_resting``, and
+    hands off to Genau otherwise — so Genau fills a funscript's quiet
+    lead-in and interior gaps (where ``funscript_resting`` is set).
     """
 
     video: str = ""
@@ -88,6 +89,7 @@ class NauStatus:
     state: str = "normal"
     paused: bool = False
     has_funscript: bool = False
+    funscript_resting: bool = False
 
 
 def read_nau_status(path: Path) -> NauStatus:
@@ -104,6 +106,7 @@ def read_nau_status(path: Path) -> NauStatus:
             state=values.get("state", "normal").strip(),
             paused=_status_bool(values, "paused"),
             has_funscript=_status_bool(values, "has_funscript"),
+            funscript_resting=_status_bool(values, "funscript_resting"),
         )
     except (OSError, ValueError):
         return NauStatus()
