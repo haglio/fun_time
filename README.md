@@ -197,6 +197,10 @@ The complete, always-current list of keys and spoken phrases lives in the app. C
 
 This README deliberately does not repeat the key table — open the **?** popup for it. The notes below cover the non-obvious behaviors that the table alone does not explain.
 
+### Active side (side-agnostic satellite voice)
+
+The satellite voice commands can be spoken with or without naming a side. Naming one — "lock portrait", "next landscape" — acts on that player as always. Said **bare** — "lock", "unlock", "next", "previous", "weird", "action", "seed" — the command acts on the **active side**: whichever satellite you most recently touched, by voice *or* by keyboard. So if you were just navigating the portrait with `←`/`→`, a plain "lock" locks the portrait; switch to the landscape with `A`/`D` and "lock" now locks the landscape. The active side is remembered (persisted in the bridge's shared state) until the other side is addressed. Bare commands are voice-only — the keys stay side-specific.
+
 ### Modes
 
 The primary stack runs in one of three modes, each selected by its own hotkey (see the popup): **Nau**, **Genau**, and **Hybrid**. The `\` key is mode-dependent:

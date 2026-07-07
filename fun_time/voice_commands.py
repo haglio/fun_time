@@ -44,6 +44,17 @@ VOICE_COMMANDS: dict[str, str] = {
     "cycle both action": "both_cycle_action",
     "both seed": "both_cycle_seed",
     "cycle both seed": "both_cycle_seed",
+    # Bare (no side word) satellite commands: act on whichever side — portrait
+    # or landscape — was most recently addressed, by naming it above or by
+    # navigating it from the keyboard. The active side is remembered until the
+    # other side is touched.
+    "lock": "active_lock_on",
+    "unlock": "active_lock_off",
+    "next": "active_next",
+    "previous": "active_prev",
+    "weird": "active_trash",
+    "action": "active_cycle_action",
+    "seed": "active_cycle_seed",
     "f mode": "fmode_toggle",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
