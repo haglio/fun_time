@@ -35,7 +35,7 @@ def _hermetic_stop(session, monkeypatch):
     The name+StartTime PowerShell sweep and the on-disk vlcrc rewrite are
     exercised elsewhere; here we isolate the deterministic PID-kill path.
     """
-    monkeypatch.setattr(session, "_kill_recent_runtime_processes", lambda: None)
+    monkeypatch.setattr(session, "_reap_leftover_runtime_processes", lambda: None)
     monkeypatch.setattr(integration_support, "restore_vlcrc_volume", lambda *a, **k: None)
 
 
