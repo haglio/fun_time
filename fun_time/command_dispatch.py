@@ -99,8 +99,6 @@ class WindowOp:
 
 
 _GENAU_CMD_MAP = {
-    "genau_speed_down": "SPEED_DOWN",
-    "genau_speed_up": "SPEED_UP",
     "genau_amplitude_down": "AMPLITUDE_DOWN",
     "genau_amplitude_up": "AMPLITUDE_UP",
     "genau_center_down": "CENTER_DOWN",
@@ -112,6 +110,16 @@ _GENAU_CMD_MAP = {
     "genau_cruise_off": "CRUISE_OFF",
     "genau_prev_clip": "PREV",
     "genau_next_clip": "NEXT",
+}
+
+
+# The j/l speed keys tune the primary video's playback rate whenever Nau owns
+# the display (nau and hybrid): Nau drives its funscript off mpv's clock, so
+# slowing or speeding the video scales the script with it. In genau mode Nau is
+# hidden, so they fall back to Genau's own stroke rate.
+_SPEED_COMMANDS = {
+    "genau_speed_down": "SPEED_DOWN",
+    "genau_speed_up": "SPEED_UP",
 }
 
 
@@ -459,6 +467,14 @@ def dispatch_command(
         # Flip whether Genau may take over while OSR2 is in auto mode. The broker
         # reads this persisted flag each tick, so a plain file write is enough.
         _toggle_genau_enabled(genau_enabled_path(config.state_dir))
+        return state, ops
+
+    if command in _SPEED_COMMANDS:
+        keyword = _SPEED_COMMANDS[command]
+        if nau_displays(state.primary_mode):
+            config.nau_cmd_file.write_text(keyword, encoding="utf-8")
+        elif genau_active(state.primary_mode):
+            config.genau_cmd_file.write_text(keyword, encoding="utf-8")
         return state, ops
 
     if command in _GENAU_CMD_MAP:
