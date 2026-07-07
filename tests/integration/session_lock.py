@@ -2,7 +2,7 @@
 
 Multiple worktree agents share this repo and may launch the integration suite
 at the same time.  Every run launches VLC/Nau/AHK and runs a global name+age
-process sweep (``FunTimeIntegrationSession._kill_recent_runtime_processes``) that
+process reap (``FunTimeIntegrationSession._reap_leftover_runtime_processes``) that
 force-kills *any* recent AutoHotkey64/pythonw/vlc — including a concurrent run's
 freshly-spawned processes — and the AHK bridge runs under ``#SingleInstance
 Force`` so a second bridge launch evicts the first.  The result is flaky,

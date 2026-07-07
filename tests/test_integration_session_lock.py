@@ -2,7 +2,7 @@
 
 Multiple worktree agents share this repo and may launch the integration suite
 concurrently.  Each run launches VLC/Nau/AHK and runs a global name+age process
-sweep (``_kill_recent_runtime_processes``) that would murder a sibling run's
+reap (``_reap_leftover_runtime_processes``) that would murder a sibling run's
 freshly-spawned processes; the AHK bridge's ``#SingleInstance Force`` evicts a
 sibling bridge.  ``SingleInstanceLock`` serializes runs machine-wide so only one
 integration session's processes are ever live at a time.
