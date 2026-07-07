@@ -3,8 +3,9 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
-from .media_metadata import build_group_index, normalize_path_key
+from .media_metadata import GroupIndex, build_group_index, normalize_path_key
 from .watch_stats import load_watch_stats, passes_inclusion, weight_for, weighted_shuffle
 
 PLAYLIST_PORTRAIT = "portrait_vlc_playlist"
@@ -137,6 +138,27 @@ def build_primary_playlist_paths(primary_sources: str, f_mode: bool, *, rng: ran
     return shuffle_paths(filtered, rng=rng)
 
 
+def _collapse_groups(
+    paths: list[str],
+    index: GroupIndex,
+    pick: Callable[[list[str]], str],
+) -> list[str]:
+    """One slot per action group, in first-seen order; *pick* chooses each
+    group's representative from its members.  Ungrouped paths pass through."""
+    slots: list[str] = []
+    seen_groups: set[str] = set()
+    for path in paths:
+        group_key = index.action_key_by_path.get(normalize_path_key(path))
+        if group_key is None:
+            slots.append(path)
+            continue
+        if group_key in seen_groups:
+            continue
+        seen_groups.add(group_key)
+        slots.append(pick(index.action_members[group_key]))
+    return slots
+
+
 def _collapse_and_weigh(
     paths: list[str],
     library: SatelliteLibraryContext,
@@ -162,20 +184,24 @@ def _collapse_and_weigh(
 
     survivors = [path for path in paths if passes_inclusion(weight(path), randomizer)]
     index = build_group_index(survivors, library.media_root, library.metadata_root)
-    slots: list[str] = []
-    seen_groups: set[str] = set()
-    for path in survivors:
-        group_key = index.action_key_by_path.get(normalize_path_key(path))
-        if group_key is None:
-            slots.append(path)
-            continue
-        if group_key in seen_groups:
-            continue
-        seen_groups.add(group_key)
-        members = index.action_members[group_key]
-        picked = randomizer.choices(members, weights=[weight(m) for m in members], k=1)[0]
-        slots.append(picked)
-    return weighted_shuffle(slots, weight, randomizer)
+
+    def pick(members: list[str]) -> str:
+        return randomizer.choices(members, weights=[weight(m) for m in members], k=1)[0]
+
+    return weighted_shuffle(_collapse_groups(survivors, index, pick), weight, randomizer)
+
+
+def _collapse_recent(paths: list[str], library: SatelliteLibraryContext) -> list[str]:
+    """Newest-first, one slot per action group — the premiere review order.
+
+    New arrivals stay the focus: each group is represented by its most recent
+    member and sits at that member's position, so the freshest action of a
+    group surfaces once, near the top.  Watch weighting is deliberately not
+    applied — a chronically-skipped clip still appears; recency alone ranks.
+    """
+    ordered = sort_paths_by_recency(paths)
+    index = build_group_index(ordered, library.media_root, library.metadata_root)
+    return _collapse_groups(ordered, index, lambda members: max(members, key=_path_mtime))
 
 
 def build_satellite_playlist_paths(
@@ -191,10 +217,13 @@ def build_satellite_playlist_paths(
     if f_mode:
         favs_content = read_favs_content(favs_file)
         files = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
-    # Premiere (recent) deliberately skips collapsing and weighting: it exists
-    # to review new arrivals, so every file stays visible, newest first.
-    if recent or library is None:
+    # With a library, both orders collapse action groups to one slot: premiere
+    # (recent) keeps newest-first, the shuffle build weighted-randomizes.  With
+    # no library there is nothing to group by, so just order the raw files.
+    if library is None:
         return order_paths(files, recent=recent, rng=rng)
+    if recent:
+        return _collapse_recent(files, library)
     return _collapse_and_weigh(files, library, rng)
 
 
