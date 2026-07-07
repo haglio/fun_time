@@ -1,4 +1,4 @@
-"""Force the real Windows platform for the integration suite.
+"""Force the real Windows platform for the integration suite, and serialize runs.
 
 Integration tests launch the real bridge and inspect real native windows (the
 dashboard, Nau, VLC), so they must run on the native Qt platform — never the
@@ -15,5 +15,53 @@ would render offscreen and the Win32 inspection helpers would find nothing.
 from __future__ import annotations
 
 import os
+import sys
+
+import pytest
+
+from .session_lock import INTEGRATION_LOCK_NAME, hold_integration_lock
 
 os.environ.pop("QT_QPA_PLATFORM", None)
+
+
+def _announce_waiting(seconds: float) -> None:
+    """Surface that this run is queued behind another integration run.
+
+    Written to the real stderr so it appears live, rather than being held back
+    with the rest of pytest's captured output until the run finishes.
+    """
+    stream = sys.__stderr__ or sys.stderr
+    if stream is not None:
+        stream.write(
+            f"[integration] another integration run holds {INTEGRATION_LOCK_NAME!r}; "
+            f"waiting for it to finish ({seconds:.0f}s elapsed)…\n"
+        )
+        stream.flush()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _serialize_integration_runs():
+    """Hold one machine-wide lock for the entire integration run.
+
+    Multiple worktree agents share this repo and may launch the integration
+    suite at the same time.  Each run launches VLC/Nau/AHK and runs a global
+    name+age process sweep (``FunTimeIntegrationSession._kill_recent_runtime_
+    processes``) that force-kills *any* recent AutoHotkey64/pythonw/vlc —
+    including a concurrent run's freshly-spawned processes — and the AHK bridge
+    runs under ``#SingleInstance Force`` so a second bridge evicts the first.
+    Overlapping runs therefore fail flakily on different tests each time.
+
+    Serialize them: only one run's processes are ever live at a time; the rest
+    queue here instead of clobbering.  A crashed holder's mutex is auto-released
+    by the OS, so a dead run cannot wedge the queue.
+
+    Session-scoped + autouse so the lock is acquired before the first test's
+    setup — hence before any module-scoped fixture calls ``start()`` (which runs
+    the process sweep) or launches a VLC directly — and released only after the
+    last session/VLC has been torn down.
+    """
+    if sys.platform != "win32":
+        yield
+        return
+    with hold_integration_lock(notify=_announce_waiting):
+        yield
