@@ -544,3 +544,99 @@ def test_build_fmode_playlists_forwards_library_to_satellites(tmp_path: Path):
     assert len(listed) == 1, "satellite collapse must apply on the F-mode/startup build"
 
 
+# --- metadata attribute filtering ------------------------------------------
+
+def test_satellite_filter_narrows_to_the_matching_action(tmp_path: Path):
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "redacted": _i2v_meta("1", "Alpha"),
+        "prone": _i2v_meta("2", "Beta Gamma"),
+        "kiss": _i2v_meta("3", "Kissing"),
+    })
+    got = build_satellite_playlist_paths(
+        str(source_dir), False, tmp_path / "favs.csv",
+        filter_query="beta gamma", rng=random.Random(1), library=library,
+    )
+    assert got == [paths["prone"]]
+
+
+def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "redacted": _i2v_meta("1", "Alpha"),
+        "nometa": None,
+    })
+    got = build_satellite_playlist_paths(
+        str(source_dir), False, tmp_path / "favs.csv",
+        filter_query="alpha", rng=random.Random(1), library=library,
+    )
+    assert got == [paths["redacted"]]
+
+
+def test_satellite_filter_composes_with_premiere_recency_order(tmp_path: Path):
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "old": _i2v_meta("1", "Alpha"),
+        "new": _i2v_meta("2", "Alpha"),
+        "other": _i2v_meta("3", "Kissing"),
+    })
+    os.utime(paths["old"], (1000, 1000))
+    os.utime(paths["new"], (2000, 2000))
+    got = build_satellite_playlist_paths(
+        str(source_dir), False, tmp_path / "favs.csv",
+        filter_query="alpha", recent=True, library=library,
+    )
+    assert got == [paths["new"], paths["old"]]  # filtered, newest-first
+
+
+def test_satellite_filter_is_ignored_without_a_library(tmp_path: Path):
+    # No metadata roots means the filter can't be evaluated, so nothing is dropped.
+    d = tmp_path / "portrait"
+    d.mkdir()
+    (d / "a.mp4").write_text("x", encoding="utf-8")
+    got = build_satellite_playlist_paths(
+        str(d), False, tmp_path / "favs.csv", filter_query="alpha", rng=random.Random(1)
+    )
+    assert len(got) == 1
+
+
+def test_build_satellite_playlists_applies_independent_per_vlc_filters(tmp_path: Path):
+    media_root = tmp_path / "media"
+    metadata_root = tmp_path / "metadata"
+    portrait_dir = media_root / "portrait"
+    landscape_dir = media_root / "landscape"
+    portrait_dir.mkdir(parents=True)
+    landscape_dir.mkdir(parents=True)
+
+    def make(folder: Path, name: str, action: str) -> str:
+        video = folder / f"{name}.mp4"
+        video.write_text("x", encoding="utf-8")
+        sidecar = metadata_path_for(video, media_root, metadata_root)
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(
+            json.dumps({"video": {"action": action, "prompt": "x", "seed": name}}),
+            encoding="utf-8",
+        )
+        return str(video)
+
+    p_cum, p_kiss = make(portrait_dir, "pc", "Alpha"), make(portrait_dir, "pk", "Kissing")
+    l_cum, l_kiss = make(landscape_dir, "lc", "Alpha"), make(landscape_dir, "lk", "Kissing")
+    library = SatelliteLibraryContext(
+        media_root=media_root, metadata_root=metadata_root, watch_stats_file=tmp_path / "ws.json"
+    )
+
+    plan = build_satellite_playlists(
+        portrait_sources=str(portrait_dir),
+        landscape_sources=str(landscape_dir),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        f_mode=False,
+        recent=True,
+        portrait_filter="alpha",
+        landscape_filter="kissing",
+        library=library,
+    )
+
+    portrait_written = plan.portrait_playlist_path.read_text(encoding="utf-8")
+    landscape_written = plan.landscape_playlist_path.read_text(encoding="utf-8")
+    assert p_cum in portrait_written and p_kiss not in portrait_written
+    assert l_kiss in landscape_written and l_cum not in landscape_written
+
+

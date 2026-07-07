@@ -9,9 +9,12 @@ from fun_time.media_metadata import (
     cached_group_index,
     load_metadata,
     loose_seed_group_key,
+    matches_query,
     metadata_path_for,
     normalize_path_key,
+    path_matches_query,
     reset_group_index_cache,
+    search_haystack,
     seed_group_key,
 )
 
@@ -299,3 +302,85 @@ def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Pa
         must_contain=new_arrival,
     )
     assert len(scans) == 2
+
+
+# --- attribute filtering: haystack + query matching ------------------------
+
+def test_search_haystack_combines_action_and_positive_prompts_lowercased():
+    meta = {
+        "video": {"action": "Beta Gamma", "prompt": "A Subject LAYING prone"},
+        "source_image": {"positive_prompt": "redacted by the Pool"},
+    }
+    hay = search_haystack(meta)
+    assert "beta gamma" in hay  # from action
+    assert "laying prone" in hay  # from video prompt
+    assert "redacted" in hay and "pool" in hay  # from positive_prompt
+
+
+def test_search_haystack_excludes_the_negative_prompt():
+    meta = {
+        "video": {"action": "Alpha", "prompt": "x"},
+        "source_image": {"positive_prompt": "y", "negative_prompt": "delta gamma"},
+    }
+    hay = search_haystack(meta)
+    assert "alpha" in hay
+    assert "delta" not in hay
+    assert "gamma" not in hay
+
+
+def test_search_haystack_tolerates_missing_blocks():
+    assert search_haystack({}) == ""
+    assert "epsilon" in search_haystack({"video": {"action": "Pov Epsilon"}})
+
+
+def test_matches_query_is_case_insensitive_substring_across_fields():
+    meta = {
+        "video": {"action": "Pov Epsilon", "prompt": "redacted subject"},
+        "source_image": {"positive_prompt": "pool party"},
+    }
+    assert matches_query(meta, "epsilon")  # substring of the action
+    assert matches_query(meta, "Epsilon")  # case-insensitive
+    assert matches_query(meta, "redacted")  # from the video prompt
+    assert matches_query(meta, "pool")  # from the positive prompt
+    assert not matches_query(meta, "delta")
+
+
+def test_matches_query_empty_matches_everything():
+    assert matches_query({}, "")
+    assert matches_query({}, "   ")
+
+
+def test_matches_query_multiword_must_be_contiguous():
+    prone = {"video": {"action": "Beta Gamma", "prompt": "x"}}
+    assert matches_query(prone, "beta gamma")
+    scattered = {"video": {"action": "Alpha", "prompt": "she lies prone; a bone rests elsewhere"}}
+    assert matches_query(scattered, "prone")
+    assert not matches_query(scattered, "beta gamma")
+
+
+def test_path_matches_query_reads_the_sidecar(tmp_path):
+    media_root = tmp_path / "media"
+    metadata_root = tmp_path / "meta"
+    video = media_root / "portrait" / "provider" / "clip.mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"")
+    sidecar = metadata_root / "portrait" / "provider" / "clip.json"
+    sidecar.parent.mkdir(parents=True)
+    sidecar.write_text(json.dumps({"video": {"action": "Beta Gamma", "prompt": "x"}}), encoding="utf-8")
+
+    assert path_matches_query(str(video), media_root, metadata_root, "beta gamma")
+    assert not path_matches_query(str(video), media_root, metadata_root, "alpha")
+    assert path_matches_query(str(video), media_root, metadata_root, "")  # no filter passes all
+
+
+def test_path_matches_query_excludes_videos_without_a_sidecar(tmp_path):
+    media_root = tmp_path / "media"
+    metadata_root = tmp_path / "meta"
+    video = media_root / "portrait" / "other" / "no_meta.mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"")
+
+    # An active filter can't be satisfied by a video with no metadata...
+    assert not path_matches_query(str(video), media_root, metadata_root, "alpha")
+    # ...but with no filter, everything passes.
+    assert path_matches_query(str(video), media_root, metadata_root, "")
