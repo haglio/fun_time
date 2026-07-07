@@ -14,16 +14,6 @@ class TestVoiceCommands:
             "quit": "quit",
             "pause": "pause",
             "play": "play",
-            "lock landscape": "landscape_lock_on",
-            "lock portrait": "portrait_lock_on",
-            "next landscape": "landscape_next",
-            "next portrait": "portrait_next",
-            "previous landscape": "landscape_prev",
-            "previous portrait": "portrait_prev",
-            "weird landscape": "landscape_trash",
-            "weird portrait": "portrait_trash",
-            "unlock landscape": "landscape_lock_off",
-            "unlock portrait": "portrait_lock_off",
             "f mode": "fmode_toggle",
             "f mode on": "fmode_on",
             "f mode off": "fmode_off",
@@ -89,32 +79,24 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["shorts"] == "nau_length_shorts"
         assert VOICE_COMMANDS["full length"] == "nau_length_full"
 
-    def test_unlock_phrases_map_to_lock_off(self):
-        assert VOICE_COMMANDS["unlock portrait"] == "portrait_lock_off"
-        assert VOICE_COMMANDS["unlock landscape"] == "landscape_lock_off"
-
-    def test_both_satellite_phrases(self):
-        """"…both" phrases drive Portrait + Landscape together, mirroring the
-        per-satellite vocabulary (lock = on, unlock = off)."""
-        assert VOICE_COMMANDS["next both"] == "both_next"
-        assert VOICE_COMMANDS["previous both"] == "both_prev"
-        assert VOICE_COMMANDS["weird both"] == "both_trash"
-        assert VOICE_COMMANDS["lock both"] == "both_lock_on"
-        assert VOICE_COMMANDS["unlock both"] == "both_lock_off"
-        assert VOICE_COMMANDS["both action"] == "both_cycle_action"
-        assert VOICE_COMMANDS["cycle both action"] == "both_cycle_action"
-        assert VOICE_COMMANDS["both seed"] == "both_cycle_seed"
-        assert VOICE_COMMANDS["cycle both seed"] == "both_cycle_seed"
-
-    def test_bare_side_agnostic_phrases_target_the_active_side(self):
-        """Said alone, these act on whichever satellite was last addressed."""
-        assert VOICE_COMMANDS["lock"] == "active_lock_on"
-        assert VOICE_COMMANDS["unlock"] == "active_lock_off"
-        assert VOICE_COMMANDS["next"] == "active_next"
-        assert VOICE_COMMANDS["previous"] == "active_prev"
-        assert VOICE_COMMANDS["weird"] == "active_trash"
-        assert VOICE_COMMANDS["action"] == "active_cycle_action"
-        assert VOICE_COMMANDS["seed"] == "active_cycle_seed"
+    def test_satellite_grid_supports_both_orders(self):
+        """Each satellite action works BARE (→ active side) and with a side word
+        in EITHER order: "portrait lock" and "lock portrait" are equivalent."""
+        actions = {
+            "lock": "lock_on",
+            "unlock": "lock_off",
+            "next": "next",
+            "previous": "prev",
+            "weird": "trash",
+            "action": "cycle_action",
+            "seed": "cycle_seed",
+        }
+        for word, act in actions.items():
+            assert VOICE_COMMANDS[word] == f"active_{act}"
+            for side in ("portrait", "landscape", "both"):
+                target = f"{side}_{act}"
+                assert VOICE_COMMANDS[f"{side} {word}"] == target  # side first
+                assert VOICE_COMMANDS[f"{word} {side}"] == target  # side last
 
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "genau_amp_50"
@@ -156,10 +138,10 @@ class TestBuildGrammar:
 class TestParseVoskResult:
     def test_returns_command_for_known_phrase(self):
         raw = json.dumps({
-            "text": "next landscape",
+            "text": "landscape next",
             "result": [
-                {"conf": 0.95, "word": "next", "start": 0.0, "end": 0.3},
-                {"conf": 0.95, "word": "landscape", "start": 0.3, "end": 0.8},
+                {"conf": 0.95, "word": "landscape", "start": 0.0, "end": 0.5},
+                {"conf": 0.95, "word": "next", "start": 0.5, "end": 0.8},
             ],
         })
         assert parse_vosk_result(raw, threshold=0.7) == "landscape_next"

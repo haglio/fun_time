@@ -4,6 +4,7 @@ import logging
 import socket
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -938,7 +939,7 @@ class TestOpenRfbTab:
             runner._dispatch("portrait_lock")
 
         mock_open.assert_called_once_with(
-            url="https://example.com",
+            urls=["https://example.com"],
             shortcut_target=r"C:\Chrome\chrome.exe",
             shortcut_work_dir=r"C:\Chrome",
             shortcut_args='--profile-directory="Profile 2"',
@@ -980,6 +981,40 @@ class TestOpenRfbTab:
             runner._dispatch("portrait_lock")
 
         mock_open.assert_not_called()
+
+    def test_lock_both_opens_both_videos_in_one_launch(self, tmp_path):
+        """"lock both" locks two videos in one tick; their RFB tabs must open in
+        a single Chrome launch, or the second races the singleton and is dropped."""
+        runner = make_runner(
+            tmp_path,
+            sync_interval_ms=999999,
+            rfb_hwnd=12345,
+            rfb_shortcut_target=r"C:\Chrome\chrome.exe",
+            rfb_shortcut_work_dir=r"C:\Chrome",
+            rfb_shortcut_args='--profile-directory="Profile 2"',
+        )
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(locked2=False, locked3=False)
+        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
+
+        def fake_dispatch(cmd, state, config):
+            if cmd == "portrait_lock":
+                return replace(state, locked2=True), [WindowOp(op="open_rfb_tab", key="http://p")]
+            if cmd == "landscape_lock":
+                return replace(state, locked3=True), [WindowOp(op="open_rfb_tab", key="http://l")]
+            return state, []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", side_effect=fake_dispatch), \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=lambda ops, nau_pid: ops), \
+             patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
+            runner.tick()
+
+        mock_open.assert_called_once_with(
+            urls=["http://p", "http://l"],
+            shortcut_target=r"C:\Chrome\chrome.exe",
+            shortcut_work_dir=r"C:\Chrome",
+            shortcut_args='--profile-directory="Profile 2"',
+        )
 
 
 class TestModeSwitchVisibility:

@@ -78,10 +78,10 @@ def resolve_active_side_command(command: str, active_side: int) -> str:
 def expand_both_command(command: str) -> list[str]:
     """Expand a ``both_*`` command into its Portrait + Landscape pair.
 
-    Saying "next both" enqueues ``both_next``; there is no combined handler —
+    Saying "both next" enqueues ``both_next``; there is no combined handler —
     a both-command is just sugar for driving each satellite in turn (Portrait
-    first) through the exact same per-command handling as "next portrait" /
-    "next landscape".  Any other command passes through unchanged.
+    first) through the exact same per-command handling as "portrait next" /
+    "landscape next".  Any other command passes through unchanged.
     """
     if command.startswith("both_"):
         suffix = command[len("both_"):]
@@ -256,6 +256,11 @@ class DispatchLoopRunner:
         # pid/title lookups.
         self._role_hwnds: dict[str, int] = dict(role_hwnds or {})
         self._minimized_hwnds: list[int] = []
+        # RFB tabs opened by locks are buffered and opened in one Chrome launch
+        # per poll batch: "lock both" locks two videos in one tick, and two
+        # rapid chrome.exe launches race Chrome's singleton and drop a tab.
+        self._pending_rfb_urls: list[str] = []
+        self._batching_rfb = False
         self.voice_controller: VoiceController | None = None
         # Watch tracking ("breeding"): each satellite's playback is sampled
         # ~1 Hz and classified into completions/skips for the stats file.
@@ -303,10 +308,17 @@ class DispatchLoopRunner:
         # "next", ...) resolves to whichever satellite was most recently
         # addressed — by voice or by keyboard nav — and a "both_*" command
         # expands into its Portrait + Landscape pair.
-        for raw_command in poll_dashboard_commands(self.dashboard_cmd_file):
-            resolved = resolve_active_side_command(raw_command, self.state.active_side)
-            for command in expand_both_command(resolved):
-                self._handle_command(command)
+        # Buffer RFB opens across the whole batch so a "both" lock's two tabs
+        # open in one Chrome launch (see _flush_rfb_tabs).
+        self._batching_rfb = True
+        try:
+            for raw_command in poll_dashboard_commands(self.dashboard_cmd_file):
+                resolved = resolve_active_side_command(raw_command, self.state.active_side)
+                for command in expand_both_command(resolved):
+                    self._handle_command(command)
+        finally:
+            self._batching_rfb = False
+        self._flush_rfb_tabs()
 
         # Periodic sync: z-order enforcement and dashboard update
         now = time.monotonic()
@@ -482,22 +494,34 @@ class DispatchLoopRunner:
             if suppress_unsuspend and op.op == "unsuspend_hotkeys":
                 continue
             if op.op == "open_rfb_tab":
-                if self.rfb_hwnd and self.rfb_shortcut_target:
-                    open_rfb_tab(
-                        url=op.key,
-                        shortcut_target=self.rfb_shortcut_target,
-                        shortcut_work_dir=self.rfb_shortcut_work_dir,
-                        shortcut_args=self.rfb_shortcut_args,
-                    )
-                    logger.info("Opened RFB tab: %s", op.key)
+                self._pending_rfb_urls.append(op.key)
                 continue
             if op.op == "tooltip":
                 self.ahk_cmd_file.write_text(f"tooltip {op.key}", encoding="utf-8")
             else:
                 self.ahk_cmd_file.write_text(op.op, encoding="utf-8")
         write_shared_state(self.shared_state_file, self.state)
+        # Outside a poll batch (e.g. a lone lock) there is nothing to coalesce
+        # with, so open immediately; within a batch the tick flushes once.
+        if not self._batching_rfb:
+            self._flush_rfb_tabs()
         if self.dashboard_enabled:
             self._update_dashboard()
+
+    def _flush_rfb_tabs(self) -> None:
+        """Open every buffered RFB URL as tabs in one Chrome launch."""
+        urls = self._pending_rfb_urls
+        self._pending_rfb_urls = []
+        if not urls:
+            return
+        if self.rfb_hwnd and self.rfb_shortcut_target:
+            open_rfb_tab(
+                urls=urls,
+                shortcut_target=self.rfb_shortcut_target,
+                shortcut_work_dir=self.rfb_shortcut_work_dir,
+                shortcut_args=self.rfb_shortcut_args,
+            )
+            logger.info("Opened RFB tab(s): %s", ", ".join(urls))
 
     def _send_press(self, action: str) -> None:
         if not self.dashboard_enabled:
