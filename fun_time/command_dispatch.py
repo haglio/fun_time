@@ -58,6 +58,10 @@ class BridgeState:
     f_mode_enabled: bool = False
     omni_paused: bool = False
     recency_order: bool = False
+    # The satellite most recently addressed (2=portrait, 3=landscape). Any
+    # portrait_/landscape_ command — voice or keyboard — updates it, and the
+    # side-agnostic "active_*" commands resolve against it.
+    active_side: int = 2
 
 
 @dataclass
@@ -362,6 +366,15 @@ def _cycle_variant(
     return state, ops
 
 
+def _command_side(command: str) -> int | None:
+    """The satellite slot a portrait_/landscape_ command targets, else None."""
+    if command.startswith("portrait_"):
+        return 2
+    if command.startswith("landscape_"):
+        return 3
+    return None
+
+
 def dispatch_command(
     command: str,
     state: BridgeState,
@@ -369,6 +382,12 @@ def dispatch_command(
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Dispatch a dashboard/hotkey command, returning updated state and window operations."""
     ops: list[WindowOp] = []
+
+    # Any explicit side command (voice or keyboard nav) becomes the active side,
+    # so a later side-agnostic "active_*" command knows which player to drive.
+    side = _command_side(command)
+    if side is not None:
+        state = replace(state, active_side=side)
 
     cycle_target = _CYCLE_COMMANDS.get(command)
     if cycle_target is not None:

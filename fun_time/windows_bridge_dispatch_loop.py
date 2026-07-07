@@ -62,6 +62,19 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
+def resolve_active_side_command(command: str, active_side: int) -> str:
+    """Rewrite a side-agnostic ``active_*`` command onto the active satellite.
+
+    ``active_lock_on`` becomes ``portrait_lock_on`` or ``landscape_lock_on``
+    depending on which side was most recently addressed; every other command
+    (already side-specific, or unrelated) passes through unchanged.
+    """
+    if not command.startswith("active_"):
+        return command
+    prefix = "portrait_" if active_side == 2 else "landscape_"
+    return prefix + command[len("active_"):]
+
+
 def expand_both_command(command: str) -> list[str]:
     """Expand a ``both_*`` command into its Portrait + Landscape pair.
 
@@ -134,6 +147,7 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         "primary_mode": state.primary_mode,
         "f_mode_enabled": "1" if state.f_mode_enabled else "0",
         "omni_paused": "1" if state.omni_paused else "0",
+        "active_side": str(state.active_side),
     }
     state_file.parent.mkdir(parents=True, exist_ok=True)
     tmp = state_file.with_suffix(".tmp")
@@ -161,12 +175,17 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         primary_mode = "nau"
     else:
         primary_mode = raw_mode
+    try:
+        active_side = int(s.get("active_side", "2"))
+    except ValueError:
+        active_side = 2
     return BridgeState(
         locked2=s.get("locked2", "0") == "1",
         locked3=s.get("locked3", "0") == "1",
         primary_mode=primary_mode,
         f_mode_enabled=s.get("f_mode_enabled", "0") == "1",
         omni_paused=s.get("omni_paused", "0") == "1",
+        active_side=active_side,
     )
 
 
@@ -275,10 +294,14 @@ class DispatchLoopRunner:
         self._sync_hybrid_driver()
 
         # Dashboard commands (may be multiple if queued by rapid hotkey
-        # presses).  A "both" command targets both satellites, so it expands
-        # into its Portrait + Landscape pair before per-command handling.
+        # presses).  Each raw command is bound to concrete side command(s)
+        # before handling: a side-agnostic "active_*" command (voice "lock",
+        # "next", ...) resolves to whichever satellite was most recently
+        # addressed — by voice or by keyboard nav — and a "both_*" command
+        # expands into its Portrait + Landscape pair.
         for raw_command in poll_dashboard_commands(self.dashboard_cmd_file):
-            for command in expand_both_command(raw_command):
+            resolved = resolve_active_side_command(raw_command, self.state.active_side)
+            for command in expand_both_command(resolved):
                 self._handle_command(command)
 
         # Periodic sync: z-order enforcement and dashboard update

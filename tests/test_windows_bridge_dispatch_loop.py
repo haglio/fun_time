@@ -14,6 +14,7 @@ from fun_time.windows_bridge_dispatch_loop import (
     expand_both_command,
     write_shared_state,
     read_shared_state,
+    resolve_active_side_command,
     detect_sleep_gap,
     DispatchLoopRunner,
 )
@@ -360,6 +361,46 @@ class TestSharedState:
         state_file = tmp_path / "shared_state.ini"
         assert read_shared_state(state_file) is None
 
+    def test_active_side_roundtrips(self, tmp_path):
+        """active_side must persist: tick() reloads state from this file every
+        iteration, so a side set by a nav command would be lost otherwise."""
+        state_file = tmp_path / "shared_state.ini"
+        write_shared_state(state_file, BridgeState(active_side=3))
+
+        loaded = read_shared_state(state_file)
+
+        assert loaded is not None
+        assert loaded.active_side == 3
+
+    def test_active_side_defaults_to_portrait_for_legacy_files(self, tmp_path):
+        """An INI written before active_side existed loads as portrait (2)."""
+        state_file = tmp_path / "shared_state.ini"
+        state_file.write_text(
+            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
+            "f_mode_enabled = 0\nomni_paused = 0\n",
+            encoding="utf-8",
+        )
+
+        loaded = read_shared_state(state_file)
+
+        assert loaded is not None
+        assert loaded.active_side == 2
+
+
+class TestResolveActiveSideCommand:
+    """A side-agnostic 'active_*' command is rewritten onto whichever satellite
+    is currently active; anything else passes through untouched."""
+
+    def test_rewrites_to_portrait_when_active_side_is_portrait(self):
+        assert resolve_active_side_command("active_lock_on", 2) == "portrait_lock_on"
+
+    def test_rewrites_to_landscape_when_active_side_is_landscape(self):
+        assert resolve_active_side_command("active_next", 3) == "landscape_next"
+
+    def test_passes_non_active_commands_through(self):
+        assert resolve_active_side_command("primary_next", 3) == "primary_next"
+        assert resolve_active_side_command("portrait_lock", 3) == "portrait_lock"
+
 
 class TestDispatchLoopRunner:
     def test_dispatches_dashboard_command(self, tmp_path):
@@ -377,6 +418,38 @@ class TestDispatchLoopRunner:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "portrait_next" in commands
         assert not cmd_file.exists()
+
+    def test_bare_active_lock_targets_the_landscape_when_it_is_active(self, tmp_path):
+        """Voice 'lock' (active_lock_on) locks whichever side is active — here
+        landscape, e.g. after the user navigated it with A/D."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(active_side=3, locked3=False)
+        (tmp_path / "dashboard_cmd.txt").write_text("active_lock_on", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        assert "landscape_lock" in commands
+        assert "portrait_lock" not in commands
+
+    def test_bare_active_next_targets_the_active_side(self, tmp_path):
+        """A non-lock bare command ('next') also follows the active side."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(active_side=2)
+        (tmp_path / "dashboard_cmd.txt").write_text("active_next", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        assert "portrait_next" in commands
 
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the primary display in every mode it appears, so a nudge
