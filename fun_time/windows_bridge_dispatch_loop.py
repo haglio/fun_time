@@ -62,6 +62,20 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
+def expand_both_command(command: str) -> list[str]:
+    """Expand a ``both_*`` command into its Portrait + Landscape pair.
+
+    Saying "next both" enqueues ``both_next``; there is no combined handler —
+    a both-command is just sugar for driving each satellite in turn (Portrait
+    first) through the exact same per-command handling as "next portrait" /
+    "next landscape".  Any other command passes through unchanged.
+    """
+    if command.startswith("both_"):
+        suffix = command[len("both_"):]
+        return [f"portrait_{suffix}", f"landscape_{suffix}"]
+    return [command]
+
+
 def execute_window_ops(ops: list[WindowOp], nau_pid: int) -> list[WindowOp]:
     """Execute window operations via Python win32, returning any that need AHK.
 
@@ -258,78 +272,12 @@ class DispatchLoopRunner:
         # once that entry is on the current, now-hybrid mode.
         self._sync_hybrid_driver()
 
-        # Dashboard commands (may be multiple if queued by rapid hotkey presses)
-        for cmd in poll_dashboard_commands(self.dashboard_cmd_file):
-            button = self._HOTKEY_TO_BUTTON.get(cmd, cmd)
-            self._send_press(button)
-            if cmd == "quit":
-                self.ahk_cmd_file.write_text("exit", encoding="utf-8")
-                continue
-            elif cmd == "omniminimize":
-                self._handle_omniminimize()
-            elif cmd == "omnirestore":
-                self._handle_omnirestore()
-            elif cmd == "omnipause_toggle":
-                self._handle_omnipause_toggle()
-            elif cmd == "enter_omnipause":
-                if not self.state.omni_paused:
-                    self._handle_enter_omnipause()
-            elif cmd == "open_file_dialog":
-                threading.Thread(
-                    target=self._handle_open_file_dialog,
-                    daemon=True,
-                    name="file-dialog",
-                ).start()
-            elif cmd == "broker_panel":
-                threading.Thread(
-                    target=self._handle_broker_toggle,
-                    daemon=True,
-                    name="broker-toggle",
-                ).start()
-            elif cmd == "backslash_key":
-                if genau_active(self.state.primary_mode):
-                    self._send_press("quarter_button")
-                    self._dispatch("quarter_button")
-                else:
-                    self._send_press("open_file_dialog")
-                    threading.Thread(
-                        target=self._handle_open_file_dialog,
-                        daemon=True,
-                        name="file-dialog",
-                    ).start()
-            # -- idempotent voice commands --
-            elif cmd == "pause":
-                if not self.state.omni_paused:
-                    self._handle_omnipause_toggle()
-            elif cmd == "play":
-                if self.state.omni_paused:
-                    self._handle_omnipause_toggle()
-            elif cmd == "portrait_lock_on":
-                if not self.state.locked2:
-                    self._dispatch("portrait_lock")
-            elif cmd == "landscape_lock_on":
-                if not self.state.locked3:
-                    self._dispatch("landscape_lock")
-            elif cmd == "portrait_lock_off":
-                if self.state.locked2:
-                    self._dispatch("portrait_lock")
-            elif cmd == "landscape_lock_off":
-                if self.state.locked3:
-                    self._dispatch("landscape_lock")
-            elif cmd == "fmode_on":
-                if not self.state.f_mode_enabled:
-                    self._dispatch("fmode_toggle")
-            elif cmd == "fmode_off":
-                if self.state.f_mode_enabled:
-                    self._dispatch("fmode_toggle")
-            elif cmd == "broker_start":
-                self._handle_broker_start()
-            elif cmd == "broker_stop":
-                self._handle_broker_stop()
-            elif cmd in ("voice_off", "voice_toggle"):
-                self._handle_voice_toggle(cmd)
-            else:
-                self._dispatch(cmd)
+        # Dashboard commands (may be multiple if queued by rapid hotkey
+        # presses).  A "both" command targets both satellites, so it expands
+        # into its Portrait + Landscape pair before per-command handling.
+        for raw_command in poll_dashboard_commands(self.dashboard_cmd_file):
+            for command in expand_both_command(raw_command):
+                self._handle_command(command)
 
         # Periodic sync: z-order enforcement and dashboard update
         now = time.monotonic()
@@ -364,6 +312,79 @@ class DispatchLoopRunner:
         self.config.genau_cmd_file.write_text(
             "PAUSE" if has_funscript else "RESUME", encoding="utf-8"
         )
+
+    def _handle_command(self, cmd: str) -> None:
+        """Route one polled command (already expanded from any ``both_*``)."""
+        button = self._HOTKEY_TO_BUTTON.get(cmd, cmd)
+        self._send_press(button)
+        if cmd == "quit":
+            self.ahk_cmd_file.write_text("exit", encoding="utf-8")
+            return
+        if cmd == "omniminimize":
+            self._handle_omniminimize()
+        elif cmd == "omnirestore":
+            self._handle_omnirestore()
+        elif cmd == "omnipause_toggle":
+            self._handle_omnipause_toggle()
+        elif cmd == "enter_omnipause":
+            if not self.state.omni_paused:
+                self._handle_enter_omnipause()
+        elif cmd == "open_file_dialog":
+            threading.Thread(
+                target=self._handle_open_file_dialog,
+                daemon=True,
+                name="file-dialog",
+            ).start()
+        elif cmd == "broker_panel":
+            threading.Thread(
+                target=self._handle_broker_toggle,
+                daemon=True,
+                name="broker-toggle",
+            ).start()
+        elif cmd == "backslash_key":
+            if genau_active(self.state.primary_mode):
+                self._send_press("quarter_button")
+                self._dispatch("quarter_button")
+            else:
+                self._send_press("open_file_dialog")
+                threading.Thread(
+                    target=self._handle_open_file_dialog,
+                    daemon=True,
+                    name="file-dialog",
+                ).start()
+        # -- idempotent voice commands --
+        elif cmd == "pause":
+            if not self.state.omni_paused:
+                self._handle_omnipause_toggle()
+        elif cmd == "play":
+            if self.state.omni_paused:
+                self._handle_omnipause_toggle()
+        elif cmd == "portrait_lock_on":
+            if not self.state.locked2:
+                self._dispatch("portrait_lock")
+        elif cmd == "landscape_lock_on":
+            if not self.state.locked3:
+                self._dispatch("landscape_lock")
+        elif cmd == "portrait_lock_off":
+            if self.state.locked2:
+                self._dispatch("portrait_lock")
+        elif cmd == "landscape_lock_off":
+            if self.state.locked3:
+                self._dispatch("landscape_lock")
+        elif cmd == "fmode_on":
+            if not self.state.f_mode_enabled:
+                self._dispatch("fmode_toggle")
+        elif cmd == "fmode_off":
+            if self.state.f_mode_enabled:
+                self._dispatch("fmode_toggle")
+        elif cmd == "broker_start":
+            self._handle_broker_start()
+        elif cmd == "broker_stop":
+            self._handle_broker_stop()
+        elif cmd in ("voice_off", "voice_toggle"):
+            self._handle_voice_toggle(cmd)
+        else:
+            self._dispatch(cmd)
 
     def _sample_watch_trackers(self) -> None:
         for which, tracker in self._watch_trackers.items():

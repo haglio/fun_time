@@ -93,6 +93,19 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["unlock portrait"] == "portrait_lock_off"
         assert VOICE_COMMANDS["unlock landscape"] == "landscape_lock_off"
 
+    def test_both_satellite_phrases(self):
+        """"…both" phrases drive Portrait + Landscape together, mirroring the
+        per-satellite vocabulary (lock = on, unlock = off)."""
+        assert VOICE_COMMANDS["next both"] == "both_next"
+        assert VOICE_COMMANDS["previous both"] == "both_prev"
+        assert VOICE_COMMANDS["weird both"] == "both_trash"
+        assert VOICE_COMMANDS["lock both"] == "both_lock_on"
+        assert VOICE_COMMANDS["unlock both"] == "both_lock_off"
+        assert VOICE_COMMANDS["both action"] == "both_cycle_action"
+        assert VOICE_COMMANDS["cycle both action"] == "both_cycle_action"
+        assert VOICE_COMMANDS["both seed"] == "both_cycle_seed"
+        assert VOICE_COMMANDS["cycle both seed"] == "both_cycle_seed"
+
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "genau_amp_50"
         assert VOICE_COMMANDS["amp zero"] == "genau_amp_0"

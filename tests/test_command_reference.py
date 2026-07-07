@@ -90,6 +90,24 @@ def test_cycle_action_and_seed_rows_have_keys_and_voice():
         assert phrase in owning[0].voice
 
 
+def test_both_section_lists_combined_satellite_commands():
+    """A "Both VLC" section drives Portrait + Landscape together, by voice only."""
+    sections = {s.title: s for s in build_reference_sections()}
+    assert "Both VLC" in sections
+    both = sections["Both VLC"]
+    cmds = {c for row in both.rows for c in row.commands}
+    assert cmds == {
+        "both_prev", "both_next", "both_trash",
+        "both_lock_on", "both_lock_off",
+        "both_cycle_action", "both_cycle_seed",
+    }
+    # Voice phrases are derived from VOICE_COMMANDS, so each row surfaces one.
+    next_row = next(r for r in both.rows if "both_next" in r.commands)
+    assert "next both" in next_row.voice
+    lock_row = next(r for r in both.rows if "both_lock_on" in r.commands)
+    assert "lock both" in lock_row.voice and "unlock both" in lock_row.voice
+
+
 def test_premiere_row_uses_p_key_and_premiere_voice():
     """The newest-first refresh is branded "Premiere": P key, spoken "premiere"."""
     assert VOICE_COMMANDS["premiere"] == "recency_order_refresh"
