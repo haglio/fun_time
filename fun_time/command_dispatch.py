@@ -26,11 +26,13 @@ from .modes import collect_video_files
 from .provider_regen import regen_url_for_video
 from .mode_plan import genau_active, nau_displays
 from .window_roles import role_topmost
+from .filter_vocab import decode_filter_command
 from .runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_mode_switch,
     apply_refresh_recency_order,
+    apply_satellite_filter,
     apply_toggle_fmode,
     build_omnipause_toggle,
 )
@@ -62,6 +64,11 @@ class BridgeState:
     # portrait_/landscape_ command — voice or keyboard — updates it, and the
     # side-agnostic "active_*" commands resolve against it.
     active_side: int = 2
+    # Per-VLC metadata filter queries ("" = no filter). Persisted in the shared
+    # state file so they survive the dispatch loop's per-tick state resync and
+    # are honoured by later F-mode / premiere rebuilds.
+    portrait_filter: str = ""
+    landscape_filter: str = ""
 
 
 @dataclass
@@ -479,6 +486,11 @@ def dispatch_command(
     if command == "recency_order_refresh":
         return _dispatch_recency_order_refresh(state, config)
 
+    filter_target = decode_filter_command(command)
+    if filter_target is not None:
+        scope, query = filter_target
+        return _dispatch_set_filter(scope, query, state, config)
+
     if command in ("genau_activate", "nau_activate", "hybrid_activate"):
         target = {"genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid"}[command]
         return _dispatch_mode_switch(target, state, config, ops)
@@ -674,6 +686,8 @@ def _dispatch_fmode_toggle(
         nau_cmd_file=config.nau_cmd_file,
         provider_media_root=config.provider_media_root,
         provider_metadata_root=config.provider_metadata_root,
+        portrait_filter=state.portrait_filter,
+        landscape_filter=state.landscape_filter,
     )
     if result.log_message:
         logger.info(result.log_message)
@@ -697,6 +711,8 @@ def _dispatch_recency_order_refresh(
         portrait_port=config.portrait_port,
         landscape_port=config.landscape_port,
         password=config.vlc_password,
+        portrait_filter=state.portrait_filter,
+        landscape_filter=state.landscape_filter,
         provider_media_root=config.provider_media_root,
         provider_metadata_root=config.provider_metadata_root,
     )
@@ -708,6 +724,47 @@ def _dispatch_recency_order_refresh(
         locked2=result.next_locked2,
         locked3=result.next_locked3,
     ), []
+
+
+def _dispatch_set_filter(
+    scope: str, query: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Apply a metadata filter to one or both satellites and rebuild them.
+
+    ``scope`` is both/portrait/landscape; ``query`` is the substring to match
+    ("" clears).  Each targeted satellite records its own filter in the state so
+    later F-mode / premiere rebuilds keep it, then reloads under the current
+    ordering.
+    """
+    targets = {"both": (2, 3), "portrait": (2,), "landscape": (3,)}[scope]
+    messages: list[str] = []
+    for which in targets:
+        sources = config.portrait_sources if which == 2 else config.landscape_sources
+        port = config.portrait_port if which == 2 else config.landscape_port
+        result = apply_satellite_filter(
+            which=which,
+            query=query,
+            f_mode_enabled=state.f_mode_enabled,
+            recent=state.recency_order,
+            sources=sources,
+            favs_file=config.favs_file,
+            state_dir=config.state_dir,
+            port=port,
+            password=config.vlc_password,
+            provider_media_root=config.provider_media_root,
+            provider_metadata_root=config.provider_metadata_root,
+        )
+        # Only remember a filter that actually selected videos: a zero-match
+        # filter left the current playlist alone, so recording it would let the
+        # next F-mode/premiere rebuild blank the VLC.
+        if result.applied:
+            if which == 2:
+                state = replace(state, portrait_filter=query)
+            else:
+                state = replace(state, landscape_filter=query)
+        logger.info(result.log_message)
+        messages.append(result.log_message)
+    return state, [WindowOp(op="tooltip", key="; ".join(messages))]
 
 
 def _dispatch_mode_switch(

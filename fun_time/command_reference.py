@@ -17,6 +17,7 @@ from __future__ import annotations
 import html
 from dataclasses import dataclass
 
+from fun_time.filter_vocab import clear_command, set_commands_for_scope, spoken_forms_for_both
 from fun_time.voice_commands import VOICE_COMMANDS
 
 
@@ -135,6 +136,29 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Mark the active side's clip as weird", (), ("active_trash",)),
             _Row("Cycle action — same subject(s) & scene, another act", (), ("active_cycle_action",)),
             _Row("Cycle seed — same config, different subject", (), ("active_cycle_seed",)),
+        ),
+    ),
+    (
+        "Filters (satellite VLCs)",
+        (
+            _Row(
+                "Filter both VLCs by act — say the act alone",
+                (),
+                set_commands_for_scope("both"),
+                voice_display=spoken_forms_for_both(),
+            ),
+            _Row(
+                "Filter one VLC — prefix “portrait” or “landscape”",
+                (),
+                set_commands_for_scope("portrait") + set_commands_for_scope("landscape"),
+                voice_display=("portrait <act>", "landscape <act>"),
+            ),
+            _Row(
+                "Clear a filter",
+                (),
+                (clear_command("both"), clear_command("portrait"), clear_command("landscape")),
+                voice_display=("clear filter", "show everything", "clear portrait", "clear landscape"),
+            ),
         ),
     ),
     (

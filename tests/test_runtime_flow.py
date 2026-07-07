@@ -5,14 +5,29 @@ from pathlib import Path
 
 import pytest
 
+import json
+
 from fun_time.runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_mode_switch,
     apply_refresh_recency_order,
+    apply_satellite_filter,
     apply_toggle_fmode,
     build_omnipause_toggle,
 )
+
+
+def _make_action_video(folder: Path, media_root: Path, metadata_root: Path, name: str, action: str) -> str:
+    video = folder / f"{name}.mp4"
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_text("x", encoding="utf-8")
+    from fun_time.media_metadata import metadata_path_for
+
+    sidecar = metadata_path_for(video, media_root, metadata_root)
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    sidecar.write_text(json.dumps({"video": {"action": action, "prompt": "x", "seed": name}}), encoding="utf-8")
+    return str(video)
 
 
 @pytest.fixture
@@ -377,6 +392,158 @@ def test_refresh_recency_order_collapses_action_groups_with_provider_roots(monke
     portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
     entries = [line for line in portrait_lines if line and not line.startswith("#")]
     assert entries == [str(newer)], "the two-action group collapses to its newest member"
+
+
+def test_toggle_fmode_applies_per_vlc_metadata_filters(monkeypatch, tmp_path: Path):
+    media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
+    portrait_root, landscape_root = media_root / "portrait", media_root / "landscape"
+    p_cum = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
+    _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
+    l_kiss = _make_action_video(landscape_root, media_root, metadata_root, "lk", "Kissing")
+    _make_action_video(landscape_root, media_root, metadata_root, "lc", "Alpha")
+    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
+
+    apply_toggle_fmode(
+        f_mode_enabled=True,  # toggles F-mode OFF, so only the metadata filter applies
+        recent=True,
+        primary_sources="",
+        portrait_sources=str(portrait_root),
+        landscape_sources=str(landscape_root),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+        nau_cmd_file=tmp_path / "nau_cmd.txt",
+        provider_media_root=media_root,
+        provider_metadata_root=metadata_root,
+        portrait_filter="alpha",
+        landscape_filter="kissing",
+    )
+
+    portrait = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8")
+    landscape = (tmp_path / "state" / "landscape_vlc_playlist.m3u").read_text(encoding="utf-8")
+    assert p_cum in portrait and "pk.mp4" not in portrait
+    assert l_kiss in landscape and "lc.mp4" not in landscape
+
+
+def test_refresh_recency_order_honours_filters_and_orders_newest_first(monkeypatch, tmp_path: Path):
+    media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
+    portrait_root = media_root / "portrait"
+    old = _make_action_video(portrait_root, media_root, metadata_root, "old", "Alpha")
+    new = _make_action_video(portrait_root, media_root, metadata_root, "new", "Alpha")
+    _make_action_video(portrait_root, media_root, metadata_root, "other", "Kissing")
+    os.utime(old, (1000, 1000))
+    os.utime(new, (2000, 2000))
+    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
+
+    apply_refresh_recency_order(
+        f_mode_enabled=False,
+        portrait_sources=str(portrait_root),
+        landscape_sources="",
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+        provider_media_root=media_root,
+        provider_metadata_root=metadata_root,
+        portrait_filter="alpha",
+    )
+
+    portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
+    assert portrait_lines[1:] == [new, old]  # filtered to alpha, newest-first
+
+
+def test_apply_satellite_filter_reloads_only_its_port(monkeypatch, tmp_path: Path):
+    media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
+    portrait_root = media_root / "portrait"
+    p_cum = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
+    _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
+    calls: list[int] = []
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.replace_playlist_from_file",
+        lambda port, *a, **k: calls.append(port) or True,
+    )
+
+    result = apply_satellite_filter(
+        which=2,
+        query="alpha",
+        f_mode_enabled=False,
+        recent=True,
+        sources=str(portrait_root),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        port=9002,
+        password="pw",
+        provider_media_root=media_root,
+        provider_metadata_root=metadata_root,
+    )
+
+    assert result.applied is True
+    assert result.count == 1
+    assert calls == [9002]
+    portrait = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8")
+    assert p_cum in portrait and "pk.mp4" not in portrait
+
+
+def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(monkeypatch, tmp_path: Path):
+    media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
+    portrait_root = media_root / "portrait"
+    _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
+    state_dir = tmp_path / "state"
+    playlist = state_dir / "portrait_vlc_playlist.m3u"
+    playlist.parent.mkdir(parents=True)
+    playlist.write_text("#EXTM3U\r\nPRIOR\r\n", encoding="utf-8")
+    calls: list[int] = []
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.replace_playlist_from_file",
+        lambda port, *a, **k: calls.append(port) or True,
+    )
+
+    result = apply_satellite_filter(
+        which=2,
+        query="alpha",
+        f_mode_enabled=False,
+        recent=True,
+        sources=str(portrait_root),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=state_dir,
+        port=9002,
+        password="pw",
+        provider_media_root=media_root,
+        provider_metadata_root=metadata_root,
+    )
+
+    assert result.applied is False
+    assert result.count == 0
+    assert calls == []  # no reload
+    assert "PRIOR" in playlist.read_text(encoding="utf-8")  # left in place, not rebuilt
+
+
+def test_apply_satellite_filter_clear_restores_everything(monkeypatch, tmp_path: Path):
+    media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
+    portrait_root = media_root / "portrait"
+    _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
+    _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
+    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
+
+    result = apply_satellite_filter(
+        which=2,
+        query="",
+        f_mode_enabled=False,
+        recent=True,
+        sources=str(portrait_root),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        port=9002,
+        password="pw",
+        provider_media_root=media_root,
+        provider_metadata_root=metadata_root,
+    )
+
+    assert result.applied is True
+    assert result.count == 2
 
 
 def test_build_omnipause_toggle_returns_enter_or_leave():
