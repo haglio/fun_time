@@ -28,16 +28,10 @@ from .windows_bridge_sequencer import (
     resolve_shortcut,
     run_startup_sequence,
 )
-from .windows_bridge_startup import _no_activate_kwargs
 from .win32 import (
-    activate_window,
     close_window,
     find_window_by_pid,
-    get_foreground_window,
     get_process_image_name,
-    lock_set_foreground_window,
-    minimize_window,
-    unlock_set_foreground_window,
     wait_for_window_by_title,
 )
 
@@ -100,27 +94,6 @@ def kill_process_tree(pid: int) -> None:
         )
     except OSError:
         pass
-
-
-def _minimize_all_windows(result: StartupResult) -> None:
-    """Minimize all Fun Time windows so integration tests don't take over the display.
-
-    Uses activate=False (SW_SHOWMINNOACTIVE) to prevent each minimize from
-    activating the next window in z-order, which would create a chain of
-    focus transfers that steals the user's foreground window.
-    """
-    hwnds = [
-        find_window_by_pid(result.portrait_pid),
-        find_window_by_pid(result.landscape_pid),
-        # Genau and Nau run behind venv pythonw launchers whose PIDs differ
-        # from the window-owning interpreters — resolve by title.
-        wait_for_window_by_title("Genau", timeout_s=2.0),
-        wait_for_window_by_title("Nau", timeout_s=2.0, exact=True),
-    ]
-    for hwnd in hwnds:
-        if hwnd:
-            minimize_window(hwnd, activate=False)
-    logger.info("Minimized all windows for integration test run")
 
 
 # Number of progress steps reported by run_startup_sequence in hide_windows
@@ -238,24 +211,13 @@ def run_python_orchestrated_bridge(
     else:
         progress = NullProgress()
 
-    saved_foreground = 0
-    if integration_mode:
-        saved_foreground = get_foreground_window()
-        lock_set_foreground_window()
-        logger.info("Locked foreground window (hwnd=%d) for integration startup", saved_foreground)
-
     logger.info("Running startup sequence")
-    try:
-        result = run_startup_sequence(
-            manifest_path=manifest_path,
-            state_dir=state_dir,
-            progress=progress,
-            hide_windows=show_loading,
-        )
-    except Exception:
-        if integration_mode:
-            unlock_set_foreground_window()
-        raise
+    result = run_startup_sequence(
+        manifest_path=manifest_path,
+        state_dir=state_dir,
+        progress=progress,
+        hide_windows=show_loading,
+    )
 
     logger.info(
         "Startup complete: nau=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
@@ -279,13 +241,6 @@ def run_python_orchestrated_bridge(
         # Phase 4 set topmost while the overlay was still covering everything;
         # destroying the overlay can rearrange z-order.  Correct it now.
         _fix_post_loading_windows(result)
-
-    if integration_mode:
-        _minimize_all_windows(result)
-        unlock_set_foreground_window()
-        if saved_foreground:
-            activate_window(saved_foreground)
-            logger.info("Restored foreground window (hwnd=%d) after integration startup", saved_foreground)
 
     pids_file = state_dir / "bridge_pids.ini"
     write_pids_file(pids_file, result)
@@ -380,7 +335,7 @@ def run_python_orchestrated_bridge(
 
     command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file)]
     logger.info("Launching AHK hotkey script: %s", " ".join(command))
-    ahk_proc = subprocess.Popen(command, cwd=project_dir, **_no_activate_kwargs())
+    ahk_proc = subprocess.Popen(command, cwd=project_dir)
 
     try:
         exit_code = ahk_proc.wait()
