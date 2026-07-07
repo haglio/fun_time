@@ -181,7 +181,7 @@ def _add_dispatch_file_handler(log_path: Path) -> None:
 
 
 def _fix_post_loading_windows(result: StartupResult) -> None:
-    """Re-assert static topmost + nau-mode visibility after the loading
+    """Re-assert the topmost policy + nau-mode visibility after the loading
     screen overlay is destroyed (its teardown can shuffle activation, and
     the dashboard may only become resolvable this late)."""
     dash_hwnd = 0

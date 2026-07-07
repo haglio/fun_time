@@ -568,15 +568,13 @@ class TestPostLoadingWindowState:
         # nau startup mode: the inactive slot-mate (Genau) is hidden.
         assert GENAU_HWND in hide_calls, f"Genau not hidden: {hide_calls}"
 
-        # Static topmost policy: everything managed is promoted except Nau
-        # (hwnd 2020), which is held non-topmost so it rides under Genau's HUD
-        # and omnipause and startup agree about its band.
+        # nau startup mode: every managed window is promoted to topmost, Nau
+        # (hwnd 2020) included — it floats above the desktop like the primary
+        # player always has.
         promoted = {h for h, v in topmost_calls if v}
-        assert {DASH_HWND, GENAU_HWND, 3030, 4040, 55555} <= promoted, (
+        assert {DASH_HWND, GENAU_HWND, 2020, 3030, 4040, 55555} <= promoted, (
             f"Wrong promotions: {topmost_calls}"
         )
-        assert (2020, False) in topmost_calls, f"Nau should be pinned non-topmost: {topmost_calls}"
-        assert 2020 not in promoted
 
 
 class TestVoiceControlIntegration:

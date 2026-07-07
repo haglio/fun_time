@@ -23,7 +23,7 @@ from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser, tab_placeholder_path
 from .runtime_flow import write_flag_file
 from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
-from .window_roles import ROLE_TOPMOST
+from .window_roles import role_topmost
 from .win32 import (
     find_window_by_pid,
     hide_window,
@@ -87,14 +87,15 @@ def _apply_startup_window_state(
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
 ) -> dict[str, int]:
-    """Set the static window state for the nau startup mode.
+    """Set the window state for the nau startup mode.
 
     No window overlaps another anymore, so there is no z-order to manage: each
-    managed window just gets its static topmost flag from the shared
-    ``ROLE_TOPMOST`` policy — the same one omnipause honors, so startup and
-    omnipause never disagree (True for all except Nau, which stays under Genau's
-    HUD). The primary slot is arbitrated by visibility: startup mode is nau, so
-    Nau is shown and Genau starts hidden.
+    managed window gets its topmost flag from the shared ``role_topmost`` policy
+    for nau mode — the same policy omnipause and mode switches honor, so they
+    can never disagree.  In nau mode Nau floats topmost (above the desktop, like
+    the primary player always has) alongside every other managed window.  The
+    primary slot is arbitrated by visibility: startup mode is nau, so Nau is
+    shown and Genau starts hidden.
     """
     role_hwnds = {
         "portrait": portrait_hwnd,
@@ -106,7 +107,7 @@ def _apply_startup_window_state(
     }
     for role, hwnd in role_hwnds.items():
         if hwnd:
-            set_always_on_top(hwnd, ROLE_TOPMOST[role])
+            set_always_on_top(hwnd, role_topmost(role, "nau"))
     if genau_hwnd:
         hide_window(genau_hwnd)
     return role_hwnds
@@ -285,7 +286,7 @@ def run_startup_sequence(
             if hwnd:
                 collected_hwnds.append(hwnd)
 
-        # Apply the static window state (topmost flags + nau-mode visibility)
+        # Apply the startup window state (topmost policy + nau-mode visibility)
         # now so everything is correct the moment the loading screen closes;
         # the post-loading fix re-asserts it once the overlay is gone.
         dashboard_pid = ui_pids["dashboard_pid"]

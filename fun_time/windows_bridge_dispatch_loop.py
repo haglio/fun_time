@@ -24,7 +24,7 @@ from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on, read_nau_status
 from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
-from .window_roles import ROLE_TOPMOST
+from .window_roles import MANAGED_ROLES, role_topmost
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -86,7 +86,8 @@ def execute_window_ops(ops: list[WindowOp], nau_pid: int) -> list[WindowOp]:
         if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "tooltip",
                       "disable_all_topmost", "restore_all_topmost",
                       "open_rfb_tab",
-                      "show_role", "hide_role", "activate_role"):
+                      "show_role", "hide_role", "activate_role",
+                      "set_role_topmost"):
             remaining.append(op)
             continue
 
@@ -425,6 +426,13 @@ class DispatchLoopRunner:
                     if hwnd:
                         activate_window(hwnd)
                 continue
+            if op.op == "set_role_topmost":
+                # Not integration-guarded: SetWindowPos(HWND_TOPMOST) uses
+                # SWP_NOACTIVATE, so it changes only the z-band, never focus.
+                hwnd = self._resolve_role(op.key)
+                if hwnd:
+                    set_always_on_top(hwnd, op.value)
+                continue
             if op.op == "disable_all_topmost":
                 self._remove_all_topmost()
                 continue
@@ -525,20 +533,26 @@ class DispatchLoopRunner:
         return ["rfb", "portrait", "landscape", "dashboard", *slot]
 
     def _remove_all_topmost(self) -> None:
-        """Drop every window out of the TOPMOST band (omnipause frees the desktop)."""
-        for role, topmost in ROLE_TOPMOST.items():
-            if topmost:
-                hwnd = self._resolve_role(role)
-                if hwnd:
-                    set_always_on_top(hwnd, False)
+        """Drop EVERY managed window out of the TOPMOST band (omnipause frees
+        the desktop).  Dropping unconditionally — not just the normally-topmost
+        roles — is what stops Nau from being stranded on top in nau mode, where
+        it does carry the topmost flag."""
+        for role in MANAGED_ROLES:
+            hwnd = self._resolve_role(role)
+            if hwnd:
+                set_always_on_top(hwnd, False)
 
     def _restore_all_topmost(self) -> None:
-        """Re-apply the static topmost flags after omnipause."""
-        for role, topmost in ROLE_TOPMOST.items():
-            if topmost:
-                hwnd = self._resolve_role(role)
-                if hwnd:
-                    set_always_on_top(hwnd, True)
+        """Re-apply each window's topmost band for the current mode after omnipause.
+
+        Nau reclaims the topmost band in nau mode (floating above the desktop
+        like the primary player always has); in hybrid it stays non-topmost,
+        under Genau's HUD.  See :func:`role_topmost`.
+        """
+        for role in MANAGED_ROLES:
+            hwnd = self._resolve_role(role)
+            if hwnd:
+                set_always_on_top(hwnd, role_topmost(role, self.state.primary_mode))
 
     def _is_broker_alive(self) -> bool:
         hb = self.config.broker_heartbeat_file
