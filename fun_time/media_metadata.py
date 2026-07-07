@@ -55,6 +55,53 @@ def _norm_text(value: object) -> str:
     return " ".join(str(value or "").split()).lower()
 
 
+def search_haystack(metadata: dict) -> str:
+    """Lowercased, whitespace-collapsed text a filter query is matched against.
+
+    Combines the structured video *action* with the positive prompts (the video
+    prompt and the source image's positive prompt).  The negative prompt is
+    deliberately excluded — a clip that says "no delta" must not match a
+    query for "delta".
+    """
+    video = metadata.get("video") or {}
+    source = metadata.get("source_image") or {}
+    parts = (video.get("action"), video.get("prompt"), source.get("positive_prompt"))
+    return _norm_text(" ".join(str(part) for part in parts if part))
+
+
+def matches_query(metadata: dict, query: str) -> bool:
+    """Whether *metadata* satisfies *query* — an empty query matches everything.
+
+    A query matches when it appears as a contiguous substring of the video's
+    search haystack, so "alpha" catches the "Alpha, Theta Motion" action and
+    "beta gamma" catches the "Beta Gamma" action while ignoring word order noise.
+    """
+    normalized = _norm_text(query)
+    if not normalized:
+        return True
+    return normalized in search_haystack(metadata)
+
+
+def path_matches_query(
+    video_path: str,
+    media_root: str | Path | None,
+    metadata_root: str | Path | None,
+    query: str,
+) -> bool:
+    """Whether the sidecar for *video_path* satisfies *query*.
+
+    An empty query passes every video.  A non-empty query can only be satisfied
+    by a video that has a metadata sidecar, so videos without one drop out of a
+    filtered build.
+    """
+    if not _norm_text(query):
+        return True
+    sidecar = metadata_path_for(video_path, media_root, metadata_root)
+    if sidecar is None or not sidecar.is_file():
+        return False
+    return matches_query(load_metadata(sidecar), query)
+
+
 # Fields that pin down the generated image (subject(s) + situation).  "created"
 # is deliberately excluded: regenerating the identical config on another day
 # yields the same picture.

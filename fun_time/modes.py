@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .media_metadata import GroupIndex, build_group_index, normalize_path_key
+from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
 from .watch_stats import load_watch_stats, passes_inclusion, weight_for, weighted_shuffle
 
 PLAYLIST_PORTRAIT = "portrait_vlc_playlist"
@@ -209,6 +209,7 @@ def build_satellite_playlist_paths(
     f_mode: bool,
     favs_file: Path,
     *,
+    filter_query: str = "",
     recent: bool = False,
     rng: random.Random | None = None,
     library: SatelliteLibraryContext | None = None,
@@ -217,6 +218,20 @@ def build_satellite_playlist_paths(
     if f_mode:
         favs_content = read_favs_content(favs_file)
         files = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
+    # An attribute filter narrows to videos whose metadata matches; it needs the
+    # library's roots to reach each sidecar, so without them it is a no-op.
+    # Applied before ordering, so it holds under both premiere and shuffle.
+    if (
+        filter_query
+        and library is not None
+        and library.media_root is not None
+        and library.metadata_root is not None
+    ):
+        files = [
+            full_path
+            for full_path in files
+            if path_matches_query(full_path, library.media_root, library.metadata_root, filter_query)
+        ]
     # With a library, both orders collapse action groups to one slot: premiere
     # (recent) keeps newest-first, the shuffle build weighted-randomizes.  With
     # no library there is nothing to group by, so just order the raw files.
@@ -250,6 +265,27 @@ def write_nau_playlist_file(path: Path, video_paths: list[str]) -> None:
     path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
 
 
+def build_one_satellite_playlist(
+    *,
+    sources: str,
+    name: str,
+    favs_file: Path,
+    state_dir: Path,
+    f_mode: bool,
+    recent: bool,
+    filter_query: str = "",
+    rng: random.Random | None = None,
+    library: SatelliteLibraryContext | None = None,
+) -> tuple[Path, int]:
+    """Build, write, and return the playlist file for a single satellite."""
+    paths = build_satellite_playlist_paths(
+        sources, f_mode, favs_file, filter_query=filter_query, recent=recent, rng=rng, library=library
+    )
+    playlist_path = build_playlist_file_path(state_dir, name)
+    write_playlist_file(playlist_path, paths)
+    return playlist_path, len(paths)
+
+
 def build_satellite_playlists(
     *,
     portrait_sources: str,
@@ -258,6 +294,8 @@ def build_satellite_playlists(
     state_dir: Path,
     f_mode: bool,
     recent: bool,
+    portrait_filter: str = "",
+    landscape_filter: str = "",
     rng: random.Random | None = None,
     library: SatelliteLibraryContext | None = None,
 ) -> SatellitePlaylistPlan:
@@ -265,22 +303,21 @@ def build_satellite_playlists(
 
     Ordering follows ``recent``: newest-first when set, otherwise shuffled
     (with action-group collapse and watch weighting when *library* is given).
+    Each satellite honours its own ``*_filter`` independently.
     """
-    portrait_paths = build_satellite_playlist_paths(
-        portrait_sources, f_mode, favs_file, recent=recent, rng=rng, library=library
+    portrait_playlist_path, portrait_count = build_one_satellite_playlist(
+        sources=portrait_sources, name=PLAYLIST_PORTRAIT, favs_file=favs_file,
+        state_dir=state_dir, f_mode=f_mode, recent=recent,
+        filter_query=portrait_filter, rng=rng, library=library,
     )
-    landscape_paths = build_satellite_playlist_paths(
-        landscape_sources, f_mode, favs_file, recent=recent, rng=rng, library=library
+    landscape_playlist_path, landscape_count = build_one_satellite_playlist(
+        sources=landscape_sources, name=PLAYLIST_LANDSCAPE, favs_file=favs_file,
+        state_dir=state_dir, f_mode=f_mode, recent=recent,
+        filter_query=landscape_filter, rng=rng, library=library,
     )
-
-    portrait_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
-    landscape_playlist_path = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
-
-    write_playlist_file(portrait_playlist_path, portrait_paths)
-    write_playlist_file(landscape_playlist_path, landscape_paths)
     return SatellitePlaylistPlan(
-        portrait_count=len(portrait_paths),
-        landscape_count=len(landscape_paths),
+        portrait_count=portrait_count,
+        landscape_count=landscape_count,
         portrait_playlist_path=portrait_playlist_path,
         landscape_playlist_path=landscape_playlist_path,
     )
@@ -295,6 +332,8 @@ def build_fmode_playlists(
     state_dir: Path,
     enabled: bool,
     recent: bool = False,
+    portrait_filter: str = "",
+    landscape_filter: str = "",
     rng: random.Random | None = None,
     library: SatelliteLibraryContext | None = None,
 ) -> FModePlaylistPlan:
@@ -306,6 +345,8 @@ def build_fmode_playlists(
         state_dir=state_dir,
         f_mode=enabled,
         recent=recent,
+        portrait_filter=portrait_filter,
+        landscape_filter=landscape_filter,
         rng=rng,
         library=library,
     )
