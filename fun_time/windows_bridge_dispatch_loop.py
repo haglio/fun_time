@@ -21,7 +21,7 @@ from .watch_stats import SatelliteWatchTracker, record_watch_event, watch_stats_
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
-from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on
+from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on, read_nau_status
 from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
 from .window_roles import ROLE_TOPMOST
@@ -228,6 +228,10 @@ class DispatchLoopRunner:
         self._watch_ports = {2: config.portrait_port, 3: config.landscape_port}
         self._watch_stats_file = watch_stats_path(config.state_dir)
         self._last_watch_sample = 0.0
+        # Hybrid funscript handoff: whether the current video's funscript is
+        # driving the OSR2 (so Genau is paused).  None means "no decision applied
+        # yet" — set outside hybrid so re-entry re-asserts the correct driver.
+        self._hybrid_funscript_driving: bool | None = None
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
@@ -246,6 +250,13 @@ class DispatchLoopRunner:
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
             self.state = shared
+
+        # Hand the OSR2 to the current video's funscript (or back to Genau).
+        # Runs before the command loop so a mode switch that also writes
+        # genau_cmd (RESUME + HUD_ON on entering hybrid) is never clobbered by
+        # the handoff in the same tick — the handoff instead lands next tick,
+        # once that entry is on the current, now-hybrid mode.
+        self._sync_hybrid_driver()
 
         # Dashboard commands (may be multiple if queued by rapid hotkey presses)
         for cmd in poll_dashboard_commands(self.dashboard_cmd_file):
@@ -329,6 +340,30 @@ class DispatchLoopRunner:
         if not self.state.omni_paused and now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
             self._last_watch_sample = now
             self._sample_watch_trackers()
+
+    def _sync_hybrid_driver(self) -> None:
+        """In hybrid, route the OSR2 to the current video's funscript or Genau.
+
+        Genau and a funscript both feed the broker's one UDP T-Code inlet, so
+        only one may drive at a time.  Nau already self-gates — it emits its
+        funscript's T-Code only on videos that have one — so the handoff just
+        has to yield Genau: PAUSE it while a funscripted video plays (the
+        funscript takes over) and RESUME it otherwise.  The command is edge-
+        triggered off Nau's published ``has_funscript`` so it fires once per
+        video change, not every tick.  Outside hybrid (or under omnipause) the
+        remembered state is cleared so re-entry re-asserts the right driver;
+        the mode switch itself authoritatively sets Genau's baseline.
+        """
+        if self.state.primary_mode != "hybrid" or self.state.omni_paused:
+            self._hybrid_funscript_driving = None
+            return
+        has_funscript = read_nau_status(self.config.nau_status_file).has_funscript
+        if has_funscript == self._hybrid_funscript_driving:
+            return
+        self._hybrid_funscript_driving = has_funscript
+        self.config.genau_cmd_file.write_text(
+            "PAUSE" if has_funscript else "RESUME", encoding="utf-8"
+        )
 
     def _sample_watch_trackers(self) -> None:
         for which, tracker in self._watch_trackers.items():
