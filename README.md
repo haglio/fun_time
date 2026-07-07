@@ -236,12 +236,12 @@ AI videos under the provider media root carry metadata sidecars (see `provider_r
 
 Two command pairs ride on those groups (keys: `Del`/`End` portrait, `E`/`Q` landscape; voice: "portrait action", "portrait seed", "landscape action", "landscape seed"):
 
-- **Cycle action** switches the current video to the next action of its group, in a fixed order so repeated presses tour every act. A brief tooltip names the action that came up. If the sibling is not in the playlist (shuffled builds collapse groups — see below), it is swapped in place of the current entry.
+- **Cycle action** switches the current video to the next action of its group, in a fixed order so repeated presses tour every act. A brief tooltip names the action that came up. If the sibling is not in the playlist (grouped builds keep one slot per group — see below), it is swapped in place of the current entry.
 - **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render knobs freed) and tooltips the near-match as "Similar clip", so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds".
 
 Unlike prev/next, cycling does **not** release an active lock: it means "show me this differently", so the lock's repeat-one simply carries over to the sibling.
 
-During shuffled satellite builds, each action group **collapses to one playlist slot**: exactly one member plays per pass (drawn weighted by the watch stats below), so the same subject+scene doesn't recur once per action. Premiere (`P`, newest-first) deliberately skips collapsing so new arrivals are all visible. Videos without a metadata sidecar behave exactly as before.
+During satellite builds, each action group **collapses to one playlist slot**, so the same subject+scene doesn't recur once per action. Shuffled builds draw that member weighted by the watch stats below; Premiere (`P`, newest-first) instead keeps the group's newest member and orders by recency. Either way it's one entry per group. Videos without a metadata sidecar behave exactly as before.
 
 ### Watch stats — videos "breed" by attention
 

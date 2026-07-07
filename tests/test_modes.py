@@ -468,19 +468,26 @@ def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Pat
     assert appearances < 15, "a weight-1/8 video should miss most builds"
 
 
-def test_premiere_recent_build_keeps_every_group_member_visible(tmp_path: Path):
-    """Newest-first review of arrivals must not hide siblings behind collapse."""
+def test_premiere_recent_build_collapses_groups_to_newest_member(tmp_path: Path):
+    """Premiere shows one entry per action group even while reviewing arrivals:
+    the group's newest member represents it, ungrouped clips pass through, and
+    the whole list stays newest-first."""
     source_dir, library, paths = _grouped_library(tmp_path, {
-        "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
-        "subject1_alpha": _i2v_meta("111", "Alpha"),
+        "subject1_old": _i2v_meta("111", "Alpha"),
+        "subject1_new": _i2v_meta("111", "Zeta Massage"),
+        "subject2_solo": _i2v_meta("222", "Dancing"),
+        "no_metadata": None,
     })
+    for name, mtime in (("subject1_old", 1000), ("subject2_solo", 2000), ("subject1_new", 3000), ("no_metadata", 500)):
+        os.utime(Path(paths[name]), (mtime, mtime))
 
     built = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
         recent=True, rng=random.Random(1), library=library,
     )
 
-    assert set(built) == set(paths.values())
+    # subject1's two actions collapse to the newer one; order stays newest-first.
+    assert built == [paths["subject1_new"], paths["subject2_solo"], paths["no_metadata"]]
 
 
 def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path: Path):

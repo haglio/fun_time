@@ -322,6 +322,46 @@ def test_refresh_recency_order_repicks_up_new_files(monkeypatch, tmp_path: Path)
     assert portrait.read_text(encoding="utf-8").splitlines()[1:] == [str(new), str(old)]
 
 
+def test_refresh_recency_order_collapses_action_groups_with_provider_roots(monkeypatch, tmp_path: Path):
+    """Premiere honours action groups too: with the provider roots supplied,
+    same-source-image clips collapse to one entry, its newest member."""
+    import json
+
+    media_root = tmp_path / "media"
+    metadata_root = tmp_path / "metadata"
+    portrait_root = media_root / "portrait"
+    portrait_root.mkdir(parents=True)
+    meta = {
+        "video": {"prompt": "act", "action": "Alpha", "seed": "1"},
+        "source_image": {"positive_prompt": "subject", "seed": "111"},
+    }
+    older, newer = portrait_root / "older.mp4", portrait_root / "newer.mp4"
+    for video, mtime in ((older, 1000), (newer, 2000)):
+        video.write_text("x", encoding="utf-8")
+        os.utime(video, (mtime, mtime))
+        sidecar = metadata_root / "portrait" / f"{video.stem}.json"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(json.dumps(meta), encoding="utf-8")
+    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
+
+    apply_refresh_recency_order(
+        f_mode_enabled=False,
+        portrait_sources=str(portrait_root),
+        landscape_sources="",
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+        provider_media_root=media_root,
+        provider_metadata_root=metadata_root,
+    )
+
+    portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
+    entries = [line for line in portrait_lines if line and not line.startswith("#")]
+    assert entries == [str(newer)], "the two-action group collapses to its newest member"
+
+
 def test_build_omnipause_toggle_returns_enter_or_leave():
     enter = build_omnipause_toggle(omni_paused=False, primary_mode="nau")
     leave = build_omnipause_toggle(omni_paused=True, primary_mode="genau")

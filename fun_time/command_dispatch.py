@@ -650,6 +650,8 @@ def _dispatch_recency_order_refresh(
         portrait_port=config.portrait_port,
         landscape_port=config.landscape_port,
         password=config.vlc_password,
+        provider_media_root=config.provider_media_root,
+        provider_metadata_root=config.provider_metadata_root,
     )
     if result.log_message:
         logger.info(result.log_message)

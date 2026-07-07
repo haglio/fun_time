@@ -145,15 +145,19 @@ def apply_refresh_recency_order(
     portrait_port: int,
     landscape_port: int,
     password: str,
+    provider_media_root: Path | None = None,
+    provider_metadata_root: Path | None = None,
 ) -> RecencyOrderFlowResult:
     """Refresh the Portrait/Landscape VLC playlists to newest-first (Premiere).
 
     Rescans the satellite sources (honouring the current F-mode filter),
     rebuilds their playlists newest-first, and reloads them — so a repeat press
     picks up any newly-arrived files and restarts each player from the top
-    (``replace_playlist_from_file`` empties then re-plays from item 0).  The
-    primary/Nau player is left alone.  Pushing a fresh playlist with repeat-all
-    clears any per-window lock, so the caller's lock flags reset to match.
+    (``replace_playlist_from_file`` empties then re-plays from item 0).  Action
+    groups still collapse to one entry (represented by the group's newest
+    member) when the provider roots are supplied.  The primary/Nau player is left
+    alone.  Pushing a fresh playlist with repeat-all clears any per-window lock,
+    so the caller's lock flags reset to match.
     """
     plan = build_satellite_playlists(
         portrait_sources=portrait_sources,
@@ -162,6 +166,11 @@ def apply_refresh_recency_order(
         state_dir=Path(state_dir),
         f_mode=f_mode_enabled,
         recent=True,
+        library=SatelliteLibraryContext(
+            media_root=provider_media_root,
+            metadata_root=provider_metadata_root,
+            watch_stats_file=watch_stats_path(state_dir),
+        ),
     )
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
         logger.warning("Portrait VLC failed to load recency-ordered playlist")

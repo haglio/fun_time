@@ -892,6 +892,8 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
 
 def test_recency_order_refresh_keeps_recent_and_resets_locks(tmp_path: Path):
     config = _make_config(tmp_path)
+    config.provider_media_root = tmp_path / "media"
+    config.provider_metadata_root = tmp_path / "metadata"
     # Already in Premiere: pressing again must keep newest-first, never toggle off.
     state = _make_state(recency_order=True, locked2=True, locked3=True)
 
@@ -913,6 +915,9 @@ def test_recency_order_refresh_keeps_recent_and_resets_locks(tmp_path: Path):
     assert kwargs["f_mode_enabled"] is False
     assert kwargs["portrait_port"] == config.portrait_port
     assert kwargs["landscape_port"] == config.landscape_port
+    # Premiere must collapse action groups too, so the provider roots flow through.
+    assert kwargs["provider_media_root"] == config.provider_media_root
+    assert kwargs["provider_metadata_root"] == config.provider_metadata_root
 
 
 # --- mode switch (genau_activate / vlc_activate / hybrid_activate) ---
