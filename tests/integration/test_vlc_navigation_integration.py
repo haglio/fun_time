@@ -25,7 +25,6 @@ from fun_time.vlc_actions import (
     get_current_file_path,
     get_playback_state,
     replace_playlist_from_file,
-    restore_vlcrc_volume,
     vlc_advance_and_remove,
     vlc_http_cmd,
     vlc_http_req,
@@ -135,7 +134,6 @@ def vlc_with_playlist():
     # restore_vlc_volume (HTTP) caused by setting volume=256 while playing.
     proc.kill()
     proc.wait()
-    restore_vlcrc_volume(256)
 
 
 def _current(port: int = TEST_PORT) -> str:
@@ -533,7 +531,6 @@ def vlc_repeat_one():
     yield proc, videos
     proc.kill()
     proc.wait()
-    restore_vlcrc_volume(256)
 
 
 def test_repeat_one_nav_step_changes_video_and_keeps_playing(vlc_repeat_one):

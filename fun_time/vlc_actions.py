@@ -118,30 +118,6 @@ def vlc_http_cmd(port: int, command: str, password: str) -> bool:
     return status == 200
 
 
-def restore_vlcrc_volume(volume: int = 256) -> None:
-    """Write volume setting directly to vlcrc on disk.
-
-    Call AFTER killing VLC to prevent muted state from persisting across
-    sessions.  Unlike restore_vlc_volume (HTTP), this never produces
-    audible output because VLC is already dead.
-    """
-    import os
-    appdata = os.environ.get("APPDATA")
-    if not appdata:
-        return
-    vlcrc = Path(appdata) / "vlc" / "vlcrc"
-    try:
-        text = vlcrc.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return
-    new_text = re.sub(r"^volume=\d+", f"volume={volume}", text, flags=re.MULTILINE)
-    if new_text != text:
-        try:
-            vlcrc.write_text(new_text, encoding="utf-8")
-        except OSError:
-            pass
-
-
 def send_vlc_input_command(port: int, command: str, full_path: str, password: str) -> bool:
     file_uri = Path(full_path).resolve().as_uri()
     encoded_uri = urllib.parse.quote(file_uri, safe="-_.~")
