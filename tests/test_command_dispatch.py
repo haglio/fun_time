@@ -661,6 +661,110 @@ def test_fmode_toggle_passes_provider_roots_for_group_collapse(tmp_path: Path):
     assert kwargs["provider_metadata_root"] == tmp_path / "metadata"
 
 
+def _filter_result(count=1, applied=True, message="ok"):
+    return type("R", (), {"count": count, "applied": applied, "log_message": message})()
+
+
+def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
+    config = replace(
+        _make_config(tmp_path),
+        provider_media_root=tmp_path / "media",
+        provider_metadata_root=tmp_path / "metadata",
+    )
+    state = _make_state()
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result()
+        new_state, ops = dispatch_command("filter_portrait_alpha", state, config)
+
+    assert new_state.portrait_filter == "alpha"
+    assert new_state.landscape_filter == ""  # the other VLC is untouched
+    assert mock_filter.call_count == 1
+    kwargs = mock_filter.call_args.kwargs
+    assert kwargs["which"] == 2
+    assert kwargs["query"] == "alpha"
+    assert kwargs["port"] == config.portrait_port
+    assert kwargs["sources"] == config.portrait_sources
+    assert kwargs["provider_media_root"] == tmp_path / "media"
+    assert any(op.op == "tooltip" for op in ops)
+
+
+def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state()
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result()
+        new_state, _ops = dispatch_command("filter_both_beta_gamma", state, config)
+
+    assert new_state.portrait_filter == "beta gamma"
+    assert new_state.landscape_filter == "beta gamma"
+    assert {call.kwargs["which"] for call in mock_filter.call_args_list} == {2, 3}
+
+
+def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
+    # A filter that matched nothing kept the current playlist, so it must not be
+    # recorded — otherwise a later premiere/F-mode rebuild would blank the VLC.
+    config = _make_config(tmp_path)
+    state = _make_state()
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=0, applied=False)
+        new_state, _ops = dispatch_command("filter_portrait_alpha", state, config)
+
+    assert new_state.portrait_filter == ""
+
+
+def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        new_state, _ops = dispatch_command("filter_portrait_clear", state, config)
+
+    assert new_state.portrait_filter == ""
+    assert new_state.landscape_filter == "kissing"  # untouched
+    assert mock_filter.call_args.kwargs["query"] == ""
+
+
+def test_fmode_toggle_passes_active_filters(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
+
+    with patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode:
+        mock_fmode.return_value = type("R", (), {
+            "success": True, "next_f_mode_enabled": True,
+            "next_locked2": False, "next_locked3": False, "log_message": "x",
+        })()
+        dispatch_command("fmode_toggle", state, config)
+
+    kwargs = mock_fmode.call_args.kwargs
+    assert kwargs["portrait_filter"] == "alpha"
+    assert kwargs["landscape_filter"] == "kissing"
+
+
+def test_premiere_refresh_passes_active_filters_and_roots(tmp_path: Path):
+    config = replace(
+        _make_config(tmp_path),
+        provider_media_root=tmp_path / "media",
+        provider_metadata_root=tmp_path / "metadata",
+    )
+    state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
+
+    with patch("fun_time.command_dispatch.apply_refresh_recency_order") as mock_recency:
+        mock_recency.return_value = type("R", (), {
+            "next_recency_order": True, "next_locked2": False,
+            "next_locked3": False, "log_message": "x",
+        })()
+        dispatch_command("recency_order_refresh", state, config)
+
+    kwargs = mock_recency.call_args.kwargs
+    assert kwargs["portrait_filter"] == "alpha"
+    assert kwargs["landscape_filter"] == "kissing"
+    assert kwargs["provider_media_root"] == tmp_path / "media"
+
+
 # --- portrait/landscape cycle action & cycle seed ---
 
 

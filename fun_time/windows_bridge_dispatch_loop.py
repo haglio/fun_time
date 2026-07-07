@@ -148,6 +148,8 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         "f_mode_enabled": "1" if state.f_mode_enabled else "0",
         "omni_paused": "1" if state.omni_paused else "0",
         "active_side": str(state.active_side),
+        "portrait_filter": state.portrait_filter,
+        "landscape_filter": state.landscape_filter,
     }
     state_file.parent.mkdir(parents=True, exist_ok=True)
     tmp = state_file.with_suffix(".tmp")
@@ -186,6 +188,8 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         f_mode_enabled=s.get("f_mode_enabled", "0") == "1",
         omni_paused=s.get("omni_paused", "0") == "1",
         active_side=active_side,
+        portrait_filter=s.get("portrait_filter", ""),
+        landscape_filter=s.get("landscape_filter", ""),
     )
 
 

@@ -310,3 +310,19 @@ def test_render_reference_html_contains_key_content():
     assert "Genau" in html
     # No raw template gaps.
     assert "{" not in html and "}" not in html
+
+
+def test_filters_section_documents_the_spoken_filters():
+    sections = {s.title: s for s in build_reference_sections()}
+    assert "Filters (satellite VLCs)" in sections
+    blob = " ".join(v for row in sections["Filters (satellite VLCs)"].rows for v in row.voice)
+    assert "beta gamma" in blob  # example act
+    assert "clear portrait" in blob  # a clear phrase
+
+
+def test_every_filter_voice_command_is_represented():
+    from fun_time.filter_vocab import filter_voice_commands
+
+    covered = _covered_commands()
+    missing = {cmd for cmd in filter_voice_commands().values() if cmd not in covered}
+    assert not missing, f"filter commands missing from reference: {sorted(missing)}"

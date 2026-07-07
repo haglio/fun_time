@@ -233,3 +233,27 @@ class TestVoiceController:
         assert vc.is_muted
         vc.unmute()
         assert not vc.is_muted
+
+
+def test_voice_commands_include_generated_filter_phrases():
+    from fun_time.filter_vocab import clear_command, set_command
+
+    assert VOICE_COMMANDS["portrait beta gamma"] == set_command("portrait", "beta gamma")
+    assert VOICE_COMMANDS["alpha form"] == set_command("both", "alpha")
+    assert VOICE_COMMANDS["clear portrait"] == clear_command("portrait")
+
+
+def test_filter_phrases_reach_the_recognizer_grammar():
+    grammar = build_grammar()
+    assert "portrait beta gamma" in grammar
+    assert "alpha form" in grammar
+
+
+def test_filter_phrases_do_not_shadow_other_commands():
+    # Every filter phrase must resolve to its filter command — i.e. no filter
+    # phrase silently overrode (or was overridden by) another voice command.
+    from fun_time.filter_vocab import decode_filter_command, filter_voice_commands
+
+    for phrase, command in filter_voice_commands().items():
+        assert VOICE_COMMANDS[phrase] == command
+        assert decode_filter_command(command) is not None

@@ -8,6 +8,8 @@ and layers the Vosk grammar and recognizer on top.
 """
 from __future__ import annotations
 
+from fun_time.filter_vocab import filter_voice_commands
+
 VOICE_COMMANDS: dict[str, str] = {
     "quit": "quit",
     "pause": "pause",
@@ -127,3 +129,12 @@ _EXTREMES: dict[str, int] = {"min": 0, "max": 100}
 for _label, _value in _EXTREMES.items():
     for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
         VOICE_COMMANDS[f"{_label} {_prefix}"] = f"{_cmd_prefix}_{_value}"
+
+# Spoken metadata filters — "portrait beta gamma", "alpha form", "clear portrait" —
+# generated from the library's action vocabulary (see fun_time.filter_vocab).  The
+# guard keeps a future act from silently shadowing an existing phrase.
+_filter_commands = filter_voice_commands()
+_shadowed = set(_filter_commands) & set(VOICE_COMMANDS)
+if _shadowed:
+    raise RuntimeError(f"filter phrases collide with existing voice commands: {sorted(_shadowed)}")
+VOICE_COMMANDS.update(_filter_commands)

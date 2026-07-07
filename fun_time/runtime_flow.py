@@ -7,13 +7,35 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from .modes import SatelliteLibraryContext, build_fmode_playlists, build_satellite_playlists
+from .modes import (
+    PLAYLIST_LANDSCAPE,
+    PLAYLIST_PORTRAIT,
+    SatelliteLibraryContext,
+    build_fmode_playlists,
+    build_playlist_file_path,
+    build_satellite_playlist_paths,
+    build_satellite_playlists,
+    write_playlist_file,
+)
 from .omnipause import build_omnipause_plan
 from .mode_plan import build_mode_switch_plan, genau_active
 from .vlc_actions import ensure_playback_state, replace_playlist_from_file
 from .watch_stats import watch_stats_path
 
 NAU_RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
+
+
+def _satellite_library(
+    state_dir: str | Path,
+    media_root: Path | None,
+    metadata_root: Path | None,
+) -> SatelliteLibraryContext:
+    """The library context satellite builds need: metadata roots + watch stats."""
+    return SatelliteLibraryContext(
+        media_root=media_root,
+        metadata_root=metadata_root,
+        watch_stats_file=watch_stats_path(state_dir),
+    )
 
 
 def read_flag_file(path: str | Path, default: bool) -> bool:
@@ -108,6 +130,8 @@ def apply_toggle_fmode(
     nau_cmd_file: str | Path,
     provider_media_root: Path | None = None,
     provider_metadata_root: Path | None = None,
+    portrait_filter: str = "",
+    landscape_filter: str = "",
 ) -> FModeFlowResult:
     target_enabled = not f_mode_enabled
     plan = build_fmode_playlists(
@@ -118,11 +142,9 @@ def apply_toggle_fmode(
         state_dir=Path(state_dir),
         enabled=target_enabled,
         recent=recent,
-        library=SatelliteLibraryContext(
-            media_root=provider_media_root,
-            metadata_root=provider_metadata_root,
-            watch_stats_file=watch_stats_path(state_dir),
-        ),
+        portrait_filter=portrait_filter,
+        landscape_filter=landscape_filter,
+        library=_satellite_library(state_dir, provider_media_root, provider_metadata_root),
     )
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
         logger.warning("Portrait VLC failed to load F-mode playlist")
@@ -148,19 +170,21 @@ def apply_refresh_recency_order(
     portrait_port: int,
     landscape_port: int,
     password: str,
+    portrait_filter: str = "",
+    landscape_filter: str = "",
     provider_media_root: Path | None = None,
     provider_metadata_root: Path | None = None,
 ) -> RecencyOrderFlowResult:
     """Refresh the Portrait/Landscape VLC playlists to newest-first (Premiere).
 
-    Rescans the satellite sources (honouring the current F-mode filter),
-    rebuilds their playlists newest-first, and reloads them — so a repeat press
-    picks up any newly-arrived files and restarts each player from the top
-    (``replace_playlist_from_file`` empties then re-plays from item 0).  Action
-    groups still collapse to one entry (represented by the group's newest
-    member) when the provider roots are supplied.  The primary/Nau player is left
-    alone.  Pushing a fresh playlist with repeat-all clears any per-window lock,
-    so the caller's lock flags reset to match.
+    Rescans the satellite sources (honouring the current F-mode and metadata
+    filters), rebuilds their playlists newest-first, and reloads them — so a
+    repeat press picks up any newly-arrived files and restarts each player from
+    the top (``replace_playlist_from_file`` empties then re-plays from item 0).
+    Action groups still collapse to one entry (the group's newest member) when
+    the provider roots are supplied.  The primary/Nau player is left alone.  Pushing
+    a fresh playlist with repeat-all clears any per-window lock, so the caller's
+    lock flags reset to match.
     """
     plan = build_satellite_playlists(
         portrait_sources=portrait_sources,
@@ -169,11 +193,9 @@ def apply_refresh_recency_order(
         state_dir=Path(state_dir),
         f_mode=f_mode_enabled,
         recent=True,
-        library=SatelliteLibraryContext(
-            media_root=provider_media_root,
-            metadata_root=provider_metadata_root,
-            watch_stats_file=watch_stats_path(state_dir),
-        ),
+        portrait_filter=portrait_filter,
+        landscape_filter=landscape_filter,
+        library=_satellite_library(state_dir, provider_media_root, provider_metadata_root),
     )
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
         logger.warning("Portrait VLC failed to load recency-ordered playlist")
@@ -185,6 +207,51 @@ def apply_refresh_recency_order(
         next_locked3=False,
         log_message="Premiere: Portrait/Landscape reloaded newest-first",
     )
+
+
+@dataclass(frozen=True)
+class SatelliteFilterFlowResult:
+    count: int
+    applied: bool
+    log_message: str
+
+
+def apply_satellite_filter(
+    *,
+    which: int,
+    query: str,
+    f_mode_enabled: bool,
+    recent: bool,
+    sources: str,
+    favs_file: str | Path,
+    state_dir: str | Path,
+    port: int,
+    password: str,
+    provider_media_root: Path | None = None,
+    provider_metadata_root: Path | None = None,
+) -> SatelliteFilterFlowResult:
+    """Rebuild and reload one satellite (2=portrait, 3=landscape) under *query*.
+
+    Ordering follows the caller's ``recent``/``f_mode`` just like a full rebuild,
+    so the filtered playlist still honours premiere vs shuffle and F-mode.  A
+    non-empty query that matches nothing leaves the current playlist in place
+    rather than blanking the VLC; ``query == ""`` clears the filter.
+    """
+    label = "portrait" if which == 2 else "landscape"
+    name = PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE
+    library = _satellite_library(state_dir, provider_media_root, provider_metadata_root)
+    paths = build_satellite_playlist_paths(
+        sources, f_mode_enabled, Path(favs_file),
+        filter_query=query, recent=recent, library=library,
+    )
+    if query and not paths:
+        return SatelliteFilterFlowResult(0, False, f"Filter {label}: no matches for '{query}'")
+    playlist_path = build_playlist_file_path(Path(state_dir), name)
+    write_playlist_file(playlist_path, paths)
+    if not replace_playlist_from_file(port, password, playlist_path, repeat_mode="all"):
+        logger.warning("%s VLC failed to load filtered playlist", label)
+    summary = "cleared" if not query else f"'{query}'"
+    return SatelliteFilterFlowResult(len(paths), True, f"Filter {label}: {summary} ({len(paths)})")
 
 
 @dataclass(frozen=True)
