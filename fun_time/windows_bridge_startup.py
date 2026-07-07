@@ -12,39 +12,6 @@ from .watch_stats import watch_stats_path
 from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
-from .win32 import find_window_by_pid, move_window
-
-
-def _no_activate_kwargs() -> dict:
-    """Return Popen kwargs that show the window without stealing focus.
-
-    Uses SW_SHOWNOACTIVATE (4) so GUI apps open visible but don't take
-    foreground focus.  Only applied during integration test runs.
-    """
-    if sys.platform != "win32":
-        return {}
-    if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-        return {}
-    si = subprocess.STARTUPINFO()
-    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    si.wShowWindow = 4  # SW_SHOWNOACTIVATE
-    return {"startupinfo": si}
-
-
-def _park_window_offscreen(pid: int) -> None:
-    """Move a window off-screen as soon as it appears (5 ms polling).
-
-    Called during integration tests to prevent VLC from covering the
-    user's screen while the startup sequence completes.  The sequencer
-    later moves the window to its correct on-screen position.
-    """
-    deadline = time.monotonic() + 10.0
-    while time.monotonic() < deadline:
-        hwnd = find_window_by_pid(pid)
-        if hwnd:
-            move_window(hwnd, -10000, 0, 800, 600, activate=False)
-            return
-        time.sleep(0.005)
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
@@ -347,9 +314,6 @@ def launch_core_apps(
     project_dir = Path(project_dir)
     vlc_exe = str(vlc_exe)
 
-    launch_kwargs = _no_activate_kwargs()
-    is_integration = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-
     # Defer playlist loading whenever VLC is muted (not just during the loading
     # screen).  This eliminates the audio-leak race where VLC outputs a frame
     # of audio before --volume 0 takes effect.  The playlist is loaded via
@@ -360,18 +324,12 @@ def launch_core_apps(
         _build_vlc_launch_command(vlc_exe, portrait_port, password, repeat_mode="loop", mute=should_mute,
                                    playlist_path=None if should_mute else Path(portrait_playlist)),
         cwd=project_dir,
-        **launch_kwargs,
     )
-    if is_integration:
-        _park_window_offscreen(portrait_proc.pid)
     landscape_proc = subprocess.Popen(
         _build_vlc_launch_command(vlc_exe, landscape_port, password, repeat_mode="loop", mute=should_mute,
                                    playlist_path=None if should_mute else Path(landscape_playlist)),
         cwd=project_dir,
-        **launch_kwargs,
     )
-    if is_integration:
-        _park_window_offscreen(landscape_proc.pid)
 
     _await_vlc_http(portrait_port, password, portrait_proc, "Portrait")
     _await_vlc_http(landscape_port, password, landscape_proc, "Landscape")

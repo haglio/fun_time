@@ -18,10 +18,6 @@ Usage (default integration command):
 
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop -k nau   # extra args pass through
-
-The one interactive test (``test_startup_foreground_interactive.py``) asserts about a
-real user foreground, which a hidden desktop has none of, so it is ``--ignore``d here;
-run it by hand on your real desktop when you touch startup focus code.
 """
 from __future__ import annotations
 
@@ -34,20 +30,13 @@ from pathlib import Path
 
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
 INTEGRATION_DIR = "tests/integration/"
-INTERACTIVE_TEST_FILE = "tests/integration/test_startup_foreground_interactive.py"
 
 
 def build_pytest_argv(extra_args: list[str]) -> list[str]:
-    """The pytest command the hidden desktop runs.
-
-    Targets the whole integration dir but ``--ignore``s the interactive foreground
-    test (it needs a real user desktop).  ``--ignore`` excludes it from *collection*,
-    so — unlike ``-m``/``--deselect`` — the run reports a clean pass count with zero
-    deselected or skipped.  Caller *extra_args* are appended last so they win.
-    """
+    """The pytest command the hidden desktop runs — the whole integration dir, with
+    caller *extra_args* appended last so they win."""
     return [
         sys.executable, "-m", "pytest", INTEGRATION_DIR,
-        f"--ignore={INTERACTIVE_TEST_FILE}",
         *extra_args,
     ]
 

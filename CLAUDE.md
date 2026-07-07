@@ -13,14 +13,14 @@ Unit tests (run freely, no permission needed):
 
 The default `pytest` invocation only runs unit tests. Integration tests live in `tests/integration/` and are excluded from the default collection.
 
-Integration tests (always ask permission first) — run on a hidden Win32 desktop so the real windows never touch your screen:
+Integration tests — run on a hidden Win32 desktop so the real windows never touch your screen; safe to run unattended, like unit tests:
 ```powershell
 .\.venv\Scripts\python.exe -m tests.integration.hidden_desktop
 ```
 
-The runner creates the hidden desktop, sets `FUN_TIME_RUN_INTEGRATION=1`, and runs everything invisibly (real HWNDs, off-screen, never foreground). The machine-wide lock in the integration conftest auto-serializes concurrent agent runs — a second run queues instead of clobbering, so you don't hunt for a quiet window. Extra pytest args pass through (`... hidden_desktop -k nau`). It `--ignore`s the one interactive test (`test_startup_foreground_interactive.py`, which needs the real desktop) — run that by hand (`FUN_TIME_RUN_INTEGRATION=1 ... -m pytest tests/integration/test_startup_foreground_interactive.py`) when touching startup focus code.
+The runner creates the hidden desktop, sets `FUN_TIME_RUN_INTEGRATION=1`, and runs the whole suite invisibly (real HWNDs, off-screen, never foreground). The machine-wide lock in the integration conftest auto-serializes concurrent agent runs — a second run queues instead of clobbering, so you don't hunt for a quiet window. Extra pytest args pass through (`... hidden_desktop -k nau`).
 
-**Green means every collected test passes — zero failures, skips, or deselects** (a `--ignore`d file is not "deselected").
+**Green means every collected test passes — zero failures, skips, or deselects.**
 
 Convenience wrapper (unit tests only): `bash test.sh`
 If `bash test.sh` fails because Git Bash cannot create its signal pipe, use the direct `.venv` command above.

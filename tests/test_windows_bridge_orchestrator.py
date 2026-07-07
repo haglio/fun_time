@@ -9,7 +9,6 @@ import pytest
 from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
-    _minimize_all_windows,
     _shutdown_children,
     kill_process_tree,
     write_pids_file,
@@ -114,122 +113,6 @@ class TestWritePidsFile:
         assert parser.getint("pids", "audio_pid") == 700
 
 
-class TestMinimizeAllWindows:
-    def test_minimizes_windows_for_all_visible_pids(self):
-        result = _fake_startup_result()
-        minimized_hwnds: list[int] = []
-
-        def fake_find(pid):
-            return pid * 10  # e.g. pid 100 -> hwnd 1000
-
-        def fake_minimize(hwnd, **kwargs):
-            minimized_hwnds.append(hwnd)
-
-        # Genau and Nau resolve by title — their venv-launcher pids don't
-        # own the SDL windows.
-        title_to_hwnd = {"Genau": 6001, "Nau": 2002}
-
-        with patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=fake_find), \
-             patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
-                   side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
-             patch("fun_time.windows_bridge_orchestrator.minimize_window", side_effect=fake_minimize):
-            _minimize_all_windows(result)
-
-        assert 3000 in minimized_hwnds  # portrait
-        assert 4000 in minimized_hwnds  # landscape
-        assert 6001 in minimized_hwnds  # genau (by title)
-        assert 2002 in minimized_hwnds  # nau (by exact title)
-
-    def test_passes_activate_false_to_prevent_focus_steal(self):
-        result = _fake_startup_result()
-
-        def fake_find(pid):
-            return pid * 10
-
-        with patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=fake_find), \
-             patch("fun_time.windows_bridge_orchestrator.minimize_window") as mock_minimize:
-            _minimize_all_windows(result)
-
-        for c in mock_minimize.call_args_list:
-            assert c.kwargs.get("activate") is False, (
-                f"minimize_window called without activate=False: {c}"
-            )
-
-    def test_skips_windows_that_cannot_be_found(self):
-        result = _fake_startup_result()
-        minimized_hwnds: list[int] = []
-
-        def fake_find(pid):
-            return pid * 10 if pid != 300 else 0  # portrait has no window
-
-        def fake_minimize(hwnd, **kwargs):
-            minimized_hwnds.append(hwnd)
-
-        with patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=fake_find), \
-             patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_orchestrator.minimize_window", side_effect=fake_minimize):
-            _minimize_all_windows(result)
-
-        assert 3000 not in minimized_hwnds
-        assert minimized_hwnds == [4000]
-
-    def test_called_during_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-        cfg = load_config(cfg_factory())
-        manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
-        )
-
-        def fake_sequence(**kwargs):
-            return _fake_startup_result()
-
-        fake_ahk_proc = MagicMock()
-        fake_ahk_proc.wait.return_value = 0
-
-        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
-             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
-             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator._minimize_all_windows") as mock_minimize:
-
-            run_python_orchestrated_bridge(
-                manifest_path=manifest_path,
-                ahk_exe="ahk.exe",
-                hotkey_script="hotkeys.ahk",
-                state_dir=tmp_path / "state",
-                project_dir=tmp_path,
-            )
-
-        mock_minimize.assert_called_once()
-
-    def test_not_called_outside_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        cfg = load_config(cfg_factory())
-        manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
-        )
-
-        def fake_sequence(**kwargs):
-            return _fake_startup_result()
-
-        fake_ahk_proc = MagicMock()
-        fake_ahk_proc.wait.return_value = 0
-
-        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
-             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
-             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator._minimize_all_windows") as mock_minimize:
-
-            run_python_orchestrated_bridge(
-                manifest_path=manifest_path,
-                ahk_exe="ahk.exe",
-                hotkey_script="hotkeys.ahk",
-                state_dir=tmp_path / "state",
-                project_dir=tmp_path,
-            )
-
-        mock_minimize.assert_not_called()
-
-
 class TestHotkeySuspendDuringIntegration:
     def test_writes_suspend_command_during_integration(self, cfg_factory, tmp_path, monkeypatch):
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
@@ -247,8 +130,7 @@ class TestHotkeySuspendDuringIntegration:
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
-             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator._minimize_all_windows"):
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
             run_python_orchestrated_bridge(
                 manifest_path=manifest_path,
@@ -388,48 +270,6 @@ class TestRunPythonOrchestratedBridge:
         assert ahk_cmd[3].endswith(".ini")
 
 
-class TestAhkLaunchFocusPrevention:
-    """AHK launch must use _no_activate_kwargs in integration mode."""
-
-    def test_ahk_launch_uses_no_activate_in_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-        cfg = load_config(cfg_factory())
-        manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
-        )
-
-        popen_kwargs_list: list[dict] = []
-
-        def fake_sequence(**kwargs):
-            return _fake_startup_result()
-
-        fake_ahk_proc = MagicMock()
-        fake_ahk_proc.wait.return_value = 0
-
-        def fake_popen(cmd, **kwargs):
-            popen_kwargs_list.append({"cmd": cmd, **kwargs})
-            return fake_ahk_proc
-
-        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
-             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
-             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator._minimize_all_windows"):
-
-            run_python_orchestrated_bridge(
-                manifest_path=manifest_path,
-                ahk_exe="ahk.exe",
-                hotkey_script="hotkeys.ahk",
-                state_dir=tmp_path / "state",
-                project_dir=tmp_path,
-            )
-
-        # Find the AHK launch call (the only Popen in integration mode — no loading screen)
-        ahk_call = [c for c in popen_kwargs_list if "ahk.exe" in str(c["cmd"])][0]
-        assert "startupinfo" in ahk_call, (
-            "AHK launch must use startupinfo (via _no_activate_kwargs) in integration mode"
-        )
-
-
 class TestLoadingScreenLifecycle:
     """Loading screen is launched in normal mode and skipped in integration mode."""
 
@@ -492,8 +332,7 @@ class TestLoadingScreenLifecycle:
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
-             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator._minimize_all_windows"):
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
             run_python_orchestrated_bridge(
                 manifest_path=manifest_path,
