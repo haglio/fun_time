@@ -18,8 +18,46 @@ from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.vlc_actions import restore_vlcrc_volume
 from fun_time.windows_bridge_orchestrator import kill_process_tree
 
+from .hidden_desktop import (
+    HIDDEN_DESKTOP_NAME,
+    current_desktop_name,
+    pids_with_window_on_current_desktop,
+)
+
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
+
+
+def _kill_leftover_app_processes() -> None:
+    """Kill leftover VLC / Nau / AHK / pythonw from a prior session so the next
+    one starts clean.
+
+    On the hidden integration desktop, scope the kill to that desktop's own
+    windows — these are exactly the session's own processes, never the user's
+    real (input-desktop) session — so a run is safe to fire unattended.  On a
+    visible manual run, fall back to the by-name + 5-minute-recency sweep (the
+    user accepts the screen takeover in that mode).
+    """
+    if current_desktop_name() == HIDDEN_DESKTOP_NAME:
+        # Exclude our own pid: the pytest process itself lives on this desktop and
+        # may own a Qt helper window, so killing every window-owner here would
+        # abort the run.  (The old by-name sweep dodged this by only ever
+        # targeting pythonw/vlc/AutoHotkey64 — never python.)
+        own = os.getpid()
+        for pid in pids_with_window_on_current_desktop():
+            if pid != own:
+                kill_process_tree(pid)
+        return
+    # StartTime is wrapped in try/catch: reading it throws if a process exited
+    # between the Get-Process snapshot and this evaluation, or if it is owned by
+    # another user.  An unguarded throw drops that item; catching it per-process
+    # (treat as "not recent") keeps the pipeline going to the rest.
+    ps = (
+        "Get-Process AutoHotkey64,pythonw,vlc -ErrorAction SilentlyContinue | "
+        "Where-Object { try { $_.StartTime -gt (Get-Date).AddMinutes(-5) } catch { $false } } | "
+        "Stop-Process -Force -ErrorAction SilentlyContinue"
+    )
+    subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], check=False)
 
 
 
@@ -110,7 +148,7 @@ class FunTimeIntegrationSession:
         return exit_code
 
     def start(self, wait_seconds: float = 45.0) -> None:
-        self._kill_recent_runtime_processes()
+        self._reap_leftover_runtime_processes()
         env = os.environ.copy()
         env["FUN_TIME_DISABLE_DASHBOARD"] = "1"
         env["FUN_TIME_MUTE_AUDIO"] = "1"
@@ -144,7 +182,7 @@ class FunTimeIntegrationSession:
         # _shutdown_children(), so the satellite VLCs would otherwise survive
         # until the racy name+StartTime sweep happens to catch them.
         self._kill_recorded_children()
-        self._kill_recent_runtime_processes()
+        self._reap_leftover_runtime_processes()
         # Patch vlcrc AFTER all VLC processes are dead — avoids the audio
         # blast that restore_vlc_volume (HTTP) caused by unmuting while playing.
         restore_vlcrc_volume(256)
@@ -274,21 +312,11 @@ class FunTimeIntegrationSession:
             if pid:
                 kill_process_tree(pid)
 
-    def _kill_recent_runtime_processes(self) -> None:
-        # StartTime is wrapped in try/catch: reading it throws if a process
-        # exited between the Get-Process snapshot and this evaluation, or if it
-        # is owned by another user.  An unguarded throw drops that item and can
-        # stop a live VLC we own from being evaluated; catching it per-process
-        # (treat as "not recent") keeps the pipeline going to the rest.
-        ps = (
-            "Get-Process AutoHotkey64,pythonw,vlc -ErrorAction SilentlyContinue | "
-            "Where-Object { try { $_.StartTime -gt (Get-Date).AddMinutes(-5) } catch { $false } } | "
-            "Stop-Process -Force -ErrorAction SilentlyContinue"
-        )
-        subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], check=False)
+    def _reap_leftover_runtime_processes(self) -> None:
+        _kill_leftover_app_processes()
         # Wait for AHK to fully exit — #SingleInstance Force in the next
-        # AHK launch races with zombie processes that Stop-Process -Force
-        # has signalled but the OS hasn't fully reaped yet.
+        # AHK launch races with zombie processes that a force-kill has
+        # signalled but the OS hasn't fully reaped yet.
         deadline = time.time() + 5.0
         while time.time() < deadline:
             result = subprocess.run(
