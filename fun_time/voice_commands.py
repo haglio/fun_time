@@ -14,49 +14,8 @@ VOICE_COMMANDS: dict[str, str] = {
     "quit": "quit",
     "pause": "pause",
     "play": "play",
-    "lock landscape": "landscape_lock_on",
-    "lock portrait": "portrait_lock_on",
-    "unlock landscape": "landscape_lock_off",
-    "unlock portrait": "portrait_lock_off",
-    "next landscape": "landscape_next",
-    "next portrait": "portrait_next",
-    "previous landscape": "landscape_prev",
-    "previous portrait": "portrait_prev",
-    "weird landscape": "landscape_trash",
-    "weird portrait": "portrait_trash",
-    # Cycle a video's siblings: same subject(s)+scene doing another action, or
-    # the same generation config under another seed (a different subject).
-    "portrait action": "portrait_cycle_action",
-    "cycle portrait action": "portrait_cycle_action",
-    "portrait seed": "portrait_cycle_seed",
-    "cycle portrait seed": "portrait_cycle_seed",
-    "landscape action": "landscape_cycle_action",
-    "cycle landscape action": "landscape_cycle_action",
-    "landscape seed": "landscape_cycle_seed",
-    "cycle landscape seed": "landscape_cycle_seed",
-    # "…both" drives Portrait + Landscape together; the dispatch loop expands
-    # each ``both_*`` into its portrait_*/landscape_* pair.  Lock = on,
-    # unlock = off, mirroring the per-satellite phrases above.
-    "next both": "both_next",
-    "previous both": "both_prev",
-    "weird both": "both_trash",
-    "lock both": "both_lock_on",
-    "unlock both": "both_lock_off",
-    "both action": "both_cycle_action",
-    "cycle both action": "both_cycle_action",
-    "both seed": "both_cycle_seed",
-    "cycle both seed": "both_cycle_seed",
-    # Bare (no side word) satellite commands: act on whichever side — portrait
-    # or landscape — was most recently addressed, by naming it above or by
-    # navigating it from the keyboard. The active side is remembered until the
-    # other side is touched.
-    "lock": "active_lock_on",
-    "unlock": "active_lock_off",
-    "next": "active_next",
-    "previous": "active_prev",
-    "weird": "active_trash",
-    "action": "active_cycle_action",
-    "seed": "active_cycle_seed",
+    # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
+    # generated as an order-agnostic grid below the literal.
     "f mode": "fmode_toggle",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
@@ -106,6 +65,31 @@ VOICE_COMMANDS: dict[str, str] = {
     "offset": "quarter_button",
     "voice off": "voice_off",
 }
+
+# Satellite commands form a uniform, order-agnostic grid.  Each action works
+# BARE — driving the "active side", whichever satellite was most recently
+# addressed (by naming a side, or by keyboard nav) — or with a side word
+# (portrait / landscape / both) in EITHER order: "portrait lock" and "lock
+# portrait" are equivalent, so a speaker never has to remember which order.
+# "both …" drives Portrait + Landscape together (the dispatch loop expands each
+# both_* into its portrait_/landscape_ pair).  Cycle a video's siblings with
+# "action" (same subject(s)+scene, another act) or "seed" (same config, another
+# seed — a different subject).
+_SATELLITE_ACTIONS: dict[str, str] = {
+    "lock": "lock_on",
+    "unlock": "lock_off",
+    "next": "next",
+    "previous": "prev",
+    "weird": "trash",
+    "action": "cycle_action",
+    "seed": "cycle_seed",
+}
+for _act_word, _act in _SATELLITE_ACTIONS.items():
+    VOICE_COMMANDS[_act_word] = f"active_{_act}"
+    for _side in ("portrait", "landscape", "both"):
+        _sided = f"{_side}_{_act}"
+        VOICE_COMMANDS[f"{_side} {_act_word}"] = _sided
+        VOICE_COMMANDS[f"{_act_word} {_side}"] = _sided
 
 _NUMBER_WORDS: dict[str, int] = {
     "zero": 0, "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,

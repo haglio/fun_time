@@ -104,29 +104,35 @@ def launch_random_favs_browser(
 
 def build_open_rfb_tab_command(
     *,
-    url: str,
+    urls: list[str],
     shortcut_target: str,
     shortcut_args: str,
 ) -> str:
-    """Build a Chrome command to open a URL as a new tab in the RFB profile."""
+    """Build a Chrome command to open one or more URLs as tabs in the RFB profile.
+
+    All URLs go on a single command line: Chrome routes them into its running
+    window as tabs in one handoff.  Launching chrome.exe once per URL in quick
+    succession races its singleton and silently drops tabs (the "lock both" bug).
+    """
     cmd = _quote(shortcut_target)
     existing_args = shortcut_args.strip()
     if existing_args:
         cmd += f" {existing_args}"
-    cmd += f" {_quote(url)}"
+    for url in urls:
+        cmd += f" {_quote(url)}"
     return cmd
 
 
 def open_rfb_tab(
     *,
-    url: str,
+    urls: list[str],
     shortcut_target: str,
     shortcut_work_dir: str,
     shortcut_args: str,
 ) -> None:
-    """Open a URL as a new tab in the RFB Chrome window."""
+    """Open one or more URLs as tabs in the RFB Chrome window, in one launch."""
     cmd = build_open_rfb_tab_command(
-        url=url,
+        urls=urls,
         shortcut_target=shortcut_target,
         shortcut_args=shortcut_args,
     )

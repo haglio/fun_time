@@ -101,11 +101,12 @@ def test_both_section_lists_combined_satellite_commands():
         "both_lock_on", "both_lock_off",
         "both_cycle_action", "both_cycle_seed",
     }
-    # Voice phrases are derived from VOICE_COMMANDS, so each row surfaces one.
+    # Voice phrases are derived from VOICE_COMMANDS, so each row surfaces one —
+    # side word first ("both next", "both lock"), matching every satellite row.
     next_row = next(r for r in both.rows if "both_next" in r.commands)
-    assert "next both" in next_row.voice
+    assert "both next" in next_row.voice
     lock_row = next(r for r in both.rows if "both_lock_on" in r.commands)
-    assert "lock both" in lock_row.voice and "unlock both" in lock_row.voice
+    assert "both lock" in lock_row.voice and "both unlock" in lock_row.voice
 
 
 def test_active_side_section_documents_the_bare_commands():

@@ -18,7 +18,7 @@ from fun_time.windows_bridge_random_favs_browser import (
 
 def test_build_open_rfb_tab_command_constructs_chrome_command():
     cmd = build_open_rfb_tab_command(
-        url="https://example.com",
+        urls=["https://example.com"],
         shortcut_target=r"C:\Chrome\chrome.exe",
         shortcut_args='--profile-directory="Profile 2"',
     )
@@ -28,12 +28,24 @@ def test_build_open_rfb_tab_command_constructs_chrome_command():
 
 def test_build_open_rfb_tab_command_with_empty_args():
     cmd = build_open_rfb_tab_command(
-        url="https://example.com",
+        urls=["https://example.com"],
         shortcut_target=r"C:\Chrome\chrome.exe",
         shortcut_args="",
     )
 
     assert cmd == r'"C:\Chrome\chrome.exe" "https://example.com"'
+
+
+def test_build_open_rfb_tab_command_opens_multiple_urls_in_one_launch():
+    """Both URLs go to a single chrome.exe invocation — launching chrome twice
+    in quick succession races its singleton and drops a tab (the "lock both" bug)."""
+    cmd = build_open_rfb_tab_command(
+        urls=["https://example.com/1", "https://example.com/2"],
+        shortcut_target=r"C:\Chrome\chrome.exe",
+        shortcut_args="",
+    )
+
+    assert cmd == r'"C:\Chrome\chrome.exe" "https://example.com/1" "https://example.com/2"'
 
 
 def test_open_rfb_tab_calls_subprocess(monkeypatch):
@@ -47,14 +59,15 @@ def test_open_rfb_tab_calls_subprocess(monkeypatch):
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
 
     open_rfb_tab(
-        url="https://example.com",
+        urls=["https://example.com/1", "https://example.com/2"],
         shortcut_target=r"C:\Chrome\chrome.exe",
         shortcut_work_dir=r"C:\Chrome",
         shortcut_args='--profile-directory="Profile 2"',
     )
 
     assert "chrome.exe" in recorded["cmd"]
-    assert "https://example.com" in recorded["cmd"]
+    assert "https://example.com/1" in recorded["cmd"]
+    assert "https://example.com/2" in recorded["cmd"]
     assert recorded["cwd"] == r"C:\Chrome"
 
 
