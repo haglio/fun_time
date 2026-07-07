@@ -6,34 +6,8 @@ from fun_time.dashboard_state import (
     build_mirrored_funscript_path,
     has_matching_funscript,
     is_favorite_path,
-    primary_panel_should_highlight,
     read_favs_content,
-    satellite_panel_should_highlight,
 )
-
-
-def test_primary_panel_highlight_follows_f_mode_or_funscript():
-    assert primary_panel_should_highlight(
-        f_mode_enabled=True,
-        primary_path="",
-        has_matching_funscript=False,
-    )
-    assert primary_panel_should_highlight(
-        f_mode_enabled=False,
-        primary_path="clip.mp4",
-        has_matching_funscript=True,
-    )
-    assert not primary_panel_should_highlight(
-        f_mode_enabled=False,
-        primary_path="clip.mp4",
-        has_matching_funscript=False,
-    )
-
-
-def test_satellite_panel_highlight_follows_f_mode_or_favorite():
-    assert satellite_panel_should_highlight(f_mode_enabled=True, is_favorite=False)
-    assert satellite_panel_should_highlight(f_mode_enabled=False, is_favorite=True)
-    assert not satellite_panel_should_highlight(f_mode_enabled=False, is_favorite=False)
 
 
 def test_build_mirrored_funscript_path_maps_videos_tree_into_scripts_tree(tmp_path: Path):

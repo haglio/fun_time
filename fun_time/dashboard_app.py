@@ -92,9 +92,7 @@ from fun_time.dashboard_state import (
     LABEL_PRIMARY_NAU,
     has_matching_funscript,
     is_favorite_path,
-    primary_panel_should_highlight,
     read_favs_content,
-    satellite_panel_should_highlight,
 )
 
 # Semantic aliases — map old Dashboard names to shared_ui tokens.
@@ -521,26 +519,20 @@ def build_dashboard_scene(
             osr2_label = f"{LABEL_OSR2}\n(funscript\ncontrol)"
         else:
             osr2_label = f"{LABEL_OSR2}\n(idle; no\nfunscript)"
+        # Each panel reflects the ACTUAL current video, never F-mode on faith:
+        # green means "this video has a funscript / is a favorite".  Under a
+        # working F-mode every video qualifies, so the panels are green anyway —
+        # and a video that slips past the filter correctly shows neutral.
         if snapshot.osr2_mode == "auto":
             primary_fill = COLOR_PINK
         elif snapshot.primary_mode == "genau":
             primary_fill = COLOR_PANEL
-        elif primary_panel_should_highlight(
-            f_mode_enabled=snapshot.f_mode_enabled,
-            primary_path=snapshot.primary.path,
-            has_matching_funscript=primary_funscript_exists,
-        ):
+        elif funscript_active:
             primary_fill = COLOR_GREEN
         else:
             primary_fill = COLOR_PANEL
-        portrait_fill = COLOR_GREEN if satellite_panel_should_highlight(
-            f_mode_enabled=snapshot.f_mode_enabled,
-            is_favorite=is_favorite_path(snapshot.portrait.path, favs_content),
-        ) else COLOR_PANEL
-        landscape_fill = COLOR_GREEN if satellite_panel_should_highlight(
-            f_mode_enabled=snapshot.f_mode_enabled,
-            is_favorite=is_favorite_path(snapshot.landscape.path, favs_content),
-        ) else COLOR_PANEL
+        portrait_fill = COLOR_GREEN if is_favorite_path(snapshot.portrait.path, favs_content) else COLOR_PANEL
+        landscape_fill = COLOR_GREEN if is_favorite_path(snapshot.landscape.path, favs_content) else COLOR_PANEL
         if snapshot.osr2_mode == "off":
             osr2_fill = COLOR_PANEL
         elif snapshot.osr2_mode == "auto":
