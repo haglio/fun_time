@@ -232,11 +232,12 @@ AI videos under the provider media root carry metadata sidecars (see `provider_r
 
 - an **action group** is every video generated from the *same source image* — the same subject(s) and situation doing different things (for text-to-video, the same prompt+seed with a different action)
 - a **seed family** is every video whose generation config differs *only by seed* — the same scenario cast with a different subject
+- a **loose seed family** is the same scene held only by its prompts and cast/action, with the render knobs (model, resolution, aspect ratio, quality, creativity) freed as well as the seed — a wider net for "the same scene, however it was rendered"
 
 Two command pairs ride on those groups (keys: `Del`/`End` portrait, `E`/`Q` landscape; voice: "portrait action", "portrait seed", "landscape action", "landscape seed"):
 
 - **Cycle action** switches the current video to the next action of its group, in a fixed order so repeated presses tour every act. A brief tooltip names the action that came up. If the sibling is not in the playlist (shuffled builds collapse groups — see below), it is swapped in place of the current entry.
-- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries.
+- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render knobs freed) and tooltips the near-match as "Similar clip", so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds".
 
 Unlike prev/next, cycling does **not** release an active lock: it means "show me this differently", so the lock's repeat-one simply carries over to the sibling.
 

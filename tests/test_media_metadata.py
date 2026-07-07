@@ -8,6 +8,7 @@ from fun_time.media_metadata import (
     build_group_index,
     cached_group_index,
     load_metadata,
+    loose_seed_group_key,
     metadata_path_for,
     normalize_path_key,
     reset_group_index_cache,
@@ -177,6 +178,33 @@ def test_seed_group_key_for_text_to_video_keeps_action_in_the_family():
     assert seed_group_key({"video": {"prompt": "x"}}) is None
 
 
+# --- loose_seed_group_key ---
+
+
+def test_loose_seed_group_key_frees_the_image_render_settings():
+    """The loose family keeps the scene (prompts + style) but frees the render
+    knobs, so a config differing only by an image quality setting is still kin."""
+    subject_a = _i2v_meta(action="Alpha", video_seed="1")
+    subject_b = _i2v_meta(
+        action="Alpha", video_seed="2", image_overrides={"quality": "Draft", "seed": "999"}
+    )
+
+    assert seed_group_key(subject_a)[0] != seed_group_key(subject_b)[0]  # a render knob splits the strict family
+    assert loose_seed_group_key(subject_a)[0] == loose_seed_group_key(subject_b)[0]  # loose reunites them
+    assert loose_seed_group_key(subject_a)[1] != loose_seed_group_key(subject_b)[1]  # ...still different seeds
+
+
+def test_loose_seed_group_key_keeps_the_text_to_video_action():
+    """Freeing render knobs must not merge across actions — that is cycle-action's
+    job. A quality-only difference is kin; a different action is not."""
+    dancing = _t2v_meta(action="Dancing", seed="42")
+    dancing_hi = {"video": {**dancing["video"], "quality": "1080p", "seed": "43"}}
+    kissing = _t2v_meta(action="Kissing", seed="44")
+
+    assert loose_seed_group_key(dancing)[0] == loose_seed_group_key(dancing_hi)[0]  # render knob freed
+    assert loose_seed_group_key(dancing)[0] != loose_seed_group_key(kissing)[0]  # action still held
+
+
 # --- build_group_index ---
 
 
@@ -219,6 +247,25 @@ def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_p
     assert normalize_path_key(paths["no_metadata"]) not in index.action_key_by_path
     assert index.contains(paths["no_metadata"])
     assert not index.contains(str(tmp_path / "media" / "new_arrival.mp4"))
+
+
+def test_build_group_index_also_families_loosely_across_render_settings(tmp_path: Path):
+    """Two clips of the same scene that differ only by a render knob split into
+    separate strict families but share one loose family."""
+    media_root, metadata_root, paths = _library(tmp_path, {
+        "subject_best": _i2v_meta(action="Alpha", video_seed="1"),
+        "subject_draft": _i2v_meta(
+            action="Alpha", video_seed="2", image_overrides={"quality": "Draft", "seed": "999"}
+        ),
+    })
+
+    index = build_group_index(paths.values(), media_root, metadata_root)
+
+    best, draft = normalize_path_key(paths["subject_best"]), normalize_path_key(paths["subject_draft"])
+    assert index.seed_key_by_path[best][0] != index.seed_key_by_path[draft][0]
+    loose_family = index.loose_seed_key_by_path[best][0]
+    assert index.loose_seed_key_by_path[draft][0] == loose_family
+    assert set(index.loose_seed_members[loose_family]) == {paths["subject_best"], paths["subject_draft"]}
 
 
 # --- cached_group_index ---

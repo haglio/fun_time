@@ -242,34 +242,54 @@ def _next_action_sibling(index: GroupIndex, current: str) -> str | None:
 
 def _next_seed_sibling(
     index: GroupIndex, current: str, entries: list[tuple[int, str]]
-) -> str | None:
-    """A same-config different-seed video, preferring ones already in the playlist.
+) -> tuple[str | None, bool]:
+    """The next seed sibling of *current* and whether the net had to widen.
 
-    Sisters are toured in seed order: the first seed above the current one,
-    wrapping to the lowest, so repeated presses visit every subject.
+    First choice is an exact same-config sister (a different seed of the
+    identical config). When none exists, the net widens to the same *scene*
+    with the render knobs freed, so a near-match still comes up instead of a
+    dead end. Either pool is toured in seed order — the first seed above the
+    current one, wrapping to the lowest — preferring playlist entries.
     """
-    seed_key = index.seed_key_by_path.get(normalize_path_key(current))
-    if seed_key is None:
-        return None
-    family, current_seed = seed_key
+    current_key = normalize_path_key(current)
 
-    def sisters(paths) -> list[tuple[str, str]]:
-        found: list[tuple[str, str]] = []
-        for path in paths:
-            candidate = index.seed_key_by_path.get(normalize_path_key(path))
-            if candidate and candidate[0] == family and candidate[1] != current_seed:
-                found.append((candidate[1], path))
-        return sorted(found)
+    def pool(key_by_path, members_by_family, accept) -> tuple[str | None, list[tuple[str, str]]]:
+        entry = key_by_path.get(current_key)
+        if entry is None:
+            return None, []
+        family, current_seed = entry
 
-    pool = sisters(path for _item_id, path in entries)
-    if not pool:
-        pool = sisters(m for m in index.seed_members.get(family, []) if Path(m).exists())
-    if not pool:
-        return None
-    for seed, path in pool:
+        def gather(paths) -> list[tuple[str, str]]:
+            found: list[tuple[str, str]] = []
+            for path in paths:
+                candidate = key_by_path.get(normalize_path_key(path))
+                if candidate and candidate[0] == family and accept(candidate[1], path, current_seed):
+                    found.append((candidate[1], path))
+            return sorted(found)
+
+        found = gather(path for _item_id, path in entries)
+        if not found:
+            found = gather(m for m in members_by_family.get(family, []) if Path(m).exists())
+        return current_seed, found
+
+    current_seed, candidates = pool(
+        index.seed_key_by_path, index.seed_members,
+        lambda seed, _path, cur: seed != cur,
+    )
+    widened = False
+    if not candidates:
+        current_seed, candidates = pool(
+            index.loose_seed_key_by_path, index.loose_seed_members,
+            lambda _seed, path, _cur: normalize_path_key(path) != current_key,
+        )
+        widened = bool(candidates)
+
+    if not candidates:
+        return None, False
+    for seed, path in candidates:
         if seed > current_seed:
-            return path
-    return pool[0][1]
+            return path, widened
+    return candidates[0][1], widened
 
 
 def _video_action_label(video_path: str, config: BridgeConfig) -> str:
@@ -304,11 +324,12 @@ def _cycle_variant(
         must_contain=current,
     )
     entries, _current_id = get_playlist_entries(port, config.vlc_password)
+    widened = False
     if kind == "action":
         target = _next_action_sibling(index, current)
         missing_message = "No other actions"
     else:
-        target = _next_seed_sibling(index, current, entries)
+        target, widened = _next_seed_sibling(index, current, entries)
         missing_message = "No other seeds"
     if target is None:
         ops.append(WindowOp(op="tooltip", key=missing_message))
@@ -327,6 +348,8 @@ def _cycle_variant(
         action = _video_action_label(target, config)
         if action:
             ops.append(WindowOp(op="tooltip", key=f"Action: {action}"))
+    elif widened:
+        ops.append(WindowOp(op="tooltip", key="Similar clip"))
     return state, ops
 
 
