@@ -36,8 +36,9 @@ PID_TO_HWND = {
     500: DASHBOARD_HWND,
 }
 
-# Every managed window carries a static topmost flag — True for all except Nau,
-# which lives under Genau's HUD in hybrid mode.
+# The windows that are topmost in EVERY mode.  Nau is the exception: its band is
+# mode-dependent (topmost in nau mode, non-topmost under Genau's HUD in hybrid,
+# hidden in genau), so each test folds NAU_HWND in or out of this set as needed.
 TOPMOST_HWNDS = {
     RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, GENAU_HWND, DASHBOARD_HWND,
 }
@@ -316,12 +317,13 @@ class TestExecuteWindowOps:
         assert remaining[0].op == "restore_all_topmost"
 
     def test_role_ops_returned_as_remaining(self):
-        """show_role/hide_role/activate_role resolve against the runner's
-        role cache, not window titles — execute_window_ops must hand them
-        back untouched.  Dropping them here silently broke mode switches
+        """show_role/hide_role/activate_role/set_role_topmost resolve against the
+        runner's role cache, not window titles — execute_window_ops must hand
+        them back untouched.  Dropping them here silently broke mode switches
         once (the title-less ops fell through the title branch)."""
         ops = [
             WindowOp(op="show_role", key="nau"),
+            WindowOp(op="set_role_topmost", key="nau", value=True),
             WindowOp(op="activate_role", key="nau"),
             WindowOp(op="hide_role", key="genau"),
         ]
@@ -391,10 +393,10 @@ class TestDispatchLoopRunner:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "primary_nudge_next" in commands
 
-    def test_omnipause_enter_via_tick_drops_topmost_on_managed_windows(self, tmp_path):
-        """Entering omnipause frees the desktop: every window with a True
-        static topmost flag leaves the TOPMOST band; Nau (static False) is
-        never touched."""
+    def test_omnipause_enter_via_tick_drops_topmost_on_all_managed_windows(self, tmp_path):
+        """Entering omnipause frees the desktop: EVERY managed window leaves the
+        TOPMOST band — including Nau, which carries the topmost flag in nau mode
+        and would otherwise stay stranded above the desktop."""
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
@@ -409,15 +411,14 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert runner.state.omni_paused is True
-        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS
-        assert NAU_HWND not in {h for h, _ in topmost_calls}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
 
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
         self, tmp_path, monkeypatch,
     ):
-        """Leaving omnipause gives every True-flagged window its TOPMOST bit
-        back (Nau, static-False, is never promoted) and re-activates the window
-        that owns the primary display — Nau in nau mode."""
+        """Leaving omnipause in nau mode gives every managed window its TOPMOST
+        bit back — INCLUDING Nau, which floats above the desktop again — and
+        re-activates the window that owns the primary display."""
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
@@ -437,8 +438,7 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert runner.state.omni_paused is False
-        assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS
-        assert NAU_HWND not in {h for h, _ in topmost_calls}
+        assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS | {NAU_HWND}
         assert activated == [NAU_HWND]
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
@@ -911,6 +911,7 @@ class TestModeSwitchVisibility:
                    side_effect=lambda h: calls.append(("hide", h))), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window",
                    side_effect=lambda h: calls.append(("activate", h))), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
             runner._dispatch(command)
 
@@ -1033,11 +1034,10 @@ class TestResolveRole:
         assert shown == [NAU_HWND]
 
 
-class TestStaticTopmost:
-    """Windows never stack (every managed window has its own screen rect),
-    so each role carries a STATIC topmost flag: True for everything except
-    Nau, which lives under Genau's transparent HUD and must never rise above
-    it — in any mode."""
+class TestModeDependentTopmost:
+    """Every managed window is topmost in every mode EXCEPT Nau, whose band is
+    mode-dependent: topmost in nau mode (floating above the desktop like the
+    primary player always has), non-topmost in hybrid (under Genau's HUD)."""
 
     def _topmost_calls(self, runner, method_name):
         calls: list[tuple[int, bool]] = []
@@ -1048,24 +1048,34 @@ class TestStaticTopmost:
             getattr(runner, method_name)()
         return calls
 
-    def test_remove_all_topmost_drops_every_true_flagged_role(self, tmp_path):
+    def test_remove_all_topmost_drops_every_managed_window(self, tmp_path):
+        """Omnipause enter frees the desktop entirely — Nau included, so it is
+        never left stranded on top."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
 
         calls = self._topmost_calls(runner, "_remove_all_topmost")
 
-        assert {h for h, v in calls if v is False} == TOPMOST_HWNDS
-        assert NAU_HWND not in {h for h, _ in calls}
+        assert {h for h, v in calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
 
-    def test_restore_all_topmost_is_mode_independent_and_never_touches_nau(self, tmp_path):
-        """The flags do not vary with the mode: in hybrid Nau is VISIBLE yet
-        still stays out of the TOPMOST band."""
+    def test_restore_all_topmost_floats_nau_in_nau_mode(self, tmp_path):
+        """nau mode: Nau reclaims the topmost band, above the desktop."""
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
+        runner.state = BridgeState(primary_mode="nau")
+
+        calls = self._topmost_calls(runner, "_restore_all_topmost")
+
+        assert {h for h, v in calls if v is True} == TOPMOST_HWNDS | {NAU_HWND}
+
+    def test_restore_all_topmost_keeps_nau_below_hud_in_hybrid(self, tmp_path):
+        """hybrid: Nau is VISIBLE yet held out of the TOPMOST band so it stays
+        under Genau's transparent HUD."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(primary_mode="hybrid")
 
         calls = self._topmost_calls(runner, "_restore_all_topmost")
 
         assert {h for h, v in calls if v is True} == TOPMOST_HWNDS
-        assert NAU_HWND not in {h for h, _ in calls}
+        assert (NAU_HWND, False) in calls
 
 
 class TestHandleOpenFileDialog:
@@ -1088,7 +1098,7 @@ class TestHandleOpenFileDialog:
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "enter_omnipause" in dispatched
 
-    def test_removes_topmost_from_true_flagged_windows(self, tmp_path):
+    def test_removes_topmost_from_all_managed_windows(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
@@ -1112,8 +1122,7 @@ class TestHandleOpenFileDialog:
             runner._handle_open_file_dialog()
 
         removed = {h for h, v in topmost_calls if not v}
-        assert removed == TOPMOST_HWNDS
-        assert NAU_HWND not in {h for h, _ in topmost_calls}
+        assert removed == TOPMOST_HWNDS | {NAU_HWND}
 
     def test_shows_file_dialog_with_primary_sources_dir(self, tmp_path):
         """Shows our own file dialog with the first primary_sources directory."""
@@ -1213,10 +1222,10 @@ class TestHandleOpenFileDialog:
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "leave_omnipause" in dispatched
 
-        # Every True-flagged window gets its TOPMOST bit back; Nau (static
-        # False) is never touched.
+        # nau mode (the default): every managed window gets its TOPMOST bit
+        # back, Nau included — it floats above the desktop again.
         restored = {h for h, v in topmost_calls if v}
-        assert restored == TOPMOST_HWNDS
+        assert restored == TOPMOST_HWNDS | {NAU_HWND}
 
     def test_never_restores_nau_topmost_even_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
@@ -1241,10 +1250,12 @@ class TestHandleOpenFileDialog:
             mock_dispatch.return_value = (BridgeState(omni_paused=True, primary_mode="genau"), [])
             runner._handle_open_file_dialog()
 
-        # The static flags are mode-independent: Nau never gets a topmost flag.
+        # genau mode: Nau is hidden and never joins the topmost band — it is
+        # explicitly held non-topmost, never promoted.
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS
-        assert NAU_HWND not in {h for h, _ in topmost_calls}
+        assert (NAU_HWND, False) in topmost_calls
+        assert NAU_HWND not in restored
 
     def test_topmost_removed_before_dialog(self, tmp_path):
         """Topmost removal happens before showing the file dialog."""
@@ -1519,8 +1530,7 @@ class TestIdempotentVoiceCommands:
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS
-        assert NAU_HWND not in {h for h, _ in topmost_calls}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
 
     def test_enter_omnipause_noop_when_already_paused(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)

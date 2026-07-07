@@ -173,7 +173,7 @@ class TestRunStartupSequence:
             "nau_height": PRIMARY_MEDIA_RECT["height"],
         }
 
-    def test_positions_vlc_windows_and_applies_static_topmost_policy(self, cfg_factory, tmp_path):
+    def test_positions_vlc_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         pid_to_hwnd = {30: 3030, 40: 4040, NAU_PID: 2525}
@@ -202,12 +202,11 @@ class TestRunStartupSequence:
         moved_hwnds = {c[0] for c in move_calls}
         assert {3030, 4040} <= moved_hwnds
 
-        # Static topmost policy: portrait, landscape and Genau are promoted, but
-        # Nau is held OUT of the topmost band (it lives under Genau's HUD), so
-        # startup and omnipause's un-topmost pass agree about it.
+        # nau startup mode: every managed window is promoted to topmost — Nau
+        # (2525) included, so it floats above the desktop like the primary
+        # player always has.
         promoted = {h for h, on in topmost_calls if on}
-        assert promoted == {3030, 4040, 6060}
-        assert (2525, False) in topmost_calls  # Nau pinned non-topmost
+        assert promoted == {3030, 4040, 6060, 2525}
 
     def test_returns_layout_plan(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -599,10 +598,10 @@ class TestPhase4Reveal:
         assert Path(m["commands"]["genau_paused_file"]).read_text(encoding="utf-8").strip() == "1"
         assert Path(m["commands"]["audio_paused_file"]).read_text(encoding="utf-8").strip() == "1"
 
-    def test_startup_window_state_static_topmost_policy_and_nau_only_visible(self, cfg_factory, tmp_path):
-        """No z-order: every managed window gets its STATIC topmost flag from the
-        shared policy — True for all except Nau, which is held non-topmost — and
-        the nau startup mode hides the inactive slot-mate (Genau)."""
+    def test_startup_window_state_topmost_policy_and_nau_only_visible(self, cfg_factory, tmp_path):
+        """No z-order: every managed window gets its topmost flag from the shared
+        policy for nau startup mode — where Nau floats topmost alongside the rest
+        — and the nau startup mode hides the inactive slot-mate (Genau)."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         topmost_calls: list[tuple] = []
@@ -611,9 +610,8 @@ class TestPhase4Reveal:
         )
 
         NAU_HWND, GENAU_HWND = 2525, 6060
-        assert (NAU_HWND, False) in topmost_calls   # Nau never joins the topmost band
-        assert (NAU_HWND, True) not in topmost_calls
-        assert (GENAU_HWND, True) in topmost_calls  # static flag even while hidden
+        assert (NAU_HWND, True) in topmost_calls   # nau mode: Nau floats topmost
+        assert (GENAU_HWND, True) in topmost_calls  # topmost even while hidden
         assert set(self._hide_calls) == {GENAU_HWND}
         assert NAU_HWND not in self._hide_calls
 

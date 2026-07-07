@@ -123,11 +123,12 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
     """The primary-slot players share one screen rect, so a mode switch
     swaps window VISIBILITY: exactly the active mode's player is on screen
     (find_window_by_title only sees visible windows — a hidden window's
-    lookup returns 0). Nau carries its static non-topmost band (it rides under
-    Genau's HUD), so it stays OUT of the topmost band even while visible."""
+    lookup returns 0). Nau's topmost band is mode-dependent: it floats topmost
+    in nau mode (above the desktop) but drops non-topmost in hybrid, under
+    Genau's transparent HUD."""
     s = shared_integration_session
 
-    # nau mode: Nau visible (and non-topmost, per its static band), Genau
+    # nau mode: Nau visible AND topmost (it owns the whole display), Genau
     # hidden.  The lookup is exact because 'Nau' is a substring of 'Genau'.
     s.wait_until(
         lambda: find_window_by_title("Nau", exact=True) != 0,
@@ -136,9 +137,9 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
     )
     nau_hwnd = find_window_by_title("Nau", exact=True)
     s.wait_until(
-        lambda: not is_window_topmost(nau_hwnd),
+        lambda: is_window_topmost(nau_hwnd),
         timeout=5,
-        description="Nau to stay out of the topmost band while visible",
+        description="Nau to float topmost in nau mode",
     )
     s.wait_until(
         lambda: find_window_by_title("Genau") == 0,
@@ -172,6 +173,32 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
         lambda: find_window_by_title("Genau") == 0,
         timeout=12,
         description="Genau window to hide again in nau mode",
+    )
+
+    # hybrid mode: Nau stays VISIBLE but must drop UNDER Genau's transparent HUD,
+    # so it leaves the topmost band — the guarantee the nau-mode float must not
+    # break.
+    s.write_dashboard_command("hybrid_activate")
+    s.wait_for_new_log("Switched to hybrid mode", timeout=12)
+    s.wait_until(
+        lambda: find_window_by_title("Nau", exact=True) != 0,
+        timeout=12,
+        description="Nau window to stay visible in hybrid mode",
+    )
+    s.wait_until(
+        lambda: not is_window_topmost(find_window_by_title("Nau", exact=True)),
+        timeout=5,
+        description="Nau to drop out of the topmost band under Genau's HUD in hybrid",
+    )
+
+    # Back to nau mode: Nau reclaims the topmost band, leaving the session where
+    # it started.
+    s.write_dashboard_command("nau_activate")
+    s.wait_for_new_log("Switched to nau mode", timeout=12)
+    s.wait_until(
+        lambda: is_window_topmost(find_window_by_title("Nau", exact=True)),
+        timeout=5,
+        description="Nau to reclaim the topmost band back in nau mode",
     )
 
 
