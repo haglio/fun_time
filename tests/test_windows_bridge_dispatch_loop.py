@@ -1878,3 +1878,103 @@ class TestSeededRoleHwnds:
             runner._dispatch("hybrid_activate")
 
         assert shown == [2001, 6001]  # hybrid shows Nau then the Genau HUD
+
+
+class TestHybridFunscriptHandoff:
+    """In hybrid the OSR2 follows the current video: its funscript drives when
+    the video has one (Genau yields), and Genau drives when it does not."""
+
+    def _write_status(self, runner, *, has_funscript):
+        runner.config.nau_status_file.write_text(
+            f"video=C:\clip.mp4\nposition_ms=10\n"
+            f"has_funscript={1 if has_funscript else 0}\n",
+            encoding="utf-8",
+        )
+
+    def test_funscripted_video_pauses_genau(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode="hybrid")
+        self._write_status(runner, has_funscript=True)
+
+        runner._sync_hybrid_driver()
+
+        assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "PAUSE"
+
+    def test_unscripted_video_resumes_genau(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode="hybrid")
+        self._write_status(runner, has_funscript=False)
+
+        runner._sync_hybrid_driver()
+
+        assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "RESUME"
+
+    def test_command_written_only_on_change(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode="hybrid")
+        self._write_status(runner, has_funscript=True)
+        runner._sync_hybrid_driver()
+        runner.config.genau_cmd_file.unlink()
+
+        # Same funscript state next tick must not re-issue the command (edge-only).
+        runner._sync_hybrid_driver()
+
+        assert not runner.config.genau_cmd_file.exists()
+
+    def test_handoff_flips_when_next_video_differs(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode="hybrid")
+        self._write_status(runner, has_funscript=True)
+        runner._sync_hybrid_driver()
+
+        self._write_status(runner, has_funscript=False)
+        runner._sync_hybrid_driver()
+
+        assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "RESUME"
+
+    def test_no_arbitration_outside_hybrid(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode="genau")
+        self._write_status(runner, has_funscript=True)
+
+        runner._sync_hybrid_driver()
+
+        assert not runner.config.genau_cmd_file.exists()
+
+    def test_no_arbitration_when_omnipaused(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode="hybrid", omni_paused=True)
+        self._write_status(runner, has_funscript=True)
+
+        runner._sync_hybrid_driver()
+
+        assert not runner.config.genau_cmd_file.exists()
+
+    def test_leaving_hybrid_resets_so_reentry_reapplies(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode="hybrid")
+        self._write_status(runner, has_funscript=True)
+        runner._sync_hybrid_driver()  # PAUSE, remembers "funscript driving"
+
+        runner.state = BridgeState(primary_mode="genau")
+        runner._sync_hybrid_driver()  # leaves hybrid -> forgets
+        runner.config.genau_cmd_file.unlink()
+
+        # Re-entering hybrid on a still-funscripted video must re-issue PAUSE.
+        runner.state = BridgeState(primary_mode="hybrid")
+        runner._sync_hybrid_driver()
+
+        assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "PAUSE"
+
+    def test_tick_runs_the_handoff(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(primary_mode="hybrid")
+        self._write_status(runner, has_funscript=True)
+
+        with patch(
+            "fun_time.windows_bridge_dispatch_loop.get_playback_fraction",
+            return_value=None,
+        ):
+            runner.tick()
+
+        assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "PAUSE"

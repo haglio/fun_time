@@ -936,26 +936,6 @@ def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
     ]
 
 
-def test_hybrid_activate_mutes_nau_tcode(tmp_path: Path):
-    """Entering hybrid tells Nau to mute its funscript T-Code (Genau drives)."""
-    config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
-
-    dispatch_command("hybrid_activate", state, config)
-
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_TCODE_ENABLED 0"
-
-
-def test_nau_activate_from_hybrid_unmutes_nau_tcode(tmp_path: Path):
-    """Leaving hybrid for nau tells Nau to resume its funscript T-Code."""
-    config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
-
-    dispatch_command("nau_activate", state, config)
-
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_TCODE_ENABLED 1"
-
-
 # --- genau command forwarding (_GENAU_CMD_MAP) ---
 
 

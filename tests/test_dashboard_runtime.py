@@ -4,10 +4,12 @@ from pathlib import Path
 
 from fun_time.dashboard_runtime import (
     GenauStatus,
+    NauStatus,
     is_broker_heartbeat_fresh,
     is_osr2_device_on,
     load_dashboard_snapshot,
     read_genau_status,
+    read_nau_status,
 )
 
 
@@ -343,5 +345,27 @@ def test_read_genau_status_parses_limit_flags(tmp_path: Path):
     assert status.ctr_at_min is True
     assert status.spd_at_max is False
     assert status.spd_at_min is False
+
+
+def test_read_nau_status_parses_has_funscript(tmp_path: Path):
+    # Nau publishes has_funscript per current video; the hybrid handoff arbiter
+    # reads it to decide whether the funscript or Genau drives the OSR2.
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text(
+        "video=C:\\clip.mp4\nposition_ms=567\nhas_funscript=1\nstate=normal\npaused=0\n",
+        encoding="utf-8",
+    )
+
+    status = read_nau_status(status_file)
+
+    assert status.has_funscript is True
+
+
+def test_read_nau_status_defaults_has_funscript_to_false(tmp_path: Path):
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text("video=C:\\clip.mp4\nhas_funscript=0\n", encoding="utf-8")
+
+    assert read_nau_status(status_file).has_funscript is False
+    assert read_nau_status(tmp_path / "missing.txt").has_funscript is False
 
 

@@ -77,14 +77,17 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
 class NauStatus:
     """Snapshot of what Nau is playing, parsed from its status file.
 
-    Nau publishes more fields (duration_ms, has_funscript); only the ones
-    with consumers on this side are parsed.
+    Nau publishes duration_ms too; only the fields with consumers on this
+    side are parsed.  ``has_funscript`` tells the hybrid handoff arbiter
+    whether the current video's funscript should drive the OSR2 in place
+    of Genau.
     """
 
     video: str = ""
     position_ms: int = 0
     state: str = "normal"
     paused: bool = False
+    has_funscript: bool = False
 
 
 def read_nau_status(path: Path) -> NauStatus:
@@ -100,6 +103,7 @@ def read_nau_status(path: Path) -> NauStatus:
             position_ms=int(values.get("position_ms", "0").strip() or 0),
             state=values.get("state", "normal").strip(),
             paused=_status_bool(values, "paused"),
+            has_funscript=_status_bool(values, "has_funscript"),
         )
     except (OSError, ValueError):
         return NauStatus()
