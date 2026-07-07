@@ -7,7 +7,6 @@ Requires: VLC installed, FUN_TIME_RUN_INTEGRATION=1 env var.
 """
 from __future__ import annotations
 
-import ctypes
 import glob
 import os
 import random
@@ -32,7 +31,6 @@ from fun_time.vlc_actions import (
     wait_for_http,
 )
 from fun_time.modes import write_playlist_file
-from fun_time.win32 import find_window_by_pid, move_window, wait_for_window
 from fun_time.windows_bridge_startup import _build_vlc_launch_command
 
 pytestmark = [
@@ -58,40 +56,6 @@ def _find_test_videos(n: int = 4) -> list[str]:
     return random.sample(videos, min(n, len(videos)))
 
 
-def _no_activate_kwargs() -> dict:
-    """Return Popen kwargs that show the window without stealing focus."""
-    si = subprocess.STARTUPINFO()
-    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    si.wShowWindow = 4  # SW_SHOWNOACTIVATE
-    return {"startupinfo": si}
-
-
-def _park_vlc_offscreen(pid: int) -> int:
-    """Move VLC off-screen as soon as its window appears.
-
-    Polls every 5 ms so VLC is visible at its default geometry for at most
-    one poll cycle (~5 ms, imperceptible) before being moved off-screen.
-    All HTTP setup and playlist loading happen while VLC is parked off-screen.
-    Returns the hwnd, or 0 on timeout.
-    """
-    deadline = time.monotonic() + 10.0
-    while time.monotonic() < deadline:
-        hwnd = find_window_by_pid(pid)
-        if hwnd:
-            move_window(hwnd, -10000, 0, 800, 600, activate=False)
-            return hwnd
-        time.sleep(0.005)
-    return 0
-
-
-def _show_vlc_right_two_thirds(hwnd: int) -> None:
-    """Move VLC from off-screen to the right 2/3 of the primary monitor."""
-    screen_w = ctypes.windll.user32.GetSystemMetrics(0)  # SM_CXSCREEN
-    screen_h = ctypes.windll.user32.GetSystemMetrics(1)  # SM_CYSCREEN
-    left_margin = screen_w // 3
-    move_window(hwnd, left_margin, 0, screen_w - left_margin, screen_h, activate=False)
-
-
 @pytest.fixture(scope="module")
 def vlc_with_playlist():
     """Start a VLC instance with a known playlist of 4+ videos."""
@@ -112,17 +76,13 @@ def vlc_with_playlist():
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        **_no_activate_kwargs(),
     )
-    vlc_hwnd = _park_vlc_offscreen(proc.pid)
     if not wait_for_http(TEST_PORT, TEST_PASSWORD, timeout_ms=10000):
         proc.kill()
         pytest.skip("VLC HTTP did not start")
     vlc_http_cmd(TEST_PORT, "volume&val=0", TEST_PASSWORD)
     replace_playlist_from_file(TEST_PORT, TEST_PASSWORD, playlist_path)
     time.sleep(1.0)
-    if vlc_hwnd:
-        _show_vlc_right_two_thirds(vlc_hwnd)
     # Freeze playback rate to near-zero.  VLC stays in "playing" state
     # (all HTTP commands and jstree updates work normally) but can never
     # reach the end of a video and auto-advance.  This eliminates the
@@ -510,9 +470,7 @@ def vlc_repeat_one():
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        **_no_activate_kwargs(),
     )
-    vlc_hwnd = _park_vlc_offscreen(proc.pid)
     if not wait_for_http(REPEAT_PORT, TEST_PASSWORD, timeout_ms=10000):
         proc.kill()
         pytest.skip("VLC HTTP did not start")
@@ -520,8 +478,6 @@ def vlc_repeat_one():
     replace_playlist_from_file(REPEAT_PORT, TEST_PASSWORD, playlist_path)
     vlc_http_cmd(REPEAT_PORT, "pl_next", TEST_PASSWORD)
     time.sleep(1.0)
-    if vlc_hwnd:
-        _show_vlc_right_two_thirds(vlc_hwnd)
     # Freeze playback rate to near-zero.  VLC stays in "playing" state
     # (all HTTP commands and jstree updates work normally) but can never
     # reach the end of a video and auto-advance.  This eliminates the
