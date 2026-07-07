@@ -479,6 +479,49 @@ def test_landscape_prev_cancels_lock_and_calls_nav_step_prev(tmp_path: Path):
     assert nav_calls == [(8092, "prev")]
 
 
+# --- active side tracking ---
+
+
+def test_portrait_command_sets_active_side_to_portrait(tmp_path: Path):
+    """A portrait command marks portrait as the active side, so a later
+    side-agnostic command ('lock', 'next', ...) knows which player to hit."""
+    config = _make_config(tmp_path)
+    state = _make_state(active_side=3)  # currently on landscape
+
+    with (
+        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        new_state, _ops = dispatch_command("portrait_next", state, config)
+
+    assert new_state.active_side == 2
+
+
+def test_landscape_command_sets_active_side_to_landscape(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(active_side=2, locked3=False)
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\l.mp4"),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.ensure_in_favs"),
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
+    ):
+        new_state, _ops = dispatch_command("landscape_lock", state, config)
+
+    assert new_state.active_side == 3
+
+
+def test_non_side_command_leaves_active_side_unchanged(tmp_path: Path):
+    """Primary/mode/genau commands must not disturb the remembered side."""
+    config = _make_config(tmp_path)
+    state = _make_state(active_side=3)
+
+    new_state, _ops = dispatch_command("primary_next", state, config)
+
+    assert new_state.active_side == 3
+
+
 # --- quarter_button ---
 
 
