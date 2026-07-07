@@ -111,6 +111,17 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         ),
     ),
     (
+        "Both VLC",
+        (
+            _Row("Previous both clips", (), ("both_prev",)),
+            _Row("Next both clips", (), ("both_next",)),
+            _Row("Mark both clips as weird", (), ("both_trash",)),
+            _Row("Lock / unlock both", (), ("both_lock_on", "both_lock_off")),
+            _Row("Cycle both actions — same subject(s) & scene, another act", (), ("both_cycle_action",)),
+            _Row("Cycle both seeds — same config, different subject", (), ("both_cycle_seed",)),
+        ),
+    ),
+    (
         "Modes",
         (
             _Row("Genau mode", ("G",), ("genau_activate",), voice_display=("genau",)),

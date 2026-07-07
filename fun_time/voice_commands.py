@@ -32,6 +32,18 @@ VOICE_COMMANDS: dict[str, str] = {
     "cycle landscape action": "landscape_cycle_action",
     "landscape seed": "landscape_cycle_seed",
     "cycle landscape seed": "landscape_cycle_seed",
+    # "…both" drives Portrait + Landscape together; the dispatch loop expands
+    # each ``both_*`` into its portrait_*/landscape_* pair.  Lock = on,
+    # unlock = off, mirroring the per-satellite phrases above.
+    "next both": "both_next",
+    "previous both": "both_prev",
+    "weird both": "both_trash",
+    "lock both": "both_lock_on",
+    "unlock both": "both_lock_off",
+    "both action": "both_cycle_action",
+    "cycle both action": "both_cycle_action",
+    "both seed": "both_cycle_seed",
+    "cycle both seed": "both_cycle_seed",
     "f mode": "fmode_toggle",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",

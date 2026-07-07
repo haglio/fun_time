@@ -11,6 +11,7 @@ from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     execute_window_ops,
+    expand_both_command,
     write_shared_state,
     read_shared_state,
     detect_sleep_gap,
@@ -1886,7 +1887,7 @@ class TestHybridFunscriptHandoff:
 
     def _write_status(self, runner, *, has_funscript):
         runner.config.nau_status_file.write_text(
-            f"video=C:\clip.mp4\nposition_ms=10\n"
+            "video=C:\\clip.mp4\nposition_ms=10\n"
             f"has_funscript={1 if has_funscript else 0}\n",
             encoding="utf-8",
         )
@@ -1978,3 +1979,74 @@ class TestHybridFunscriptHandoff:
             runner.tick()
 
         assert runner.config.genau_cmd_file.read_text(encoding="utf-8") == "PAUSE"
+
+
+class TestExpandBothCommand:
+    """A "both" command is sugar for its Portrait + Landscape pair."""
+
+    def test_passes_through_non_both_commands(self):
+        assert expand_both_command("portrait_next") == ["portrait_next"]
+        assert expand_both_command("quit") == ["quit"]
+
+    def test_expands_to_portrait_then_landscape(self):
+        assert expand_both_command("both_next") == ["portrait_next", "landscape_next"]
+        assert expand_both_command("both_prev") == ["portrait_prev", "landscape_prev"]
+        assert expand_both_command("both_trash") == ["portrait_trash", "landscape_trash"]
+
+    def test_expands_multiword_suffixes(self):
+        assert expand_both_command("both_lock_on") == ["portrait_lock_on", "landscape_lock_on"]
+        assert expand_both_command("both_lock_off") == ["portrait_lock_off", "landscape_lock_off"]
+        assert expand_both_command("both_cycle_action") == [
+            "portrait_cycle_action", "landscape_cycle_action",
+        ]
+        assert expand_both_command("both_cycle_seed") == [
+            "portrait_cycle_seed", "landscape_cycle_seed",
+        ]
+
+
+class TestBothSatelliteCommands:
+    """A polled "both" command drives Portrait then Landscape through the same
+    per-command handling as the individual satellite commands."""
+
+    def test_both_next_dispatches_to_each_satellite(self, tmp_path):
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        (tmp_path / "dashboard_cmd.txt").write_text("both_next", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
+            runner.tick()
+
+        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        assert commands == ["portrait_next", "landscape_next"]
+
+    def test_lock_both_locks_each_unlocked_satellite(self, tmp_path):
+        """"lock both" (both_lock_on) reuses the idempotent per-satellite lock:
+        an already-locked side is left alone, so it only toggles the unlocked one."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(locked2=True, locked3=False)
+        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
+            runner.tick()
+
+        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        assert commands == ["landscape_lock"]  # portrait already locked → skipped
+
+    def test_unlock_both_unlocks_each_locked_satellite(self, tmp_path):
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(locked2=True, locked3=True)
+        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_off", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
+            runner.tick()
+
+        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        assert commands == ["portrait_lock", "landscape_lock"]
