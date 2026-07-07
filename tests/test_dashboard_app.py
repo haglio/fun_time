@@ -96,6 +96,38 @@ def test_dashboard_highlights_primary_for_ai_video_with_funscript(cfg_path: Path
     assert fills[preview_layout.primary_panel] == COLOR_GREEN
 
 
+def test_f_mode_does_not_force_panels_green_for_non_matching_videos(cfg_path: Path):
+    """F-mode on must not paint panels green on faith. Each panel reflects the
+    actual current video, so a non-funscript primary and non-favorite satellites
+    stay neutral — surfacing anything that slipped past the filter instead of
+    hiding it behind an unconditional green."""
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392), Size(1440, 3440), config.layout,
+    )
+    favs_file = config.paths.favs_file
+    favs_file.parent.mkdir(parents=True, exist_ok=True)
+    favs_file.write_text("local_file,web_url\n", encoding="utf-8")
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=True,
+        primary_mode="nau",
+        osr2_mode="controlled",
+        primary_responsive=True,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot(r"C:\clips\no_funscript.mp4", False),
+        portrait=DashboardPanelSnapshot(r"C:\clips\not_a_fav_p.mp4", False),
+        landscape=DashboardPanelSnapshot(r"C:\clips\not_a_fav_l.mp4", False),
+        window=DashboardWindowSnapshot(10, 20, 300, 200),
+    )
+
+    scene = build_dashboard_scene(preview_layout, snapshot, favs_file=favs_file)
+
+    fills = {item.rect: item.fill for item in scene.rects}
+    assert fills[preview_layout.primary_panel] == COLOR_PANEL
+    assert fills[preview_layout.portrait_panel] == COLOR_PANEL
+    assert fills[preview_layout.landscape_panel] == COLOR_PANEL
+
+
 def test_dashboard_app_resolves_landscape_monitor_as_logical_main_even_if_ids_are_swapped():
     main_monitor, secondary_monitor = resolve_logical_monitor_sizes(
         [Size(1440, 3440), Size(2560, 1392)],
