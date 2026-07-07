@@ -983,6 +983,17 @@ def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
     assert topmost_ops == [("nau", False)]
 
 
+def test_leaving_hybrid_reenables_nau_tcode(tmp_path: Path):
+    """Leaving hybrid re-enables Nau's funscript T-Code — the per-video gap
+    arbiter may have muted it, and nau mode must drive its funscript again."""
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="hybrid")
+
+    dispatch_command("nau_activate", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_TCODE_ENABLED 1"
+
+
 # --- genau command forwarding (_GENAU_CMD_MAP) ---
 
 

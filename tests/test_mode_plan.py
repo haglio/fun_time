@@ -87,6 +87,20 @@ def test_omnipaused_skips_transition():
     assert plan.nau_should_play is None
 
 
+def test_leaving_hybrid_reenables_nau_tcode():
+    # The per-video hybrid arbiter mutes Nau's T-Code during funscript gaps, so
+    # leaving hybrid must switch it back on or a later nau mode stays silent.
+    for target in ("nau", "genau"):
+        plan = build_mode_switch_plan(current_mode="hybrid", target_mode=target, omni_paused=False)
+        assert plan.reenable_nau_tcode is True
+
+
+def test_transitions_that_do_not_leave_hybrid_never_touch_nau_tcode():
+    for current, target in (("nau", "hybrid"), ("genau", "hybrid"), ("nau", "genau"), ("genau", "nau")):
+        plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=False)
+        assert plan.reenable_nau_tcode is False
+
+
 def test_genau_cmd_is_authoritative_for_the_target_mode():
     # Every transition asserts Genau's driving state for the target: RESUME when
     # the target drives the OSR2 with Genau (genau/hybrid), PAUSE otherwise.

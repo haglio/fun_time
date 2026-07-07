@@ -243,8 +243,9 @@ class DispatchLoopRunner:
         self._watch_ports = {2: config.portrait_port, 3: config.landscape_port}
         self._watch_stats_file = watch_stats_path(config.state_dir)
         self._last_watch_sample = 0.0
-        # Hybrid funscript handoff: whether the current video's funscript is
-        # driving the OSR2 (so Genau is paused).  None means "no decision applied
+        # Hybrid funscript handoff: whether the funscript is driving the OSR2
+        # right now (so Genau is paused and Nau's T-Code is on) or Genau is (a
+        # funscript gap or an unscripted video).  None means "no decision applied
         # yet" — set outside hybrid so re-entry re-asserts the correct driver.
         self._hybrid_funscript_driving: bool | None = None
 
@@ -291,27 +292,33 @@ class DispatchLoopRunner:
             self._sample_watch_trackers()
 
     def _sync_hybrid_driver(self) -> None:
-        """In hybrid, route the OSR2 to the current video's funscript or Genau.
+        """In hybrid, route the OSR2 to the funscript or Genau, moment to moment.
 
         Genau and a funscript both feed the broker's one UDP T-Code inlet, so
-        only one may drive at a time.  Nau already self-gates — it emits its
-        funscript's T-Code only on videos that have one — so the handoff just
-        has to yield Genau: PAUSE it while a funscripted video plays (the
-        funscript takes over) and RESUME it otherwise.  The command is edge-
-        triggered off Nau's published ``has_funscript`` so it fires once per
-        video change, not every tick.  Outside hybrid (or under omnipause) the
-        remembered state is cleared so re-entry re-asserts the right driver;
-        the mode switch itself authoritatively sets Genau's baseline.
+        only one may drive at a time.  The funscript drives while it is actively
+        scripting (``has_funscript`` and not ``funscript_resting``); Genau drives
+        the unscripted stretches — a video without a funscript, or a funscript's
+        quiet lead-in and interior gaps.  Each handoff sets both levers: Nau's
+        T-Code on + Genau paused for the funscript, or Nau's T-Code off (so its
+        gap drift can't fight) + Genau resumed for Genau.  It is edge-triggered,
+        so it fires once per handoff, not every tick.  Outside hybrid (or under
+        omnipause) the remembered state is cleared so re-entry re-asserts the
+        driver; leaving hybrid re-enables Nau's T-Code via the mode switch.
         """
         if self.state.primary_mode != "hybrid" or self.state.omni_paused:
             self._hybrid_funscript_driving = None
             return
-        has_funscript = read_nau_status(self.config.nau_status_file).has_funscript
-        if has_funscript == self._hybrid_funscript_driving:
+        status = read_nau_status(self.config.nau_status_file)
+        funscript_driving = status.has_funscript and not status.funscript_resting
+        if funscript_driving == self._hybrid_funscript_driving:
             return
-        self._hybrid_funscript_driving = has_funscript
+        self._hybrid_funscript_driving = funscript_driving
+        self.config.nau_cmd_file.write_text(
+            "SET_TCODE_ENABLED 1" if funscript_driving else "SET_TCODE_ENABLED 0",
+            encoding="utf-8",
+        )
         self.config.genau_cmd_file.write_text(
-            "PAUSE" if has_funscript else "RESUME", encoding="utf-8"
+            "PAUSE" if funscript_driving else "RESUME", encoding="utf-8"
         )
 
     def _handle_command(self, cmd: str) -> None:

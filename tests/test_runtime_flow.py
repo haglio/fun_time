@@ -22,6 +22,7 @@ def flow_files(tmp_path: Path) -> dict[str, Path]:
         "audio_paused_file": tmp_path / "audio_paused.txt",
         "genau_cmd_file": tmp_path / "genau_cmd.txt",
         "nau_paused_file": tmp_path / "nau_paused.txt",
+        "nau_cmd_file": tmp_path / "nau_cmd.txt",
         "broker_cmd_file": tmp_path / "broker_cmd.txt",
     }
 
@@ -35,6 +36,7 @@ def _mode_switch(files, *, current, target, omni_paused=False, broker=False):
         audio_paused_file=files["audio_paused_file"],
         genau_cmd_file=files["genau_cmd_file"],
         nau_paused_file=files["nau_paused_file"],
+        nau_cmd_file=files["nau_cmd_file"],
         broker_cmd_file=files["broker_cmd_file"] if broker else None,
     )
 
@@ -86,6 +88,21 @@ def test_hybrid_to_genau_resumes_genau(flow_files):
     assert result.next_mode == "genau"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_OFF"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
+
+
+def test_leaving_hybrid_reenables_nau_tcode(flow_files):
+    # The arbiter mutes Nau's T-Code in funscript gaps; leaving hybrid restores
+    # it so a later nau mode drives its funscript again.
+    for target in ("nau", "genau"):
+        flow_files["nau_cmd_file"].unlink(missing_ok=True)
+        _mode_switch(flow_files, current="hybrid", target=target)
+        assert flow_files["nau_cmd_file"].read_text(encoding="utf-8") == "SET_TCODE_ENABLED 1"
+
+
+def test_non_hybrid_transition_leaves_nau_cmd_untouched(flow_files):
+    _mode_switch(flow_files, current="nau", target="genau")
+
+    assert not flow_files["nau_cmd_file"].exists()
 
 
 def test_genau_to_hybrid_starts_nau(flow_files):

@@ -11,6 +11,10 @@ class ModeSwitchPlan:
     hud_cmd: str | None
     nau_should_play: bool | None
     log_message: str
+    # Leaving hybrid re-enables Nau's funscript T-Code: the per-video arbiter
+    # mutes it during funscript gaps, so nau mode would otherwise inherit a
+    # muted Nau.  Entering/within hybrid is the arbiter's job, not the plan's.
+    reenable_nau_tcode: bool = False
 
 
 def genau_active(mode: str) -> bool:
@@ -88,4 +92,5 @@ def build_mode_switch_plan(
         hud_cmd=hud_cmd,
         nau_should_play=nau_should_play,
         log_message=f"Switched to {target_mode} mode",
+        reenable_nau_tcode=current_mode == "hybrid" and target_mode != "hybrid",
     )

@@ -369,3 +369,22 @@ def test_read_nau_status_defaults_has_funscript_to_false(tmp_path: Path):
     assert read_nau_status(tmp_path / "missing.txt").has_funscript is False
 
 
+def test_read_nau_status_parses_funscript_resting(tmp_path: Path):
+    # Nau flags when the current spot is in a funscript gap so the hybrid arbiter
+    # can hand that stretch to Genau.
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text(
+        "video=C:\\clip.mp4\nhas_funscript=1\nfunscript_resting=1\n", encoding="utf-8"
+    )
+
+    assert read_nau_status(status_file).funscript_resting is True
+
+
+def test_read_nau_status_defaults_funscript_resting_to_false(tmp_path: Path):
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text("video=C:\\clip.mp4\nhas_funscript=1\n", encoding="utf-8")
+
+    assert read_nau_status(status_file).funscript_resting is False
+    assert read_nau_status(tmp_path / "missing.txt").funscript_resting is False
+
+
