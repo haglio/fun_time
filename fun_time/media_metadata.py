@@ -105,23 +105,50 @@ def action_group_key(metadata: dict) -> str | None:
 
 _IMAGE_FAMILY_FIELDS = tuple(f for f in _IMAGE_IDENTITY_FIELDS if f != "seed")
 
+# The loose family keeps only the scene's semantic identity — the prompts, and
+# how the subject is cast (image ``style`` / video ``action``) — while freeing
+# the render knobs (model, resolution, aspect ratio, quality, creativity) along
+# with the seed.  It backs "widen the net": when no exact same-config sister
+# exists, a clip that differs only in a render setting is still very-nearly it.
+_IMAGE_LOOSE_FAMILY_FIELDS = ("positive_prompt", "negative_prompt", "style")
+_VIDEO_LOOSE_FAMILY_FIELDS = ("prompt", "action")
 
-def seed_group_key(metadata: dict) -> tuple[str, str] | None:
-    """(family, seed) placing a video among its same-config-different-seed kin.
 
-    Videos sharing a family were generated from the identical configuration
-    with only the seed varied — the same scenario cast with a different subject.
+def _seed_key(
+    metadata: dict, image_fields: tuple[str, ...], video_fields: tuple[str, ...]
+) -> tuple[str, str] | None:
+    """(family, seed) for a video, familied by *image_fields* / *video_fields*.
+
     Returns None when the metadata lacks a seed or a prompt to family by.
     """
     source = metadata.get("source_image")
     if source:
         if not source.get("seed") or not source.get("positive_prompt"):
             return None
-        return _field_key("img", source, _IMAGE_FAMILY_FIELDS), _norm_text(source.get("seed"))
+        return _field_key("img", source, image_fields), _norm_text(source.get("seed"))
     video = metadata.get("video") or {}
     if not video.get("seed") or not video.get("prompt"):
         return None
-    return _field_key("t2v", video, _VIDEO_BASE_FIELDS + ("action",)), _norm_text(video.get("seed"))
+    return _field_key("t2v", video, video_fields), _norm_text(video.get("seed"))
+
+
+def seed_group_key(metadata: dict) -> tuple[str, str] | None:
+    """(family, seed) placing a video among its same-config-different-seed kin.
+
+    Videos sharing a family were generated from the identical configuration
+    with only the seed varied — the same scenario cast with a different subject.
+    """
+    return _seed_key(metadata, _IMAGE_FAMILY_FIELDS, _VIDEO_BASE_FIELDS + ("action",))
+
+
+def loose_seed_group_key(metadata: dict) -> tuple[str, str] | None:
+    """(family, seed) placing a video among its same-scene kin, render knobs freed.
+
+    Wider than :func:`seed_group_key`: only the prompts and the cast/action are
+    held fixed, so configs differing solely in a render setting still family
+    together.  Used as the fallback when no exact seed sister exists.
+    """
+    return _seed_key(metadata, _IMAGE_LOOSE_FAMILY_FIELDS, _VIDEO_LOOSE_FAMILY_FIELDS)
 
 
 @dataclass(frozen=True)
@@ -138,10 +165,25 @@ class GroupIndex:
     action_members: dict[str, list[str]]
     seed_key_by_path: dict[str, tuple[str, str]]
     seed_members: dict[str, list[str]]
+    loose_seed_key_by_path: dict[str, tuple[str, str]]
+    loose_seed_members: dict[str, list[str]]
     indexed_paths: frozenset[str]
 
     def contains(self, path: str) -> bool:
         return normalize_path_key(path) in self.indexed_paths
+
+
+def _record_seed_membership(
+    key: tuple[str, str] | None,
+    path: str,
+    key_by_path: dict[str, tuple[str, str]],
+    members: dict[str, list[str]],
+) -> None:
+    """File *path* under its ``(family, seed)`` *key*, if it has one."""
+    if key is None:
+        return
+    key_by_path[normalize_path_key(path)] = key
+    members.setdefault(key[0], []).append(path)
 
 
 def build_group_index(
@@ -158,6 +200,8 @@ def build_group_index(
     action_members: dict[str, list[str]] = {}
     seed_key_by_path: dict[str, tuple[str, str]] = {}
     seed_members: dict[str, list[str]] = {}
+    loose_seed_key_by_path: dict[str, tuple[str, str]] = {}
+    loose_seed_members: dict[str, list[str]] = {}
     indexed: set[str] = set()
     for path in video_paths:
         indexed.add(normalize_path_key(path))
@@ -169,19 +213,19 @@ def build_group_index(
         if action_key is not None:
             action_key_by_path[normalize_path_key(path)] = action_key
             action_members.setdefault(action_key, []).append(path)
-        seed_key = seed_group_key(metadata)
-        if seed_key is not None:
-            seed_key_by_path[normalize_path_key(path)] = seed_key
-            seed_members.setdefault(seed_key[0], []).append(path)
-    for members in action_members.values():
-        members.sort()
-    for members in seed_members.values():
+        _record_seed_membership(seed_group_key(metadata), path, seed_key_by_path, seed_members)
+        _record_seed_membership(
+            loose_seed_group_key(metadata), path, loose_seed_key_by_path, loose_seed_members
+        )
+    for members in (*action_members.values(), *seed_members.values(), *loose_seed_members.values()):
         members.sort()
     return GroupIndex(
         action_key_by_path=action_key_by_path,
         action_members=action_members,
         seed_key_by_path=seed_key_by_path,
         seed_members=seed_members,
+        loose_seed_key_by_path=loose_seed_key_by_path,
+        loose_seed_members=loose_seed_members,
         indexed_paths=frozenset(indexed),
     )
 
