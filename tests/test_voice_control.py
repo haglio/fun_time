@@ -106,6 +106,16 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["both seed"] == "both_cycle_seed"
         assert VOICE_COMMANDS["cycle both seed"] == "both_cycle_seed"
 
+    def test_bare_side_agnostic_phrases_target_the_active_side(self):
+        """Said alone, these act on whichever satellite was last addressed."""
+        assert VOICE_COMMANDS["lock"] == "active_lock_on"
+        assert VOICE_COMMANDS["unlock"] == "active_lock_off"
+        assert VOICE_COMMANDS["next"] == "active_next"
+        assert VOICE_COMMANDS["previous"] == "active_prev"
+        assert VOICE_COMMANDS["weird"] == "active_trash"
+        assert VOICE_COMMANDS["action"] == "active_cycle_action"
+        assert VOICE_COMMANDS["seed"] == "active_cycle_seed"
+
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "genau_amp_50"
         assert VOICE_COMMANDS["amp zero"] == "genau_amp_0"

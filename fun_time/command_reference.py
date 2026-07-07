@@ -122,6 +122,22 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         ),
     ),
     (
+        "Active side",
+        (
+            _Row(
+                "Lock / unlock the active side — the portrait or landscape "
+                "player most recently addressed by voice or keyboard",
+                (),
+                ("active_lock_on", "active_lock_off"),
+            ),
+            _Row("Previous clip on the active side", (), ("active_prev",)),
+            _Row("Next clip on the active side", (), ("active_next",)),
+            _Row("Mark the active side's clip as weird", (), ("active_trash",)),
+            _Row("Cycle action — same subject(s) & scene, another act", (), ("active_cycle_action",)),
+            _Row("Cycle seed — same config, different subject", (), ("active_cycle_seed",)),
+        ),
+    ),
+    (
         "Modes",
         (
             _Row("Genau mode", ("G",), ("genau_activate",), voice_display=("genau",)),

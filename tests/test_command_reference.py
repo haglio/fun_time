@@ -108,6 +108,29 @@ def test_both_section_lists_combined_satellite_commands():
     assert "lock both" in lock_row.voice and "unlock both" in lock_row.voice
 
 
+def test_active_side_section_documents_the_bare_commands():
+    """The side-agnostic voice commands live in their own 'Active side' section,
+    each keyless (they are voice-only) and carrying its bare phrase."""
+    sections = {s.title: s for s in build_reference_sections()}
+    assert "Active side" in sections
+    rows = sections["Active side"].rows
+    by_command = {cmd: r for r in rows for cmd in r.commands}
+    expected = {
+        "active_lock_on": "lock",
+        "active_lock_off": "unlock",
+        "active_prev": "previous",
+        "active_next": "next",
+        "active_trash": "weird",
+        "active_cycle_action": "action",
+        "active_cycle_seed": "seed",
+    }
+    for cmd, phrase in expected.items():
+        assert cmd in by_command, f"{cmd} missing from the Active side section"
+        row = by_command[cmd]
+        assert phrase in row.voice
+        assert row.hotkeys == (), f"{cmd} is voice-only and must show no hotkey"
+
+
 def test_premiere_row_uses_p_key_and_premiere_voice():
     """The newest-first refresh is branded "Premiere": P key, spoken "premiere"."""
     assert VOICE_COMMANDS["premiere"] == "recency_order_refresh"
