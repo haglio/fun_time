@@ -36,7 +36,6 @@ def _hermetic_stop(session, monkeypatch):
     exercised elsewhere; here we isolate the deterministic PID-kill path.
     """
     monkeypatch.setattr(session, "_reap_leftover_runtime_processes", lambda: None)
-    monkeypatch.setattr(integration_support, "restore_vlcrc_volume", lambda *a, **k: None)
 
 
 def test_stop_taskkills_every_recorded_child_pid(session, monkeypatch):

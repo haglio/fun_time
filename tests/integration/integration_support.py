@@ -15,7 +15,6 @@ from fun_time.config import load_config
 from fun_time.dashboard_runtime import NauStatus, read_nau_status
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
-from fun_time.vlc_actions import restore_vlcrc_volume
 from fun_time.windows_bridge_orchestrator import kill_process_tree
 
 from .hidden_desktop import (
@@ -144,7 +143,6 @@ class FunTimeIntegrationSession:
             )
         if hasattr(self, "_stderr_fh") and self._stderr_fh:
             self._stderr_fh.close()
-        restore_vlcrc_volume(256)
         return exit_code
 
     def start(self, wait_seconds: float = 45.0) -> None:
@@ -183,9 +181,6 @@ class FunTimeIntegrationSession:
         # until the racy name+StartTime sweep happens to catch them.
         self._kill_recorded_children()
         self._reap_leftover_runtime_processes()
-        # Patch vlcrc AFTER all VLC processes are dead — avoids the audio
-        # blast that restore_vlc_volume (HTTP) caused by unmuting while playing.
-        restore_vlcrc_volume(256)
 
     def write_dashboard_command(self, action: str) -> None:
         self.dashboard_cmd_file.parent.mkdir(parents=True, exist_ok=True)
