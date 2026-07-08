@@ -67,6 +67,12 @@ VOICE_COMMANDS: dict[str, str] = {
     "voice off": "voice_off",
 }
 
+# The hotkeys & voice reference popup answers to several spoken names.  vosk has
+# no "hotkeys" token, so it listens for "hot keys" (two words); the reference
+# shows the friendly "hotkeys" via command_reference.friendly_voice.
+for _ref_phrase in ("help", "reference", "hot keys", "voice commands"):
+    VOICE_COMMANDS[_ref_phrase] = "help_reference"
+
 # Satellite commands form a uniform, order-agnostic grid.  Each action works
 # BARE — driving the "active side", whichever satellite was most recently
 # addressed (by naming a side, or by keyboard nav) — or with a side word
