@@ -79,10 +79,10 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 (),
                 (
                     "speed_min", "speed_max",
-                    "nau_speed_25", "nau_speed_50", "nau_speed_75",
-                    "nau_speed_100", "nau_speed_150", "nau_speed_200",
+                    "nau_speed_25", "nau_speed_50", "nau_speed_75", "nau_speed_100",
+                    "nau_speed_125", "nau_speed_150", "nau_speed_175", "nau_speed_200",
                 ),
-                ("min speed", "half speed", "normal speed", "one and a half speed", "double speed", "max speed"),
+                ("min speed", "max speed", "reset speed", "half speed", "double speed", "speed one point five ex"),
             ),
             _Row("Cycle through versions of the current video", ("V",), ("nau_cycle_version",)),
             _Row(

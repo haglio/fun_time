@@ -1238,12 +1238,38 @@ def test_nau_multiplier_sets_nau_speed(tmp_path: Path):
 
 
 def test_nau_multiplier_is_a_noop_when_genau_drives(tmp_path: Path):
-    # An absolute multiplier is a Nau-video concept; when Genau drives it is a
-    # no-op (the speaker uses Genau's own 0-100 grammar there).
+    # An absolute multiplier is a Nau-video concept; in genau mode Nau is hidden,
+    # so it is a no-op (the speaker uses Genau's own 0-100 grammar there).
     config = _make_config(tmp_path)
     dispatch_command("nau_speed_150", _make_state(primary_mode="genau"), config)
     assert not config.genau_cmd_file.exists()
     assert not config.nau_cmd_file.exists()
+
+
+def test_absolute_speed_reaches_nau_video_in_hybrid_even_when_genau_drives(tmp_path: Path):
+    # Absolute video-speed sets (multiplier, min/max) tune whatever Nau shows, so
+    # they land on Nau's video even during a Genau-driven stretch — they must not
+    # silently vanish the way a driver-routed command would.
+    config = _make_config(tmp_path)
+    _set_nau_driving(config, driving=False)  # Genau owns the OSR2 this stretch
+    state = _make_state(primary_mode="hybrid")
+
+    dispatch_command("nau_speed_150", state, config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5"
+    assert not config.genau_cmd_file.exists()
+
+
+def test_speed_max_sets_nau_video_in_hybrid(tmp_path: Path):
+    config = _make_config(tmp_path)
+    _set_nau_driving(config, driving=False)
+    dispatch_command("speed_max", _make_state(primary_mode="hybrid"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max"
+
+
+def test_reset_speed_command_maps_to_normal_rate(tmp_path: Path):
+    config = _make_config(tmp_path)
+    dispatch_command("nau_speed_100", _make_state(primary_mode="nau"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1"
 
 
 def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
