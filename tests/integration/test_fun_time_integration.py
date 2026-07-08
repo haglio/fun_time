@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from fun_time.win32 import (
+    find_window_by_pid,
     find_window_by_title,
     is_process_alive,
     is_window_minimized,
@@ -302,6 +303,48 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
 
     s.write_dashboard_command("nau_activate")
     s.wait_for_new_log("Switched to nau mode", timeout=12)
+
+
+def test_fun_time_omnipause_drops_satellite_vlcs_from_topmost(shared_integration_session: FunTimeIntegrationSession):
+    """Entering OmniPause must free the desktop — the Portrait and Landscape
+    satellite VLCs must leave the topmost band, not stay pinned on top of the
+    windows the user reaches for while paused."""
+    s = shared_integration_session
+    # Known starting point: nau mode, not omnipaused ("play" is an idempotent
+    # leave-omnipause; a no-op when already live).
+    s.write_dashboard_command("nau_activate")
+    s.write_dashboard_command("play")
+
+    pids = s.read_child_pids()
+    portrait_hwnd = find_window_by_pid(pids["portrait_pid"])
+    landscape_hwnd = find_window_by_pid(pids["landscape_pid"])
+    assert portrait_hwnd, "Portrait VLC window must be resolvable by pid"
+    assert landscape_hwnd, "Landscape VLC window must be resolvable by pid"
+
+    # Satellites float topmost while the desktop is live.
+    s.wait_until(
+        lambda: is_window_topmost(portrait_hwnd) and is_window_topmost(landscape_hwnd),
+        timeout=8,
+        description="Portrait + Landscape VLC to be topmost before OmniPause",
+    )
+
+    # Enter OmniPause — every managed window must drop out of the topmost band.
+    s.write_dashboard_command("omnipause_toggle")
+    s.wait_for_new_log("OmniPause: entering", timeout=12)
+    s.wait_until(
+        lambda: not is_window_topmost(portrait_hwnd),
+        timeout=8,
+        description="Portrait VLC to leave the topmost band on OmniPause enter",
+    )
+    s.wait_until(
+        lambda: not is_window_topmost(landscape_hwnd),
+        timeout=8,
+        description="Landscape VLC to leave the topmost band on OmniPause enter",
+    )
+
+    # Restore the shared session.
+    s.write_dashboard_command("omnipause_toggle")
+    s.wait_for_new_log("OmniPause: leaving", timeout=12)
 
 
 def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
