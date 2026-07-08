@@ -211,6 +211,28 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     assert any(action == "genau_activate" for action, _rect in scene.actions)
 
 
+def test_dashboard_labels_hybrid_as_nau_plus_genau(cfg_path: Path):
+    config = load_config(cfg_path)
+    preview_layout = compute_dashboard_preview_layout(
+        Size(2560, 1392), Size(1440, 3440), config.layout,
+    )
+    snapshot = DashboardSnapshot(
+        f_mode_enabled=False,
+        primary_mode="hybrid",
+        osr2_mode="off",
+        primary_responsive=True,
+        omni_paused=False,
+        primary=DashboardPanelSnapshot(r"C:\clips\p.mp4", False),
+        portrait=DashboardPanelSnapshot(r"C:\clips\portrait.mp4", False),
+        landscape=DashboardPanelSnapshot(r"C:\clips\landscape.mp4", False),
+        window=DashboardWindowSnapshot(10, 20, 300, 200),
+    )
+
+    scene = build_dashboard_scene(preview_layout, snapshot)
+
+    assert "Hybrid Nau+Genau" in {item.text for item in scene.texts}
+
+
 def test_osr2_auto_mode_uses_pink_not_green(cfg_path: Path):
     config = load_config(cfg_path)
     preview_layout = compute_dashboard_preview_layout(
