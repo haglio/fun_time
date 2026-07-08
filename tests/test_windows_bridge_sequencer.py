@@ -118,6 +118,12 @@ class TestRunStartupSequence:
         assert not any("mfp" in key for key in core_called)
         assert not any("mfp" in key for key in ui_called)
         assert ui_called["dashboard_enabled"] is True
+        # The RFB rect is forwarded so the reference popup can fill that space.
+        assert {"rfb_x", "rfb_y", "rfb_width", "rfb_height"} <= set(ui_called)
+        assert all(
+            isinstance(ui_called[key], int)
+            for key in ("rfb_x", "rfb_y", "rfb_width", "rfb_height")
+        )
 
     def test_launches_genau_and_nau_with_primary_media_rect(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)

@@ -974,34 +974,17 @@ class DashboardWidget(QWidget):
         QToolTip.hideText()
 
 
-_REFERENCE_DIALOG_SIZE = Size(560, 680)
-
-
-def compute_adjacent_window_position(
-    anchor: Rect, screen: Rect, size: Size, *, gap: int = 12
-) -> tuple[int, int]:
-    """Top-left position for a *size* window placed beside *anchor*.
-
-    Prefers the space to the right of *anchor*, falls back to the left, and
-    clamps within *screen* so the window stays fully on-screen.  Keeps the
-    reference popup next to the dashboard instead of covering it.
-    """
-    if anchor.x + anchor.width + gap + size.width <= screen.x + screen.width:
-        x = anchor.x + anchor.width + gap
-    elif anchor.x - gap - size.width >= screen.x:
-        x = anchor.x - gap - size.width
-    else:
-        x = max(screen.x, screen.x + screen.width - size.width)
-    y = min(max(anchor.y, screen.y), screen.y + screen.height - size.height)
-    return x, y
-
-
 class ReferenceDialog(QDialog):
-    """Modeless popup listing every hotkey and voice command."""
+    """Modeless popup listing every hotkey and voice command.
+
+    Carries no in-window heading — its content title lives on the window chrome
+    ("Hotkeys & Voice Commands") — and is sized/placed by the caller to fill the
+    Random Favs Browser's rect.
+    """
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Fun Time — Hotkeys & Voice")
+        self.setWindowTitle("Hotkeys & Voice Commands")
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.WindowStaysOnTopHint
@@ -1017,7 +1000,6 @@ class ReferenceDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(browser)
-        self.resize(_REFERENCE_DIALOG_SIZE.width, _REFERENCE_DIALOG_SIZE.height)
 
 
 def write_dashboard_command(path: Path, action_id: str) -> None:
@@ -1066,12 +1048,15 @@ class DashboardWindow(QMainWindow):
         preview_layout: DashboardPreviewLayout,
         *,
         launch_geometry: DashboardLaunchGeometry | None = None,
+        rfb_rect: Rect | None = None,
         start_minimized: bool = False,
     ) -> None:
         super().__init__()
         self._app_config = app_config
         self._preview_layout = preview_layout
         self._launch_geometry = launch_geometry
+        # The Random Favs Browser's screen rect; the reference popup opens over it.
+        self._rfb_rect = rfb_rect
         # While the loading overlay is up the dashboard stays fully hidden so its
         # always-on-top window neither flashes above the overlay nor animates a
         # minimize on the way there (a hidden window renders nothing and the
@@ -1299,36 +1284,33 @@ class DashboardWindow(QMainWindow):
     def _show_reference_dialog(self) -> None:
         """Open (or re-focus) the hotkey/voice reference popup.
 
-        On first open it is placed beside the dashboard so the dash stays
-        visible while referencing; later opens keep wherever the user moved it.
+        On first open it is sized and placed to fill the Random Favs Browser's
+        rect, so the reference occupies the exact same space; later opens keep
+        wherever the user moved it.
         """
         if self._reference_dialog is None:
             self._reference_dialog = ReferenceDialog(self)
-            self._place_reference_dialog_beside_dashboard(self._reference_dialog)
+            if self._rfb_rect is not None:
+                r = self._rfb_rect
+                self._reference_dialog.setGeometry(r.x, r.y, r.width, r.height)
         self._reference_dialog.show()
         self._reference_dialog.raise_()
         self._reference_dialog.activateWindow()
 
-    def _place_reference_dialog_beside_dashboard(self, dialog: ReferenceDialog) -> None:
-        screen = self.screen()
-        if screen is None:
-            return
-        dash = self.frameGeometry()
-        avail = screen.availableGeometry()
-        x, y = compute_adjacent_window_position(
-            Rect(dash.x(), dash.y(), dash.width(), dash.height()),
-            Rect(avail.x(), avail.y(), avail.width(), avail.height()),
-            _REFERENCE_DIALOG_SIZE,
-        )
-        dialog.move(x, y)
-
     def _handle_press_event(self) -> None:
+        open_reference = False
         while True:
             try:
                 action = self._press_queue.get_nowait()
+                if action == HELP_REFERENCE:
+                    open_reference = True
                 self._pressed[action] = time.monotonic()
             except queue.Empty:
                 break
+        if open_reference:
+            # A voice "help"/"reference"/… arrives here as a press (the button
+            # click path opens the popup directly via _on_action).
+            self._show_reference_dialog()
         gs = self._last_genau_status
         self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs)
         QTimer.singleShot(
@@ -1364,6 +1346,7 @@ def build_dashboard_window(
     app_config: DashboardAppConfig,
     *,
     launch_geometry: DashboardLaunchGeometry | None = None,
+    rfb_rect: Rect | None = None,
 ) -> DashboardWindow:
     main_monitor, secondary_monitor = get_preview_monitor_sizes(app_config)
     preview_layout = compute_dashboard_preview_layout(
@@ -1372,6 +1355,7 @@ def build_dashboard_window(
     return DashboardWindow(
         app_config, preview_layout,
         launch_geometry=launch_geometry,
+        rfb_rect=rfb_rect,
     )
 
 
@@ -1387,6 +1371,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--y", type=int)
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
+    # The Random Favs Browser's rect — the reference popup opens over it.
+    parser.add_argument("--rfb-x", type=int)
+    parser.add_argument("--rfb-y", type=int)
+    parser.add_argument("--rfb-width", type=int)
+    parser.add_argument("--rfb-height", type=int)
     parser.add_argument(
         "--start-minimized",
         action="store_true",
@@ -1417,7 +1406,12 @@ def main(argv: list[str] | None = None) -> int:
             width=args.width,
             height=args.height,
         )
-    _window = build_dashboard_window(app_config, launch_geometry=launch_geometry)
+    rfb_rect = None
+    if None not in {args.rfb_x, args.rfb_y, args.rfb_width, args.rfb_height}:
+        rfb_rect = Rect(args.rfb_x, args.rfb_y, args.rfb_width, args.rfb_height)
+    _window = build_dashboard_window(
+        app_config, launch_geometry=launch_geometry, rfb_rect=rfb_rect,
+    )
     return app.exec()
 
 

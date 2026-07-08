@@ -165,6 +165,17 @@ def test_quit_row_lists_exit_synonym():
     assert quit_rows and {"exit", "quit"} <= set(quit_rows[0].voice)
 
 
+def test_reference_popup_row_shows_friendly_names():
+    """The help_reference row surfaces the friendly spoken names — never the raw
+    vosk recognizer form "hot keys"."""
+    rows = _all_rows()
+    help_rows = [r for r in rows if "help_reference" in r.commands]
+    assert len(help_rows) == 1, "expected exactly one reference-popup row"
+    voice = set(help_rows[0].voice)
+    assert {"help", "hotkeys", "reference", "voice commands"} <= voice
+    assert "hot keys" not in voice  # the OOV recognizer form is hidden behind "hotkeys"
+
+
 def test_premiere_row_uses_p_key_and_premiere_voice():
     """The newest-first refresh is branded "Premiere": P key, spoken "premiere"."""
     assert VOICE_COMMANDS["premiere"] == "recency_order_refresh"
@@ -345,6 +356,14 @@ def test_render_reference_html_contains_key_content():
     assert "Genau" in html
     # No raw template gaps.
     assert "{" not in html and "}" not in html
+
+
+def test_render_reference_html_has_no_in_window_title():
+    """The popup's name lives on the window chrome, so the rendered HTML must not
+    repeat it as an in-window heading."""
+    html = render_reference_html()
+    assert "<h2" not in html
+    assert "Hotkeys &amp; Voice Commands" not in html
 
 
 def test_filters_section_documents_the_spoken_filters():

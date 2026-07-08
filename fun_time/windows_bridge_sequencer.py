@@ -263,6 +263,11 @@ def run_startup_sequence(
         dashboard_y=plan.dashboard.y,
         dashboard_width=plan.dashboard.width,
         dashboard_height=plan.dashboard.height,
+        # The reference popup opens over the RFB's rect, so the dashboard needs it.
+        rfb_x=plan.random_favs_browser.x,
+        rfb_y=plan.random_favs_browser.y,
+        rfb_width=plan.random_favs_browser.width,
+        rfb_height=plan.random_favs_browser.height,
         audio_module=m["modules"]["audio_module"],
         config_path=m["runtime"]["config_path"],
         audio_folder=m["media"]["genau_audio"],

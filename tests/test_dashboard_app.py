@@ -646,41 +646,58 @@ def test_help_action_opens_dialog_locally_without_routing_command(cfg_path: Path
         window.close()
 
 
-def test_reference_window_prefers_right_of_dashboard():
-    from fun_time.dashboard_app import compute_adjacent_window_position
-    from fun_time.dashboard_layout import Rect, Size
+def test_help_reference_press_opens_reference_dialog(cfg_path: Path):
+    """A voice "help" reaches the dashboard as a UDP press, not a button click;
+    processing that press must open the reference popup."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    anchor = Rect(100, 100, 300, 200)
-    screen = Rect(0, 0, 2000, 1000)
-    x, y = compute_adjacent_window_position(anchor, screen, Size(560, 680), gap=12)
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
 
-    assert x == 100 + 300 + 12  # right of the dashboard
-    assert y == 100  # aligned to the dashboard top
-
-
-def test_reference_window_falls_back_to_left_when_no_room_right():
-    from fun_time.dashboard_app import compute_adjacent_window_position
-    from fun_time.dashboard_layout import Rect, Size
-
-    anchor = Rect(1600, 100, 300, 200)
-    screen = Rect(0, 0, 2000, 1000)
-    x, _y = compute_adjacent_window_position(anchor, screen, Size(560, 680), gap=12)
-
-    assert x == 1600 - 12 - 560  # left of the dashboard
+    try:
+        with patch.object(window, "_show_reference_dialog") as mock_show:
+            window._press_queue.put("help_reference")
+            window._handle_press_event()
+        mock_show.assert_called_once()
+    finally:
+        window.close()
 
 
-def test_reference_window_clamps_within_screen_when_no_room_either_side():
-    from fun_time.dashboard_app import compute_adjacent_window_position
-    from fun_time.dashboard_layout import Rect, Size
+def test_reference_dialog_fills_rfb_rect(cfg_path: Path):
+    """The reference popup is sized and placed to occupy the RFB's exact rect."""
+    from unittest.mock import MagicMock
+    from fun_time.dashboard_layout import Rect
 
-    anchor = Rect(0, 900, 300, 200)
-    screen = Rect(0, 0, 700, 1000)
-    x, y = compute_adjacent_window_position(anchor, screen, Size(560, 680), gap=12)
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+    rfb_rect = Rect(7, 408, 640, 984)
 
-    # Neither side fits a 560-wide window on a 700-wide screen — clamp inside.
-    assert 0 <= x <= 700 - 560
-    # y must keep the 680-tall window on-screen despite the low anchor.
-    assert y == 1000 - 680
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo, rfb_rect=rfb_rect)
+
+    try:
+        with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
+            window._show_reference_dialog()
+        mock_dialog.return_value.setGeometry.assert_called_once_with(7, 408, 640, 984)
+    finally:
+        window.close()
+
+
+def test_reference_dialog_window_title_is_the_content_title():
+    """The popup carries its name on the window chrome (the redundant in-window
+    heading was removed), so the chrome title IS the reference's title."""
+    from fun_time.dashboard_app import ReferenceDialog
+
+    dialog = ReferenceDialog()
+    try:
+        assert dialog.windowTitle() == "Hotkeys & Voice Commands"
+    finally:
+        dialog.close()
 
 
 def test_reference_dialog_renders_hotkeys_and_voice():
