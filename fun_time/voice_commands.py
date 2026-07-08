@@ -99,6 +99,23 @@ for _nav_word, _nav in {"next": "next", "previous": "prev"}.items():
     VOICE_COMMANDS[f"primary {_nav_word}"] = f"primary_{_nav}"
     VOICE_COMMANDS[f"{_nav_word} primary"] = f"primary_{_nav}"
 
+# Mode-named navigation: a mode's name + next/previous (either order) navigates
+# that mode's player.  Nau and Hybrid drive the primary (Nau owns the primary
+# display in both modes); Genau steps its own clip.  vosk can't hear "nau" or
+# "genau", so the recognizer reuses the mode-activation sound-alikes ("now mode",
+# "go now") — the reference translates them back to the friendly mode names.
+_MODE_NAV: dict[str, tuple[str, str]] = {
+    # recognizer base -> (next command, previous command)
+    "now mode": ("primary_next", "primary_prev"),  # displayed "nau mode"
+    "hybrid": ("primary_next", "primary_prev"),
+    "go now": ("genau_next_clip", "genau_prev_clip"),  # displayed "genau"
+}
+for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
+    VOICE_COMMANDS[f"{_base} next"] = _next_cmd
+    VOICE_COMMANDS[f"next {_base}"] = _next_cmd
+    VOICE_COMMANDS[f"{_base} previous"] = _prev_cmd
+    VOICE_COMMANDS[f"previous {_base}"] = _prev_cmd
+
 _NUMBER_WORDS: dict[str, int] = {
     "zero": 0, "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,
     "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,

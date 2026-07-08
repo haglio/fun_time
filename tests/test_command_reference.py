@@ -132,6 +132,21 @@ def test_active_side_section_documents_the_bare_commands():
         assert row.hotkeys == (), f"{cmd} is voice-only and must show no hotkey"
 
 
+def test_mode_named_nav_shows_friendly_names_in_the_legend():
+    """The Nau/Genau nav rows surface the mode-named phrases under their friendly
+    names ("nau mode next", "genau next", "hybrid next") — never the raw vosk
+    sound-alikes ("now mode", "go now")."""
+    rows = _all_rows()
+    primary_next_row = next(r for r in rows if "primary_next" in r.commands)
+    assert {"nau mode next", "next nau mode", "hybrid next", "next hybrid"} <= set(primary_next_row.voice)
+    genau_next_row = next(r for r in rows if "genau_next_clip" in r.commands)
+    assert {"genau next", "next genau"} <= set(genau_next_row.voice)
+    # The raw sound-alikes must never leak into any Say column.
+    for row in rows:
+        for phrase in row.voice:
+            assert "now mode" not in phrase and "go now" not in phrase, phrase
+
+
 def test_nau_video_rows_show_primary_nav_in_both_orders():
     """The Nau prev/next rows surface "primary previous"/"primary next" (and the
     reverse order) so the primary player's navigation is visible in the legend."""
@@ -155,7 +170,7 @@ def test_premiere_row_uses_p_key_and_premiere_voice():
 def test_voice_phrases_are_derived_from_voice_commands():
     """Each row's voice must include every phrase VOICE_COMMANDS assigns to its
     commands — except rows with an explicit voice_display alias."""
-    from fun_time.command_reference import _SECTIONS, _voice_for
+    from fun_time.command_reference import _SECTIONS, _voice_for, friendly_voice
 
     inverse: dict[str, list[str]] = {}
     for phrase, cmd in VOICE_COMMANDS.items():
@@ -165,7 +180,8 @@ def test_voice_phrases_are_derived_from_voice_commands():
             if row.voice_display is not None:
                 continue  # deliberate display alias (e.g. show "genau" not "go now")
             built = _voice_for(row.commands) + row.literal_voice
-            derived = sorted(p for cmd in row.commands for p in inverse.get(cmd, []))
+            # Phrases are shown under their friendly mode name (sound-alikes rewritten).
+            derived = sorted(friendly_voice(p) for cmd in row.commands for p in inverse.get(cmd, []))
             for phrase in derived:
                 assert phrase in built, (
                     f"row {row.description!r} should list derived phrase {phrase!r}"

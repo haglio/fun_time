@@ -106,6 +106,22 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["primary previous"] == "primary_prev"
         assert VOICE_COMMANDS["previous primary"] == "primary_prev"
 
+    def test_mode_named_navigation_both_orders(self):
+        """A mode's name + next/previous (either order) navigates its player:
+        Nau/Hybrid drive the primary, Genau its own clip.  vosk can't hear
+        "nau"/"genau", so the recognizer uses the "now mode"/"go now" sound-alikes."""
+        # Nau (recognizer "now mode") and Hybrid both drive the primary.
+        for base in ("now mode", "hybrid"):
+            assert VOICE_COMMANDS[f"{base} next"] == "primary_next"
+            assert VOICE_COMMANDS[f"next {base}"] == "primary_next"
+            assert VOICE_COMMANDS[f"{base} previous"] == "primary_prev"
+            assert VOICE_COMMANDS[f"previous {base}"] == "primary_prev"
+        # Genau (recognizer "go now") steps its own clip.
+        assert VOICE_COMMANDS["go now next"] == "genau_next_clip"
+        assert VOICE_COMMANDS["next go now"] == "genau_next_clip"
+        assert VOICE_COMMANDS["go now previous"] == "genau_prev_clip"
+        assert VOICE_COMMANDS["previous go now"] == "genau_prev_clip"
+
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "genau_amp_50"
         assert VOICE_COMMANDS["amp zero"] == "genau_amp_0"
