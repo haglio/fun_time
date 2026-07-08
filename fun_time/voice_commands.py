@@ -12,6 +12,7 @@ from fun_time.filter_vocab import filter_voice_commands
 
 VOICE_COMMANDS: dict[str, str] = {
     "quit": "quit",
+    "exit": "quit",
     "pause": "pause",
     "play": "play",
     # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
@@ -92,12 +93,13 @@ for _act_word, _act in _SATELLITE_ACTIONS.items():
         VOICE_COMMANDS[f"{_act_word} {_side}"] = _sided
 
 # The primary (Nau) player joins the grid for navigation ONLY — "primary next"
-# / "next primary" (either order) — since it has no lock/weird/cycle.  Bare
-# "next"/"previous" also reach it whenever it was the last player navigated
-# (the active side resolves to the primary then).
-for _nav_word, _nav in {"next": "next", "previous": "prev"}.items():
-    VOICE_COMMANDS[f"primary {_nav_word}"] = f"primary_{_nav}"
-    VOICE_COMMANDS[f"{_nav_word} primary"] = f"primary_{_nav}"
+# / "next primary" (either order) — since it has no lock/weird/cycle.  "main" is
+# a synonym for "primary".  Bare "next"/"previous" also reach it whenever it was
+# the last player navigated (the active side resolves to the primary then).
+for _player_word in ("primary", "main"):
+    for _nav_word, _nav in {"next": "next", "previous": "prev"}.items():
+        VOICE_COMMANDS[f"{_player_word} {_nav_word}"] = f"primary_{_nav}"
+        VOICE_COMMANDS[f"{_nav_word} {_player_word}"] = f"primary_{_nav}"
 
 # Mode-named navigation: a mode's name + next/previous (either order) navigates
 # that mode's player.  Nau and Hybrid drive the primary (Nau owns the primary

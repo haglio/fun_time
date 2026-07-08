@@ -149,12 +149,20 @@ def test_mode_named_nav_shows_friendly_names_in_the_legend():
 
 def test_nau_video_rows_show_primary_nav_in_both_orders():
     """The Nau prev/next rows surface "primary previous"/"primary next" (and the
-    reverse order) so the primary player's navigation is visible in the legend."""
+    reverse order, plus the "main" synonym) so the primary player's navigation
+    is visible in the legend."""
     rows = _all_rows()
     prev = next(r for r in rows if "primary_prev" in r.commands)
     nxt = next(r for r in rows if "primary_next" in r.commands)
-    assert {"primary previous", "previous primary"} <= set(prev.voice)
-    assert {"primary next", "next primary"} <= set(nxt.voice)
+    assert {"primary previous", "previous primary", "main previous", "previous main"} <= set(prev.voice)
+    assert {"primary next", "next primary", "main next", "next main"} <= set(nxt.voice)
+
+
+def test_quit_row_lists_exit_synonym():
+    """"exit" is a spoken synonym for "quit" and appears in the legend's Quit row."""
+    rows = _all_rows()
+    quit_rows = [r for r in rows if "quit" in r.commands]
+    assert quit_rows and {"exit", "quit"} <= set(quit_rows[0].voice)
 
 
 def test_premiere_row_uses_p_key_and_premiere_voice():
