@@ -1577,6 +1577,29 @@ def test_genau_buttons_greyed_at_limits(cfg_path: Path):
     assert "genau_center_up" in action_ids, "not-at-max button should be clickable"
 
 
+def test_hybrid_spd_buttons_stay_live_at_genau_limits(cfg_path: Path):
+    """In hybrid the SPD keys route per-stretch (Nau's video or Genau), so they
+    stay clickable and un-greyed even when Genau's own speed is maxed/floored —
+    unlike amp/center, which only ever drive Genau."""
+    from fun_time.dashboard_runtime import GenauStatus
+    from shared_ui.colors import TEXT_MUTED
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_mode="hybrid")
+
+    scene = build_dashboard_scene(
+        layout, snapshot,
+        genau_status=GenauStatus(spd_at_max=True, spd_at_min=True, amp_at_max=True),
+    )
+
+    action_ids = [a for a, _r in scene.actions]
+    assert "genau_speed_up" in action_ids and "genau_speed_down" in action_ids
+    text_at = {item.rect: item for item in scene.texts}
+    assert text_at[layout.hybrid_genau_spd_up].color != TEXT_MUTED
+    assert text_at[layout.hybrid_genau_spd_down].color != TEXT_MUTED
+    # amp still gates on Genau's own limit in hybrid.
+    assert "genau_amplitude_up" not in action_ids
+
+
 def test_nau_mode_does_not_show_genau_param_actions(cfg_path: Path):
     """Nau mode should NOT have AMP/CTR/SPD or cruise/shape actions."""
     layout = _make_layout(cfg_path)
