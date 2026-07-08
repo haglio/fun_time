@@ -64,12 +64,13 @@ class TestVoiceCommands:
         for phrase, cmd in static_phrases.items():
             assert VOICE_COMMANDS[phrase] == cmd
 
-    def test_reference_popup_phrases_open_help(self):
-        # Several spoken names all open the hotkeys & voice reference popup.
-        # vosk has no "hotkeys" token, so it listens for "hot keys" (two words);
-        # the reference shows the friendly "hotkeys".
+    def test_reference_popup_phrases_toggle_and_close_help(self):
+        # Several spoken names toggle the hotkeys & voice reference popup; the
+        # same names prefixed with "close" only dismiss it.  vosk has no
+        # "hotkeys" token, so it listens for "hot keys" (two words).
         for phrase in ("help", "reference", "hot keys", "voice commands"):
             assert VOICE_COMMANDS[phrase] == "help_reference"
+            assert VOICE_COMMANDS[f"close {phrase}"] == "help_reference_close"
         assert "hotkeys" not in VOICE_COMMANDS  # OOV single token — never a recognizer phrase
 
     def test_go_now_activates_genau(self):

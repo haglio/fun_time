@@ -374,9 +374,9 @@ class DispatchLoopRunner:
         if cmd == "quit":
             self.ahk_cmd_file.write_text("exit", encoding="utf-8")
             return
-        if cmd == "help_reference":
+        if cmd in ("help_reference", "help_reference_close"):
             # Pure dashboard-UI action: the press above tells the dashboard to
-            # open the hotkeys/voice popup — there is nothing to dispatch here.
+            # toggle/close the hotkeys/voice popup — nothing to dispatch here.
             return
         if cmd == "omniminimize":
             self._handle_omniminimize()

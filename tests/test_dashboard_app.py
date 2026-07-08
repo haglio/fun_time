@@ -646,9 +646,9 @@ def test_help_action_opens_dialog_locally_without_routing_command(cfg_path: Path
         window.close()
 
 
-def test_help_reference_press_opens_reference_dialog(cfg_path: Path):
+def test_help_reference_press_toggles_reference_dialog(cfg_path: Path):
     """A voice "help" reaches the dashboard as a UDP press, not a button click;
-    processing that press must open the reference popup."""
+    processing that press must toggle the reference popup."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
     app_config = load_dashboard_app_config(manifest_path)
@@ -658,10 +658,59 @@ def test_help_reference_press_opens_reference_dialog(cfg_path: Path):
         window = build_dashboard_window(app_config, launch_geometry=launch_geo)
 
     try:
-        with patch.object(window, "_show_reference_dialog") as mock_show:
+        with patch.object(window, "_toggle_reference_dialog") as mock_toggle:
             window._press_queue.put("help_reference")
             window._handle_press_event()
-        mock_show.assert_called_once()
+        mock_toggle.assert_called_once()
+    finally:
+        window.close()
+
+
+def test_help_reference_close_press_closes_reference_dialog(cfg_path: Path):
+    """A voice "close help" arrives as a press and must only dismiss the popup —
+    never open it."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        with patch.object(window, "_close_reference_dialog") as mock_close, \
+             patch.object(window, "_toggle_reference_dialog") as mock_toggle:
+            window._press_queue.put("help_reference_close")
+            window._handle_press_event()
+        mock_close.assert_called_once()
+        mock_toggle.assert_not_called()
+    finally:
+        window.close()
+
+
+def test_toggle_reference_dialog_opens_then_closes(cfg_path: Path):
+    """The same trigger opens the popup, then closes it on the next invocation."""
+    from unittest.mock import MagicMock
+
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
+            dialog = mock_dialog.return_value
+            dialog.isVisible.return_value = False
+            window._toggle_reference_dialog()  # closed → opens
+            dialog.show.assert_called_once()
+            dialog.close.assert_not_called()
+
+            dialog.isVisible.return_value = True
+            window._toggle_reference_dialog()  # visible → closes
+            dialog.close.assert_called_once()
     finally:
         window.close()
 

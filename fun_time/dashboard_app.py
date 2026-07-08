@@ -62,6 +62,7 @@ from fun_time.dashboard_actions import (
     FMODE_PANEL,
     GENAU_ACTIVATE,
     HELP_REFERENCE,
+    HELP_REFERENCE_CLOSE,
     HYBRID_ACTIVATE,
     OMNIMINIMIZE,
     OMNIRESTORE,
@@ -437,7 +438,7 @@ def _draw_waveform_pixmap(shape: str, w: int, h: int) -> QPixmap:
 _ACTION_TOOLTIPS: dict[str, str] = {
     QUIT_BUTTON: "Quit",
     OMNIPAUSE_TOGGLE: "Pause all",
-    HELP_REFERENCE: "Hotkeys & Voice",
+    HELP_REFERENCE: "Hotkeys & Voice Commands",
     PORTRAIT_PREV: "Previous portrait clip",
     PORTRAIT_NEXT: "Next portrait clip",
     PORTRAIT_LOCK: "Lock / unlock portrait",
@@ -1268,7 +1269,7 @@ class DashboardWindow(QMainWindow):
 
     def _on_action(self, action_id: str) -> None:
         if action_id == HELP_REFERENCE:
-            self._show_reference_dialog()
+            self._toggle_reference_dialog()
             return
         self._pressed[action_id] = time.monotonic()
         write_dashboard_command(self._app_config.dashboard_cmd_file, action_id)
@@ -1280,6 +1281,17 @@ class DashboardWindow(QMainWindow):
         )
         if action_id.startswith("genau_"):
             QTimer.singleShot(100, self._refresh)
+
+    def _toggle_reference_dialog(self) -> None:
+        """Open the reference popup, or close it if it is already showing.
+
+        Drives both the ``?`` button and the "help"/"reference"/… voice phrases:
+        the same trigger opens and dismisses.
+        """
+        if self._reference_dialog is not None and self._reference_dialog.isVisible():
+            self._reference_dialog.close()
+        else:
+            self._show_reference_dialog()
 
     def _show_reference_dialog(self) -> None:
         """Open (or re-focus) the hotkey/voice reference popup.
@@ -1297,20 +1309,30 @@ class DashboardWindow(QMainWindow):
         self._reference_dialog.raise_()
         self._reference_dialog.activateWindow()
 
+    def _close_reference_dialog(self) -> None:
+        """Dismiss the reference popup if it is open (the "close …" voice phrases)."""
+        if self._reference_dialog is not None:
+            self._reference_dialog.close()
+
     def _handle_press_event(self) -> None:
-        open_reference = False
+        toggle_reference = False
+        close_reference = False
         while True:
             try:
                 action = self._press_queue.get_nowait()
                 if action == HELP_REFERENCE:
-                    open_reference = True
+                    toggle_reference = True
+                elif action == HELP_REFERENCE_CLOSE:
+                    close_reference = True
                 self._pressed[action] = time.monotonic()
             except queue.Empty:
                 break
-        if open_reference:
-            # A voice "help"/"reference"/… arrives here as a press (the button
-            # click path opens the popup directly via _on_action).
-            self._show_reference_dialog()
+        # Voice arrives here as a press (the ? button drives _on_action directly):
+        # "help"/… toggles the popup, "close help"/… only dismisses it.
+        if close_reference:
+            self._close_reference_dialog()
+        if toggle_reference:
+            self._toggle_reference_dialog()
         gs = self._last_genau_status
         self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs)
         QTimer.singleShot(

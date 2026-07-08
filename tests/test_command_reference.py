@@ -165,14 +165,18 @@ def test_quit_row_lists_exit_synonym():
     assert quit_rows and {"exit", "quit"} <= set(quit_rows[0].voice)
 
 
-def test_reference_popup_row_shows_friendly_names():
-    """The help_reference row surfaces the friendly spoken names — never the raw
-    vosk recognizer form "hot keys"."""
+def test_reference_popup_row_shows_toggle_and_close_names():
+    """One row documents both toggling ("help", "hotkeys", …) and closing
+    ("close help", …) the popup, always under the friendly "hotkeys" name — never
+    the raw vosk recognizer form "hot keys"."""
     rows = _all_rows()
     help_rows = [r for r in rows if "help_reference" in r.commands]
     assert len(help_rows) == 1, "expected exactly one reference-popup row"
-    voice = set(help_rows[0].voice)
+    row = help_rows[0]
+    assert "help_reference_close" in row.commands
+    voice = set(row.voice)
     assert {"help", "hotkeys", "reference", "voice commands"} <= voice
+    assert {"close help", "close hotkeys", "close reference", "close voice commands"} <= voice
     assert "hot keys" not in voice  # the OOV recognizer form is hidden behind "hotkeys"
 
 
@@ -358,12 +362,14 @@ def test_render_reference_html_contains_key_content():
     assert "{" not in html and "}" not in html
 
 
-def test_render_reference_html_has_no_in_window_title():
-    """The popup's name lives on the window chrome, so the rendered HTML must not
-    repeat it as an in-window heading."""
+def test_render_reference_html_has_no_heading_or_subtitle():
+    """The popup's name lives on the window chrome, so the rendered HTML carries
+    neither an in-window heading nor the old subtitle — it opens straight into
+    the first section."""
     html = render_reference_html()
     assert "<h2" not in html
     assert "Hotkeys &amp; Voice Commands" not in html
+    assert "Global while Fun Time" not in html
 
 
 def test_filters_section_documents_the_spoken_filters():
