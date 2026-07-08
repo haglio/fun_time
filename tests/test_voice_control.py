@@ -138,8 +138,16 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["max amp"] == "genau_amp_100"
         assert VOICE_COMMANDS["min center"] == "genau_center_0"
         assert VOICE_COMMANDS["max center"] == "genau_center_100"
-        assert VOICE_COMMANDS["min speed"] == "genau_speed_0"
-        assert VOICE_COMMANDS["max speed"] == "genau_speed_100"
+        # Speed min/max route to the active engine (Nau video or Genau), not
+        # Genau-only like the amp/center extremes.
+        assert VOICE_COMMANDS["min speed"] == "speed_min"
+        assert VOICE_COMMANDS["max speed"] == "speed_max"
+
+    def test_nau_multiplier_speed_phrases(self):
+        assert VOICE_COMMANDS["half speed"] == "nau_speed_50"
+        assert VOICE_COMMANDS["normal speed"] == "nau_speed_100"
+        assert VOICE_COMMANDS["one and a half speed"] == "nau_speed_150"
+        assert VOICE_COMMANDS["double speed"] == "nau_speed_200"
 
 
 class TestBuildGrammar:

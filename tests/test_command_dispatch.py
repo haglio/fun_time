@@ -1162,9 +1162,9 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     assert ops == []
 
 
-def test_speed_up_routes_to_nau_when_only_nau_displays(tmp_path: Path):
-    # In nau mode Genau is inactive, so the j/l speed keys steer Nau's video
-    # rate instead; Nau's mpv clock drives the funscript, so it scales along.
+def test_speed_up_routes_to_nau_in_nau_mode(tmp_path: Path):
+    # In nau mode Nau drives the OSR2, so the speed keys steer its video rate;
+    # Nau's mpv clock drives the funscript, so it scales along.
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="nau")
 
@@ -1176,7 +1176,7 @@ def test_speed_up_routes_to_nau_when_only_nau_displays(tmp_path: Path):
     assert ops == []
 
 
-def test_speed_down_routes_to_nau_when_only_nau_displays(tmp_path: Path):
+def test_speed_down_routes_to_nau_in_nau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="nau")
 
@@ -1186,17 +1186,64 @@ def test_speed_down_routes_to_nau_when_only_nau_displays(tmp_path: Path):
     assert not config.genau_cmd_file.exists()
 
 
-def test_speed_routes_to_nau_in_hybrid_mode(tmp_path: Path):
-    # Nau owns the display in hybrid too, and a funscripted video's script drives
-    # the OSR2 there (the per-video handoff), so the speed keys tune Nau's video
-    # — which scales its funscript — rather than Genau's stroke rate.
+def _set_nau_driving(config, *, driving: bool) -> None:
+    """Publish a Nau status so the hybrid speed arbiter sees the funscript
+    driving (scripted, not resting) or not."""
+    config.nau_status_file.write_text(
+        f"has_funscript={'1' if driving else '0'}\nfunscript_resting=0\n",
+        encoding="utf-8",
+    )
+
+
+def test_speed_routes_to_nau_in_hybrid_while_funscript_drives(tmp_path: Path):
+    # Hybrid, actively scripted stretch: the funscript (Nau) drives the OSR2, so
+    # speed tunes Nau's video, which scales the driving script.
     config = _make_config(tmp_path)
+    _set_nau_driving(config, driving=True)
     state = _make_state(primary_mode="hybrid")
 
     dispatch_command("genau_speed_up", state, config)
 
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP"
     assert not config.genau_cmd_file.exists()
+
+
+def test_speed_routes_to_genau_in_hybrid_while_genau_drives(tmp_path: Path):
+    # Hybrid, unscripted stretch (no funscript / lead-in / gap): Genau drives the
+    # OSR2, so speed tunes Genau's stroke rate.
+    config = _make_config(tmp_path)
+    _set_nau_driving(config, driving=False)
+    state = _make_state(primary_mode="hybrid")
+
+    dispatch_command("genau_speed_up", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP"
+    assert not config.nau_cmd_file.exists()
+
+
+def test_speed_min_and_max_route_to_the_active_engine(tmp_path: Path):
+    config = _make_config(tmp_path)
+    dispatch_command("speed_min", _make_state(primary_mode="nau"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min"
+
+    config = _make_config(tmp_path)
+    dispatch_command("speed_max", _make_state(primary_mode="genau"), config)
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 100"
+
+
+def test_nau_multiplier_sets_nau_speed(tmp_path: Path):
+    config = _make_config(tmp_path)
+    dispatch_command("nau_speed_150", _make_state(primary_mode="nau"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5"
+
+
+def test_nau_multiplier_is_a_noop_when_genau_drives(tmp_path: Path):
+    # An absolute multiplier is a Nau-video concept; when Genau drives it is a
+    # no-op (the speaker uses Genau's own 0-100 grammar there).
+    config = _make_config(tmp_path)
+    dispatch_command("nau_speed_150", _make_state(primary_mode="genau"), config)
+    assert not config.genau_cmd_file.exists()
+    assert not config.nau_cmd_file.exists()
 
 
 def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):

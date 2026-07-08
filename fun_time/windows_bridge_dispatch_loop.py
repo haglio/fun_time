@@ -355,7 +355,7 @@ class DispatchLoopRunner:
             self._hybrid_funscript_driving = None
             return
         status = read_nau_status(self.config.nau_status_file)
-        funscript_driving = status.has_funscript and not status.funscript_resting
+        funscript_driving = status.funscript_driving
         if funscript_driving == self._hybrid_funscript_driving:
             return
         self._hybrid_funscript_driving = funscript_driving
