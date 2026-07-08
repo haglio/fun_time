@@ -733,6 +733,21 @@ class DispatchLoopRunner:
             restore_window(hwnd, activate=False)
         self._minimized_hwnds = []
 
+    def _log_topmost_state(self, label: str) -> None:
+        """Log every managed window's resolved hwnd and topmost state.
+
+        Entering omnipause should leave EVERY window non-topmost; a window still
+        topmost at "post-enter" is one the drop didn't reach (an unresolved or
+        re-asserting window).  Leaving restores the per-mode bands.  This is the
+        diagnostic that pins which window (e.g. a satellite VLC) misbehaves.
+        """
+        parts = []
+        for role in MANAGED_ROLES:
+            hwnd = self._resolve_role(role)
+            state = is_window_topmost(hwnd) if hwnd else "n/a"
+            parts.append(f"{role}={hwnd}:{state}")
+        logger.info("Topmost [%s] mode=%s: %s", label, self.state.primary_mode, "  ".join(parts))
+
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows.
 
@@ -740,15 +755,9 @@ class DispatchLoopRunner:
         the disable_all_topmost / restore_all_topmost WindowOps that
         command_dispatch emits — _dispatch handles them automatically.
         """
-        if self.state.omni_paused:
-            dash_hwnd = self._find_dashboard_hwnd()
-            logger.info(
-                "Un-omnipause pre-restore: dash_hwnd=%d dash_topmost=%s "
-                "rfb_hwnd=%d rfb_topmost=%s",
-                dash_hwnd, is_window_topmost(dash_hwnd) if dash_hwnd else "N/A",
-                self.rfb_hwnd, is_window_topmost(self.rfb_hwnd) if self.rfb_hwnd else "N/A",
-            )
+        was_paused = self.state.omni_paused
         self._dispatch("omnipause_toggle")
+        self._log_topmost_state("post-leave" if was_paused else "post-enter")
 
     def _handle_enter_omnipause(self) -> None:
         """Enter omnipause with topmost management (Space key — enter only, no leave).
@@ -757,6 +766,7 @@ class DispatchLoopRunner:
         that command_dispatch emits — _dispatch handles it automatically.
         """
         self._dispatch("enter_omnipause")
+        self._log_topmost_state("post-enter")
 
     def _handle_open_file_dialog(self) -> None:
         """Open VLC's file dialog with managed omnipause."""
@@ -792,6 +802,10 @@ class DispatchLoopRunner:
 
     def run(self) -> None:
         """Main loop — call from a background thread."""
+        # Log the topmost state once the loop starts so a "windows not all on top
+        # after launch" report can be pinned to the exact window that missed its
+        # startup promotion.
+        self._log_topmost_state("startup")
         last_wall = time.time()
         while not self._stop.is_set():
             now = time.time()
