@@ -9,9 +9,14 @@ from fun_time.voice_control import VOICE_COMMANDS, VoiceController, build_gramma
 
 
 class TestVoiceCommands:
+    def test_exit_is_a_synonym_for_quit(self):
+        assert VOICE_COMMANDS["exit"] == "quit"
+        assert VOICE_COMMANDS["quit"] == "quit"
+
     def test_contains_all_static_phrases(self):
         static_phrases = {
             "quit": "quit",
+            "exit": "quit",
             "pause": "pause",
             "play": "play",
             "f mode": "fmode_toggle",
@@ -100,11 +105,13 @@ class TestVoiceCommands:
 
     def test_primary_nav_phrases_both_orders(self):
         """The primary player joins the grid for navigation only, in either
-        order — and bare "next"/"previous" reach it via the active side."""
-        assert VOICE_COMMANDS["primary next"] == "primary_next"
-        assert VOICE_COMMANDS["next primary"] == "primary_next"
-        assert VOICE_COMMANDS["primary previous"] == "primary_prev"
-        assert VOICE_COMMANDS["previous primary"] == "primary_prev"
+        order; "main" is a synonym for "primary". Bare "next"/"previous" reach
+        it via the active side."""
+        for word in ("primary", "main"):
+            assert VOICE_COMMANDS[f"{word} next"] == "primary_next"
+            assert VOICE_COMMANDS[f"next {word}"] == "primary_next"
+            assert VOICE_COMMANDS[f"{word} previous"] == "primary_prev"
+            assert VOICE_COMMANDS[f"previous {word}"] == "primary_prev"
 
     def test_mode_named_navigation_both_orders(self):
         """A mode's name + next/previous (either order) navigates its player:
