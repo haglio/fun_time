@@ -311,7 +311,7 @@ def render_reference_html() -> str:
     works with Qt's limited rich-text engine.
     """
     # No heading or subtitle — the popup's title lives on the window chrome
-    # ("Hotkeys & Voice Commands"), so it opens straight into the first section.
+    # ("Hotkeys & Voice Commands Reference"), so it opens straight into the first section.
     parts: list[str] = [
         f'<body style="background:{_BG};color:{_TEXT};'
         'font-family:\'Segoe UI\',sans-serif;font-size:10pt">',

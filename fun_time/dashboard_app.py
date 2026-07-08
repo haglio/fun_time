@@ -438,7 +438,7 @@ def _draw_waveform_pixmap(shape: str, w: int, h: int) -> QPixmap:
 _ACTION_TOOLTIPS: dict[str, str] = {
     QUIT_BUTTON: "Quit",
     OMNIPAUSE_TOGGLE: "Pause all",
-    HELP_REFERENCE: "Hotkeys & Voice Commands",
+    HELP_REFERENCE: "Hotkeys & Voice Commands Reference",
     PORTRAIT_PREV: "Previous portrait clip",
     PORTRAIT_NEXT: "Next portrait clip",
     PORTRAIT_LOCK: "Lock / unlock portrait",
@@ -979,13 +979,13 @@ class ReferenceDialog(QDialog):
     """Modeless popup listing every hotkey and voice command.
 
     Carries no in-window heading — its content title lives on the window chrome
-    ("Hotkeys & Voice Commands") — and is sized/placed by the caller to fill the
+    ("Hotkeys & Voice Commands Reference") — and is sized/placed by the caller to fill the
     Random Favs Browser's rect.
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Hotkeys & Voice Commands")
+        self.setWindowTitle("Hotkeys & Voice Commands Reference")
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.WindowStaysOnTopHint

@@ -744,7 +744,7 @@ def test_reference_dialog_window_title_is_the_content_title():
 
     dialog = ReferenceDialog()
     try:
-        assert dialog.windowTitle() == "Hotkeys & Voice Commands"
+        assert dialog.windowTitle() == "Hotkeys & Voice Commands Reference"
     finally:
         dialog.close()
 
