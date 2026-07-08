@@ -139,6 +139,25 @@ for _label, _value in _EXTREMES.items():
     for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
         VOICE_COMMANDS[f"{_label} {_prefix}"] = f"{_cmd_prefix}_{_value}"
 
+# Nau's video speed by spoken multiplier, routed to Nau (the video the user
+# sees) when Nau drives the OSR2.  Encoded as percent-of-normal so the command
+# name stays integer: "half speed" -> nau_speed_50 -> 0.5x.
+_NAU_SPEED_MULTIPLIERS: dict[str, int] = {
+    "quarter speed": 25,
+    "half speed": 50,
+    "three quarter speed": 75,
+    "normal speed": 100,
+    "one and a half speed": 150,
+    "double speed": 200,
+}
+for _phrase, _pct in _NAU_SPEED_MULTIPLIERS.items():
+    VOICE_COMMANDS[_phrase] = f"nau_speed_{_pct}"
+
+# "min speed"/"max speed" drive whichever engine currently owns the OSR2 (Nau's
+# video or Genau's strokes); the amp/center extremes above stay Genau-only.
+VOICE_COMMANDS["min speed"] = "speed_min"
+VOICE_COMMANDS["max speed"] = "speed_max"
+
 # Spoken metadata filters — "portrait beta gamma", "alpha form", "clear portrait" —
 # generated from the library's action vocabulary (see fun_time.filter_vocab).  The
 # guard keeps a future act from silently shadowing an existing phrase.

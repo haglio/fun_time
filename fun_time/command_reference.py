@@ -74,6 +74,16 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Next video", ("]",), ("primary_next",)),
             _Row("Nudge back 10 seconds", ("-",), ("primary_nudge_prev",)),
             _Row("Nudge forward 10 seconds", ("=",), ("primary_nudge_next",)),
+            _Row(
+                "Set video speed (0.25×–2×; the funscript follows)",
+                (),
+                (
+                    "speed_min", "speed_max",
+                    "nau_speed_25", "nau_speed_50", "nau_speed_75",
+                    "nau_speed_100", "nau_speed_150", "nau_speed_200",
+                ),
+                ("min speed", "half speed", "normal speed", "one and a half speed", "double speed", "max speed"),
+            ),
             _Row("Cycle through versions of the current video", ("V",), ("nau_cycle_version",)),
             _Row(
                 "Toggle viewing full-length vs short content",
@@ -187,7 +197,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Center up / down", ("O", "U"), ("genau_center_up", "genau_center_down")),
             _Row("Set center", (), (), ("min center", "max center", "center 0–100")),
             _Row("Speed up / down", ("L", "J"), ("genau_speed_up", "genau_speed_down")),
-            _Row("Set speed", (), (), ("min speed", "max speed", "speed 0–100")),
+            _Row("Set speed", (), (), ("speed 0–100",)),
             _Row("Previous waveform shape", (), ("genau_cycle_shape_prev",)),
             _Row("Next waveform shape", (",",), ("genau_cycle_shape",)),
             _Row("Previous Genau clip", ("M",), ("genau_prev_clip",)),

@@ -125,14 +125,63 @@ _GENAU_CMD_MAP = {
 }
 
 
-# The j/l speed keys tune the primary video's playback rate whenever Nau owns
-# the display (nau and hybrid): Nau drives its funscript off mpv's clock, so
-# slowing or speeding the video scales the script with it. In genau mode Nau is
-# hidden, so they fall back to Genau's own stroke rate.
-_SPEED_COMMANDS = {
+# Speed control routes to whichever engine currently drives the OSR2 (see
+# _speed_target): Genau's stroke rate, or Nau's own video playback rate (whose
+# mpv clock scales the funscript along with it).  Relative up/down and the
+# min/max extremes both engines understand; an absolute multiplier ("half
+# speed") is a Nau-video concept, so it only lands when Nau is the one driving.
+_SPEED_RELATIVE = {
     "genau_speed_down": "SPEED_DOWN",
     "genau_speed_up": "SPEED_UP",
 }
+_SPEED_EXTREMES = {
+    # command -> (nau command, genau command)
+    "speed_min": ("SET_SPEED min", "SPEED 0"),
+    "speed_max": ("SET_SPEED max", "SPEED 100"),
+}
+
+
+def _parse_nau_speed(command: str) -> str | None:
+    """'nau_speed_150' -> 'SET_SPEED 1.5' (percent-of-normal -> multiplier)."""
+    prefix = "nau_speed_"
+    if not command.startswith(prefix):
+        return None
+    try:
+        pct = int(command[len(prefix):])
+    except ValueError:
+        return None
+    return f"SET_SPEED {pct / 100:g}"
+
+
+def _speed_engine_commands(command: str) -> tuple[str | None, str | None] | None:
+    """Map a speed command to (nau_cmd, genau_cmd), or None if it is not one.
+
+    A ``None`` side means that engine has no equivalent and ignores the command
+    (the absolute multiplier is Nau-only).
+    """
+    if command in _SPEED_RELATIVE:
+        keyword = _SPEED_RELATIVE[command]
+        return keyword, keyword
+    if command in _SPEED_EXTREMES:
+        return _SPEED_EXTREMES[command]
+    nau_cmd = _parse_nau_speed(command)
+    if nau_cmd is not None:
+        return nau_cmd, None
+    return None
+
+
+def _speed_target(state: BridgeState, config: BridgeConfig) -> str:
+    """Which engine speed control drives right now: the current OSR2 driver.
+
+    genau mode -> 'genau'; nau mode -> 'nau'; hybrid -> whichever is scripting
+    the OSR2 this moment (Nau's funscript while active, else Genau) — the same
+    per-stretch handoff the dispatch loop applies to the T-Code itself.
+    """
+    if not genau_active(state.primary_mode):
+        return "nau"
+    if not nau_displays(state.primary_mode):
+        return "genau"
+    return "nau" if read_nau_status(config.nau_status_file).funscript_driving else "genau"
 
 
 _NAU_CMD_MAP = {
@@ -508,12 +557,14 @@ def dispatch_command(
         _toggle_genau_enabled(genau_enabled_path(config.state_dir))
         return state, ops
 
-    if command in _SPEED_COMMANDS:
-        keyword = _SPEED_COMMANDS[command]
-        if nau_displays(state.primary_mode):
-            config.nau_cmd_file.write_text(keyword, encoding="utf-8")
-        elif genau_active(state.primary_mode):
-            config.genau_cmd_file.write_text(keyword, encoding="utf-8")
+    speed = _speed_engine_commands(command)
+    if speed is not None:
+        nau_cmd, genau_cmd = speed
+        target = _speed_target(state, config)
+        if target == "nau" and nau_cmd is not None:
+            config.nau_cmd_file.write_text(nau_cmd, encoding="utf-8")
+        elif target == "genau" and genau_cmd is not None:
+            config.genau_cmd_file.write_text(genau_cmd, encoding="utf-8")
         return state, ops
 
     if command in _GENAU_CMD_MAP:

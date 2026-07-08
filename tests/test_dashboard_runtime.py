@@ -388,3 +388,9 @@ def test_read_nau_status_defaults_funscript_resting_to_false(tmp_path: Path):
     assert read_nau_status(tmp_path / "missing.txt").funscript_resting is False
 
 
+def test_funscript_driving_is_scripted_and_not_resting():
+    assert NauStatus(has_funscript=True, funscript_resting=False).funscript_driving is True
+    assert NauStatus(has_funscript=True, funscript_resting=True).funscript_driving is False
+    assert NauStatus(has_funscript=False).funscript_driving is False
+
+

@@ -91,6 +91,13 @@ class NauStatus:
     has_funscript: bool = False
     funscript_resting: bool = False
 
+    @property
+    def funscript_driving(self) -> bool:
+        """True when the funscript is actively driving the OSR2 — scripted and
+        not resting.  The moment-to-moment hybrid handoff signal: whoever this
+        points to (Nau's funscript, else Genau) also owns speed control."""
+        return self.has_funscript and not self.funscript_resting
+
 
 def read_nau_status(path: Path) -> NauStatus:
     if not path.exists():
