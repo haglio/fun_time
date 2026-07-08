@@ -677,8 +677,10 @@ def build_dashboard_scene(
                 DashboardTextItem("v", layout.hybrid_genau_amp_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.amp_at_min else COLOR_TEXT),
                 DashboardTextItem("^", layout.hybrid_genau_ctr_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.ctr_at_max else COLOR_TEXT),
                 DashboardTextItem("v", layout.hybrid_genau_ctr_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.ctr_at_min else COLOR_TEXT),
-                DashboardTextItem("^", layout.hybrid_genau_spd_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.spd_at_max else COLOR_TEXT),
-                DashboardTextItem("v", layout.hybrid_genau_spd_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.spd_at_min else COLOR_TEXT),
+                # Hybrid SPD drives Nau's video or Genau per-stretch, so it is
+                # never greyed by Genau's own limits (unlike amp/center above).
+                DashboardTextItem("^", layout.hybrid_genau_spd_up, font=_font_ui_tiny, color=COLOR_TEXT),
+                DashboardTextItem("v", layout.hybrid_genau_spd_down, font=_font_ui_tiny, color=COLOR_TEXT),
                 DashboardTextItem("AMP", layout.hybrid_genau_amp_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("CTR", layout.hybrid_genau_ctr_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("SPD", layout.hybrid_genau_spd_label, font=_font_ui_tiny, rotation=90),
@@ -805,8 +807,12 @@ def build_dashboard_scene(
                     *(() if _genau.amp_at_min else ((GENAU_AMP_DOWN, layout.hybrid_genau_amp_down),)),
                     *(() if _genau.ctr_at_max else ((GENAU_CTR_UP, layout.hybrid_genau_ctr_up),)),
                     *(() if _genau.ctr_at_min else ((GENAU_CTR_DOWN, layout.hybrid_genau_ctr_down),)),
-                    *(() if _genau.spd_at_max else ((GENAU_SPD_UP, layout.hybrid_genau_spd_up),)),
-                    *(() if _genau.spd_at_min else ((GENAU_SPD_DOWN, layout.hybrid_genau_spd_down),)),
+                    # Speed routes per-stretch in hybrid — to Nau's video on a
+                    # scripted stretch, to Genau otherwise — so these stay live
+                    # regardless of Genau's own limits (unlike amp/center, which
+                    # only ever drive Genau).
+                    (GENAU_SPD_UP, layout.hybrid_genau_spd_up),
+                    (GENAU_SPD_DOWN, layout.hybrid_genau_spd_down),
                     (GENAU_TOGGLE_AUTO, layout.genau_takeover),
                     (GENAU_CRUISE, layout.hybrid_cruise),
                     (GENAU_SHAPE, layout.genau_shape),
