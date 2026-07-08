@@ -431,6 +431,18 @@ class TestResolveActiveSideCommand:
         assert resolve_active_side_command("primary_next", 3) == "primary_next"
         assert resolve_active_side_command("portrait_lock", 3) == "portrait_lock"
 
+    def test_active_nav_targets_primary_when_primary_is_active(self):
+        """The primary (slot 1) joins the active-side feature for nav only."""
+        assert resolve_active_side_command("active_next", 1) == "primary_next"
+        assert resolve_active_side_command("active_prev", 1) == "primary_prev"
+
+    def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
+        """Primary has no lock/weird/cycle, so a bare satellite-only command
+        while it is active resolves to nothing (unchanged → a downstream no-op)."""
+        assert resolve_active_side_command("active_lock_on", 1) == "active_lock_on"
+        assert resolve_active_side_command("active_trash", 1) == "active_trash"
+        assert resolve_active_side_command("active_cycle_seed", 1) == "active_cycle_seed"
+
 
 class TestDispatchLoopRunner:
     def test_dispatches_dashboard_command(self, tmp_path):

@@ -512,14 +512,24 @@ def test_landscape_command_sets_active_side_to_landscape(tmp_path: Path):
     assert new_state.active_side == 3
 
 
-def test_non_side_command_leaves_active_side_unchanged(tmp_path: Path):
-    """Primary/mode/genau commands must not disturb the remembered side."""
+def test_primary_nav_sets_active_side_to_primary(tmp_path: Path):
+    """Navigating the primary (Nau) makes it the active player (slot 1), so bare
+    'next'/'previous' then drive it too."""
     config = _make_config(tmp_path)
-    state = _make_state(active_side=3)
 
-    new_state, _ops = dispatch_command("primary_next", state, config)
+    for command in ("primary_next", "primary_prev"):
+        new_state, _ops = dispatch_command(command, _make_state(active_side=3), config)
+        assert new_state.active_side == 1, command
 
-    assert new_state.active_side == 3
+
+def test_nudge_and_mode_commands_leave_active_side_unchanged(tmp_path: Path):
+    """Only next/prev nav marks the active player: nudges, mode, and genau
+    commands must not disturb the remembered side."""
+    config = _make_config(tmp_path)
+
+    for command in ("primary_nudge_next", "primary_nudge_prev", "hybrid_activate"):
+        new_state, _ops = dispatch_command(command, _make_state(active_side=3), config)
+        assert new_state.active_side == 3, command
 
 
 # --- quarter_button ---

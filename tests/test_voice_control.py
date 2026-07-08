@@ -98,6 +98,14 @@ class TestVoiceCommands:
                 assert VOICE_COMMANDS[f"{side} {word}"] == target  # side first
                 assert VOICE_COMMANDS[f"{word} {side}"] == target  # side last
 
+    def test_primary_nav_phrases_both_orders(self):
+        """The primary player joins the grid for navigation only, in either
+        order — and bare "next"/"previous" reach it via the active side."""
+        assert VOICE_COMMANDS["primary next"] == "primary_next"
+        assert VOICE_COMMANDS["next primary"] == "primary_next"
+        assert VOICE_COMMANDS["primary previous"] == "primary_prev"
+        assert VOICE_COMMANDS["previous primary"] == "primary_prev"
+
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "genau_amp_50"
         assert VOICE_COMMANDS["amp zero"] == "genau_amp_0"

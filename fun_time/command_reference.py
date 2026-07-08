@@ -131,8 +131,18 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 (),
                 ("active_lock_on", "active_lock_off"),
             ),
-            _Row("Previous clip on the active side", (), ("active_prev",)),
-            _Row("Next clip on the active side", (), ("active_next",)),
+            _Row(
+                "Previous clip on the active player — primary, portrait, or "
+                "landscape, whichever you last navigated",
+                (),
+                ("active_prev",),
+            ),
+            _Row(
+                "Next clip on the active player — primary, portrait, or "
+                "landscape, whichever you last navigated",
+                (),
+                ("active_next",),
+            ),
             _Row("Mark the active side's clip as weird", (), ("active_trash",)),
             _Row("Cycle action — same subject(s) & scene, another act", (), ("active_cycle_action",)),
             _Row("Cycle seed — same config, different subject", (), ("active_cycle_seed",)),
