@@ -5,7 +5,7 @@ from pathlib import Path
 
 LABEL_PRIMARY_NAU = "Nau"
 LABEL_PRIMARY_GENAU = "Genau"
-LABEL_PRIMARY_HYBRID = "Hybrid"
+LABEL_PRIMARY_HYBRID = "Hybrid Nau+Genau"
 LABEL_PORTRAIT_VLC = "Portrait\nAI VLC"
 LABEL_LANDSCAPE_VLC = "Landscape AI VLC"
 LABEL_OSR2 = "OSR2"
