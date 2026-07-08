@@ -200,17 +200,37 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
 )
 
 
+# vosk can't hear "nau"/"genau", so mode-named phrases use the mode-activation
+# sound-alikes as their recognizer form.  Show the friendly mode name in the
+# reference instead of the raw sound-alike (e.g. "nau mode next", not "now mode
+# next").  The sound-alikes only appear inside these derived nav phrases — the
+# mode-activation rows themselves render via voice_display — so a plain replace
+# is safe.
+_VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
+    ("go now", "genau"),
+    ("now mode", "nau mode"),
+)
+
+
+def friendly_voice(phrase: str) -> str:
+    """Rewrite a recognizer phrase's vosk sound-alikes to the friendly names."""
+    for raw, nice in _VOICE_DISPLAY_ALIASES:
+        phrase = phrase.replace(raw, nice)
+    return phrase
+
+
 def _voice_for(commands: tuple[str, ...]) -> tuple[str, ...]:
     """Spoken phrases for *commands*, listed in command order.
 
     Phrases follow the order their commands appear in the row — so the Say
     column tracks the label (e.g. on before off, up before down) — with each
-    command's own synonyms sorted among themselves.
+    command's own synonyms sorted among themselves.  Sound-alike phrases are
+    shown under their friendly mode name (see :func:`friendly_voice`).
     """
     by_command: dict[str, list[str]] = {}
     for phrase, cmd in VOICE_COMMANDS.items():
         if cmd in commands:
-            by_command.setdefault(cmd, []).append(phrase)
+            by_command.setdefault(cmd, []).append(friendly_voice(phrase))
     result: list[str] = []
     for cmd in commands:
         result.extend(sorted(by_command.get(cmd, [])))
