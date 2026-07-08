@@ -65,7 +65,11 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Premiere — (re)load Portrait/Landscape newest-first", ("P",), ("recency_order_refresh",)),
             _Row("Disable voice control", ("Backspace",), ("voice_toggle", "voice_off")),
             _Row("Start / stop broker", ("B",), ("broker_panel", "broker_start", "broker_stop")),
-            _Row("Show this hotkeys & voice reference", (), ("help_reference",)),
+            _Row(
+                "Open / close this hotkeys & voice reference",
+                (),
+                ("help_reference", "help_reference_close"),
+            ),
         ),
     ),
     (
@@ -306,13 +310,11 @@ def render_reference_html() -> str:
     Uses only inline style attributes (no ``<style>`` block) so the markup
     works with Qt's limited rich-text engine.
     """
-    # No in-window heading — the popup's title lives on the window chrome
-    # ("Hotkeys & Voice Commands"), so repeating it here would be redundant.
+    # No heading or subtitle — the popup's title lives on the window chrome
+    # ("Hotkeys & Voice Commands"), so it opens straight into the first section.
     parts: list[str] = [
         f'<body style="background:{_BG};color:{_TEXT};'
         'font-family:\'Segoe UI\',sans-serif;font-size:10pt">',
-        f'<p style="color:{_MUTED};margin:0 0 12px 0">'
-        "Global while Fun Time is running and not OmniPaused.</p>",
     ]
     for section in build_reference_sections():
         parts.append(

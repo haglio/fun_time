@@ -876,27 +876,28 @@ class TestDispatchLoopRunner:
         recv_sock.close()
         assert data.decode("utf-8") == "portrait_lock"
 
-    def test_help_reference_sends_press_but_does_not_dispatch(self, tmp_path):
-        """The reference popup is a dashboard-UI concern: the loop echoes the
-        command as a press (the dashboard opens the popup off it) and dispatches
-        nothing — no VLC calls, no shared-state churn."""
-        recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        recv_sock.bind(("127.0.0.1", 0))
-        recv_sock.settimeout(1.0)
-        port = recv_sock.getsockname()[1]
-        (tmp_path / "dashboard_press_port.txt").write_text(str(port), encoding="utf-8")
+    def test_help_reference_commands_send_press_but_do_not_dispatch(self, tmp_path):
+        """The reference popup is a dashboard-UI concern: the loop echoes each
+        command (toggle and close) as a press (the dashboard acts on it) and
+        dispatches nothing — no VLC calls, no shared-state churn."""
+        for command in ("help_reference", "help_reference_close"):
+            recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            recv_sock.bind(("127.0.0.1", 0))
+            recv_sock.settimeout(1.0)
+            port = recv_sock.getsockname()[1]
+            (tmp_path / "dashboard_press_port.txt").write_text(str(port), encoding="utf-8")
 
-        runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
-        runner._last_sync = float("inf")
-        (tmp_path / "dashboard_cmd.txt").write_text("help_reference", encoding="utf-8")
+            runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
+            runner._last_sync = float("inf")
+            (tmp_path / "dashboard_cmd.txt").write_text(command, encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            runner.tick()
+            with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+                runner.tick()
 
-        mock_dispatch.assert_not_called()
-        data, _ = recv_sock.recvfrom(256)
-        recv_sock.close()
-        assert data.decode("utf-8") == "help_reference"
+            mock_dispatch.assert_not_called()
+            data, _ = recv_sock.recvfrom(256)
+            recv_sock.close()
+            assert data.decode("utf-8") == command
 
     def test_udp_press_skipped_when_no_port_file(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
