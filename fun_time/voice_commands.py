@@ -33,8 +33,8 @@ VOICE_COMMANDS: dict[str, str] = {
     "hybrid mode": "hybrid_activate",
     "start broker": "broker_start",
     "stop broker": "broker_stop",
-    "next primary": "primary_next",
-    "previous primary": "primary_prev",
+    # "primary next" / "next primary" are generated with the satellite grid
+    # below (the primary joins the active-side feature for navigation).
     "skip": "primary_nudge_next",
     "back": "primary_nudge_prev",
     "browse": "open_file_dialog",
@@ -90,6 +90,14 @@ for _act_word, _act in _SATELLITE_ACTIONS.items():
         _sided = f"{_side}_{_act}"
         VOICE_COMMANDS[f"{_side} {_act_word}"] = _sided
         VOICE_COMMANDS[f"{_act_word} {_side}"] = _sided
+
+# The primary (Nau) player joins the grid for navigation ONLY — "primary next"
+# / "next primary" (either order) — since it has no lock/weird/cycle.  Bare
+# "next"/"previous" also reach it whenever it was the last player navigated
+# (the active side resolves to the primary then).
+for _nav_word, _nav in {"next": "next", "previous": "prev"}.items():
+    VOICE_COMMANDS[f"primary {_nav_word}"] = f"primary_{_nav}"
+    VOICE_COMMANDS[f"{_nav_word} primary"] = f"primary_{_nav}"
 
 _NUMBER_WORDS: dict[str, int] = {
     "zero": 0, "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,

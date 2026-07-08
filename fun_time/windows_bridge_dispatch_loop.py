@@ -63,16 +63,23 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 
 
 def resolve_active_side_command(command: str, active_side: int) -> str:
-    """Rewrite a side-agnostic ``active_*`` command onto the active satellite.
+    """Rewrite a side-agnostic ``active_*`` command onto the active player.
 
-    ``active_lock_on`` becomes ``portrait_lock_on`` or ``landscape_lock_on``
-    depending on which side was most recently addressed; every other command
-    (already side-specific, or unrelated) passes through unchanged.
+    ``active_next``/``active_prev`` follow the last player navigated — primary
+    (Nau, slot 1), portrait (2), or landscape (3).  The other actions (lock,
+    weird, cycle) exist only on the satellites, so while the primary is active
+    they resolve to nothing — returned unchanged, which is a no-op downstream.
+    Every non-``active_`` command passes through unchanged.
     """
     if not command.startswith("active_"):
         return command
+    action = command[len("active_"):]
+    if active_side == 1:  # primary (Nau) participates in navigation only
+        if action in ("next", "prev"):
+            return f"primary_{action}"
+        return command
     prefix = "portrait_" if active_side == 2 else "landscape_"
-    return prefix + command[len("active_"):]
+    return prefix + action
 
 
 def expand_both_command(command: str) -> list[str]:

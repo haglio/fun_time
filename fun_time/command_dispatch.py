@@ -59,9 +59,10 @@ class BridgeState:
     f_mode_enabled: bool = False
     omni_paused: bool = False
     recency_order: bool = False
-    # The satellite most recently addressed (2=portrait, 3=landscape). Any
-    # portrait_/landscape_ command — voice or keyboard — updates it, and the
-    # side-agnostic "active_*" commands resolve against it.
+    # The player most recently navigated (1=primary/Nau, 2=portrait,
+    # 3=landscape). Any portrait_/landscape_ command, or a primary next/prev,
+    # updates it; the side-agnostic "active_*" commands resolve against it —
+    # nav (next/prev) reaches all three, the satellite-only actions only 2/3.
     active_side: int = 2
     # Per-VLC metadata filter queries ("" = no filter). Persisted in the shared
     # state file so they survive the dispatch loop's per-tick state resync and
@@ -373,11 +374,18 @@ def _cycle_variant(
 
 
 def _command_side(command: str) -> int | None:
-    """The satellite slot a portrait_/landscape_ command targets, else None."""
+    """The player slot a command marks as active: 1=primary, 2=portrait,
+    3=landscape — or None if it addresses no player.
+
+    The primary (Nau) player only becomes active through its own next/prev
+    navigation; it has no lock/weird/cycle, so nothing else selects it.
+    """
     if command.startswith("portrait_"):
         return 2
     if command.startswith("landscape_"):
         return 3
+    if command in ("primary_next", "primary_prev"):
+        return 1
     return None
 
 
