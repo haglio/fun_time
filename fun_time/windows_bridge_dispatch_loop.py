@@ -445,14 +445,21 @@ class DispatchLoopRunner:
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in remaining:
             if op.op == "show_role":
+                # Restore (un-minimize) rather than SW_SHOW: the idle primary
+                # player is parked by minimizing it (keeps its taskbar button),
+                # so bringing it back is a restore.  No-activate — activate_role
+                # handles focus — and DWM transitions are disabled, so it's
+                # instant.
                 hwnd = self._resolve_role(op.key)
                 if hwnd:
-                    show_window(hwnd)
+                    restore_window(hwnd, activate=False)
                 continue
             if op.op == "hide_role":
+                # Minimize instead of SW_HIDE so the window keeps its taskbar
+                # button (running indicator) the whole session.
                 hwnd = self._resolve_role(op.key)
                 if hwnd:
-                    hide_window(hwnd)
+                    minimize_window(hwnd, activate=False)
                 continue
             if op.op == "activate_role":
                 if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":

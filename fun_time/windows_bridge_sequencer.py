@@ -25,8 +25,9 @@ from .runtime_flow import write_flag_file
 from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
 from .window_roles import role_topmost
 from .win32 import (
+    disable_window_transitions,
     find_window_by_pid,
-    hide_window,
+    minimize_window,
     move_window,
     set_always_on_top,
     wait_for_window,
@@ -108,8 +109,15 @@ def _apply_startup_window_state(
     for role, hwnd in role_hwnds.items():
         if hwnd:
             set_always_on_top(hwnd, role_topmost(role, "nau"))
+    # The primary slot swaps Nau/Genau by minimizing the idle one (keeps its
+    # taskbar button) and restoring the active one.  Force-disable both windows'
+    # DWM transitions first so those minimize/restores are instant — no visible
+    # animation.  Startup mode is nau, so Genau starts minimized.
+    for hwnd in (nau_hwnd, genau_hwnd):
+        if hwnd:
+            disable_window_transitions(hwnd)
     if genau_hwnd:
-        hide_window(genau_hwnd)
+        minimize_window(genau_hwnd, activate=False)
     return role_hwnds
 
 

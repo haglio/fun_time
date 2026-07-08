@@ -1007,10 +1007,10 @@ class TestModeSwitchVisibility:
         calls: list[tuple[str, int]] = []
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_window",
-                   side_effect=lambda h: calls.append(("show", h))), \
-             patch("fun_time.windows_bridge_dispatch_loop.hide_window",
-                   side_effect=lambda h: calls.append(("hide", h))), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window",
+                   side_effect=lambda h, **kw: calls.append(("show", h))), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window",
+                   side_effect=lambda h, **kw: calls.append(("hide", h))), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window",
                    side_effect=lambda h: calls.append(("activate", h))), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
@@ -1121,13 +1121,15 @@ class TestResolveRole:
                    side_effect=lookup_pid):
             assert runner._resolve_role("nau") == NAU_HWND
 
-        # Nau is now hidden: every lookup fails, but the cache still answers,
-        # and a show_role op dispatched for it reaches the cached hwnd.
+        # Nau is now minimized: the pid/title lookups are mocked to fail, but
+        # the cache still answers, and a show_role op reaches the cached hwnd
+        # (show_role restores rather than SW_SHOWs — the idle player is parked
+        # by minimizing it, so bringing it back is a restore).
         shown: list[int] = []
         show_op = WindowOp(op="show_role", key="nau")
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_window", side_effect=shown.append), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: shown.append(h)), \
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
             assert runner._resolve_role("nau") == NAU_HWND
@@ -1978,18 +1980,17 @@ class TestWatchTracking:
 
 class TestSeededRoleHwnds:
     def test_startup_seed_lets_hidden_windows_be_shown_again(self, tmp_path):
-        """Startup hides the primary-slot windows (Nau, Genau) BEFORE the
-        dispatch loop ever resolves them, and hidden windows are invisible to
-        the pid/title lookups — so the runner must be seeded with the hwnds the
-        startup sequencer resolved while everything was still visible, or genau/
-        hybrid modes could never bring their windows back."""
+        """Startup parks the idle primary-slot window (Genau) BEFORE the dispatch
+        loop ever resolves it; with the pid/title lookups mocked to fail, the
+        runner must answer from the hwnds the startup sequencer seeded while
+        everything was visible, or genau/hybrid could never bring windows back."""
         runner = make_runner(
             tmp_path,
             role_hwnds={"genau": 6001, "nau": 2001},
         )
         shown: list[int] = []
 
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0),              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0),              patch("fun_time.windows_bridge_dispatch_loop.show_window", side_effect=shown.append):
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0),              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0),              patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: shown.append(h)):
             assert runner._resolve_role("genau") == 6001
             assert runner._resolve_role("nau") == 2001
             runner._dispatch("hybrid_activate")

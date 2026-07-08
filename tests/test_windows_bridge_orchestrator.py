@@ -393,7 +393,8 @@ class TestPostLoadingWindowState:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_sequencer.hide_window", side_effect=hide_calls.append), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **kw: hide_calls.append(h)), \
+             patch("fun_time.windows_bridge_sequencer.disable_window_transitions"), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)):
 
             run_python_orchestrated_bridge(
@@ -404,8 +405,8 @@ class TestPostLoadingWindowState:
                 project_dir=tmp_path,
             )
 
-        # nau startup mode: the inactive slot-mate (Genau) is hidden.
-        assert GENAU_HWND in hide_calls, f"Genau not hidden: {hide_calls}"
+        # nau startup mode: the inactive slot-mate (Genau) is minimized.
+        assert GENAU_HWND in hide_calls, f"Genau not minimized: {hide_calls}"
 
         # nau startup mode: every managed window is promoted to topmost, Nau
         # (hwnd 2020) included — it floats above the desktop like the primary

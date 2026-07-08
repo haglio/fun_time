@@ -93,7 +93,7 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -143,7 +143,7 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -191,7 +191,7 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -221,7 +221,7 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -254,7 +254,7 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -283,7 +283,7 @@ class TestNoActivateWindowDuringIntegration:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True))), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -309,7 +309,7 @@ class TestNoActivateWindowDuringIntegration:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True))), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -348,7 +348,7 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -396,7 +396,7 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -430,7 +430,7 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -468,7 +468,7 @@ class TestLoadingScreenStartup:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=track_move), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -510,7 +510,7 @@ class TestLoadingScreenStartup:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.hide_window"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -544,7 +544,8 @@ class TestPhase4Reveal:
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_map.get(title, 0)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=topmost_tracker), \
-             patch("fun_time.windows_bridge_sequencer.hide_window", side_effect=hide_calls.append), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **kw: hide_calls.append(h)), \
+             patch("fun_time.windows_bridge_sequencer.disable_window_transitions"), \
              patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", side_effect=vlc_http_cmd), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
