@@ -156,6 +156,16 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["one and a half speed"] == "nau_speed_150"
         assert VOICE_COMMANDS["double speed"] == "nau_speed_200"
 
+    def test_spoken_speed_ex_phrases_cover_every_stop(self):
+        assert VOICE_COMMANDS["speed point two five ex"] == "nau_speed_25"
+        assert VOICE_COMMANDS["speed one ex"] == "nau_speed_100"
+        assert VOICE_COMMANDS["speed one point two five ex"] == "nau_speed_125"
+        assert VOICE_COMMANDS["speed one point seven five ex"] == "nau_speed_175"
+        assert VOICE_COMMANDS["speed two ex"] == "nau_speed_200"
+
+    def test_reset_speed_snaps_to_normal(self):
+        assert VOICE_COMMANDS["reset speed"] == "nau_speed_100"
+
 
 class TestBuildGrammar:
     def test_returns_json_list_of_phrases_plus_unk(self):

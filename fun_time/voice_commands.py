@@ -155,6 +155,19 @@ _NAU_SPEED_MULTIPLIERS: dict[str, int] = {
 for _phrase, _pct in _NAU_SPEED_MULTIPLIERS.items():
     VOICE_COMMANDS[_phrase] = f"nau_speed_{_pct}"
 
+# The literal "speed <n> ex" form: "speed one ex" -> 1x, "speed one point five
+# ex" -> 1.5x, "speed point two five ex" -> 0.25x — every 0.25 stop.
+_NAU_SPEED_SPOKEN: dict[str, int] = {
+    "point two five": 25, "point five": 50, "point seven five": 75,
+    "one": 100, "one point two five": 125, "one point five": 150,
+    "one point seven five": 175, "two": 200,
+}
+for _spoken, _pct in _NAU_SPEED_SPOKEN.items():
+    VOICE_COMMANDS[f"speed {_spoken} ex"] = f"nau_speed_{_pct}"
+
+# "reset speed" snaps the video back to 1x.
+VOICE_COMMANDS["reset speed"] = "nau_speed_100"
+
 # "min speed"/"max speed" drive whichever engine currently owns the OSR2 (Nau's
 # video or Genau's strokes); the amp/center extremes above stay Genau-only.
 VOICE_COMMANDS["min speed"] = "speed_min"
