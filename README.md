@@ -189,7 +189,7 @@ The `--check` mode is the fastest way to validate config and path wiring before 
 
 Fun Time is driven by global hotkeys and, optionally, spoken voice commands. While Fun Time is running and not OmniPaused, the hotkeys are global — they fire regardless of which window is focused.
 
-The complete, always-current list of keys and spoken phrases lives in the app. Click the **?** button on the dashboard (tooltip "Hotkeys & Voice Commands") to open or close the reference popup — or say "help", "reference", "hotkeys", or "voice commands" to toggle it, and "close" + any of those to dismiss it. It is generated directly from the source mappings below, so it can never drift from what the keys and voice grammar actually do:
+The complete, always-current list of keys and spoken phrases lives in the app. Click the **?** button on the dashboard (tooltip "Hotkeys & Voice Commands Reference") to open or close the reference popup — or say "help", "reference", "hotkeys", or "voice commands" to toggle it, and "close" + any of those to dismiss it. It is generated directly from the source mappings below, so it can never drift from what the keys and voice grammar actually do:
 
 - [`windows_bridge_hotkeys.ahk`](windows_bridge_hotkeys.ahk) — physical key → dispatch command
 - [`fun_time/voice_commands.py`](fun_time/voice_commands.py) — spoken phrase → dispatch command

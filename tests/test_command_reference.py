@@ -368,7 +368,7 @@ def test_render_reference_html_has_no_heading_or_subtitle():
     the first section."""
     html = render_reference_html()
     assert "<h2" not in html
-    assert "Hotkeys &amp; Voice Commands" not in html
+    assert "Hotkeys &amp; Voice Commands Reference" not in html
     assert "Global while Fun Time" not in html
 
 
