@@ -1086,9 +1086,8 @@ def test_nau_activate_deactivates_genau_and_raises_nau(tmp_path: Path):
         ("activate_role", "nau"),
         ("hide_role", "genau"),
     ]
-    # Nau reclaims the topmost band in nau mode — it floats above the desktop.
-    topmost_ops = [(op.key, op.value) for op in ops if op.op == "set_role_topmost"]
-    assert topmost_ops == [("nau", True)]
+    # The mode switch re-stacks the Nau/Genau pair for the new mode.
+    assert [op.op for op in ops if op.op == "restack_primary"] == ["restack_primary"]
 
 
 def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
@@ -1105,9 +1104,8 @@ def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
         ("activate_role", "genau"),
         ("hide_role", "nau"),
     ]
-    # Nau is hidden in genau mode and held out of the topmost band.
-    topmost_ops = [(op.key, op.value) for op in ops if op.op == "set_role_topmost"]
-    assert topmost_ops == [("nau", False)]
+    # The mode switch re-stacks the Nau/Genau pair for the new mode.
+    assert [op.op for op in ops if op.op == "restack_primary"] == ["restack_primary"]
 
 
 def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
@@ -1125,9 +1123,8 @@ def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
         ("show_role", "genau"),
         ("activate_role", "genau"),
     ]
-    # Nau stays non-topmost in hybrid so Genau's transparent HUD paints over it.
-    topmost_ops = [(op.key, op.value) for op in ops if op.op == "set_role_topmost"]
-    assert topmost_ops == [("nau", False)]
+    # The mode switch re-stacks the pair — Nau topmost with Genau's HUD above it.
+    assert [op.op for op in ops if op.op == "restack_primary"] == ["restack_primary"]
 
 
 def test_leaving_hybrid_reenables_nau_tcode(tmp_path: Path):

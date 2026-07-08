@@ -89,13 +89,13 @@ def _apply_startup_window_state(
 ) -> dict[str, int]:
     """Set the window state for the nau startup mode.
 
-    No window overlaps another anymore, so there is no z-order to manage: each
-    managed window gets its topmost flag from the shared ``role_topmost`` policy
-    for nau mode — the same policy omnipause and mode switches honor, so they
-    can never disagree.  In nau mode Nau floats topmost (above the desktop, like
-    the primary player always has) alongside every other managed window.  The
-    primary slot is arbitrated by visibility: startup mode is nau, so Nau is
-    shown and Genau starts hidden.
+    Each managed window gets its topmost flag from the shared ``role_topmost``
+    policy for nau mode — the same policy omnipause and mode switches honor, so
+    they can never disagree.  In nau mode Nau floats topmost (above the desktop,
+    like the primary player always has) alongside every other managed window,
+    and Genau starts hidden — so the Nau/Genau overlap that needs explicit
+    stacking in hybrid does not arise here; the primary slot is simply arbitrated
+    by visibility.
     """
     role_hwnds = {
         "portrait": portrait_hwnd,

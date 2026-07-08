@@ -42,6 +42,7 @@ from shared_ui.fonts import (
 from fun_time.config import LayoutConfig
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.vlc_actions import get_current_file_path
+from fun_time.win32 import is_window_topmost, set_always_on_top
 from fun_time.dashboard_actions import (
     BROKER_PANEL,
     CLIPPER_SAVE,
@@ -1229,6 +1230,22 @@ class DashboardWindow(QMainWindow):
             del self._pressed[aid]
         return active
 
+    def _sync_own_topmost(self, omni_paused: bool) -> None:
+        """Keep the dashboard's own topmost band in step with OmniPause.
+
+        The dashboard floats over the players via WindowStaysOnTopHint, but
+        OmniPause must free the desktop.  The orchestrator tries to drop it, yet
+        its lookup for this Qt window (whose pid differs from the launcher's)
+        intermittently fails, so the dashboard corrects its OWN band here using
+        its reliable handle: non-topmost while paused, topmost otherwise.  It is
+        drift correction — SetWindowPos runs only when the actual band differs
+        from the desired one, so a Qt re-assert of the hint is undone on the next
+        refresh with no flicker in the steady state.
+        """
+        desired_topmost = not omni_paused
+        if is_window_topmost(self._dash_hwnd) != desired_topmost:
+            set_always_on_top(self._dash_hwnd, desired_topmost)
+
     def _do_render(
         self,
         snapshot: DashboardSnapshot | None,
@@ -1237,6 +1254,10 @@ class DashboardWindow(QMainWindow):
     ) -> None:
         self._last_snapshot = snapshot
         self._last_genau_status = genau_status
+        # OmniPause must free the desktop; drop our own topmost while paused
+        # (the orchestrator's drop of this window is unreliable) and restore it
+        # after.  See _sync_own_topmost.
+        self._sync_own_topmost(snapshot is not None and snapshot.omni_paused)
         state_dir = self._app_config.dashboard_state_file.parent
         scene = build_dashboard_scene(
             self._preview_layout,

@@ -25,7 +25,6 @@ from .lock import build_lock_plan
 from .modes import collect_video_files
 from .provider_regen import regen_url_for_video
 from .mode_plan import genau_active, nau_displays
-from .window_roles import role_topmost
 from .filter_vocab import decode_filter_command
 from .runtime_flow import (
     apply_enter_omnipause,
@@ -632,40 +631,36 @@ def _primary_focus_ops(primary_mode: str) -> list[WindowOp]:
 
 
 def _primary_slot_ops(primary_mode: str) -> list[WindowOp]:
-    """Visibility + topmost ops for the primary-slot windows on a mode switch.
+    """Visibility + z-order ops for the primary-slot windows on a mode switch.
 
     The two players (Nau and Genau) share one screen rect; exactly the mode's
     player(s) are shown and the inactive slot-mate hidden.  The new window is
     shown and activated BEFORE the old one hides so focus never falls through
-    to another application.
-
-    Nau's topmost band is re-applied for the new mode: it floats topmost in nau
-    mode but drops UNDER Genau's HUD in hybrid (and stays non-topmost while
-    hidden in genau).  Without this, switching nau->hybrid would leave Nau
-    pinned above the transparent HUD and cover it.
+    to another application.  Finally the pair is re-stacked for the new mode
+    (``restack_primary``): Nau topmost, with Genau's HUD above it in hybrid.
+    Nau and Genau overlap, so their z-order is explicit — unlike every other
+    window, a plain topmost flag can't say "Genau above Nau, both on top."
     """
-    nau_topmost = WindowOp(
-        op="set_role_topmost", key="nau", value=role_topmost("nau", primary_mode),
-    )
+    restack = WindowOp(op="restack_primary")
     if primary_mode == "genau":
         return [
             WindowOp(op="show_role", key="genau"),
             WindowOp(op="activate_role", key="genau"),
-            nau_topmost,
             WindowOp(op="hide_role", key="nau"),
+            restack,
         ]
     if primary_mode == "hybrid":
         return [
             WindowOp(op="show_role", key="nau"),
-            nau_topmost,
             WindowOp(op="show_role", key="genau"),
             WindowOp(op="activate_role", key="genau"),
+            restack,
         ]
     return [
         WindowOp(op="show_role", key="nau"),
-        nau_topmost,
         WindowOp(op="activate_role", key="nau"),
         WindowOp(op="hide_role", key="genau"),
+        restack,
     ]
 
 
