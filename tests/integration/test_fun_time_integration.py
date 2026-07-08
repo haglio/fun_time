@@ -12,6 +12,7 @@ import pytest
 from fun_time.win32 import (
     find_window_by_title,
     is_process_alive,
+    is_window_minimized,
     is_window_topmost,
 )
 
@@ -116,70 +117,70 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
 
 
 def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integration_session: FunTimeIntegrationSession):
-    """The primary-slot players share one screen rect, so a mode switch
-    swaps window VISIBILITY: exactly the active mode's player is on screen
-    (find_window_by_title only sees visible windows — a hidden window's
-    lookup returns 0). Nau floats topmost whenever it owns the display (nau and
-    hybrid), so its video is above the desktop; in hybrid Genau's HUD is topmost
-    too, stacked above Nau."""
+    """The primary-slot players share one screen rect, so a mode switch swaps
+    which is on screen: the active mode's player is restored, the idle one
+    minimized (never hidden — both keep a taskbar button all session, so both
+    stay findable by title; is_window_minimized tells them apart). Nau floats
+    topmost whenever it owns the display (nau and hybrid), so its video is above
+    the desktop; in hybrid Genau's HUD is topmost too, stacked above Nau."""
     s = shared_integration_session
 
-    # nau mode: Nau visible AND topmost (it owns the whole display), Genau
-    # hidden.  The lookup is exact because 'Nau' is a substring of 'Genau'.
+    # nau mode: Nau restored AND topmost (it owns the whole display), Genau
+    # minimized.  The lookup is exact because 'Nau' is a substring of 'Genau'.
     s.wait_until(
         lambda: find_window_by_title("Nau", exact=True) != 0,
         timeout=12,
-        description="Nau window to be visible in nau mode",
+        description="Nau window to exist in nau mode",
     )
     nau_hwnd = find_window_by_title("Nau", exact=True)
     s.wait_until(
-        lambda: is_window_topmost(nau_hwnd),
+        lambda: is_window_topmost(nau_hwnd) and not is_window_minimized(nau_hwnd),
         timeout=5,
-        description="Nau to float topmost in nau mode",
+        description="Nau to be restored and topmost in nau mode",
     )
     s.wait_until(
-        lambda: find_window_by_title("Genau") == 0,
+        lambda: is_window_minimized(find_window_by_title("Genau")),
         timeout=12,
-        description="Genau window to be hidden in nau mode",
+        description="Genau window to be minimized in nau mode",
     )
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode", timeout=12)
 
     s.wait_until(
-        lambda: find_window_by_title("Nau", exact=True) == 0,
+        lambda: is_window_minimized(find_window_by_title("Nau", exact=True)),
         timeout=12,
-        description="Nau window to hide when Genau mode activates",
+        description="Nau window to minimize when Genau mode activates",
     )
     s.wait_until(
-        lambda: find_window_by_title("Genau") != 0,
+        lambda: not is_window_minimized(find_window_by_title("Genau")),
         timeout=12,
-        description="Genau window to become visible in genau mode",
+        description="Genau window to restore in genau mode",
     )
 
     s.write_dashboard_command("nau_activate")
     s.wait_for_new_log("Switched to nau mode", timeout=12)
 
     s.wait_until(
-        lambda: find_window_by_title("Nau", exact=True) != 0,
+        lambda: not is_window_minimized(find_window_by_title("Nau", exact=True)),
         timeout=12,
-        description="Nau window to reappear in nau mode",
+        description="Nau window to restore in nau mode",
     )
     s.wait_until(
-        lambda: find_window_by_title("Genau") == 0,
+        lambda: is_window_minimized(find_window_by_title("Genau")),
         timeout=12,
-        description="Genau window to hide again in nau mode",
+        description="Genau window to minimize again in nau mode",
     )
 
-    # hybrid mode: Nau stays VISIBLE and topmost (video above the desktop) with
+    # hybrid mode: Nau stays restored and topmost (video above the desktop) with
     # Genau's HUD promoted above it — BOTH in the topmost band.  This is the case
     # the nau-mode float must extend to, not break.
     s.write_dashboard_command("hybrid_activate")
     s.wait_for_new_log("Switched to hybrid mode", timeout=12)
     s.wait_until(
-        lambda: find_window_by_title("Nau", exact=True) != 0,
+        lambda: not is_window_minimized(find_window_by_title("Nau", exact=True)),
         timeout=12,
-        description="Nau window to stay visible in hybrid mode",
+        description="Nau window to stay restored in hybrid mode",
     )
     s.wait_until(
         lambda: is_window_topmost(find_window_by_title("Nau", exact=True)),

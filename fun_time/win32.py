@@ -14,6 +14,7 @@ _user32 = ctypes.windll.user32  # type: ignore[attr-defined]
 _ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
 _shell32 = ctypes.windll.shell32  # type: ignore[attr-defined]
 _kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+_dwmapi = ctypes.windll.dwmapi  # type: ignore[attr-defined]
 
 # AppUserModelID — must match the value set on the pinned taskbar shortcut.
 APP_USER_MODEL_ID = "FunTime.App"
@@ -291,6 +292,26 @@ def restore_window(hwnd: int, *, activate: bool = True) -> None:
     windows in sequence never yanks focus from one to the next.
     """
     _user32.ShowWindow(hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE)
+
+
+def disable_window_transitions(hwnd: int) -> None:
+    """Force-disable this window's DWM open/minimize/restore animations.
+
+    The primary-slot players (Nau, Genau) are swapped by minimizing the idle
+    one and restoring the active one, so both keep a taskbar button the whole
+    session (no reappearing-icon flash).  DWMWA_TRANSITIONS_FORCEDISABLED makes
+    that minimize/restore instantaneous — no fly-to-taskbar animation to see.
+    """
+    DWMWA_TRANSITIONS_FORCEDISABLED = 3
+    value = ctypes.wintypes.BOOL(1)  # TRUE
+    _dwmapi.DwmSetWindowAttribute(
+        hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, ctypes.byref(value), ctypes.sizeof(value)
+    )
+
+
+def is_window_minimized(hwnd: int) -> bool:
+    """True if the window is currently minimized (iconic)."""
+    return bool(_user32.IsIconic(hwnd))
 
 
 def send_key_to_window(hwnd: int, key: str) -> None:
