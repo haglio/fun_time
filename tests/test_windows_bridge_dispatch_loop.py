@@ -318,13 +318,13 @@ class TestExecuteWindowOps:
         assert remaining[0].op == "restore_all_topmost"
 
     def test_role_ops_returned_as_remaining(self):
-        """show_role/hide_role/activate_role/set_role_topmost resolve against the
-        runner's role cache, not window titles — execute_window_ops must hand
+        """show_role/hide_role/activate_role/restack_primary are handled against
+        the runner's role cache, not window titles — execute_window_ops must hand
         them back untouched.  Dropping them here silently broke mode switches
         once (the title-less ops fell through the title branch)."""
         ops = [
             WindowOp(op="show_role", key="nau"),
-            WindowOp(op="set_role_topmost", key="nau", value=True),
+            WindowOp(op="restack_primary"),
             WindowOp(op="activate_role", key="nau"),
             WindowOp(op="hide_role", key="genau"),
         ]
@@ -1168,16 +1168,20 @@ class TestModeDependentTopmost:
 
         assert {h for h, v in calls if v is True} == TOPMOST_HWNDS | {NAU_HWND}
 
-    def test_restore_all_topmost_keeps_nau_below_hud_in_hybrid(self, tmp_path):
-        """hybrid: Nau is VISIBLE yet held out of the TOPMOST band so it stays
-        under Genau's transparent HUD."""
+    def test_restore_all_topmost_stacks_genau_above_nau_in_hybrid(self, tmp_path):
+        """hybrid: Nau and Genau are BOTH topmost so the composite floats above
+        the desktop, and Nau is promoted BEFORE Genau so the HUD stacks over the
+        video."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(primary_mode="hybrid")
 
         calls = self._topmost_calls(runner, "_restore_all_topmost")
 
-        assert {h for h, v in calls if v is True} == TOPMOST_HWNDS
-        assert (NAU_HWND, False) in calls
+        promoted = [h for h, v in calls if v is True]
+        assert {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
+                NAU_HWND, GENAU_HWND} <= set(promoted)
+        # Nau promoted before Genau → Genau's HUD lands above Nau's video.
+        assert promoted.index(NAU_HWND) < promoted.index(GENAU_HWND)
 
 
 class TestHandleOpenFileDialog:

@@ -541,6 +541,60 @@ def test_dashboard_reveals_with_show_after_loading(cfg_path: Path):
         window.close()
 
 
+def test_dashboard_syncs_own_topmost_with_omnipause(cfg_path: Path):
+    """OmniPause must free the desktop, so the dashboard drops its OWN topmost
+    while paused (via its reliable handle, since the orchestrator's drop of this
+    Qt window is unreliable) and restores it after — drift-corrected, so it
+    never issues a redundant SetWindowPos."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        # Entering OmniPause while topmost drops the dashboard out of the band.
+        with patch("fun_time.dashboard_app.is_window_topmost", return_value=True), \
+             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+            window._sync_own_topmost(omni_paused=True)
+        mock_set.assert_called_once_with(window._dash_hwnd, False)
+
+        # Leaving OmniPause while non-topmost floats it back on top.
+        with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
+             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+            window._sync_own_topmost(omni_paused=False)
+        mock_set.assert_called_once_with(window._dash_hwnd, True)
+
+        # Already in the desired band → no redundant SetWindowPos (no flicker).
+        with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
+             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+            window._sync_own_topmost(omni_paused=True)
+        mock_set.assert_not_called()
+    finally:
+        window.close()
+
+
+def test_do_render_syncs_own_topmost_from_snapshot(cfg_path: Path):
+    """Every render drives the topmost sync off the snapshot's omni_paused, so
+    the dashboard's band stays correct even if Qt re-asserts its StaysOnTop."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        with patch.object(window, "_sync_own_topmost") as mock_sync:
+            window._do_render(None, frozenset())
+        mock_sync.assert_called_once_with(False)
+    finally:
+        window.close()
+
+
 def test_help_action_opens_dialog_locally_without_routing_command(cfg_path: Path):
     """Help is a pure UI concern — it opens a dialog and must not write a dispatch command."""
     from unittest.mock import MagicMock

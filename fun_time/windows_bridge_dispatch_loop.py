@@ -24,7 +24,7 @@ from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on, read_nau_status
 from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
-from .window_roles import MANAGED_ROLES, role_topmost
+from .window_roles import FIXED_TOPMOST_ROLES, MANAGED_ROLES, role_topmost
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -100,7 +100,7 @@ def execute_window_ops(ops: list[WindowOp], nau_pid: int) -> list[WindowOp]:
                       "disable_all_topmost", "restore_all_topmost",
                       "open_rfb_tab",
                       "show_role", "hide_role", "activate_role",
-                      "set_role_topmost"):
+                      "restack_primary"):
             remaining.append(op)
             continue
 
@@ -460,12 +460,11 @@ class DispatchLoopRunner:
                     if hwnd:
                         activate_window(hwnd)
                 continue
-            if op.op == "set_role_topmost":
+            if op.op == "restack_primary":
+                # Re-stack the overlapping Nau/Genau pair for the current mode.
                 # Not integration-guarded: SetWindowPos(HWND_TOPMOST) uses
                 # SWP_NOACTIVATE, so it changes only the z-band, never focus.
-                hwnd = self._resolve_role(op.key)
-                if hwnd:
-                    set_always_on_top(hwnd, op.value)
+                self._restack_primary_slot()
                 continue
             if op.op == "disable_all_topmost":
                 self._remove_all_topmost()
@@ -577,16 +576,44 @@ class DispatchLoopRunner:
                 set_always_on_top(hwnd, False)
 
     def _restore_all_topmost(self) -> None:
-        """Re-apply each window's topmost band for the current mode after omnipause.
+        """Re-apply the topmost bands for the current mode after omnipause.
 
-        Nau reclaims the topmost band in nau mode (floating above the desktop
-        like the primary player always has); in hybrid it stays non-topmost,
-        under Genau's HUD.  See :func:`role_topmost`.
+        The fixed windows (own rects) go straight back to topmost; the
+        overlapping Nau/Genau pair is re-stacked so Genau's HUD sits above Nau's
+        video in hybrid.  See :meth:`_restack_primary_slot`.
         """
-        for role in MANAGED_ROLES:
+        for role in FIXED_TOPMOST_ROLES:
             hwnd = self._resolve_role(role)
             if hwnd:
-                set_always_on_top(hwnd, role_topmost(role, self.state.primary_mode))
+                set_always_on_top(hwnd, True)
+        self._restack_primary_slot()
+
+    def _restack_primary_slot(self) -> None:
+        """Re-establish the Nau/Genau z-order for the current mode.
+
+        Nau and Genau share one screen rect — in hybrid Genau's transparent HUD
+        overlays Nau's video — so unlike every other window they OVERLAP and need
+        explicit stacking.  Demote both, then promote bottom-to-top so the last
+        promotion lands highest:
+
+          * nau mode   — promote Nau (Genau hidden).
+          * hybrid     — promote Nau, then Genau ABOVE it, so the HUD overlays
+                         the video and both float above the desktop.
+          * genau mode — promote Genau (Nau hidden).
+
+        Promoting Nau before Genau is what keeps the HUD over the video — the
+        demote-then-promote-in-order technique the old z_order module used.
+        """
+        mode = self.state.primary_mode
+        nau = self._resolve_role("nau")
+        genau = self._resolve_role("genau")
+        for hwnd in (nau, genau):
+            if hwnd:
+                set_always_on_top(hwnd, False)
+        if nau and role_topmost("nau", mode):
+            set_always_on_top(nau, True)
+        if genau and role_topmost("genau", mode):
+            set_always_on_top(genau, True)
 
     def _is_broker_alive(self) -> bool:
         hb = self.config.broker_heartbeat_file
