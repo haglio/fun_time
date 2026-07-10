@@ -116,9 +116,13 @@ def current_desktop_name() -> str:
 def pids_with_window_on_current_desktop() -> set[int]:
     """PIDs owning a top-level window on the calling thread's desktop.
 
-    On the hidden integration desktop these are exactly the session's own
-    processes, so a caller can kill them without ever touching the user's real
-    (input-desktop) session."""
+    The hidden integration desktop is shared: ``CreateDesktopW`` opens the
+    existing one whenever a previous run's processes still hold it, so this
+    returns the caller's own windows, a leftover session's, and the pytest of
+    any run queued behind this one.  What it never returns is the user's real
+    (input-desktop) session — which is what makes a scoped kill safe to fire
+    unattended.  Callers must still decide which of these PIDs are theirs to
+    kill (see ``_kill_leftover_app_processes``)."""
     hdesk = _user32.GetThreadDesktop(_kernel32.GetCurrentThreadId())
     pids: set[int] = set()
 

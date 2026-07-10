@@ -1,10 +1,10 @@
 """A machine-wide single-instance lock for serializing integration runs.
 
 Multiple worktree agents share this repo and may launch the integration suite
-at the same time.  Every run launches VLC/Nau/AHK and runs a global name+age
-process reap (``FunTimeIntegrationSession._reap_leftover_runtime_processes``) that
-force-kills *any* recent AutoHotkey64/pythonw/vlc — including a concurrent run's
-freshly-spawned processes — and the AHK bridge runs under ``#SingleInstance
+at the same time.  Every run launches VLC/Nau/AHK and reaps leftover app
+processes (``FunTimeIntegrationSession._reap_leftover_runtime_processes``) that
+force-kills *any* AutoHotkey64/pythonw/vlc it finds — including a concurrent
+run's freshly-spawned processes — and the AHK bridge runs under ``#SingleInstance
 Force`` so a second bridge launch evicts the first.  The result is flaky,
 non-deterministic failures (different tests each run) whenever two suites overlap.
 
