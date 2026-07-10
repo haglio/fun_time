@@ -276,17 +276,19 @@ class TestVoiceController:
 
 
 def test_group_commands_join_the_order_agnostic_grid():
-    """"action loop", "seed loop" and "lock action" work bare (active side) and
-    with a side word in either order, like the other satellite actions."""
-    for word, act in {
-        "action loop": "action_loop",
-        "seed loop": "seed_loop",
-        "lock action": "lock_action",
+    """The group actions are order-agnostic in both words: "action loop" and
+    "loop action" are equivalent, each works bare (active side) and with a side
+    word in either order, like the other satellite actions."""
+    for words, act in {
+        ("action loop", "loop action"): "action_loop",
+        ("seed loop", "loop seed"): "seed_loop",
+        ("lock action", "action lock"): "lock_action",
     }.items():
-        assert VOICE_COMMANDS[word] == f"active_{act}"
-        for side in ("portrait", "landscape", "both"):
-            assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
-            assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
+        for word in words:
+            assert VOICE_COMMANDS[word] == f"active_{act}"
+            for side in ("portrait", "landscape", "both"):
+                assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
+                assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
 
 
 def test_group_commands_do_not_shadow_the_single_word_actions():
