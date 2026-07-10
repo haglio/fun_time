@@ -540,7 +540,7 @@ class TestLoadingScreenStartup:
 
 
 class TestPhase4Reveal:
-    """Phase 4 (hide_windows only): restore volume, play satellites, unpause Nau."""
+    """Phase 4 (hide_windows only): play satellites, unpause Nau."""
 
     def _run_hidden(self, manifest_path, tmp_path, *, vlc_http_cmd, pid_to_hwnd=None, title_to_hwnd=None, topmost_calls=None):
         pid_map = pid_to_hwnd or {30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
@@ -571,7 +571,7 @@ class TestPhase4Reveal:
                 hide_windows=True,
             )
 
-    def test_restores_volume_and_plays_both_satellites(self, cfg_factory, tmp_path):
+    def test_plays_both_satellites_without_touching_volume(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = configparser.ConfigParser()
         m.optionxform = str
@@ -588,11 +588,13 @@ class TestPhase4Reveal:
         portrait_port = int(m["vlc"]["vlc2_port"])
         landscape_port = int(m["vlc"]["vlc3_port"])
 
-        # Volume restored and playback started on both satellites.
-        assert (portrait_port, "volume&val=256") in vlc_cmds
-        assert (landscape_port, "volume&val=256") in vlc_cmds
+        # Playback starts on both satellites at whatever volume the user left
+        # VLC on: setting it here would outlive Fun Time, because VLC's volume
+        # is a Windows per-application mixer level shared by every vlc.exe.
         assert (portrait_port, "pl_play") in vlc_cmds
         assert (landscape_port, "pl_play") in vlc_cmds
+        volume_cmds = [(port, cmd) for port, cmd in vlc_cmds if cmd.startswith("volume")]
+        assert volume_cmds == [], f"Fun Time must never set VLC's volume: {volume_cmds}"
 
     def test_unpauses_nau_and_keeps_genau_parked(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)

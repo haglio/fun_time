@@ -287,13 +287,13 @@ def run_startup_sequence(
     if hide_windows:
         progress.advance("Positioning windows...")
 
-        # Restore VLC audio (muted in launch_core_apps during loading) and
-        # start the two satellites playing.
+        # Start the two satellites playing.  Their playlists were enqueued but
+        # never played during loading, so this is the first sound of the
+        # session — at the user's own VLC volume, which Fun Time never sets.
         portrait_port = int(m["vlc"]["vlc2_port"])
         landscape_port = int(m["vlc"]["vlc3_port"])
         password = m["vlc"]["vlc_pass"]
         for port in [portrait_port, landscape_port]:
-            vlc_http_cmd(port, "volume&val=256", password)
             vlc_http_cmd(port, "pl_play", password)
 
         _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=False)
