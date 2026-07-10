@@ -70,6 +70,14 @@ def test_render_tab_page_decodes_only_while_the_tab_is_visible(tmp_path: Path):
     assert "clip.pause()" in html
 
 
+def test_render_tab_page_centres_the_clip(tmp_path: Path):
+    """The clip is revealed as a block box narrower than the text around it, so
+    the container's text-align cannot centre it — only auto side margins can."""
+    html = render_tab_page(TabTarget(REGEN_URL, "l", video_path=str(_video(tmp_path))))
+
+    assert "margin: 0 auto" in html
+
+
 # --- writing pages ---
 
 
