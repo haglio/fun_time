@@ -572,7 +572,8 @@ def build_dashboard_scene(
         DashboardRectItem(layout.main_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.secondary_monitor, fill=COLOR_PANEL),
         DashboardRectItem(layout.rfb_panel, fill=COLOR_PANEL),
-        DashboardRectItem(layout.main_status_strip, fill=COLOR_PANEL),
+        DashboardRectItem(layout.dash_panel, fill=COLOR_PANEL),
+        DashboardRectItem(layout.log_panel, fill=COLOR_PANEL),
         DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
         DashboardRectItem(layout.omnipause_button, fill=_press_fill(omnipause_fill, OMNIPAUSE_TOGGLE)),
         DashboardRectItem(layout.help_button, fill=COLOR_PANEL),
@@ -764,6 +765,19 @@ def build_dashboard_scene(
     )
     cable_arcs: tuple[DashboardArcItem, ...] = ()
 
+    # The log box carries no controls, so ruled lines stand in for its text.
+    log_lines: tuple[DashboardLineItem, ...] = tuple(
+        DashboardLineItem(
+            points=(
+                (layout.log_panel.x + 4, y),
+                (layout.log_panel.x + layout.log_panel.width - 4, y),
+            ),
+            color=TEXT_MUTED,
+            width=1,
+        )
+        for y in range(layout.log_panel.y + 8, layout.log_panel.y + layout.log_panel.height - 4, 8)
+    )
+
     scene = DashboardScene(
         width=layout.dashboard_width,
         height=layout.dashboard_height,
@@ -771,7 +785,7 @@ def build_dashboard_scene(
         texts=texts,
         images=images,
         hover_texts=(),  # derived from actions below so every button has one
-        lines=cable_lines,
+        lines=cable_lines + log_lines,
         ovals=cable_ovals,
         arcs=cable_arcs,
         actions=(

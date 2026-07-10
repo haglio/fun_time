@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from fun_time.config import LayoutConfig
@@ -29,7 +30,8 @@ class DashboardPreviewLayout:
     dashboard_height: int
     main_monitor: Rect
     secondary_monitor: Rect
-    main_status_strip: Rect
+    dash_panel: Rect
+    log_panel: Rect
     rfb_panel: Rect
     landscape_panel: Rect
     portrait_panel: Rect
@@ -94,25 +96,84 @@ def compute_dashboard_preview_layout(
     *,
     preview_max_h: float = 375,
 ) -> DashboardPreviewLayout:
+    """The dashboard's schematic of the two monitors, at its natural scale.
+
+    The main monitor's left column holds the dashboard itself beside the log
+    panel, and the schematic draws both.  How wide the log box should be depends
+    on how wide the dashboard window ends up — which in turn depends on the log
+    box, because the box is what forces the schematic's left column wider.  Bisect
+    for the width where the drawn dash:log split matches the real one.
+    """
+    real_left_w = main_monitor.width - int(main_monitor.width * clamp01(layout_config.landscape_width_ratio))
+
+    def _at(log_box_w: int) -> DashboardPreviewLayout:
+        return _preview_layout_with_log_box(
+            main_monitor, secondary_monitor, layout_config, preview_max_h, log_box_w,
+        )
+
+    # The drawn log share rises with log_box_w while the real one falls (a wider
+    # log box widens the dashboard, leaving the real log panel less room), so the
+    # two cross exactly once.
+    lo, hi = 0, max(1, real_left_w)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        candidate = _at(mid)
+        real_log_share = (real_left_w - candidate.dashboard_width) / real_left_w
+        drawn = candidate.log_panel.width
+        drawn_log_share = drawn / (candidate.dash_panel.width + drawn)
+        if drawn_log_share < real_log_share:
+            lo = mid + 1
+        else:
+            hi = mid
+    return _at(lo)
+
+
+def _preview_layout_with_log_box(
+    main_monitor: Size,
+    secondary_monitor: Size,
+    layout_config: LayoutConfig,
+    preview_max_h: float,
+    log_box_w: int,
+) -> DashboardPreviewLayout:
     outer_pad = 15
     bottom_pad = 9
     top_y = outer_pad
     monitor_gap = 15
     base_scale = preview_max_h / max(main_monitor.height, secondary_monitor.height)
 
-    left_w = round(main_monitor.width * base_scale)
+    inner_pad = 15
+    panel_gap = 12
+    portrait_units = 7
+    primary_units = 4
+    stack_gap = 12
+
+    # Mini button sizes used inside the dash box schematic
+    mini_button_w = 16
+    mini_button_h = 16
+    mini_button_gap = 2
+
+    # The dash box has two rows: (1) quit+omnipause+help buttons, (2) broker+
+    # fmode+voice chips.  Its width is the floor for the schematic's left column.
+    strip_pad = 3
+    row_gap = 3
+    dash_panel_h = strip_pad + mini_button_h + row_gap + mini_button_h + strip_pad
+    mini_buttons_total_w = mini_button_w * 3 + mini_button_gap * 2
+    dash_panel_w = mini_buttons_total_w + strip_pad * 2
+
+    # The main monitor's left column must hold the dash box and the log box side
+    # by side.  The mini buttons cannot shrink below legibility, so at this scale
+    # an honest left column comes out a few pixels too narrow — stretch the main
+    # monitor horizontally, but only by the shortfall.
+    landscape_ratio = min(0.99, clamp01(layout_config.landscape_width_ratio))
+    left_column_w = dash_panel_w + log_box_w
+    needed_inner_w = math.ceil((left_column_w + panel_gap) / (1.0 - landscape_ratio))
+    left_w = max(round(main_monitor.width * base_scale), needed_inner_w + inner_pad * 2)
     left_h = round(main_monitor.height * base_scale)
     right_w = round(secondary_monitor.width * base_scale)
     right_h = round(secondary_monitor.height * base_scale)
     main_x = outer_pad
     secondary_x = main_x + left_w + monitor_gap
     secondary_y = top_y
-
-    inner_pad = 15
-    panel_gap = 12
-    portrait_units = 7
-    primary_units = 4
-    stack_gap = 12
 
     right_inner_x = secondary_x + inner_pad
     right_inner_y = secondary_y + inner_pad
@@ -128,11 +189,6 @@ def compute_dashboard_preview_layout(
     primary_shadow_x = right_inner_x + shadow_offset
     primary_shadow_y = primary_y + shadow_offset
 
-    # Mini button sizes used inside the status strip schematic
-    mini_button_w = 20
-    mini_button_h = 16
-    mini_button_gap = 3
-
     main_y = portrait_y + (portrait_h - left_h) // 2
     preview_bottom = max(main_y + left_h, secondary_y + right_h, primary_y + primary_h)
 
@@ -141,31 +197,25 @@ def compute_dashboard_preview_layout(
     main_inner_w = max(40, left_w - inner_pad * 2)
     main_inner_h = max(40, left_h - inner_pad * 2)
 
-    landscape_w = max(34, int(main_inner_w * clamp01(layout_config.landscape_width_ratio)))
-    left_strip_w = max(52, main_inner_w - landscape_w - panel_gap)
+    landscape_w = max(34, int(main_inner_w * landscape_ratio))
+    left_strip_w = main_inner_w - landscape_w - panel_gap
 
-    # Status strip has two rows: (1) quit+omnipause buttons, (2) broker+fmode+voice chips
-    strip_pad = 3
-    row_gap = 3
-    status_strip_h = strip_pad + mini_button_h + row_gap + mini_button_h + strip_pad
-    mini_buttons_total_w = mini_button_w * 3 + mini_button_gap * 2
-    status_strip_w = mini_buttons_total_w + strip_pad * 2
-    # RFB container around the status strip
-    rfb_pad = 3
-    rfb_y = main_inner_y
-    rfb_h = main_inner_h
-    rfb_w = status_strip_w + 2 * rfb_pad
-    rfb_x = main_inner_x + (left_strip_w - rfb_w) // 2
-
-    status_strip_x = rfb_x + (rfb_w - status_strip_w) // 2
-    status_strip_y = rfb_y + rfb_pad
+    # The left column, top to bottom: the dash box beside the log box, then the
+    # RFB filling the rest — exactly how the three windows sit on the real
+    # monitor.  Rounding slack in landscape_w lands in the log box.
+    dash_x = main_inner_x
+    dash_y = main_inner_y
+    log_x = dash_x + dash_panel_w
+    log_w = left_strip_w - dash_panel_w
+    rfb_y = main_inner_y + dash_panel_h
+    rfb_h = main_inner_h - dash_panel_h
     landscape_x = main_inner_x + left_strip_w + panel_gap
     landscape_y = main_inner_y
 
-    # Button row (row 1) inside status strip
-    btn_row_x = status_strip_x + (status_strip_w - mini_buttons_total_w) // 2
-    btn_row_y = status_strip_y + strip_pad
-    # Chip row (row 2) inside status strip — same size as button row
+    # Button row (row 1) inside the dash box
+    btn_row_x = dash_x + strip_pad
+    btn_row_y = dash_y + strip_pad
+    # Chip row (row 2) inside the dash box — same size as the button row
     chip_row_y = btn_row_y + mini_button_h + row_gap
     status_row_x = btn_row_x
 
@@ -272,8 +322,9 @@ def compute_dashboard_preview_layout(
         dashboard_height=dashboard_h,
         main_monitor=Rect(main_x, main_y, left_w, left_h),
         secondary_monitor=Rect(secondary_x, secondary_y, right_w, right_h),
-        main_status_strip=Rect(status_strip_x, status_strip_y, status_strip_w, status_strip_h),
-        rfb_panel=Rect(rfb_x, rfb_y, rfb_w, rfb_h),
+        dash_panel=Rect(dash_x, dash_y, dash_panel_w, dash_panel_h),
+        log_panel=Rect(log_x, dash_y, log_w, dash_panel_h),
+        rfb_panel=Rect(main_inner_x, rfb_y, left_strip_w, rfb_h),
         landscape_panel=Rect(landscape_x, landscape_y, landscape_w, main_inner_h),
         portrait_panel=Rect(right_inner_x, portrait_y, right_inner_w, portrait_h),
         primary_panel=Rect(right_inner_x, primary_y, right_inner_w, primary_h),
