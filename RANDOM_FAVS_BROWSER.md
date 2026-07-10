@@ -20,13 +20,15 @@ Configuration lives in `fun_time_config.json` under `random_favs_browser`.
 
 ### Where a tab actually goes
 
-A favourite's gallery link is usually dead — Provider does not keep old generations around. So each tab resolves to the same **regenerate** page the lock hotkey opens: `example.com/create` or `example.com/video` with the video's original prompts packed into a `#ft=` fragment, which the userscript below fills in. Favourites with no metadata sidecar (provider2, or anything scraped before sidecars existed) fall back to their stored gallery link.
+A favourite's gallery link is usually dead — Provider does not keep old generations around. So each tab resolves to the **regenerate** page: `example.com/create` or `example.com/video` with the video's original prompts packed into a `#ft=` fragment, which the userscript below fills in. Favourites with no metadata sidecar (provider2, or anything scraped before sidecars existed) fall back to their stored gallery link. `target_for_fav` in `fun_time/random_favs_browser.py` is the single resolver; both the startup tabs and the lock hotkey go through it, so they cannot drift apart.
 
-### Lazy loading
+### The landing page
 
-With `lazy_load` on, a tab first lands on a small local page ("Press Ctrl+R to load, or click the link") naming the favourite and where it points; the first reload or click navigates to the real destination. Ten heavy generate pages therefore do not all load at startup.
+A tab first lands on a small local page ("Press Ctrl+R to load, or click the link") that names the favourite, shows where it points, and **plays the clip you are deciding whether to recreate**; the first reload or click navigates to the real destination. Ten heavy generate pages therefore do not all load at startup, and a lock never dumps you straight onto Provider either. `lazy_load` governs the startup tabs; a lock always lands here, because the landing page is what shows you the clip.
 
-The destination cannot travel on Chrome's command line: a regenerate URL runs to ~4 KB of encoded prompt, and ten of them overflow the 32,767-character ceiling `CreateProcess` puts on a command line (`WinError 206`). So `fun_time/rfb_tab_page.py` bakes each destination into its own generated page under `state/rfb_tabs/`, and Chrome is handed ten short `file://` URIs. Those pages are rewritten every session.
+The destination cannot travel on Chrome's command line: a regenerate URL runs to ~4 KB of encoded prompt, and ten of them overflow the 32,767-character ceiling `CreateProcess` puts on a command line (`WinError 206`). So `fun_time/rfb_tab_page.py` bakes each destination into its own generated page under `state/rfb_tabs/`, and Chrome is handed short `file://` URIs. Startup writes `tab_NN.html`; a lock writes `lock_<hash>.html`, named after its destination so re-locking one video rewrites one page. The whole directory is cleared at the start of every session.
+
+The clip is the local video file, played straight from `file://` — muted, looped, and paused whenever its tab is not the visible one (these are 1080p+ **HEVC**, and ten background decoders is real CPU). Chrome plays them only because Windows has `Microsoft.HEVCVideoExtension` installed *and* the GPU decoder is available: a Chrome started with `--disable-gpu` reports `canPlayType('…hvc1…') === ''` and fails the load with `MEDIA_ERR_SRC_NOT_SUPPORTED`. When a clip cannot load, the page leaves it hidden and the rest of the tab still works.
 
 ## Provider prompt autofill
 

@@ -1,8 +1,10 @@
 """Lazy-load landing pages for Random Favs Browser tabs.
 
-The RFB opens ten favourites at once, so each tab first lands on a tiny local
-page that holds its real destination and navigates there on the first reload
-(Ctrl+R) or click.
+A tab first lands on a tiny local page that holds its real destination, shows
+the clip you might want to recreate, and navigates on the first reload (Ctrl+R)
+or click.  The RFB opens ten favourites at once and the lock hotkey opens one
+mid-session; both go through here rather than loading a heavy generate page
+straight away.
 
 The destination cannot ride on Chrome's command line.  A Provider regenerate URL
 carries a whole prompt set in its ``#ft=`` fragment — up to ~4 KB — and ten of
@@ -12,14 +14,28 @@ baked into a generated page per tab and Chrome is handed short ``file://`` URIs.
 """
 from __future__ import annotations
 
+import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
-from .random_favs_browser import FavTarget
-
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "tab_page_template.html"
-_TAB_GLOB = "tab_*.html"
+_PAGE_GLOB = "*.html"
+
+
+@dataclass(frozen=True)
+class TabTarget:
+    """Where a tab should land, how to name it, and the clip it came from."""
+
+    url: str
+    label: str
+    video_path: str = ""
+
+
+def tabs_dir(state_dir: str | Path) -> Path:
+    """The directory holding this session's generated tab pages."""
+    return Path(state_dir) / "rfb_tabs"
 
 
 def _js_string(value: str) -> str:
@@ -31,27 +47,57 @@ def _js_string(value: str) -> str:
     return json.dumps(value).replace("<", "\\u003c")
 
 
-def render_tab_page(url: str, label: str) -> str:
-    """Render the landing page that defers loading *url* until it is triggered."""
+def _file_uri(video_path: str) -> str:
+    """The ``file://`` URI for *video_path*, or "" when there is nothing to show."""
+    if not video_path:
+        return ""
+    path = Path(video_path)
+    if not path.is_absolute():
+        return ""
+    return path.as_uri()
+
+
+def render_tab_page(target: TabTarget) -> str:
+    """Render the landing page that defers loading *target* until it is triggered."""
     template = _TEMPLATE_PATH.read_text(encoding="utf-8")
-    return template.replace('"__FT_TARGET__"', _js_string(url)).replace(
-        '"__FT_LABEL__"', _js_string(label)
-    )
+    for token, value in (
+        ('"__FT_TARGET__"', target.url),
+        ('"__FT_LABEL__"', target.label),
+        ('"__FT_VIDEO__"', _file_uri(target.video_path)),
+    ):
+        template = template.replace(token, _js_string(value))
+    return template
 
 
-def write_tab_pages(tabs_dir: Path, targets: Sequence[FavTarget]) -> list[str]:
-    """Write one landing page per target into *tabs_dir*, returning their file URIs.
+def _write_page(page: Path, target: TabTarget) -> str:
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text(render_tab_page(target), encoding="utf-8")
+    return page.as_uri()
 
-    Pages from the previous session are removed first: they name favourites this
-    session did not pick, and nothing else ever cleans them up.
+
+def write_tab_pages(pages_dir: Path, targets: Sequence[TabTarget]) -> list[str]:
+    """Write this session's tab pages into *pages_dir*, returning their file URIs.
+
+    Every page from the previous session is removed first — the startup pages
+    name favourites this session did not pick, and the lock pages name videos
+    nobody is looking at any more.  Nothing else ever cleans them up.
     """
-    tabs_dir.mkdir(parents=True, exist_ok=True)
-    for stale in tabs_dir.glob(_TAB_GLOB):
+    pages_dir.mkdir(parents=True, exist_ok=True)
+    for stale in pages_dir.glob(_PAGE_GLOB):
         stale.unlink()
 
-    uris: list[str] = []
-    for index, target in enumerate(targets, start=1):
-        page = tabs_dir / f"tab_{index:02d}.html"
-        page.write_text(render_tab_page(target.url, target.label), encoding="utf-8")
-        uris.append(page.as_uri())
-    return uris
+    return [
+        _write_page(pages_dir / f"tab_{index:02d}.html", target)
+        for index, target in enumerate(targets, start=1)
+    ]
+
+
+def write_lock_tab_page(pages_dir: Path, target: TabTarget) -> str:
+    """Write the page for a video locked mid-session, returning its file URI.
+
+    Named after the destination, so locking the same video twice rewrites one
+    page instead of littering the directory, and so it can never collide with
+    the ``tab_NN`` pages the session start laid down.
+    """
+    digest = hashlib.sha1(target.url.encode("utf-8")).hexdigest()[:12]
+    return _write_page(pages_dir / f"lock_{digest}.html", target)

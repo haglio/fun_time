@@ -7,7 +7,6 @@ from pathlib import Path
 from fun_time.config import load_config
 from fun_time.random_favs_browser import (
     FavEntry,
-    FavTarget,
     build_manifest,
     choose_random,
     extract_path_from_hyperlink,
@@ -16,6 +15,7 @@ from fun_time.random_favs_browser import (
     resolve_profile_directory,
     write_manifest,
 )
+from fun_time.rfb_tab_page import TabTarget
 
 
 def test_resolve_profile_directory_finds_named_profile(tmp_path: Path):
@@ -149,6 +149,8 @@ def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_fac
     assert len(targets) == 1
     assert targets[0].url.startswith("https://example.com/video#ft=")
     assert targets[0].label == "https://example.com/image/abc"
+    # The tab plays the clip you are deciding whether to recreate.
+    assert targets[0].video_path == str(video)
 
 
 def test_build_manifest_falls_back_to_the_gallery_link_without_metadata(cfg_factory, tmp_path: Path):
@@ -162,7 +164,11 @@ def test_build_manifest_falls_back_to_the_gallery_link_without_metadata(cfg_fact
     _, targets = build_manifest(load_config(cfg_path))
 
     assert targets == [
-        FavTarget(url="https://example.net/image/abc", label="https://example.net/image/abc")
+        TabTarget(
+            url="https://example.net/image/abc",
+            label="https://example.net/image/abc",
+            video_path="C:\\media\\provider2\\abc.mp4",
+        )
     ]
 
 

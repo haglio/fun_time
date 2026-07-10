@@ -9,6 +9,7 @@ from typing import TypeVar
 
 from .config import ProviderRegenConfig, ProjectConfig
 from .provider_regen import regen_url_for_video
+from .rfb_tab_page import TabTarget
 
 _T = TypeVar("_T")
 
@@ -97,22 +98,15 @@ def load_favs_entries(favs_file: Path) -> list[FavEntry]:
     return entries
 
 
-@dataclass(frozen=True)
-class FavTarget:
-    """Where a favourite's tab should land, and how to name it on the way."""
-
-    url: str
-    label: str
-
-
-def target_for_fav(entry: FavEntry, regen: ProviderRegenConfig) -> FavTarget:
-    """Resolve the page a favourite should open.
+def target_for_fav(entry: FavEntry, regen: ProviderRegenConfig) -> TabTarget:
+    """Resolve the page a favourite should open, and the clip it shows meanwhile.
 
     A Provider video with a metadata sidecar targets the generate page carrying its
     original prompts (``#ft=``), which the example.com userscript reads to fill the
     form and raise its floating note.  Everything else falls back to the stored
-    gallery link — the same order the lock hotkey uses.  The label stays short
-    (a regenerate URL runs to kilobytes of encoded payload).
+    gallery link.  The label stays short (a regenerate URL runs to kilobytes of
+    encoded payload).  Both the RFB's startup tabs and the lock hotkey resolve
+    their tabs through here, so they can never drift apart.
     """
     regen_url = regen_url_for_video(
         entry.local_path,
@@ -121,9 +115,10 @@ def target_for_fav(entry: FavEntry, regen: ProviderRegenConfig) -> FavTarget:
         video_url=regen.generate_video_url,
         image_url=regen.generate_image_url,
     )
-    return FavTarget(
+    return TabTarget(
         url=regen_url or entry.web_url,
         label=entry.web_url or Path(entry.local_path).name,
+        video_path=entry.local_path,
     )
 
 
@@ -138,7 +133,7 @@ def choose_random(items: list[_T], count: int, rng: random.Random | None = None)
     return chooser.sample(items, count)
 
 
-def build_manifest(config: ProjectConfig) -> tuple[str, list[FavTarget]]:
+def build_manifest(config: ProjectConfig) -> tuple[str, list[TabTarget]]:
     browser = config.random_favs_browser
     if not browser.enabled:
         return "", []

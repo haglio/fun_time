@@ -12,6 +12,7 @@ import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from .config import ProviderRegenConfig
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .media_metadata import (
     GroupIndex,
@@ -26,7 +27,8 @@ from .media_metadata import (
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
 from .modes import collect_video_files
-from .provider_regen import regen_url_for_video
+from .random_favs_browser import FavEntry, target_for_fav
+from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .mode_plan import genau_active, nau_displays
 from .filter_vocab import decode_filter_command
 from .runtime_flow import (
@@ -112,6 +114,16 @@ class BridgeConfig:
     provider_metadata_root: Path | None = None
     provider_generate_video_url: str = "https://example.com/video"
     provider_generate_image_url: str = "https://example.com/create"
+
+    @property
+    def provider_regen(self) -> ProviderRegenConfig:
+        """The four Provider settings, in the shape the regenerate code expects."""
+        return ProviderRegenConfig(
+            generate_video_url=self.provider_generate_video_url,
+            generate_image_url=self.provider_generate_image_url,
+            media_root=self.provider_media_root,
+            metadata_root=self.provider_metadata_root,
+        )
 
 
 @dataclass(frozen=True)
@@ -301,15 +313,15 @@ def _toggle_lock(
         logger.info(plan.log_message)
     lock_ops: list[WindowOp] = []
     if plan.open_rfb_tab and current_path:
-        url = regen_url_for_video(
-            current_path,
-            media_root=config.provider_media_root,
-            metadata_root=config.provider_metadata_root,
-            video_url=config.provider_generate_video_url,
-            image_url=config.provider_generate_image_url,
-        ) or make_web_url_from_path(current_path)
-        if url:
-            lock_ops.append(WindowOp(op="open_rfb_tab", key=url))
+        # Resolved exactly like an RFB startup tab, and deferred behind the same
+        # Ctrl+R landing page, so a lock never drops a heavy generate page on you.
+        target = target_for_fav(
+            FavEntry(local_path=current_path, web_url=make_web_url_from_path(current_path)),
+            config.provider_regen,
+        )
+        if target.url:
+            uri = write_lock_tab_page(tabs_dir(config.state_dir), target)
+            lock_ops.append(WindowOp(op="open_rfb_tab", key=uri))
     if which == 2:
         return replace(state, locked2=plan.next_locked), lock_ops
     return replace(state, locked3=plan.next_locked), lock_ops
