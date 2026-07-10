@@ -239,6 +239,61 @@ def test_landscape_lock_toggles_lock_on(tmp_path: Path):
     assert new_state.locked3 is True
 
 
+# --- back-dating a spoken command to the video it was meant for ---
+
+
+def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_path: Path):
+    """A phrase is only recognized once the speaker stops, so an auto-advancing
+    satellite can be a video on by then.  Locking brings back the video the user
+    was actually looking at, and locks that."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+    meant = "C:\\clips\\meant.mp4"
+    now_playing = "C:\\clips\\advanced_to.mp4"
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=now_playing),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, meant), (4, now_playing)], 4)),
+        patch("fun_time.command_dispatch.vlc_play_playlist_item", return_value=True) as play,
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.ensure_in_favs") as favs,
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
+    ):
+        new_state, _ops = dispatch_command("portrait_lock", state, config, target_path=meant)
+
+    play.assert_called_once_with(config.portrait_port, "pw", 3)
+    assert favs.call_args[0][1] == meant
+    assert new_state.locked2 is True
+
+
+def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path: Path):
+    """"Weird" condemns the video the speaker saw.  Once the satellite has moved
+    on there is nothing to advance past — the condemned video is dropped from the
+    playlist where it sits, and the innocent video now playing is left alone."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+    meant = "C:\\clips\\meant.mp4"
+    now_playing = "C:\\clips\\advanced_to.mp4"
+    http_cmds: list[str] = []
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=now_playing),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, meant), (4, now_playing)], 4)),
+        patch("fun_time.command_dispatch.remove_from_favs") as favs,
+        patch("fun_time.command_dispatch.move_to_weird") as weird,
+        patch("fun_time.command_dispatch.vlc_advance_and_remove") as advance,
+        patch("fun_time.command_dispatch.vlc_http_cmd",
+              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        dispatch_command("portrait_trash", state, config, target_path=meant)
+
+    advance.assert_not_called()
+    assert http_cmds == ["pl_delete&id=3"]
+    assert favs.call_args[0][1] == meant
+    assert weird.call_args[0][1] == Path(meant)
+
+
 # --- portrait_trash ---
 
 
@@ -853,6 +908,27 @@ def test_portrait_cycle_action_jumps_when_sibling_already_in_playlist(tmp_path: 
 
     play.assert_called_once_with(config.portrait_port, "pw", 4)
     swap.assert_not_called()
+
+
+def test_portrait_cycle_action_cycles_the_video_that_was_playing_when_spoken(tmp_path: Path):
+    """"Action" asks for another take on the video the speaker had in front of
+    them, so the siblings are the back-dated video's, not the newcomer's."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_zeta": _cycle_meta("111", "Zeta Massage"),
+        "subject_alpha": _cycle_meta("111", "Alpha"),
+        "other_subject": _cycle_meta("222", "Alpha"),
+    })
+    state = _make_state()
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["other_subject"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(7, paths["other_subject"])], 7)),
+        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        dispatch_command("portrait_cycle_action", state, config, target_path=paths["subject_zeta"])
+
+    swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_alpha"])
 
 
 def test_portrait_cycle_action_tooltips_when_video_has_no_siblings(tmp_path: Path):
