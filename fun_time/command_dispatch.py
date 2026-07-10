@@ -703,8 +703,8 @@ def dispatch_command(
             config.nau_cmd_file.write_text(_NAU_CMD_MAP[command], encoding="utf-8")
         return state, ops
 
-    if command == "audio_mute_toggle":
-        return _dispatch_audio(replace(state, muted=not state.muted), config)
+    if command in _MUTE_COMMANDS:
+        return _dispatch_audio(replace(state, muted=_MUTE_COMMANDS[command]), config)
 
     step = _VOLUME_STEPS.get(command)
     if step is not None:
@@ -777,12 +777,17 @@ def dispatch_command(
 
 _VOLUME_STEPS = {"audio_volume_down": -VOLUME_STEP, "audio_volume_up": VOLUME_STEP}
 
+# Mute and unmute each assert a state rather than toggling one, so a phrase
+# misheard twice cannot leave the sound the opposite of what was asked for.
+_MUTE_COMMANDS = {"audio_mute": True, "audio_unmute": False}
+
 
 def _step_volume(state: BridgeState, step: int) -> BridgeState:
     """Move the sound level by *step*, staying within the silent/full bounds.
 
-    Naming a loudness lifts a mute: "unmute" is not in the vosk vocabulary, so
-    "loud"/"louder" is the only spoken way back other than "mute" itself.
+    Asking for a loudness lifts a mute, as reaching for the volume does in VLC
+    and in the Windows mixer: a "louder" that left the room silent would read as
+    the command having been missed.
     """
     volume = max(MIN_VOLUME, min(MAX_VOLUME, state.volume + step))
     return replace(state, volume=volume, muted=False)

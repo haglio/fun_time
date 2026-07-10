@@ -65,7 +65,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Premiere — (re)load Portrait/Landscape newest-first", ("P",), ("recency_order_refresh",)),
             # The primary display's sound, in whichever mode owns it — Nau's
             # video in nau/hybrid, Genau's clip audio in genau.
-            _Row("Mute / unmute the primary display", (), ("audio_mute_toggle",)),
+            _Row("Mute / unmute the primary display", (), ("audio_mute", "audio_unmute")),
             _Row("Volume down / up, in tenths", (), ("audio_volume_down", "audio_volume_up")),
             _Row("Disable voice control", ("Backspace",), ("voice_toggle", "voice_off")),
             _Row("Start / stop broker", ("B",), ("broker_panel", "broker_start", "broker_stop")),
@@ -243,6 +243,9 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     # vosk has no "hotkeys" token, so the recognizer listens for "hot keys";
     # the reference shows the single-word "hotkeys".
     ("hot keys", "hotkeys"),
+    # Likewise no "unmute" token — but there is "un", so the recognizer hears
+    # the two-word "un mute" and the reference shows "unmute".
+    ("un mute", "unmute"),
 )
 
 
