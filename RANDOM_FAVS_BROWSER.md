@@ -1,26 +1,36 @@
 # Random Favs Browser
 
-Fun Time can open a Chrome window behind MFP on the left side of the secondary monitor.
+Fun Time can open a Chrome window on the left side of the secondary monitor.
 
 How it works:
 
-- Fun Time reads `Fun Time Favs` from Chrome bookmarks for the `Blair` profile.
-- At launch, it picks a random subset of 10 bookmark URLs.
+- Fun Time reads the favourites from `favs.csv` (written by the lock hotkey), which pairs each favourite's local video path with its gallery link.
+- At launch, it picks a random subset of 10 and resolves where each one should open (see below).
 - It launches the project-local shortcut `Blair Chrome.lnk`.
-- It waits for the new Chrome window, sizes it to the full left third of the secondary monitor, and leaves MFP on top.
+- It waits for the new Chrome window and sizes it to the full left third of the secondary monitor.
 - `Ctrl+Alt+Q` closes the RFB Chrome window gracefully (sends WM_CLOSE to the captured hwnd).
 
 Current setup:
 
 - Shortcut path: `Blair Chrome.lnk`
 - Chrome profile: `Profile 2` / visible name `Blair`
-- Bookmark folder: `Fun Time Favs`
+- Favourites: `favs.csv`
 
 Configuration lives in `fun_time_config.json` under `random_favs_browser`.
 
-## Provider prompt autofill (on lock)
+### Where a tab actually goes
 
-When you lock an AI video that came from Provider, Fun Time opens a Provider **generate** page (instead of the now-dead gallery link) with the original prompts/settings packed into the URL fragment (`#ft=…`). A userscript fills the form:
+A favourite's gallery link is usually dead — Provider does not keep old generations around. So each tab resolves to the same **regenerate** page the lock hotkey opens: `example.com/create` or `example.com/video` with the video's original prompts packed into a `#ft=` fragment, which the userscript below fills in. Favourites with no metadata sidecar (provider2, or anything scraped before sidecars existed) fall back to their stored gallery link.
+
+### Lazy loading
+
+With `lazy_load` on, a tab first lands on a small local page ("Press Ctrl+R to load, or click the link") naming the favourite and where it points; the first reload or click navigates to the real destination. Ten heavy generate pages therefore do not all load at startup.
+
+The destination cannot travel on Chrome's command line: a regenerate URL runs to ~4 KB of encoded prompt, and ten of them overflow the 32,767-character ceiling `CreateProcess` puts on a command line (`WinError 206`). So `fun_time/rfb_tab_page.py` bakes each destination into its own generated page under `state/rfb_tabs/`, and Chrome is handed ten short `file://` URIs. Those pages are rewritten every session.
+
+## Provider prompt autofill
+
+When you lock an AI video that came from Provider — or open one of its favourites in the Random Favs Browser — Fun Time opens a Provider **generate** page (instead of the now-dead gallery link) with the original prompts/settings packed into the URL fragment (`#ft=…`). A userscript fills the form:
 
 - **No source image** (text-to-video) → opens `example.com/video` and fills the video prompt.
 - **From a source image** → opens `example.com/create`, fills the positive + negative image prompts, and pins a floating note with the **video prompt** and original settings — so you regenerate the image first, then make the video from it.
@@ -33,7 +43,7 @@ The prompts/settings come from per-video metadata JSON mirrored under `provider_
 
 1. Install a userscript manager in the **Blair** Chrome profile (e.g. Tampermonkey).
 2. Open `fun_time/static/provider_autofill.user.js` and add it as a new userscript (Tampermonkey → Create new / Import).
-3. Done — locking a Provider video now opens the prefilled generate page.
+3. Done — locking a Provider video, or triggering one of its Random Favs Browser tabs, now opens the prefilled generate page.
 
 The userscript only acts when the URL carries a `#ft=` fragment (i.e. opened by Fun Time); normal Provider browsing is unaffected.
 

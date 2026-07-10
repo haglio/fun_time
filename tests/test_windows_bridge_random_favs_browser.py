@@ -3,13 +3,14 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from fun_time.random_favs_browser import FavTarget, write_manifest
+from fun_time.rfb_tab_page import write_tab_pages
 from fun_time.windows_bridge_random_favs_browser import (
     build_open_rfb_tab_command,
     build_random_favs_browser_launch_plan,
     launch_random_favs_browser,
     open_rfb_tab,
     read_random_favs_browser_manifest,
-    tab_placeholder_path,
 )
 
 
@@ -154,59 +155,33 @@ def test_launch_random_favs_browser_uses_subprocess(tmp_path: Path, monkeypatch)
     assert recorded["cwd"] == r"C:\Chrome"
 
 
-# --- Lazy-load placeholder tests ---
+# --- Command-line ceiling ---
+
+# CreateProcess rejects a command line of 32,767 characters or more.
+_WINDOWS_COMMAND_LINE_LIMIT = 32767
 
 
-def test_tab_placeholder_path_returns_existing_html_file():
-    path = tab_placeholder_path()
-    assert path.exists()
-    assert path.suffix == ".html"
-    content = path.read_text(encoding="utf-8")
-    assert "reload" in content.lower()
+def test_ten_regenerate_tabs_stay_under_the_windows_command_line_limit(tmp_path: Path):
+    """A regenerate URL's #ft= payload must never reach Chrome's argv.
 
-
-def test_build_launch_plan_with_placeholder_wraps_urls(tmp_path: Path):
+    Ten of them are ~50 KB — past the CreateProcess ceiling, which fails the
+    launch with WinError 206.  The payload rides in the lazy-load pages instead.
+    """
+    payload = "%22" * 1300  # a ~3.9 KB fragment, the size of a real prompt set
+    targets = [
+        FavTarget(url=f"https://example.com/create#ft={payload}", label=f"https://example.com/image/{i}")
+        for i in range(10)
+    ]
     manifest_file = tmp_path / "browser_manifest.txt"
-    manifest_file.write_text(
-        "Profile 2\nhttps://example.com/1\nhttps://example.com/2\n",
-        encoding="utf-8",
-    )
-    placeholder = tmp_path / "placeholder.html"
-    placeholder.write_text("<html></html>", encoding="utf-8")
+    write_manifest(manifest_file, "Profile 2", write_tab_pages(tmp_path / "rfb_tabs", targets))
 
     plan = build_random_favs_browser_launch_plan(
         manifest_file,
         shortcut_target=r"C:\Chrome\chrome.exe",
         shortcut_work_dir=r"C:\Chrome",
         shortcut_args="",
-        placeholder_path=placeholder,
     )
 
     assert plan.should_launch is True
-    # Raw URLs must NOT appear as direct arguments
-    assert '"https://example.com/1"' not in plan.cmd
-    assert '"https://example.com/2"' not in plan.cmd
-    # Instead, file:// URIs pointing to the placeholder must appear
-    assert "file:///" in plan.cmd
-    assert "placeholder.html" in plan.cmd
-    assert "url=https%3A%2F%2Fexample.com%2F1" in plan.cmd
-    assert "url=https%3A%2F%2Fexample.com%2F2" in plan.cmd
-
-
-def test_build_launch_plan_without_placeholder_uses_raw_urls(tmp_path: Path):
-    """Backward compat: no placeholder_path means direct URL loading."""
-    manifest_file = tmp_path / "browser_manifest.txt"
-    manifest_file.write_text(
-        "Profile 2\nhttps://example.com/1\n",
-        encoding="utf-8",
-    )
-
-    plan = build_random_favs_browser_launch_plan(
-        manifest_file,
-        shortcut_target=r"C:\Chrome\chrome.exe",
-        shortcut_work_dir=r"C:\Chrome",
-        shortcut_args="",
-    )
-
-    assert '"https://example.com/1"' in plan.cmd
-    assert "file:///" not in plan.cmd
+    assert payload not in plan.cmd
+    assert len(plan.cmd) < _WINDOWS_COMMAND_LINE_LIMIT

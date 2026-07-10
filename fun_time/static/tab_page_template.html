@@ -16,21 +16,27 @@
   .container { text-align: center; max-width: 80vw; }
   .hint { color: #6c7086; margin-bottom: 1em; }
   a { color: #89b4fa; font-size: 1.1em; word-break: break-all; }
+  .dest { color: #6c7086; font-size: 0.85em; margin-top: 0.8em; }
 </style>
 <script>
 (function() {
-  var url = new URLSearchParams(location.search).get('url');
-  if (!url) return;
+  // Both literals are substituted by fun_time.rfb_tab_page.render_tab_page.
+  var target = "__FT_TARGET__";
+  var label = "__FT_LABEL__";
   var nav = performance.getEntriesByType('navigation')[0];
   if (nav && nav.type === 'reload') {
-    location.replace(url);
+    location.replace(target);
     return;
   }
-  document.title = url;
+  document.title = label;
   document.addEventListener('DOMContentLoaded', function() {
     var link = document.getElementById('target');
-    link.href = url;
-    link.textContent = url;
+    link.href = target;
+    link.textContent = label;
+    try {
+      var parsed = new URL(target);
+      document.getElementById('dest').textContent = '→ ' + parsed.host + parsed.pathname;
+    } catch (e) {}
   });
 })();
 </script>
@@ -39,6 +45,7 @@
 <div class="container">
   <p class="hint">Press Ctrl+R to load, or click the link:</p>
   <a id="target" href="#"></a>
+  <p class="dest" id="dest"></p>
 </div>
 </body>
 </html>

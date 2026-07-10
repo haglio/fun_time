@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import configparser
+import json
 from pathlib import Path
 from unittest.mock import ANY, patch
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 import pytest
 
@@ -51,16 +54,60 @@ def test_restart_broker_skips_launch_when_no_launcher(tmp_path: Path):
     popen.assert_not_called()
 
 
-def test_prepare_random_favs_browser_manifest_delegates_to_random_browser_builder(tmp_path: Path):
+def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
+    user_data_dir = tmp_path / "User Data"
+    user_data_dir.mkdir()
+    (user_data_dir / "Local State").write_text(
+        json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Blair"}}}}),
+        encoding="utf-8",
+    )
+    favs = tmp_path / "favs.csv"
+    favs.write_text(
+        "local_file,web_url\r\n"
+        '"","=HYPERLINK(""https://example.com/image/abc"";""https://example.com/image/abc"")"\r\n',
+        encoding="utf-8",
+    )
+    return cfg_factory(
+        {
+            "paths": {"favs_file": str(favs)},
+            "random_favs_browser": {
+                "enabled": True,
+                "user_data_dir": str(user_data_dir),
+                "open_count": 10,
+                "lazy_load": lazy_load,
+            },
+        }
+    )
+
+
+def test_prepare_random_favs_browser_manifest_defers_each_tab_behind_a_local_page(
+    cfg_factory, tmp_path: Path
+):
+    """With lazy_load the manifest lists local pages, each naming its fav."""
+    cfg_path = _rfb_config(cfg_factory, tmp_path, lazy_load=True)
     output_path = tmp_path / "browser_manifest.txt"
 
-    with patch("fun_time.windows_bridge_startup.build_manifest", return_value=("Profile 2", ["https://example.com"])) as build, patch(
-        "fun_time.windows_bridge_startup.write_manifest"
-    ) as write:
-        prepare_random_favs_browser_manifest("config.json", output_path)
+    prepare_random_favs_browser_manifest(cfg_path, output_path)
 
-    build.assert_called_once_with("config.json")
-    write.assert_called_once_with(output_path, "Profile 2", ["https://example.com"])
+    profile, tab_uri = output_path.read_text(encoding="utf-8").splitlines()
+    assert profile == "Profile 2"
+    assert tab_uri.startswith("file:///")
+    page = Path(url2pathname(urlparse(tab_uri).path)).read_text(encoding="utf-8")
+    assert "https://example.com/image/abc" in page
+
+
+def test_prepare_random_favs_browser_manifest_lists_urls_directly_without_lazy_load(
+    cfg_factory, tmp_path: Path
+):
+    cfg_path = _rfb_config(cfg_factory, tmp_path, lazy_load=False)
+    output_path = tmp_path / "browser_manifest.txt"
+
+    prepare_random_favs_browser_manifest(cfg_path, output_path)
+
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        "Profile 2",
+        "https://example.com/image/abc",
+    ]
 
 
 def test_seed_paused_states_writes_all_three_flags(tmp_path: Path):

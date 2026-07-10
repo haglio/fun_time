@@ -75,7 +75,6 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "enabled": "1" if config.random_favs_browser.enabled else "0",
             "shortcut_path": str(config.random_favs_browser.shortcut_path),
             "manifest_file": str(config.random_favs_browser_manifest_file),
-            "lazy_load": "1" if config.random_favs_browser.lazy_load else "0",
         },
         "provider_regen": {
             "generate_video_url": config.provider_regen.generate_video_url,

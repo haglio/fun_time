@@ -182,6 +182,10 @@ class ProjectConfig:
         return self.paths.state_dir / "random_favs_browser_urls.txt"
 
     @property
+    def random_favs_browser_tabs_dir(self) -> Path:
+        return self.paths.state_dir / "rfb_tabs"
+
+    @property
     def logs_dir(self) -> Path:
         return self.paths.state_dir
 
