@@ -65,11 +65,9 @@ def vlc_with_playlist():
 
     playlist_path = Path(tempfile.gettempdir()) / "fun_time_test_loop.m3u"
     write_playlist_file(playlist_path, videos)
-    # silent=True launches VLC with no audio output at all, so the run stays
-    # quiet without setting a volume the user's own VLC would inherit.
     cmd = _build_vlc_launch_command(
         VLC_EXE, TEST_PORT, TEST_PASSWORD,
-        repeat_mode="loop", silent=True,
+        repeat_mode="loop",
     )
     cmd.append("--no-fullscreen")
     proc = subprocess.Popen(
@@ -423,7 +421,7 @@ def test_production_config_no_start_paused(vlc_with_playlist):
     for repeat_mode in ("repeat", "loop"):
         cmd = _build_vlc_launch_command(
             VLC_EXE, 0, "pw",
-            repeat_mode=repeat_mode, silent=True,
+            repeat_mode=repeat_mode,
         )
         assert "--start-paused" not in cmd, \
             f"--start-paused must never appear (repeat_mode={repeat_mode})"
@@ -460,7 +458,7 @@ def vlc_repeat_one():
     write_playlist_file(playlist_path, videos)
     cmd = _build_vlc_launch_command(
         VLC_EXE, REPEAT_PORT, TEST_PASSWORD,
-        repeat_mode="repeat", silent=True,
+        repeat_mode="repeat",
     )
     cmd.append("--no-fullscreen")
     proc = subprocess.Popen(

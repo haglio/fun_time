@@ -288,8 +288,8 @@ def run_startup_sequence(
         progress.advance("Positioning windows...")
 
         # Start the two satellites playing.  Their playlists were enqueued but
-        # never played during loading, so this is the first sound of the
-        # session — at the user's own VLC volume, which Fun Time never sets.
+        # never played during loading.  They launch with --no-audio, so nothing
+        # here can be heard and VLC's volume is never touched.
         portrait_port = int(m["vlc"]["vlc2_port"])
         landscape_port = int(m["vlc"]["vlc3_port"])
         password = m["vlc"]["vlc_pass"]
