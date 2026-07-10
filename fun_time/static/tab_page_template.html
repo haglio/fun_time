@@ -54,8 +54,7 @@
         clip.style.display = 'block';
         follow();
       });
-      // Decode only in the tab you are looking at: these clips are 1080p+ HEVC
-      // and the RFB opens ten of them at once.
+      // Decode only in the tab you are looking at: the RFB opens ten at once.
       function follow() {
         if (document.hidden) clip.pause();
         else clip.play().catch(function() {});

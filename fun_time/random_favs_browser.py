@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TypeVar
 
 from .config import ProviderRegenConfig, ProjectConfig
+from .media_renditions import original_rendition
 from .provider_regen import regen_url_for_video
 from .rfb_tab_page import TabTarget
 
@@ -107,6 +108,10 @@ def target_for_fav(entry: FavEntry, regen: ProviderRegenConfig) -> TabTarget:
     gallery link.  The label stays short (a regenerate URL runs to kilobytes of
     encoded payload).  Both the RFB's startup tabs and the lock hotkey resolve
     their tabs through here, so they can never drift apart.
+
+    The clip is the video's pre-upscale original: a thumbnail has no use for
+    hundreds of megabytes of HEVC when a couple of megabytes of H.264 says the
+    same thing, and every Chrome can decode the latter.
     """
     regen_url = regen_url_for_video(
         entry.local_path,
@@ -118,7 +123,7 @@ def target_for_fav(entry: FavEntry, regen: ProviderRegenConfig) -> TabTarget:
     return TabTarget(
         url=regen_url or entry.web_url,
         label=entry.web_url or Path(entry.local_path).name,
-        video_path=entry.local_path,
+        video_path=original_rendition(entry.local_path, regen.media_root) or entry.local_path,
     )
 
 
