@@ -752,7 +752,7 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     assert kwargs["port"] == config.portrait_port
     assert kwargs["sources"] == config.portrait_sources
     assert kwargs["provider_media_root"] == tmp_path / "media"
-    assert any(op.op == "tooltip" for op in ops)
+    assert any(op.op == "notice" for op in ops)
 
 
 def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
@@ -766,6 +766,20 @@ def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
     assert new_state.portrait_filter == "beta gamma"
     assert new_state.landscape_filter == "beta gamma"
     assert {call.kwargs["which"] for call in mock_filter.call_args_list} == {2, 3}
+
+
+def test_filter_command_both_scope_notices_each_satellite_under_its_own_source(tmp_path: Path):
+    """A both-scope filter touches two windows, so it reports two notices — one
+    filed under each — rather than one line the log panel cannot filter."""
+    config = _make_config(tmp_path)
+    state = _make_state()
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result()
+        _new_state, ops = dispatch_command("filter_both_beta_gamma", state, config)
+
+    notices = [op for op in ops if op.op == "notice"]
+    assert [op.source for op in notices] == ["portrait", "landscape"]
 
 
 def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
@@ -885,8 +899,8 @@ def test_portrait_cycle_action_swaps_to_next_action_of_the_group(tmp_path: Path)
         _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
 
     swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_alpha"])
-    tooltips = [op.key for op in ops if op.op == "tooltip"]
-    assert tooltips == ["Action: Alpha"]
+    notices = [(op.key, op.source) for op in ops if op.op == "notice"]
+    assert notices == [("Action: Alpha", "portrait")]
 
 
 def test_portrait_cycle_action_jumps_when_sibling_already_in_playlist(tmp_path: Path):
@@ -931,7 +945,7 @@ def test_portrait_cycle_action_cycles_the_video_that_was_playing_when_spoken(tmp
     swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_alpha"])
 
 
-def test_portrait_cycle_action_tooltips_when_video_has_no_siblings(tmp_path: Path):
+def test_portrait_cycle_action_notices_when_video_has_no_siblings(tmp_path: Path):
     config, paths = _make_grouped_config(tmp_path, {
         "loner": _cycle_meta("111", "Alpha"),
     })
@@ -945,7 +959,7 @@ def test_portrait_cycle_action_tooltips_when_video_has_no_siblings(tmp_path: Pat
         _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
 
     swap.assert_not_called()
-    assert [op.key for op in ops if op.op == "tooltip"] == ["No other actions"]
+    assert [op.key for op in ops if op.op == "notice"] == ["No other actions"]
 
 
 def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
@@ -1032,10 +1046,10 @@ def test_portrait_cycle_seed_swaps_in_library_sister_when_none_in_playlist(tmp_p
 
     swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_b"])
     # An exact same-config sister is not a widened match, so it carries no label.
-    assert "Similar clip" not in [op.key for op in ops if op.op == "tooltip"]
+    assert "Similar clip" not in [op.key for op in ops if op.op == "notice"]
 
 
-def test_portrait_cycle_seed_tooltips_without_seed_siblings(tmp_path: Path):
+def test_portrait_cycle_seed_notices_without_seed_siblings(tmp_path: Path):
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "no_meta": None,
@@ -1050,7 +1064,7 @@ def test_portrait_cycle_seed_tooltips_without_seed_siblings(tmp_path: Path):
         _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
     swap.assert_not_called()
-    assert [op.key for op in ops if op.op == "tooltip"] == ["No other seeds"]
+    assert [op.key for op in ops if op.op == "notice"] == ["No other seeds"]
 
 
 def _scene_meta(*, image_seed: str, quality: str) -> dict:
@@ -1081,7 +1095,7 @@ def test_portrait_cycle_seed_widens_to_a_near_match_when_no_exact_sister(tmp_pat
 
     swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_draft"])
     # A widened hit is flagged so it reads as a near-match, not an exact seed sister.
-    assert [op.key for op in ops if op.op == "tooltip"] == ["Similar clip"]
+    assert [op.key for op in ops if op.op == "notice"] == ["Similar clip"]
 
 
 def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
@@ -1706,11 +1720,12 @@ def test_clipper_save_calls_subprocess_in_hybrid_mode(tmp_path: Path):
     assert "--time" in cmd
     assert "42.5" in cmd
     assert len(ops) == 1
-    assert ops[0].op == "tooltip"
+    assert ops[0].op == "notice"
+    assert ops[0].source == "primary"
     assert ops[0].key  # non-empty message
 
 
-def test_clipper_save_no_tooltip_on_failure(tmp_path: Path):
+def test_clipper_save_no_notice_on_failure(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="hybrid")
     config.nau_status_file.write_text(
@@ -1775,7 +1790,7 @@ def test_clipper_save_in_nau_mode_uses_nau_status(tmp_path: Path):
     cmd = mock_subprocess.run.call_args[0][0]
     assert "C:\\videos\\naustuff.mp4" in cmd
     assert "42.5" in cmd
-    assert len(ops) == 1 and ops[0].op == "tooltip"
+    assert len(ops) == 1 and ops[0].op == "notice"
 
 
 def test_clipper_save_in_nau_mode_skips_without_status(tmp_path: Path):
@@ -1839,7 +1854,7 @@ def test_action_loop_loads_the_subjects_action_group(tmp_path: Path):
     assert kwargs["which"] == 2
     assert kwargs["port"] == config.portrait_port
     assert sorted(kwargs["members"]) == sorted([a, b])
-    assert any(op.op == "tooltip" for op in ops)
+    assert any(op.op == "notice" and op.source == "portrait" for op in ops)
 
 
 def test_seed_loop_loads_the_current_acts_seed_family(tmp_path: Path):
@@ -1878,7 +1893,7 @@ def test_loop_with_no_siblings_leaves_the_playlist_alone(tmp_path: Path):
         _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
     mock_loop.assert_not_called()
-    assert any(op.op == "tooltip" and "No other actions" in op.key for op in ops)
+    assert any(op.op == "notice" and "No other actions" in op.key for op in ops)
 
 
 def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
@@ -1937,4 +1952,7 @@ def test_lock_action_without_metadata_says_so(tmp_path: Path):
 
     mock_filter.assert_not_called()
     assert new_state.landscape_filter == ""
-    assert any(op.op == "tooltip" and "No action metadata" in op.key for op in ops)
+    assert any(
+        op.op == "notice" and "No action metadata" in op.key and op.source == "landscape"
+        for op in ops
+    )

@@ -16,6 +16,7 @@ import threading
 from pathlib import Path
 
 from .config import load_config
+from .event_log import EventLogHandler, start_event_log
 from .startup_progress import NullProgress, StartupProgress
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
@@ -28,6 +29,7 @@ from .windows_bridge_sequencer import (
     resolve_shortcut,
     run_startup_sequence,
 )
+from .window_roles import LOG_PANEL_WINDOW_TITLE
 from .win32 import (
     close_window,
     find_window_by_pid,
@@ -153,15 +155,42 @@ def _add_dispatch_file_handler(log_path: Path) -> None:
         lg.addHandler(handler)
 
 
+# The orchestrator's logger owns the console and so does not propagate; it has
+# to be enrolled in the event log by name.  Every other fun_time.* logger reaches
+# the handler on the package logger by propagation.
+_NON_PROPAGATING_LOGGERS = ("fun_time.orchestrator",)
+
+
+def _open_event_log(state_dir: Path) -> None:
+    """Start this session's event log and feed every fun_time logger into it.
+
+    The package logger's level is opened all the way to DEBUG because the log
+    panel — not the writer — is where verbosity is chosen: the file carries
+    everything the session says, and the panel shows the slice you asked for.
+
+    Re-opening replaces the previous handler rather than stacking a second one.
+    """
+    handler = EventLogHandler(start_event_log(state_dir))
+    handler.setLevel(logging.DEBUG)
+    for name in ("fun_time", *_NON_PROPAGATING_LOGGERS):
+        target = logging.getLogger(name)
+        for existing in [h for h in target.handlers if isinstance(h, EventLogHandler)]:
+            target.removeHandler(existing)
+        target.addHandler(handler)
+    logging.getLogger("fun_time").setLevel(logging.DEBUG)
+
+
 def _fix_post_loading_windows(result: StartupResult) -> None:
     """Re-assert the topmost policy + nau-mode visibility after the loading
     screen overlay is destroyed (its teardown can shuffle activation, and
     the dashboard may only become resolvable this late)."""
     dash_hwnd = 0
+    logs_hwnd = 0
     if result.dashboard_pid:
         dash_hwnd = find_window_by_pid(result.dashboard_pid)
         if not dash_hwnd:
             dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0, exact=True)
+        logs_hwnd = wait_for_window_by_title(LOG_PANEL_WINDOW_TITLE, timeout_s=3.0, exact=True)
 
     _apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
@@ -171,6 +200,7 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         nau_hwnd=find_window_by_pid(result.nau_pid)
         or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
         dashboard_hwnd=dash_hwnd,
+        logs_hwnd=logs_hwnd,
     )
     logger.info("Post-loading window state corrected")
 
@@ -194,6 +224,10 @@ def run_python_orchestrated_bridge(
     manifest_path = Path(manifest_path)
     state_dir = Path(state_dir)
     project_dir = Path(project_dir)
+
+    # Before anything else logs, and before the dashboard launches the panel that
+    # tails it: this session's event log starts empty and starts collecting.
+    _open_event_log(state_dir)
 
     integration_mode = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     show_loading = not integration_mode
