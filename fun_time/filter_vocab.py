@@ -15,17 +15,24 @@ from __future__ import annotations
 # voiced with plain-English words — the same trick the mode commands use
 # ("genau" listens for "go now").  Queries stay lowercase; a single query such
 # as "insertion" substring-matches both "Oral Insertion" and "redacted Insertion".
+#
+# The acts Provider never labelled — zeta, delta, and the catch-all other —
+# reach the library through Evolver's backfill tool, where a viewer dictates the
+# act of a clip whose source publishes no metadata of its own.
 FILTER_ACTS: dict[str, tuple[str, ...]] = {
     "alpha": ("alpha form",),
     "epsilon": ("epsilon",),
     "gamma": ("gamma",),
+    "zeta": ("zeta",),
     "delta": ("delta",),
     "beta gamma": ("beta gamma",),
+    "delta": ("delta",),
     "insertion": ("insertion",),
     "zeta massage": ("redacted massage",),
     "dancing": ("dancing",),
     "kissing": ("kissing",),
     "eta form": ("come on face",),
+    "other": ("other",),
 }
 
 # Spoken scope word -> command scope token.  "" means no orientation was said,
