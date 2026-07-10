@@ -1,18 +1,22 @@
 """Unit tests for the hidden-desktop integration runner.
 
 The desktop plumbing (create/enumerate) is validated by actually running the suite
-through it.  Here we pin the pure decision — what pytest command the hidden desktop
-runs — and the job object that guarantees a run cannot outlive itself.
+through it.  Here we pin the pure decisions — what pytest command the hidden desktop
+runs and whether it runs at all — plus the job object that guarantees a run cannot
+outlive itself.
 """
 from __future__ import annotations
 
 import subprocess
 import sys
 import time
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from fun_time.win32 import is_process_alive
+from tests.integration import hidden_desktop
 from tests.integration.hidden_desktop import (
     _close_process_handles,
     _launch_on_desktop,
@@ -20,7 +24,9 @@ from tests.integration.hidden_desktop import (
     build_pytest_argv,
     close_run_job,
     create_run_job,
+    main,
 )
+from tests.integration.live_session_guard import DENIED_EXIT_CODE
 
 
 def test_argv_runs_pytest_on_the_integration_dir():
@@ -33,6 +39,45 @@ def test_argv_runs_pytest_on_the_integration_dir():
 def test_argv_appends_caller_args_after_the_defaults():
     argv = build_pytest_argv(["-k", "smoke", "-x"])
     assert argv[-3:] == ["-k", "smoke", "-x"]
+
+
+def _fake_config(state_dir: Path):
+    class _Paths:
+        pass
+
+    class _Config:
+        pass
+
+    paths, config = _Paths(), _Config()
+    paths.state_dir = state_dir
+    config.paths = paths
+    return config
+
+
+def test_main_never_creates_the_desktop_when_the_run_is_denied(tmp_path):
+    """A live Fun Time owns the VLC HTTP ports the suite drives, so a denied run
+    must not reach pytest at all."""
+    with patch.object(hidden_desktop, "load_config", return_value=_fake_config(tmp_path)), \
+         patch.object(hidden_desktop, "allow_integration_run", return_value=False), \
+         patch.object(hidden_desktop, "run_on_hidden_desktop") as run:
+        with pytest.raises(SystemExit) as exit_info:
+            main()
+
+    assert exit_info.value.code == DENIED_EXIT_CODE
+    run.assert_not_called()
+
+
+def test_main_runs_the_suite_once_the_guard_allows_it(tmp_path):
+    with patch.object(hidden_desktop, "load_config", return_value=_fake_config(tmp_path)), \
+         patch.object(hidden_desktop, "allow_integration_run", return_value=True) as allow, \
+         patch.object(hidden_desktop, "run_on_hidden_desktop", return_value=0) as run, \
+         patch.object(sys, "argv", ["hidden_desktop", "-k", "nau"]):
+        with pytest.raises(SystemExit) as exit_info:
+            main()
+
+    assert exit_info.value.code == 0
+    allow.assert_called_once_with(tmp_path)
+    run.assert_called_once_with(["-k", "nau"])
 
 
 def _wait_until_dead(pid: int, timeout: float = 5.0) -> bool:

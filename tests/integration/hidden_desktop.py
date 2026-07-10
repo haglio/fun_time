@@ -35,6 +35,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from fun_time.config import load_config
+
+from .live_session_guard import DENIED_EXIT_CODE, allow_integration_run
+
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
 INTEGRATION_DIR = "tests/integration/"
 
@@ -296,6 +300,10 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
 
 
 def main() -> None:
+    # Ask before the desktop exists: a MessageBox raised after the switch would
+    # be drawn on the hidden desktop, where the user could never answer it.
+    if not allow_integration_run(load_config().paths.state_dir):
+        sys.exit(DENIED_EXIT_CODE)
     sys.exit(run_on_hidden_desktop(sys.argv[1:]))
 
 
