@@ -351,20 +351,23 @@ def launch_core_apps(
     project_dir = Path(project_dir)
     vlc_exe = str(vlc_exe)
 
-    # Defer playlist loading whenever VLC is muted (not just during the loading
-    # screen).  This eliminates the audio-leak race where VLC outputs a frame
-    # of audio before --volume 0 takes effect.  The playlist is loaded via
-    # HTTP after volume is confirmed zero.
-    should_mute = hide_windows or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
+    # Integration runs need a VLC that cannot make a sound, and get one by
+    # skipping the audio output entirely.  A real session keeps its audio: it
+    # is quiet behind the loading screen because nothing is playing yet.
+    # Neither path may touch VLC's volume — see _build_vlc_launch_command.
+    silent = os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
+    # Load the playlist over HTTP once VLC is up rather than on its command
+    # line, so no frame plays before the window has been placed.
+    defer_playlist = hide_windows or silent
 
     portrait_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, portrait_port, password, repeat_mode="loop", mute=should_mute,
-                                   playlist_path=None if should_mute else Path(portrait_playlist)),
+        _build_vlc_launch_command(vlc_exe, portrait_port, password, repeat_mode="loop", silent=silent,
+                                   playlist_path=None if defer_playlist else Path(portrait_playlist)),
         cwd=project_dir,
     )
     landscape_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, landscape_port, password, repeat_mode="loop", mute=should_mute,
-                                   playlist_path=None if should_mute else Path(landscape_playlist)),
+        _build_vlc_launch_command(vlc_exe, landscape_port, password, repeat_mode="loop", silent=silent,
+                                   playlist_path=None if defer_playlist else Path(landscape_playlist)),
         cwd=project_dir,
     )
 
@@ -375,16 +378,12 @@ def launch_core_apps(
     set_repeat_mode(landscape_port, password, "all")
 
     time.sleep(0.25)
-    if should_mute:
-        vlc_http_cmd(portrait_port, "volume&val=0", password)
-    if should_mute:
+    if defer_playlist:
         replace_playlist_from_file(portrait_port, password, Path(portrait_playlist), enqueue_only=hide_windows)
     if not hide_windows:
         vlc_http_cmd(portrait_port, "pl_next", password)
     time.sleep(0.15)
-    if should_mute:
-        vlc_http_cmd(landscape_port, "volume&val=0", password)
-    if should_mute:
+    if defer_playlist:
         replace_playlist_from_file(landscape_port, password, Path(landscape_playlist), enqueue_only=hide_windows)
     if not hide_windows:
         vlc_http_cmd(landscape_port, "pl_next", password)
@@ -399,7 +398,7 @@ def launch_core_apps(
 
 
 
-def _build_vlc_launch_command(vlc_exe: str, port: int, password: str, *, repeat_mode: str, mute: bool = False, playlist_path: Path | None = None) -> list[str]:
+def _build_vlc_launch_command(vlc_exe: str, port: int, password: str, *, repeat_mode: str, silent: bool = False, playlist_path: Path | None = None) -> list[str]:
     command = [
         vlc_exe,
         "--no-one-instance",
@@ -412,13 +411,13 @@ def _build_vlc_launch_command(vlc_exe: str, port: int, password: str, *, repeat_
         "--http-password",
         password,
     ]
-    if mute or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
-        command.extend(["--volume", "0"])
-        # --start-paused must NEVER be used: VLC re-applies it on every item
-        # transition, not just startup. This causes a black screen every time
-        # the user navigates.  When the playlist is loaded via HTTP after
-        # muting, there is nothing to hear even if --volume 0 has a startup
-        # race.
+    if silent:
+        command.append("--no-audio")
+    # --start-paused must NEVER be used to keep a launching VLC quiet: VLC
+    # re-applies it on every item transition, not just startup, which blacks
+    # out the screen every time the user navigates.  Nor may we set VLC's
+    # volume: it is a Windows per-application mixer level shared by every
+    # vlc.exe, so a mute would follow the user into their own VLC sessions.
     # --no-random overrides VLC's saved vlcrc setting.  Without it, if the
     # user ever toggled shuffle inside VLC, the preference persists across
     # launches and VLC advances to random items instead of sequentially,

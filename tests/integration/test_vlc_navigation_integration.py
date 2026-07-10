@@ -65,12 +65,11 @@ def vlc_with_playlist():
 
     playlist_path = Path(tempfile.gettempdir()) / "fun_time_test_loop.m3u"
     write_playlist_file(playlist_path, videos)
-    # Defer playlist: launch VLC empty, mute via HTTP, THEN load media.
-    # This eliminates the audio-leak race where VLC outputs a frame of
-    # audio before --volume 0 takes effect.
+    # silent=True launches VLC with no audio output at all, so the run stays
+    # quiet without setting a volume the user's own VLC would inherit.
     cmd = _build_vlc_launch_command(
         VLC_EXE, TEST_PORT, TEST_PASSWORD,
-        repeat_mode="loop", mute=True,
+        repeat_mode="loop", silent=True,
     )
     cmd.append("--no-fullscreen")
     proc = subprocess.Popen(
@@ -80,7 +79,6 @@ def vlc_with_playlist():
     if not wait_for_http(TEST_PORT, TEST_PASSWORD, timeout_ms=10000):
         proc.kill()
         pytest.skip("VLC HTTP did not start")
-    vlc_http_cmd(TEST_PORT, "volume&val=0", TEST_PASSWORD)
     replace_playlist_from_file(TEST_PORT, TEST_PASSWORD, playlist_path)
     time.sleep(1.0)
     # Freeze playback rate to near-zero.  VLC stays in "playing" state
@@ -90,8 +88,6 @@ def vlc_with_playlist():
     # subsequent navigation command, making the read stale.
     vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
     yield proc, videos
-    # Kill first, then patch vlcrc — avoids the audio blast that
-    # restore_vlc_volume (HTTP) caused by setting volume=256 while playing.
     proc.kill()
     proc.wait()
 
@@ -427,7 +423,7 @@ def test_production_config_no_start_paused(vlc_with_playlist):
     for repeat_mode in ("repeat", "loop"):
         cmd = _build_vlc_launch_command(
             VLC_EXE, 0, "pw",
-            repeat_mode=repeat_mode, mute=True,
+            repeat_mode=repeat_mode, silent=True,
         )
         assert "--start-paused" not in cmd, \
             f"--start-paused must never appear (repeat_mode={repeat_mode})"
@@ -464,7 +460,7 @@ def vlc_repeat_one():
     write_playlist_file(playlist_path, videos)
     cmd = _build_vlc_launch_command(
         VLC_EXE, REPEAT_PORT, TEST_PASSWORD,
-        repeat_mode="repeat", mute=True,
+        repeat_mode="repeat", silent=True,
     )
     cmd.append("--no-fullscreen")
     proc = subprocess.Popen(
@@ -474,7 +470,6 @@ def vlc_repeat_one():
     if not wait_for_http(REPEAT_PORT, TEST_PASSWORD, timeout_ms=10000):
         proc.kill()
         pytest.skip("VLC HTTP did not start")
-    vlc_http_cmd(REPEAT_PORT, "volume&val=0", TEST_PASSWORD)
     replace_playlist_from_file(REPEAT_PORT, TEST_PASSWORD, playlist_path)
     vlc_http_cmd(REPEAT_PORT, "pl_next", TEST_PASSWORD)
     time.sleep(1.0)

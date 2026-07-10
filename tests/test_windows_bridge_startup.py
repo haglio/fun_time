@@ -591,7 +591,7 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
     assert set(parser["result"].keys()) == {"portrait_pid", "landscape_pid"}
 
 
-def test_launch_core_apps_mutes_and_defers_playlists_when_hide_windows_true(tmp_path: Path, monkeypatch):
+def test_launch_core_apps_defers_playlists_and_keeps_audio_when_hide_windows_true(tmp_path: Path, monkeypatch):
     """When hide_windows=True, VLC instances must:
     1. Launch with no media on the command line so there is nothing to hear
     2. Get muted via HTTP
@@ -644,17 +644,19 @@ def test_launch_core_apps_mutes_and_defers_playlists_when_hide_windows_true(tmp_
         )
 
     # VLC commands must NOT contain .m3u playlist paths (deferred)
+    vlc_cmdlines = []
     for call in popen.call_args_list:
         cmd = call.args[0] if call.args else call.kwargs.get("args", [])
         if isinstance(cmd, list) and cmd and cmd[0] == "vlc.exe":
+            vlc_cmdlines.append(cmd)
             assert not any(arg.endswith(".m3u") for arg in cmd), \
                 f"Playlist must not be on VLC command line when hide_windows=True: {cmd}"
 
-    # Each VLC should get volume mute
-    mute_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "volume&val=0"]
-    assert len(mute_cmds) == 2, f"Expected 2 mute commands, got {mute_cmds}"
-    muted_ports = {port for port, _ in mute_cmds}
-    assert muted_ports == {8091, 8092}
+    # The loading screen is silent because nothing is playing yet, so the
+    # user's own session must keep its audio output and its volume.
+    assert http_commands == [], f"No HTTP commands allowed during loading: {http_commands}"
+    for cmd in vlc_cmdlines:
+        assert "--no-audio" not in cmd, f"A real session must keep its audio: {cmd}"
 
     # Playlists must be enqueued (not played) via replace_playlist_from_file
     assert len(replace_calls) == 2, f"Expected 2 playlist loads, got {replace_calls}"
@@ -662,12 +664,6 @@ def test_launch_core_apps_mutes_and_defers_playlists_when_hide_windows_true(tmp_
         assert path == str(playlists[port])
         assert kwargs.get("enqueue_only") is True, \
             f"enqueue_only must be True to prevent playback during loading: {kwargs}"
-
-    # VLC must be completely idle — no pl_next, no pl_pause, no pl_play
-    playback_cmds = [(port, cmd) for port, cmd in http_commands
-                     if cmd in ("pl_next", "pl_pause", "pl_play")]
-    assert playback_cmds == [], \
-        f"No playback commands allowed during loading screen: {playback_cmds}"
 
 
 def test_launch_core_apps_defers_playlists_when_mute_audio_env_set(tmp_path: Path, monkeypatch):
@@ -716,15 +712,20 @@ def test_launch_core_apps_defers_playlists_when_mute_audio_env_set(tmp_path: Pat
         )
 
     # VLC commands must NOT contain .m3u playlist paths (deferred)
+    vlc_cmdlines = []
     for call in popen.call_args_list:
         cmd = call.args[0] if call.args else call.kwargs.get("args", [])
         if isinstance(cmd, list) and cmd and cmd[0] == "vlc.exe":
+            vlc_cmdlines.append(cmd)
             assert not any(arg.endswith(".m3u") for arg in cmd), \
                 f"Playlist must not be on VLC command line when muting: {cmd}"
 
-    # Each VLC should get volume mute
-    mute_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "volume&val=0"]
-    assert len(mute_cmds) == 2, f"Expected 2 mute commands, got {mute_cmds}"
+    # Silence comes from --no-audio, never from VLC's (persistent) volume.
+    assert len(vlc_cmdlines) == 2
+    for cmd in vlc_cmdlines:
+        assert "--no-audio" in cmd, f"Muted VLC must skip audio output entirely: {cmd}"
+    volume_cmds = [(port, cmd) for port, cmd in http_commands if cmd.startswith("volume")]
+    assert volume_cmds == [], f"Fun Time must never set VLC's volume: {volume_cmds}"
 
     # Satellites load via HTTP with enqueue_only=False so playback can start.
     assert len(replace_calls) == 2, f"Expected 2 playlist loads, got {replace_calls}"
@@ -736,77 +737,70 @@ def test_launch_core_apps_defers_playlists_when_mute_audio_env_set(tmp_path: Pat
     assert next_cmds == [(8091, "pl_next"), (8092, "pl_next")]
 
 
-def test_build_vlc_launch_command_includes_volume_zero_when_mute_env_set(monkeypatch):
-    monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
-    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat")
-    idx = cmd.index("--volume")
-    assert cmd[idx + 1] == "0"
+def test_build_vlc_launch_command_never_passes_volume():
+    """VLC's volume is a Windows per-application mixer level shared by every
+    vlc.exe: whatever we set it to survives our process and greets the user
+    the next time they open VLC themselves.  Fun Time must never set it.
+    (``--volume`` is also dead in VLC 3: "option --volume no longer exists".)
+    """
+    for silent in (True, False):
+        cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat", silent=silent)
+        assert "--volume" not in cmd, f"--volume must never be passed (silent={silent})"
+
+
+def test_build_vlc_launch_command_silences_with_no_audio():
+    """Integration runs need a VLC that cannot make a sound.  --no-audio skips
+    the audio output entirely — no audio session, so nothing of the user's
+    mixer state is touched — where a volume of 0 would have persisted."""
+    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat", silent=True)
+    assert "--no-audio" in cmd
     assert "--repeat" in cmd
 
 
-def test_build_vlc_launch_command_omits_volume_when_mute_env_unset(monkeypatch):
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="loop")
-    assert "--volume" not in cmd
+def test_build_vlc_launch_command_keeps_audio_when_not_silent():
+    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="loop", silent=False)
+    assert "--no-audio" not in cmd
 
 
-def test_build_vlc_launch_command_never_includes_no_video(monkeypatch):
+def test_build_vlc_launch_command_never_includes_no_video():
     """--no-video changes VLC's playback behavior (e.g. repeat-one mode
     enters 'stopped' instead of 'playing' after navigation). Integration
     tests must run with real video output to match production behavior."""
-    monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat")
+    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat", silent=True)
     assert "--no-video" not in cmd
 
 
-def test_build_vlc_launch_command_includes_volume_zero_when_mute_for_loading(monkeypatch):
-    """VLC must start pre-muted during loading (hide_windows=True) so no
-    audio blips before the HTTP mute command arrives."""
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat", mute=True)
-    idx = cmd.index("--volume")
-    assert cmd[idx + 1] == "0"
-
-
-def test_build_vlc_launch_command_never_includes_start_paused(monkeypatch):
+def test_build_vlc_launch_command_never_includes_start_paused():
     """--start-paused must NEVER be used: VLC re-applies it on every item
     transition, not just startup.  This causes a black screen every time
-    the user navigates.  Volume muting alone is sufficient."""
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    the user navigates.  Deferring the playlist keeps loading quiet."""
     for repeat_mode in ("repeat", "loop"):
-        for mute in (True, False):
-            cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode, mute=mute)
+        for silent in (True, False):
+            cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode, silent=silent)
             assert "--start-paused" not in cmd, \
-                f"--start-paused must never appear (repeat_mode={repeat_mode}, mute={mute})"
+                f"--start-paused must never appear (repeat_mode={repeat_mode}, silent={silent})"
 
 
-def test_build_vlc_launch_command_never_includes_random(monkeypatch):
+def test_build_vlc_launch_command_never_includes_random():
     """--random must never appear: it causes VLC to re-pick a random item on every
     navigation, making pl_play&id=N index arithmetic wrong. The playlist builder
     shuffles the sources instead."""
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     for repeat_mode in ("repeat", "loop"):
         cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode)
         assert "--random" not in cmd, f"--random must not appear (repeat_mode={repeat_mode})"
 
 
-def test_build_vlc_launch_command_includes_no_random(monkeypatch):
+def test_build_vlc_launch_command_includes_no_random():
     """--no-random must always appear to override VLC's saved config (vlcrc).
     Without it, if the user ever manually enabled shuffle in VLC, the setting
     persists and VLC advances randomly instead of sequentially, breaking
     prev/next navigation which relies on sequential playlist order."""
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
     for repeat_mode in ("repeat", "loop"):
         cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode)
         assert "--no-random" in cmd, f"--no-random must appear to override saved vlcrc (repeat_mode={repeat_mode})"
 
 
-def test_build_vlc_launch_command_appends_playlist_path_when_given(tmp_path, monkeypatch):
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+def test_build_vlc_launch_command_appends_playlist_path_when_given(tmp_path):
     playlist_path = tmp_path / "test.m3u"
     cmd = _build_vlc_launch_command(
         "vlc.exe", 8090, "pw", repeat_mode="loop", playlist_path=playlist_path,
@@ -814,8 +808,7 @@ def test_build_vlc_launch_command_appends_playlist_path_when_given(tmp_path, mon
     assert cmd[-1] == str(playlist_path)
 
 
-def test_build_vlc_launch_command_omits_playlist_when_not_given(monkeypatch):
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+def test_build_vlc_launch_command_omits_playlist_when_not_given():
     cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="loop")
     assert not any(arg.endswith(".m3u") for arg in cmd)
     # Without a playlist the command ends at the mode flags.
