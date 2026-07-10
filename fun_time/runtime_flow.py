@@ -210,6 +210,41 @@ def apply_refresh_recency_order(
 
 
 @dataclass(frozen=True)
+class SatelliteLoopFlowResult:
+    count: int
+    applied: bool
+    log_message: str
+
+
+def apply_satellite_loop(
+    *,
+    which: int,
+    axis: str,
+    members: list[str],
+    state_dir: str | Path,
+    port: int,
+    password: str,
+) -> SatelliteLoopFlowResult:
+    """Load *members* as a repeat-all sub-playlist so the VLC cycles just them.
+
+    A lock is repeat-*one* over a single clip; a loop is repeat-*all* over a
+    group — the same playlist-replace call the filter uses, so VLC advances and
+    wraps natively.  Fewer than two members means there is nothing to cycle, so
+    the current playlist is left alone.  Any later rebuild (a filter, a clear,
+    premiere or an F-mode toggle) restores the full playlist.
+    """
+    label = "portrait" if which == 2 else "landscape"
+    if len(members) < 2:
+        return SatelliteLoopFlowResult(len(members), False, f"Loop {label}: no other {axis}s")
+    name = f"{PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE}_loop"
+    playlist_path = build_playlist_file_path(Path(state_dir), name)
+    write_playlist_file(playlist_path, members)
+    if not replace_playlist_from_file(port, password, playlist_path, repeat_mode="all"):
+        logger.warning("%s VLC failed to load the %s loop", label, axis)
+    return SatelliteLoopFlowResult(len(members), True, f"Loop {label}: {len(members)} {axis}s")
+
+
+@dataclass(frozen=True)
 class SatelliteFilterFlowResult:
     count: int
     applied: bool

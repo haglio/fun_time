@@ -421,6 +421,13 @@ class TestResolveActiveSideCommand:
     """A side-agnostic 'active_*' command is rewritten onto whichever satellite
     is currently active; anything else passes through untouched."""
 
+    def test_group_commands_ride_the_same_active_and_both_plumbing(self):
+        # The loop / lock-action commands follow the <scope>_<action> shape, so
+        # they resolve and expand without any special-casing.
+        assert resolve_active_side_command("active_action_loop", 3) == "landscape_action_loop"
+        assert resolve_active_side_command("active_lock_action", 2) == "portrait_lock_action"
+        assert expand_both_command("both_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
+
     def test_rewrites_to_portrait_when_active_side_is_portrait(self):
         assert resolve_active_side_command("active_lock_on", 2) == "portrait_lock_on"
 

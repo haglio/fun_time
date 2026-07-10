@@ -138,24 +138,50 @@ def build_primary_playlist_paths(primary_sources: str, f_mode: bool, *, rng: ran
     return shuffle_paths(filtered, rng=rng)
 
 
+def _collapse_axis(
+    index: GroupIndex,
+    by_seed_family: bool,
+) -> tuple[Callable[[str], str | None], Callable[[str], list[str]]]:
+    """The (group-of-path, members-of-group) accessors for a collapse axis.
+
+    Unfiltered browsing collapses **action groups** — one clip per subject — so
+    the playlist shows variety and "cycle action" explores a subject's other
+    acts.  A filtered view has already pinned the act, so it collapses **seed
+    families** instead — one clip per parameter set — and the
+    same-params-different-seed siblings hide behind "cycle seed" rather than
+    repeating back-to-back in the playlist.
+    """
+    if by_seed_family:
+        def seed_family_of(path: str) -> str | None:
+            entry = index.seed_key_by_path.get(normalize_path_key(path))
+            return entry[0] if entry is not None else None
+
+        return seed_family_of, lambda family: index.seed_members[family]
+    return (
+        lambda path: index.action_key_by_path.get(normalize_path_key(path)),
+        lambda key: index.action_members[key],
+    )
+
+
 def _collapse_groups(
     paths: list[str],
-    index: GroupIndex,
+    group_key_of: Callable[[str], str | None],
+    members_of: Callable[[str], list[str]],
     pick: Callable[[list[str]], str],
 ) -> list[str]:
-    """One slot per action group, in first-seen order; *pick* chooses each
-    group's representative from its members.  Ungrouped paths pass through."""
+    """One slot per group, in first-seen order; *pick* chooses each group's
+    representative from its members.  Ungrouped paths pass through."""
     slots: list[str] = []
     seen_groups: set[str] = set()
     for path in paths:
-        group_key = index.action_key_by_path.get(normalize_path_key(path))
+        group_key = group_key_of(path)
         if group_key is None:
             slots.append(path)
             continue
         if group_key in seen_groups:
             continue
         seen_groups.add(group_key)
-        slots.append(pick(index.action_members[group_key]))
+        slots.append(pick(members_of(group_key)))
     return slots
 
 
@@ -163,14 +189,16 @@ def _collapse_and_weigh(
     paths: list[str],
     library: SatelliteLibraryContext,
     rng: random.Random | None,
+    *,
+    by_seed_family: bool = False,
 ) -> list[str]:
-    """Shuffle *paths* with watch-stats weighting, one slot per action group.
+    """Shuffle *paths* with watch-stats weighting, one slot per group.
 
     Chronically-skipped videos sit the build out proportionally to their
-    weight; each action group (same subject(s)+situation) contributes a single
-    member, drawn weighted so preferred actions surface more.  The final
-    order is a weighted shuffle: loved videos land early, and with no stats
-    on record every step degenerates to today's uniform shuffle.
+    weight; each group contributes a single member, drawn weighted so preferred
+    clips surface more.  The final order is a weighted shuffle: loved videos
+    land early, and with no stats on record every step degenerates to today's
+    uniform shuffle.  See :func:`_collapse_axis` for which axis groups.
     """
     randomizer = rng or random.Random()
     stats = (
@@ -184,24 +212,32 @@ def _collapse_and_weigh(
 
     survivors = [path for path in paths if passes_inclusion(weight(path), randomizer)]
     index = build_group_index(survivors, library.media_root, library.metadata_root)
+    group_key_of, members_of = _collapse_axis(index, by_seed_family)
 
     def pick(members: list[str]) -> str:
         return randomizer.choices(members, weights=[weight(m) for m in members], k=1)[0]
 
-    return weighted_shuffle(_collapse_groups(survivors, index, pick), weight, randomizer)
+    collapsed = _collapse_groups(survivors, group_key_of, members_of, pick)
+    return weighted_shuffle(collapsed, weight, randomizer)
 
 
-def _collapse_recent(paths: list[str], library: SatelliteLibraryContext) -> list[str]:
-    """Newest-first, one slot per action group — the premiere review order.
+def _collapse_recent(
+    paths: list[str],
+    library: SatelliteLibraryContext,
+    *,
+    by_seed_family: bool = False,
+) -> list[str]:
+    """Newest-first, one slot per group — the premiere review order.
 
     New arrivals stay the focus: each group is represented by its most recent
-    member and sits at that member's position, so the freshest action of a
-    group surfaces once, near the top.  Watch weighting is deliberately not
-    applied — a chronically-skipped clip still appears; recency alone ranks.
+    member and sits at that member's position, so the freshest clip of a group
+    surfaces once, near the top.  Watch weighting is deliberately not applied —
+    a chronically-skipped clip still appears; recency alone ranks.
     """
     ordered = sort_paths_by_recency(paths)
     index = build_group_index(ordered, library.media_root, library.metadata_root)
-    return _collapse_groups(ordered, index, lambda members: max(members, key=_path_mtime))
+    group_key_of, members_of = _collapse_axis(index, by_seed_family)
+    return _collapse_groups(ordered, group_key_of, members_of, lambda members: max(members, key=_path_mtime))
 
 
 def build_satellite_playlist_paths(
@@ -221,25 +257,27 @@ def build_satellite_playlist_paths(
     # An attribute filter narrows to videos whose metadata matches; it needs the
     # library's roots to reach each sidecar, so without them it is a no-op.
     # Applied before ordering, so it holds under both premiere and shuffle.
-    if (
-        filter_query
-        and library is not None
+    filtered = bool(filter_query) and (
+        library is not None
         and library.media_root is not None
         and library.metadata_root is not None
-    ):
+    )
+    if filtered:
         files = [
             full_path
             for full_path in files
             if path_matches_query(full_path, library.media_root, library.metadata_root, filter_query)
         ]
-    # With a library, both orders collapse action groups to one slot: premiere
-    # (recent) keeps newest-first, the shuffle build weighted-randomizes.  With
-    # no library there is nothing to group by, so just order the raw files.
+    # With a library, both orders collapse to one slot per group: premiere
+    # (recent) keeps newest-first, the shuffle build weighted-randomizes.  A
+    # filtered view collapses seed families (one per param-set) rather than
+    # action groups.  With no library there is nothing to group by, so just
+    # order the raw files.
     if library is None:
         return order_paths(files, recent=recent, rng=rng)
     if recent:
-        return _collapse_recent(files, library)
-    return _collapse_and_weigh(files, library, rng)
+        return _collapse_recent(files, library, by_seed_family=filtered)
+    return _collapse_and_weigh(files, library, rng, by_seed_family=filtered)
 
 
 def build_playlist_file_path(state_dir: Path, name: str) -> Path:

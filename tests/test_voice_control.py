@@ -275,6 +275,28 @@ class TestVoiceController:
         assert not vc.is_muted
 
 
+def test_group_commands_join_the_order_agnostic_grid():
+    """"action loop", "seed loop" and "lock action" work bare (active side) and
+    with a side word in either order, like the other satellite actions."""
+    for word, act in {
+        "action loop": "action_loop",
+        "seed loop": "seed_loop",
+        "lock action": "lock_action",
+    }.items():
+        assert VOICE_COMMANDS[word] == f"active_{act}"
+        for side in ("portrait", "landscape", "both"):
+            assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
+            assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
+
+
+def test_group_commands_do_not_shadow_the_single_word_actions():
+    # "lock action" must not disturb "lock"/"action"; "action loop" not "loop".
+    assert VOICE_COMMANDS["lock"] == "active_lock_on"
+    assert VOICE_COMMANDS["action"] == "active_cycle_action"
+    assert VOICE_COMMANDS["seed"] == "active_cycle_seed"
+    assert VOICE_COMMANDS["loop"] == "nau_record_up"
+
+
 def test_voice_commands_include_generated_filter_phrases():
     from fun_time.filter_vocab import clear_command, set_command
 

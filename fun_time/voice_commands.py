@@ -100,6 +100,24 @@ for _act_word, _act in _SATELLITE_ACTIONS.items():
         VOICE_COMMANDS[f"{_side} {_act_word}"] = _sided
         VOICE_COMMANDS[f"{_act_word} {_side}"] = _sided
 
+# Group commands act on the current clip's GROUP rather than on the playlist,
+# and join the same order-agnostic grid.  "action loop" cycles the subject's
+# other acts; "seed loop" the same act under its other seeds; both are repeat-all
+# over that group (a lock, by contrast, is repeat-one over a single clip).
+# "lock action" filters the satellite to the current clip's action — it is
+# "portrait <act>" with the act read off the clip instead of spoken.
+_SATELLITE_GROUP_ACTIONS: dict[str, str] = {
+    "action loop": "action_loop",
+    "seed loop": "seed_loop",
+    "lock action": "lock_action",
+}
+for _group_word, _group_act in _SATELLITE_GROUP_ACTIONS.items():
+    VOICE_COMMANDS[_group_word] = f"active_{_group_act}"
+    for _side in ("portrait", "landscape", "both"):
+        _sided = f"{_side}_{_group_act}"
+        VOICE_COMMANDS[f"{_side} {_group_word}"] = _sided
+        VOICE_COMMANDS[f"{_group_word} {_side}"] = _sided
+
 # The primary (Nau) player joins the grid for navigation ONLY — "primary next"
 # / "next primary" (either order) — since it has no lock/weird/cycle.  "main" is
 # a synonym for "primary".  Bare "next"/"previous" also reach it whenever it was

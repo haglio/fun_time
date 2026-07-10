@@ -210,6 +210,7 @@ class GroupIndex:
 
     action_key_by_path: dict[str, str]
     action_members: dict[str, list[str]]
+    action_by_path: dict[str, str]
     seed_key_by_path: dict[str, tuple[str, str]]
     seed_members: dict[str, list[str]]
     loose_seed_key_by_path: dict[str, tuple[str, str]]
@@ -218,6 +219,57 @@ class GroupIndex:
 
     def contains(self, path: str) -> bool:
         return normalize_path_key(path) in self.indexed_paths
+
+
+def action_group_members(index: GroupIndex, path: str) -> list[str]:
+    """Every clip of *path*'s subject — the same subject(s)+scene, each action."""
+    key = index.action_key_by_path.get(normalize_path_key(path))
+    if key is None:
+        return []
+    return list(index.action_members[key])
+
+
+def seed_family_members(index: GroupIndex, path: str) -> list[str]:
+    """Every clip of *path*'s parameter set doing *path*'s action, each seed.
+
+    A text-to-video family already pins the action, but an image-to-video family
+    is keyed on the source image alone, so its members are narrowed here to the
+    current clip's action — "the same act, another subject".
+    """
+    entry = index.seed_key_by_path.get(normalize_path_key(path))
+    if entry is None:
+        return []
+    family, _seed = entry
+    action = index.action_by_path.get(normalize_path_key(path), "")
+    return [
+        member
+        for member in index.seed_members[family]
+        if index.action_by_path.get(normalize_path_key(member), "") == action
+    ]
+
+
+def action_label(index: GroupIndex, path: str) -> str:
+    """*path*'s action, numbered when its group holds several of that action.
+
+    Two "Alpha" renders of one seed are ordinary action-group siblings, so
+    they read as "Alpha 1" and "Alpha 2" as you cycle around the group.
+    """
+    key = normalize_path_key(path)
+    action = index.action_by_path.get(key, "")
+    group = index.action_key_by_path.get(key)
+    if not action or group is None:
+        return action
+    twins = [
+        member
+        for member in index.action_members[group]
+        if index.action_by_path.get(normalize_path_key(member), "") == action
+    ]
+    if len(twins) < 2:
+        return action
+    position = next(
+        (slot for slot, member in enumerate(twins) if normalize_path_key(member) == key), 0
+    )
+    return f"{action} {position + 1}"
 
 
 def _record_seed_membership(
@@ -245,6 +297,7 @@ def build_group_index(
     """
     action_key_by_path: dict[str, str] = {}
     action_members: dict[str, list[str]] = {}
+    action_by_path: dict[str, str] = {}
     seed_key_by_path: dict[str, tuple[str, str]] = {}
     seed_members: dict[str, list[str]] = {}
     loose_seed_key_by_path: dict[str, tuple[str, str]] = {}
@@ -256,6 +309,9 @@ def build_group_index(
         if sidecar is None or not sidecar.is_file():
             continue
         metadata = load_metadata(sidecar)
+        action = str((metadata.get("video") or {}).get("action") or "").strip()
+        if action:
+            action_by_path[normalize_path_key(path)] = action
         action_key = action_group_key(metadata)
         if action_key is not None:
             action_key_by_path[normalize_path_key(path)] = action_key
@@ -269,6 +325,7 @@ def build_group_index(
     return GroupIndex(
         action_key_by_path=action_key_by_path,
         action_members=action_members,
+        action_by_path=action_by_path,
         seed_key_by_path=seed_key_by_path,
         seed_members=seed_members,
         loose_seed_key_by_path=loose_seed_key_by_path,

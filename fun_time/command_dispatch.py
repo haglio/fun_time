@@ -15,10 +15,13 @@ from pathlib import Path
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .media_metadata import (
     GroupIndex,
+    action_group_members,
+    action_label,
     cached_group_index,
     load_metadata,
     metadata_path_for,
     normalize_path_key,
+    seed_family_members,
 )
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
@@ -32,6 +35,7 @@ from .runtime_flow import (
     apply_mode_switch,
     apply_refresh_recency_order,
     apply_satellite_filter,
+    apply_satellite_loop,
     apply_toggle_fmode,
     build_omnipause_toggle,
 )
@@ -375,6 +379,82 @@ def _video_action_label(video_path: str, config: BridgeConfig) -> str:
     return str(video.get("action") or "").strip()
 
 
+def _satellite_group_index(which: int, config: BridgeConfig, current: str) -> GroupIndex:
+    """The cached grouping index over a satellite's sources, fresh for *current*."""
+    sources = config.portrait_sources if which == 2 else config.landscape_sources
+    return cached_group_index(
+        sources,
+        paths_supplier=lambda: collect_video_files(sources),
+        media_root=config.provider_media_root,
+        metadata_root=config.provider_metadata_root,
+        must_contain=current,
+    )
+
+
+# Loop a satellite around one of the current clip's groups, instead of the
+# whole playlist: its action group (the subject's other acts) or its seed
+# family (the same act under other seeds).
+_LOOP_COMMANDS: dict[str, tuple[int, str]] = {
+    "portrait_action_loop": (2, "action"),
+    "portrait_seed_loop": (2, "seed"),
+    "landscape_action_loop": (3, "action"),
+    "landscape_seed_loop": (3, "seed"),
+}
+
+_LOCK_ACTION_SIDES: dict[str, str] = {
+    "portrait_lock_action": "portrait",
+    "landscape_lock_action": "landscape",
+}
+
+
+def _dispatch_group_loop(
+    which: int, axis: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Loop the satellite around the current clip's action group or seed family."""
+    port = config.portrait_port if which == 2 else config.landscape_port
+    ops: list[WindowOp] = []
+    current = get_current_file_path(port, config.vlc_password)
+    if not current:
+        return state, ops
+    index = _satellite_group_index(which, config, current)
+    gather = action_group_members if axis == "action" else seed_family_members
+    members = [member for member in gather(index, current) if Path(member).exists()]
+    if len(members) < 2:
+        ops.append(WindowOp(op="tooltip", key=f"No other {axis}s"))
+        return state, ops
+    # A loop is repeat-all over the group, so a repeat-one lock must go first.
+    state = _cancel_lock(which, state, config)
+    result = apply_satellite_loop(
+        which=which,
+        axis=axis,
+        members=members,
+        state_dir=config.state_dir,
+        port=port,
+        password=config.vlc_password,
+    )
+    logger.info(result.log_message)
+    if result.applied:
+        ensure_playback_state(port, config.vlc_password, should_play=True)
+    ops.append(WindowOp(op="tooltip", key=result.log_message))
+    return state, ops
+
+
+def _dispatch_lock_action(
+    scope: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Filter the satellite to the current clip's action — "portrait [act]",
+    with the act read off the clip instead of spoken."""
+    which = 2 if scope == "portrait" else 3
+    port = config.portrait_port if which == 2 else config.landscape_port
+    current = get_current_file_path(port, config.vlc_password)
+    if not current:
+        return state, []
+    action = _video_action_label(current, config)
+    if not action:
+        return state, [WindowOp(op="tooltip", key="No action metadata")]
+    return _dispatch_set_filter(scope, action.lower(), state, config)
+
+
 def _cycle_variant(
     which: int, kind: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -386,18 +466,11 @@ def _cycle_variant(
     carries over to the sibling, which simply loops in its place.
     """
     port = config.portrait_port if which == 2 else config.landscape_port
-    sources = config.portrait_sources if which == 2 else config.landscape_sources
     ops: list[WindowOp] = []
     current = get_current_file_path(port, config.vlc_password)
     if not current:
         return state, ops
-    index = cached_group_index(
-        sources,
-        paths_supplier=lambda: collect_video_files(sources),
-        media_root=config.provider_media_root,
-        metadata_root=config.provider_metadata_root,
-        must_contain=current,
-    )
+    index = _satellite_group_index(which, config, current)
     entries, _current_id = get_playlist_entries(port, config.vlc_password)
     widened = False
     if kind == "action":
@@ -420,7 +493,8 @@ def _cycle_variant(
         return state, ops
     ensure_playback_state(port, config.vlc_password, should_play=True)
     if kind == "action":
-        action = _video_action_label(target, config)
+        # Numbered when the group holds several of the same act ("Alpha 2").
+        action = action_label(index, target)
         if action:
             ops.append(WindowOp(op="tooltip", key=f"Action: {action}"))
     elif widened:
@@ -462,6 +536,15 @@ def dispatch_command(
     if cycle_target is not None:
         which, kind = cycle_target
         return _cycle_variant(which, kind, state, config)
+
+    loop_target = _LOOP_COMMANDS.get(command)
+    if loop_target is not None:
+        which, axis = loop_target
+        return _dispatch_group_loop(which, axis, state, config)
+
+    lock_action_scope = _LOCK_ACTION_SIDES.get(command)
+    if lock_action_scope is not None:
+        return _dispatch_lock_action(lock_action_scope, state, config)
 
     if command == "portrait_prev":
         state = _cancel_lock(2, state, config)

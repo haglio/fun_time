@@ -113,6 +113,9 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Lock / unlock portrait", ("Down",), ("portrait_lock", "portrait_lock_on", "portrait_lock_off")),
             _Row("Cycle action — same subject(s) & scene, another act", ("Del",), ("portrait_cycle_action",)),
             _Row("Cycle seed — same config, different subject", ("End",), ("portrait_cycle_seed",)),
+            _Row("Loop the subject's actions — repeat that group", (), ("portrait_action_loop",)),
+            _Row("Loop the act's other seeds — repeat that family", (), ("portrait_seed_loop",)),
+            _Row("Filter portrait to the current clip's action", (), ("portrait_lock_action",)),
         ),
     ),
     (
@@ -124,6 +127,9 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Lock / unlock landscape", ("S",), ("landscape_lock", "landscape_lock_on", "landscape_lock_off")),
             _Row("Cycle action — same subject(s) & scene, another act", ("E",), ("landscape_cycle_action",)),
             _Row("Cycle seed — same config, different subject", ("Q",), ("landscape_cycle_seed",)),
+            _Row("Loop the subject's actions — repeat that group", (), ("landscape_action_loop",)),
+            _Row("Loop the act's other seeds — repeat that family", (), ("landscape_seed_loop",)),
+            _Row("Filter landscape to the current clip's action", (), ("landscape_lock_action",)),
         ),
     ),
     (
@@ -135,6 +141,9 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Lock / unlock both", (), ("both_lock_on", "both_lock_off")),
             _Row("Cycle both actions — same subject(s) & scene, another act", (), ("both_cycle_action",)),
             _Row("Cycle both seeds — same config, different subject", (), ("both_cycle_seed",)),
+            _Row("Loop each subject's actions on both", (), ("both_action_loop",)),
+            _Row("Loop each act's other seeds on both", (), ("both_seed_loop",)),
+            _Row("Filter both to their current clip's action", (), ("both_lock_action",)),
         ),
     ),
     (
@@ -161,6 +170,9 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Mark the active side's clip as weird", (), ("active_trash",)),
             _Row("Cycle action — same subject(s) & scene, another act", (), ("active_cycle_action",)),
             _Row("Cycle seed — same config, different subject", (), ("active_cycle_seed",)),
+            _Row("Loop the subject's actions — repeat that group", (), ("active_action_loop",)),
+            _Row("Loop the act's other seeds — repeat that family", (), ("active_seed_loop",)),
+            _Row("Filter the active side to the current clip's action", (), ("active_lock_action",)),
         ),
     ),
     (
