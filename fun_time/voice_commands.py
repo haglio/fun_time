@@ -45,6 +45,7 @@ def parse_command_line(line: str) -> tuple[str, float | None]:
     except ValueError:
         return line, None
 
+
 VOICE_COMMANDS: dict[str, str] = {
     "quit": "quit",
     "exit": "quit",

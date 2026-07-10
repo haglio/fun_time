@@ -1895,6 +1895,38 @@ def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
     assert new_state.landscape_filter == ""
 
 
+def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Path):
+    """A group command names the clip the speaker had in front of them, so the
+    group is that clip's — not that of whatever the satellite advanced to."""
+    config = _make_config(tmp_path)
+    index, meant, sibling = _loop_index(tmp_path, axis="action")
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/advanced_to.mp4"), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
+        mock_loop.return_value = _loop_result()
+        dispatch_command("portrait_action_loop", _make_state(), config, target_path=meant)
+
+    assert sorted(mock_loop.call_args.kwargs["members"]) == sorted([meant, sibling])
+
+
+def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_path: Path):
+    config = _make_config(tmp_path)
+    meant = "C:/v/meant.mp4"
+    labelled: list[str] = []
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/advanced_to.mp4"), \
+         patch("fun_time.command_dispatch._video_action_label",
+               side_effect=lambda path, _config: labelled.append(path) or "Beta Gamma"), \
+         patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result()
+        dispatch_command("portrait_lock_action", _make_state(), config, target_path=meant)
+
+    assert labelled == [meant]
+    assert mock_filter.call_args.kwargs["query"] == "beta gamma"
+
+
 def test_lock_action_without_metadata_says_so(tmp_path: Path):
     config = _make_config(tmp_path)
 
