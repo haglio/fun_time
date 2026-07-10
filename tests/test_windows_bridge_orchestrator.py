@@ -9,9 +9,12 @@ import pytest
 from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
+    ChildProcess,
     _open_event_log,
     _shutdown_children,
+    identify_children,
     kill_process_tree,
+    kill_recorded_child,
     write_pids_file,
     run_python_orchestrated_bridge,
 )
@@ -75,36 +78,92 @@ class TestKillProcessTree:
         assert "1234" in caplog.text
 
 
+class TestKillRecordedChild:
+    def test_does_not_kill_a_pid_windows_recycled_to_another_process(self, caplog):
+        """The recorded child died and Windows handed its PID to something else —
+        an integration run's pytest, say.  Killing it would take that process down."""
+        child = ChildProcess(pid=1234, created_at=111_000)
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            return_value=222_000,
+        ), patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run, \
+             caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
+            kill_recorded_child(child)
+
+        mock_run.assert_not_called()
+        assert "1234" in caplog.text
+
+
+class TestIdentifyChildren:
+    def test_pins_every_launched_pid_to_its_creation_time(self):
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            side_effect=lambda pid: pid * 10,
+        ):
+            children = identify_children(_fake_startup_result())
+
+        assert children["nau_pid"] == ChildProcess(pid=200, created_at=2000)
+        assert children["audio_pid"] == ChildProcess(pid=700, created_at=7000)
+
+    def test_records_a_child_that_already_exited_as_unkillable(self):
+        """A PID whose creation time cannot be read is already gone; recording
+        0 means no later creation time can ever match it."""
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            return_value=None,
+        ):
+            children = identify_children(_fake_startup_result())
+
+        assert children["nau_pid"] == ChildProcess(pid=200, created_at=0)
+
+
 class TestShutdownChildren:
     def test_closes_rfb_window(self):
-        result = StartupResult(
-            nau_pid=200, portrait_pid=300, landscape_pid=400,
-            dashboard_pid=500, genau_pid=600, audio_pid=700,
-            layout_plan=_fake_plan(), rfb_hwnd=88888,
-        )
-        with patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+        with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window") as mock_close:
-            _shutdown_children(result)
+            _shutdown_children(88888, {})
 
         mock_close.assert_called_once_with(88888)
 
     def test_skips_rfb_close_when_no_hwnd(self):
-        result = _fake_startup_result()  # rfb_hwnd defaults to 0
-        with patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+        with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window") as mock_close:
-            _shutdown_children(result)
+            _shutdown_children(0, {})
 
         mock_close.assert_called_once_with(0)
 
+    def test_kills_the_recorded_children_but_never_a_recycled_pid(self):
+        children = {
+            "nau_pid": ChildProcess(pid=200, created_at=111),
+            "portrait_pid": ChildProcess(pid=300, created_at=222),
+        }
+        live_creation_times = {200: 111, 300: 999}  # 300 was recycled
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            side_effect=live_creation_times.get,
+        ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill, \
+             patch("fun_time.windows_bridge_orchestrator.close_window"):
+            _shutdown_children(0, children)
+
+        mock_kill.assert_called_once_with(200)
+
 
 class TestWritePidsFile:
-    def test_writes_all_pids(self, tmp_path):
-        result = _fake_startup_result()
+    def _write(self, tmp_path):
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            side_effect=lambda pid: pid * 10,
+        ):
+            children = identify_children(_fake_startup_result())
         pids_path = tmp_path / "pids.ini"
-        write_pids_file(pids_path, result)
+        write_pids_file(pids_path, children)
 
         parser = configparser.ConfigParser()
         parser.read(str(pids_path), encoding="utf-8")
+        return parser
+
+    def test_writes_all_pids(self, tmp_path):
+        parser = self._write(tmp_path)
 
         assert parser.getint("pids", "nau_pid") == 200
         assert parser.getint("pids", "portrait_pid") == 300
@@ -112,6 +171,14 @@ class TestWritePidsFile:
         assert parser.getint("pids", "dashboard_pid") == 500
         assert parser.getint("pids", "genau_pid") == 600
         assert parser.getint("pids", "audio_pid") == 700
+
+    def test_writes_the_creation_time_that_pins_each_pid(self, tmp_path):
+        """Teardown reads this back to tell our child from whatever process
+        Windows has since handed the PID to."""
+        parser = self._write(tmp_path)
+
+        assert parser.getint("created_at", "nau_pid") == 2000
+        assert parser.getint("created_at", "audio_pid") == 7000
 
 
 class TestHotkeySuspendDuringIntegration:
@@ -208,6 +275,7 @@ class TestRunPythonOrchestratedBridge:
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.get_process_creation_time", side_effect=lambda pid: pid * 10), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=fake_kill_tree):
 
             code = run_python_orchestrated_bridge(

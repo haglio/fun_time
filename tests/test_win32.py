@@ -10,6 +10,7 @@ import pytest
 
 from fun_time.win32 import (
     close_window,
+    get_process_creation_time,
     get_process_image_name,
     is_process_alive,
     wait_for_window,
@@ -210,6 +211,15 @@ class TestGetProcessImageName:
             mock.QueryFullProcessImageNameW.return_value = 0
             assert get_process_image_name(4242) is None
         mock.CloseHandle.assert_called_once_with(42)
+
+
+class TestGetProcessCreationTime:
+    def test_returns_a_stable_creation_time_for_our_own_process(self):
+        first = get_process_creation_time(os.getpid())
+
+        assert first is not None
+        assert first > 0
+        assert get_process_creation_time(os.getpid()) == first
 
 
 class TestIsProcessAlive:

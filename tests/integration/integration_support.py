@@ -15,7 +15,11 @@ from fun_time.config import load_config
 from fun_time.dashboard_runtime import NauStatus, read_nau_status
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
-from fun_time.windows_bridge_orchestrator import kill_process_tree
+from fun_time.windows_bridge_orchestrator import (
+    ChildProcess,
+    kill_process_tree,
+    kill_recorded_child,
+)
 
 from .hidden_desktop import (
     HIDDEN_DESKTOP_NAME,
@@ -116,11 +120,19 @@ class FunTimeIntegrationSession:
 
     def read_child_pids(self) -> dict[str, int]:
         """Read all child PIDs from bridge_pids.ini."""
+        return {key: child.pid for key, child in self.read_child_processes().items()}
+
+    def read_child_processes(self) -> dict[str, ChildProcess]:
+        """Read the children the orchestrator recorded — PID and creation time."""
         pids_file = self.config.paths.state_dir / "bridge_pids.ini"
         parser = configparser.ConfigParser()
         parser.optionxform = str
         parser.read(str(pids_file), encoding="utf-8")
-        return {key: int(val) for key, val in parser["pids"].items()}
+        created_at = parser["created_at"]
+        return {
+            key: ChildProcess(pid=int(pid), created_at=int(created_at[key]))
+            for key, pid in parser["pids"].items()
+        }
 
     def quit_gracefully(self, timeout: float = 15.0) -> int:
         """Simulate the Ctrl+Alt+Q quit path by killing the AHK process.
@@ -283,29 +295,26 @@ class FunTimeIntegrationSession:
             return ""
 
     def _kill_recorded_children(self) -> None:
-        """Deterministically kill this session's children by their recorded PIDs.
+        """Deterministically kill this session's children by their recorded identity.
 
         stop() hard-terminates the orchestrator with TerminateProcess, so the
         orchestrator's own graceful _shutdown_children() never runs and the
         processes it launched (the two satellite VLCs, plus Nau/Genau/dashboard/
-        audio) are orphaned.  Kill them by the exact PIDs the orchestrator wrote
-        to bridge_pids.ini at startup, reusing the production kill_process_tree
-        (``taskkill /PID <pid> /T /F``; /T also kills the worker behind each
-        pythonw launcher, and the image-name check skips a PID that Windows has
-        recycled to an unrelated process).
+        audio) are orphaned.  Kill them via the production kill_recorded_child,
+        which taskkills a recorded PID only while its creation time still names
+        the process the orchestrator launched — a child that has already died
+        and had its PID handed to some other process (this run's pytest, or a
+        queued run's) is left alone.
 
-        This is deterministic where the name+StartTime sweep is not: a VLC dies
-        because we recorded its PID, not because it happens to match an image
-        name inside a five-minute window.  bridge_pids.ini is absent only when
-        startup failed before writing it — then there is nothing of ours to kill.
+        bridge_pids.ini is absent only when startup failed before writing it —
+        then there is nothing of ours to kill.
         """
         try:
-            pids = self.read_child_pids()
+            children = self.read_child_processes()
         except (KeyError, OSError, ValueError):
             return
-        for pid in pids.values():
-            if pid:
-                kill_process_tree(pid)
+        for child in children.values():
+            kill_recorded_child(child)
 
     def _reap_leftover_runtime_processes(self) -> None:
         _kill_leftover_app_processes()

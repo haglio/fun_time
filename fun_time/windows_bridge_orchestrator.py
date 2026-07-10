@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 
 from .config import load_config
@@ -33,6 +34,7 @@ from .window_roles import LOG_PANEL_WINDOW_TITLE
 from .win32 import (
     close_window,
     find_window_by_pid,
+    get_process_creation_time,
     get_process_image_name,
     wait_for_window_by_title,
 )
@@ -40,18 +42,58 @@ from .win32 import (
 logger = logging.getLogger(__name__)
 
 
-def write_pids_file(path: Path, result: StartupResult) -> None:
-    """Write a pids INI file that the AHK hotkey script reads on startup."""
+CHILD_PID_KEYS = (
+    "nau_pid",
+    "portrait_pid",
+    "landscape_pid",
+    "dashboard_pid",
+    "genau_pid",
+    "audio_pid",
+)
+
+
+@dataclass(frozen=True)
+class ChildProcess:
+    """A child we launched, named by the pair that survives PID recycling.
+
+    ``created_at`` is the process's creation FILETIME, read while the child was
+    known to be alive.  A PID alone is not an identity — Windows hands a freed
+    PID back out within seconds — so every deferred kill compares the recorded
+    creation time against the live one first.  ``created_at`` is 0 for a child
+    that was never launched (pid 0) or had already exited when it was recorded;
+    no live process can match that, so it is never killed.
+    """
+
+    pid: int
+    created_at: int
+
+
+def identify_children(result: StartupResult) -> dict[str, ChildProcess]:
+    """Pin each freshly-launched child PID to the process now holding it.
+
+    Read while startup has just proved the children alive, so the creation time
+    recorded here belongs to the process we launched.  Everything that kills a
+    child later compares against it, and a PID Windows has since handed to
+    someone else no longer matches.
+    """
+    children: dict[str, ChildProcess] = {}
+    for key in CHILD_PID_KEYS:
+        pid = getattr(result, key)
+        children[key] = ChildProcess(pid=pid, created_at=get_process_creation_time(pid) or 0)
+    return children
+
+
+def write_pids_file(path: Path, children: dict[str, ChildProcess]) -> None:
+    """Record this session's children so its teardown can find them again.
+
+    Both sections are keyed by child name: ``[pids]`` alone cannot be trusted at
+    kill time, so ``[created_at]`` carries the creation time that pins each PID
+    to the process we launched.
+    """
     parser = configparser.ConfigParser()
     parser.optionxform = str
-    parser["pids"] = {
-        "nau_pid": str(result.nau_pid),
-        "portrait_pid": str(result.portrait_pid),
-        "landscape_pid": str(result.landscape_pid),
-        "dashboard_pid": str(result.dashboard_pid),
-        "genau_pid": str(result.genau_pid),
-        "audio_pid": str(result.audio_pid),
-    }
+    parser["pids"] = {key: str(child.pid) for key, child in children.items()}
+    parser["created_at"] = {key: str(child.created_at) for key, child in children.items()}
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fp:
         parser.write(fp)
@@ -66,6 +108,24 @@ _CHILD_IMAGE_NAMES = {
     "pythonw.exe",
     "autohotkey64.exe",
 }
+
+
+def kill_recorded_child(child: ChildProcess) -> None:
+    """Kill *child* and its descendants, but only if its PID still names it."""
+    if not child.pid:
+        return
+    created_at = get_process_creation_time(child.pid)
+    if created_at is None:
+        logger.info("Not killing PID %d: process already exited", child.pid)
+        return
+    if created_at != child.created_at:
+        logger.warning(
+            "Not killing PID %d: Windows recycled it to a process created at %d, "
+            "not the child we launched at %d",
+            child.pid, created_at, child.created_at,
+        )
+        return
+    kill_process_tree(child.pid)
 
 
 def kill_process_tree(pid: int) -> None:
@@ -103,18 +163,11 @@ def kill_process_tree(pid: int) -> None:
 _STARTUP_PROGRESS_STEPS = 6
 
 
-def _shutdown_children(result: StartupResult) -> None:
+def _shutdown_children(rfb_hwnd: int, children: dict[str, ChildProcess]) -> None:
     """Kill all child processes launched during startup."""
-    close_window(result.rfb_hwnd)
-    for pid in [
-        result.nau_pid,
-        result.portrait_pid,
-        result.landscape_pid,
-        result.dashboard_pid,
-        result.genau_pid,
-        result.audio_pid,
-    ]:
-        kill_process_tree(pid)
+    close_window(rfb_hwnd)
+    for child in children.values():
+        kill_recorded_child(child)
 
 
 class _AppendOnWriteHandler(logging.Handler):
@@ -277,7 +330,8 @@ def run_python_orchestrated_bridge(
         _fix_post_loading_windows(result)
 
     pids_file = state_dir / "bridge_pids.ini"
-    write_pids_file(pids_file, result)
+    children = identify_children(result)
+    write_pids_file(pids_file, children)
 
     # Clean stale state files from previous sessions so the dispatch loop
     # starts fresh (e.g. omni_paused=True left over from a crash).
@@ -384,6 +438,6 @@ def run_python_orchestrated_bridge(
         dispatch_runner.stop()
         dispatch_thread.join(timeout=2.0)
         logger.info("AHK exited — shutting down child processes")
-        _shutdown_children(result)
+        _shutdown_children(result.rfb_hwnd, children)
 
     return exit_code
