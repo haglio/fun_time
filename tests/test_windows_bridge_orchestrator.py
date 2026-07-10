@@ -9,6 +9,7 @@ import pytest
 from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
+    _open_event_log,
     _shutdown_children,
     kill_process_tree,
     write_pids_file,
@@ -521,3 +522,83 @@ class TestVoiceControlIntegration:
             )
 
         mock_vc_class.assert_not_called()
+
+
+class TestOpenEventLog:
+    def test_truncates_the_previous_session_and_tails_every_fun_time_logger(self, tmp_path):
+        """One handler on the package logger catches every fun_time.* module by
+        propagation, and the package level is opened all the way down: the file
+        carries everything and the log panel picks the verbosity."""
+        import logging
+
+        from fun_time.event_log import EventLogHandler, event_log_path, read_events
+
+        state_dir = tmp_path / "state"
+        state_dir.mkdir()
+        event_log_path(state_dir).write_text('{"ts":1,"level":20,"source":"dash","msg":"stale"}\n',
+                                             encoding="utf-8")
+        package_logger = logging.getLogger("fun_time")
+        original_handlers = list(package_logger.handlers)
+        original_level = package_logger.level
+        try:
+            _open_event_log(state_dir)
+
+            assert package_logger.level == logging.DEBUG
+            assert any(isinstance(h, EventLogHandler) for h in package_logger.handlers)
+
+            logging.getLogger("fun_time.some_module").debug("chatter")
+            records, _offset = read_events(event_log_path(state_dir))
+            assert [r.message for r in records] == ["chatter"]
+        finally:
+            for handler in package_logger.handlers[:]:
+                if handler not in original_handlers:
+                    package_logger.removeHandler(handler)
+            package_logger.setLevel(original_level)
+
+    def test_re_opening_replaces_the_handler_rather_than_stacking_one(self, tmp_path):
+        import logging
+
+        from fun_time.event_log import EventLogHandler
+
+        package_logger = logging.getLogger("fun_time")
+        original_handlers = list(package_logger.handlers)
+        original_level = package_logger.level
+        try:
+            _open_event_log(tmp_path / "one")
+            _open_event_log(tmp_path / "two")
+
+            installed = [h for h in package_logger.handlers if isinstance(h, EventLogHandler)]
+            assert len(installed) == 1
+            assert installed[0].path.parent == tmp_path / "two"
+        finally:
+            for handler in package_logger.handlers[:]:
+                if handler not in original_handlers:
+                    package_logger.removeHandler(handler)
+            package_logger.setLevel(original_level)
+
+    def test_the_orchestrator_logger_is_enrolled_even_though_it_does_not_propagate(self, tmp_path):
+        """configure_logging turns propagation off for the console logger, so the
+        one handler on the package would never see its lines."""
+        import logging
+
+        from fun_time.event_log import event_log_path, read_events
+
+        orch_logger = logging.getLogger("fun_time.orchestrator")
+        package_logger = logging.getLogger("fun_time")
+        original = (list(package_logger.handlers), list(orch_logger.handlers),
+                    package_logger.level, orch_logger.level, orch_logger.propagate)
+        try:
+            orch_logger.propagate = False
+            orch_logger.setLevel(logging.INFO)
+            _open_event_log(tmp_path)
+
+            orch_logger.info("bridge exited")
+
+            records, _offset = read_events(event_log_path(tmp_path))
+            assert [r.message for r in records] == ["bridge exited"]
+        finally:
+            package_logger.handlers[:] = original[0]
+            orch_logger.handlers[:] = original[1]
+            package_logger.setLevel(original[2])
+            orch_logger.setLevel(original[3])
+            orch_logger.propagate = original[4]

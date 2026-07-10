@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, command_side, dispatch_command
+from .event_log import notice
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
 from .video_timeline import VideoTimeline
@@ -26,7 +27,12 @@ from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on, read_nau_status
 from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
-from .window_roles import FIXED_TOPMOST_ROLES, MANAGED_ROLES, role_topmost
+from .window_roles import (
+    FIXED_TOPMOST_ROLES,
+    LOG_PANEL_WINDOW_TITLE,
+    MANAGED_ROLES,
+    role_topmost,
+)
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -105,7 +111,7 @@ def execute_window_ops(ops: list[WindowOp], nau_pid: int) -> list[WindowOp]:
     """
     remaining: list[WindowOp] = []
     for op in ops:
-        if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "tooltip",
+        if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "notice",
                       "disable_all_topmost", "restore_all_topmost",
                       "open_rfb_tab",
                       "show_role", "hide_role", "activate_role",
@@ -542,8 +548,8 @@ class DispatchLoopRunner:
             if op.op == "open_rfb_tab":
                 self._pending_rfb_urls.append(op.key)
                 continue
-            if op.op == "tooltip":
-                self.ahk_cmd_file.write_text(f"tooltip {op.key}", encoding="utf-8")
+            if op.op == "notice":
+                notice(logger, op.key, source=op.source)
             else:
                 self.ahk_cmd_file.write_text(op.op, encoding="utf-8")
         write_shared_state(self.shared_state_file, self.state)
@@ -628,6 +634,10 @@ class DispatchLoopRunner:
             hwnd = find_window_by_pid(self.landscape_pid)
         elif role == "dashboard":
             hwnd = self._find_dashboard_hwnd()
+        elif role == "logs":
+            # The dashboard process owns it, so it shares the dashboard's pid
+            # ambiguity; the exact title is what reliably resolves it.
+            hwnd = find_window_by_title(LOG_PANEL_WINDOW_TITLE, exact=True)
         elif role == "rfb":
             hwnd = self.rfb_hwnd
         if hwnd:
@@ -640,7 +650,7 @@ class DispatchLoopRunner:
             "genau": ["genau"],
             "hybrid": ["nau", "genau"],
         }.get(self.state.primary_mode, ["nau"])
-        return ["rfb", "portrait", "landscape", "dashboard", *slot]
+        return ["rfb", "portrait", "landscape", "dashboard", "logs", *slot]
 
     def _remove_all_topmost(self) -> None:
         """Drop EVERY managed window out of the TOPMOST band (omnipause frees

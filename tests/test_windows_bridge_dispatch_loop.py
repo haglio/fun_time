@@ -780,18 +780,25 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "unsuspend_hotkeys"
 
-    def test_dispatch_writes_tooltip_with_message_to_ahk_cmd_file(self, tmp_path):
+    def test_dispatch_sends_a_notice_to_the_event_log_not_to_ahk(self, tmp_path):
+        """A notice is a message for the person watching; it goes to the log
+        panel's stream, and AHK — which used to flash it at the mouse — never
+        hears about it."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
-        tooltip_op = WindowOp(op="tooltip", key="Clipper: MyVideo")
+        notice_op = WindowOp(op="notice", key="Clipper: MyVideo", source="primary")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[tooltip_op]):
-            mock_dispatch.return_value = (runner.state, [tooltip_op])
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[notice_op]), \
+             patch("fun_time.windows_bridge_dispatch_loop.notice") as mock_notice:
+            mock_dispatch.return_value = (runner.state, [notice_op])
             runner._dispatch("some_command")
 
-        assert ahk_cmd_file.read_text(encoding="utf-8") == "tooltip Clipper: MyVideo"
+        assert not ahk_cmd_file.exists()
+        mock_notice.assert_called_once()
+        assert mock_notice.call_args[0][1] == "Clipper: MyVideo"
+        assert mock_notice.call_args[1] == {"source": "primary"}
 
     def test_sync_tick_calls_update_dashboard_when_enabled(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=100, dashboard_enabled=True)
@@ -1251,6 +1258,22 @@ class TestResolveRole:
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup):
             assert runner._resolve_role("dashboard") == 9999
+
+    def test_log_panel_resolves_by_its_exact_title(self, tmp_path):
+        """The panel is a second window in the dashboard's process, so a pid
+        lookup cannot distinguish them; only the exact title does."""
+        runner = make_runner(tmp_path)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title",
+                   return_value=4242) as by_title:
+            assert runner._resolve_role("logs") == 4242
+
+        by_title.assert_called_once_with("Fun Time Logs", exact=True)
+
+    def test_omniminimize_takes_the_log_panel_down_with_the_rest(self, tmp_path):
+        runner = make_runner(tmp_path)
+
+        assert "logs" in runner._visible_roles()
 
     def test_cached_hwnd_survives_hiding_and_show_role_reaches_it(self, tmp_path):
         """Hidden windows are invisible to the pid/title lookups, so the

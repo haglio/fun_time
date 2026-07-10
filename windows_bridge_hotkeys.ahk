@@ -174,22 +174,11 @@ ProcessAhkCommand() {
         Suspend false
     } else if (action = "exit") {
         ExitApp()
-    } else if (SubStr(action, 1, 8) = "tooltip ") {
-        ShowBriefTooltip(SubStr(action, 9))
     }
 }
 
 Heartbeat() {
     Log("AHK heartbeat (suspended=" . A_IsSuspended . ")")
-}
-
-ShowBriefTooltip(msg) {
-    ToolTip(msg)
-    SetTimer(ClearBriefTooltip, -1500)
-}
-
-ClearBriefTooltip() {
-    ToolTip()
 }
 
 ; -------------------- UTILITIES --------------------

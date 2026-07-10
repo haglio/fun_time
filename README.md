@@ -127,6 +127,17 @@ Serial / mode control:
 
 See those projects for the serial parsing, COM-port recovery, and playback internals.
 
+### The log panel
+
+The main monitor's left column stacks the **Dashboard** in its top-left corner, the **log panel** in the strip beside it, and the **Random Favs Browser** filling the rest below. The Dashboard's schematic of the two monitors draws all three, so the picture matches the screen.
+
+The log panel is a second window in the dashboard's process. It tails `state/event_log.jsonl` and shows:
+
+- a **banner** carrying the newest notice — "Clip saved", "No other seeds", "Similar clip" — which stays put until the next one replaces it,
+- the **stream** below, filtered by a verbosity dial (`DEBUG`/`INFO`/`NOTICE`/`WARNING`/`ERROR`, default `NOTICE`) and by checkboxes for which window each line is about.
+
+Both settings persist in `state/log_panel.ini`. The banner deliberately ignores the verbosity dial: turning it up to `ERROR` must not swallow "Clip saved".
+
 ## Requirements
 
 ### Windows apps
@@ -240,8 +251,8 @@ AI videos under the provider media root carry metadata sidecars (see `provider_r
 
 Two command pairs ride on those groups (keys: `Del`/`End` portrait, `E`/`Q` landscape; voice: "portrait action", "portrait seed", "landscape action", "landscape seed"):
 
-- **Cycle action** switches the current video to the next action of its group, in a fixed order so repeated presses tour every act. A brief tooltip names the action that came up. If the sibling is not in the playlist (grouped builds keep one slot per group — see below), it is swapped in place of the current entry.
-- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render knobs freed) and tooltips the near-match as "Similar clip", so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds".
+- **Cycle action** switches the current video to the next action of its group, in a fixed order so repeated presses tour every act. The log panel names the action that came up. If the sibling is not in the playlist (grouped builds keep one slot per group — see below), it is swapped in place of the current entry.
+- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render knobs freed) and announces the near-match as "Similar clip", so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds".
 
 Unlike prev/next, cycling does **not** release an active lock: it means "show me this differently", so the lock's repeat-one simply carries over to the sibling.
 
@@ -340,9 +351,21 @@ Per-video watch counts (`completions` / `skips` / `locks`) keyed by normalized p
 
 One video per line, with a TAB plus the funscript path when one exists. Written by `build_fmode_playlists` at startup and on every F-mode toggle (which also sends Nau `RELOAD_PLAYLIST`).
 
+### `event_log.jsonl`
+
+Every line any `fun_time` logger emits during a session, one JSON object per line:
+
+```json
+{"ts": 1752000000.5, "level": 25, "source": "portrait", "msg": "No other seeds"}
+```
+
+`source` is the window the line is about — `primary`, `portrait`, `landscape`, `dash`, or `system` for the session at large. `level` is a standard `logging` level plus **`NOTICE` (25)**, the tier for messages meant for whoever is watching the screen ("Clip saved", "Similar clip"). These used to flash as AutoHotkey tooltips under the mouse pointer; now they land here.
+
+The file is truncated when a session starts, so it always holds exactly the current run. The log panel tails it — and so can you, or an agent debugging a session: pause, describe the symptom, and the answer is in this one file.
+
 ### Log files
 
-The Python entry points write rotating logs in `state/`:
+The Python entry points also write rotating logs in `state/`:
 
 - `state/orchestrator.log`
 - `state/windows_bridge.log`

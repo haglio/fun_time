@@ -83,6 +83,8 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.command_reference import render_reference_html
+from fun_time.event_log import event_log_path
+from fun_time.log_panel import LogPanelWindow, prefs_path
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
 from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status, read_nau_status
 from fun_time.dashboard_state import (
@@ -1064,6 +1066,7 @@ class DashboardWindow(QMainWindow):
         *,
         launch_geometry: DashboardLaunchGeometry | None = None,
         rfb_rect: Rect | None = None,
+        log_panel_rect: Rect | None = None,
         start_minimized: bool = False,
     ) -> None:
         super().__init__()
@@ -1122,6 +1125,21 @@ class DashboardWindow(QMainWindow):
         # without showing it, so during the loading overlay the window stays
         # fully hidden — no flash, no minimize animation, nothing on screen —
         # and _maybe_reveal_after_loading shows it once the overlay closes.
+        # The log panel fills the strip beside us.  It lives in this process so it
+        # can share the Qt loop, but it is its own top-level window with its own
+        # HWND, so the bridge manages it like any other managed window.
+        state_dir = app_config.manifest_path.parent
+        self._log_panel: LogPanelWindow | None = None
+        if log_panel_rect is not None:
+            self._log_panel = LogPanelWindow(
+                event_log_path(state_dir),
+                prefs_path(state_dir),
+                geometry=(
+                    log_panel_rect.x, log_panel_rect.y,
+                    log_panel_rect.width, log_panel_rect.height,
+                ),
+            )
+
         _hwnd = int(self.winId())
         self._dash_hwnd = _hwnd
         SW_HIDE = 0
@@ -1132,9 +1150,11 @@ class DashboardWindow(QMainWindow):
         elif start_minimized:
             self.show()
             ctypes.windll.user32.ShowWindow(_hwnd, SW_SHOWMINNOACTIVE)
+            self._show_log_panel(SW_SHOWMINNOACTIVE)
         else:
             self.show()
             ctypes.windll.user32.ShowWindow(_hwnd, SW_SHOW)
+            self._show_log_panel(SW_SHOW)
         WS_SYSMENU = 0x00080000
         WS_MINIMIZEBOX = 0x00020000
         WS_MAXIMIZEBOX = 0x00010000
@@ -1167,6 +1187,17 @@ class DashboardWindow(QMainWindow):
         self._refresh_timer.timeout.connect(self._refresh)
         self._refresh_timer.start(500)
         self._refresh()
+
+    def _show_log_panel(self, show_command: int) -> None:
+        """Reveal the log panel in step with the dashboard.
+
+        Both stay fully hidden behind the loading overlay, so neither flashes
+        above it nor animates a minimize on the way there.
+        """
+        if self._log_panel is None:
+            return
+        self._log_panel.show()
+        ctypes.windll.user32.ShowWindow(int(self._log_panel.winId()), show_command)
 
     def closeEvent(self, event: object) -> None:  # noqa: N802
         try:
@@ -1228,6 +1259,7 @@ class DashboardWindow(QMainWindow):
         ctypes.windll.user32.SetWindowPos(
             self._dash_hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0020,
         )
+        self._show_log_panel(SW_SHOW)
 
     def _compute_pressed(self) -> frozenset[str]:
         now = time.monotonic()
@@ -1262,8 +1294,13 @@ class DashboardWindow(QMainWindow):
         self._last_genau_status = genau_status
         # OmniPause must free the desktop; drop our own topmost while paused
         # (the orchestrator's drop of this window is unreliable) and restore it
-        # after.  See _sync_own_topmost.
-        self._sync_own_topmost(snapshot is not None and snapshot.omni_paused)
+        # after.  See _sync_own_topmost.  The log panel rides along for the same
+        # reason: it is a Qt window in this process, not one the bridge can
+        # reliably resolve.
+        omni_paused = snapshot is not None and snapshot.omni_paused
+        self._sync_own_topmost(omni_paused)
+        if self._log_panel is not None:
+            self._log_panel.sync_topmost(omni_paused)
         state_dir = self._app_config.dashboard_state_file.parent
         scene = build_dashboard_scene(
             self._preview_layout,
@@ -1383,6 +1420,7 @@ def build_dashboard_window(
     *,
     launch_geometry: DashboardLaunchGeometry | None = None,
     rfb_rect: Rect | None = None,
+    log_panel_rect: Rect | None = None,
 ) -> DashboardWindow:
     main_monitor, secondary_monitor = get_preview_monitor_sizes(app_config)
     preview_layout = compute_dashboard_preview_layout(
@@ -1392,6 +1430,7 @@ def build_dashboard_window(
         app_config, preview_layout,
         launch_geometry=launch_geometry,
         rfb_rect=rfb_rect,
+        log_panel_rect=log_panel_rect,
     )
 
 
@@ -1412,6 +1451,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rfb-y", type=int)
     parser.add_argument("--rfb-width", type=int)
     parser.add_argument("--rfb-height", type=int)
+    # The log panel's rect — the strip beside the dashboard.
+    parser.add_argument("--log-x", type=int)
+    parser.add_argument("--log-y", type=int)
+    parser.add_argument("--log-width", type=int)
+    parser.add_argument("--log-height", type=int)
     parser.add_argument(
         "--start-minimized",
         action="store_true",
@@ -1445,8 +1489,14 @@ def main(argv: list[str] | None = None) -> int:
     rfb_rect = None
     if None not in {args.rfb_x, args.rfb_y, args.rfb_width, args.rfb_height}:
         rfb_rect = Rect(args.rfb_x, args.rfb_y, args.rfb_width, args.rfb_height)
+    log_panel_rect = None
+    if None not in {args.log_x, args.log_y, args.log_width, args.log_height}:
+        log_panel_rect = Rect(args.log_x, args.log_y, args.log_width, args.log_height)
     _window = build_dashboard_window(
-        app_config, launch_geometry=launch_geometry, rfb_rect=rfb_rect,
+        app_config,
+        launch_geometry=launch_geometry,
+        rfb_rect=rfb_rect,
+        log_panel_rect=log_panel_rect,
     )
     return app.exec()
 

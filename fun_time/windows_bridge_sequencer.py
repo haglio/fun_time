@@ -23,7 +23,7 @@ from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser, tab_placeholder_path
 from .runtime_flow import write_flag_file
 from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
-from .window_roles import role_topmost
+from .window_roles import LOG_PANEL_WINDOW_TITLE, role_topmost
 from .win32 import (
     disable_window_transitions,
     find_window_by_pid,
@@ -86,6 +86,7 @@ def _apply_startup_window_state(
     genau_hwnd: int,
     nau_hwnd: int,
     dashboard_hwnd: int = 0,
+    logs_hwnd: int = 0,
     rfb_hwnd: int = 0,
 ) -> dict[str, int]:
     """Set the window state for the nau startup mode.
@@ -104,6 +105,7 @@ def _apply_startup_window_state(
         "genau": genau_hwnd,
         "nau": nau_hwnd,
         "dashboard": dashboard_hwnd,
+        "logs": logs_hwnd,
         "rfb": rfb_hwnd,
     }
     for role, hwnd in role_hwnds.items():
@@ -268,6 +270,11 @@ def run_startup_sequence(
         rfb_y=plan.random_favs_browser.y,
         rfb_width=plan.random_favs_browser.width,
         rfb_height=plan.random_favs_browser.height,
+        # The log panel is a second window the dashboard process owns.
+        log_x=plan.log_panel.x,
+        log_y=plan.log_panel.y,
+        log_width=plan.log_panel.width,
+        log_height=plan.log_panel.height,
         audio_module=m["modules"]["audio_module"],
         config_path=m["runtime"]["config_path"],
         audio_folder=m["media"]["genau_audio"],
@@ -304,6 +311,7 @@ def run_startup_sequence(
         # the post-loading fix re-asserts it once the overlay is gone.
         dashboard_pid = ui_pids["dashboard_pid"]
         dash_hwnd = 0
+        logs_hwnd = 0
         if dashboard_pid:
             # The dashboard is hidden (SW_HIDE) behind the loading overlay here,
             # so both lookups must include hidden windows — a visible-only lookup
@@ -315,6 +323,11 @@ def run_startup_sequence(
                 dash_hwnd = wait_for_window_by_title(
                     "Fun Time", timeout_s=5.0, exact=True, include_hidden=True
                 )
+            # The log panel shares the dashboard's process, so only its title
+            # tells the two windows apart.
+            logs_hwnd = wait_for_window_by_title(
+                LOG_PANEL_WINDOW_TITLE, timeout_s=5.0, exact=True, include_hidden=True
+            )
 
         role_hwnds = _apply_startup_window_state(
             rfb_hwnd=rfb_hwnd,
@@ -324,6 +337,7 @@ def run_startup_sequence(
             nau_hwnd=wait_for_window(nau_pid, timeout_s=5.0)
             or wait_for_window_by_title("Nau", timeout_s=5.0, exact=True),
             dashboard_hwnd=dash_hwnd,
+            logs_hwnd=logs_hwnd,
         )
         logger.info("Startup window state applied")
 

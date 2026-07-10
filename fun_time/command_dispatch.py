@@ -51,8 +51,19 @@ from .vlc_actions import (
     vlc_swap_current_with,
 )
 from .watch_stats import record_watch_event, watch_stats_path
+from .event_log import (
+    SOURCE_LANDSCAPE,
+    SOURCE_PORTRAIT,
+    SOURCE_PRIMARY,
+    SOURCE_SYSTEM,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _satellite_source(which: int) -> str:
+    """The event-log source for satellite slot *which* (2=portrait, 3=landscape)."""
+    return SOURCE_PORTRAIT if which == 2 else SOURCE_LANDSCAPE
 
 
 @dataclass
@@ -112,6 +123,8 @@ class WindowOp:
     value: bool = True
     vk: int = 0
     exact: bool = False
+    # Which window a ``notice`` op is about, so the log panel can filter it.
+    source: str = SOURCE_SYSTEM
 
 
 _GENAU_CMD_MAP = {
@@ -460,6 +473,7 @@ def _dispatch_group_loop(
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Loop the satellite around the current clip's action group or seed family."""
     port = config.portrait_port if which == 2 else config.landscape_port
+    source = _satellite_source(which)
     ops: list[WindowOp] = []
     current = target_path or get_current_file_path(port, config.vlc_password)
     if not current:
@@ -468,7 +482,7 @@ def _dispatch_group_loop(
     gather = action_group_members if axis == "action" else seed_family_members
     members = [member for member in gather(index, current) if Path(member).exists()]
     if len(members) < 2:
-        ops.append(WindowOp(op="tooltip", key=f"No other {axis}s"))
+        ops.append(WindowOp(op="notice", key=f"No other {axis}s", source=source))
         return state, ops
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = _cancel_lock(which, state, config)
@@ -483,7 +497,7 @@ def _dispatch_group_loop(
     logger.info(result.log_message)
     if result.applied:
         ensure_playback_state(port, config.vlc_password, should_play=True)
-    ops.append(WindowOp(op="tooltip", key=result.log_message))
+    ops.append(WindowOp(op="notice", key=result.log_message, source=source))
     return state, ops
 
 
@@ -499,7 +513,7 @@ def _dispatch_lock_action(
         return state, []
     action = _video_action_label(current, config)
     if not action:
-        return state, [WindowOp(op="tooltip", key="No action metadata")]
+        return state, [WindowOp(op="notice", key="No action metadata", source=_satellite_source(which))]
     return _dispatch_set_filter(scope, action.lower(), state, config)
 
 
@@ -518,6 +532,7 @@ def _cycle_variant(
     the video the speaker saw, not its replacement.
     """
     port = config.portrait_port if which == 2 else config.landscape_port
+    source = _satellite_source(which)
     ops: list[WindowOp] = []
     current = target_path or get_current_file_path(port, config.vlc_password)
     if not current:
@@ -532,7 +547,7 @@ def _cycle_variant(
         target, widened = _next_seed_sibling(index, current, entries)
         missing_message = "No other seeds"
     if target is None:
-        ops.append(WindowOp(op="tooltip", key=missing_message))
+        ops.append(WindowOp(op="notice", key=missing_message, source=source))
         return state, ops
     if not _play_video(port, config.vlc_password, target, entries):
         logger.warning("cycle %s: could not switch to %s", kind, target)
@@ -542,9 +557,9 @@ def _cycle_variant(
         # Numbered when the group holds several of the same act ("Alpha 2").
         action = action_label(index, target)
         if action:
-            ops.append(WindowOp(op="tooltip", key=f"Action: {action}"))
+            ops.append(WindowOp(op="notice", key=f"Action: {action}", source=source))
     elif widened:
-        ops.append(WindowOp(op="tooltip", key="Similar clip"))
+        ops.append(WindowOp(op="notice", key="Similar clip", source=source))
     return state, ops
 
 
@@ -729,7 +744,7 @@ def dispatch_command(
         if state.primary_mode != "genau":
             msg = _dispatch_clipper_save(config)
             if msg:
-                ops.append(WindowOp(op="tooltip", key=msg))
+                ops.append(WindowOp(op="notice", key=msg, source=SOURCE_PRIMARY))
         return state, ops
 
     return state, ops
@@ -938,7 +953,7 @@ def _dispatch_set_filter(
     ordering.
     """
     targets = {"both": (2, 3), "portrait": (2,), "landscape": (3,)}[scope]
-    messages: list[str] = []
+    ops: list[WindowOp] = []
     for which in targets:
         sources = config.portrait_sources if which == 2 else config.landscape_sources
         port = config.portrait_port if which == 2 else config.landscape_port
@@ -964,8 +979,8 @@ def _dispatch_set_filter(
             else:
                 state = replace(state, landscape_filter=query)
         logger.info(result.log_message)
-        messages.append(result.log_message)
-    return state, [WindowOp(op="tooltip", key="; ".join(messages))]
+        ops.append(WindowOp(op="notice", key=result.log_message, source=_satellite_source(which)))
+    return state, ops
 
 
 def _dispatch_mode_switch(
