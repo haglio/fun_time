@@ -129,11 +129,15 @@ def _regen_cfg(cfg_factory, tmp_path: Path, favs_rows: str) -> Path:
     )
 
 
+# Where the library actually keeps an upscaled video, mirrored by its sidecar.
+_UPSCALED = Path("2_outbox") / "upscaled_by_orientation" / "portrait" / "provider"
+
+
 def _write_sidecar(tmp_path: Path, name: str, metadata: dict) -> Path:
-    video = tmp_path / "media" / "provider" / name
+    video = tmp_path / "media" / _UPSCALED / name
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"")
-    sidecar = tmp_path / "metadata" / "provider" / Path(name).with_suffix(".json")
+    sidecar = tmp_path / "metadata" / _UPSCALED / Path(name).with_suffix(".json")
     sidecar.parent.mkdir(parents=True, exist_ok=True)
     sidecar.write_text(json.dumps(metadata), encoding="utf-8")
     return video
@@ -151,6 +155,19 @@ def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_fac
     assert targets[0].label == "https://example.com/image/abc"
     # The tab plays the clip you are deciding whether to recreate.
     assert targets[0].video_path == str(video)
+
+
+def test_build_manifest_plays_the_original_not_the_upscale(cfg_factory, tmp_path: Path):
+    """The upscale is hundreds of MB of HEVC; its original is a few MB of H.264."""
+    upscaled = _write_sidecar(tmp_path, "abc_topaz.mp4", {"video": {"prompt": "P"}})
+    original = tmp_path / "media" / "1_sorted" / "provider" / "portrait" / "abc.mp4"
+    original.parent.mkdir(parents=True, exist_ok=True)
+    original.write_bytes(b"")
+    cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row(str(upscaled), "https://example.com/image/abc"))
+
+    _, targets = build_manifest(load_config(cfg_path))
+
+    assert targets[0].video_path == str(original)
 
 
 def test_build_manifest_falls_back_to_the_gallery_link_without_metadata(cfg_factory, tmp_path: Path):

@@ -63,7 +63,7 @@ def test_render_tab_page_embeds_no_video_for_a_relative_path():
 
 
 def test_render_tab_page_decodes_only_while_the_tab_is_visible(tmp_path: Path):
-    """Ten background tabs of 1080p HEVC would burn the CPU for nothing."""
+    """Ten background tabs all decoding video would burn the CPU for nothing."""
     html = render_tab_page(TabTarget(REGEN_URL, "l", video_path=str(_video(tmp_path))))
 
     assert "visibilitychange" in html
