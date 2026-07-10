@@ -97,6 +97,27 @@ def compute_window_layout(
     )
 
 
+def compute_primary_media_rect(
+    *,
+    secondary_monitor: MonitorRect,
+    layout_config: LayoutConfig,
+) -> WindowRect:
+    """The primary display slot Nau and Genau share.
+
+    The portrait satellite takes the top ``primary_top_ratio`` of the secondary
+    monitor; the primary player fills the rest below it.  Startup positions Nau
+    and Genau here, and the notice overlay flashes primary notices here, so both
+    derive it from this one function.
+    """
+    portrait_height = int(secondary_monitor.height * clamp01(layout_config.primary_top_ratio))
+    return WindowRect(
+        x=secondary_monitor.x,
+        y=secondary_monitor.y + portrait_height,
+        width=secondary_monitor.width,
+        height=secondary_monitor.height - portrait_height,
+    )
+
+
 def compute_dashboard_size(
     *,
     main_monitor: MonitorRect,

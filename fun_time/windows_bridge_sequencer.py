@@ -38,6 +38,7 @@ from .window_layout import (
     WindowLayoutPlan,
     WindowRect,
     clamp01,
+    compute_primary_media_rect,
     compute_window_layout,
 )
 
@@ -429,14 +430,7 @@ def _compute_primary_media_rect(m: configparser.ConfigParser) -> WindowRect:
         monitors, main_index=layout_cfg.main_monitor,
         secondary_index=layout_cfg.secondary_monitor,
     )
-    portrait_height = int(secondary_rect.height * clamp01(layout_cfg.primary_top_ratio))
-    primary_height = secondary_rect.height - portrait_height
-    return WindowRect(
-        x=secondary_rect.x,
-        y=secondary_rect.y + portrait_height,
-        width=secondary_rect.width,
-        height=primary_height,
-    )
+    return compute_primary_media_rect(secondary_monitor=secondary_rect, layout_config=layout_cfg)
 
 
 def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:

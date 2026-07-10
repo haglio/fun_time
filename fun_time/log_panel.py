@@ -1,13 +1,10 @@
 """The log panel — the strip beside the dashboard where the session narrates itself.
 
-It tails :mod:`fun_time.event_log` and shows two things:
-
-* a **banner** carrying the newest notice ("Clip saved", "No other seeds").  These
-  used to flash as AHK tooltips under the mouse pointer, where they were easy to
-  miss; here they sit in the top-left of the main display until the next one
-  replaces them.
-* the **stream** below it — every line the session logs, filtered by a verbosity
-  dial and by which window the line is about.
+It tails :mod:`fun_time.event_log` and shows the session's log stream, filtered by
+a verbosity dial and by which window each line is about.  The brief notices
+("Clip saved", "No other seeds") flash over the player they concern — see
+:mod:`fun_time.notice_overlay` — and also land here in the stream, coloured by
+level, so the panel is the place to scroll back through everything that happened.
 
 The pure model (filter, buffer, formatting, prefs) sits above the Qt widgets so
 it can be tested without a QApplication.
@@ -55,19 +52,6 @@ def append_records(buffer: list[EventRecord], new: list[EventRecord]) -> list[Ev
     """Append *new* to *buffer*, dropping the oldest lines past the cap."""
     combined = buffer + new
     return combined[-MAX_RECORDS:]
-
-
-def latest_notice(records: list[EventRecord], log_filter: LogFilter) -> EventRecord | None:
-    """The newest line loud enough to be an announcement, from a shown source.
-
-    Deliberately ignores the verbosity dial: a notice is what the old cursor
-    tooltip used to be, and turning the dial to ERROR must not swallow
-    "Clip saved".  Warnings and errors qualify too — they are louder still.
-    """
-    for record in reversed(records):
-        if record.level >= NOTICE and record.source in log_filter.sources:
-            return record
-    return None
 
 
 def format_record(record: EventRecord) -> str:
@@ -123,31 +107,38 @@ def save_prefs(path: str | Path, prefs: LogPanelPrefs) -> None:
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QComboBox,
-    QGridLayout,
-    QLabel,
+    QHBoxLayout,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-# How many source checkboxes fit across the strip before wrapping.  Two: the
-# widest label ("landscape") plus one more is all the strip affords.
-_SOURCE_COLUMNS = 2
+# Short labels for the source toggles so the whole control strip fits one row.
+# The full source name is the tooltip.  "Sat" is the user's word for the portrait
+# satellite; landscape is named in full because they treat it as its own thing.
+_SOURCE_LABELS: dict[str, str] = {
+    "primary": "Prm",
+    "portrait": "Sat",
+    "landscape": "Land",
+    "dash": "Dash",
+    "system": "Sys",
+}
 
 from shared_ui.colors import (
     AMBER,
     BG_PRIMARY,
     BG_SECONDARY,
+    BLUE,
     GREEN,
     RED,
     TEXT_MUTED,
     TEXT_PRIMARY,
 )
-from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
+from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
 
 from fun_time.win32 import is_window_topmost, set_always_on_top
 from fun_time.window_roles import LOG_PANEL_WINDOW_TITLE
@@ -233,37 +224,42 @@ class LogPanelWindow(QMainWindow):
         outer.setContentsMargins(6, 6, 6, 6)
         outer.setSpacing(4)
 
-        self._banner = QLabel("", central)
-        self._banner.setWordWrap(True)
-        self._banner.setFont(make_font(FONT_UI, SIZE_BODY, bold=True))
-        self._banner.setStyleSheet(
-            f"background-color: {BG_SECONDARY.name()}; color: {TEXT_PRIMARY.name()};"
-            " padding: 6px; border-radius: 3px;"
-        )
-        outer.addWidget(self._banner)
-
-        # The panel is a narrow strip, so the controls wrap onto a grid: the
-        # verbosity dial across the top, then the source checkboxes three to a
-        # row.  A single row of six widgets would set a minimum width wider than
-        # the strip, and Qt would push the window out over the landscape player.
-        controls = QGridLayout()
+        # The verbosity dial and the five source toggles share one row.  The
+        # toggles are compact checkable buttons with short labels (the full name
+        # is the tooltip) rather than word-labelled checkboxes, so the whole row's
+        # minimum width fits the strip instead of forcing the window wider.
+        controls = QHBoxLayout()
         controls.setSpacing(2)
         self._verbosity = QComboBox(central)
+        self._verbosity.setFont(make_font(FONT_UI, SIZE_SMALL))
+        self._verbosity.setFixedWidth(80)
         for name in LEVEL_NAMES:
             self._verbosity.addItem(name, LEVELS_BY_NAME[name])
         self._verbosity.setCurrentText(logging.getLevelName(self._filter.verbosity))
         self._verbosity.currentIndexChanged.connect(self._on_verbosity_changed)
-        controls.addWidget(self._verbosity, 0, 0, 1, _SOURCE_COLUMNS)
+        controls.addWidget(self._verbosity)
 
-        self._source_boxes: dict[str, QCheckBox] = {}
-        for index, source in enumerate(SOURCES):
-            box = QCheckBox(source, central)
-            box.setChecked(source in self._filter.sources)
-            box.setFont(make_font(FONT_UI, SIZE_SMALL))
-            box.setStyleSheet(f"color: {TEXT_PRIMARY.name()};")
-            box.stateChanged.connect(self._on_sources_changed)
-            controls.addWidget(box, 1 + index // _SOURCE_COLUMNS, index % _SOURCE_COLUMNS)
-            self._source_boxes[source] = box
+        self._source_boxes: dict[str, QToolButton] = {}
+        for source in SOURCES:
+            button = QToolButton(central)
+            button.setText(_SOURCE_LABELS[source])
+            button.setToolTip(source)
+            button.setCheckable(True)
+            button.setChecked(source in self._filter.sources)
+            button.setFont(make_font(FONT_UI, SIZE_SMALL))
+            # Fixed narrow width: five toggles plus the dial share one row across a
+            # ~300px strip, so each must give up the space QToolButton would
+            # otherwise reserve.
+            button.setFixedWidth(40)
+            button.setStyleSheet(
+                "QToolButton { padding: 2px 1px; border: none;"
+                f" color: {TEXT_MUTED.name()}; background: {BG_SECONDARY.name()}; border-radius: 2px; }}"
+                f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()}; background: {BLUE.name()}; }}"
+            )
+            button.toggled.connect(self._on_sources_changed)
+            controls.addWidget(button)
+            self._source_boxes[source] = button
+        controls.addStretch(1)
         outer.addLayout(controls)
 
         self._list = QListWidget(central)
@@ -290,7 +286,7 @@ class LogPanelWindow(QMainWindow):
     def _on_sources_changed(self) -> None:
         self._filter = LogFilter(
             verbosity=self._filter.verbosity,
-            sources=frozenset(s for s, box in self._source_boxes.items() if box.isChecked()),
+            sources=frozenset(s for s, button in self._source_boxes.items() if button.isChecked()),
         )
         self._save_prefs()
         self._rebuild_list()
@@ -320,14 +316,6 @@ class LogPanelWindow(QMainWindow):
             self._list.addItem(item)
         if at_bottom:
             self._list.scrollToBottom()
-
-        announced = latest_notice(self._records, self._filter)
-        self._banner.setText(announced.message if announced else "")
-        self._banner.setStyleSheet(
-            f"background-color: {BG_SECONDARY.name()};"
-            f" color: {(level_color(announced.level) if announced else TEXT_MUTED).name()};"
-            " padding: 6px; border-radius: 3px;"
-        )
 
     # -- window management -------------------------------------------------
 

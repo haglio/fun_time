@@ -6,6 +6,7 @@ from fun_time.dashboard_layout import Size, compute_dashboard_preview_layout
 from fun_time.window_layout import (
     MonitorRect,
     compute_dashboard_size,
+    compute_primary_media_rect,
     compute_window_layout,
 )
 from fun_time import load_config
@@ -110,6 +111,28 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
     assert plan.log_panel.y == 50
     assert plan.random_favs_browser.x == 100
     assert plan.random_favs_browser.y == 50 + plan.dashboard.height
+
+
+def test_primary_media_rect_is_the_secondary_below_the_portrait_satellite(cfg_path: Path):
+    """The primary player fills the secondary monitor below the portrait's slice
+    — the rect startup launches Nau/Genau into and the notice overlay flashes
+    primary notices over.  It abuts the portrait window with no gap and no
+    overlap, and reaches the monitor's bottom."""
+    config = load_config(cfg_path)
+    secondary = MonitorRect(2560, 0, 1440, 3440)
+
+    plan = compute_window_layout(
+        main_monitor=MonitorRect(0, 0, 2560, 1392),
+        secondary_monitor=secondary,
+        layout_config=config.layout,
+    )
+    primary = compute_primary_media_rect(secondary_monitor=secondary, layout_config=config.layout)
+
+    assert primary.x == secondary.x
+    assert primary.width == secondary.width
+    # Starts exactly where the portrait satellite ends, and runs to the bottom.
+    assert primary.y == plan.portrait.y + plan.portrait.height
+    assert primary.y + primary.height == secondary.y + secondary.height
 
 
 def test_dashboard_uses_its_natural_size(cfg_path: Path):
