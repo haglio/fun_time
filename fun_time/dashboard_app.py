@@ -1086,6 +1086,12 @@ class DashboardWindow(QMainWindow):
         self._deferred_for_loading = loading_screen_active(app_config.manifest_path.parent)
         self._suppress_minimize_routing = start_minimized or self._deferred_for_loading
 
+        # Set on close, so the poller and press listener wind down with the
+        # window instead of hammering VLC's HTTP interface for the life of the
+        # process.  Under test, several dashboards are built and closed in one
+        # process, and leaked pollers would pile connections onto whatever VLC
+        # happens to hold those ports.
+        self._stopping = threading.Event()
         self._pressed: dict[str, float] = {}
         self._reference_dialog: ReferenceDialog | None = None
         self._last_snapshot: DashboardSnapshot | None = None
@@ -1204,7 +1210,26 @@ class DashboardWindow(QMainWindow):
             self._ahk_cmd_file.write_text("exit", encoding="utf-8")
         except OSError:
             pass
+        self._stop_background_work()
         event.accept()
+
+    def _stop_background_work(self) -> None:
+        """Wind down the timer, threads, socket, and the log panel.
+
+        Closing the dashboard ends the session, so in production this only tidies
+        up ahead of the process being killed.  It matters where a dashboard is
+        built and closed inside a longer-lived process — the poller would
+        otherwise keep polling VLC forever.
+        """
+        self._stopping.set()
+        self._refresh_timer.stop()
+        try:
+            self._press_sock.close()  # unblocks the listener's recvfrom
+        except OSError:
+            pass
+        if self._log_panel is not None:
+            self._log_panel.shutdown()
+            self._log_panel = None
 
     def changeEvent(self, event: object) -> None:  # noqa: N802
         """Mirror the dashboard's own minimize/restore onto every managed window.
@@ -1392,7 +1417,7 @@ class DashboardWindow(QMainWindow):
         )
 
     def _press_listener(self) -> None:
-        while True:
+        while not self._stopping.is_set():
             try:
                 data, _ = self._press_sock.recvfrom(256)
                 self._press_queue.put(data.decode("utf-8").strip())
@@ -1401,9 +1426,9 @@ class DashboardWindow(QMainWindow):
                 break
 
     def _vlc_poller(self) -> None:
-        while True:
+        while not self._stopping.is_set():
             self._vlc_cache[0] = poll_vlc(self._app_config)
-            time.sleep(0.5)
+            self._stopping.wait(0.5)
 
     def _refresh(self) -> None:
         self._maybe_reveal_after_loading()

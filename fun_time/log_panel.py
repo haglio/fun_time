@@ -125,7 +125,7 @@ from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QHBoxLayout,
+    QGridLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -133,6 +133,10 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+# How many source checkboxes fit across the strip before wrapping.  Two: the
+# widest label ("landscape") plus one more is all the strip affords.
+_SOURCE_COLUMNS = 2
 
 from shared_ui.colors import (
     AMBER,
@@ -187,6 +191,7 @@ class LogPanelWindow(QMainWindow):
         self._prefs_file = Path(prefs_file)
         self._offset = 0
         self._records: list[EventRecord] = []
+        self._disposing = False
 
         prefs = load_prefs(self._prefs_file)
         self._filter = LogFilter(verbosity=prefs.verbosity, sources=prefs.sources)
@@ -203,7 +208,14 @@ class LogPanelWindow(QMainWindow):
         )
         self._build_ui()
         if geometry is not None:
-            self.setGeometry(*geometry)
+            x, y, width, height = geometry
+            # Pin the panel to its strip.  Left to itself Qt would grow the window
+            # to the controls' minimum width — on the real desktop that came out
+            # 523px against a 312px strip — and the panel would sit over the
+            # landscape player.  The strip is exactly as wide as the layout says,
+            # so the window takes it and the controls fit themselves in.
+            self.setFixedSize(width, height)
+            self.setGeometry(x, y, width, height)
 
         self._hwnd = int(self.winId())
 
@@ -230,25 +242,28 @@ class LogPanelWindow(QMainWindow):
         )
         outer.addWidget(self._banner)
 
-        controls = QHBoxLayout()
-        controls.setSpacing(4)
+        # The panel is a narrow strip, so the controls wrap onto a grid: the
+        # verbosity dial across the top, then the source checkboxes three to a
+        # row.  A single row of six widgets would set a minimum width wider than
+        # the strip, and Qt would push the window out over the landscape player.
+        controls = QGridLayout()
+        controls.setSpacing(2)
         self._verbosity = QComboBox(central)
         for name in LEVEL_NAMES:
             self._verbosity.addItem(name, LEVELS_BY_NAME[name])
         self._verbosity.setCurrentText(logging.getLevelName(self._filter.verbosity))
         self._verbosity.currentIndexChanged.connect(self._on_verbosity_changed)
-        controls.addWidget(self._verbosity)
+        controls.addWidget(self._verbosity, 0, 0, 1, _SOURCE_COLUMNS)
 
         self._source_boxes: dict[str, QCheckBox] = {}
-        for source in SOURCES:
+        for index, source in enumerate(SOURCES):
             box = QCheckBox(source, central)
             box.setChecked(source in self._filter.sources)
             box.setFont(make_font(FONT_UI, SIZE_SMALL))
             box.setStyleSheet(f"color: {TEXT_PRIMARY.name()};")
             box.stateChanged.connect(self._on_sources_changed)
-            controls.addWidget(box)
+            controls.addWidget(box, 1 + index // _SOURCE_COLUMNS, index % _SOURCE_COLUMNS)
             self._source_boxes[source] = box
-        controls.addStretch(1)
         outer.addLayout(controls)
 
         self._list = QListWidget(central)
@@ -256,6 +271,8 @@ class LogPanelWindow(QMainWindow):
         self._list.setStyleSheet(
             f"background-color: {BG_SECONDARY.name()}; border: none;"
         )
+        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._list.setMinimumWidth(0)
         outer.addWidget(self._list, stretch=1)
 
         self.setCentralWidget(central)
@@ -320,6 +337,20 @@ class LogPanelWindow(QMainWindow):
         if is_window_topmost(self._hwnd) != desired:
             set_always_on_top(self._hwnd, desired)
 
+    def shutdown(self) -> None:
+        """Stop tailing and dispose of the window; the dashboard is going away."""
+        self._timer.stop()
+        self._disposing = True
+        self.close()
+        self.deleteLater()
+
     def closeEvent(self, event: object) -> None:  # noqa: N802
-        """The panel is part of the dashboard's furniture — it does not close."""
-        event.ignore()
+        """The panel is furniture: only the dashboard's shutdown closes it.
+
+        Ignoring the close means Alt+F4 on the panel cannot leave the session
+        without the one surface that says what it is doing.
+        """
+        if self._disposing:
+            event.accept()
+        else:
+            event.ignore()
