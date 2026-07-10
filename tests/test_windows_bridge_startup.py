@@ -655,11 +655,10 @@ def test_launch_core_apps_defers_playlists_and_keeps_audio_when_hide_windows_tru
             assert not any(arg.endswith(".m3u") for arg in cmd), \
                 f"Playlist must not be on VLC command line when hide_windows=True: {cmd}"
 
-    # The loading screen is silent because nothing is playing yet, so the
-    # user's own session must keep its audio output and its volume.
+    # Nothing plays yet, and the satellites can never make a sound anyway.
     assert http_commands == [], f"No HTTP commands allowed during loading: {http_commands}"
     for cmd in vlc_cmdlines:
-        assert "--no-audio" not in cmd, f"A real session must keep its audio: {cmd}"
+        assert "--no-audio" in cmd, f"A satellite must never be heard: {cmd}"
 
     # Playlists must be enqueued (not played) via replace_playlist_from_file
     assert len(replace_calls) == 2, f"Expected 2 playlist loads, got {replace_calls}"
@@ -669,107 +668,32 @@ def test_launch_core_apps_defers_playlists_and_keeps_audio_when_hide_windows_tru
             f"enqueue_only must be True to prevent playback during loading: {kwargs}"
 
 
-def test_launch_core_apps_defers_playlists_when_mute_audio_env_set(tmp_path: Path, monkeypatch):
-    """When FUN_TIME_MUTE_AUDIO=1 and hide_windows=False, VLC instances must
-    still defer playlist loading to prevent audio-leak races.  The satellites
-    load with enqueue_only=False and get pl_next."""
-    monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-    result_file = tmp_path / "core_apps.ini"
-
-    class FakeProc:
-        _counter = 0
-
-        def __init__(self, *_args, **_kwargs):
-            FakeProc._counter += 1
-            self.pid = FakeProc._counter * 100
-
-    FakeProc._counter = 0
-    http_commands: list[tuple[int, str]] = []
-    replace_calls: list[tuple[int, str, dict]] = []
-
-    def tracking_vlc_http_cmd(port, cmd, pw):
-        http_commands.append((port, cmd))
-        return True
-
-    def tracking_replace_playlist(port, pw, playlist_path, **kwargs):
-        replace_calls.append((port, str(playlist_path), kwargs))
-        return True
-
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=lambda *a, **kw: FakeProc()) as popen, \
-         patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True), \
-         patch("fun_time.windows_bridge_startup.set_repeat_mode", return_value=True), \
-         patch("fun_time.windows_bridge_startup.vlc_http_cmd", side_effect=tracking_vlc_http_cmd), \
-         patch("fun_time.windows_bridge_startup.replace_playlist_from_file", side_effect=tracking_replace_playlist), \
-         patch("fun_time.windows_bridge_startup.time.sleep"):
-        launch_core_apps(
-            project_dir=tmp_path,
-            vlc_exe="vlc.exe",
-            portrait_playlist=tmp_path / "state" / "portrait_vlc_playlist.m3u",
-            landscape_playlist=tmp_path / "state" / "landscape_vlc_playlist.m3u",
-            portrait_port=8091,
-            landscape_port=8092,
-            password="pw",
-            result_file=result_file,
-            hide_windows=False,
-        )
-
-    # VLC commands must NOT contain .m3u playlist paths (deferred)
-    vlc_cmdlines = []
-    for call in popen.call_args_list:
-        cmd = call.args[0] if call.args else call.kwargs.get("args", [])
-        if isinstance(cmd, list) and cmd and cmd[0] == "vlc.exe":
-            vlc_cmdlines.append(cmd)
-            assert not any(arg.endswith(".m3u") for arg in cmd), \
-                f"Playlist must not be on VLC command line when muting: {cmd}"
-
-    # Silence comes from --no-audio, never from VLC's (persistent) volume.
-    assert len(vlc_cmdlines) == 2
-    for cmd in vlc_cmdlines:
-        assert "--no-audio" in cmd, f"Muted VLC must skip audio output entirely: {cmd}"
-    volume_cmds = [(port, cmd) for port, cmd in http_commands if cmd.startswith("volume")]
-    assert volume_cmds == [], f"Fun Time must never set VLC's volume: {volume_cmds}"
-
-    # Satellites load via HTTP with enqueue_only=False so playback can start.
-    assert len(replace_calls) == 2, f"Expected 2 playlist loads, got {replace_calls}"
-    enqueue_by_port = {port: kwargs.get("enqueue_only") for port, _, kwargs in replace_calls}
-    assert enqueue_by_port == {8091: False, 8092: False}
-
-    # pl_next goes to both satellites.
-    next_cmds = [(port, cmd) for port, cmd in http_commands if cmd == "pl_next"]
-    assert next_cmds == [(8091, "pl_next"), (8092, "pl_next")]
-
-
 def test_build_vlc_launch_command_never_passes_volume():
     """VLC's volume is a Windows per-application mixer level shared by every
     vlc.exe: whatever we set it to survives our process and greets the user
     the next time they open VLC themselves.  Fun Time must never set it.
     (``--volume`` is also dead in VLC 3: "option --volume no longer exists".)
     """
-    for silent in (True, False):
-        cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat", silent=silent)
-        assert "--volume" not in cmd, f"--volume must never be passed (silent={silent})"
+    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat")
+    assert "--volume" not in cmd
 
 
-def test_build_vlc_launch_command_silences_with_no_audio():
-    """Integration runs need a VLC that cannot make a sound.  --no-audio skips
-    the audio output entirely — no audio session, so nothing of the user's
-    mixer state is touched — where a volume of 0 would have persisted."""
-    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat", silent=True)
-    assert "--no-audio" in cmd
-    assert "--repeat" in cmd
-
-
-def test_build_vlc_launch_command_keeps_audio_when_not_silent():
-    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="loop", silent=False)
-    assert "--no-audio" not in cmd
+def test_build_vlc_launch_command_always_disables_audio():
+    """A satellite must never be heard: a handful of clips carry an audio
+    track, and one surfacing mid-session is exactly the surprise the old
+    volume-0 mute existed to prevent.  --no-audio skips the audio output
+    module entirely, so there is no sound and no audio session — where a
+    volume of 0 would have persisted into the user's own VLC."""
+    for repeat_mode in ("repeat", "loop"):
+        cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode)
+        assert "--no-audio" in cmd, f"satellites must never make a sound ({repeat_mode})"
 
 
 def test_build_vlc_launch_command_never_includes_no_video():
     """--no-video changes VLC's playback behavior (e.g. repeat-one mode
     enters 'stopped' instead of 'playing' after navigation). Integration
     tests must run with real video output to match production behavior."""
-    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat", silent=True)
+    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat")
     assert "--no-video" not in cmd
 
 
@@ -778,10 +702,9 @@ def test_build_vlc_launch_command_never_includes_start_paused():
     transition, not just startup.  This causes a black screen every time
     the user navigates.  Deferring the playlist keeps loading quiet."""
     for repeat_mode in ("repeat", "loop"):
-        for silent in (True, False):
-            cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode, silent=silent)
-            assert "--start-paused" not in cmd, \
-                f"--start-paused must never appear (repeat_mode={repeat_mode}, silent={silent})"
+        cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode)
+        assert "--start-paused" not in cmd, \
+            f"--start-paused must never appear (repeat_mode={repeat_mode})"
 
 
 def test_build_vlc_launch_command_never_includes_random():
@@ -814,5 +737,3 @@ def test_build_vlc_launch_command_appends_playlist_path_when_given(tmp_path):
 def test_build_vlc_launch_command_omits_playlist_when_not_given():
     cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="loop")
     assert not any(arg.endswith(".m3u") for arg in cmd)
-    # Without a playlist the command ends at the mode flags.
-    assert cmd[-1] == "--loop"
