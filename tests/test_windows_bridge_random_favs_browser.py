@@ -3,8 +3,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from fun_time.random_favs_browser import FavTarget, write_manifest
-from fun_time.rfb_tab_page import write_tab_pages
+from fun_time.random_favs_browser import write_manifest
+from fun_time.rfb_tab_page import TabTarget, write_tab_pages
 from fun_time.windows_bridge_random_favs_browser import (
     build_open_rfb_tab_command,
     build_random_favs_browser_launch_plan,
@@ -169,7 +169,7 @@ def test_ten_regenerate_tabs_stay_under_the_windows_command_line_limit(tmp_path:
     """
     payload = "%22" * 1300  # a ~3.9 KB fragment, the size of a real prompt set
     targets = [
-        FavTarget(url=f"https://example.com/create#ft={payload}", label=f"https://example.com/image/{i}")
+        TabTarget(url=f"https://example.com/create#ft={payload}", label=f"https://example.com/image/{i}")
         for i in range(10)
     ]
     manifest_file = tmp_path / "browser_manifest.txt"

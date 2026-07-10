@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import configparser
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -17,7 +16,7 @@ from .orchestrator_broker import (
     subprocess_window_kwargs,
 )
 from .random_favs_browser import build_manifest, write_manifest
-from .rfb_tab_page import write_tab_pages
+from .rfb_tab_page import tabs_dir, write_tab_pages
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
@@ -73,7 +72,7 @@ def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: s
     config = load_config(config_path)
     profile_directory, targets = build_manifest(config)
     urls = (
-        write_tab_pages(config.random_favs_browser_tabs_dir, targets)
+        write_tab_pages(tabs_dir(config.paths.state_dir), targets)
         if config.random_favs_browser.lazy_load
         else [target.url for target in targets]
     )

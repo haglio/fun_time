@@ -4,6 +4,8 @@ import json
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from fun_time.command_dispatch import (
     BridgeState,
@@ -58,7 +60,14 @@ def _make_state(**overrides) -> BridgeState:
 # --- open_rfb_tab on lock ---
 
 
-def test_portrait_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
+def _tab_page(op_key: str) -> str:
+    """The HTML of the landing page an open_rfb_tab op points at."""
+    assert op_key.startswith("file:///"), op_key
+    return Path(url2pathname(urlparse(op_key).path)).read_text(encoding="utf-8")
+
+
+def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
+    """Lock defers the load behind the same Ctrl+R page the RFB's own tabs use."""
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
 
@@ -72,7 +81,43 @@ def test_portrait_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     assert new_state.locked2 is True
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
-    assert rfb_ops[0].key == "https://example.net/image/abc"
+    assert '"https://example.net/image/abc"' in _tab_page(rfb_ops[0].key)
+
+
+def test_lock_landing_page_plays_the_locked_video(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=False)
+    video = tmp_path / "videos" / "provider2" / "abc_123.mp4"
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_bytes(b"")
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=str(video)),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.ensure_in_favs"),
+    ):
+        _, ops = dispatch_command("portrait_lock", state, config)
+
+    rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
+    assert f'"{video.as_uri()}"' in _tab_page(rfb_ops[0].key)
+
+
+def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    keys = []
+    for _ in range(2):
+        with (
+            patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider2\abc_123.mp4"),
+            patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+            patch("fun_time.command_dispatch.ensure_in_favs"),
+            patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
+        ):
+            _, ops = dispatch_command("portrait_lock", _make_state(locked2=False), config)
+        keys += [op.key for op in ops if op.op == "open_rfb_tab"]
+
+    assert keys[0] == keys[1]
+    assert len(list((config.state_dir / "rfb_tabs").glob("*.html"))) == 1
 
 
 def test_portrait_lock_records_a_lock_watch_event(tmp_path: Path):
@@ -155,7 +200,7 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     assert new_state.locked3 is True
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
-    assert rfb_ops[0].key == "https://example.com/image/def"
+    assert '"https://example.com/image/def"' in _tab_page(rfb_ops[0].key)
 
 
 def test_landscape_lock_emits_provider_regen_url_when_metadata_present(tmp_path: Path):
@@ -185,7 +230,7 @@ def test_landscape_lock_emits_provider_regen_url_when_metadata_present(tmp_path:
 
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
-    assert rfb_ops[0].key.startswith("https://example.com/video#ft=")
+    assert '"https://example.com/video#ft=' in _tab_page(rfb_ops[0].key)
 
 
 # --- portrait_lock ---

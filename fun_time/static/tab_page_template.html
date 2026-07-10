@@ -17,12 +17,21 @@
   .hint { color: #6c7086; margin-bottom: 1em; }
   a { color: #89b4fa; font-size: 1.1em; word-break: break-all; }
   .dest { color: #6c7086; font-size: 0.85em; margin-top: 0.8em; }
+  #clip {
+    display: none;
+    max-width: min(320px, 70vw);
+    max-height: 45vh;
+    margin-bottom: 1.2em;
+    border-radius: 8px;
+    background: #11111b;
+  }
 </style>
 <script>
 (function() {
-  // Both literals are substituted by fun_time.rfb_tab_page.render_tab_page.
+  // All three literals are substituted by fun_time.rfb_tab_page.render_tab_page.
   var target = "__FT_TARGET__";
   var label = "__FT_LABEL__";
+  var video = "__FT_VIDEO__";
   var nav = performance.getEntriesByType('navigation')[0];
   if (nav && nav.type === 'reload') {
     location.replace(target);
@@ -37,12 +46,30 @@
       var parsed = new URL(target);
       document.getElementById('dest').textContent = '→ ' + parsed.host + parsed.pathname;
     } catch (e) {}
+    if (video) {
+      var clip = document.getElementById('clip');
+      // Only reveal the clip once it can actually paint a frame — a source that
+      // has been moved or deleted must not leave a black box on the page.
+      clip.addEventListener('loadeddata', function() {
+        clip.style.display = 'block';
+        follow();
+      });
+      // Decode only in the tab you are looking at: these clips are 1080p+ HEVC
+      // and the RFB opens ten of them at once.
+      function follow() {
+        if (document.hidden) clip.pause();
+        else clip.play().catch(function() {});
+      }
+      document.addEventListener('visibilitychange', follow);
+      clip.src = video;
+    }
   });
 })();
 </script>
 </head>
 <body>
 <div class="container">
+  <video id="clip" muted loop autoplay playsinline preload="metadata"></video>
   <p class="hint">Press Ctrl+R to load, or click the link:</p>
   <a id="target" href="#"></a>
   <p class="dest" id="dest"></p>
