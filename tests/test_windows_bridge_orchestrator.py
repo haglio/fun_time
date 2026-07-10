@@ -43,54 +43,53 @@ def _fake_startup_result() -> StartupResult:
 
 
 class TestKillProcessTree:
-    def test_kills_when_pid_still_runs_one_of_our_images(self):
-        with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_image_name",
-            return_value=r"C:\Program Files\VideoLAN\VLC\VLC.EXE",
-        ), patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
+    def test_taskkills_the_pid_and_its_descendants(self):
+        with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
             kill_process_tree(1234)
 
         mock_run.assert_called_once()
         assert mock_run.call_args[0][0] == ["taskkill", "/PID", "1234", "/T", "/F"]
 
-    def test_skips_recycled_pid_running_foreign_image(self, caplog):
-        with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_image_name",
-            return_value=r"C:\Windows\System32\notepad.exe",
-        ), patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run, \
-             caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            kill_process_tree(1234)
+    def test_ignores_the_zero_pid_of_a_child_that_was_never_launched(self):
+        with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
+            kill_process_tree(0)
 
         mock_run.assert_not_called()
-        assert "notepad.exe" in caplog.text
-        assert "1234" in caplog.text
-
-    def test_skips_already_exited_pid_without_recycle_warning(self, caplog):
-        with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_image_name",
-            return_value=None,
-        ), patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run, \
-             caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            kill_process_tree(1234)
-
-        mock_run.assert_not_called()
-        assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
-        assert "1234" in caplog.text
 
 
 class TestKillRecordedChild:
+    def test_kills_the_child_whose_pid_still_names_it(self):
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            return_value=111_000,
+        ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill:
+            kill_recorded_child(ChildProcess(pid=1234, created_at=111_000))
+
+        mock_kill.assert_called_once_with(1234)
+
     def test_does_not_kill_a_pid_windows_recycled_to_another_process(self, caplog):
         """The recorded child died and Windows handed its PID to something else —
         an integration run's pytest, say.  Killing it would take that process down."""
-        child = ChildProcess(pid=1234, created_at=111_000)
         with patch(
             "fun_time.windows_bridge_orchestrator.get_process_creation_time",
             return_value=222_000,
-        ), patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run, \
+        ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill, \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            kill_recorded_child(child)
+            kill_recorded_child(ChildProcess(pid=1234, created_at=111_000))
 
-        mock_run.assert_not_called()
+        mock_kill.assert_not_called()
+        assert "1234" in caplog.text
+
+    def test_skips_an_already_exited_child_without_a_recycle_warning(self, caplog):
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            return_value=None,
+        ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill, \
+             caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
+            kill_recorded_child(ChildProcess(pid=1234, created_at=111_000))
+
+        mock_kill.assert_not_called()
+        assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
         assert "1234" in caplog.text
 
 

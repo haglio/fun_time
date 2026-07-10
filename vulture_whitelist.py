@@ -69,6 +69,9 @@ MUTEX_BROKER  # noqa
 consume_command_file  # noqa
 start_daemon_thread  # noqa
 is_process_alive  # noqa
+# The integration reap uses this to tell a leftover app process from the pytest
+# that must survive; production kills children by recorded creation time instead.
+get_process_image_name  # noqa
 is_window_minimized  # noqa
 _read_shortcut_app_user_model_id  # noqa
 # reset_group_index_cache is test isolation support for the module-level

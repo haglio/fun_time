@@ -15,6 +15,7 @@ from fun_time.config import load_config
 from fun_time.dashboard_runtime import NauStatus, read_nau_status
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
+from fun_time.win32 import get_process_image_name
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     kill_process_tree,
@@ -31,32 +32,45 @@ from .hidden_desktop import (
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
 
 
+# The images the apps a session leaves behind actually run as: the two satellite
+# VLCs, Nau/Genau/the audio companion/the dashboard (all pythonw), and the AHK
+# hotkey shell.  python.exe is deliberately absent — pytest and the orchestrator
+# both run as python.exe, and a reap that kills a pytest takes down a whole
+# integration run (this one, or one queued behind it) with no output at all.
+# The orchestrator needs no killing here: it exits once its AHK is gone.
+_APP_IMAGE_NAMES = frozenset({"vlc.exe", "pythonw.exe", "autohotkey64.exe"})
+
+
+def _is_leftover_app(pid: int) -> bool:
+    image = get_process_image_name(pid)
+    return image is not None and Path(image).name.lower() in _APP_IMAGE_NAMES
+
+
 def _kill_leftover_app_processes() -> None:
     """Kill leftover VLC / Nau / AHK / pythonw from a prior session so the next
     one starts clean.
 
-    On the hidden integration desktop, scope the kill to that desktop's own
-    windows — these are exactly the session's own processes, never the user's
-    real (input-desktop) session — so a run is safe to fire unattended.  On a
-    visible manual run, fall back to the by-name + 5-minute-recency sweep (the
-    user accepts the screen takeover in that mode).
+    On the hidden integration desktop, scope the kill to that desktop's windows:
+    none of them belong to the user's real (input-desktop) session, so a run is
+    safe to fire unattended.  They are not all *ours*, though — the desktop is
+    shared with any leftover session and with the pytest of a run queued behind
+    this one — so kill only the app images.  On a visible manual run, fall back
+    to the by-name + 5-minute-recency sweep (the user accepts the screen
+    takeover in that mode).  Both branches target the same images, so neither
+    can reach a pytest.
     """
     if current_desktop_name() == HIDDEN_DESKTOP_NAME:
-        # Exclude our own pid: the pytest process itself lives on this desktop and
-        # may own a Qt helper window, so killing every window-owner here would
-        # abort the run.  (The old by-name sweep dodged this by only ever
-        # targeting pythonw/vlc/AutoHotkey64 — never python.)
-        own = os.getpid()
         for pid in pids_with_window_on_current_desktop():
-            if pid != own:
+            if _is_leftover_app(pid):
                 kill_process_tree(pid)
         return
     # StartTime is wrapped in try/catch: reading it throws if a process exited
     # between the Get-Process snapshot and this evaluation, or if it is owned by
     # another user.  An unguarded throw drops that item; catching it per-process
     # (treat as "not recent") keeps the pipeline going to the rest.
+    names = ",".join(sorted(name.removesuffix(".exe") for name in _APP_IMAGE_NAMES))
     ps = (
-        "Get-Process AutoHotkey64,pythonw,vlc -ErrorAction SilentlyContinue | "
+        f"Get-Process {names} -ErrorAction SilentlyContinue | "
         "Where-Object { try { $_.StartTime -gt (Get-Date).AddMinutes(-5) } catch { $false } } | "
         "Stop-Process -Force -ErrorAction SilentlyContinue"
     )

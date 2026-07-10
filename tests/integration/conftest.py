@@ -44,9 +44,9 @@ def _serialize_integration_runs():
     """Hold one machine-wide lock for the entire integration run.
 
     Multiple worktree agents share this repo and may launch the integration
-    suite at the same time.  Each run launches VLC/Nau/AHK and runs a global
-    name+age process sweep (``FunTimeIntegrationSession._kill_recent_runtime_
-    processes``) that force-kills *any* recent AutoHotkey64/pythonw/vlc —
+    suite at the same time.  Each run launches VLC/Nau/AHK and reaps leftover
+    app processes (``FunTimeIntegrationSession._reap_leftover_runtime_
+    processes``) that force-kills *any* AutoHotkey64/pythonw/vlc it finds —
     including a concurrent run's freshly-spawned processes — and the AHK bridge
     runs under ``#SingleInstance Force`` so a second bridge evicts the first.
     Overlapping runs therefore fail flakily on different tests each time.

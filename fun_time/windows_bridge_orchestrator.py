@@ -35,14 +35,13 @@ from .win32 import (
     close_window,
     find_window_by_pid,
     get_process_creation_time,
-    get_process_image_name,
     wait_for_window_by_title,
 )
 
 logger = logging.getLogger(__name__)
 
 
-CHILD_PID_KEYS = (
+_CHILD_PID_KEYS = (
     "nau_pid",
     "portrait_pid",
     "landscape_pid",
@@ -71,13 +70,17 @@ class ChildProcess:
 def identify_children(result: StartupResult) -> dict[str, ChildProcess]:
     """Pin each freshly-launched child PID to the process now holding it.
 
-    Read while startup has just proved the children alive, so the creation time
-    recorded here belongs to the process we launched.  Everything that kills a
-    child later compares against it, and a PID Windows has since handed to
-    someone else no longer matches.
+    Called seconds after launch, with startup having just driven the children
+    (VLC's HTTP interface answered, Nau's and Genau's windows appeared), so the
+    creation time read here is the one our child was born with.  Everything that
+    kills a child later compares against it, and a PID Windows has since handed
+    to someone else no longer matches.
+
+    A child that has already exited has no creation time to read; recording 0
+    means nothing alive can ever match it, so it is never killed.
     """
     children: dict[str, ChildProcess] = {}
-    for key in CHILD_PID_KEYS:
+    for key in _CHILD_PID_KEYS:
         pid = getattr(result, key)
         children[key] = ChildProcess(pid=pid, created_at=get_process_creation_time(pid) or 0)
     return children
@@ -99,17 +102,6 @@ def write_pids_file(path: Path, children: dict[str, ChildProcess]) -> None:
         parser.write(fp)
 
 
-# Executables our children run as. A recorded PID whose current image is not
-# in this set has been recycled by Windows to an unrelated process and must
-# not be killed.
-_CHILD_IMAGE_NAMES = {
-    "vlc.exe",
-    "python.exe",
-    "pythonw.exe",
-    "autohotkey64.exe",
-}
-
-
 def kill_recorded_child(child: ChildProcess) -> None:
     """Kill *child* and its descendants, but only if its PID still names it."""
     if not child.pid:
@@ -129,24 +121,15 @@ def kill_recorded_child(child: ChildProcess) -> None:
 
 
 def kill_process_tree(pid: int) -> None:
-    """Kill a process and its children via taskkill.
+    """Kill *pid* and its descendants via ``taskkill /T /F``.
 
-    PIDs are recorded at startup; a child that died mid-session may have had
-    its PID recycled to an unrelated process by shutdown time. Verify the
-    PID's current image name is one of ours before killing.
+    Unconditional.  A bare PID is evidence of nothing — Windows hands freed PIDs
+    straight back out — so the caller must first establish that *pid* is theirs
+    to kill: kill_recorded_child() checks the recorded creation time, and the
+    integration reap checks the image name of a window it found on its own
+    desktop.
     """
     if not pid:
-        return
-    image = get_process_image_name(pid)
-    if image is None:
-        logger.info("Not killing PID %d: process already exited", pid)
-        return
-    if Path(image).name.lower() not in _CHILD_IMAGE_NAMES:
-        logger.warning(
-            "Not killing PID %d: image name %r is not one of our children (PID recycled?)",
-            pid,
-            image,
-        )
         return
     try:
         subprocess.run(
