@@ -26,8 +26,21 @@ from fun_time.window_layout import WindowRect
 
 THUMBNAIL_CACHE_DIRNAME = "hud_thumbnails"
 
+# The dispatch loop rewrites this beside the manifest after every command; it
+# carries the locks, the per-satellite filters and the primary display's sound.
+SHARED_STATE_FILENAME = "shared_bridge_state.ini"
+
 # Inset (px) of the HUD from its satellite's exact top-left corner.
 HUD_MARGIN = 12
+
+
+def primary_sound_label(volume: int, muted: bool) -> str:
+    """What the HUD says about the primary display's sound.
+
+    A mute leaves the level alone, so the volume is only worth showing when the
+    sound is actually coming through.
+    """
+    return "MUTED" if muted else f"VOL {volume}"
 
 
 def overlay_rect(vlc_rect: WindowRect, *, width: int, height: int, margin: int = HUD_MARGIN) -> WindowRect:
@@ -57,7 +70,7 @@ class HudAppConfig:
     landscape_sources: str
     provider_media_root: Path | None
     provider_metadata_root: Path | None
-    dashboard_state_file: Path
+    shared_state_file: Path
     thumbnail_cache_dir: Path
 
 
@@ -87,7 +100,7 @@ def load_hud_app_config(manifest_path: str | Path) -> HudAppConfig:
         landscape_sources=parser.get("media", "landscape_dirs", fallback=""),
         provider_media_root=_root("media_root"),
         provider_metadata_root=_root("metadata_root"),
-        dashboard_state_file=Path(parser.get("commands", "dashboard_state_file", fallback="dashboard_state.ini")),
+        shared_state_file=manifest_path.parent / SHARED_STATE_FILENAME,
         thumbnail_cache_dir=manifest_path.parent / THUMBNAIL_CACHE_DIRNAME,
     )
 
@@ -113,6 +126,7 @@ class HudPanel:
     lock_label: str
     action_siblings: list[str]
     seed_siblings: list[str]
+    filter_query: str = ""
 
 
 def _others(members: list[str], current: str) -> list[str]:
@@ -128,6 +142,7 @@ def build_hud_panel(
     current: str,
     index: GroupIndex | None,
     lock_type: str | None = None,
+    filter_query: str = "",
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
@@ -143,10 +158,13 @@ def build_hud_panel(
         lock_label=_lock_label(locked, lock_type),
         action_siblings=action,
         seed_siblings=seed,
+        filter_query=filter_query,
     )
 
 
-def _side_panel(config: HudAppConfig, side: str, sources: str, current: str, locked: bool) -> HudPanel:
+def _side_panel(
+    config: HudAppConfig, side: str, sources: str, current: str, locked: bool, filter_query: str
+) -> HudPanel:
     index: GroupIndex | None = None
     if current:
         index = cached_group_index(
@@ -156,7 +174,9 @@ def _side_panel(config: HudAppConfig, side: str, sources: str, current: str, loc
             metadata_root=config.provider_metadata_root,
             must_contain=current,
         )
-    return build_hud_panel(side, locked=locked, current=current, index=index)
+    return build_hud_panel(
+        side, locked=locked, current=current, index=index, filter_query=filter_query
+    )
 
 
 def build_panels(
@@ -166,6 +186,8 @@ def build_panels(
     landscape_current: str,
     portrait_locked: bool,
     landscape_locked: bool,
+    portrait_filter: str = "",
+    landscape_filter: str = "",
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -173,8 +195,14 @@ def build_panels(
     does, so the siblings shown match what cycling would actually reach.
     """
     return (
-        _side_panel(config, "portrait", config.portrait_sources, portrait_current, portrait_locked),
-        _side_panel(config, "landscape", config.landscape_sources, landscape_current, landscape_locked),
+        _side_panel(
+            config, "portrait", config.portrait_sources,
+            portrait_current, portrait_locked, portrait_filter,
+        ),
+        _side_panel(
+            config, "landscape", config.landscape_sources,
+            landscape_current, landscape_locked, landscape_filter,
+        ),
     )
 
 

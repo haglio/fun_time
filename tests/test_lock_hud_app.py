@@ -34,12 +34,12 @@ def _non_transparent_samples(image: QImage) -> int:
     )
 
 
-def _render(panel: HudPanel, seed_thumbs, action_thumbs) -> QImage:
+def _render(panel: HudPanel, seed_thumbs, action_thumbs, sound_label: str = "") -> QImage:
     image = QImage(OVERLAY_WIDTH, OVERLAY_HEIGHT, QImage.Format.Format_ARGB32)
     image.fill(Qt.GlobalColor.transparent)
     painter = QPainter(image)
     try:
-        paint_hud(painter, image.rect(), panel, seed_thumbs, action_thumbs)
+        paint_hud(painter, image.rect(), panel, seed_thumbs, action_thumbs, sound_label)
     finally:
         painter.end()
     return image
@@ -71,3 +71,21 @@ def test_paint_hud_handles_an_empty_unlocked_panel(qt_app):
 
     # Still draws its background even with no siblings — never blows up.
     assert _non_transparent_samples(image) > 0
+
+
+def test_paint_hud_draws_the_primary_sound_and_filter_lines(qt_app):
+    """A muted primary and an active filter add ink the bare panel does not have."""
+    bare = HudPanel(
+        side="portrait", locked=False, lock_label="Unlocked",
+        action_siblings=[], seed_siblings=[],
+    )
+    annotated = HudPanel(
+        side="portrait", locked=False, lock_label="Unlocked",
+        action_siblings=[], seed_siblings=[], filter_query="beta gamma",
+    )
+
+    plain = _render(bare, [], [])
+    with_status = _render(annotated, [], [], sound_label="MUTED")
+
+    assert _non_transparent_samples(with_status) > 0
+    assert plain != with_status  # the two status lines changed the pixels
