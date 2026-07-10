@@ -37,6 +37,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
+        audio_volume_file=state_dir / "audio_volume.txt",
         nau_cmd_file=state_dir / "nau_cmd.txt",
         nau_paused_file=state_dir / "nau_paused.txt",
         nau_status_file=state_dir / "nau_status.txt",
@@ -1406,6 +1407,74 @@ def test_reset_speed_command_maps_to_normal_rate(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("nau_speed_100", _make_state(primary_mode="nau"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1"
+
+
+def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    new_state, ops = dispatch_command("audio_volume_down", _make_state(), config)
+
+    assert new_state.volume == 90
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 90"
+    assert config.audio_volume_file.read_text(encoding="utf-8") == "90"
+    assert ops == [WindowOp(op="notice", key="Volume 90%", source="primary")]
+
+
+def test_volume_up_steps_both_audio_sinks_up(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    new_state, _ops = dispatch_command("audio_volume_up", _make_state(volume=40), config)
+
+    assert new_state.volume == 50
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 50"
+    assert config.audio_volume_file.read_text(encoding="utf-8") == "50"
+
+
+def test_volume_clamps_at_silent_and_at_full(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    floored, _ops = dispatch_command("audio_volume_down", _make_state(volume=5), config)
+    assert floored.volume == 0
+
+    ceilinged, _ops = dispatch_command("audio_volume_up", _make_state(volume=95), config)
+    assert ceilinged.volume == 100
+
+
+def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    new_state, ops = dispatch_command("audio_mute_toggle", _make_state(volume=70), config)
+
+    assert new_state.muted is True
+    assert new_state.volume == 70  # remembered, so unmuting restores it
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 0"
+    assert config.audio_volume_file.read_text(encoding="utf-8") == "0"
+    assert ops == [WindowOp(op="notice", key="Muted", source="primary")]
+
+
+def test_mute_again_restores_the_remembered_level(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    new_state, ops = dispatch_command(
+        "audio_mute_toggle", _make_state(volume=70, muted=True), config,
+    )
+
+    assert new_state.muted is False
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 70"
+    assert ops == [WindowOp(op="notice", key="Volume 70%", source="primary")]
+
+
+def test_stepping_the_volume_lifts_a_mute(tmp_path: Path):
+    """vosk has no "unmute" token, so a loudness word is the other way back."""
+    config = _make_config(tmp_path)
+
+    new_state, _ops = dispatch_command(
+        "audio_volume_up", _make_state(volume=70, muted=True), config,
+    )
+
+    assert new_state.muted is False
+    assert new_state.volume == 80
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 80"
 
 
 def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):

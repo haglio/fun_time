@@ -12,6 +12,7 @@ import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, write_volume
 from .config import ProviderRegenConfig
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .media_metadata import (
@@ -86,6 +87,10 @@ class BridgeState:
     # are honoured by later F-mode / premiere rebuilds.
     portrait_filter: str = ""
     landscape_filter: str = ""
+    # The primary display's sound level, 0-100, and whether it is silenced.  A
+    # mute leaves the level alone so a second "mute" restores what was set.
+    volume: int = MAX_VOLUME
+    muted: bool = False
 
 
 @dataclass
@@ -103,6 +108,7 @@ class BridgeConfig:
     genau_cmd_file: Path
     genau_paused_file: Path
     audio_paused_file: Path
+    audio_volume_file: Path
     nau_cmd_file: Path
     nau_paused_file: Path
     nau_status_file: Path
@@ -697,6 +703,13 @@ def dispatch_command(
             config.nau_cmd_file.write_text(_NAU_CMD_MAP[command], encoding="utf-8")
         return state, ops
 
+    if command == "audio_mute_toggle":
+        return _dispatch_audio(replace(state, muted=not state.muted), config)
+
+    step = _VOLUME_STEPS.get(command)
+    if step is not None:
+        return _dispatch_audio(_step_volume(state, step), config)
+
     if command == "quarter_button":
         config.genau_cmd_file.write_text("OFFSET_QUARTER_CYCLE", encoding="utf-8")
         return state, ops
@@ -760,6 +773,37 @@ def dispatch_command(
         return state, ops
 
     return state, ops
+
+
+_VOLUME_STEPS = {"audio_volume_down": -VOLUME_STEP, "audio_volume_up": VOLUME_STEP}
+
+
+def _step_volume(state: BridgeState, step: int) -> BridgeState:
+    """Move the sound level by *step*, staying within the silent/full bounds.
+
+    Naming a loudness lifts a mute: "unmute" is not in the vosk vocabulary, so
+    "loud"/"louder" is the only spoken way back other than "mute" itself.
+    """
+    volume = max(MIN_VOLUME, min(MAX_VOLUME, state.volume + step))
+    return replace(state, volume=volume, muted=False)
+
+
+def _dispatch_audio(
+    state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Publish *state*'s sound level to both of the primary display's audio sinks.
+
+    Nau's mpv carries the video's sound; the Genau audio companion carries the
+    clip music.  Which one is audible depends on the mode, so both are told the
+    same level every time and the bridge alone holds the authoritative value.
+    A mute is published as a level of zero rather than as a flag of its own —
+    the sinks stay dumb, and the level the speaker chose survives underneath.
+    """
+    level = MIN_VOLUME if state.muted else state.volume
+    config.nau_cmd_file.write_text(f"SET_VOLUME {level}", encoding="utf-8")
+    write_volume(config.audio_volume_file, level)
+    message = "Muted" if state.muted else f"Volume {state.volume}%"
+    return state, [WindowOp(op="notice", key=message, source=SOURCE_PRIMARY)]
 
 
 def _dispatch_omnipause_toggle(

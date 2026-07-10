@@ -5,6 +5,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from .audio_volume import MAX_VOLUME, write_volume
 from .config import load_config
 from .modes import SatelliteLibraryContext, build_fmode_playlists
 from .watch_stats import watch_stats_path
@@ -79,13 +80,17 @@ def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: s
     write_manifest(Path(output_path), profile_directory, urls)
 
 
-def seed_paused_states(
+def seed_startup_states(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     nau_paused_file: str | Path,
+    audio_volume_file: str | Path,
 ) -> None:
-    """Seed pause flags for the startup mode (nau): Genau parked, Nau paused
-    until the sequencer's reveal unpauses it."""
+    """Seed the cross-process flags for the startup mode (nau): Genau parked, Nau
+    paused until the sequencer's reveal unpauses it, and the sound level back at
+    full — Nau and the audio companion each launch unattenuated, so a level left
+    muted by the last session would silence this one with nothing on screen to
+    explain it."""
     for path, value in (
         (Path(genau_paused_file), "1"),
         (Path(audio_paused_file), "1"),
@@ -93,6 +98,7 @@ def seed_paused_states(
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(value, encoding="utf-8")
+    write_volume(Path(audio_volume_file), MAX_VOLUME)
 
 
 def start_core_session(
@@ -104,6 +110,7 @@ def start_core_session(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     nau_paused_file: str | Path,
+    audio_volume_file: str | Path,
     vlc_exe: str | Path,
     primary_sources: str,
     portrait_sources: str,
@@ -119,7 +126,7 @@ def start_core_session(
     provider_metadata_root: Path | None = None,
 ) -> None:
     restart_broker(project_dir, broker_tray_launcher)
-    seed_paused_states(genau_paused_file, audio_paused_file, nau_paused_file)
+    seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     # One playlist authority: the same builder the F-mode toggle uses writes
     # the three VLC playlists and Nau's video/funscript pair list.
