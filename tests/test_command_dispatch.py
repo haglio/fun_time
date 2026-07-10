@@ -1443,7 +1443,7 @@ def test_volume_clamps_at_silent_and_at_full(tmp_path: Path):
 def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    new_state, ops = dispatch_command("audio_mute_toggle", _make_state(volume=70), config)
+    new_state, ops = dispatch_command("audio_mute", _make_state(volume=70), config)
 
     assert new_state.muted is True
     assert new_state.volume == 70  # remembered, so unmuting restores it
@@ -1452,11 +1452,11 @@ def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
     assert ops == [WindowOp(op="notice", key="Muted", source="primary")]
 
 
-def test_mute_again_restores_the_remembered_level(tmp_path: Path):
+def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
     config = _make_config(tmp_path)
 
     new_state, ops = dispatch_command(
-        "audio_mute_toggle", _make_state(volume=70, muted=True), config,
+        "audio_unmute", _make_state(volume=70, muted=True), config,
     )
 
     assert new_state.muted is False
@@ -1464,8 +1464,20 @@ def test_mute_again_restores_the_remembered_level(tmp_path: Path):
     assert ops == [WindowOp(op="notice", key="Volume 70%", source="primary")]
 
 
+def test_mute_and_unmute_are_idempotent_not_a_toggle(tmp_path: Path):
+    """Saying "mute" twice must not undo the mute — "un mute" is how you come back."""
+    config = _make_config(tmp_path)
+
+    still_muted, _ops = dispatch_command("audio_mute", _make_state(muted=True), config)
+    assert still_muted.muted is True
+
+    still_audible, _ops = dispatch_command("audio_unmute", _make_state(muted=False), config)
+    assert still_audible.muted is False
+
+
 def test_stepping_the_volume_lifts_a_mute(tmp_path: Path):
-    """vosk has no "unmute" token, so a loudness word is the other way back."""
+    """As reaching for the volume does in VLC and the Windows mixer — a "louder"
+    that left the room silent would read as the command having been missed."""
     config = _make_config(tmp_path)
 
     new_state, _ops = dispatch_command(

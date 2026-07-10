@@ -185,14 +185,22 @@ def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():
     """Mute and the volume steps are spoken-only, and each step surfaces both of
     its synonyms so the legend never implies one of them is the "real" phrase."""
     rows = _all_rows()
-    mute = next(r for r in rows if "audio_mute_toggle" in r.commands)
+    mute = next(r for r in rows if "audio_mute" in r.commands)
     assert mute.hotkeys == ()
-    assert mute.voice == ("mute",)
+    # "unmute" is one word to the reader; only the recognizer hears "un mute".
+    assert mute.voice == ("mute", "unmute")
+    assert "audio_unmute" in mute.commands
 
     down = next(r for r in rows if "audio_volume_down" in r.commands)
     up = next(r for r in rows if "audio_volume_up" in r.commands)
     assert down is up, "one row documents the pair of volume steps"
     assert set(up.voice) == {"quiet", "quieter", "loud", "louder"}
+
+
+def test_no_say_column_leaks_the_raw_un_mute_form():
+    for row in _all_rows():
+        for phrase in row.voice:
+            assert "un mute" not in phrase, phrase
 
 
 def test_premiere_row_uses_p_key_and_premiere_voice():

@@ -159,7 +159,7 @@ class TestVoiceCommands:
             "center up": "genau_center_up",
             "next shape": "genau_cycle_shape",
             "previous shape": "genau_cycle_shape_prev",
-            "genau auto": "genau_toggle_auto",
+            "go now auto": "genau_toggle_auto",
             "cruise control": "genau_toggle_cruise",
             "cruise on": "genau_cruise_on",
             "cruise off": "genau_cruise_off",
@@ -174,11 +174,26 @@ class TestVoiceCommands:
     def test_audio_phrases_mute_and_step_the_volume(self):
         """Both words of each pair mean the same thing, so a speaker never has to
         pick between "quiet" and "quieter"."""
-        assert VOICE_COMMANDS["mute"] == "audio_mute_toggle"
+        assert VOICE_COMMANDS["mute"] == "audio_mute"
         assert VOICE_COMMANDS["quiet"] == "audio_volume_down"
         assert VOICE_COMMANDS["quieter"] == "audio_volume_down"
         assert VOICE_COMMANDS["loud"] == "audio_volume_up"
         assert VOICE_COMMANDS["louder"] == "audio_volume_up"
+
+    def test_no_phrase_uses_a_word_vosk_cannot_hear(self):
+        """A phrase built from a word outside the model's lexicon can never be
+        recognized — the command is unreachable, and silently so.  Every one of
+        these has a sound-alike the recognizer listens for instead."""
+        oov_words = {"genau", "nau", "hotkeys", "unmute"}
+        for phrase in VOICE_COMMANDS:
+            offenders = oov_words & set(phrase.split())
+            assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"
+
+    def test_unmute_is_heard_as_two_words(self):
+        """vosk has no "unmute" token but does have "un"; the recognizer listens
+        for "un mute" and the reference shows the friendly single word."""
+        assert VOICE_COMMANDS["un mute"] == "audio_unmute"
+        assert "unmute" not in VOICE_COMMANDS
 
     def test_reference_popup_phrases_toggle_and_close_help(self):
         # Several spoken names toggle the hotkeys & voice reference popup; the

@@ -93,7 +93,9 @@ VOICE_COMMANDS: dict[str, str] = {
     "center up": "genau_center_up",
     "next shape": "genau_cycle_shape",
     "previous shape": "genau_cycle_shape_prev",
-    "genau auto": "genau_toggle_auto",
+    # vosk cannot hear "genau", so this reuses the "go now" sound-alike the mode
+    # phrases already rely on; the reference shows it as "genau auto".
+    "go now auto": "genau_toggle_auto",
     "cruise control": "genau_toggle_cruise",
     "cruise on": "genau_cruise_on",
     "cruise off": "genau_cruise_off",
@@ -102,10 +104,12 @@ VOICE_COMMANDS: dict[str, str] = {
     "offset": "quarter_button",
     "voice off": "voice_off",
     # The primary display's sound, whichever mode owns it.  Each pair's two
-    # words mean the same thing, so a speaker never has to pick between them;
-    # "unmute" is not in the vosk vocabulary, so "mute" toggles and either
-    # loudness word also lifts it.
-    "mute": "audio_mute_toggle",
+    # words mean the same thing, so a speaker never has to pick between them.
+    # vosk has no "unmute" token but does have "un", so the recognizer listens
+    # for the two-word "un mute"; the reference shows it as "unmute" via the
+    # row's voice_display override.
+    "mute": "audio_mute",
+    "un mute": "audio_unmute",
     "quiet": "audio_volume_down",
     "quieter": "audio_volume_down",
     "loud": "audio_volume_up",
