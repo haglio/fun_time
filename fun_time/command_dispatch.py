@@ -232,6 +232,20 @@ def _toggle_genau_enabled(path: Path) -> None:
     path.write_text("0" if read_genau_enabled(path) else "1", encoding="utf-8")
 
 
+def _same_video(left: str, right: str) -> bool:
+    return normalize_path_key(left) == normalize_path_key(right)
+
+
+def _play_video(port: int, password: str, path: str, entries: list[tuple[int, str]]) -> bool:
+    """Make *path* the satellite's current item, playing it from *entries* when
+    it is already queued and swapping it in over the current item otherwise."""
+    entry_ids = {normalize_path_key(entry_path): item_id for item_id, entry_path in entries}
+    target_id = entry_ids.get(normalize_path_key(path))
+    if target_id is not None:
+        return vlc_play_playlist_item(port, password, target_id)
+    return vlc_swap_current_with(port, password, path)
+
+
 def _cancel_lock(which: int, state: BridgeState, config: BridgeConfig) -> BridgeState:
     port = config.portrait_port if which == 2 else config.landscape_port
     locked = state.locked2 if which == 2 else state.locked3
@@ -243,10 +257,24 @@ def _cancel_lock(which: int, state: BridgeState, config: BridgeConfig) -> Bridge
     return replace(state, locked3=plan.next_locked)
 
 
-def _toggle_lock(which: int, state: BridgeState, config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
+def _toggle_lock(
+    which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
+) -> tuple[BridgeState, list[WindowOp]]:
     port = config.portrait_port if which == 2 else config.landscape_port
     locked = state.locked2 if which == 2 else state.locked3
     current_path = get_current_file_path(port, config.vlc_password)
+    # "Lock" names the video the speaker had in front of them.  If the satellite
+    # auto-advanced while the phrase was being recognized, bring that video back
+    # and lock it — the whole point of the lock is to keep watching *it*.  An
+    # unlock needs no such rescue: a locked satellite repeats one video and
+    # cannot have advanced.
+    if not locked and target_path and not _same_video(target_path, current_path):
+        entries, _current_id = get_playlist_entries(port, config.vlc_password)
+        if _play_video(port, config.vlc_password, target_path, entries):
+            logger.info("Lock back-dated to %s (player %d had advanced)", target_path, which)
+            current_path = target_path
+        else:
+            logger.warning("Lock could not return player %d to %s", which, target_path)
     plan = build_lock_plan("toggle-lock", which=which, locked=locked, current_path=current_path)
     if plan.repeat_mode:
         set_repeat_mode(port, config.vlc_password, plan.repeat_mode)
@@ -274,19 +302,39 @@ def _toggle_lock(which: int, state: BridgeState, config: BridgeConfig) -> tuple[
     return replace(state, locked3=plan.next_locked), lock_ops
 
 
-def _discard(which: int, state: BridgeState, config: BridgeConfig) -> BridgeState:
+def _drop_playlist_entry(port: int, password: str, path: str) -> bool:
+    """Delete *path* from the playlist wherever it sits, leaving playback alone."""
+    entries, _current_id = get_playlist_entries(port, password)
+    for item_id, entry_path in entries:
+        if _same_video(entry_path, path):
+            return vlc_http_cmd(port, f"pl_delete&id={item_id}", password)
+    return False
+
+
+def _discard(
+    which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
+) -> BridgeState:
     port = config.portrait_port if which == 2 else config.landscape_port
     locked = state.locked2 if which == 2 else state.locked3
     current_path = get_current_file_path(port, config.vlc_password)
-    plan = build_lock_plan("discard", which=which, locked=locked, current_path=current_path)
+    # "Weird" condemns the video the speaker saw.  When the satellite advanced
+    # while the phrase was being recognized there is nothing to advance past —
+    # the condemned video is dropped from the playlist where it now sits, and
+    # the innocent video that replaced it keeps playing.
+    condemned = target_path or current_path
+    already_moved_on = bool(target_path) and not _same_video(target_path, current_path)
+    plan = build_lock_plan("discard", which=which, locked=locked, current_path=condemned)
     if plan.repeat_mode:
         set_repeat_mode(port, config.vlc_password, plan.repeat_mode)
-    if plan.remove_from_favs and current_path:
-        remove_from_favs(config.favs_file, current_path)
+    if plan.remove_from_favs and condemned:
+        remove_from_favs(config.favs_file, condemned)
     if plan.advance_playlist:
-        vlc_advance_and_remove(port, config.vlc_password)
-    if plan.move_to_weird and current_path:
-        move_to_weird(config.weird_dir, Path(current_path))
+        if already_moved_on:
+            _drop_playlist_entry(port, config.vlc_password, condemned)
+        else:
+            vlc_advance_and_remove(port, config.vlc_password)
+    if plan.move_to_weird and condemned:
+        move_to_weird(config.weird_dir, Path(condemned))
     ensure_playback_state(port, config.vlc_password, should_play=True)
     if plan.log_message:
         logger.info(plan.log_message)
@@ -456,7 +504,7 @@ def _dispatch_lock_action(
 
 
 def _cycle_variant(
-    which: int, kind: str, state: BridgeState, config: BridgeConfig
+    which: int, kind: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Switch the satellite's current video to a sibling: another action of the
     same subject(s)+situation, or the same configuration under another seed.
@@ -464,10 +512,14 @@ def _cycle_variant(
     Unlike prev/next, cycling deliberately leaves an active lock alone: it
     means "show me this differently", not "move on" — the lock's repeat-one
     carries over to the sibling, which simply loops in its place.
+
+    The siblings are those of *target_path* when a spoken command named a video
+    the satellite has since advanced past: "show me this differently" is about
+    the video the speaker saw, not its replacement.
     """
     port = config.portrait_port if which == 2 else config.landscape_port
     ops: list[WindowOp] = []
-    current = get_current_file_path(port, config.vlc_password)
+    current = target_path or get_current_file_path(port, config.vlc_password)
     if not current:
         return state, ops
     index = _satellite_group_index(which, config, current)
@@ -482,13 +534,7 @@ def _cycle_variant(
     if target is None:
         ops.append(WindowOp(op="tooltip", key=missing_message))
         return state, ops
-    entry_ids = {normalize_path_key(path): item_id for item_id, path in entries}
-    target_id = entry_ids.get(normalize_path_key(target))
-    if target_id is not None:
-        switched = vlc_play_playlist_item(port, config.vlc_password, target_id)
-    else:
-        switched = vlc_swap_current_with(port, config.vlc_password, target)
-    if not switched:
+    if not _play_video(port, config.vlc_password, target, entries):
         logger.warning("cycle %s: could not switch to %s", kind, target)
         return state, ops
     ensure_playback_state(port, config.vlc_password, should_play=True)
@@ -502,9 +548,9 @@ def _cycle_variant(
     return state, ops
 
 
-def _command_side(command: str) -> int | None:
-    """The player slot a command marks as active: 1=primary, 2=portrait,
-    3=landscape — or None if it addresses no player.
+def command_side(command: str) -> int | None:
+    """The player slot a command addresses: 1=primary, 2=portrait, 3=landscape —
+    or None if it addresses no player.
 
     The primary (Nau) player only becomes active through its own next/prev
     navigation; it has no lock/weird/cycle, so nothing else selects it.
@@ -522,20 +568,30 @@ def dispatch_command(
     command: str,
     state: BridgeState,
     config: BridgeConfig,
+    *,
+    target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Dispatch a dashboard/hotkey command, returning updated state and window operations."""
+    """Dispatch a dashboard/hotkey command, returning updated state and window operations.
+
+    ``target_path`` names the video a spoken command was aimed at — the one on
+    screen when the utterance began, which an auto-advancing satellite may have
+    left behind by the time the phrase was recognized.  The video-scoped
+    satellite actions (lock, weird, cycle) honour it; everything else is either
+    instantaneous or not about a particular video.  Empty means "whatever is
+    playing now", which is how every keyboard and dashboard command arrives.
+    """
     ops: list[WindowOp] = []
 
     # Any explicit side command (voice or keyboard nav) becomes the active side,
     # so a later side-agnostic "active_*" command knows which player to drive.
-    side = _command_side(command)
+    side = command_side(command)
     if side is not None:
         state = replace(state, active_side=side)
 
     cycle_target = _CYCLE_COMMANDS.get(command)
     if cycle_target is not None:
         which, kind = cycle_target
-        return _cycle_variant(which, kind, state, config)
+        return _cycle_variant(which, kind, state, config, target_path)
 
     loop_target = _LOOP_COMMANDS.get(command)
     if loop_target is not None:
@@ -559,12 +615,12 @@ def dispatch_command(
         return state, ops
 
     if command == "portrait_lock":
-        state, lock_ops = _toggle_lock(2, state, config)
+        state, lock_ops = _toggle_lock(2, state, config, target_path)
         ops.extend(lock_ops)
         return state, ops
 
     if command == "portrait_trash":
-        state = _discard(2, state, config)
+        state = _discard(2, state, config, target_path)
         return state, ops
 
     if command == "landscape_prev":
@@ -580,12 +636,12 @@ def dispatch_command(
         return state, ops
 
     if command == "landscape_lock":
-        state, lock_ops = _toggle_lock(3, state, config)
+        state, lock_ops = _toggle_lock(3, state, config, target_path)
         ops.extend(lock_ops)
         return state, ops
 
     if command == "landscape_trash":
-        state = _discard(3, state, config)
+        state = _discard(3, state, config, target_path)
         return state, ops
 
     if command in ("primary_prev", "primary_next"):
