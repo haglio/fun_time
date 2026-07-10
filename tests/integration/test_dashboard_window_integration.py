@@ -135,26 +135,33 @@ def test_log_panel_fills_the_strip_beside_the_dashboard(cfg_path: Path):
         window.close()
 
 
-def test_a_notice_written_to_the_event_log_reaches_the_panel_banner(cfg_path: Path):
-    """End to end over a real file: a NOTICE the dispatch loop would emit shows
-    up on the banner, which is what replaced the AHK tooltip."""
+def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: Path):
+    """End to end over a real file: a NOTICE the dispatch loop would emit is
+    picked up by the dashboard's tail and flashed, at the top-center of the
+    window its source names — the overlay that replaced the AHK tooltip."""
     import logging
 
     from fun_time.event_log import EventLogHandler
 
     window, state_dir, _log_rect = _build_window_with_log_panel(cfg_path)
     try:
-        panel = window._log_panel
         writer = logging.getLogger("integration.event_log.writer")
         writer.handlers.clear()
         writer.propagate = False
         writer.setLevel(NOTICE)
         writer.addHandler(EventLogHandler(event_log_path(state_dir)))
 
-        notice(writer, "Clip saved", source="primary")
-        panel._poll()
+        notice(writer, "Clip saved", source="portrait")
+        window._poll_notices()
 
-        assert panel._banner.text() == "Clip saved"
+        overlay = window._notice_overlay
+        assert overlay is not None
+        assert overlay.isVisible()
+        assert overlay.text() == "Clip saved"
+        # Centered across the portrait player's top, not the dashboard's.
+        portrait = window._player_rects.portrait
+        assert portrait.x <= overlay.x() <= portrait.x + portrait.width
+        assert overlay.y() < portrait.y + portrait.height // 2
     finally:
         window.close()
 
@@ -166,12 +173,17 @@ def test_closing_the_dashboard_stops_its_pollers_and_disposes_the_panel(cfg_path
     VLC holds those ports for the rest of the run."""
     window, _state_dir, _log_rect = _build_window_with_log_panel(cfg_path)
     panel = window._log_panel
+    overlay = window._notice_overlay
     assert panel is not None
 
     window.close()
 
     assert window._stopping.is_set()
     assert not window._refresh_timer.isActive()
+    assert not window._notice_timer.isActive()
     assert not panel._timer.isActive()
     assert window._log_panel is None
+    assert window._notice_overlay is None
+    if overlay is not None:
+        assert not overlay.isVisible()
     assert find_window_by_title(LOG_PANEL_WINDOW_TITLE, exact=True) == 0

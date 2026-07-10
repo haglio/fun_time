@@ -10,7 +10,6 @@ from fun_time.log_panel import (
     LogPanelPrefs,
     append_records,
     format_record,
-    latest_notice,
     load_prefs,
     save_prefs,
     visible_records,
@@ -67,44 +66,6 @@ class TestAppendRecords:
         assert len(out) == MAX_RECORDS
         assert out[-1].message == "newest"
         assert out[0].message == "1"
-
-
-class TestLatestNotice:
-    def test_returns_the_most_recent_notice_level_record(self):
-        records = [
-            _record(level=NOTICE, message="older", ts=1.0),
-            _record(level=logging.INFO, message="chatter", ts=2.0),
-            _record(level=NOTICE, message="newer", ts=3.0),
-        ]
-        f = LogFilter(verbosity=logging.DEBUG, sources=ALL_SOURCES)
-
-        assert latest_notice(records, f).message == "newer"
-
-    def test_a_warning_counts_as_a_notice_because_it_is_louder(self):
-        records = [_record(level=logging.WARNING, message="careful")]
-        f = LogFilter(verbosity=logging.DEBUG, sources=ALL_SOURCES)
-
-        assert latest_notice(records, f).message == "careful"
-
-    def test_ignores_records_from_muted_sources(self):
-        records = [_record(level=NOTICE, source="portrait", message="hidden")]
-        f = LogFilter(verbosity=logging.DEBUG, sources=frozenset({"landscape"}))
-
-        assert latest_notice(records, f) is None
-
-    def test_the_banner_ignores_the_verbosity_dial(self):
-        """A notice is the replacement for the old cursor popup: turning the
-        verbosity up to ERROR must not silence "Clip saved"."""
-        records = [_record(level=NOTICE, message="Clip saved")]
-        f = LogFilter(verbosity=logging.ERROR, sources=ALL_SOURCES)
-
-        assert latest_notice(records, f).message == "Clip saved"
-
-    def test_returns_none_when_nothing_has_been_announced(self):
-        records = [_record(level=logging.INFO, message="chatter")]
-        f = LogFilter(verbosity=logging.DEBUG, sources=ALL_SOURCES)
-
-        assert latest_notice(records, f) is None
 
 
 class TestFormatRecord:

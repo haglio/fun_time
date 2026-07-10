@@ -131,12 +131,9 @@ See those projects for the serial parsing, COM-port recovery, and playback inter
 
 The main monitor's left column stacks the **Dashboard** in its top-left corner, the **log panel** in the strip beside it, and the **Random Favs Browser** filling the rest below. The Dashboard's schematic of the two monitors draws all three, so the picture matches the screen.
 
-The log panel is a second window in the dashboard's process. It tails `state/event_log.jsonl` and shows:
+The log panel is a second window in the dashboard's process. It tails `state/event_log.jsonl` and shows the **stream** of everything the session logs, filtered by a verbosity dial (`DEBUG`/`INFO`/`NOTICE`/`WARNING`/`ERROR`, default `NOTICE`) and by per-window toggles across one compact row. Both settings persist in `state/log_panel.ini`.
 
-- a **banner** carrying the newest notice — "Clip saved", "No other seeds", "Similar clip" — which stays put until the next one replaces it,
-- the **stream** below, filtered by a verbosity dial (`DEBUG`/`INFO`/`NOTICE`/`WARNING`/`ERROR`, default `NOTICE`) and by checkboxes for which window each line is about.
-
-Both settings persist in `state/log_panel.ini`. The banner deliberately ignores the verbosity dial: turning it up to `ERROR` must not swallow "Clip saved".
+The brief **notices** — "Clip saved", "No other seeds", "Similar clip" — flash over the top-center of the player they concern (a portrait notice over the portrait satellite, a primary notice over the Nau/Genau display) and then fade. They also land in the stream, coloured by level, so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream.
 
 ## Requirements
 
@@ -359,7 +356,7 @@ Every line any `fun_time` logger emits during a session, one JSON object per lin
 {"ts": 1752000000.5, "level": 25, "source": "portrait", "msg": "No other seeds"}
 ```
 
-`source` is the window the line is about — `primary`, `portrait`, `landscape`, `dash`, or `system` for the session at large. `level` is a standard `logging` level plus **`NOTICE` (25)**, the tier for messages meant for whoever is watching the screen ("Clip saved", "Similar clip"). These used to flash as AutoHotkey tooltips under the mouse pointer; now they land here.
+`source` is the window the line is about — `primary`, `portrait`, `landscape`, `dash`, or `system` for the session at large. `level` is a standard `logging` level plus **`NOTICE` (25)**, the tier for messages meant for whoever is watching the screen ("Clip saved", "Similar clip"). These used to flash as AutoHotkey tooltips under the mouse pointer; now they flash over the player they name (top-center) and land here in the stream.
 
 The file is truncated when a session starts, so it always holds exactly the current run. The log panel tails it — and so can you, or an agent debugging a session: pause, describe the symptom, and the answer is in this one file.
 

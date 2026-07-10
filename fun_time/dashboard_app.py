@@ -83,8 +83,16 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.command_reference import render_reference_html
-from fun_time.event_log import event_log_path
+from fun_time.event_log import EVENT_LOG_FILENAME, event_log_path, read_events
 from fun_time.log_panel import LogPanelWindow, prefs_path
+from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
+from fun_time.notice_overlay import (
+    NoticeOverlay,
+    PlayerRects,
+    is_announcement,
+    notice_target_rect,
+)
+from fun_time.window_layout import compute_primary_media_rect, compute_window_layout
 from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
 from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status, read_nau_status
 from fun_time.dashboard_state import (
@@ -1188,6 +1196,16 @@ class DashboardWindow(QMainWindow):
         # VLC poller thread
         threading.Thread(target=self._vlc_poller, daemon=True, name="vlc-poller").start()
 
+        # Notice overlays: flash each new event-log notice over the player it is
+        # about.  A dedicated tail (its own offset) polls the shared file a touch
+        # faster than the 500ms refresh so a "Clip saved" lands promptly.
+        self._player_rects = self._compute_player_rects()
+        self._notice_overlay = NoticeOverlay() if self._player_rects is not None else None
+        self._notice_offset = 0
+        self._notice_timer = QTimer(self)
+        self._notice_timer.timeout.connect(self._poll_notices)
+        self._notice_timer.start(250)
+
         # Refresh timer (500ms)
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._refresh)
@@ -1223,10 +1241,14 @@ class DashboardWindow(QMainWindow):
         """
         self._stopping.set()
         self._refresh_timer.stop()
+        self._notice_timer.stop()
         try:
             self._press_sock.close()  # unblocks the listener's recvfrom
         except OSError:
             pass
+        if self._notice_overlay is not None:
+            self._notice_overlay.shutdown()
+            self._notice_overlay = None
         if self._log_panel is not None:
             self._log_panel.shutdown()
             self._log_panel = None
@@ -1429,6 +1451,54 @@ class DashboardWindow(QMainWindow):
         while not self._stopping.is_set():
             self._vlc_cache[0] = poll_vlc(self._app_config)
             self._stopping.wait(0.5)
+
+    def _compute_player_rects(self) -> PlayerRects | None:
+        """Where each notice-bearing window sits, in real screen coordinates.
+
+        Derived from the same layout functions startup positions the windows
+        with, so the overlay lands on the window rather than near it.  Returns
+        None when the monitors can't be read (e.g. a headless run) so notices
+        simply don't flash instead of crashing the dashboard.
+        """
+        try:
+            monitors = enumerate_monitors()
+            main_rect, secondary_rect = get_logical_monitor_rects(
+                monitors,
+                main_index=self._app_config.layout.main_monitor,
+                secondary_index=self._app_config.layout.secondary_monitor,
+            )
+        except (ValueError, OSError):
+            return None
+        plan = compute_window_layout(
+            main_monitor=main_rect,
+            secondary_monitor=secondary_rect,
+            layout_config=self._app_config.layout,
+        )
+        primary = compute_primary_media_rect(
+            secondary_monitor=secondary_rect, layout_config=self._app_config.layout,
+        )
+        as_rect = lambda w: Rect(w.x, w.y, w.width, w.height)  # noqa: E731
+        return PlayerRects(
+            primary=as_rect(primary),
+            portrait=as_rect(plan.portrait),
+            landscape=as_rect(plan.landscape),
+            dash=as_rect(plan.dashboard),
+        )
+
+    def _poll_notices(self) -> None:
+        """Flash every new announcement over the player it concerns."""
+        if self._notice_overlay is None or self._player_rects is None:
+            return
+        if self._deferred_for_loading:
+            return
+        records, self._notice_offset = read_events(
+            self._app_config.dashboard_state_file.parent / EVENT_LOG_FILENAME,
+            self._notice_offset,
+        )
+        for record in records:
+            if is_announcement(record):
+                target = notice_target_rect(record.source, self._player_rects)
+                self._notice_overlay.flash(record, target)
 
     def _refresh(self) -> None:
         self._maybe_reveal_after_loading()
