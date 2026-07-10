@@ -618,10 +618,13 @@ class TestPhase4Reveal:
         assert Path(m["commands"]["genau_paused_file"]).read_text(encoding="utf-8").strip() == "1"
         assert Path(m["commands"]["audio_paused_file"]).read_text(encoding="utf-8").strip() == "1"
 
-    def test_startup_window_state_topmost_policy_and_nau_only_visible(self, cfg_factory, tmp_path):
-        """No z-order: every managed window gets its topmost flag from the shared
-        policy for nau startup mode — where Nau floats topmost alongside the rest
-        — and the nau startup mode hides the inactive slot-mate (Genau)."""
+    def test_nothing_is_promoted_topmost_while_the_loading_overlay_is_up(self, cfg_factory, tmp_path):
+        """The whole point of the loading overlay is to hide the mess of starting
+        seven windows.  ``SetWindowPos(hwnd, HWND_TOPMOST, …)`` inserts a window at
+        the TOP of the topmost band — above the overlay, which is itself topmost —
+        so every promotion here flashes that window over the overlay until the
+        overlay's next 200ms poll re-asserts itself.  The bands go on once the
+        overlay is destroyed, in ``_fix_post_loading_windows``."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         topmost_calls: list[tuple] = []
@@ -629,16 +632,24 @@ class TestPhase4Reveal:
             manifest_path, tmp_path, vlc_http_cmd=lambda *a: True, topmost_calls=topmost_calls,
         )
 
+        assert topmost_calls == []
+
+    def test_the_idle_slot_mate_is_still_parked_behind_the_overlay(self, cfg_factory, tmp_path):
+        """Visibility is settled behind the overlay even though the bands are not:
+        minimizing Genau moves no window into the topmost band, so it cannot flash."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        self._run_hidden(manifest_path, tmp_path, vlc_http_cmd=lambda *a: True)
+
         NAU_HWND, GENAU_HWND = 2525, 6060
-        assert (NAU_HWND, True) in topmost_calls   # nau mode: Nau floats topmost
-        assert (GENAU_HWND, True) in topmost_calls  # topmost even while hidden
         assert set(self._hide_calls) == {GENAU_HWND}
         assert NAU_HWND not in self._hide_calls
 
-    def test_dashboard_found_by_title_gets_topmost(self, cfg_factory, tmp_path):
+    def test_dashboard_found_by_title_is_resolved_for_the_role_cache(self, cfg_factory, tmp_path):
         """find_window_by_pid fails for the dashboard because the venv launcher
         PID differs from the Qt window's PID — Phase 4 must fall back to the
-        exact title lookup ("Fun Time") to give the dashboard its topmost flag."""
+        exact title lookup ("Fun Time"), because this is the last moment the
+        window is resolvable before it is hidden behind the overlay."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         DASH_HWND = 5050
@@ -646,13 +657,12 @@ class TestPhase4Reveal:
         pid_to_hwnd = {30: 3030, 40: 4040, NAU_PID: 2525}
         title_to_hwnd = {"Fun Time": DASH_HWND, "Genau": 6060}
 
-        topmost_calls: list[tuple] = []
-        self._run_hidden(
+        result = self._run_hidden(
             manifest_path, tmp_path, vlc_http_cmd=lambda *a: True,
-            pid_to_hwnd=pid_to_hwnd, title_to_hwnd=title_to_hwnd, topmost_calls=topmost_calls,
+            pid_to_hwnd=pid_to_hwnd, title_to_hwnd=title_to_hwnd,
         )
 
-        assert (DASH_HWND, True) in topmost_calls
+        assert result.role_hwnds["dashboard"] == DASH_HWND
 
 
 FAKE_LAYOUT_CFG = LayoutConfig(
