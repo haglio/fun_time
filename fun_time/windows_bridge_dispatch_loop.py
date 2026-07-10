@@ -13,10 +13,12 @@ import threading
 import time
 from pathlib import Path
 
-from .command_dispatch import BridgeConfig, BridgeState, WindowOp, dispatch_command
+from .command_dispatch import BridgeConfig, BridgeState, WindowOp, command_side, dispatch_command
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
+from .video_timeline import VideoTimeline
 from .vlc_actions import get_current_file_path, get_playback_fraction
+from .voice_commands import parse_command_line
 from .watch_stats import SatelliteWatchTracker, record_watch_event, watch_stats_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import VoiceController
@@ -269,15 +271,19 @@ class DispatchLoopRunner:
         self._pending_rfb_urls: list[str] = []
         self._batching_rfb = False
         self.voice_controller: VoiceController | None = None
-        # Watch tracking ("breeding"): each satellite's playback is sampled
-        # ~1 Hz and classified into completions/skips for the stats file.
+        # Each satellite's current video is sampled periodically and fed to two
+        # consumers: watch tracking ("breeding"), which classifies playback into
+        # completions/skips for the stats file, and a timeline that lets a spoken
+        # command be back-dated to the video that was on screen when the user
+        # started talking (see _back_dated_video).
         self._watch_trackers: dict[int, SatelliteWatchTracker] = {
             2: SatelliteWatchTracker(),
             3: SatelliteWatchTracker(),
         }
-        self._watch_ports = {2: config.portrait_port, 3: config.landscape_port}
+        self._timelines: dict[int, VideoTimeline] = {2: VideoTimeline(), 3: VideoTimeline()}
+        self._satellite_ports = {2: config.portrait_port, 3: config.landscape_port}
         self._watch_stats_file = watch_stats_path(config.state_dir)
-        self._last_watch_sample = 0.0
+        self._last_satellite_sample = 0.0
         # Hybrid funscript handoff: whether the funscript is driving the OSR2
         # right now (so Genau is paused and Nau's T-Code is on) or Genau is (a
         # funscript gap or an unscripted video).  None means "no decision applied
@@ -286,7 +292,10 @@ class DispatchLoopRunner:
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
-    _WATCH_SAMPLE_INTERVAL_S = 1.0
+    # Twice a second: a video switch is only ever bracketed by two samples, so
+    # this bounds how far a back-dated command can misplace a switch (the
+    # timeline halves it again by dating the switch to the bracket's midpoint).
+    _SATELLITE_SAMPLE_INTERVAL_S = 0.5
 
     _WATCH_NAV_COMMANDS: dict[int, frozenset[str]] = {
         2: frozenset({"portrait_prev", "portrait_next", "portrait_cycle_action", "portrait_cycle_seed"}),
@@ -310,19 +319,21 @@ class DispatchLoopRunner:
         self._sync_hybrid_driver()
 
         # Dashboard commands (may be multiple if queued by rapid hotkey
-        # presses).  Each raw command is bound to concrete side command(s)
-        # before handling: a side-agnostic "active_*" command (voice "lock",
-        # "next", ...) resolves to whichever satellite was most recently
-        # addressed — by voice or by keyboard nav — and a "both_*" command
-        # expands into its Portrait + Landscape pair.
+        # presses).  Each raw line yields a command plus, for a spoken one, when
+        # the utterance began; the command is then bound to concrete side
+        # command(s): a side-agnostic "active_*" command (voice "lock", "next",
+        # ...) resolves to whichever satellite was most recently addressed — by
+        # voice or by keyboard nav — and a "both_*" command expands into its
+        # Portrait + Landscape pair.
         # Buffer RFB opens across the whole batch so a "both" lock's two tabs
         # open in one Chrome launch (see _flush_rfb_tabs).
         self._batching_rfb = True
         try:
-            for raw_command in poll_dashboard_commands(self.dashboard_cmd_file):
+            for line in poll_dashboard_commands(self.dashboard_cmd_file):
+                raw_command, spoken_at = parse_command_line(line)
                 resolved = resolve_active_side_command(raw_command, self.state.active_side)
                 for command in expand_both_command(resolved):
-                    self._handle_command(command)
+                    self._handle_command(command, spoken_at)
         finally:
             self._batching_rfb = False
         self._flush_rfb_tabs()
@@ -333,9 +344,9 @@ class DispatchLoopRunner:
             self._last_sync = now
             if self.dashboard_enabled:
                 self._update_dashboard()
-        if not self.state.omni_paused and now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
-            self._last_watch_sample = now
-            self._sample_watch_trackers()
+        if not self.state.omni_paused and now - self._last_satellite_sample >= self._SATELLITE_SAMPLE_INTERVAL_S:
+            self._last_satellite_sample = now
+            self._sample_satellites(now=now)
 
     def _sync_hybrid_driver(self) -> None:
         """In hybrid, route the OSR2 to the funscript or Genau, moment to moment.
@@ -367,8 +378,12 @@ class DispatchLoopRunner:
             "PAUSE" if funscript_driving else "RESUME", encoding="utf-8"
         )
 
-    def _handle_command(self, cmd: str) -> None:
-        """Route one polled command (already expanded from any ``both_*``)."""
+    def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
+        """Route one polled command (already expanded from any ``both_*``).
+
+        ``spoken_at`` is when a voice command's utterance began, and None for
+        the instantaneous hotkey and dashboard presses.
+        """
         button = self._HOTKEY_TO_BUTTON.get(cmd, cmd)
         self._send_press(button)
         if cmd == "quit":
@@ -402,7 +417,7 @@ class DispatchLoopRunner:
         elif cmd == "backslash_key":
             if genau_active(self.state.primary_mode):
                 self._send_press("quarter_button")
-                self._dispatch("quarter_button")
+                self._dispatch("quarter_button", spoken_at)
             else:
                 self._send_press("open_file_dialog")
                 threading.Thread(
@@ -419,22 +434,22 @@ class DispatchLoopRunner:
                 self._handle_omnipause_toggle()
         elif cmd == "portrait_lock_on":
             if not self.state.locked2:
-                self._dispatch("portrait_lock")
+                self._dispatch("portrait_lock", spoken_at)
         elif cmd == "landscape_lock_on":
             if not self.state.locked3:
-                self._dispatch("landscape_lock")
+                self._dispatch("landscape_lock", spoken_at)
         elif cmd == "portrait_lock_off":
             if self.state.locked2:
-                self._dispatch("portrait_lock")
+                self._dispatch("portrait_lock", spoken_at)
         elif cmd == "landscape_lock_off":
             if self.state.locked3:
-                self._dispatch("landscape_lock")
+                self._dispatch("landscape_lock", spoken_at)
         elif cmd == "fmode_on":
             if not self.state.f_mode_enabled:
-                self._dispatch("fmode_toggle")
+                self._dispatch("fmode_toggle", spoken_at)
         elif cmd == "fmode_off":
             if self.state.f_mode_enabled:
-                self._dispatch("fmode_toggle")
+                self._dispatch("fmode_toggle", spoken_at)
         elif cmd == "broker_start":
             self._handle_broker_start()
         elif cmd == "broker_stop":
@@ -442,19 +457,36 @@ class DispatchLoopRunner:
         elif cmd in ("voice_off", "voice_toggle"):
             self._handle_voice_toggle(cmd)
         else:
-            self._dispatch(cmd)
+            self._dispatch(cmd, spoken_at)
 
-    def _sample_watch_trackers(self) -> None:
-        for which, tracker in self._watch_trackers.items():
-            port = self._watch_ports[which]
+    def _sample_satellites(self, *, now: float) -> None:
+        """Sample each satellite's current video for the trackers and timelines."""
+        for which, port in self._satellite_ports.items():
             fraction = get_playback_fraction(port, self.config.vlc_password)
             if fraction is None:
                 continue
             path = get_current_file_path(port, self.config.vlc_password)
-            for event, video in tracker.observe(path, fraction):
+            self._timelines[which].observe(path, now=now)
+            for event, video in self._watch_trackers[which].observe(path, fraction):
                 record_watch_event(self._watch_stats_file, video, event)
 
-    def _dispatch(self, command: str) -> None:
+    def _back_dated_video(self, command: str, spoken_at: float | None) -> str:
+        """The video *command* was aimed at, or "" for "whatever is playing now".
+
+        A phrase is only recognized once the speaker stops, so a satellite can
+        have auto-advanced between "lock…" and "…portrait".  The satellite's
+        timeline says which video was on screen when the utterance began — the
+        one the speaker was looking at, and therefore meant.  Hotkeys are
+        instantaneous and name no video.
+        """
+        if spoken_at is None:
+            return ""
+        timeline = self._timelines.get(command_side(command))
+        if timeline is None:
+            return ""
+        return timeline.path_at(spoken_at)
+
+    def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)
         for which, nav_commands in self._WATCH_NAV_COMMANDS.items():
             if command in nav_commands:
@@ -462,7 +494,10 @@ class DispatchLoopRunner:
         discard_which = self._WATCH_DISCARD_COMMANDS.get(command)
         if discard_which is not None:
             self._watch_trackers[discard_which].note_discard()
-        new_state, ops = dispatch_command(command, self.state, self.config)
+        new_state, ops = dispatch_command(
+            command, self.state, self.config,
+            target_path=self._back_dated_video(command, spoken_at),
+        )
         self.state = new_state
         remaining = execute_window_ops(ops, self.nau_pid)
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"

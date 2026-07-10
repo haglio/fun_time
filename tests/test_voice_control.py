@@ -9,7 +9,65 @@ from types import SimpleNamespace
 import pytest
 
 from fun_time import voice_control
-from fun_time.voice_control import VOICE_COMMANDS, VoiceController, build_grammar, parse_vosk_result
+from fun_time.voice_commands import format_spoken_command, parse_command_line
+from fun_time.voice_control import (
+    VOICE_COMMANDS,
+    UtteranceOnset,
+    VoiceController,
+    build_grammar,
+    has_partial_text,
+    parse_vosk_result,
+)
+
+
+class TestUtteranceOnset:
+    def test_onset_is_the_first_block_that_produced_a_partial(self):
+        """Vosk finalizes a phrase only after the speaker stops, so the arrival
+        of the phrase says nothing about when it began.  The first audio block
+        that turns Vosk's partial hypothesis non-empty does."""
+        onset = UtteranceOnset()
+        onset.note_block(block_started_at=1.0, has_partial=False)
+        onset.note_block(block_started_at=1.5, has_partial=True)
+        onset.note_block(block_started_at=2.0, has_partial=True)
+        assert onset.take(fallback=2.5) == 1.5
+
+    def test_a_partial_that_evaporates_does_not_back_date_the_next_utterance(self):
+        """Vosk withdraws a hypothesis it can no longer support; the run of
+        partials restarts, so the false start is not mistaken for the onset."""
+        onset = UtteranceOnset()
+        onset.note_block(block_started_at=1.0, has_partial=True)   # false start
+        onset.note_block(block_started_at=1.5, has_partial=False)  # withdrawn
+        onset.note_block(block_started_at=2.0, has_partial=True)   # real speech
+        assert onset.take(fallback=2.5) == 2.0
+
+    def test_take_falls_back_and_resets_for_the_next_utterance(self):
+        """A phrase recognized from the block that carried it left no partial."""
+        onset = UtteranceOnset()
+        onset.note_block(block_started_at=1.0, has_partial=True)
+        assert onset.take(fallback=2.5) == 1.0
+        assert onset.take(fallback=9.0) == 9.0
+
+
+class TestHasPartialText:
+    def test_true_when_vosk_holds_words(self):
+        assert has_partial_text(json.dumps({"partial": "lock portrait"}))
+
+    def test_false_for_an_empty_or_absent_partial(self):
+        assert not has_partial_text(json.dumps({"partial": "  "}))
+        assert not has_partial_text(json.dumps({}))
+
+
+class TestCommandLineFormat:
+    def test_round_trips_the_utterance_start(self):
+        line = format_spoken_command("portrait_lock_on", spoken_at=1234.5)
+        assert parse_command_line(line) == ("portrait_lock_on", 1234.5)
+
+    def test_an_unstamped_line_is_a_bare_command(self):
+        """Hotkeys and dashboard presses are instantaneous — no back-dating."""
+        assert parse_command_line("portrait_next") == ("portrait_next", None)
+
+    def test_a_command_ending_in_an_unparseable_stamp_stays_whole(self):
+        assert parse_command_line("filter_both_come @ shot") == ("filter_both_come @ shot", None)
 
 
 class _FakeRecognizer:
@@ -281,19 +339,20 @@ class TestParseVoskResult:
 
 
 class TestVoiceController:
-    def test_write_command_appends_to_file(self, tmp_path: Path):
+    def test_write_command_stamps_the_utterance_start(self, tmp_path: Path):
+        """Every spoken command carries when the user began saying it."""
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
-        vc._write_command("landscape_next")
-        assert cmd_file.read_text(encoding="utf-8") == "landscape_next\n"
+        vc._write_command("landscape_next", spoken_at=1234.5)
+        assert cmd_file.read_text(encoding="utf-8") == "landscape_next @1234.500\n"
 
     def test_write_command_appends_multiple(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
-        vc._write_command("landscape_next")
-        vc._write_command("pause")
+        vc._write_command("landscape_next", spoken_at=1.0)
+        vc._write_command("pause", spoken_at=2.0)
         lines = cmd_file.read_text(encoding="utf-8").strip().splitlines()
-        assert lines == ["landscape_next", "pause"]
+        assert lines == ["landscape_next @1.000", "pause @2.000"]
 
     def test_stop_sets_event(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
@@ -306,7 +365,7 @@ class TestVoiceController:
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.mute()
-        vc._write_command("landscape_next")
+        vc._write_command("landscape_next", spoken_at=1.0)
         assert not cmd_file.exists()
 
     def test_unmute_restores_write_command(self, tmp_path: Path):
@@ -314,8 +373,8 @@ class TestVoiceController:
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.mute()
         vc.unmute()
-        vc._write_command("landscape_next")
-        assert cmd_file.read_text(encoding="utf-8") == "landscape_next\n"
+        vc._write_command("landscape_next", spoken_at=1.0)
+        assert cmd_file.read_text(encoding="utf-8") == "landscape_next @1.000\n"
 
     def test_is_muted_property(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"

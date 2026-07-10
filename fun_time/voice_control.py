@@ -9,9 +9,10 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time
 from pathlib import Path
 
-from fun_time.voice_commands import VOICE_COMMANDS
+from fun_time.voice_commands import VOICE_COMMANDS, format_spoken_command
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,41 @@ def build_grammar() -> str:
     phrases = sorted(VOICE_COMMANDS.keys())
     phrases.append("[unk]")
     return json.dumps(phrases)
+
+
+def has_partial_text(raw_json: str) -> bool:
+    """Whether Vosk's partial hypothesis currently holds any words."""
+    return bool(json.loads(raw_json).get("partial", "").strip())
+
+
+class UtteranceOnset:
+    """When the speech Vosk is currently decoding began.
+
+    Each audio block is offered here with the wall time its capture *started*
+    and whether Vosk holds a partial hypothesis after consuming it.  Speech
+    began at the first block of the current unbroken run of partials; a block
+    that leaves the partial empty ends the run, so a false start cannot
+    back-date the utterance that follows it.
+    """
+
+    def __init__(self) -> None:
+        self._started_at: float | None = None
+
+    def note_block(self, *, block_started_at: float, has_partial: bool) -> None:
+        if not has_partial:
+            self._started_at = None
+        elif self._started_at is None:
+            self._started_at = block_started_at
+
+    def take(self, *, fallback: float) -> float:
+        """Consume the onset for the utterance just recognized.
+
+        *fallback* covers a phrase short enough to be recognized from the very
+        block that carried it, with no partial ever observed.
+        """
+        started_at = self._started_at
+        self._started_at = None
+        return fallback if started_at is None else started_at
 
 
 def parse_vosk_result(raw_json: str, *, threshold: float) -> str | None:
@@ -96,12 +132,17 @@ class VoiceController:
         """Resume command output."""
         self._muted.clear()
 
-    def _write_command(self, command: str) -> None:
-        """Append a command to the dashboard command file (no-op when muted)."""
+    def _write_command(self, command: str, *, spoken_at: float) -> None:
+        """Append a command to the dashboard command file (no-op when muted).
+
+        The line carries *spoken_at* — when the utterance began — so the
+        dispatcher can act on the video that was on screen then, not on
+        whatever replaced it while the phrase was still being recognized.
+        """
         if self._muted.is_set():
             return
         with self.cmd_file.open("a", encoding="utf-8") as f:
-            f.write(command + "\n")
+            f.write(format_spoken_command(command, spoken_at=spoken_at) + "\n")
 
     def stop(self) -> None:
         """Signal the run loop to stop."""
@@ -119,12 +160,17 @@ class VoiceController:
 
         import queue as _queue
 
-        audio_q: _queue.Queue[bytes] = _queue.Queue()
+        # Each block is queued with the monotonic time its capture ENDED — the
+        # moment the callback fires.  The block's start is that minus its
+        # duration, which is what dates an utterance's first block.
+        audio_q: _queue.Queue[tuple[bytes, float]] = _queue.Queue()
 
         def _callback(indata, frames, time_info, status):
             if status:
                 logger.debug("audio status: %s", status)
-            audio_q.put(bytes(indata))
+            audio_q.put((bytes(indata), time.monotonic()))
+
+        onset = UtteranceOnset()
 
         try:
             model = vosk.Model(model_name=self.model_path)
@@ -147,15 +193,23 @@ class VoiceController:
             ):
                 while not self._stop.is_set():
                     try:
-                        data = audio_q.get(timeout=0.5)
+                        data, captured_at = audio_q.get(timeout=0.5)
                     except _queue.Empty:
                         continue
+                    block_started_at = captured_at - (len(data) / 2) / self.sample_rate
                     if rec.AcceptWaveform(data):
                         result = rec.Result()
                         command = parse_vosk_result(result, threshold=self.confidence_threshold)
+                        spoken_at = onset.take(fallback=block_started_at)
                         if command:
-                            logger.info("Voice command: %s", command)
-                            self._write_command(command)
+                            logger.info("Voice command: %s (spoken %.2fs before recognition)",
+                                        command, time.monotonic() - spoken_at)
+                            self._write_command(command, spoken_at=spoken_at)
+                    else:
+                        onset.note_block(
+                            block_started_at=block_started_at,
+                            has_partial=has_partial_text(rec.PartialResult()),
+                        )
 
             logger.info("Voice control stopped")
         except Exception:

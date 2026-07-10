@@ -1,14 +1,49 @@
-"""Voice command vocabulary for Fun Time.
+"""Voice command vocabulary and command-file line format for Fun Time.
 
 The spoken-phrase → dispatch-command mapping, deliberately free of any speech
 recognition runtime (vosk / sounddevice).  Lightweight consumers — the
 dashboard's hotkey/voice reference and tests — import it without loading native
 audio libraries.  :mod:`fun_time.voice_control` re-exports ``VOICE_COMMANDS``
 and layers the Vosk grammar and recognizer on top.
+
+Also here is the one-line wire format every writer of the dashboard command file
+shares, since the voice controller writes it and the dispatch loop reads it and
+neither may import the other.
 """
 from __future__ import annotations
 
 from fun_time.filter_vocab import filter_voice_commands
+
+# A spoken command carries when the *utterance began*, appended after " @".  A
+# phrase is only recognized once the speaker stops, by which time an
+# auto-advancing player may have moved on; the dispatcher back-dates the command
+# to the video that was on screen when the user started talking.  Keyboard and
+# dashboard commands are instantaneous and write the bare command with no stamp.
+#
+# The stamp is a ``time.monotonic()`` reading, meaningful only within the
+# process that produced it — the voice controller and the dispatch loop are
+# threads of that same process.
+_SPOKEN_AT_SEP = " @"
+
+
+def format_spoken_command(command: str, *, spoken_at: float) -> str:
+    """The command-file line for *command*, stamped with its utterance start."""
+    return f"{command}{_SPOKEN_AT_SEP}{spoken_at:.3f}"
+
+
+def parse_command_line(line: str) -> tuple[str, float | None]:
+    """Split a command-file line into ``(command, spoken_at)``.
+
+    ``spoken_at`` is None for an unstamped line — a hotkey or dashboard press,
+    which needs no back-dating.
+    """
+    command, separator, stamp = line.rpartition(_SPOKEN_AT_SEP)
+    if not separator:
+        return line, None
+    try:
+        return command, float(stamp)
+    except ValueError:
+        return line, None
 
 VOICE_COMMANDS: dict[str, str] = {
     "quit": "quit",
