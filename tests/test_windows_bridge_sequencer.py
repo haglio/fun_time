@@ -601,7 +601,7 @@ class TestPhase4Reveal:
         m = configparser.ConfigParser()
         m.optionxform = str
         m.read(str(manifest_path), encoding="utf-8")
-        # Start all three flags paused, as seed_paused_states does
+        # Start all three flags paused, as seed_startup_states does
         for key in ("genau_paused_file", "audio_paused_file", "nau_paused_file"):
             flag = Path(m["commands"][key])
             flag.parent.mkdir(parents=True, exist_ok=True)

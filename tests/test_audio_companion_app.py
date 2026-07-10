@@ -166,6 +166,37 @@ class TestAudioPlaybackController:
         assert controller.visible is False
         assert apply_state.call_count == 2
 
+    def test_set_volume_scales_the_mixer(self, audio_companion_module, tmp_path: Path):
+        controller = self._make_controller(audio_companion_module, tmp_path)
+        music = MagicMock()
+
+        with patch.object(audio_companion_module.pygame.mixer, "music", music):
+            controller.set_volume(30)
+
+        music.set_volume.assert_called_once_with(0.3)
+
+    def test_set_volume_is_noop_when_the_level_is_unchanged(self, audio_companion_module, tmp_path: Path):
+        controller = self._make_controller(audio_companion_module, tmp_path)
+        music = MagicMock()
+
+        with patch.object(audio_companion_module.pygame.mixer, "music", music):
+            controller.set_volume(100)  # already full
+
+        music.set_volume.assert_not_called()
+
+    def test_a_force_muted_controller_never_touches_the_mixer(self, audio_companion_module, tmp_path: Path):
+        """FUN_TIME_MUTE_AUDIO silences hidden and integration runs; no level the
+        bridge publishes may bring their sound back."""
+        controller = audio_companion_module.AudioPlaybackController(
+            audio_folder=tmp_path, logger=logging.getLogger("test.audio"), force_muted=True,
+        )
+        music = MagicMock()
+
+        with patch.object(audio_companion_module.pygame.mixer, "music", music):
+            controller.set_volume(80)
+
+        music.set_volume.assert_not_called()
+
     def test_normalize_position_wraps_when_clip_length_known(self, audio_companion_module, tmp_path: Path):
         controller = self._make_controller(audio_companion_module, tmp_path)
         clip = tmp_path / "demo.mp3"

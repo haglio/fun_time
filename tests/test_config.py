@@ -281,13 +281,13 @@ class TestProjectConfigProperties:
         cfg = load_config(cfg_path)
         assert cfg.genau_paused_file == (tmp_path / "state" / "genau_paused.txt").resolve()
 
-    def test_audio_cmd_file(self, cfg_path: Path, tmp_path: Path):
-        cfg = load_config(cfg_path)
-        assert cfg.audio_cmd_file == (tmp_path / "state" / "audio_cmd.txt").resolve()
-
     def test_audio_paused_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.audio_paused_file == (tmp_path / "state" / "audio_paused.txt").resolve()
+
+    def test_audio_volume_file(self, cfg_path: Path, tmp_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.audio_volume_file == (tmp_path / "state" / "audio_volume.txt").resolve()
 
     def test_logs_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)

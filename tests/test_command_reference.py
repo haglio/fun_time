@@ -181,6 +181,20 @@ def test_reference_popup_row_shows_toggle_and_close_names():
     assert "hot keys" not in voice  # the OOV recognizer form is hidden behind "hotkeys"
 
 
+def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():
+    """Mute and the volume steps are spoken-only, and each step surfaces both of
+    its synonyms so the legend never implies one of them is the "real" phrase."""
+    rows = _all_rows()
+    mute = next(r for r in rows if "audio_mute_toggle" in r.commands)
+    assert mute.hotkeys == ()
+    assert mute.voice == ("mute",)
+
+    down = next(r for r in rows if "audio_volume_down" in r.commands)
+    up = next(r for r in rows if "audio_volume_up" in r.commands)
+    assert down is up, "one row documents the pair of volume steps"
+    assert set(up.voice) == {"quiet", "quieter", "loud", "louder"}
+
+
 def test_premiere_row_uses_p_key_and_premiere_voice():
     """The newest-first refresh is branded "Premiere": P key, spoken "premiere"."""
     assert VOICE_COMMANDS["premiere"] == "recency_order_refresh"

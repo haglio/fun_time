@@ -14,6 +14,8 @@ class AudioCompanionRuntime:
     read_mode_active: Callable[[Path], bool]
     paused_file: Path
     read_paused_state: Callable[[Path], bool]
+    volume_file: Path
+    read_volume: Callable[[Path], int]
 
     def receive_udp_line(self) -> str:
         try:
@@ -26,6 +28,7 @@ class AudioCompanionRuntime:
         line = self.receive_udp_line()
         self.controller.set_mode_active(self.read_mode_active(self.mode_file))
         self.controller.set_manual_paused(self.read_paused_state(self.paused_file))
+        self.controller.set_volume(self.read_volume(self.volume_file))
         if line:
             self.controller.handle_udp_line(line)
 

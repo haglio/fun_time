@@ -63,6 +63,10 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Omnipause", ("Space",), ("enter_omnipause",), ("pause",)),
             _Row("Toggle F-Mode", ("F",), ("fmode_toggle", "fmode_on", "fmode_off")),
             _Row("Premiere — (re)load Portrait/Landscape newest-first", ("P",), ("recency_order_refresh",)),
+            # The primary display's sound, in whichever mode owns it — Nau's
+            # video in nau/hybrid, Genau's clip audio in genau.
+            _Row("Mute / unmute the primary display", (), ("audio_mute_toggle",)),
+            _Row("Volume down / up, in tenths", (), ("audio_volume_down", "audio_volume_up")),
             _Row("Disable voice control", ("Backspace",), ("voice_toggle", "voice_off")),
             _Row("Start / stop broker", ("B",), ("broker_panel", "broker_start", "broker_stop")),
             _Row(

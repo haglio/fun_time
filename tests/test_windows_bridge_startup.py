@@ -9,6 +9,7 @@ from urllib.request import url2pathname
 
 import pytest
 
+from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.modes import FModePlaylistPlan
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.windows_bridge_startup import (
@@ -21,7 +22,7 @@ from fun_time.windows_bridge_startup import (
     launch_ui_companions,
     prepare_random_favs_browser_manifest,
     restart_broker,
-    seed_paused_states,
+    seed_startup_states,
     start_core_session,
 )
 
@@ -113,17 +114,33 @@ def test_prepare_random_favs_browser_manifest_lists_urls_directly_without_lazy_l
     ]
 
 
-def test_seed_paused_states_writes_all_three_flags(tmp_path: Path):
+def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
     genau_file = tmp_path / "genau_paused.txt"
     audio_file = tmp_path / "audio_paused.txt"
     nau_file = tmp_path / "nau_paused.txt"
 
-    seed_paused_states(genau_file, audio_file, nau_file)
+    seed_startup_states(genau_file, audio_file, nau_file, tmp_path / "audio_volume.txt")
 
     # Genau parked, audio parked, Nau paused until the sequencer's reveal.
     assert genau_file.read_text(encoding="utf-8") == "1"
     assert audio_file.read_text(encoding="utf-8") == "1"
     assert nau_file.read_text(encoding="utf-8") == "1"
+
+
+def test_seed_startup_states_restores_full_volume(tmp_path: Path):
+    """A session muted last night must not come back silent: Nau and the audio
+    companion both launch at full volume, so the published level must say so."""
+    volume_file = tmp_path / "audio_volume.txt"
+    volume_file.write_text("0", encoding="utf-8")
+
+    seed_startup_states(
+        tmp_path / "genau_paused.txt",
+        tmp_path / "audio_paused.txt",
+        tmp_path / "nau_paused.txt",
+        volume_file,
+    )
+
+    assert read_volume(volume_file) == MAX_VOLUME
 
 
 def _fake_playlist_plan(state_dir: Path) -> FModePlaylistPlan:
@@ -144,7 +161,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     plan = _fake_playlist_plan(state_dir)
 
     with patch("fun_time.windows_bridge_startup.restart_broker") as restart, patch(
-        "fun_time.windows_bridge_startup.seed_paused_states"
+        "fun_time.windows_bridge_startup.seed_startup_states"
     ) as seed, patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ) as prepare, patch(
@@ -157,6 +174,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
             genau_paused_file=tmp_path / "genau_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
             nau_paused_file=tmp_path / "nau_paused.txt",
+            audio_volume_file=tmp_path / "audio_volume.txt",
             vlc_exe="vlc.exe",
             primary_sources="primary_a|primary_b",
             portrait_sources="portrait_a",
@@ -176,6 +194,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         tmp_path / "genau_paused.txt",
         tmp_path / "audio_paused.txt",
         tmp_path / "nau_paused.txt",
+        tmp_path / "audio_volume.txt",
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
     # The same playlist builder the F-mode toggle uses, with F-mode off.
@@ -210,7 +229,7 @@ def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
     result_file = tmp_path / "core_session.ini"
 
     with patch("fun_time.windows_bridge_startup.restart_broker"), patch(
-        "fun_time.windows_bridge_startup.seed_paused_states"
+        "fun_time.windows_bridge_startup.seed_startup_states"
     ), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch(
@@ -224,6 +243,7 @@ def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
             genau_paused_file=tmp_path / "p.txt",
             audio_paused_file=tmp_path / "a.txt",
             nau_paused_file=tmp_path / "n.txt",
+            audio_volume_file=tmp_path / "v.txt",
             vlc_exe="vlc.exe",
             primary_sources="a",
             portrait_sources="b",

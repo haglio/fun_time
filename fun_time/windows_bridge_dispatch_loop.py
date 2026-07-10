@@ -13,6 +13,7 @@ import threading
 import time
 from pathlib import Path
 
+from .audio_volume import MAX_VOLUME
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, command_side, dispatch_command
 from .event_log import notice
 from .mode_plan import genau_active
@@ -165,12 +166,22 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         "active_side": str(state.active_side),
         "portrait_filter": state.portrait_filter,
         "landscape_filter": state.landscape_filter,
+        "volume": str(state.volume),
+        "muted": "1" if state.muted else "0",
     }
     state_file.parent.mkdir(parents=True, exist_ok=True)
     tmp = state_file.with_suffix(".tmp")
     with tmp.open("w", encoding="utf-8") as fp:
         parser.write(fp)
     tmp.replace(state_file)
+
+
+def _int_or(section, key: str, default: int) -> int:
+    """An integer INI value, falling back to *default* when absent or malformed."""
+    try:
+        return int(section.get(key, default))
+    except ValueError:
+        return default
 
 
 def read_shared_state(state_file: Path) -> BridgeState | None:
@@ -192,19 +203,17 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         primary_mode = "nau"
     else:
         primary_mode = raw_mode
-    try:
-        active_side = int(s.get("active_side", "2"))
-    except ValueError:
-        active_side = 2
     return BridgeState(
         locked2=s.get("locked2", "0") == "1",
         locked3=s.get("locked3", "0") == "1",
         primary_mode=primary_mode,
         f_mode_enabled=s.get("f_mode_enabled", "0") == "1",
         omni_paused=s.get("omni_paused", "0") == "1",
-        active_side=active_side,
+        active_side=_int_or(s, "active_side", 2),
         portrait_filter=s.get("portrait_filter", ""),
         landscape_filter=s.get("landscape_filter", ""),
+        volume=_int_or(s, "volume", MAX_VOLUME),
+        muted=s.get("muted", "0") == "1",
     )
 
 
@@ -912,6 +921,7 @@ def build_bridge_config_from_manifest(
         genau_cmd_file=Path(manifest["commands"]["genau_cmd_file"]),
         genau_paused_file=Path(manifest["commands"]["genau_paused_file"]),
         audio_paused_file=Path(manifest["commands"]["audio_paused_file"]),
+        audio_volume_file=Path(manifest["commands"]["audio_volume_file"]),
         nau_cmd_file=Path(manifest["commands"]["nau_cmd_file"]),
         nau_paused_file=Path(manifest["commands"]["nau_paused_file"]),
         nau_status_file=Path(manifest["commands"]["nau_status_file"]),

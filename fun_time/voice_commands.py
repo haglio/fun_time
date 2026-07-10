@@ -101,6 +101,15 @@ VOICE_COMMANDS: dict[str, str] = {
     "next clip": "genau_next_clip",
     "offset": "quarter_button",
     "voice off": "voice_off",
+    # The primary display's sound, whichever mode owns it.  Each pair's two
+    # words mean the same thing, so a speaker never has to pick between them;
+    # "unmute" is not in the vosk vocabulary, so "mute" toggles and either
+    # loudness word also lifts it.
+    "mute": "audio_mute_toggle",
+    "quiet": "audio_volume_down",
+    "quieter": "audio_volume_down",
+    "loud": "audio_volume_up",
+    "louder": "audio_volume_up",
 }
 
 # The hotkeys & voice reference popup toggles from several spoken names, and

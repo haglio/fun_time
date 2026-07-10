@@ -70,6 +70,7 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
         genau_cmd_file=tmp_path / "rh_cmd.txt",
         genau_paused_file=tmp_path / "rh_paused.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
+        audio_volume_file=tmp_path / "audio_volume.txt",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
         nau_paused_file=tmp_path / "nau_paused.txt",
         nau_status_file=tmp_path / "nau_status.txt",
@@ -387,6 +388,17 @@ class TestSharedState:
 
         assert loaded is not None
         assert loaded.active_side == 2
+
+    def test_roundtrip_preserves_the_sound_level(self, tmp_path):
+        """volume/muted must persist: tick() reloads state from this file every
+        iteration, so a spoken "quieter" would be undone before it was heard."""
+        state_file = tmp_path / "shared_state.ini"
+
+        write_shared_state(state_file, BridgeState(volume=30, muted=True))
+        loaded = read_shared_state(state_file)
+
+        assert loaded.volume == 30
+        assert loaded.muted is True
 
     def test_roundtrip_preserves_per_vlc_filters(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"

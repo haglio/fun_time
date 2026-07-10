@@ -20,6 +20,8 @@ def test_process_iteration_applies_pause_command_on_socket_timeout(tmp_path: Pat
         read_mode_active=read_mode_active,
         paused_file=tmp_path / "paused.txt",
         read_paused_state=read_paused_state,
+        volume_file=tmp_path / "volume.txt",
+        read_volume=Mock(return_value=100),
     )
 
     runtime.process_iteration()
@@ -42,6 +44,8 @@ def test_process_iteration_handles_udp_line_after_runtime_command(tmp_path: Path
         read_mode_active=read_mode_active,
         paused_file=tmp_path / "paused.txt",
         read_paused_state=read_paused_state,
+        volume_file=tmp_path / "volume.txt",
+        read_volume=Mock(return_value=100),
     )
 
     runtime.process_iteration()
@@ -49,6 +53,28 @@ def test_process_iteration_handles_udp_line_after_runtime_command(tmp_path: Path
     controller.set_mode_active.assert_called_once_with(True)
     controller.set_manual_paused.assert_called_once_with(False)
     controller.handle_udp_line.assert_called_once_with("VISIBLE 1")
+
+
+def test_process_iteration_applies_the_published_volume(tmp_path: Path):
+    """The bridge owns the sound level and publishes it to a file; the companion
+    polls it beside the pause flag so a restarted companion re-reads it."""
+    sock = Mock()
+    sock.recvfrom.side_effect = socket.timeout()
+    controller = Mock()
+    runtime = AudioCompanionRuntime(
+        sock=sock,
+        controller=controller,
+        mode_file=tmp_path / "mode.txt",
+        read_mode_active=Mock(return_value=True),
+        paused_file=tmp_path / "paused.txt",
+        read_paused_state=Mock(return_value=False),
+        volume_file=tmp_path / "volume.txt",
+        read_volume=Mock(return_value=30),
+    )
+
+    runtime.process_iteration()
+
+    controller.set_volume.assert_called_once_with(30)
 
 
 def test_close_closes_socket(tmp_path: Path):
@@ -60,6 +86,8 @@ def test_close_closes_socket(tmp_path: Path):
         read_mode_active=Mock(return_value=False),
         paused_file=tmp_path / "paused.txt",
         read_paused_state=Mock(return_value=False),
+        volume_file=tmp_path / "volume.txt",
+        read_volume=Mock(return_value=100),
     )
 
     runtime.close()

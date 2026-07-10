@@ -12,6 +12,7 @@ from pathlib import Path
 import pygame
 
 from .audio_companion_runtime import AudioCompanionRuntime
+from .audio_volume import MAX_VOLUME, read_volume
 from .config import load_config
 from .logging_utils import configure_logging, install_exception_logging
 from .runtime_support import preparse_config_path
@@ -31,7 +32,13 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--port", type=int, default=config.audio_companion.port)
     ap.add_argument("--mode-file", default=str(config.genau_mode_file))
     ap.add_argument("--paused-file", default=str(config.audio_paused_file))
+    ap.add_argument("--volume-file", default=str(config.audio_volume_file))
     return ap
+
+
+def force_muted() -> bool:
+    """Whether this run must stay silent whatever the bridge publishes."""
+    return os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
 
 
 def find_audio(audio_folder: Path, stem: str) -> Path | None:
@@ -64,6 +71,10 @@ def read_paused_state(path: Path) -> bool:
 class AudioPlaybackController:
     audio_folder: Path
     logger: logging.Logger
+    # Hidden and integration runs set FUN_TIME_MUTE_AUDIO; they stay silent no
+    # matter what level the bridge publishes.
+    force_muted: bool = False
+    volume: int = MAX_VOLUME
     current_path: Path | None = None
     visible: bool = False
     mode_active: bool = False
@@ -189,6 +200,13 @@ class AudioPlaybackController:
         self.apply_state()
         self.logger.info("Audio %s", "paused" if paused else "resumed")
 
+    def set_volume(self, volume: int) -> None:
+        """Follow the bridge's published sound level (0-100)."""
+        if self.force_muted or volume == self.volume:
+            return
+        self.volume = volume
+        pygame.mixer.music.set_volume(volume / MAX_VOLUME)
+
     def set_mode_active(self, active: bool) -> None:
         self.mode_active = active
         self.apply_state()
@@ -226,9 +244,11 @@ def main(argv: list[str] | None = None) -> int:
 
     mode_file = Path(args.mode_file)
     paused_file = Path(args.paused_file)
+    volume_file = Path(args.volume_file)
 
     pygame.mixer.init()
-    if os.environ.get("FUN_TIME_MUTE_AUDIO") == "1":
+    muted = force_muted()
+    if muted:
         pygame.mixer.music.set_volume(0)
         logger.info("Audio muted (FUN_TIME_MUTE_AUDIO=1)")
     logger.info("Audio companion listening on %s:%s", args.host, args.port)
@@ -237,7 +257,9 @@ def main(argv: list[str] | None = None) -> int:
     sock.bind((args.host, args.port))
     sock.settimeout(0.15)
 
-    controller = AudioPlaybackController(audio_folder=audio_folder, logger=logger)
+    controller = AudioPlaybackController(
+        audio_folder=audio_folder, logger=logger, force_muted=muted,
+    )
     runtime = AudioCompanionRuntime(
         sock=sock,
         controller=controller,
@@ -245,6 +267,8 @@ def main(argv: list[str] | None = None) -> int:
         read_mode_active=read_mode_active,
         paused_file=paused_file,
         read_paused_state=read_paused_state,
+        volume_file=volume_file,
+        read_volume=read_volume,
     )
 
     try:

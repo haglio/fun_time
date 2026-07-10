@@ -170,12 +170,12 @@ class ProjectConfig:
         return self.paths.state_dir / "nau_playlist.tsv"
 
     @property
-    def audio_cmd_file(self) -> Path:
-        return self.paths.state_dir / "audio_cmd.txt"
-
-    @property
     def audio_paused_file(self) -> Path:
         return self.paths.state_dir / "audio_paused.txt"
+
+    @property
+    def audio_volume_file(self) -> Path:
+        return self.paths.state_dir / "audio_volume.txt"
 
     @property
     def random_favs_browser_manifest_file(self) -> Path:

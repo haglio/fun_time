@@ -171,6 +171,15 @@ class TestVoiceCommands:
         for phrase, cmd in static_phrases.items():
             assert VOICE_COMMANDS[phrase] == cmd
 
+    def test_audio_phrases_mute_and_step_the_volume(self):
+        """Both words of each pair mean the same thing, so a speaker never has to
+        pick between "quiet" and "quieter"."""
+        assert VOICE_COMMANDS["mute"] == "audio_mute_toggle"
+        assert VOICE_COMMANDS["quiet"] == "audio_volume_down"
+        assert VOICE_COMMANDS["quieter"] == "audio_volume_down"
+        assert VOICE_COMMANDS["loud"] == "audio_volume_up"
+        assert VOICE_COMMANDS["louder"] == "audio_volume_up"
+
     def test_reference_popup_phrases_toggle_and_close_help(self):
         # Several spoken names toggle the hotkeys & voice reference popup; the
         # same names prefixed with "close" only dismiss it.  vosk has no
