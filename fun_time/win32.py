@@ -67,6 +67,14 @@ _kernel32.GetExitCodeProcess.argtypes = [
     ctypes.POINTER(ctypes.wintypes.DWORD),   # lpExitCode
 ]
 _kernel32.GetExitCodeProcess.restype = ctypes.wintypes.BOOL
+_kernel32.GetProcessTimes.argtypes = [
+    ctypes.wintypes.HANDLE,                     # hProcess
+    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpCreationTime
+    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpExitTime
+    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpKernelTime
+    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpUserTime
+]
+_kernel32.GetProcessTimes.restype = ctypes.wintypes.BOOL
 _kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
 _kernel32.CloseHandle.restype = ctypes.wintypes.BOOL
 
@@ -110,6 +118,35 @@ def get_process_image_name(pid: int) -> str | None:
         if not _kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
             return None
         return buf.value
+    finally:
+        _kernel32.CloseHandle(handle)
+
+
+def get_process_creation_time(pid: int) -> int | None:
+    """Return the FILETIME at which the process now holding *pid* was created.
+
+    Windows hands a freed PID back out within seconds, so a PID alone does not
+    name a process.  ``(pid, creation_time)`` does: a process can only take a
+    PID after its previous owner is gone, so the newcomer's creation time is
+    strictly later.  Record this alongside a PID and compare it before killing,
+    and a recycled PID is recognised rather than shot.
+
+    ``GetProcessTimes`` fills lpCreationTime with a FILETIME (100-nanosecond
+    ticks since 1601-01-01 UTC) and accepts a handle opened for
+    PROCESS_QUERY_LIMITED_INFORMATION.  Returns None when the process no longer
+    exists (or cannot be opened).
+    """
+    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return None
+    try:
+        creation = ctypes.wintypes.FILETIME()
+        unused = (ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME())
+        if not _kernel32.GetProcessTimes(
+            handle, ctypes.byref(creation), *(ctypes.byref(t) for t in unused)
+        ):
+            return None
+        return (creation.dwHighDateTime << 32) | creation.dwLowDateTime
     finally:
         _kernel32.CloseHandle(handle)
 
