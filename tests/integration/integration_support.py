@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import configparser
 import json
 import os
 import random
@@ -27,6 +26,7 @@ from .hidden_desktop import (
     current_desktop_name,
     pids_with_window_on_current_desktop,
 )
+from .live_session_guard import read_recorded_children
 
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
@@ -138,15 +138,7 @@ class FunTimeIntegrationSession:
 
     def read_child_processes(self) -> dict[str, ChildProcess]:
         """Read the children the orchestrator recorded — PID and creation time."""
-        pids_file = self.config.paths.state_dir / "bridge_pids.ini"
-        parser = configparser.ConfigParser()
-        parser.optionxform = str
-        parser.read(str(pids_file), encoding="utf-8")
-        created_at = parser["created_at"]
-        return {
-            key: ChildProcess(pid=int(pid), created_at=int(created_at[key]))
-            for key, pid in parser["pids"].items()
-        }
+        return read_recorded_children(self.config.paths.state_dir)
 
     def quit_gracefully(self, timeout: float = 15.0) -> int:
         """Simulate the Ctrl+Alt+Q quit path by killing the AHK process.
