@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
+from fun_time.voice_commands import parse_command_line
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     execute_window_ops,
@@ -1031,6 +1032,45 @@ class TestDispatchLoopRunner:
         runner.tick()
 
         assert vc.is_muted
+
+    def test_omnipause_suspends_the_voice_controller(self, tmp_path):
+        """Omnipause freezes voice the way it freezes the AHK hotkeys: only the
+        exempt commands still reach the dispatch loop, so a paused room's noise
+        can no longer open the reference popup."""
+        from fun_time.voice_control import VoiceController
+
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner._last_satellite_sample = float("inf")
+        vc_cmd = tmp_path / "vc_cmd.txt"
+        vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
+        runner.voice_controller = vc
+        runner.state = replace(runner.state, omni_paused=True)
+
+        runner.tick()
+
+        vc._write_command("help_reference", spoken_at=1.0)
+        vc._write_command("play", spoken_at=2.0)
+        written = vc_cmd.read_text(encoding="utf-8").splitlines()
+        assert [parse_command_line(line)[0] for line in written] == ["play"]
+
+    def test_leaving_omnipause_unsuspends_the_voice_controller(self, tmp_path):
+        from fun_time.voice_control import VoiceController
+
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner._last_satellite_sample = float("inf")
+        vc_cmd = tmp_path / "vc_cmd.txt"
+        vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
+        vc.suspend()
+        runner.voice_controller = vc
+        runner.state = replace(runner.state, omni_paused=False)
+
+        runner.tick()
+
+        vc._write_command("help_reference", spoken_at=1.0)
+        written = vc_cmd.read_text(encoding="utf-8").splitlines()
+        assert [parse_command_line(line)[0] for line in written] == ["help_reference"]
 
 
 class TestOpenRfbTab:
