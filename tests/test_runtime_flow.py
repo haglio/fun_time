@@ -13,12 +13,15 @@ from fun_time.runtime_flow import (
     apply_mode_switch,
     apply_refresh_recency_order,
     apply_satellite_filter,
+    apply_satellite_loop,
     apply_toggle_fmode,
     build_omnipause_toggle,
 )
 
 
-def _make_action_video(folder: Path, media_root: Path, metadata_root: Path, name: str, action: str) -> str:
+def _make_action_video(
+    folder: Path, media_root: Path, metadata_root: Path, name: str, action: str, prompt: str = "x"
+) -> str:
     video = folder / f"{name}.mp4"
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_text("x", encoding="utf-8")
@@ -26,7 +29,9 @@ def _make_action_video(folder: Path, media_root: Path, metadata_root: Path, name
 
     sidecar = metadata_path_for(video, media_root, metadata_root)
     sidecar.parent.mkdir(parents=True, exist_ok=True)
-    sidecar.write_text(json.dumps({"video": {"action": action, "prompt": "x", "seed": name}}), encoding="utf-8")
+    sidecar.write_text(
+        json.dumps({"video": {"action": action, "prompt": prompt, "seed": name}}), encoding="utf-8"
+    )
     return str(video)
 
 
@@ -430,9 +435,11 @@ def test_toggle_fmode_applies_per_vlc_metadata_filters(monkeypatch, tmp_path: Pa
 def test_refresh_recency_order_honours_filters_and_orders_newest_first(monkeypatch, tmp_path: Path):
     media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
     portrait_root = media_root / "portrait"
-    old = _make_action_video(portrait_root, media_root, metadata_root, "old", "Alpha")
-    new = _make_action_video(portrait_root, media_root, metadata_root, "new", "Alpha")
-    _make_action_video(portrait_root, media_root, metadata_root, "other", "Kissing")
+    # Distinct prompts keep the two Alphas in distinct seed families, so the
+    # filtered build keeps both and premiere's newest-first order is visible.
+    old = _make_action_video(portrait_root, media_root, metadata_root, "old", "Alpha", "scene one")
+    new = _make_action_video(portrait_root, media_root, metadata_root, "new", "Alpha", "scene two")
+    _make_action_video(portrait_root, media_root, metadata_root, "other", "Kissing", "scene three")
     os.utime(old, (1000, 1000))
     os.utime(new, (2000, 2000))
     monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
@@ -544,6 +551,45 @@ def test_apply_satellite_filter_clear_restores_everything(monkeypatch, tmp_path:
 
     assert result.applied is True
     assert result.count == 2
+
+
+def test_apply_satellite_loop_loads_the_group_as_a_repeat_all_sub_playlist(monkeypatch, tmp_path: Path):
+    calls: list[tuple[int, str, str]] = []
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.replace_playlist_from_file",
+        lambda port, _pw, path, repeat_mode="": calls.append((port, str(path), repeat_mode)) or True,
+    )
+    members = [str(tmp_path / "a.mp4"), str(tmp_path / "b.mp4")]
+
+    result = apply_satellite_loop(
+        which=2, axis="action", members=members,
+        state_dir=tmp_path / "state", port=9002, password="pw",
+    )
+
+    assert result.applied is True
+    assert result.count == 2
+    port, playlist, repeat_mode = calls[0]
+    assert port == 9002
+    assert repeat_mode == "all"  # loop the group, not repeat-one
+    written = Path(playlist).read_text(encoding="utf-8")
+    assert all(member in written for member in members)
+
+
+def test_apply_satellite_loop_does_nothing_for_a_lone_member(monkeypatch, tmp_path: Path):
+    calls: list[int] = []
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.replace_playlist_from_file",
+        lambda port, *a, **k: calls.append(port) or True,
+    )
+
+    result = apply_satellite_loop(
+        which=3, axis="seed", members=[str(tmp_path / "only.mp4")],
+        state_dir=tmp_path / "state", port=9003, password="pw",
+    )
+
+    assert result.applied is False
+    assert calls == []  # current playlist left alone
+    assert "no other seeds" in result.log_message
 
 
 def test_build_omnipause_toggle_returns_enter_or_leave():

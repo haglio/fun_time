@@ -11,6 +11,7 @@ from fun_time.command_dispatch import (
     WindowOp,
     dispatch_command,
 )
+from fun_time.media_metadata import GroupIndex, normalize_path_key
 
 
 def _make_config(tmp_path: Path) -> BridgeConfig:
@@ -1710,3 +1711,122 @@ def test_clipper_save_in_nau_mode_skips_without_status(tmp_path: Path):
 
     mock_subprocess.run.assert_not_called()
     assert ops == []
+
+
+# --- group loops and lock-action --------------------------------------------
+
+def _loop_index(tmp_path: Path, *, axis: str) -> tuple[GroupIndex, str, str]:
+    """A two-member group index on real files, keyed on the requested axis."""
+    first, second = tmp_path / "a.mp4", tmp_path / "b.mp4"
+    first.write_text("x", encoding="utf-8")
+    second.write_text("x", encoding="utf-8")
+    a, b = str(first), str(second)
+    ka, kb = normalize_path_key(a), normalize_path_key(b)
+    if axis == "action":
+        # Same subject, different acts.
+        return GroupIndex(
+            action_key_by_path={ka: "subject", kb: "subject"},
+            action_members={"subject": [a, b]},
+            action_by_path={ka: "Alpha", kb: "Kissing"},
+            seed_key_by_path={}, seed_members={},
+            loose_seed_key_by_path={}, loose_seed_members={},
+            indexed_paths=frozenset({ka, kb}),
+        ), a, b
+    # Same act + params, different seeds.
+    return GroupIndex(
+        action_key_by_path={}, action_members={},
+        action_by_path={ka: "Alpha", kb: "Alpha"},
+        seed_key_by_path={ka: ("family", "1"), kb: ("family", "2")},
+        seed_members={"family": [a, b]},
+        loose_seed_key_by_path={}, loose_seed_members={},
+        indexed_paths=frozenset({ka, kb}),
+    ), a, b
+
+
+def _loop_result(count=2, applied=True, message="Loop portrait: 2 actions"):
+    return type("R", (), {"count": count, "applied": applied, "log_message": message})()
+
+
+def test_action_loop_loads_the_subjects_action_group(tmp_path: Path):
+    config = _make_config(tmp_path)
+    index, a, b = _loop_index(tmp_path, axis="action")
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
+        mock_loop.return_value = _loop_result()
+        _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
+
+    kwargs = mock_loop.call_args.kwargs
+    assert kwargs["axis"] == "action"
+    assert kwargs["which"] == 2
+    assert kwargs["port"] == config.portrait_port
+    assert sorted(kwargs["members"]) == sorted([a, b])
+    assert any(op.op == "tooltip" for op in ops)
+
+
+def test_seed_loop_loads_the_current_acts_seed_family(tmp_path: Path):
+    config = _make_config(tmp_path)
+    index, a, b = _loop_index(tmp_path, axis="seed")
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
+        mock_loop.return_value = _loop_result(message="Loop landscape: 2 seeds")
+        dispatch_command("landscape_seed_loop", _make_state(), config)
+
+    kwargs = mock_loop.call_args.kwargs
+    assert kwargs["axis"] == "seed"
+    assert kwargs["which"] == 3
+    assert sorted(kwargs["members"]) == sorted([a, b])
+
+
+def test_loop_with_no_siblings_leaves_the_playlist_alone(tmp_path: Path):
+    config = _make_config(tmp_path)
+    only = tmp_path / "only.mp4"
+    only.write_text("x", encoding="utf-8")
+    key = normalize_path_key(str(only))
+    index = GroupIndex(
+        action_key_by_path={key: "subject"}, action_members={"subject": [str(only)]},
+        action_by_path={key: "Alpha"},
+        seed_key_by_path={}, seed_members={},
+        loose_seed_key_by_path={}, loose_seed_members={},
+        indexed_paths=frozenset({key}),
+    )
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=str(only)), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
+        _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
+
+    mock_loop.assert_not_called()
+    assert any(op.op == "tooltip" and "No other actions" in op.key for op in ops)
+
+
+def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/clip.mp4"), \
+         patch("fun_time.command_dispatch._video_action_label", return_value="Beta Gamma"), \
+         patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result()
+        new_state, _ops = dispatch_command("portrait_lock_action", _make_state(), config)
+
+    assert mock_filter.call_args.kwargs["query"] == "beta gamma"
+    assert new_state.portrait_filter == "beta gamma"
+    assert new_state.landscape_filter == ""
+
+
+def test_lock_action_without_metadata_says_so(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/clip.mp4"), \
+         patch("fun_time.command_dispatch._video_action_label", return_value=""), \
+         patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        new_state, ops = dispatch_command("landscape_lock_action", _make_state(), config)
+
+    mock_filter.assert_not_called()
+    assert new_state.landscape_filter == ""
+    assert any(op.op == "tooltip" and "No action metadata" in op.key for op in ops)

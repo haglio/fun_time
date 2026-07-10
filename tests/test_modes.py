@@ -572,10 +572,12 @@ def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
 
 
 def test_satellite_filter_composes_with_premiere_recency_order(tmp_path: Path):
+    # Distinct prompts put the two Alphas in distinct seed families, so the
+    # filtered build keeps both and premiere's newest-first ordering is visible.
     source_dir, library, paths = _grouped_library(tmp_path, {
-        "old": _i2v_meta("1", "Alpha"),
-        "new": _i2v_meta("2", "Alpha"),
-        "other": _i2v_meta("3", "Kissing"),
+        "old": _t2v_meta("Alpha", "1", prompt="scene one"),
+        "new": _t2v_meta("Alpha", "2", prompt="scene two"),
+        "other": _t2v_meta("Kissing", "3", prompt="scene three"),
     })
     os.utime(paths["old"], (1000, 1000))
     os.utime(paths["new"], (2000, 2000))
@@ -638,5 +640,78 @@ def test_build_satellite_playlists_applies_independent_per_vlc_filters(tmp_path:
     landscape_written = plan.landscape_playlist_path.read_text(encoding="utf-8")
     assert p_cum in portrait_written and p_kiss not in portrait_written
     assert l_kiss in landscape_written and l_cum not in landscape_written
+
+
+# --- collapse axis: filtered views group by seed family (params) -------------
+
+def _t2v_meta(action: str, seed: str, prompt: str = "same scene") -> dict:
+    """A text-to-video sidecar: the action group pins the seed (action varies),
+    while the seed family pins the action (seed varies)."""
+    return {
+        "video": {
+            "prompt": prompt,
+            "action": action,
+            "seed": seed,
+            "model": "Realism",
+            "resolution": "720x560",
+            "aspect_ratio": "9:7",
+            "quality": "720p",
+        }
+    }
+
+
+def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
+    """A filtered view has already pinned the act, so same-params-different-seed
+    clips are one seed family and collapse to a single entry."""
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "cum_a": _t2v_meta("Alpha", "1"),
+        "cum_b": _t2v_meta("Alpha", "2"),
+    })
+    os.utime(paths["cum_a"], (1000, 1000))
+    os.utime(paths["cum_b"], (2000, 2000))
+
+    built = build_satellite_playlist_paths(
+        str(source_dir), False, tmp_path / "favs.csv",
+        filter_query="alpha", recent=True, library=library,
+    )
+
+    assert built == [paths["cum_b"]]  # one per param-set, represented by its newest
+
+
+def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
+    """Unfiltered browsing keeps today's one-clip-per-subject (action group),
+    so two different-seed subjects both appear."""
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "cum_a": _t2v_meta("Alpha", "1"),
+        "cum_b": _t2v_meta("Alpha", "2"),
+    })
+    os.utime(paths["cum_a"], (1000, 1000))
+    os.utime(paths["cum_b"], (2000, 2000))
+
+    built = build_satellite_playlist_paths(
+        str(source_dir), False, tmp_path / "favs.csv", recent=True, library=library,
+    )
+
+    assert sorted(built) == sorted([paths["cum_a"], paths["cum_b"]])
+
+
+def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
+    """Seed-family collapse must not merge different acts: the t2v family pins
+    the action, so a Kissing clip stays its own family."""
+    source_dir, library, paths = _grouped_library(tmp_path, {
+        "cum_a": _t2v_meta("Alpha", "1"),
+        "cum_b": _t2v_meta("Alpha", "2"),
+        "kiss": _t2v_meta("Kissing", "1"),
+    })
+
+    # A filter matching all three (their shared prompt) still collapses only
+    # within a seed family, so Alpha collapses to one and Kissing survives.
+    built = build_satellite_playlist_paths(
+        str(source_dir), False, tmp_path / "favs.csv",
+        filter_query="same scene", recent=True, library=library,
+    )
+
+    assert len(built) == 2
+    assert paths["kiss"] in built
 
 

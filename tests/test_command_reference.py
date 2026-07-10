@@ -100,6 +100,7 @@ def test_both_section_lists_combined_satellite_commands():
         "both_prev", "both_next", "both_trash",
         "both_lock_on", "both_lock_off",
         "both_cycle_action", "both_cycle_seed",
+        "both_action_loop", "both_seed_loop", "both_lock_action",
     }
     # Voice phrases are derived from VOICE_COMMANDS, so each row surfaces one —
     # side word first ("both next", "both lock"), matching every satellite row.
