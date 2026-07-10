@@ -3,9 +3,6 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import quote
-
-_STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 @dataclass(frozen=True)
@@ -36,24 +33,12 @@ def read_random_favs_browser_manifest(path: str | Path) -> RandomFavsBrowserMani
     return RandomFavsBrowserManifest(profile_dir=profile_dir, urls=urls)
 
 
-def tab_placeholder_path() -> Path:
-    """Return the path to the lazy-load tab placeholder HTML file."""
-    return _STATIC_DIR / "tab_placeholder.html"
-
-
-def _wrap_url_with_placeholder(url: str, placeholder: Path) -> str:
-    """Convert a URL into a file:// URI that opens the placeholder page."""
-    file_uri = placeholder.as_uri()
-    return f"{file_uri}?url={quote(url, safe='')}"
-
-
 def build_random_favs_browser_launch_plan(
     manifest_path: str | Path,
     *,
     shortcut_target: str,
     shortcut_work_dir: str,
     shortcut_args: str,
-    placeholder_path: str | Path | None = None,
 ) -> RandomFavsBrowserLaunchPlan:
     manifest = read_random_favs_browser_manifest(manifest_path)
     if not shortcut_target or not manifest.urls:
@@ -69,12 +54,8 @@ def build_random_favs_browser_launch_plan(
     if "--new-window" not in lowered:
         cmd += " --new-window"
 
-    placeholder = Path(placeholder_path) if placeholder_path else None
     for url in manifest.urls:
-        if placeholder:
-            cmd += f" {_quote(_wrap_url_with_placeholder(url, placeholder))}"
-        else:
-            cmd += f" {_quote(url)}"
+        cmd += f" {_quote(url)}"
     return RandomFavsBrowserLaunchPlan(
         should_launch=True,
         cmd=cmd,
@@ -88,14 +69,12 @@ def launch_random_favs_browser(
     shortcut_target: str,
     shortcut_work_dir: str,
     shortcut_args: str,
-    placeholder_path: str | Path | None = None,
 ) -> RandomFavsBrowserLaunchPlan:
     plan = build_random_favs_browser_launch_plan(
         manifest_path,
         shortcut_target=shortcut_target,
         shortcut_work_dir=shortcut_work_dir,
         shortcut_args=shortcut_args,
-        placeholder_path=placeholder_path,
     )
     if plan.should_launch and plan.cmd:
         subprocess.Popen(plan.cmd, cwd=plan.work_dir)

@@ -4,11 +4,15 @@ import json
 import random
 from pathlib import Path
 
+from fun_time.config import load_config
 from fun_time.random_favs_browser import (
+    FavEntry,
+    FavTarget,
     build_manifest,
-    choose_random_urls,
+    choose_random,
+    extract_path_from_hyperlink,
     extract_url_from_hyperlink,
-    load_favs_web_urls,
+    load_favs_entries,
     resolve_profile_directory,
     write_manifest,
 )
@@ -35,15 +39,15 @@ def test_resolve_profile_directory_finds_named_profile(tmp_path: Path):
 
 
 
-def test_choose_random_urls_uses_requested_count():
+def test_choose_random_uses_requested_count():
     rng = random.Random(123)
     urls = [f"https://example.com/{i}" for i in range(20)]
-    chosen = choose_random_urls(urls, 10, rng)
+    chosen = choose_random(urls, 10, rng)
     assert len(chosen) == 10
     assert len(set(chosen)) == 10
 
 
-def test_build_manifest_returns_profile_and_urls(cfg_factory, tmp_path: Path):
+def test_build_manifest_returns_profile_and_targets(cfg_factory, tmp_path: Path):
     user_data_dir = tmp_path / "User Data"
     profile_dir = user_data_dir / "Profile 2"
     profile_dir.mkdir(parents=True)
@@ -73,9 +77,12 @@ def test_build_manifest_returns_profile_and_urls(cfg_factory, tmp_path: Path):
         }
     )
 
-    profile_name, urls = build_manifest(cfg_path)
+    profile_name, targets = build_manifest(load_config(cfg_path))
     assert profile_name == "Profile 2"
-    assert sorted(urls) == ["https://example.com/1", "https://example.com/2"]
+    assert sorted(target.url for target in targets) == [
+        "https://example.com/1",
+        "https://example.com/2",
+    ]
 
 
 def test_write_manifest_writes_profile_then_urls(tmp_path: Path):
@@ -86,6 +93,95 @@ def test_write_manifest_writes_profile_then_urls(tmp_path: Path):
         "https://example.com/1\n"
         "https://example.com/2\n"
     )
+
+
+# --- regenerate targets ---
+
+
+def _fav_row(local_path: str, web_url: str) -> str:
+    local = f'=HYPERLINK(""file:///x"";""{local_path}"")'
+    web = f'=HYPERLINK(""{web_url}"";""{web_url}"")' if web_url else ""
+    return f'"{local}","{web}"\r\n'
+
+
+def _regen_cfg(cfg_factory, tmp_path: Path, favs_rows: str) -> Path:
+    user_data_dir = tmp_path / "User Data"
+    user_data_dir.mkdir()
+    (user_data_dir / "Local State").write_text(
+        json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Blair"}}}}),
+        encoding="utf-8",
+    )
+    favs = tmp_path / "favs.csv"
+    favs.write_text("local_file,web_url\r\n" + favs_rows, encoding="utf-8")
+    return cfg_factory(
+        {
+            "paths": {"favs_file": str(favs)},
+            "random_favs_browser": {
+                "enabled": True,
+                "user_data_dir": str(user_data_dir),
+                "open_count": 10,
+            },
+            "provider_regen": {
+                "media_root": str(tmp_path / "media"),
+                "metadata_root": str(tmp_path / "metadata"),
+            },
+        }
+    )
+
+
+def _write_sidecar(tmp_path: Path, name: str, metadata: dict) -> Path:
+    video = tmp_path / "media" / "provider" / name
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_bytes(b"")
+    sidecar = tmp_path / "metadata" / "provider" / Path(name).with_suffix(".json")
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    sidecar.write_text(json.dumps(metadata), encoding="utf-8")
+    return video
+
+
+def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_factory, tmp_path: Path):
+    """A dead gallery link becomes the prefilled Provider generate page."""
+    video = _write_sidecar(tmp_path, "abc_topaz.mp4", {"video": {"prompt": "A PROMPT"}})
+    cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row(str(video), "https://example.com/image/abc"))
+
+    _, targets = build_manifest(load_config(cfg_path))
+
+    assert len(targets) == 1
+    assert targets[0].url.startswith("https://example.com/video#ft=")
+    assert targets[0].label == "https://example.com/image/abc"
+
+
+def test_build_manifest_falls_back_to_the_gallery_link_without_metadata(cfg_factory, tmp_path: Path):
+    """No sidecar (e.g. a provider2 fav) leaves the stored link untouched."""
+    cfg_path = _regen_cfg(
+        cfg_factory,
+        tmp_path,
+        _fav_row("C:\\media\\provider2\\abc.mp4", "https://example.net/image/abc"),
+    )
+
+    _, targets = build_manifest(load_config(cfg_path))
+
+    assert targets == [
+        FavTarget(url="https://example.net/image/abc", label="https://example.net/image/abc")
+    ]
+
+
+def test_build_manifest_labels_a_gallery_less_fav_with_its_filename(cfg_factory, tmp_path: Path):
+    video = _write_sidecar(tmp_path, "def_topaz.mp4", {"video": {"prompt": "P"}})
+    cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row(str(video), ""))
+
+    _, targets = build_manifest(load_config(cfg_path))
+
+    assert targets[0].label == "def_topaz.mp4"
+
+
+def test_build_manifest_drops_favs_with_nowhere_to_go(cfg_factory, tmp_path: Path):
+    """A non-Provider local file with no gallery link yields no tab at all."""
+    cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row("C:\\media\\other\\abc.mp4", ""))
+
+    _, targets = build_manifest(load_config(cfg_path))
+
+    assert targets == []
 
 
 # --- favs.csv web URL loading ---
@@ -104,40 +200,49 @@ def test_extract_url_from_hyperlink_empty():
     assert extract_url_from_hyperlink("") == ""
 
 
-def test_load_favs_web_urls_reads_web_url_column(tmp_path: Path):
+def test_extract_path_from_hyperlink_returns_display_text():
+    cell = '=HYPERLINK("file:///C:/img/a%20b.mp4";"C:\\img\\a b.mp4")'
+    assert extract_path_from_hyperlink(cell) == "C:\\img\\a b.mp4"
+
+
+def test_extract_path_from_hyperlink_plain_value():
+    assert extract_path_from_hyperlink("C:\\img\\a.mp4") == "C:\\img\\a.mp4"
+
+
+def test_extract_path_from_hyperlink_malformed_formula():
+    assert extract_path_from_hyperlink('=HYPERLINK("file:///C:/img/a.mp4"') == ""
+
+
+def test_load_favs_entries_reads_local_path_and_web_url(tmp_path: Path):
     favs = tmp_path / "favs.csv"
     favs.write_text(
         'local_file,web_url\r\n'
-        '"=HYPERLINK(""file:///C:/img/a.png"";""C:\\img\\a.png"")",'
+        '"=HYPERLINK(""file:///C:/img/a.mp4"";""C:\\img\\a.mp4"")",'
         '"=HYPERLINK(""https://example.net/image/a"";""https://example.net/image/a"")"\r\n'
-        '"=HYPERLINK(""file:///C:/img/b.png"";""C:\\img\\b.png"")",'
-        '"=HYPERLINK(""https://example.com/image/b"";""https://example.com/image/b"")"\r\n',
+        '"=HYPERLINK(""file:///C:/img/b.mp4"";""C:\\img\\b.mp4"")",""\r\n',
         encoding="utf-8",
     )
 
-    urls = load_favs_web_urls(favs)
-    assert urls == [
-        "https://example.net/image/a",
-        "https://example.com/image/b",
+    assert load_favs_entries(favs) == [
+        FavEntry(local_path="C:\\img\\a.mp4", web_url="https://example.net/image/a"),
+        FavEntry(local_path="C:\\img\\b.mp4", web_url=""),
     ]
 
 
-def test_load_favs_web_urls_skips_rows_with_empty_web_url(tmp_path: Path):
+def test_load_favs_entries_skips_rows_with_neither_column(tmp_path: Path):
     favs = tmp_path / "favs.csv"
     favs.write_text(
         'local_file,web_url\r\n'
-        '"=HYPERLINK(""file:///C:/img/a.png"";""C:\\img\\a.png"")",""\r\n'
-        '"=HYPERLINK(""file:///C:/img/b.png"";""C:\\img\\b.png"")",'
-        '"=HYPERLINK(""https://example.net/image/b"";""https://example.net/image/b"")"\r\n',
+        '"",""\r\n'
+        '"=HYPERLINK(""file:///C:/img/b.mp4"";""C:\\img\\b.mp4"")",""\r\n',
         encoding="utf-8",
     )
 
-    urls = load_favs_web_urls(favs)
-    assert urls == ["https://example.net/image/b"]
+    assert load_favs_entries(favs) == [FavEntry(local_path="C:\\img\\b.mp4", web_url="")]
 
 
-def test_load_favs_web_urls_missing_file(tmp_path: Path):
-    assert load_favs_web_urls(tmp_path / "missing.csv") == []
+def test_load_favs_entries_missing_file(tmp_path: Path):
+    assert load_favs_entries(tmp_path / "missing.csv") == []
 
 
 def test_build_manifest_uses_favs_csv_web_urls(cfg_factory, tmp_path: Path):
@@ -193,10 +298,10 @@ def test_build_manifest_uses_favs_csv_web_urls(cfg_factory, tmp_path: Path):
         }
     )
 
-    profile_name, urls = build_manifest(cfg_path)
+    profile_name, targets = build_manifest(load_config(cfg_path))
     assert profile_name == "Profile 2"
     # Must be web URLs from favs.csv, NOT file:// URIs from bookmarks
-    assert sorted(urls) == [
+    assert sorted(target.url for target in targets) == [
         "https://example.com/image/b",
         "https://example.net/image/a",
     ]

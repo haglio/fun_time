@@ -7,11 +7,13 @@ import sys
 import time
 from pathlib import Path
 
+from .config import load_config
 from .modes import SatelliteLibraryContext, build_fmode_playlists
 from .watch_stats import watch_stats_path
 from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
 from .random_favs_browser import build_manifest, write_manifest
+from .rfb_tab_page import write_tab_pages
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
@@ -59,7 +61,18 @@ def restart_broker(project_dir: str | Path, broker_tray_launcher: Path | None = 
 
 
 def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: str | Path) -> None:
-    profile_directory, urls = build_manifest(config_path)
+    """Pick this session's favourites and record the tabs Chrome should open.
+
+    Lazy loading puts a local landing page in front of each favourite, so ten
+    heavy generate pages do not all load at startup.
+    """
+    config = load_config(config_path)
+    profile_directory, targets = build_manifest(config)
+    urls = (
+        write_tab_pages(config.random_favs_browser_tabs_dir, targets)
+        if config.random_favs_browser.lazy_load
+        else [target.url for target in targets]
+    )
     write_manifest(Path(output_path), profile_directory, urls)
 
 

@@ -718,10 +718,10 @@ class TestMaybeLaunchRandomFavsBrowser:
         # Should return the browser hwnd for topmost management
         assert rfb_hwnd == 55555
 
-    def test_passes_placeholder_path_when_lazy_load_enabled(self, monkeypatch):
+    def test_launches_the_urls_the_manifest_already_resolved(self, monkeypatch):
+        """Lazy loading is settled when the manifest is built, not at launch."""
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         m = self._make_manifest_parser()
-        m["random_favs_browser"]["lazy_load"] = "1"
         plan = self._fake_plan()
 
         launch_kwargs: dict = {}
@@ -738,28 +738,4 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.move_window"):
             _maybe_launch_random_favs_browser(m, plan)
 
-        assert "placeholder_path" in launch_kwargs
-        from fun_time.windows_bridge_random_favs_browser import tab_placeholder_path
-        assert launch_kwargs["placeholder_path"] == tab_placeholder_path()
-
-    def test_no_placeholder_path_when_lazy_load_disabled(self, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        m = self._make_manifest_parser()
-        # lazy_load absent = disabled
-        plan = self._fake_plan()
-
-        launch_kwargs: dict = {}
-        launch_result = MagicMock(should_launch=True)
-
-        def capture_launch(*args, **kwargs):
-            launch_kwargs.update(kwargs)
-            return launch_result
-
-        with patch("fun_time.windows_bridge_sequencer.resolve_shortcut", return_value=("chrome.exe", "", "")), \
-             patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
-             patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", side_effect=capture_launch), \
-             patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
-             patch("fun_time.windows_bridge_sequencer.move_window"):
-            _maybe_launch_random_favs_browser(m, plan)
-
-        assert launch_kwargs.get("placeholder_path") is None
+        assert set(launch_kwargs) == {"shortcut_target", "shortcut_work_dir", "shortcut_args"}

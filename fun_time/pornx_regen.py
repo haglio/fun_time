@@ -1,10 +1,13 @@
-"""Build Provider regenerate URLs from a locked video's metadata sidecar.
+"""Build Provider regenerate URLs from a video's metadata sidecar.
 
-When an AI video is locked, Fun Time opens the Provider generate page with the
-original prompts/settings packed into the URL fragment (``#ft=<json>``). A
-userscript on example.com reads the fragment and fills the form. Videos made from
-a source image target the image page (``/create``); text-to-video targets the
-video page (``/video``).
+The gallery page an AI video came from is usually gone, so Fun Time points at
+the Provider generate page instead, with the original prompts/settings packed into
+the URL fragment (``#ft=<json>``). A userscript on example.com reads the fragment,
+fills the form, and raises a floating note with the settings it could not set.
+Videos made from a source image target the image page (``/create``);
+text-to-video targets the video page (``/video``).
+
+Both the lock hotkey and the Random Favs Browser open their tabs this way.
 """
 from __future__ import annotations
 
@@ -78,7 +81,7 @@ def regen_url_for_video(
     video_url: str,
     image_url: str,
 ) -> str:
-    """Return the Provider regenerate URL for a locked Provider video, or "" if N/A."""
+    """Return the Provider regenerate URL for a Provider video, or "" if it has none."""
     if "provider" not in str(video_path).lower():
         return ""
     meta_path = metadata_path_for(video_path, media_root, metadata_root)
