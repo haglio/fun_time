@@ -500,6 +500,71 @@ class TestDispatchLoopRunner:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "portrait_next" in commands
 
+    def test_a_spoken_lock_is_back_dated_to_the_video_the_speaker_saw(self, tmp_path):
+        """The satellite advanced while "lock portrait" was being recognized, so
+        the command carries the utterance's start and is aimed at the video that
+        was on screen then."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner._last_satellite_sample = float("inf")
+        runner.state = BridgeState(active_side=2, locked2=False)
+        runner._timelines[2].observe("C:\\clips\\meant.mp4", now=100.0)
+        runner._timelines[2].observe("C:\\clips\\advanced_to.mp4", now=101.0)
+        (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock_on @100.200", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        assert mock_dispatch.call_args[0][0] == "portrait_lock"
+        assert mock_dispatch.call_args.kwargs["target_path"] == "C:\\clips\\meant.mp4"
+
+    def test_a_spoken_command_reads_its_own_players_timeline(self, tmp_path):
+        """Each satellite keeps its own history; a landscape command must not be
+        back-dated against the portrait's videos."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner._last_satellite_sample = float("inf")
+        runner.state = BridgeState(active_side=3, locked3=False)
+        runner._timelines[2].observe("C:\\clips\\portrait.mp4", now=100.0)
+        runner._timelines[3].observe("C:\\clips\\landscape.mp4", now=100.0)
+        (tmp_path / "dashboard_cmd.txt").write_text("landscape_trash @100.200", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        assert mock_dispatch.call_args.kwargs["target_path"] == "C:\\clips\\landscape.mp4"
+
+    def test_a_hotkey_command_names_no_video(self, tmp_path):
+        """A keypress is instantaneous: it means whatever is playing right now."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner._last_satellite_sample = float("inf")
+        runner._timelines[2].observe("C:\\clips\\meant.mp4", now=100.0)
+        (tmp_path / "dashboard_cmd.txt").write_text("portrait_trash", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        assert mock_dispatch.call_args.kwargs["target_path"] == ""
+
+    def test_sampling_records_each_satellites_video_into_its_timeline(self, tmp_path):
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        paths = {9091: "C:\\clips\\portrait.mp4", 9092: "C:\\clips\\landscape.mp4"}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.1), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
+                   side_effect=lambda port, _pw: paths[port]):
+            runner._sample_satellites(now=500.0)
+
+        assert runner._timelines[2].path_at(500.0) == "C:\\clips\\portrait.mp4"
+        assert runner._timelines[3].path_at(500.0) == "C:\\clips\\landscape.mp4"
+
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the primary display in every mode it appears, so a nudge
         dispatches to Nau's SEEK command (which stacks against its live clock)."""
@@ -1039,7 +1104,7 @@ class TestOpenRfbTab:
         runner.state = BridgeState(locked2=False, locked3=False)
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
-        def fake_dispatch(cmd, state, config):
+        def fake_dispatch(cmd, state, config, target_path=""):
             if cmd == "portrait_lock":
                 return replace(state, locked2=True), [WindowOp(op="open_rfb_tab", key="http://p")]
             if cmd == "landscape_lock":
@@ -1343,7 +1408,7 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=str(video)):
-            mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
+            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner._handle_open_file_dialog()
 
         command = runner.config.nau_cmd_file.read_text(encoding="utf-8")
@@ -1361,7 +1426,7 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"):
-            mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
+            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner._handle_open_file_dialog()
 
         assert runner.config.nau_cmd_file.read_text(encoding="utf-8") == r"PLAY_FILE C:\videos\movie.mp4"
@@ -1739,7 +1804,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("portrait_lock_on", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("portrait_lock")
+        mock_d.assert_called_once_with("portrait_lock", None)
 
     def test_portrait_lock_on_noop_when_locked(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
@@ -1759,7 +1824,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("landscape_lock_on", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("landscape_lock")
+        mock_d.assert_called_once_with("landscape_lock", None)
 
     def test_landscape_lock_on_noop_when_locked(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
@@ -1781,7 +1846,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("fmode_on", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("fmode_toggle")
+        mock_d.assert_called_once_with("fmode_toggle", None)
 
     def test_fmode_on_noop_when_enabled(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
@@ -1801,7 +1866,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("fmode_off", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("fmode_toggle")
+        mock_d.assert_called_once_with("fmode_toggle", None)
 
     def test_fmode_off_noop_when_disabled(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
@@ -1823,7 +1888,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("genau_activate")
+        mock_d.assert_called_once_with("genau_activate", None)
 
     def test_genau_activate_dispatches_in_hybrid_mode(self, tmp_path):
         """Hybrid mode is genau-active but is NOT genau mode: the Genau-mode
@@ -1836,7 +1901,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("genau_activate")
+        mock_d.assert_called_once_with("genau_activate", None)
 
     def test_genau_activate_dispatches_when_already_in_genau_mode(self, tmp_path):
         """The loop forwards genau_activate unconditionally — switching to the
@@ -1849,7 +1914,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("genau_activate")
+        mock_d.assert_called_once_with("genau_activate", None)
 
     # -- lock off (idempotent unlock) --
 
@@ -1861,7 +1926,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("portrait_lock_off", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("portrait_lock")
+        mock_d.assert_called_once_with("portrait_lock", None)
 
     def test_portrait_lock_off_noop_when_already_unlocked(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
@@ -1881,7 +1946,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("landscape_lock_off", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("landscape_lock")
+        mock_d.assert_called_once_with("landscape_lock", None)
 
     def test_landscape_lock_off_noop_when_already_unlocked(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
@@ -2233,7 +2298,7 @@ class TestBothSatelliteCommands:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
-            mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
+            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner.tick()
 
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
@@ -2249,7 +2314,7 @@ class TestBothSatelliteCommands:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
-            mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
+            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner.tick()
 
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
@@ -2263,7 +2328,7 @@ class TestBothSatelliteCommands:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
-            mock_dispatch.side_effect = lambda cmd, state, config: (state, [])
+            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner.tick()
 
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
