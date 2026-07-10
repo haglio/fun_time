@@ -47,7 +47,6 @@ from .win32 import (
     set_always_on_top,
     show_open_file_dialog,
     show_window,
-    sink_below_all_windows,
 )
 
 logger = logging.getLogger(__name__)
@@ -114,7 +113,7 @@ def execute_window_ops(ops: list[WindowOp], nau_pid: int) -> list[WindowOp]:
     remaining: list[WindowOp] = []
     for op in ops:
         if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "notice",
-                      "sink_all_windows", "restore_all_topmost",
+                      "disable_all_topmost", "restore_all_topmost",
                       "open_rfb_tab",
                       "show_role", "hide_role", "activate_role",
                       "restack_primary"):
@@ -565,8 +564,8 @@ class DispatchLoopRunner:
                 # SWP_NOACTIVATE, so it changes only the z-band, never focus.
                 self._restack_primary_slot()
                 continue
-            if op.op == "sink_all_windows":
-                self._sink_all_windows()
+            if op.op == "disable_all_topmost":
+                self._remove_all_topmost()
                 continue
             if op.op == "restore_all_topmost":
                 self._restore_all_topmost()
@@ -680,22 +679,15 @@ class DispatchLoopRunner:
         }.get(self.state.primary_mode, ["nau"])
         return ["rfb", "portrait", "landscape", "dashboard", "logs", *slot]
 
-    def _sink_all_windows(self) -> None:
-        """Sink EVERY managed window below the user's windows (omnipause frees
+    def _remove_all_topmost(self) -> None:
+        """Drop EVERY managed window out of the TOPMOST band (omnipause frees
         the desktop).  Dropping unconditionally — not just the normally-topmost
         roles — is what stops Nau from being stranded on top in nau mode, where
-        it does carry the topmost flag.
-
-        It SINKS rather than merely un-topmosting: ``HWND_NOTOPMOST`` places a
-        window *above every non-topmost window*, so clearing a player's topmost
-        flag parks it straight on top of whatever the user switched to — the
-        "Nau spontaneously came on top during OmniPause" bug.  See
-        :func:`sink_below_all_windows`.
-        """
+        it does carry the topmost flag."""
         for role in MANAGED_ROLES:
             hwnd = self._resolve_role(role)
             if hwnd:
-                sink_below_all_windows(hwnd)
+                set_always_on_top(hwnd, False)
 
     def _restore_all_topmost(self) -> None:
         """Re-apply the topmost bands for the current mode after omnipause.
@@ -833,10 +825,10 @@ class DispatchLoopRunner:
         logger.info("Topmost [%s] mode=%s: %s", label, self.state.primary_mode, "  ".join(parts))
 
     def _handle_omnipause_toggle(self) -> None:
-        """Toggle omnipause with z-order management for all windows.
+        """Toggle omnipause with topmost management for all windows.
 
-        Sinking (enter) and restoration (leave) are driven by the
-        sink_all_windows / restore_all_topmost WindowOps that
+        Topmost removal (enter) and restoration (leave) are driven by
+        the disable_all_topmost / restore_all_topmost WindowOps that
         command_dispatch emits — _dispatch handles them automatically.
         """
         was_paused = self.state.omni_paused
@@ -844,10 +836,10 @@ class DispatchLoopRunner:
         self._log_topmost_state("post-leave" if was_paused else "post-enter")
 
     def _handle_enter_omnipause(self) -> None:
-        """Enter omnipause with z-order management (Space key — enter only, no leave).
+        """Enter omnipause with topmost management (Space key — enter only, no leave).
 
-        Sinking is driven by the sink_all_windows WindowOp that
-        command_dispatch emits — _dispatch handles it automatically.
+        Topmost removal is driven by the disable_all_topmost WindowOp
+        that command_dispatch emits — _dispatch handles it automatically.
         """
         self._dispatch("enter_omnipause")
         self._log_topmost_state("post-enter")

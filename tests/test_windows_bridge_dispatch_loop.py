@@ -50,18 +50,6 @@ TOPMOST_HWNDS = {
 
 
 @pytest.fixture(autouse=True)
-def sunk():
-    """Records the hwnds omnipause pushed to the bottom of the z-order.
-
-    Autouse so no test can reach the real SetWindowPos with a fake hwnd; tests
-    that care about the sink assert on the recorded list."""
-    hwnds: list[int] = []
-    with patch("fun_time.windows_bridge_dispatch_loop.sink_below_all_windows",
-               side_effect=hwnds.append):
-        yield hwnds
-
-
-@pytest.fixture(autouse=True)
 def _no_satellite_sampling():
     """Every tick() samples both satellites over VLC's HTTP interface.  These
     tests are about dispatch, not sampling, and a real request would land on
@@ -329,12 +317,12 @@ class TestExecuteWindowOps:
         mock_topmost.assert_not_called()
         assert remaining == []
 
-    def test_sink_all_windows_returned_as_remaining(self):
-        ops = [WindowOp(op="sink_all_windows")]
+    def test_disable_all_topmost_returned_as_remaining(self):
+        ops = [WindowOp(op="disable_all_topmost")]
         remaining = execute_window_ops(ops, nau_pid=1)
 
         assert len(remaining) == 1
-        assert remaining[0].op == "sink_all_windows"
+        assert remaining[0].op == "disable_all_topmost"
 
     def test_restore_all_topmost_returned_as_remaining(self):
         ops = [WindowOp(op="restore_all_topmost")]
@@ -616,22 +604,25 @@ class TestDispatchLoopRunner:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "primary_nudge_next" in commands
 
-    def test_omnipause_enter_via_tick_sinks_all_managed_windows(self, tmp_path, sunk):
-        """Entering omnipause frees the desktop: EVERY managed window sinks below
-        the user's windows — including Nau, which carries the topmost flag in nau
-        mode and would otherwise stay stranded above the desktop."""
+    def test_omnipause_enter_via_tick_drops_topmost_on_all_managed_windows(self, tmp_path):
+        """Entering omnipause frees the desktop: EVERY managed window leaves the
+        TOPMOST band — including Nau, which carries the topmost flag in nau mode
+        and would otherwise stay stranded above the desktop."""
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
 
+        topmost_calls: list[tuple[int, bool]] = []
+
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
         assert runner.state.omni_paused is True
-        assert set(sunk) == TOPMOST_HWNDS | {NAU_HWND}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
 
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
         self, tmp_path, monkeypatch,
@@ -1377,9 +1368,8 @@ class TestResolveRole:
 
 class TestModeDependentTopmost:
     """Every managed window is topmost in every mode EXCEPT Nau, whose band is
-    mode-dependent: topmost whenever it owns the display (nau and hybrid, where
-    Genau's HUD is stacked above it), non-topmost in genau mode where it is
-    hidden."""
+    mode-dependent: topmost in nau mode (floating above the desktop like the
+    primary player always has), non-topmost in hybrid (under Genau's HUD)."""
 
     def _topmost_calls(self, runner, method_name):
         calls: list[tuple[int, bool]] = []
@@ -1390,19 +1380,14 @@ class TestModeDependentTopmost:
             getattr(runner, method_name)()
         return calls
 
-    def test_sink_all_windows_sinks_every_managed_window(self, tmp_path, sunk):
+    def test_remove_all_topmost_drops_every_managed_window(self, tmp_path):
         """Omnipause enter frees the desktop entirely — Nau included, so it is
-        never left stranded on top.
-
-        It SINKS them.  A bare ``set_always_on_top(hwnd, False)`` would not do:
-        HWND_NOTOPMOST leaves the window above every non-topmost window, which
-        parks the player straight on top of whatever the user switched to."""
+        never left stranded on top."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
 
-        calls = self._topmost_calls(runner, "_sink_all_windows")
+        calls = self._topmost_calls(runner, "_remove_all_topmost")
 
-        assert set(sunk) == TOPMOST_HWNDS | {NAU_HWND}
-        assert calls == []
+        assert {h for h, v in calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
 
     def test_restore_all_topmost_floats_nau_in_nau_mode(self, tmp_path):
         """nau mode: Nau reclaims the topmost band, above the desktop."""
@@ -1449,12 +1434,17 @@ class TestHandleOpenFileDialog:
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "enter_omnipause" in dispatched
 
-    def test_sinks_all_managed_windows(self, tmp_path, sunk):
+    def test_removes_topmost_from_all_managed_windows(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
+        topmost_calls = []
+
+        def track_topmost(hwnd, on_top):
+            topmost_calls.append((hwnd, on_top))
+
         exec_returns = iter([
-            [WindowOp(op="sink_all_windows")],
+            [WindowOp(op="disable_all_topmost")],
             [WindowOp(op="restore_all_topmost")],
         ])
 
@@ -1462,12 +1452,13 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        assert set(sunk) == TOPMOST_HWNDS | {NAU_HWND}
+        removed = {h for h, v in topmost_calls if not v}
+        assert removed == TOPMOST_HWNDS | {NAU_HWND}
 
     def test_shows_file_dialog_with_primary_sources_dir(self, tmp_path):
         """Shows our own file dialog with the first primary_sources directory."""
@@ -1551,7 +1542,7 @@ class TestHandleOpenFileDialog:
             topmost_calls.append((hwnd, on_top))
 
         exec_returns = iter([
-            [WindowOp(op="sink_all_windows")],
+            [WindowOp(op="disable_all_topmost")],
             [WindowOp(op="restore_all_topmost")],
         ])
 
@@ -1582,7 +1573,7 @@ class TestHandleOpenFileDialog:
             topmost_calls.append((hwnd, on_top))
 
         exec_returns = iter([
-            [WindowOp(op="sink_all_windows")],
+            [WindowOp(op="disable_all_topmost")],
             [WindowOp(op="restore_all_topmost")],
         ])
 
@@ -1610,7 +1601,7 @@ class TestHandleOpenFileDialog:
         call_log: list[str] = []
 
         exec_returns = iter([
-            [WindowOp(op="sink_all_windows")],
+            [WindowOp(op="disable_all_topmost")],
             [WindowOp(op="restore_all_topmost")],
         ])
 
@@ -1618,16 +1609,16 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.sink_below_all_windows", side_effect=lambda h: call_log.append("sink")), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d, **kw: (call_log.append("dialog"), None)[-1]):
             mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         assert "dialog" in call_log
-        assert call_log.index("sink") < call_log.index("dialog")
+        first_remove = next(i for i, c in enumerate(call_log) if c == "topmost_False")
+        assert first_remove < call_log.index("dialog")
 
-    def test_skips_omnipause_when_already_paused(self, tmp_path, sunk):
+    def test_skips_omnipause_when_already_paused(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
@@ -1639,9 +1630,8 @@ class TestHandleOpenFileDialog:
 
         # Should not dispatch enter/leave omnipause
         mock_dispatch.assert_not_called()
-        # Should not touch the z-order at all — the desktop is already free
+        # Should not touch topmost
         mock_topmost.assert_not_called()
-        assert sunk == []
         # Should still show the file dialog owned by the Nau window
         mock_dialog.assert_called_once_with("", owner_hwnd=NAU_HWND)
 
@@ -1860,20 +1850,23 @@ class TestIdempotentVoiceCommands:
 
         assert runner.state.omni_paused is True
 
-    def test_enter_omnipause_sinks_every_managed_window(self, tmp_path, sunk):
+    def test_enter_omnipause_removes_topmost(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         runner.state = BridgeState(omni_paused=False)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("enter_omnipause", encoding="utf-8")
 
+        topmost_calls: list[tuple[int, bool]] = []
+
         with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        assert set(sunk) == TOPMOST_HWNDS | {NAU_HWND}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
 
     def test_enter_omnipause_noop_when_already_paused(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
