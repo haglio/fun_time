@@ -16,8 +16,12 @@ from pathlib import Path
 # inspect real windows and need real HWNDs, which the offscreen platform cannot give.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import http.client
+
 import pytest
 from PyQt6.QtWidgets import QApplication
+
+from fun_time import vlc_actions
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -25,6 +29,34 @@ def _qapp():
     """Ensure a QApplication instance exists for the test session."""
     app = QApplication.instance() or QApplication([])
     yield app
+
+
+_REAL_HTTP_CONNECTION = http.client.HTTPConnection
+_real_get_pooled_conn = vlc_actions._get_pooled_conn
+
+
+@pytest.fixture(autouse=True)
+def _never_open_a_socket_to_vlc(monkeypatch):
+    """A unit test must never reach a real VLC.
+
+    The suite runs on the same machine as the user's Fun Time, whose two
+    satellites listen on the production HTTP ports.  An unmocked call lands on
+    THEM: `ensure_playback_state` answers a paused VLC with `pl_pause`, and
+    `pl_pause` toggles — so a background test run starts the user's video
+    playing in the middle of their own OmniPause.
+
+    Tests that exercise the HTTP layer itself substitute their own
+    `HTTPConnection`; they are let through, because then no socket is opened.
+    """
+    def _guard(port: int):
+        if vlc_actions.http.client.HTTPConnection is _REAL_HTTP_CONNECTION:
+            raise AssertionError(
+                f"a unit test tried to open a real socket to VLC on port {port} — "
+                "mock the vlc_actions function this call goes through"
+            )
+        return _real_get_pooled_conn(port)
+
+    monkeypatch.setattr(vlc_actions, "_get_pooled_conn", _guard)
 
 
 TMP_ROOT = Path(

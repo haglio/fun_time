@@ -61,6 +61,15 @@ def sunk():
         yield hwnds
 
 
+@pytest.fixture(autouse=True)
+def _no_satellite_sampling():
+    """Every tick() samples both satellites over VLC's HTTP interface.  These
+    tests are about dispatch, not sampling, and a real request would land on
+    whichever VLC happens to own that port on this machine."""
+    with patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=None):
+        yield
+
+
 def lookup_pid(pid):
     return PID_TO_HWND.get(pid, 0)
 
