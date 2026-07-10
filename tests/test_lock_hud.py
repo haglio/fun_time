@@ -12,6 +12,7 @@ from fun_time.lock_hud import (
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
+    primary_sound_label,
 )
 from fun_time.media_metadata import (
     GroupIndex,
@@ -86,6 +87,30 @@ def test_panel_without_a_current_video_has_no_siblings():
     assert panel.seed_siblings == []
 
 
+def test_panel_carries_the_active_filter():
+    index = _index(current=CUR)
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=CUR, index=index, filter_query="beta gamma"
+    )
+
+    assert panel.filter_query == "beta gamma"
+    assert build_hud_panel("portrait", locked=False, current=CUR, index=index).filter_query == ""
+
+
+# --- primary_sound_label ---
+
+
+def test_primary_sound_label_reports_the_level_when_audible():
+    assert primary_sound_label(80, muted=False) == "VOL 80"
+    assert primary_sound_label(0, muted=False) == "VOL 0"
+
+
+def test_primary_sound_label_reports_mute_over_the_level():
+    """A mute leaves the level alone, so the level is meaningless while silenced."""
+    assert primary_sound_label(80, muted=True) == "MUTED"
+
+
 # --- load_hud_app_config ---
 
 
@@ -119,7 +144,7 @@ def test_load_hud_app_config_reads_the_bridge_manifest(tmp_path: Path):
     assert cfg.landscape_sources == "C:/vids/landscape"
     assert cfg.provider_media_root == Path("C:/vids/AI")
     assert cfg.provider_metadata_root == Path("C:/vids/metadata")
-    assert cfg.dashboard_state_file == Path("C:/state/dashboard_state.ini")
+    assert cfg.shared_state_file == manifest.parent / "shared_bridge_state.ini"
     assert cfg.layout.main_monitor == 1
     assert cfg.layout.secondary_monitor == 2
     assert cfg.thumbnail_cache_dir == manifest.parent / "hud_thumbnails"
@@ -205,7 +230,7 @@ def _hud_config(**overrides) -> HudAppConfig:
         portrait_port=8091, landscape_port=8092, vlc_password="",
         portrait_sources="", landscape_sources="",
         provider_media_root=None, provider_metadata_root=None,
-        dashboard_state_file=Path("dashboard_state.ini"),
+        shared_state_file=Path("shared_bridge_state.ini"),
         thumbnail_cache_dir=Path("thumbs"),
     )
     base.update(overrides)
@@ -227,12 +252,15 @@ def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
         config,
         portrait_current=current, landscape_current="",
         portrait_locked=True, landscape_locked=False,
+        portrait_filter="beta gamma", landscape_filter="",
     )
 
     assert portrait.side == "portrait" and portrait.locked is True
     assert portrait.action_siblings == [sibling]
+    assert portrait.filter_query == "beta gamma"
     assert landscape.side == "landscape" and landscape.locked is False
     assert landscape.action_siblings == [] and landscape.seed_siblings == []
+    assert landscape.filter_query == ""
 
 
 # --- panel_thumbnails ---

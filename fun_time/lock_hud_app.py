@@ -18,10 +18,10 @@ from PyQt6.QtCore import Qt, QTimer, QRect
 from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QApplication, QWidget
 
-from shared_ui.colors import BG_PRIMARY, BORDER_PANEL, GREEN, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.colors import AMBER, BG_PRIMARY, BORDER_PANEL, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_TINY, make_font
 
-from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
+from fun_time.command_dispatch import BridgeState
 from fun_time.lock_hud import (
     HudAppConfig,
     HudPanel,
@@ -29,13 +29,15 @@ from fun_time.lock_hud import (
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
+    primary_sound_label,
 )
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.vlc_actions import get_current_file_path
 from fun_time.window_layout import compute_window_layout
+from fun_time.windows_bridge_dispatch_loop import read_shared_state
 
 OVERLAY_WIDTH = 300
-OVERLAY_HEIGHT = 214
+OVERLAY_HEIGHT = 244
 REFRESH_MS = 600
 THUMBS_PER_AXIS = 4
 
@@ -43,6 +45,7 @@ _PAD = 10
 _THUMB_H = 60
 _THUMB_GAP = 6
 _LOCK_BAND_H = 24
+_STATUS_LINE_H = 15
 _ROW_LABEL_H = 16
 
 _HWND_TOPMOST = -1
@@ -70,14 +73,26 @@ def _draw_axis_row(
     return thumb_y + _THUMB_H + 8
 
 
+def _draw_status_line(painter: QPainter, x: int, y: int, text: str, color) -> int:
+    painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
+    painter.setPen(color)
+    painter.drawText(x, y + 10, text)
+    return y + _STATUS_LINE_H
+
+
 def paint_hud(
     painter: QPainter,
     rect: QRect,
     panel: HudPanel,
     seed_thumbs: list[QPixmap],
     action_thumbs: list[QPixmap],
+    sound_label: str = "",
 ) -> None:
-    """Render one satellite's HUD — lock band over seed and action thumbnail rows."""
+    """Render one satellite's HUD.
+
+    Lock band, then the primary display's sound and this satellite's active
+    filter, then the seed and action thumbnail rows.
+    """
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
     background = QColor(BG_PRIMARY)
@@ -97,6 +112,14 @@ def paint_hud(
     painter.setPen(TEXT_PRIMARY if panel.locked else TEXT_MUTED)
     painter.drawText(x + 18, y + 11, panel.lock_label)
     y += _LOCK_BAND_H
+
+    if sound_label:
+        muted = sound_label == "MUTED"
+        y = _draw_status_line(
+            painter, x, y, f"PRIMARY · {sound_label}", AMBER if muted else TEXT_MUTED
+        )
+    if panel.filter_query:
+        y = _draw_status_line(painter, x, y, f"FILTER · {panel.filter_query}", TEXT_PRIMARY)
 
     width = rect.width() - 2 * _PAD
     y = _draw_axis_row(painter, x, y, width, "SEED", len(panel.seed_siblings), seed_thumbs)
@@ -120,6 +143,7 @@ class HudOverlay(QWidget):
         self._panel: HudPanel | None = None
         self._seed_thumbs: list[QPixmap] = []
         self._action_thumbs: list[QPixmap] = []
+        self._sound_label = ""
 
         self.setWindowTitle(f"Fun Time HUD ({side})")
         self.setWindowFlags(
@@ -132,10 +156,17 @@ class HudOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
-    def set_content(self, panel: HudPanel, seed_thumbs: list[QPixmap], action_thumbs: list[QPixmap]) -> None:
+    def set_content(
+        self,
+        panel: HudPanel,
+        seed_thumbs: list[QPixmap],
+        action_thumbs: list[QPixmap],
+        sound_label: str = "",
+    ) -> None:
         self._panel = panel
         self._seed_thumbs = seed_thumbs
         self._action_thumbs = action_thumbs
+        self._sound_label = sound_label
         self.update()
 
     def reassert_topmost(self) -> None:
@@ -154,7 +185,10 @@ class HudOverlay(QWidget):
             return
         painter = QPainter(self)
         try:
-            paint_hud(painter, self.rect(), self._panel, self._seed_thumbs, self._action_thumbs)
+            paint_hud(
+                painter, self.rect(), self._panel,
+                self._seed_thumbs, self._action_thumbs, self._sound_label,
+            )
         finally:
             painter.end()
 
@@ -185,8 +219,10 @@ class LockHud:
         self.refresh()
 
     def refresh(self) -> None:
-        snapshot = load_dashboard_snapshot(self._config.dashboard_state_file)
-        if snapshot is not None and snapshot.omni_paused:
+        # One file carries it all: the locks, each satellite's filter, the
+        # primary display's sound, and whether OmniPause has the floor.
+        state = read_shared_state(self._config.shared_state_file) or BridgeState()
+        if state.omni_paused:
             for overlay in self._overlays.values():
                 overlay.hide()
             return
@@ -197,27 +233,24 @@ class LockHud:
             self._config,
             portrait_current=portrait_current,
             landscape_current=landscape_current,
-            portrait_locked=_side_locked(snapshot, "portrait"),
-            landscape_locked=_side_locked(snapshot, "landscape"),
+            portrait_locked=state.locked2,
+            landscape_locked=state.locked3,
+            portrait_filter=state.portrait_filter,
+            landscape_filter=state.landscape_filter,
         )
-        self._apply("portrait", portrait_panel)
-        self._apply("landscape", landscape_panel)
+        sound_label = primary_sound_label(state.volume, state.muted)
+        self._apply("portrait", portrait_panel, sound_label)
+        self._apply("landscape", landscape_panel, sound_label)
 
-    def _apply(self, side: str, panel: HudPanel) -> None:
+    def _apply(self, side: str, panel: HudPanel, sound_label: str) -> None:
         cache_dir = self._config.thumbnail_cache_dir
         seed = _load_pixmaps(panel_thumbnails(panel.seed_siblings, cache_dir, limit=THUMBS_PER_AXIS))
         action = _load_pixmaps(panel_thumbnails(panel.action_siblings, cache_dir, limit=THUMBS_PER_AXIS))
         overlay = self._overlays[side]
-        overlay.set_content(panel, seed, action)
+        overlay.set_content(panel, seed, action, sound_label)
         if not overlay.isVisible():
             overlay.show()
         overlay.reassert_topmost()
-
-
-def _side_locked(snapshot: DashboardSnapshot | None, side: str) -> bool:
-    if snapshot is None:
-        return False
-    return getattr(snapshot, side).locked
 
 
 def main(argv: list[str] | None = None) -> int:
