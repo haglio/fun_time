@@ -456,12 +456,12 @@ _LOCK_ACTION_SIDES: dict[str, str] = {
 
 
 def _dispatch_group_loop(
-    which: int, axis: str, state: BridgeState, config: BridgeConfig
+    which: int, axis: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Loop the satellite around the current clip's action group or seed family."""
     port = config.portrait_port if which == 2 else config.landscape_port
     ops: list[WindowOp] = []
-    current = get_current_file_path(port, config.vlc_password)
+    current = target_path or get_current_file_path(port, config.vlc_password)
     if not current:
         return state, ops
     index = _satellite_group_index(which, config, current)
@@ -488,13 +488,13 @@ def _dispatch_group_loop(
 
 
 def _dispatch_lock_action(
-    scope: str, state: BridgeState, config: BridgeConfig
+    scope: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Filter the satellite to the current clip's action — "portrait [act]",
     with the act read off the clip instead of spoken."""
     which = 2 if scope == "portrait" else 3
     port = config.portrait_port if which == 2 else config.landscape_port
-    current = get_current_file_path(port, config.vlc_password)
+    current = target_path or get_current_file_path(port, config.vlc_password)
     if not current:
         return state, []
     action = _video_action_label(current, config)
@@ -575,10 +575,12 @@ def dispatch_command(
 
     ``target_path`` names the video a spoken command was aimed at — the one on
     screen when the utterance began, which an auto-advancing satellite may have
-    left behind by the time the phrase was recognized.  The video-scoped
-    satellite actions (lock, weird, cycle) honour it; everything else is either
-    instantaneous or not about a particular video.  Empty means "whatever is
-    playing now", which is how every keyboard and dashboard command arrives.
+    left behind by the time the phrase was recognized.  Every satellite action
+    that is *about a particular video* honours it: lock, weird, cycle, the group
+    loops and lock-action.  Navigation is relative rather than video-scoped, and
+    the rest of the vocabulary names no video at all, so both ignore it.  Empty
+    means "whatever is playing now", which is how every keyboard and dashboard
+    command arrives.
     """
     ops: list[WindowOp] = []
 
@@ -596,11 +598,11 @@ def dispatch_command(
     loop_target = _LOOP_COMMANDS.get(command)
     if loop_target is not None:
         which, axis = loop_target
-        return _dispatch_group_loop(which, axis, state, config)
+        return _dispatch_group_loop(which, axis, state, config, target_path)
 
     lock_action_scope = _LOCK_ACTION_SIDES.get(command)
     if lock_action_scope is not None:
-        return _dispatch_lock_action(lock_action_scope, state, config)
+        return _dispatch_lock_action(lock_action_scope, state, config, target_path)
 
     if command == "portrait_prev":
         state = _cancel_lock(2, state, config)
