@@ -25,7 +25,7 @@ FAKE_MONITORS = [
 ]
 
 CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
-UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
+UI_PIDS = {"dashboard_pid": 50, "lock_hud_pid": 55, "audio_pid": 70}
 GENAU_PID = 60
 NAU_PID = 25
 
@@ -106,6 +106,9 @@ class TestRunStartupSequence:
         assert result.dashboard_pid == 50
         assert result.genau_pid == GENAU_PID
         assert result.audio_pid == 70
+        assert result.lock_hud_pid == 55
+        assert ui_called["lock_hud_module"] == "fun_time.lock_hud_app"
+        assert ui_called["hud_enabled"] is True
 
         assert core_called["password"] == "testpw"
         assert core_called["favs_file"] == str(cfg.paths.favs_file)

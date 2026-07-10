@@ -46,6 +46,7 @@ _CHILD_PID_KEYS = (
     "portrait_pid",
     "landscape_pid",
     "dashboard_pid",
+    "lock_hud_pid",
     "genau_pid",
     "audio_pid",
 )
