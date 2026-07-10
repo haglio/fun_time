@@ -42,7 +42,7 @@ from shared_ui.fonts import (
 from fun_time.config import LayoutConfig
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.vlc_actions import get_current_file_path
-from fun_time.win32 import is_window_topmost, set_always_on_top
+from fun_time.win32 import is_window_topmost, set_always_on_top, sink_below_all_windows
 from fun_time.dashboard_actions import (
     BROKER_PANEL,
     CLIPPER_SAVE,
@@ -1304,10 +1304,18 @@ class DashboardWindow(QMainWindow):
         drift correction — SetWindowPos runs only when the actual band differs
         from the desired one, so a Qt re-assert of the hint is undone on the next
         refresh with no flicker in the steady state.
+
+        While paused it SINKS rather than merely un-topmosting: HWND_NOTOPMOST
+        places a window above every non-topmost window, which would park the
+        dashboard on top of whatever the user switched to.
         """
         desired_topmost = not omni_paused
-        if is_window_topmost(self._dash_hwnd) != desired_topmost:
-            set_always_on_top(self._dash_hwnd, desired_topmost)
+        if is_window_topmost(self._dash_hwnd) == desired_topmost:
+            return
+        if desired_topmost:
+            set_always_on_top(self._dash_hwnd, True)
+        else:
+            sink_below_all_windows(self._dash_hwnd)
 
     def _do_render(
         self,
