@@ -53,6 +53,32 @@ def test_ensure_playback_state_sends_pl_play_from_stopped(monkeypatch):
     assert commands == ["pl_play", "pl_play"], "must use pl_play (not pl_pause) from stopped state"
 
 
+def test_ensure_playback_state_pauses_a_stopped_vlc_that_is_still_loading(monkeypatch):
+    """A VLC reporting 'stopped' may be mid-transition — still loading the item a
+    nav just selected — and starts PLAYING moments later.  Treating stopped as
+    "already not playing" let OmniPause report success without ever pausing the
+    satellite, which then resumed on its own."""
+    states = iter(["stopped", "playing", "paused"])
+    commands: list[str] = []
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: next(states))
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, command, password: commands.append(command) or True)
+
+    assert vlc_actions.ensure_playback_state(8080, "pw", False, sleep_fn=lambda _seconds: None) is True
+    assert commands == ["pl_pause"], "must pause the loading VLC the moment it starts playing"
+
+
+def test_ensure_playback_state_accepts_a_vlc_that_stays_stopped(monkeypatch):
+    """A VLC that stays stopped for the whole settle window is genuinely idle,
+    which satisfies "not playing" — and it must never receive pl_pause, whose
+    toggle semantics would START the item."""
+    commands: list[str] = []
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: "stopped")
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, command, password: commands.append(command) or True)
+
+    assert vlc_actions.ensure_playback_state(8080, "pw", False, sleep_fn=lambda _seconds: None) is True
+    assert commands == [], "pl_pause on a stopped VLC would start it playing"
+
+
 def test_set_repeat_mode_toggles_loop_until_all(monkeypatch):
     modes = iter(["off", "off", "all"])
     commands: list[str] = []

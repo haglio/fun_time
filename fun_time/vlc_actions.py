@@ -192,23 +192,33 @@ def ensure_playback_state(
     sleep_fn=time.sleep,
 ) -> bool:
     target = "playing" if should_play else "paused"
+    last_state: str | None = None
     for _ in range(8):
         state = get_playback_state(port, password)
         if state is None:
             break
+        last_state = state
         if state == target:
             return True
         if state == "stopped":
             if not should_play:
-                # Stopped already satisfies "not playing".  pl_pause on a
-                # stopped VLC STARTS the current item (toggle semantics),
-                # phantom-loading item 1 — never send it from here.
-                return True
+                # "stopped" does NOT yet satisfy "not playing": a VLC reports it
+                # while mid-transition — still loading the item a nav just
+                # selected — and starts PLAYING a moment later.  Returning
+                # success here let OmniPause skip the pause entirely and the
+                # satellite resumed on its own.  We still must never send
+                # pl_pause to a stopped VLC (toggle semantics would START the
+                # item, phantom-loading item 1), so keep watching instead and
+                # pause it the instant it turns playing.
+                sleep_fn(0.12)
+                continue
             vlc_http_cmd(port, "pl_play", password)
         else:
             vlc_http_cmd(port, "pl_pause", password)
         sleep_fn(0.12)
-    return False
+    # A VLC that stayed stopped for the whole settle window is genuinely idle,
+    # which does satisfy "not playing".
+    return not should_play and last_state == "stopped"
 
 
 def set_repeat_mode(
