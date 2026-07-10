@@ -833,7 +833,7 @@ def _dispatch_omnipause_toggle(
             broker_cmd_file=config.broker_cmd_file,
         )
         state = replace(state, omni_paused=result.next_omni_paused)
-        ops.append(WindowOp(op="sink_all_windows"))
+        ops.append(WindowOp(op="disable_all_topmost"))
         ops.append(WindowOp(op="suspend_hotkeys"))
     else:
         result = apply_leave_omnipause(
@@ -874,7 +874,7 @@ def _dispatch_enter_omnipause(
         broker_cmd_file=config.broker_cmd_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
-    ops.append(WindowOp(op="sink_all_windows"))
+    ops.append(WindowOp(op="disable_all_topmost"))
     ops.append(WindowOp(op="suspend_hotkeys"))
     if result.log_message:
         logger.info(result.log_message)

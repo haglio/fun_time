@@ -28,7 +28,6 @@ SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
 HWND_TOPMOST = ctypes.wintypes.HWND(-1)
 HWND_NOTOPMOST = ctypes.wintypes.HWND(-2)
-HWND_BOTTOM = ctypes.wintypes.HWND(1)
 GWL_EXSTYLE = -20
 WS_EX_TOPMOST = 0x00000008
 
@@ -256,19 +255,6 @@ def set_always_on_top(hwnd: int, on_top: bool) -> None:
     insert_after = HWND_TOPMOST if on_top else HWND_NOTOPMOST
     _user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
 
-
-def sink_below_all_windows(hwnd: int) -> None:
-    """Clear a window's topmost flag AND sink it to the bottom of the z-order.
-
-    ``set_always_on_top(hwnd, False)`` uses ``HWND_NOTOPMOST``, which per Win32
-    "places the window above all NON-topmost windows".  So merely un-topmosting a
-    player parks it directly on top of whatever the user switched to — which is
-    exactly what OmniPause must not do.  ``HWND_BOTTOM`` instead "places the
-    window at the bottom of the Z order; if the window is topmost, it loses its
-    topmost status", freeing the desktop completely.  ``SWP_NOACTIVATE`` leaves
-    focus untouched, so AHK's thread input is unaffected.
-    """
-    _user32.SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
 
 
 def is_window_topmost(hwnd: int) -> bool:

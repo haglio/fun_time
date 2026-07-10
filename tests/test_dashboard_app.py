@@ -576,13 +576,10 @@ def test_dashboard_reveals_with_show_after_loading(cfg_path: Path):
 
 
 def test_dashboard_syncs_own_topmost_with_omnipause(cfg_path: Path):
-    """OmniPause must free the desktop, so the dashboard SINKS its own window
+    """OmniPause must free the desktop, so the dashboard drops its OWN topmost
     while paused (via its reliable handle, since the orchestrator's drop of this
-    Qt window is unreliable) and floats it back after — drift-corrected, so it
-    never issues a redundant SetWindowPos.
-
-    Sinking, not un-topmosting: HWND_NOTOPMOST would leave the dashboard above
-    every ordinary window, i.e. still on top of whatever the user switched to."""
+    Qt window is unreliable) and restores it after — drift-corrected, so it
+    never issues a redundant SetWindowPos."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
     app_config = load_dashboard_app_config(manifest_path)
@@ -592,29 +589,23 @@ def test_dashboard_syncs_own_topmost_with_omnipause(cfg_path: Path):
         window = build_dashboard_window(app_config, launch_geometry=launch_geo)
 
     try:
-        # Entering OmniPause while topmost sinks the dashboard below everything.
+        # Entering OmniPause while topmost drops the dashboard out of the band.
         with patch("fun_time.dashboard_app.is_window_topmost", return_value=True), \
-             patch("fun_time.dashboard_app.sink_below_all_windows") as mock_sink, \
              patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
             window._sync_own_topmost(omni_paused=True)
-        mock_sink.assert_called_once_with(window._dash_hwnd)
-        mock_set.assert_not_called()
+        mock_set.assert_called_once_with(window._dash_hwnd, False)
 
         # Leaving OmniPause while non-topmost floats it back on top.
         with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
-             patch("fun_time.dashboard_app.sink_below_all_windows") as mock_sink, \
              patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
             window._sync_own_topmost(omni_paused=False)
         mock_set.assert_called_once_with(window._dash_hwnd, True)
-        mock_sink.assert_not_called()
 
         # Already in the desired band → no redundant SetWindowPos (no flicker).
         with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
-             patch("fun_time.dashboard_app.sink_below_all_windows") as mock_sink, \
              patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
             window._sync_own_topmost(omni_paused=True)
         mock_set.assert_not_called()
-        mock_sink.assert_not_called()
     finally:
         window.close()
 

@@ -16,7 +16,6 @@ from fun_time.win32 import (
     wait_for_window,
     move_window,
     set_always_on_top,
-    sink_below_all_windows,
     is_window_topmost,
     activate_window,
     find_window_by_pid,
@@ -24,7 +23,6 @@ from fun_time.win32 import (
     send_vk_to_window,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
-    HWND_BOTTOM,
     GWL_EXSTYLE,
     WS_EX_TOPMOST,
     SW_MINIMIZE,
@@ -128,28 +126,6 @@ class TestSetAlwaysOnTop:
 
         args = mock.SetWindowPos.call_args[0]
         assert args[1] == HWND_NOTOPMOST
-
-
-class TestSinkBelowAllWindows:
-    """HWND_NOTOPMOST only leaves the topmost band — it still parks the window
-    above every ordinary window.  OmniPause needs the window out of the user's
-    way entirely, which is HWND_BOTTOM."""
-
-    def test_inserts_at_the_bottom_of_the_z_order(self):
-        with patch("fun_time.win32._user32") as mock:
-            sink_below_all_windows(111)
-
-        args = mock.SetWindowPos.call_args[0]
-        assert args[0] == 111
-        assert args[1] == HWND_BOTTOM
-        assert args[1] != HWND_NOTOPMOST
-
-    def test_leaves_focus_and_geometry_untouched(self):
-        with patch("fun_time.win32._user32") as mock:
-            sink_below_all_windows(111)
-
-        flags = mock.SetWindowPos.call_args[0][6]
-        assert flags == SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
 
 
 class TestActivateWindow:
@@ -280,10 +256,5 @@ class TestConstants:
         import ctypes
         assert isinstance(HWND_NOTOPMOST, ctypes.c_void_p)
         assert HWND_NOTOPMOST.value == (2**64 - 2)
-
-    def test_hwnd_bottom_is_pointer_one(self):
-        import ctypes
-        assert isinstance(HWND_BOTTOM, ctypes.c_void_p)
-        assert HWND_BOTTOM.value == 1
 
 
