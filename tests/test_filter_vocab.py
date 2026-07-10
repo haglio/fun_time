@@ -44,6 +44,14 @@ def test_beta_gamma_matches_the_users_example_phrase():
     assert decode_filter_command(voice["portrait beta gamma"]) == ("portrait", "beta gamma")
 
 
+def test_the_acts_evolver_backfills_are_filterable():
+    """Evolver's backfill tool dictates these acts; they must be reachable here."""
+    voice = filter_voice_commands()
+    assert decode_filter_command(voice["zeta"]) == ("both", "zeta")
+    assert decode_filter_command(voice["delta"]) == ("both", "delta")
+    assert decode_filter_command(voice["portrait other"]) == ("portrait", "other")
+
+
 def test_clear_phrases_map_to_clear_commands():
     voice = filter_voice_commands()
     assert voice["clear filter"] == clear_command("both")
