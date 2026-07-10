@@ -21,7 +21,9 @@
     display: none;
     max-width: min(320px, 70vw);
     max-height: 45vh;
-    margin-bottom: 1.2em;
+    /* Revealed as a block box narrower than the text around it, so the
+       container's text-align leaves it flush left; auto margins centre it. */
+    margin: 0 auto 1.2em;
     border-radius: 8px;
     background: #11111b;
   }
