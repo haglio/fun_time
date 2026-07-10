@@ -14,6 +14,13 @@ desktop, so they see the app because pytest shares the hidden desktop.  There is
 silent fall-back: if the desktop can't be opened, ``CreateProcessW`` fails, so a run
 can never leak onto the real screen.
 
+pytest is also placed in a *job object* that this runner alone holds a handle to.
+Windows destroys a job when its last handle closes, and a job with
+``KILL_ON_JOB_CLOSE`` takes its members down with it — so however the run ends, it
+cannot leave a VLC or an AHK behind to poison the next one.  The broker is the sole
+exception: it is a service that outlives the session, and it breaks away (see
+``fun_time.orchestrator_broker.broker_launch_kwargs``).
+
 Usage (default integration command):
 
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop
@@ -53,6 +60,14 @@ STD_INPUT_HANDLE = -10
 STD_OUTPUT_HANDLE = -11
 STD_ERROR_HANDLE = -12
 INFINITE = 0xFFFFFFFF
+CREATE_SUSPENDED = 0x00000004
+
+# Destroying the job terminates every process still in it.  The run's whole
+# process tree — pytest, the orchestrator, VLC, Nau, Genau, AHK — is in it,
+# because a process created by a job member joins that member's job.
+JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
+JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+_JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
 
 
 class _STARTUPINFOW(ctypes.Structure):
@@ -72,6 +87,36 @@ class _PROCESS_INFORMATION(ctypes.Structure):
                 ("dwProcessId", wt.DWORD), ("dwThreadId", wt.DWORD)]
 
 
+class _IO_COUNTERS(ctypes.Structure):
+    _fields_ = [("ReadOperationCount", ctypes.c_ulonglong),
+                ("WriteOperationCount", ctypes.c_ulonglong),
+                ("OtherOperationCount", ctypes.c_ulonglong),
+                ("ReadTransferCount", ctypes.c_ulonglong),
+                ("WriteTransferCount", ctypes.c_ulonglong),
+                ("OtherTransferCount", ctypes.c_ulonglong)]
+
+
+class _JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+    _fields_ = [("PerProcessUserTimeLimit", ctypes.c_longlong),
+                ("PerJobUserTimeLimit", ctypes.c_longlong),
+                ("LimitFlags", wt.DWORD),
+                ("MinimumWorkingSetSize", ctypes.c_size_t),
+                ("MaximumWorkingSetSize", ctypes.c_size_t),
+                ("ActiveProcessLimit", wt.DWORD),
+                ("Affinity", ctypes.POINTER(ctypes.c_ulong)),
+                ("PriorityClass", wt.DWORD),
+                ("SchedulingClass", wt.DWORD)]
+
+
+class _JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+    _fields_ = [("BasicLimitInformation", _JOBOBJECT_BASIC_LIMIT_INFORMATION),
+                ("IoInfo", _IO_COUNTERS),
+                ("ProcessMemoryLimit", ctypes.c_size_t),
+                ("JobMemoryLimit", ctypes.c_size_t),
+                ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+
 _user32.CreateDesktopW.argtypes = [wt.LPCWSTR, wt.LPCWSTR, wt.LPVOID, wt.DWORD, wt.DWORD, wt.LPVOID]
 _user32.CreateDesktopW.restype = wt.HANDLE
 _user32.CloseDesktop.argtypes = [wt.HANDLE]
@@ -88,6 +133,16 @@ _kernel32.GetExitCodeProcess.argtypes = [wt.HANDLE, ctypes.POINTER(wt.DWORD)]
 _kernel32.GetExitCodeProcess.restype = wt.BOOL
 _kernel32.CloseHandle.argtypes = [wt.HANDLE]
 _kernel32.CloseHandle.restype = wt.BOOL
+_kernel32.CreateJobObjectW.argtypes = [wt.LPVOID, wt.LPCWSTR]
+_kernel32.CreateJobObjectW.restype = wt.HANDLE
+_kernel32.SetInformationJobObject.argtypes = [wt.HANDLE, ctypes.c_int, wt.LPVOID, wt.DWORD]
+_kernel32.SetInformationJobObject.restype = wt.BOOL
+_kernel32.AssignProcessToJobObject.argtypes = [wt.HANDLE, wt.HANDLE]
+_kernel32.AssignProcessToJobObject.restype = wt.BOOL
+_kernel32.ResumeThread.argtypes = [wt.HANDLE]
+_kernel32.ResumeThread.restype = wt.DWORD
+_kernel32.TerminateProcess.argtypes = [wt.HANDLE, wt.UINT]
+_kernel32.TerminateProcess.restype = wt.BOOL
 
 UOI_NAME = 2
 _WNDENUMPROC = ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
@@ -141,7 +196,53 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _launch_on_desktop(cmdline: str, desktop: str, cwd: str) -> _PROCESS_INFORMATION:
+def create_run_job() -> int:
+    """A job object that outlives nothing: destroying it kills its members.
+
+    The runner holds the job's only handle, so whichever way the runner ends —
+    a clean exit, a crash, a TerminateProcess — Windows closes that handle,
+    destroys the job, and terminates every process the run still had running.
+    A run therefore cannot strand a VLC (or an AHK, or an orchestrator) for the
+    next run to trip over.
+
+    ``BREAKAWAY_OK`` is what lets the broker opt out with
+    CREATE_BREAKAWAY_FROM_JOB: it is a service that outlives the session that
+    starts it, so it must not be swept up with the run.
+    """
+    job = _kernel32.CreateJobObjectW(None, None)
+    if not job:
+        raise ctypes.WinError(ctypes.get_last_error())
+    info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+    info.BasicLimitInformation.LimitFlags = (
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK
+    )
+    if not _kernel32.SetInformationJobObject(
+        job, _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION, ctypes.byref(info), ctypes.sizeof(info)
+    ):
+        error = ctypes.get_last_error()
+        _kernel32.CloseHandle(job)
+        raise ctypes.WinError(error)
+    return job
+
+
+def close_run_job(job: int) -> None:
+    """Drop the job's last handle, terminating whatever the run left running."""
+    _kernel32.CloseHandle(job)
+
+
+def _close_process_handles(pi: _PROCESS_INFORMATION) -> None:
+    _kernel32.CloseHandle(pi.hProcess)
+    _kernel32.CloseHandle(pi.hThread)
+
+
+def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int) -> _PROCESS_INFORMATION:
+    """Start *cmdline* on *desktop*, inside *job*, and let it run.
+
+    Created suspended so the process is in the job before it can execute a
+    single instruction: a child spawned between CreateProcess and
+    AssignProcessToJobObject would never join the job, and would survive the
+    run.  ``desktop`` of None inherits the caller's desktop.
+    """
     si = _STARTUPINFOW()
     si.cb = ctypes.sizeof(si)
     si.lpDesktop = desktop
@@ -153,15 +254,23 @@ def _launch_on_desktop(cmdline: str, desktop: str, cwd: str) -> _PROCESS_INFORMA
     si.hStdError = _kernel32.GetStdHandle(STD_ERROR_HANDLE)
     pi = _PROCESS_INFORMATION()
     ok = _kernel32.CreateProcessW(None, ctypes.create_unicode_buffer(cmdline), None, None,
-                                  True, 0, None, cwd, ctypes.byref(si), ctypes.byref(pi))
+                                  True, CREATE_SUSPENDED, None, cwd,
+                                  ctypes.byref(si), ctypes.byref(pi))
     if not ok:
         raise ctypes.WinError(ctypes.get_last_error())
+    if not _kernel32.AssignProcessToJobObject(job, pi.hProcess):
+        error = ctypes.get_last_error()
+        _kernel32.TerminateProcess(pi.hProcess, 1)
+        _close_process_handles(pi)
+        raise ctypes.WinError(error)
+    _kernel32.ResumeThread(pi.hThread)
     return pi
 
 
 def run_on_hidden_desktop(extra_args: list[str]) -> int:
     """Create the hidden desktop, run the integration pytest bound to it, and
-    return pytest's exit code.  The desktop handle is closed on the way out."""
+    return pytest's exit code.  The desktop handle is closed on the way out, and
+    the run's job object with it — so nothing the run spawned can survive it."""
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
     hdesk = _user32.CreateDesktopW(HIDDEN_DESKTOP_NAME, None, None, 0, GENERIC_ALL, None)
     if not hdesk:
@@ -170,15 +279,18 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
           f"(off-screen, focus-safe)…", file=sys.stderr, flush=True)
     try:
         cmdline = subprocess.list2cmdline(build_pytest_argv(extra_args))
-        pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()))
+        job = create_run_job()
         try:
-            _kernel32.WaitForSingleObject(pi.hProcess, INFINITE)
-            code = wt.DWORD()
-            _kernel32.GetExitCodeProcess(pi.hProcess, ctypes.byref(code))
-            return int(code.value)
+            pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job)
+            try:
+                _kernel32.WaitForSingleObject(pi.hProcess, INFINITE)
+                code = wt.DWORD()
+                _kernel32.GetExitCodeProcess(pi.hProcess, ctypes.byref(code))
+                return int(code.value)
+            finally:
+                _close_process_handles(pi)
         finally:
-            _kernel32.CloseHandle(pi.hProcess)
-            _kernel32.CloseHandle(pi.hThread)
+            close_run_job(job)
     finally:
         _user32.CloseDesktop(hdesk)
 

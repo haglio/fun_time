@@ -103,7 +103,7 @@ def start_broker(config, logger) -> subprocess.Popen | None:
     return subprocess.Popen(
         command,
         cwd=launcher.parent,
-        **orchestrator_broker.subprocess_window_kwargs(),
+        **orchestrator_broker.broker_launch_kwargs(),
     )
 
 

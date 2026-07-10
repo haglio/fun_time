@@ -27,6 +27,9 @@ from fun_time.windows_bridge_startup import (
 
 
 def test_restart_broker_stops_and_launches_tray(tmp_path: Path):
+    """The tray launches with the broker's own kwargs, not the ordinary
+    hidden-window ones: it has to break away from an integration run's job
+    object and outlive the run."""
     launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
     launcher.parent.mkdir()
     launcher.touch()
@@ -34,7 +37,7 @@ def test_restart_broker_stops_and_launches_tray(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop, \
          patch("fun_time.windows_bridge_startup.time.sleep") as sleep, \
          patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen, \
-         patch("fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}):
+         patch("fun_time.windows_bridge_startup.broker_launch_kwargs", return_value={"creationflags": 1}):
         restart_broker(tmp_path, launcher)
 
     stop.assert_called_once_with(tmp_path)

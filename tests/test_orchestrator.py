@@ -314,13 +314,15 @@ class TestBrokerHelpers:
 
         with patch("fun_time.orchestrator.sys.platform", "win32"), \
              patch("fun_time.orchestrator.subprocess.Popen") as popen, \
-             patch("fun_time.orchestrator.orchestrator_broker.subprocess_window_kwargs", return_value={"creationflags": 1}):
+             patch("fun_time.orchestrator.orchestrator_broker.broker_launch_kwargs", return_value={"creationflags": 1}):
             start_broker(cfg, logger)
 
         popen.assert_called_once()
         command = popen.call_args.args[0]
         assert command == ["wscript.exe", str(launcher)]
         assert popen.call_args.kwargs.get("cwd") == launcher.parent
+        # The broker must outlive an integration run's job object.
+        assert popen.call_args.kwargs.get("creationflags") == 1
 
     def test_start_broker_skips_when_launcher_not_configured(self, cfg_path: Path):
         cfg = load_config(cfg_path)

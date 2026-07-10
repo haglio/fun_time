@@ -11,7 +11,12 @@ from .config import load_config
 from .modes import SatelliteLibraryContext, build_fmode_playlists
 from .watch_stats import watch_stats_path
 from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
-from .orchestrator_broker import BROKER_PROCESS_PATTERN, BROKER_TRAY_PATTERN, subprocess_window_kwargs
+from .orchestrator_broker import (
+    BROKER_PROCESS_PATTERN,
+    BROKER_TRAY_PATTERN,
+    broker_launch_kwargs,
+    subprocess_window_kwargs,
+)
 from .random_favs_browser import build_manifest, write_manifest
 from .rfb_tab_page import write_tab_pages
 
@@ -56,7 +61,7 @@ def restart_broker(project_dir: str | Path, broker_tray_launcher: Path | None = 
         subprocess.Popen(
             ["wscript.exe", str(broker_tray_launcher)],
             cwd=broker_tray_launcher.parent,
-            **subprocess_window_kwargs(),
+            **broker_launch_kwargs(),
         )
 
 
