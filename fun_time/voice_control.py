@@ -13,6 +13,8 @@ from pathlib import Path
 
 from fun_time.voice_commands import VOICE_COMMANDS
 
+logger = logging.getLogger(__name__)
+
 
 def build_grammar() -> str:
     """Build a Vosk grammar JSON string from VOICE_COMMANDS."""
@@ -24,9 +26,13 @@ def build_grammar() -> str:
 def parse_vosk_result(raw_json: str, *, threshold: float) -> str | None:
     """Parse a Vosk recognizer result and return the dispatch command, or None.
 
-    Returns None if the text is empty, unknown, "[unk]", or if the average
-    per-word confidence is below *threshold*.  When Vosk omits confidence
-    data (common in grammar mode), the phrase is accepted.
+    Returns None if the text is empty, unknown, "[unk]", carries no per-word
+    confidences, or scores below *threshold* on average.  Quiet-room noise
+    still lands on a grammar phrase — vosk's grammar restricts the vocabulary
+    rather than requiring speech — but it scores far below a spoken command, so
+    the threshold is the only thing standing between ambient noise and a real
+    dispatch.  An unscored result cannot clear it and is rejected; the listen
+    loop enables ``SetWords`` so every real recognition carries scores.
     """
     data = json.loads(raw_json)
     text = data.get("text", "").strip()
@@ -36,10 +42,12 @@ def parse_vosk_result(raw_json: str, *, threshold: float) -> str | None:
     if command is None:
         return None
     words = data.get("result")
-    if words:
-        avg_conf = sum(w.get("conf", 0) for w in words) / len(words)
-        if avg_conf < threshold:
-            return None
+    if not words:
+        return None
+    avg_conf = sum(w.get("conf", 0) for w in words) / len(words)
+    if avg_conf < threshold:
+        logger.debug("Ignored %r (confidence %.2f < %.2f)", text, avg_conf, threshold)
+        return None
     return command
 
 
@@ -53,8 +61,6 @@ except Exception as _exc:  # optional — voice control silently unavailable
     _VOICE_IMPORT_ERROR = str(_exc)
 
 VOICE_AVAILABLE = vosk is not None and sd is not None
-
-logger = logging.getLogger(__name__)
 
 
 class VoiceController:
@@ -124,6 +130,10 @@ class VoiceController:
             model = vosk.Model(model_name=self.model_path)
             grammar = build_grammar()
             rec = vosk.KaldiRecognizer(model, self.sample_rate, grammar)
+            # Grammar mode reports per-word confidences only when words are
+            # enabled; without them every recognition arrives unscored and the
+            # confidence threshold below can never reject anything.
+            rec.SetWords(True)
             logger.info("Voice control listening (model=%s, rate=%d, device=%s)",
                         self.model_path, self.sample_rate, self.device_index)
 
