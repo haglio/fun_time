@@ -20,10 +20,51 @@ def test_dashboard_preview_layout_uses_monitor_proportions_directly():
         _layout_config(),
     )
 
-    assert layout.main_monitor.width == 279
     assert layout.main_monitor.height == 152
     assert layout.secondary_monitor.width == 157
     assert layout.secondary_monitor.height == 375
+    # The main monitor is stretched horizontally past its true 279px so the left
+    # column can hold the dash box beside the log box — but only by that much.
+    assert 279 <= layout.main_monitor.width <= 279 * 1.25
+
+
+def test_dash_and_log_boxes_split_the_left_column_as_the_windows_do():
+    """The schematic is a map of the real screen, so the drawn dash:log split
+    must match the split the two real windows make of the main monitor's left
+    column."""
+    cfg = _layout_config()
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392), Size(width=1440, height=3440), cfg,
+    )
+
+    real_left_w = 2560 - int(2560 * cfg.landscape_width_ratio)
+    real_log_share = (real_left_w - layout.dashboard_width) / real_left_w
+
+    drawn = layout.log_panel.width
+    drawn_log_share = drawn / (layout.dash_panel.width + drawn)
+
+    assert abs(drawn_log_share - real_log_share) < 0.02
+
+
+def test_log_box_sits_beside_the_dash_box_above_the_rfb():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    dash, log, rfb = layout.dash_panel, layout.log_panel, layout.rfb_panel
+    # Dash and log share a top edge and abut, as the two windows do on screen.
+    assert log.x == dash.x + dash.width
+    assert log.y == dash.y
+    assert log.height == dash.height
+    assert log.width > 0
+    # The RFB starts at their shared bottom edge and spans the whole column.
+    assert rfb.x == dash.x
+    assert rfb.y == dash.y + dash.height
+    assert rfb.width == dash.width + log.width
+    # Together they fill the main monitor's left column, clear of the landscape.
+    assert rfb.x + rfb.width <= layout.landscape_panel.x
 
 
 def test_dashboard_preview_places_osr2_left_of_secondary_stack():
@@ -77,14 +118,14 @@ def test_broker_fmode_voice_chips_match_button_size():
     assert layout.voice_panel.height == layout.quit_button.height
 
 
-def test_help_button_in_status_strip_top_row_third_slot():
+def test_help_button_in_dash_box_top_row_third_slot():
     layout = compute_dashboard_preview_layout(
         Size(width=2560, height=1392),
         Size(width=1440, height=3440),
         _layout_config(),
     )
 
-    strip = layout.main_status_strip
+    strip = layout.dash_panel
     help_b = layout.help_button
     quit_b = layout.quit_button
     omni_b = layout.omnipause_button
@@ -105,43 +146,32 @@ def test_help_button_in_status_strip_top_row_third_slot():
     assert omni_b.x + omni_b.width <= help_b.x
 
 
-def test_status_strip_side_margin_matches_top_margin():
+def test_dash_box_side_margin_matches_top_margin():
     layout = compute_dashboard_preview_layout(
         Size(width=2560, height=1392),
         Size(width=1440, height=3440),
         _layout_config(),
     )
 
-    strip = layout.main_status_strip
+    strip = layout.dash_panel
     btn = layout.quit_button
     side_margin = btn.x - strip.x
     top_margin = btn.y - strip.y
     assert side_margin == top_margin
 
 
-def test_rfb_box_encloses_status_strip():
+def test_dash_box_holds_every_mini_button():
     layout = compute_dashboard_preview_layout(
         Size(width=2560, height=1392),
         Size(width=1440, height=3440),
         _layout_config(),
     )
 
-    rfb = layout.rfb_panel
-    strip = layout.main_status_strip
-
-    # RFB box must fully enclose the status strip
-    assert rfb.x < strip.x
-    assert rfb.y < strip.y
-    assert rfb.x + rfb.width > strip.x + strip.width
-
-    # RFB box must match landscape panel y and height
-    assert rfb.y == layout.landscape_panel.y
-    assert rfb.height == layout.landscape_panel.height
-
-    # Side margins should be equal (status strip centered)
-    left_margin = strip.x - rfb.x
-    right_margin = (rfb.x + rfb.width) - (strip.x + strip.width)
-    assert left_margin == right_margin
+    for rect in (
+        layout.quit_button, layout.omnipause_button, layout.help_button,
+        layout.broker_panel, layout.fmode_panel, layout.voice_panel,
+    ):
+        assert _inside(rect, layout.dash_panel), f"{rect} outside dash box {layout.dash_panel}"
 
 
 def test_primary_shadow_peeks_behind_primary_panel():

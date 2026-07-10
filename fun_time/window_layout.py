@@ -31,6 +31,7 @@ class WindowLayoutPlan:
     portrait: WindowRect
     landscape: WindowRect
     dashboard: WindowRect
+    log_panel: WindowRect
     random_favs_browser: WindowRect
 
 
@@ -62,15 +63,22 @@ def compute_window_layout(
         height=main_monitor.height,
     )
 
-    # The left column stacks the dashboard above the RFB.  The dashboard keeps
-    # its natural size and is centered horizontally within the column; the RFB
-    # then fills the whole rectangle from the dashboard's bottom down to the
-    # monitor's bottom edge, spanning the full column width.
+    # The left column stacks a dashboard+log-panel row above the RFB.  The
+    # dashboard keeps its natural size in the column's top-left corner and the
+    # log panel takes the strip beside it, so the two together span the column
+    # width.  The RFB then fills the whole rectangle from their shared bottom
+    # edge down to the monitor's bottom edge.
     left_width = main_monitor.width - landscape_width
     dashboard = WindowRect(
-        x=main_monitor.x + max(0, (left_width - dashboard_size.width) // 2),
+        x=main_monitor.x,
         y=main_monitor.y,
         width=dashboard_size.width,
+        height=dashboard_size.height,
+    )
+    log_panel = WindowRect(
+        x=dashboard.x + dashboard.width,
+        y=main_monitor.y,
+        width=left_width - dashboard_size.width,
         height=dashboard_size.height,
     )
     random_favs_browser = WindowRect(
@@ -84,6 +92,7 @@ def compute_window_layout(
         portrait=portrait,
         landscape=landscape,
         dashboard=dashboard,
+        log_panel=log_panel,
         random_favs_browser=random_favs_browser,
     )
 

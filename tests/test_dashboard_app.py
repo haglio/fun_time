@@ -152,7 +152,7 @@ def test_dashboard_app_builds_scene_from_preview_layout(cfg_path: Path):
     assert scene.width == preview_layout.dashboard_width
     assert scene.height == preview_layout.dashboard_height
     assert not any(item.text == "Fun Time" for item in scene.texts)
-    assert len(scene.lines) == 1, "Default scene should show cable (one straight line)"
+    assert len(_cable_lines(scene)) == 1, "Default scene should show cable (one straight line)"
 
 
 def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path):
@@ -201,7 +201,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
 
     texts = {item.text for item in scene.texts}
     fills = {item.rect: item.fill for item in scene.rects}
-    assert len(scene.lines) == 1, "Cable should be one straight line"
+    assert len(_cable_lines(scene)) == 1, "Cable should be one straight line"
     assert "Nau" in texts
     assert "Portrait\nAI VLC" in texts
     assert not any(".mp4" in item.text for item in scene.texts)
@@ -873,31 +873,21 @@ def test_dashboard_scene_has_quit_and_omnipause_actions(cfg_path: Path):
     assert "voice_toggle" in action_ids
 
 
-def test_dashboard_scene_quit_and_omnipause_buttons_are_inside_status_strip(cfg_path: Path):
-    config = load_config(cfg_path)
-    preview_layout = compute_dashboard_preview_layout(
-        Size(2560, 1392),
-        Size(1440, 3440),
-        config.layout,
-    )
+def test_dashboard_scene_draws_the_log_box_beside_the_dash_box(cfg_path: Path):
+    layout = _make_layout(cfg_path)
 
-    strip = preview_layout.main_status_strip
-    quit_b = preview_layout.quit_button
-    omni_b = preview_layout.omnipause_button
+    scene = build_dashboard_scene(layout)
 
-    # Both buttons must be fully contained within the status strip
-    assert quit_b.x >= strip.x
-    assert quit_b.y >= strip.y
-    assert quit_b.x + quit_b.width <= strip.x + strip.width
-    assert quit_b.y + quit_b.height <= strip.y + strip.height
-    assert omni_b.x >= strip.x
-    assert omni_b.y >= strip.y
-    assert omni_b.x + omni_b.width <= strip.x + strip.width
-    assert omni_b.y + omni_b.height <= strip.y + strip.height
-    # Quit is left of omnipause
-    assert quit_b.x < omni_b.x
-    # Buttons are above the chip row (broker/fmode)
-    assert quit_b.y + quit_b.height <= preview_layout.broker_panel.y
+    drawn = {item.rect for item in scene.rects}
+    assert layout.dash_panel in drawn
+    assert layout.log_panel in drawn
+    # The log box is inert: ruled lines stand in for text, and it triggers nothing.
+    assert not any(rect == layout.log_panel for _action, rect in scene.actions)
+    log_rules = [
+        line for line in scene.lines
+        if line.points[0][0] == layout.log_panel.x + 4
+    ]
+    assert log_rules, "log box should be drawn with ruled stand-in lines"
 
 
 def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_path: Path):
@@ -1082,6 +1072,10 @@ def _make_layout(cfg_path: Path) -> DashboardPreviewLayout:
     )
 
 
+def _cable_lines(scene) -> list:
+    return [line for line in scene.lines if line.color == COLOR_CABLE]
+
+
 def test_dashboard_scene_cable_is_simple_straight_line(cfg_path: Path):
     layout = _make_layout(cfg_path)
     snapshot = _make_snapshot()
@@ -1089,10 +1083,11 @@ def test_dashboard_scene_cable_is_simple_straight_line(cfg_path: Path):
     scene = build_dashboard_scene(layout, snapshot)
 
     # 1 straight line, 2 endpoint ovals (sockets), 0 arcs
-    assert len(scene.lines) == 1, "Cable: one straight line"
+    cables = _cable_lines(scene)
+    assert len(cables) == 1, "Cable: one straight line"
+    assert len(cables[0].points) == 2
     assert len(scene.ovals) == 2, "2 endpoint sockets"
     assert len(scene.arcs) == 0
-    assert scene.lines[0].color == COLOR_CABLE
 
 
 def test_dashboard_scene_cable_spans_osr2_to_primary(cfg_path: Path):
@@ -1104,8 +1099,9 @@ def test_dashboard_scene_cable_spans_osr2_to_primary(cfg_path: Path):
     osr2_right = layout.osr2_panel.x + layout.osr2_panel.width
     primary_left = layout.primary_panel.x
     # Line starts at OSR2 right edge, ends at Primary left edge
-    assert scene.lines[0].points[0][0] == osr2_right
-    assert scene.lines[0].points[-1][0] == primary_left
+    cable = _cable_lines(scene)[0]
+    assert cable.points[0][0] == osr2_right
+    assert cable.points[-1][0] == primary_left
 
 
 def test_dashboard_scene_genau_activate_has_rect(cfg_path: Path):
@@ -1158,8 +1154,7 @@ def test_dashboard_scene_default_cable_connected_without_snapshot(cfg_path: Path
 
     scene = build_dashboard_scene(layout)
 
-    assert len(scene.lines) == 1, "Default (no snapshot) should show cable"
-    assert scene.lines[0].color == COLOR_CABLE
+    assert len(_cable_lines(scene)) == 1, "Default (no snapshot) should show cable"
 
 
 def test_osr2_highlights_green_when_funscript_playing(cfg_path: Path):
@@ -1783,17 +1778,6 @@ def test_voice_panel_shows_v_label(cfg_path: Path):
     voice_texts = [item for item in scene.texts if item.rect == layout.voice_panel]
     assert len(voice_texts) == 1
     assert voice_texts[0].text == "v"
-
-
-def test_voice_panel_inside_status_strip(cfg_path: Path):
-    layout = _make_layout(cfg_path)
-    strip = layout.main_status_strip
-    voice = layout.voice_panel
-
-    assert voice.x >= strip.x
-    assert voice.y >= strip.y
-    assert voice.x + voice.width <= strip.x + strip.width
-    assert voice.y + voice.height <= strip.y + strip.height
 
 
 def test_voice_panel_has_hover_text(cfg_path: Path):
