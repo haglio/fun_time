@@ -4,8 +4,57 @@ from __future__ import annotations
 import json
 
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
+
+from fun_time import voice_control
 from fun_time.voice_control import VOICE_COMMANDS, VoiceController, build_grammar, parse_vosk_result
+
+
+class _FakeRecognizer:
+    """Records whether the run loop asked vosk for per-word confidences."""
+
+    def __init__(self, model, sample_rate, grammar) -> None:
+        self.words_enabled = False
+
+    def SetWords(self, enable: bool) -> None:  # noqa: N802 — vosk's API
+        self.words_enabled = enable
+
+    def AcceptWaveform(self, data: bytes) -> bool:  # noqa: N802 — vosk's API
+        return False
+
+
+class _NullStream:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc) -> bool:
+        return False
+
+
+@pytest.fixture
+def fake_vosk(monkeypatch):
+    """Stand in for vosk + sounddevice; yields the recognizers ``run`` builds."""
+    built: list[_FakeRecognizer] = []
+
+    def make_recognizer(model, sample_rate, grammar):
+        rec = _FakeRecognizer(model, sample_rate, grammar)
+        built.append(rec)
+        return rec
+
+    monkeypatch.setattr(voice_control, "VOICE_AVAILABLE", True)
+    monkeypatch.setattr(
+        voice_control,
+        "vosk",
+        SimpleNamespace(Model=lambda **kwargs: object(), KaldiRecognizer=make_recognizer),
+    )
+    monkeypatch.setattr(
+        voice_control,
+        "sd",
+        SimpleNamespace(RawInputStream=lambda **kwargs: _NullStream()),
+    )
+    return built
 
 
 class TestVoiceCommands:
@@ -223,9 +272,12 @@ class TestParseVoskResult:
         })
         assert parse_vosk_result(raw, threshold=0.7) is None
 
-    def test_accepts_when_no_confidence_data(self):
+    def test_returns_none_when_confidence_data_is_missing(self):
+        """An unscored recognition cannot clear the threshold, so it is rejected
+        rather than waved through — the loop enables SetWords, so a result with
+        no word data is a recognition we have no evidence for."""
         raw = json.dumps({"text": "pause"})
-        assert parse_vosk_result(raw, threshold=0.7) == "pause"
+        assert parse_vosk_result(raw, threshold=0.7) is None
 
 
 class TestVoiceController:
@@ -273,6 +325,18 @@ class TestVoiceController:
         assert vc.is_muted
         vc.unmute()
         assert not vc.is_muted
+
+    def test_run_asks_vosk_for_word_confidences(self, tmp_path: Path, fake_vosk):
+        """In grammar mode vosk only reports per-word confidences when SetWords
+        is enabled.  Without it every recognition arrives unscored and
+        parse_vosk_result waves it through, so ambient room noise fires real
+        commands — the reference popup opening itself during omnipause."""
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc.stop()  # exit the listen loop as soon as the recognizer is built
+        vc.run()
+
+        assert len(fake_vosk) == 1
+        assert fake_vosk[0].words_enabled is True
 
 
 def test_group_commands_join_the_order_agnostic_grid():
