@@ -16,6 +16,13 @@ from fun_time.voice_commands import VOICE_COMMANDS, format_spoken_command
 
 logger = logging.getLogger(__name__)
 
+# Omnipause suspends the AHK hotkeys wholesale and exempts exactly two: Esc,
+# which resumes, and Ctrl+Alt+Q, which quits (``#SuspendExempt`` in
+# windows_bridge_hotkeys.ahk).  Voice is frozen the same way and exempts the
+# same two actions — "play" resumes, "quit"/"exit" quits.  Nothing else a
+# paused room says (or a paused room's noise says) reaches the dispatch loop.
+SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({"play", "quit"})
+
 
 def build_grammar() -> str:
     """Build a Vosk grammar JSON string from VOICE_COMMANDS."""
@@ -118,6 +125,7 @@ class VoiceController:
         self.sample_rate = sample_rate
         self._stop = threading.Event()
         self._muted = threading.Event()
+        self._suspended = threading.Event()
 
     @property
     def is_muted(self) -> bool:
@@ -132,14 +140,28 @@ class VoiceController:
         """Resume command output."""
         self._muted.clear()
 
+    def suspend(self) -> None:
+        """Freeze voice for the duration of omnipause, save the exempt commands."""
+        self._suspended.set()
+
+    def unsuspend(self) -> None:
+        """Thaw voice when omnipause lifts."""
+        self._suspended.clear()
+
     def _write_command(self, command: str, *, spoken_at: float) -> None:
-        """Append a command to the dashboard command file (no-op when muted).
+        """Append a command to the dashboard command file.
+
+        No-op when muted (the user turned voice off), and — while suspended by
+        omnipause — for everything but the exempt commands.
 
         The line carries *spoken_at* — when the utterance began — so the
         dispatcher can act on the video that was on screen then, not on
         whatever replaced it while the phrase was still being recognized.
         """
         if self._muted.is_set():
+            return
+        if self._suspended.is_set() and command not in SUSPEND_EXEMPT_COMMANDS:
+            logger.debug("Voice suspended by omnipause: ignored %s", command)
             return
         with self.cmd_file.open("a", encoding="utf-8") as f:
             f.write(format_spoken_command(command, spoken_at=spoken_at) + "\n")

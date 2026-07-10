@@ -344,6 +344,8 @@ class DispatchLoopRunner:
             self._batching_rfb = False
         self._flush_rfb_tabs()
 
+        self._sync_voice_suspension()
+
         # Periodic sync: z-order enforcement and dashboard update
         now = time.monotonic()
         if now - self._last_sync >= self.sync_interval_s:
@@ -353,6 +355,22 @@ class DispatchLoopRunner:
         if not self.state.omni_paused and now - self._last_satellite_sample >= self._SATELLITE_SAMPLE_INTERVAL_S:
             self._last_satellite_sample = now
             self._sample_satellites(now=now)
+
+    def _sync_voice_suspension(self) -> None:
+        """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
+
+        The suspend_hotkeys WindowOp only reaches AHK; voice lives in this
+        process, so it is driven off ``omni_paused`` itself — the one authority
+        both the dashboard and the shared state file agree on.  Suspended, only
+        the exempt commands (resume, quit) still write, mirroring the AHK
+        script's ``#SuspendExempt`` block.
+        """
+        if self.voice_controller is None:
+            return
+        if self.state.omni_paused:
+            self.voice_controller.suspend()
+        else:
+            self.voice_controller.unsuspend()
 
     def _sync_hybrid_driver(self) -> None:
         """In hybrid, route the OSR2 to the funscript or Genau, moment to moment.
