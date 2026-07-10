@@ -82,6 +82,61 @@ def _build_unique_result_path(state_dir: Path, prefix: str) -> Path:
     return state_dir / f"{prefix}_{int(time.monotonic() * 1000)}.ini"
 
 
+def _startup_role_hwnds(
+    *,
+    portrait_hwnd: int,
+    landscape_hwnd: int,
+    genau_hwnd: int,
+    nau_hwnd: int,
+    dashboard_hwnd: int = 0,
+    logs_hwnd: int = 0,
+    rfb_hwnd: int = 0,
+) -> dict[str, int]:
+    """The managed windows by role, as resolved at startup."""
+    return {
+        "portrait": portrait_hwnd,
+        "landscape": landscape_hwnd,
+        "genau": genau_hwnd,
+        "nau": nau_hwnd,
+        "dashboard": dashboard_hwnd,
+        "logs": logs_hwnd,
+        "rfb": rfb_hwnd,
+    }
+
+
+def _apply_topmost_bands(role_hwnds: dict[str, int]) -> None:
+    """Give each managed window its topmost flag from the shared ``role_topmost``
+    policy for nau mode — the same policy omnipause and mode switches honor, so
+    they can never disagree.
+
+    Never call this while the loading overlay is up.  ``HWND_TOPMOST`` inserts a
+    window at the *top* of the topmost band, and the overlay is itself topmost,
+    so each promotion draws that window over the overlay until the overlay's next
+    poll re-asserts itself — the flashing the overlay exists to prevent.
+    """
+    for role, hwnd in role_hwnds.items():
+        if hwnd:
+            set_always_on_top(hwnd, role_topmost(role, "nau"))
+
+
+def _apply_primary_slot_visibility(nau_hwnd: int, genau_hwnd: int) -> None:
+    """Park the idle slot-mate for nau startup mode.
+
+    Nau and Genau share the primary rect; the slot swaps by minimizing the idle
+    one (which keeps its taskbar button) and restoring the active one.  Disable
+    both windows' DWM transitions first so those minimize/restores are instant —
+    no visible animation.  Startup mode is nau, so Genau starts minimized.
+
+    Safe behind the loading overlay: minimizing moves no window into the topmost
+    band, so nothing can flash over it.
+    """
+    for hwnd in (nau_hwnd, genau_hwnd):
+        if hwnd:
+            disable_window_transitions(hwnd)
+    if genau_hwnd:
+        minimize_window(genau_hwnd, activate=False)
+
+
 def _apply_startup_window_state(
     *,
     portrait_hwnd: int,
@@ -92,37 +147,23 @@ def _apply_startup_window_state(
     logs_hwnd: int = 0,
     rfb_hwnd: int = 0,
 ) -> dict[str, int]:
-    """Set the window state for the nau startup mode.
+    """Set the full window state for the nau startup mode: bands, then visibility.
 
-    Each managed window gets its topmost flag from the shared ``role_topmost``
-    policy for nau mode — the same policy omnipause and mode switches honor, so
-    they can never disagree.  In nau mode Nau floats topmost (above the desktop,
-    like the primary player always has) alongside every other managed window,
-    and Genau starts hidden — so the Nau/Genau overlap that needs explicit
-    stacking in hybrid does not arise here; the primary slot is simply arbitrated
-    by visibility.
+    Only for callers with no loading overlay on screen — the integration path,
+    which has nothing to hide behind, and ``_fix_post_loading_windows``, which
+    runs after the overlay process has exited.
     """
-    role_hwnds = {
-        "portrait": portrait_hwnd,
-        "landscape": landscape_hwnd,
-        "genau": genau_hwnd,
-        "nau": nau_hwnd,
-        "dashboard": dashboard_hwnd,
-        "logs": logs_hwnd,
-        "rfb": rfb_hwnd,
-    }
-    for role, hwnd in role_hwnds.items():
-        if hwnd:
-            set_always_on_top(hwnd, role_topmost(role, "nau"))
-    # The primary slot swaps Nau/Genau by minimizing the idle one (keeps its
-    # taskbar button) and restoring the active one.  Force-disable both windows'
-    # DWM transitions first so those minimize/restores are instant — no visible
-    # animation.  Startup mode is nau, so Genau starts minimized.
-    for hwnd in (nau_hwnd, genau_hwnd):
-        if hwnd:
-            disable_window_transitions(hwnd)
-    if genau_hwnd:
-        minimize_window(genau_hwnd, activate=False)
+    role_hwnds = _startup_role_hwnds(
+        portrait_hwnd=portrait_hwnd,
+        landscape_hwnd=landscape_hwnd,
+        genau_hwnd=genau_hwnd,
+        nau_hwnd=nau_hwnd,
+        dashboard_hwnd=dashboard_hwnd,
+        logs_hwnd=logs_hwnd,
+        rfb_hwnd=rfb_hwnd,
+    )
+    _apply_topmost_bands(role_hwnds)
+    _apply_primary_slot_visibility(nau_hwnd, genau_hwnd)
     return role_hwnds
 
 
@@ -314,9 +355,12 @@ def run_startup_sequence(
             if hwnd:
                 collected_hwnds.append(hwnd)
 
-        # Apply the startup window state (topmost policy + nau-mode visibility)
-        # now so everything is correct the moment the loading screen closes;
-        # the post-loading fix re-asserts it once the overlay is gone.
+        # Resolve every managed window and park the idle slot-mate.  The topmost
+        # bands are deliberately NOT applied here: the overlay is topmost, and
+        # HWND_TOPMOST inserts above it, so each promotion would flash its window
+        # over the overlay.  _fix_post_loading_windows applies them once the
+        # overlay process has exited.  This is still the last moment the dashboard
+        # and log panel are resolvable, so their handles are captured now.
         dashboard_pid = ui_pids["dashboard_pid"]
         dash_hwnd = 0
         logs_hwnd = 0
@@ -337,7 +381,7 @@ def run_startup_sequence(
                 LOG_PANEL_WINDOW_TITLE, timeout_s=5.0, exact=True, include_hidden=True
             )
 
-        role_hwnds = _apply_startup_window_state(
+        role_hwnds = _startup_role_hwnds(
             rfb_hwnd=rfb_hwnd,
             portrait_hwnd=find_window_by_pid(portrait_pid),
             landscape_hwnd=find_window_by_pid(landscape_pid),
@@ -347,7 +391,8 @@ def run_startup_sequence(
             dashboard_hwnd=dash_hwnd,
             logs_hwnd=logs_hwnd,
         )
-        logger.info("Startup window state applied")
+        _apply_primary_slot_visibility(role_hwnds["nau"], role_hwnds["genau"])
+        logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
 
         progress.advance("Finalizing...")
 
