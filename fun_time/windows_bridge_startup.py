@@ -243,6 +243,8 @@ def launch_ui_companions(
     python_exe: str | Path,
     dashboard_module: str,
     dashboard_enabled: bool,
+    lock_hud_module: str,
+    hud_enabled: bool,
     windows_bridge_manifest_path: str | Path,
     dashboard_x: int,
     dashboard_y: int,
@@ -303,6 +305,17 @@ def launch_ui_companions(
         )
         dashboard_pid = dashboard_proc.pid
 
+    # The HUD self-positions over each satellite from the same manifest, so it
+    # only needs the manifest path.  It rides the dashboard's enable gate, so a
+    # dashboard-less integration run stays free of always-on-top overlays.
+    lock_hud_pid = 0
+    if hud_enabled:
+        lock_hud_proc = subprocess.Popen(
+            [python_exe, "-m", lock_hud_module, windows_bridge_manifest_path],
+            **subprocess_window_kwargs(),
+        )
+        lock_hud_pid = lock_hud_proc.pid
+
     audio_proc = subprocess.Popen(
         [
             python_exe,
@@ -320,6 +333,7 @@ def launch_ui_companions(
         result_file,
         {
             "dashboard_pid": dashboard_pid,
+            "lock_hud_pid": lock_hud_pid,
             "audio_pid": audio_proc.pid,
         },
     )

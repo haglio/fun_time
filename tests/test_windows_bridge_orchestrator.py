@@ -115,6 +115,21 @@ class TestIdentifyChildren:
 
         assert children["nau_pid"] == ChildProcess(pid=200, created_at=0)
 
+    def test_records_the_lock_hud_so_teardown_can_kill_it(self):
+        """The HUD is an always-on-top overlay — it must never outlive the session."""
+        result = StartupResult(
+            nau_pid=200, portrait_pid=300, landscape_pid=400,
+            dashboard_pid=500, genau_pid=600, audio_pid=700,
+            lock_hud_pid=555, layout_plan=_fake_plan(),
+        )
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            side_effect=lambda pid: pid * 10,
+        ):
+            children = identify_children(result)
+
+        assert children["lock_hud_pid"] == ChildProcess(pid=555, created_at=5550)
+
 
 class TestShutdownChildren:
     def test_closes_rfb_window(self):

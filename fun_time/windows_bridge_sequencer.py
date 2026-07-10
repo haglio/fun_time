@@ -53,6 +53,9 @@ class StartupResult:
     genau_pid: int
     audio_pid: int
     layout_plan: WindowLayoutPlan
+    # Defaulted so existing constructors need not pass it; 0 means "not launched"
+    # (HUD disabled / integration), which kill_process_tree treats as a no-op.
+    lock_hud_pid: int = 0
     core_hwnds: list[int] = field(default_factory=list)
     rfb_hwnd: int = 0
     # HWNDs resolved while every window was still visible; the dispatch
@@ -261,6 +264,10 @@ def run_startup_sequence(
         python_exe=m["executables"]["python_exe"],
         dashboard_module=m["modules"]["dashboard_module"],
         dashboard_enabled=dashboard_enabled,
+        lock_hud_module=m["modules"]["lock_hud_module"],
+        # The HUD rides the dashboard's enable gate so integration's
+        # FUN_TIME_DISABLE_DASHBOARD keeps both always-on-top overlays off.
+        hud_enabled=dashboard_enabled,
         windows_bridge_manifest_path=str(manifest_path),
         dashboard_x=plan.dashboard.x,
         dashboard_y=plan.dashboard.y,
@@ -357,6 +364,7 @@ def run_startup_sequence(
         dashboard_pid=ui_pids["dashboard_pid"],
         genau_pid=genau_pid,
         audio_pid=ui_pids["audio_pid"],
+        lock_hud_pid=ui_pids.get("lock_hud_pid", 0),
         layout_plan=plan,
         core_hwnds=collected_hwnds,
         role_hwnds=role_hwnds,
