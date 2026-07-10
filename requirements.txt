@@ -1,6 +1,7 @@
 # Mirrors pyproject.toml — keep both in sync (tests/test_requirements_in_sync.py).
 
 # Runtime (pyproject [project.dependencies])
+opencv-python
 pillow
 pygame-ce
 PyQt6
