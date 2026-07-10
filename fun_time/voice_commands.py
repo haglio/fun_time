@@ -105,18 +105,21 @@ for _act_word, _act in _SATELLITE_ACTIONS.items():
 # other acts; "seed loop" the same act under its other seeds; both are repeat-all
 # over that group (a lock, by contrast, is repeat-one over a single clip).
 # "lock action" filters the satellite to the current clip's action — it is
-# "portrait <act>" with the act read off the clip instead of spoken.
-_SATELLITE_GROUP_ACTIONS: dict[str, str] = {
-    "action loop": "action_loop",
-    "seed loop": "seed_loop",
-    "lock action": "lock_action",
+# "portrait <act>" with the act read off the clip instead of spoken.  Each
+# command's own two words are order-agnostic too ("loop action" == "action
+# loop"), so a speaker never has to remember which word leads.
+_SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
+    "action_loop": ("action loop", "loop action"),
+    "seed_loop": ("seed loop", "loop seed"),
+    "lock_action": ("lock action", "action lock"),
 }
-for _group_word, _group_act in _SATELLITE_GROUP_ACTIONS.items():
-    VOICE_COMMANDS[_group_word] = f"active_{_group_act}"
-    for _side in ("portrait", "landscape", "both"):
-        _sided = f"{_side}_{_group_act}"
-        VOICE_COMMANDS[f"{_side} {_group_word}"] = _sided
-        VOICE_COMMANDS[f"{_group_word} {_side}"] = _sided
+for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
+    for _group_word in _group_words:
+        VOICE_COMMANDS[_group_word] = f"active_{_group_act}"
+        for _side in ("portrait", "landscape", "both"):
+            _sided = f"{_side}_{_group_act}"
+            VOICE_COMMANDS[f"{_side} {_group_word}"] = _sided
+            VOICE_COMMANDS[f"{_group_word} {_side}"] = _sided
 
 # The primary (Nau) player joins the grid for navigation ONLY — "primary next"
 # / "next primary" (either order) — since it has no lock/weird/cycle.  "main" is
