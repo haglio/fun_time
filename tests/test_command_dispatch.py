@@ -353,6 +353,7 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
         patch("fun_time.command_dispatch.remove_from_favs"),
         patch("fun_time.command_dispatch.move_to_weird"),
         patch("fun_time.command_dispatch.vlc_advance_and_remove", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
     ):
         new_state, ops = dispatch_command("portrait_trash", state, config)
 
@@ -396,6 +397,7 @@ def test_portrait_trash_uses_advance_and_remove_not_pl_next(tmp_path: Path):
               side_effect=lambda p, pw: advance_calls.append((p, pw)) or True),
         patch("fun_time.command_dispatch.vlc_http_cmd",
               side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
     ):
         dispatch_command("portrait_trash", state, config)
 
@@ -411,7 +413,11 @@ def test_portrait_prev_cancels_lock_and_calls_nav_step_prev(tmp_path: Path):
     state = _make_state(locked2=True)
     nav_calls: list[tuple] = []
 
-    with patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
+    with (
+        patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
         new_state, ops = dispatch_command("portrait_prev", state, config)
 
     assert new_state.locked2 is False
@@ -423,7 +429,10 @@ def test_portrait_next_calls_nav_step_next(tmp_path: Path):
     state = _make_state(locked2=False)
     nav_calls: list[tuple] = []
 
-    with patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
+    with (
+        patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
         dispatch_command("portrait_next", state, config)
 
     assert nav_calls == [(8091, "next")]
@@ -574,7 +583,11 @@ def test_landscape_prev_cancels_lock_and_calls_nav_step_prev(tmp_path: Path):
     state = _make_state(locked3=True)
     nav_calls: list[tuple] = []
 
-    with patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
+    with (
+        patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
         new_state, ops = dispatch_command("landscape_prev", state, config)
 
     assert new_state.locked3 is False

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from PyQt6.QtGui import QColor
 
 from fun_time.manifest import write_windows_bridge_manifest
@@ -35,6 +36,17 @@ from fun_time.dashboard_app import (
 from fun_time.dashboard_runtime import DashboardPanelSnapshot, DashboardSnapshot, DashboardWindowSnapshot, NauStatus
 from fun_time.dashboard_layout import DashboardPreviewLayout, Size, compute_dashboard_preview_layout
 from fun_time import load_config
+
+
+@pytest.fixture(autouse=True)
+def _silence_the_background_vlc_poller():
+    """``build_dashboard_window`` starts a daemon thread that polls both
+    satellites over VLC's HTTP interface every 0.5s.  Left live, it reaches
+    whichever VLC owns those ports on this machine — the user's, when they have
+    Fun Time open.  The tests that exercise ``poll_vlc`` call the function object
+    they imported, so they still run the real one."""
+    with patch("fun_time.dashboard_app.poll_vlc", return_value=VlcHydration()):
+        yield
 
 
 def test_dashboard_app_loads_layout_from_manifest(cfg_path: Path, tmp_path: Path):

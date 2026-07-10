@@ -39,6 +39,17 @@ def _announce_waiting(seconds: float) -> None:
         stream.flush()
 
 
+@pytest.fixture(autouse=True)
+def _never_open_a_socket_to_vlc():
+    """Override the unit suite's socket guard.
+
+    These tests launch their own VLC on the hidden desktop and must speak to it
+    over HTTP for real.  They cannot reach the user's VLC because
+    ``live_session_guard`` refuses to start a run while Fun Time is open.
+    """
+    yield
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _serialize_integration_runs():
     """Hold one machine-wide lock for the entire integration run.
