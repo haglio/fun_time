@@ -35,7 +35,9 @@ from .win32 import (
     close_window,
     find_window_by_pid,
     get_process_creation_time,
+    iter_zorder,
     wait_for_window_by_title,
+    windows_obscuring,
 )
 
 logger = logging.getLogger(__name__)
@@ -217,6 +219,28 @@ def _open_event_log(state_dir: Path) -> None:
     logging.getLogger("fun_time").setLevel(logging.DEBUG)
 
 
+def _log_nau_obstruction(nau_hwnd: int) -> None:
+    """Record which windows, if any, cover Nau once the bands are re-applied.
+
+    The topmost flag reads ``True`` here, yet Nau can still be reported "not on
+    top" — a window may carry WS_EX_TOPMOST and remain buried under another
+    overlapping window (a user's own always-on-top app, or a promotion-order
+    slip).  ``is_window_topmost`` cannot see that; only the real z-order can, so
+    this walks it and names the covering window instead of guessing.
+    """
+    if not nau_hwnd:
+        logger.warning("Nau window unresolved after loading; cannot check z-order")
+        return
+    covering = windows_obscuring(nau_hwnd, iter_zorder())
+    if covering:
+        desc = "; ".join(
+            f"{w.title!r} hwnd={w.hwnd} topmost={w.topmost} rect={w.rect}" for w in covering
+        )
+        logger.warning("Nau (hwnd=%d) is covered at startup by: %s", nau_hwnd, desc)
+    else:
+        logger.info("Nau (hwnd=%d) is frontmost over its rect at startup", nau_hwnd)
+
+
 def _fix_post_loading_windows(result: StartupResult) -> None:
     """Re-assert the topmost policy + nau-mode visibility after the loading
     screen overlay is destroyed (its teardown can shuffle activation, and
@@ -229,17 +253,20 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
             dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0, exact=True)
         logs_hwnd = wait_for_window_by_title(LOG_PANEL_WINDOW_TITLE, timeout_s=3.0, exact=True)
 
+    nau_hwnd = find_window_by_pid(result.nau_pid) or wait_for_window_by_title(
+        "Nau", timeout_s=3.0, exact=True
+    )
     _apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=find_window_by_pid(result.portrait_pid),
         landscape_hwnd=find_window_by_pid(result.landscape_pid),
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
-        nau_hwnd=find_window_by_pid(result.nau_pid)
-        or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
+        nau_hwnd=nau_hwnd,
         dashboard_hwnd=dash_hwnd,
         logs_hwnd=logs_hwnd,
     )
     logger.info("Post-loading window state corrected")
+    _log_nau_obstruction(nau_hwnd)
 
 
 def run_python_orchestrated_bridge(

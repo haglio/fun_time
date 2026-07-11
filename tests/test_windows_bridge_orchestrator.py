@@ -10,6 +10,7 @@ from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
+    _log_nau_obstruction,
     _open_event_log,
     _shutdown_children,
     identify_children,
@@ -18,6 +19,7 @@ from fun_time.windows_bridge_orchestrator import (
     write_pids_file,
     run_python_orchestrated_bridge,
 )
+from fun_time.win32 import StackedWindow
 from fun_time.windows_bridge_sequencer import StartupResult
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 
@@ -478,6 +480,7 @@ class TestPostLoadingWindowState:
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
              patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **kw: hide_calls.append(h)), \
              patch("fun_time.windows_bridge_sequencer.disable_window_transitions"), \
+             patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)):
 
             run_python_orchestrated_bridge(
@@ -498,6 +501,40 @@ class TestPostLoadingWindowState:
         assert {DASH_HWND, GENAU_HWND, 2020, 3030, 4040, 55555} <= promoted, (
             f"Wrong promotions: {topmost_calls}"
         )
+
+
+class TestNauObstructionLog:
+    """After the bands are re-applied, the orchestrator walks the real z-order
+    and names whatever still covers Nau — the diagnostic that turns a "Nau isn't
+    on top" report into the exact culprit window, since the topmost flag alone
+    reads True even when Nau is buried."""
+
+    def test_names_the_window_covering_nau(self, caplog):
+        stack = [
+            StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
+            StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900)),
+        ]
+        with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
+             caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
+            _log_nau_obstruction(2020)
+        assert "covered at startup" in caplog.text
+        assert "Claude" in caplog.text
+        assert "topmost=False" in caplog.text  # a non-topmost window over topmost Nau
+
+    def test_quiet_when_nau_is_frontmost(self, caplog):
+        stack = [StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900))]
+        with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
+             caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
+            _log_nau_obstruction(2020)
+        assert "frontmost over its rect" in caplog.text
+        assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
+
+    def test_warns_when_nau_unresolved(self, caplog):
+        with patch("fun_time.windows_bridge_orchestrator.iter_zorder") as it, \
+             caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
+            _log_nau_obstruction(0)
+        it.assert_not_called()  # nothing to walk if Nau never resolved
+        assert "unresolved" in caplog.text
 
 
 class TestVoiceControlIntegration:

@@ -9,6 +9,8 @@ from unittest.mock import patch
 import pytest
 
 from fun_time.win32 import (
+    StackedWindow,
+    windows_obscuring,
     close_window,
     get_process_creation_time,
     get_process_image_name,
@@ -243,6 +245,53 @@ class TestIsProcessAlive:
         proc.wait()
 
         assert is_process_alive(proc.pid) is False
+
+
+class TestWindowsObscuring:
+    """The pure z-order analysis behind the startup 'what's covering Nau' log.
+
+    Given the visible windows front-to-back and a target hwnd, report which
+    windows sit ABOVE the target AND overlap its rect — the ones actually
+    hiding it.  A topmost flag alone can't answer this (a window can carry
+    WS_EX_TOPMOST yet be buried under another overlapping topmost window), so
+    the diagnostic walks the real stacking order instead.
+    """
+
+    @staticmethod
+    def _w(hwnd, rect, *, topmost=False, title="w"):
+        return StackedWindow(hwnd=hwnd, title=title, topmost=topmost, rect=rect)
+
+    def test_frontmost_target_is_unobscured(self):
+        nau = self._w(1, (0, 0, 100, 100))
+        below = self._w(2, (0, 0, 100, 100))
+        assert windows_obscuring(1, [nau, below]) == []
+
+    def test_overlapping_window_above_is_reported(self):
+        cover = self._w(9, (50, 50, 100, 100))
+        nau = self._w(1, (0, 0, 100, 100))
+        assert windows_obscuring(1, [cover, nau]) == [cover]
+
+    def test_non_overlapping_window_above_is_ignored(self):
+        # A window on another monitor sits above Nau in the topmost band but
+        # never covers it — dashboard/logs/rfb are exactly this case.
+        elsewhere = self._w(9, (5000, 0, 100, 100))
+        nau = self._w(1, (0, 0, 100, 100))
+        assert windows_obscuring(1, [elsewhere, nau]) == []
+
+    def test_overlapping_window_below_is_ignored(self):
+        nau = self._w(1, (0, 0, 100, 100))
+        under = self._w(2, (0, 0, 100, 100))
+        assert windows_obscuring(1, [nau, under]) == []
+
+    def test_target_absent_reports_nothing(self):
+        assert windows_obscuring(1, [self._w(2, (0, 0, 100, 100))]) == []
+
+    def test_edge_touching_rects_do_not_count_as_overlap(self):
+        # Nau's rect starts exactly where the portrait satellite's ends; a
+        # shared edge is not coverage.
+        adjacent = self._w(9, (0, 0, 100, 100))
+        nau = self._w(1, (100, 0, 100, 100))
+        assert windows_obscuring(1, [adjacent, nau]) == []
 
 
 class TestConstants:

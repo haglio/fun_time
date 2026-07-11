@@ -9,6 +9,7 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes
 import time
+from dataclasses import dataclass
 
 _user32 = ctypes.windll.user32  # type: ignore[attr-defined]
 _ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
@@ -30,6 +31,7 @@ HWND_TOPMOST = ctypes.wintypes.HWND(-1)
 HWND_NOTOPMOST = ctypes.wintypes.HWND(-2)
 GWL_EXSTYLE = -20
 WS_EX_TOPMOST = 0x00000008
+GW_HWNDNEXT = 2  # next window DOWN the z-order (GetWindow relationship)
 
 # Declare argtypes so ctypes passes HWND parameters as 64-bit pointers.
 # Without this, ctypes defaults to c_int (32-bit) for Python ints, which
@@ -261,6 +263,79 @@ def is_window_topmost(hwnd: int) -> bool:
     """Check whether a window has the WS_EX_TOPMOST extended style."""
     ex_style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
     return bool(ex_style & WS_EX_TOPMOST)
+
+
+@dataclass(frozen=True)
+class StackedWindow:
+    """A visible top-level window, as seen while walking the z-order."""
+
+    hwnd: int
+    title: str
+    topmost: bool
+    rect: tuple[int, int, int, int]  # x, y, width, height (screen coords)
+
+
+def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    """Whether two (x, y, w, h) rectangles share any interior area.
+
+    A shared edge (touching but not crossing) is not overlap — the portrait
+    satellite's bottom edge meets Nau's top edge, and that abutment must not
+    read as coverage.
+    """
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
+
+
+def windows_obscuring(
+    target_hwnd: int, stack: list[StackedWindow]
+) -> list[StackedWindow]:
+    """Windows in *stack* (ordered front-to-back) that cover *target_hwnd*.
+
+    A window covers the target when it sits ABOVE it in the z-order and its
+    rect overlaps the target's.  Returns [] when the target is frontmost over
+    its own rect, or is absent from the stack.
+
+    This is what ``is_window_topmost`` cannot tell you: a window may carry the
+    topmost flag yet still be buried under another overlapping window that was
+    promoted after it.  Only the real stacking order answers "is Nau visible."
+    """
+    idx = next((i for i, w in enumerate(stack) if w.hwnd == target_hwnd), None)
+    if idx is None:
+        return []
+    target_rect = stack[idx].rect
+    return [w for w in stack[:idx] if _rects_overlap(w.rect, target_rect)]
+
+
+def iter_zorder() -> list[StackedWindow]:
+    """Every visible, titled, non-minimized top-level window, front-to-back.
+
+    Walks ``GetTopWindow`` + ``GW_HWNDNEXT`` — the real stacking order — rather
+    than ``EnumWindows`` (whose order is unspecified).  Untitled and minimized
+    windows are skipped: they never visibly cover another window, and the title
+    filter drops the sea of internal/system surfaces so the result stays legible
+    in a log line.
+    """
+    out: list[StackedWindow] = []
+    hwnd = _user32.GetTopWindow(0)
+    while hwnd:
+        if _user32.IsWindowVisible(hwnd) and not _user32.IsIconic(hwnd):
+            length = _user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                buf = ctypes.create_unicode_buffer(length + 1)
+                _user32.GetWindowTextW(hwnd, buf, length + 1)
+                rect = ctypes.wintypes.RECT()
+                _user32.GetWindowRect(hwnd, ctypes.byref(rect))
+                out.append(
+                    StackedWindow(
+                        hwnd=hwnd,
+                        title=buf.value,
+                        topmost=is_window_topmost(hwnd),
+                        rect=(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top),
+                    )
+                )
+        hwnd = _user32.GetWindow(hwnd, GW_HWNDNEXT)
+    return out
 
 
 def activate_window(hwnd: int) -> None:
