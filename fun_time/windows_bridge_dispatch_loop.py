@@ -21,7 +21,7 @@ from .modes import build_mirrored_funscript_path
 from .video_timeline import VideoTimeline
 from .vlc_actions import get_current_file_path, get_playback_fraction
 from .voice_commands import parse_command_line
-from .watch_stats import SatelliteWatchTracker, record_watch_event, watch_stats_path
+from .watch_stats import WatchTracker, record_watch_event, watch_stats_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
@@ -291,9 +291,9 @@ class DispatchLoopRunner:
         # completions/skips for the stats file, and a timeline that lets a spoken
         # command be back-dated to the video that was on screen when the user
         # started talking (see _back_dated_video).
-        self._watch_trackers: dict[int, SatelliteWatchTracker] = {
-            2: SatelliteWatchTracker(),
-            3: SatelliteWatchTracker(),
+        self._watch_trackers: dict[int, WatchTracker] = {
+            2: WatchTracker(),
+            3: WatchTracker(),
         }
         self._timelines: dict[int, VideoTimeline] = {2: VideoTimeline(), 3: VideoTimeline()}
         self._satellite_ports = {2: config.portrait_port, 3: config.landscape_port}

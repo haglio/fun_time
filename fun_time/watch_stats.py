@@ -89,15 +89,16 @@ def passes_inclusion(weight: float, rng: random.Random) -> bool:
     return weight >= 1.0 or rng.random() < weight
 
 
-class SatelliteWatchTracker:
-    """Classify one satellite's playback into completions and skips.
+class WatchTracker:
+    """Classify one player's playback into completions and skips.
 
-    Fed with periodic (path, position-fraction) samples plus notifications of
-    user navigation and discards, it emits ("completion" | "skip", path)
-    events: a video that reached ~the end counts as watched (each repeat-one
-    wrap while locked counts again); a video the user navigated away from
-    early counts as skipped; anything else — e.g. the automatic advance on
-    unlock or discard — is neutral.
+    Player-agnostic: the same tracker serves a satellite VLC and the primary
+    Nau player.  Fed with periodic (path, position-fraction) samples plus
+    notifications of user navigation and discards, it emits
+    ("completion" | "skip", path) events: a video that reached ~the end counts
+    as watched (each repeat-one wrap while locked counts again); a video the
+    user navigated away from early counts as skipped; anything else — e.g. the
+    automatic advance on unlock or discard — is neutral.
     """
 
     COMPLETE_FRACTION = 0.85
