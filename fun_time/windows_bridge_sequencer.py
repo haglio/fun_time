@@ -256,6 +256,7 @@ def run_startup_sequence(
         nau_y=primary_media_rect.y,
         nau_width=primary_media_rect.width,
         nau_height=primary_media_rect.height,
+        metadata_dir=provider_metadata_raw or None,
     )
 
     # --- Phase 2: Compute window layout ---

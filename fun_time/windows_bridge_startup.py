@@ -208,6 +208,7 @@ def launch_nau(
     nau_y: int,
     nau_width: int,
     nau_height: int,
+    metadata_dir: str | Path | None = None,
 ) -> int:
     """Launch Nau subprocess, returning its PID."""
     cmd = [
@@ -233,6 +234,10 @@ def launch_nau(
         "--height",
         str(nau_height),
     ]
+    # Lets Nau group a video's versions from Evolver's metadata sidecars rather
+    # than guessing from clip names.
+    if metadata_dir:
+        cmd += ["--metadata-dir", str(metadata_dir)]
     proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
     return proc.pid
 

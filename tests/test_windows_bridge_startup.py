@@ -316,6 +316,43 @@ def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
     assert command[idx + 1] == "state/genau_paused.txt"
 
 
+def test_launch_nau_forwards_metadata_dir_when_given(tmp_path: Path):
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        launch_nau(
+            python_exe="python.exe", nau_module="nau", config_path="cfg.json",
+            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+            status_file="status", nau_x=0, nau_y=0, nau_width=100, nau_height=100,
+            metadata_dir="C:/videos/metadata",
+        )
+
+    command = popen.call_args.args[0]
+    assert "--metadata-dir" in command
+    assert command[command.index("--metadata-dir") + 1] == "C:/videos/metadata"
+
+
+def test_launch_nau_omits_metadata_dir_when_absent(tmp_path: Path):
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        launch_nau(
+            python_exe="python.exe", nau_module="nau", config_path="cfg.json",
+            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+            status_file="status", nau_x=0, nau_y=0, nau_width=100, nau_height=100,
+        )
+
+    assert "--metadata-dir" not in popen.call_args.args[0]
+
+
 def test_launch_genau_passes_fun_time_flag(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
