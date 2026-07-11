@@ -117,7 +117,7 @@ def _setup(tmp_path: Path, orient: str, name: str, meta: dict) -> tuple[Path, Pa
     media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
     metadata_root = tmp_path / "videos" / "metadata"
     video = media_root / "2_outbox" / "upscaled_by_orientation" / orient / "provider" / name
-    meta_file = metadata_path_for(video, media_root, metadata_root)
+    meta_file = metadata_path_for(video, metadata_root)
     meta_file.parent.mkdir(parents=True, exist_ok=True)
     meta_file.write_text(json.dumps(meta), encoding="utf-8")
     video.parent.mkdir(parents=True, exist_ok=True)
@@ -129,7 +129,7 @@ def test_regen_url_for_video_returns_image_url_for_source_image(tmp_path: Path):
     media_root, metadata_root, video = _setup(tmp_path, "portrait", "abc_topaz.mp4", IMAGE_META)
 
     url = regen_url_for_video(
-        video, media_root=media_root, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
+        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
     )
 
     assert url.startswith(IMAGE_URL + "#ft=")
@@ -140,7 +140,7 @@ def test_regen_url_for_video_returns_empty_for_non_provider(tmp_path: Path):
     provider2 = media_root / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider2" / "x.mp4"
 
     url = regen_url_for_video(
-        provider2, media_root=media_root, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
+        provider2, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
     )
 
     assert url == ""
@@ -154,7 +154,7 @@ def test_regen_url_for_video_returns_empty_when_metadata_absent(tmp_path: Path):
     video.write_text("x", encoding="utf-8")
 
     url = regen_url_for_video(
-        video, media_root=media_root, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
+        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
     )
 
     assert url == ""

@@ -76,21 +76,21 @@ def test_metadata_path_mirrors_media_tree_under_metadata_root(tmp_path: Path):
     metadata_root = tmp_path / "videos" / "metadata"
     video = media_root / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider" / "abc_topaz.mp4"
 
-    result = metadata_path_for(video, media_root, metadata_root)
+    result = metadata_path_for(video, metadata_root)
 
-    assert result == metadata_root / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider" / "abc_topaz.json"
+    assert result == metadata_root / "2D" / "AI" / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider" / "abc_topaz.json"
 
 
 def test_metadata_path_returns_none_when_outside_media_root(tmp_path: Path):
-    media_root = tmp_path / "media"
-    metadata_root = tmp_path / "meta"
+    media_root = tmp_path / "videos" / "videos"
+    metadata_root = tmp_path / "videos" / "metadata"
     outside = tmp_path / "elsewhere" / "clip.mp4"
 
-    assert metadata_path_for(outside, media_root, metadata_root) is None
+    assert metadata_path_for(outside, metadata_root) is None
 
 
 def test_metadata_path_returns_none_when_roots_missing(tmp_path: Path):
-    assert metadata_path_for(tmp_path / "x.mp4", None, None) is None
+    assert metadata_path_for(tmp_path / "x.mp4", None) is None
 
 
 # --- load_metadata ---
@@ -216,8 +216,8 @@ def test_loose_seed_group_key_keeps_the_text_to_video_action():
 
 def _library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path, dict[str, str]]:
     """Write videos (+ optional sidecars) into a media/metadata tree pair."""
-    media_root = tmp_path / "media"
-    metadata_root = tmp_path / "metadata"
+    media_root = tmp_path / "videos" / "videos"
+    metadata_root = tmp_path / "videos" / "metadata"
     paths: dict[str, str] = {}
     for name, meta in videos.items():
         video = media_root / "portrait" / "provider" / f"{name}.mp4"
@@ -225,7 +225,7 @@ def _library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path
         video.write_text("x", encoding="utf-8")
         paths[name] = str(video)
         if meta is not None:
-            sidecar = metadata_path_for(video, media_root, metadata_root)
+            sidecar = metadata_path_for(video, metadata_root)
             sidecar.parent.mkdir(parents=True, exist_ok=True)
             sidecar.write_text(json.dumps(meta), encoding="utf-8")
     return media_root, metadata_root, paths
@@ -239,7 +239,7 @@ def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_p
         "no_metadata": None,
     })
 
-    index = build_group_index(paths.values(), media_root, metadata_root)
+    index = build_group_index(paths.values(), metadata_root)
 
     subject1_key = index.action_key_by_path[normalize_path_key(paths["subject1_zeta"])]
     assert sorted(index.action_members[subject1_key]) == sorted(
@@ -265,7 +265,7 @@ def test_build_group_index_also_families_loosely_across_render_settings(tmp_path
         ),
     })
 
-    index = build_group_index(paths.values(), media_root, metadata_root)
+    index = build_group_index(paths.values(), metadata_root)
 
     best, draft = normalize_path_key(paths["subject_best"]), normalize_path_key(paths["subject_draft"])
     assert index.seed_key_by_path[best][0] != index.seed_key_by_path[draft][0]
@@ -289,11 +289,11 @@ def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Pa
         return list(paths.values())
 
     first = cached_group_index(
-        "portrait", paths_supplier=supplier, media_root=media_root, metadata_root=metadata_root,
+        "portrait", paths_supplier=supplier, metadata_root=metadata_root,
         must_contain=paths["known"],
     )
     second = cached_group_index(
-        "portrait", paths_supplier=supplier, media_root=media_root, metadata_root=metadata_root,
+        "portrait", paths_supplier=supplier, metadata_root=metadata_root,
         must_contain=paths["known"],
     )
     assert first is second
@@ -301,7 +301,7 @@ def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Pa
 
     new_arrival = str(media_root / "portrait" / "provider" / "fresh.mp4")
     cached_group_index(
-        "portrait", paths_supplier=supplier, media_root=media_root, metadata_root=metadata_root,
+        "portrait", paths_supplier=supplier, metadata_root=metadata_root,
         must_contain=new_arrival,
     )
     assert len(scans) == 2
@@ -362,8 +362,8 @@ def test_matches_query_multiword_must_be_contiguous():
 
 
 def test_path_matches_query_reads_the_sidecar(tmp_path):
-    media_root = tmp_path / "media"
-    metadata_root = tmp_path / "meta"
+    media_root = tmp_path / "videos" / "videos"
+    metadata_root = tmp_path / "videos" / "metadata"
     video = media_root / "portrait" / "provider" / "clip.mp4"
     video.parent.mkdir(parents=True)
     video.write_bytes(b"")
@@ -371,22 +371,22 @@ def test_path_matches_query_reads_the_sidecar(tmp_path):
     sidecar.parent.mkdir(parents=True)
     sidecar.write_text(json.dumps({"video": {"action": "Beta Gamma", "prompt": "x"}}), encoding="utf-8")
 
-    assert path_matches_query(str(video), media_root, metadata_root, "beta gamma")
-    assert not path_matches_query(str(video), media_root, metadata_root, "alpha")
-    assert path_matches_query(str(video), media_root, metadata_root, "")  # no filter passes all
+    assert path_matches_query(str(video), metadata_root, "beta gamma")
+    assert not path_matches_query(str(video), metadata_root, "alpha")
+    assert path_matches_query(str(video), metadata_root, "")  # no filter passes all
 
 
 def test_path_matches_query_excludes_videos_without_a_sidecar(tmp_path):
-    media_root = tmp_path / "media"
-    metadata_root = tmp_path / "meta"
+    media_root = tmp_path / "videos" / "videos"
+    metadata_root = tmp_path / "videos" / "metadata"
     video = media_root / "portrait" / "other" / "no_meta.mp4"
     video.parent.mkdir(parents=True)
     video.write_bytes(b"")
 
     # An active filter can't be satisfied by a video with no metadata...
-    assert not path_matches_query(str(video), media_root, metadata_root, "alpha")
+    assert not path_matches_query(str(video), metadata_root, "alpha")
     # ...but with no filter, everything passes.
-    assert path_matches_query(str(video), media_root, metadata_root, "")
+    assert path_matches_query(str(video), metadata_root, "")
 
 
 # --- group membership for the action/seed loops ----------------------------
@@ -396,13 +396,13 @@ def _t2v(action: str, seed: str, prompt: str = "scene") -> dict:
 
 
 def _write_library(tmp_path, videos: dict[str, dict]) -> tuple[Path, Path, dict[str, str]]:
-    media_root, metadata_root = tmp_path / "media", tmp_path / "meta"
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     paths: dict[str, str] = {}
     for name, meta in videos.items():
         video = media_root / f"{name}.mp4"
         video.parent.mkdir(parents=True, exist_ok=True)
         video.write_text("x", encoding="utf-8")
-        sidecar = metadata_path_for(video, media_root, metadata_root)
+        sidecar = metadata_path_for(video, metadata_root)
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
         paths[name] = str(video)
@@ -417,7 +417,7 @@ def test_action_group_members_are_the_subjects_other_actions(tmp_path: Path):
         # A different seed is a different subject.
         "other": _t2v("Alpha", "2"),
     })
-    index = build_group_index(list(paths.values()), media_root, metadata_root)
+    index = build_group_index(list(paths.values()), metadata_root)
 
     members = action_group_members(index, paths["redacted"])
 
@@ -433,7 +433,7 @@ def test_seed_family_members_are_the_same_act_under_other_seeds(tmp_path: Path):
         # Same subject, different act => not in the alpha seed family.
         "kiss": _t2v("Kissing", "1"),
     })
-    index = build_group_index(list(paths.values()), media_root, metadata_root)
+    index = build_group_index(list(paths.values()), metadata_root)
 
     members = seed_family_members(index, paths["cum_a"])
 
@@ -455,7 +455,7 @@ def test_seed_family_members_pin_the_action_for_image_to_video(tmp_path: Path):
         "cum_b": i2v("Alpha", "2"),
         "kiss_b": i2v("Kissing", "2"),
     })
-    index = build_group_index(list(paths.values()), media_root, metadata_root)
+    index = build_group_index(list(paths.values()), metadata_root)
 
     members = seed_family_members(index, paths["cum_a"])
 
@@ -471,7 +471,7 @@ def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
         "cum_two": _t2v("Alpha", "1"),
         "kiss": _t2v("Kissing", "1"),
     })
-    index = build_group_index(list(paths.values()), media_root, metadata_root)
+    index = build_group_index(list(paths.values()), metadata_root)
 
     # All three share a subject (same prompt+seed), so they cycle together.
     assert sorted(action_group_members(index, paths["cum_one"])) == sorted(paths.values())

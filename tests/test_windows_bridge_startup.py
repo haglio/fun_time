@@ -206,7 +206,6 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         state_dir=state_dir,
         enabled=False,
         library=SatelliteLibraryContext(
-            media_root=tmp_path / "media",
             metadata_root=tmp_path / "metadata",
             watch_stats_file=state_dir / "watch_stats.json",
         ),

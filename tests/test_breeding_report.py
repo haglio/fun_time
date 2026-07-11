@@ -8,8 +8,8 @@ from fun_time.media_metadata import metadata_path_for, normalize_path_key
 
 
 def _library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path, dict[str, str]]:
-    media_root = tmp_path / "media"
-    metadata_root = tmp_path / "metadata"
+    media_root = tmp_path / "videos" / "videos"  # the metadata tree mirrors this
+    metadata_root = tmp_path / "videos" / "metadata"
     paths: dict[str, str] = {}
     for name, meta in videos.items():
         orientation = "portrait" if not name.startswith("wide_") else "landscape"
@@ -18,7 +18,7 @@ def _library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path
         video.write_text("x", encoding="utf-8")
         paths[name] = str(video)
         if meta is not None:
-            sidecar = metadata_path_for(video, media_root, metadata_root)
+            sidecar = metadata_path_for(video, metadata_root)
             sidecar.parent.mkdir(parents=True, exist_ok=True)
             sidecar.write_text(json.dumps(meta), encoding="utf-8")
     return media_root, metadata_root, paths
@@ -50,7 +50,7 @@ def test_build_breeding_rows_ranks_by_weight_with_metadata_identity(tmp_path: Pa
         normalize_path_key(paths["hated_no_meta"]): {"completions": 0, "skips": 9, "locks": 0},
     }
 
-    rows = build_breeding_rows(stats, media_root, metadata_root)
+    rows = build_breeding_rows(stats, metadata_root)
 
     assert [row.weight for row in rows] == sorted((row.weight for row in rows), reverse=True)
     top = rows[0]
@@ -77,7 +77,7 @@ def test_render_breeding_report_shows_rising_and_fading_sections(tmp_path: Path)
         normalize_path_key(paths["meh"]): {"completions": 1, "skips": 1, "locks": 0},
         normalize_path_key(paths["hated"]): {"completions": 0, "skips": 9, "locks": 0},
     }
-    rows = build_breeding_rows(stats, media_root, metadata_root)
+    rows = build_breeding_rows(stats, metadata_root)
 
     report = render_breeding_report(rows, top=10)
 
@@ -101,7 +101,6 @@ def test_render_breeding_report_shows_rising_and_fading_sections(tmp_path: Path)
 def test_render_breeding_report_limits_rows_and_handles_empty():
     rows = build_breeding_rows(
         {f"c:\\clips\\clip{i:02}.mp4": {"completions": i, "skips": 0, "locks": 0} for i in range(20)},
-        None,
         None,
     )
 

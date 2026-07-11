@@ -35,10 +35,9 @@ class SatellitePlaylistPlan:
 @dataclass(frozen=True)
 class SatelliteLibraryContext:
     """What a satellite build needs beyond its source dirs: the metadata
-    roots for action-group collapsing and the watch-stats file for
+    root for action-group collapsing and the watch-stats file for
     frequency weighting.  Any None simply disables that refinement."""
 
-    media_root: Path | None
     metadata_root: Path | None
     watch_stats_file: Path | None
 
@@ -211,7 +210,7 @@ def _collapse_and_weigh(
         return weight_for(stats.get(normalize_path_key(path)))
 
     survivors = [path for path in paths if passes_inclusion(weight(path), randomizer)]
-    index = build_group_index(survivors, library.media_root, library.metadata_root)
+    index = build_group_index(survivors, library.metadata_root)
     group_key_of, members_of = _collapse_axis(index, by_seed_family)
 
     def pick(members: list[str]) -> str:
@@ -235,7 +234,7 @@ def _collapse_recent(
     a chronically-skipped clip still appears; recency alone ranks.
     """
     ordered = sort_paths_by_recency(paths)
-    index = build_group_index(ordered, library.media_root, library.metadata_root)
+    index = build_group_index(ordered, library.metadata_root)
     group_key_of, members_of = _collapse_axis(index, by_seed_family)
     return _collapse_groups(ordered, group_key_of, members_of, lambda members: max(members, key=_path_mtime))
 
@@ -255,18 +254,16 @@ def build_satellite_playlist_paths(
         favs_content = read_favs_content(favs_file)
         files = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
     # An attribute filter narrows to videos whose metadata matches; it needs the
-    # library's roots to reach each sidecar, so without them it is a no-op.
+    # metadata root to reach each sidecar, so without it the filter is a no-op.
     # Applied before ordering, so it holds under both premiere and shuffle.
     filtered = bool(filter_query) and (
-        library is not None
-        and library.media_root is not None
-        and library.metadata_root is not None
+        library is not None and library.metadata_root is not None
     )
     if filtered:
         files = [
             full_path
             for full_path in files
-            if path_matches_query(full_path, library.media_root, library.metadata_root, filter_query)
+            if path_matches_query(full_path, library.metadata_root, filter_query)
         ]
     # With a library, both orders collapse to one slot per group: premiere
     # (recent) keeps newest-first, the shuffle build weighted-randomizes.  A

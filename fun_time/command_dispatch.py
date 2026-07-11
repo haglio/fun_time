@@ -461,7 +461,7 @@ def _next_seed_sibling(
 
 
 def _video_action_label(video_path: str, config: BridgeConfig) -> str:
-    meta_path = metadata_path_for(video_path, config.provider_media_root, config.provider_metadata_root)
+    meta_path = metadata_path_for(video_path, config.provider_metadata_root)
     if meta_path is None or not meta_path.is_file():
         return ""
     video = load_metadata(meta_path).get("video") or {}
@@ -474,7 +474,6 @@ def _satellite_group_index(which: int, config: BridgeConfig, current: str) -> Gr
     return cached_group_index(
         sources,
         paths_supplier=lambda: collect_video_files(sources),
-        media_root=config.provider_media_root,
         metadata_root=config.provider_metadata_root,
         must_contain=current,
     )

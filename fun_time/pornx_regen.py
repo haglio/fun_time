@@ -76,7 +76,6 @@ def build_regen_url(metadata: dict, *, video_url: str, image_url: str) -> str:
 def regen_url_for_video(
     video_path: str | Path,
     *,
-    media_root: str | Path | None,
     metadata_root: str | Path | None,
     video_url: str,
     image_url: str,
@@ -84,7 +83,7 @@ def regen_url_for_video(
     """Return the Provider regenerate URL for a Provider video, or "" if it has none."""
     if "provider" not in str(video_path).lower():
         return ""
-    meta_path = metadata_path_for(video_path, media_root, metadata_root)
+    meta_path = metadata_path_for(video_path, metadata_root)
     if meta_path is None or not meta_path.is_file():
         return ""
     metadata = load_metadata(meta_path)
