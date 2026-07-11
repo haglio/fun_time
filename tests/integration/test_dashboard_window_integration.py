@@ -135,6 +135,27 @@ def test_log_panel_fills_the_strip_beside_the_dashboard(cfg_path: Path):
         window.close()
 
 
+def test_log_panel_controls_fit_one_row_and_lines_word_wrap(cfg_path: Path):
+    """The controls share a single row that fits inside the pinned window (real
+    font metrics enforce a minimum the offscreen platform never does), and long
+    log lines wrap instead of being cut off with an ellipsis."""
+    from PyQt6.QtCore import Qt
+
+    window, _state_dir, log_rect = _build_window_with_log_panel(cfg_path)
+    try:
+        panel = window._log_panel
+        # The last source toggle's right edge stays inside the window: nothing is
+        # pushed off the strip, so it is genuinely one row that fits.
+        last = panel._source_boxes["system"]
+        assert last.x() + last.width() <= log_rect.width
+        assert panel.centralWidget().minimumSizeHint().width() <= log_rect.width
+        # Long lines wrap rather than elide.
+        assert panel._list.wordWrap()
+        assert panel._list.textElideMode() == Qt.TextElideMode.ElideNone
+    finally:
+        window.close()
+
+
 def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: Path):
     """End to end over a real file: a NOTICE the dispatch loop would emit is
     picked up by the dashboard's tail and flashed, at the top-center of the
@@ -162,6 +183,16 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
         portrait = window._player_rects.portrait
         assert portrait.x <= overlay.x() <= portrait.x + portrait.width
         assert overlay.y() < portrait.y + portrait.height // 2
+        # A normal notice reads green; a dead-end (ERROR) reads red.  The flash
+        # colour is applied by stylesheet, so assert against level_color directly.
+        from fun_time.log_panel import level_color
+
+        assert level_color(NOTICE).name() in overlay.styleSheet()
+        notice(writer, "No other seeds", source="portrait", level=logging.ERROR)
+        window._poll_notices()
+        assert overlay.text() == "No other seeds"
+        assert level_color(logging.ERROR).name() in overlay.styleSheet()
+        assert level_color(NOTICE).name() != level_color(logging.ERROR).name()
     finally:
         window.close()
 

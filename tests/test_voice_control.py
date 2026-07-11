@@ -12,12 +12,19 @@ from fun_time import voice_control
 from fun_time.voice_commands import format_spoken_command, parse_command_line
 from fun_time.voice_control import (
     VOICE_COMMANDS,
+    Recognition,
     UtteranceOnset,
     VoiceController,
     build_grammar,
     has_partial_text,
-    parse_vosk_result,
+    interpret_recognition,
 )
+
+
+def _scored(text: str, conf: float) -> str:
+    """A Vosk result JSON for *text* with every word scored *conf*."""
+    words = [{"conf": conf, "word": w, "start": 0.0, "end": 0.1} for w in text.split()]
+    return json.dumps({"text": text, "result": words})
 
 
 class TestUtteranceOnset:
@@ -71,9 +78,14 @@ class TestCommandLineFormat:
 
 
 class _FakeRecognizer:
-    """Records whether the run loop asked vosk for per-word confidences."""
+    """Records whether the run loop asked vosk for per-word confidences.
 
-    def __init__(self, model, sample_rate, grammar) -> None:
+    ``grammar`` is None for the free (unrestricted) recognizer the loop builds
+    alongside the grammar one.
+    """
+
+    def __init__(self, model, sample_rate, grammar=None) -> None:
+        self.grammar = grammar
         self.words_enabled = False
 
     def SetWords(self, enable: bool) -> None:  # noqa: N802 — vosk's API
@@ -96,7 +108,7 @@ def fake_vosk(monkeypatch):
     """Stand in for vosk + sounddevice; yields the recognizers ``run`` builds."""
     built: list[_FakeRecognizer] = []
 
-    def make_recognizer(model, sample_rate, grammar):
+    def make_recognizer(model, sample_rate, grammar=None):
         rec = _FakeRecognizer(model, sample_rate, grammar)
         built.append(rec)
         return rec
@@ -324,42 +336,110 @@ class TestBuildGrammar:
         assert phrase_keys == sorted(phrase_keys)
 
 
-class TestParseVoskResult:
-    def test_returns_command_for_known_phrase(self):
-        raw = json.dumps({
-            "text": "landscape next",
-            "result": [
-                {"conf": 0.95, "word": "landscape", "start": 0.0, "end": 0.5},
-                {"conf": 0.95, "word": "next", "start": 0.5, "end": 0.8},
-            ],
-        })
-        assert parse_vosk_result(raw, threshold=0.7) == "landscape_next"
+class TestInterpretRecognition:
+    def test_a_confident_grammar_match_is_the_command(self):
+        interp = interpret_recognition(
+            _scored("landscape next", 0.95), _scored("landscape next", 0.9), threshold=0.7,
+        )
+        assert interp == Recognition(command="landscape_next", phrase="landscape next")
 
-    def test_returns_none_for_unk(self):
-        raw = json.dumps({"text": "[unk]"})
-        assert parse_vosk_result(raw, threshold=0.7) is None
+    def test_an_unscored_grammar_match_is_not_dispatched(self):
+        """An unscored recognition cannot clear the threshold — the loop enables
+        SetWords, so a result with no word data is one we have no evidence for."""
+        interp = interpret_recognition(
+            json.dumps({"text": "pause"}), json.dumps({"text": ""}), threshold=0.7,
+        )
+        assert interp.command is None
 
-    def test_returns_none_for_empty_text(self):
-        raw = json.dumps({"text": ""})
-        assert parse_vosk_result(raw, threshold=0.7) is None
+    def test_an_out_of_grammar_phrase_is_captioned_from_the_free_recognizer(self):
+        """The grammar hears only "[unk]" (it can't leave its vocabulary); the
+        free recognizer supplies what was actually said."""
+        interp = interpret_recognition(
+            json.dumps({"text": "[unk]"}), _scored("full length please", 0.9), threshold=0.7,
+        )
+        assert interp == Recognition(unrecognized_text="full length please")
 
-    def test_returns_none_for_unknown_phrase(self):
-        raw = json.dumps({"text": "something random"})
-        assert parse_vosk_result(raw, threshold=0.7) is None
+    def test_a_grammar_match_below_threshold_falls_back_to_the_caption(self):
+        interp = interpret_recognition(
+            _scored("skip", 0.3), _scored("skip it", 0.9), threshold=0.7,
+        )
+        assert interp.command is None
+        assert interp.unrecognized_text == "skip it"
 
-    def test_returns_none_when_confidence_below_threshold(self):
-        raw = json.dumps({
-            "text": "skip",
-            "result": [{"conf": 0.3, "word": "skip", "start": 0.0, "end": 0.3}],
-        })
-        assert parse_vosk_result(raw, threshold=0.7) is None
+    def test_quiet_free_text_is_treated_as_noise_and_dropped(self):
+        """"Definitely saying something" is a confidence bar — quiet-room noise
+        the free model latches onto must not caption a phantom command."""
+        interp = interpret_recognition(
+            json.dumps({"text": "[unk]"}), _scored("mumble", 0.3), threshold=0.7,
+        )
+        assert interp == Recognition()
 
-    def test_returns_none_when_confidence_data_is_missing(self):
-        """An unscored recognition cannot clear the threshold, so it is rejected
-        rather than waved through — the loop enables SetWords, so a result with
-        no word data is a recognition we have no evidence for."""
-        raw = json.dumps({"text": "pause"})
-        assert parse_vosk_result(raw, threshold=0.7) is None
+    def test_nothing_heard_is_nothing(self):
+        interp = interpret_recognition(
+            json.dumps({"text": ""}), json.dumps({"text": ""}), threshold=0.7,
+        )
+        assert interp == Recognition()
+
+
+class TestHandleRecognition:
+    def _controller(self, tmp_path: Path) -> VoiceController:
+        return VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+
+    def test_a_recognized_command_dispatches_and_confirms_over_its_player(self, tmp_path, monkeypatch):
+        vc = self._controller(tmp_path)
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
+
+        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0)
+
+        assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == "landscape_next @1.000\n"
+        assert seen == [("landscape next", "landscape", 25)]
+
+    def test_a_sound_alike_phrase_is_confirmed_under_its_friendly_name(self, tmp_path, monkeypatch):
+        """"go now" drives Genau; the confirmation shows "genau", not the raw
+        sound-alike the recognizer listens for."""
+        vc = self._controller(tmp_path)
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append(msg))
+
+        vc._handle_recognition(Recognition(command="genau_activate", phrase="go now"), spoken_at=1.0)
+
+        assert seen == ["genau"]
+
+    def test_a_muted_command_neither_dispatches_nor_confirms(self, tmp_path, monkeypatch):
+        vc = self._controller(tmp_path)
+        vc.mute()
+        seen = []
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
+
+        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0)
+
+        assert not (tmp_path / "cmd.txt").exists()
+        assert seen == []
+
+    def test_unrecognized_speech_reports_what_it_heard_in_red(self, tmp_path, monkeypatch):
+        import logging
+
+        vc = self._controller(tmp_path)
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
+
+        vc._handle_recognition(Recognition(unrecognized_text="full length please"), spoken_at=1.0)
+
+        assert seen == [("unrecognized command: full length please", "system", logging.ERROR)]
+
+    def test_unrecognized_speech_stays_silent_while_muted(self, tmp_path, monkeypatch):
+        vc = self._controller(tmp_path)
+        vc.mute()
+        seen = []
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
+
+        vc._handle_recognition(Recognition(unrecognized_text="full length please"), spoken_at=1.0)
+
+        assert seen == []
 
 
 class TestVoiceController:
@@ -445,17 +525,21 @@ class TestVoiceController:
         vc._write_command("play", spoken_at=1.0)
         assert not cmd_file.exists()
 
-    def test_run_asks_vosk_for_word_confidences(self, tmp_path: Path, fake_vosk):
+    def test_run_asks_both_recognizers_for_word_confidences(self, tmp_path: Path, fake_vosk):
         """In grammar mode vosk only reports per-word confidences when SetWords
-        is enabled.  Without it every recognition arrives unscored and
-        parse_vosk_result waves it through, so ambient room noise fires real
-        commands — the reference popup opening itself during omnipause."""
+        is enabled.  Without it every recognition arrives unscored and the
+        confidence gate waves it through, so ambient room noise fires real
+        commands — the reference popup opening itself during omnipause.  Both the
+        grammar recognizer and the free caption recognizer need scores."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
-        vc.stop()  # exit the listen loop as soon as the recognizer is built
+        vc.stop()  # exit the listen loop as soon as the recognizers are built
         vc.run()
 
-        assert len(fake_vosk) == 1
-        assert fake_vosk[0].words_enabled is True
+        # One grammar recognizer (built with the phrase grammar) and one free
+        # recognizer (no grammar) for the unrecognized-speech caption.
+        assert len(fake_vosk) == 2
+        assert all(r.words_enabled for r in fake_vosk)
+        assert [r.grammar is None for r in fake_vosk] == [False, True]
 
 
 def test_group_commands_join_the_order_agnostic_grid():

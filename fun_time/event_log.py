@@ -105,9 +105,14 @@ class EventLogHandler(logging.Handler):
             pass
 
 
-def notice(logger: logging.Logger, message: str, *, source: str) -> None:
-    """Log a message meant for the person watching the screen."""
-    logger.log(NOTICE, message, extra={"source": source})
+def notice(logger: logging.Logger, message: str, *, source: str, level: int = NOTICE) -> None:
+    """Log a message meant for the person watching the screen.
+
+    *level* defaults to NOTICE (a normal announcement — green in the panel and
+    the on-player flash); pass a louder level (WARNING/ERROR) for a command that
+    failed or hit a dead end, which the colour then reads as amber/red.
+    """
+    logger.log(level, message, extra={"source": source})
 
 
 def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], int]:

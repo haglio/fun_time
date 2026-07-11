@@ -576,7 +576,7 @@ class DispatchLoopRunner:
                 self._pending_rfb_urls.append(op.key)
                 continue
             if op.op == "notice":
-                notice(logger, op.key, source=op.source)
+                notice(logger, op.key, source=op.source, level=op.level)
             else:
                 self.ahk_cmd_file.write_text(op.op, encoding="utf-8")
         write_shared_state(self.shared_state_file, self.state)

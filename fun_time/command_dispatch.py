@@ -55,6 +55,7 @@ from .vlc_actions import (
 )
 from .watch_stats import record_watch_event, watch_stats_path
 from .event_log import (
+    NOTICE,
     SOURCE_LANDSCAPE,
     SOURCE_PORTRAIT,
     SOURCE_PRIMARY,
@@ -62,6 +63,12 @@ from .event_log import (
 )
 
 logger = logging.getLogger(__name__)
+
+# A notice that reports a command had no effect ("No other seeds") is logged at
+# ERROR so the log panel and the on-player flash render it red, not green — the
+# user asked to tell a command that did something from one that hit a dead end at
+# a glance.
+FAILED_NOTICE_LEVEL = logging.ERROR
 
 
 def _satellite_source(which: int) -> str:
@@ -143,6 +150,9 @@ class WindowOp:
     exact: bool = False
     # Which window a ``notice`` op is about, so the log panel can filter it.
     source: str = SOURCE_SYSTEM
+    # The log level a ``notice`` op is logged at — NOTICE (green) for a normal
+    # confirmation, ERROR (red) for a command that hit a dead end.
+    level: int = NOTICE
 
 
 _GENAU_CMD_MAP = {
@@ -500,7 +510,7 @@ def _dispatch_group_loop(
     gather = action_group_members if axis == "action" else seed_family_members
     members = [member for member in gather(index, current) if Path(member).exists()]
     if len(members) < 2:
-        ops.append(WindowOp(op="notice", key=f"No other {axis}s", source=source))
+        ops.append(WindowOp(op="notice", key=f"No other {axis}s", source=source, level=FAILED_NOTICE_LEVEL))
         return state, ops
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = _cancel_lock(which, state, config)
@@ -531,7 +541,7 @@ def _dispatch_lock_action(
         return state, []
     action = _video_action_label(current, config)
     if not action:
-        return state, [WindowOp(op="notice", key="No action metadata", source=_satellite_source(which))]
+        return state, [WindowOp(op="notice", key="No action metadata", source=_satellite_source(which), level=FAILED_NOTICE_LEVEL)]
     return _dispatch_set_filter(scope, action.lower(), state, config)
 
 
@@ -565,7 +575,7 @@ def _cycle_variant(
         target, widened = _next_seed_sibling(index, current, entries)
         missing_message = "No other seeds"
     if target is None:
-        ops.append(WindowOp(op="notice", key=missing_message, source=source))
+        ops.append(WindowOp(op="notice", key=missing_message, source=source, level=FAILED_NOTICE_LEVEL))
         return state, ops
     if not _play_video(port, config.vlc_password, target, entries):
         logger.warning("cycle %s: could not switch to %s", kind, target)
@@ -1040,7 +1050,10 @@ def _dispatch_set_filter(
             else:
                 state = replace(state, landscape_filter=query)
         logger.info(result.log_message)
-        ops.append(WindowOp(op="notice", key=result.log_message, source=_satellite_source(which)))
+        # A filter that selected nothing left the playlist untouched — a dead end,
+        # so it reads red like the other no-effect notices.
+        level = NOTICE if result.applied else FAILED_NOTICE_LEVEL
+        ops.append(WindowOp(op="notice", key=result.log_message, source=_satellite_source(which), level=level))
     return state, ops
 
 
