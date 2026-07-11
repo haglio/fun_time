@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fun_time.media_metadata import normalize_path_key
 from fun_time.watch_stats import (
-    SatelliteWatchTracker,
+    WatchTracker,
     load_watch_stats,
     passes_inclusion,
     record_watch_event,
@@ -112,7 +112,7 @@ def test_passes_inclusion_only_drops_below_neutral_weight():
     assert 60 < kept < 140
 
 
-# --- SatelliteWatchTracker ---
+# --- WatchTracker ---
 
 
 class _Clock:
@@ -125,7 +125,7 @@ class _Clock:
 
 def test_tracker_counts_a_completion_when_a_watched_video_departs():
     clock = _Clock()
-    tracker = SatelliteWatchTracker(clock=clock)
+    tracker = WatchTracker(clock=clock)
 
     assert tracker.observe("a.mp4", 0.1) == []
     clock.now = 4.0
@@ -138,7 +138,7 @@ def test_tracker_counts_a_completion_when_a_watched_video_departs():
 
 def test_tracker_counts_a_skip_when_user_navigates_away_early():
     clock = _Clock()
-    tracker = SatelliteWatchTracker(clock=clock)
+    tracker = WatchTracker(clock=clock)
     tracker.observe("a.mp4", 0.2)
 
     clock.now = 5.0
@@ -153,7 +153,7 @@ def test_tracker_is_neutral_when_change_was_not_user_driven():
     """An early transition without a nearby nav command (unlock's automatic
     advance, a deleted file) must not penalize the departed video."""
     clock = _Clock()
-    tracker = SatelliteWatchTracker(clock=clock)
+    tracker = WatchTracker(clock=clock)
     tracker.observe("a.mp4", 0.2)
 
     clock.now = 60.0
@@ -163,7 +163,7 @@ def test_tracker_is_neutral_when_change_was_not_user_driven():
 def test_tracker_is_neutral_when_user_leaves_late_but_unfinished():
     """Leaving at 70% is neither a completion nor a skip."""
     clock = _Clock()
-    tracker = SatelliteWatchTracker(clock=clock)
+    tracker = WatchTracker(clock=clock)
     tracker.observe("a.mp4", 0.7)
 
     tracker.note_user_nav()
@@ -174,7 +174,7 @@ def test_tracker_is_neutral_when_user_leaves_late_but_unfinished():
 def test_tracker_counts_each_repeat_wrap_as_a_completion():
     """Locked repeat-one: every wrap from ~end back to ~start is one full watch."""
     clock = _Clock()
-    tracker = SatelliteWatchTracker(clock=clock)
+    tracker = WatchTracker(clock=clock)
     tracker.observe("a.mp4", 0.3)
     tracker.observe("a.mp4", 0.95)
 
@@ -193,7 +193,7 @@ def test_tracker_discard_suppresses_classifying_the_departed_video():
     """Marking weird moves the file away — the transition must record nothing,
     and the next video is tracked normally."""
     clock = _Clock()
-    tracker = SatelliteWatchTracker(clock=clock)
+    tracker = WatchTracker(clock=clock)
     tracker.observe("a.mp4", 0.9)
 
     tracker.note_discard()
