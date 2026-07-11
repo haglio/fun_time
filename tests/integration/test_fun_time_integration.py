@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.orchestrator import vlc_http_password_from_vlcrc
+from fun_time.vlc_actions import get_playback_state, vlc_http_cmd
 from fun_time.win32 import (
     find_window_by_pid,
     find_window_by_title,
@@ -340,6 +342,52 @@ def test_fun_time_omnipause_drops_satellite_vlcs_from_topmost(shared_integration
         lambda: not is_window_topmost(landscape_hwnd),
         timeout=8,
         description="Landscape VLC to leave the topmost band on OmniPause enter",
+    )
+
+    # Restore the shared session.
+    s.write_dashboard_command("omnipause_toggle")
+    s.wait_for_new_log("OmniPause: leaving", timeout=12)
+
+
+def test_fun_time_omnipause_watchdog_re_pauses_a_resumed_satellite(
+    shared_integration_session: FunTimeIntegrationSession,
+):
+    """The deep OmniPause fix: pausing the satellites once on entry is not
+    enough — a satellite can resume on its own afterward (most concretely a slow
+    load that only begins playing after the enter settle window closes), and with
+    no re-check it plays on under the pause.  While OmniPause holds, a watchdog
+    re-pauses any satellite it finds playing.  Standing in for the spontaneous
+    resume, we drive the Portrait satellite playing over its own HTTP interface —
+    behind the dispatch loop's back — and assert the watchdog pauses it back."""
+    s = shared_integration_session
+    password = vlc_http_password_from_vlcrc() or "vlcpassword"
+    port = s.config.vlc.vlc2_http_port  # Portrait satellite
+
+    # Known starting point (nau mode, live), then enter OmniPause and let the
+    # satellite settle into paused.
+    s.write_dashboard_command("nau_activate")
+    s.write_dashboard_command("play")  # idempotent leave-omnipause; a no-op if live
+    s.write_dashboard_command("omnipause_toggle")
+    s.wait_for_new_log("OmniPause: entering", timeout=12)
+    s.wait_until(
+        lambda: get_playback_state(port, password) == "paused",
+        timeout=10,
+        description="Portrait satellite to be paused on OmniPause enter",
+    )
+
+    # Stand in for a spontaneous resume: start the satellite playing straight
+    # over its HTTP interface, bypassing the dispatch loop entirely.
+    vlc_http_cmd(port, "pl_play", password)
+
+    # The watchdog must catch it and re-pause it.  The log line is emitted only
+    # when pause_if_playing actually observed a playing satellite, so it proves
+    # both that the resume took AND that the watchdog caught it; the settled
+    # state confirms the re-pause landed.
+    s.wait_for_new_log("watchdog re-paused the Portrait satellite", timeout=10)
+    s.wait_until(
+        lambda: get_playback_state(port, password) == "paused",
+        timeout=10,
+        description="Portrait satellite to be re-paused by the OmniPause watchdog",
     )
 
     # Restore the shared session.
