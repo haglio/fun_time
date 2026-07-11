@@ -286,19 +286,22 @@ class DispatchLoopRunner:
         self._pending_rfb_urls: list[str] = []
         self._batching_rfb = False
         self.voice_controller: VoiceController | None = None
-        # Each satellite's current video is sampled periodically and fed to two
-        # consumers: watch tracking ("breeding"), which classifies playback into
-        # completions/skips for the stats file, and a timeline that lets a spoken
-        # command be back-dated to the video that was on screen when the user
-        # started talking (see _back_dated_video).
+        # Each player's current video is sampled periodically and fed to watch
+        # tracking ("breeding"), which classifies playback into completions/skips
+        # for the stats file.  The satellites (2, 3) are polled over VLC's HTTP
+        # interface and additionally feed a timeline, which lets a spoken command
+        # be back-dated to the video on screen when the user started talking (see
+        # _back_dated_video); the primary Nau player (1) is read from its status
+        # file and needs no such timeline.
         self._watch_trackers: dict[int, WatchTracker] = {
+            1: WatchTracker(),
             2: WatchTracker(),
             3: WatchTracker(),
         }
         self._timelines: dict[int, VideoTimeline] = {2: VideoTimeline(), 3: VideoTimeline()}
         self._satellite_ports = {2: config.portrait_port, 3: config.landscape_port}
         self._watch_stats_file = watch_stats_path(config.state_dir)
-        self._last_satellite_sample = 0.0
+        self._last_watch_sample = 0.0
         # Hybrid funscript handoff: whether the funscript is driving the OSR2
         # right now (so Genau is paused and Nau's T-Code is on) or Genau is (a
         # funscript gap or an unscripted video).  None means "no decision applied
@@ -307,12 +310,18 @@ class DispatchLoopRunner:
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
-    # Twice a second: a video switch is only ever bracketed by two samples, so
-    # this bounds how far a back-dated command can misplace a switch (the
-    # timeline halves it again by dating the switch to the bracket's midpoint).
-    _SATELLITE_SAMPLE_INTERVAL_S = 0.5
+    # Twice a second: the shared cadence for sampling every player's playback
+    # (both satellites and the primary Nau feed).  A satellite video switch is
+    # only ever bracketed by two samples, so this also bounds how far a back-dated
+    # command can misplace a switch (the timeline halves it again by dating the
+    # switch to the bracket's midpoint).
+    _WATCH_SAMPLE_INTERVAL_S = 0.5
 
+    # Commands that count as the user navigating away from a video — the signal
+    # that classifies an early departure as a skip rather than a neutral advance.
+    # The primary (Nau) navigates with next/prev only; it has no lock/weird/cycle.
     _WATCH_NAV_COMMANDS: dict[int, frozenset[str]] = {
+        1: frozenset({"primary_prev", "primary_next"}),
         2: frozenset({"portrait_prev", "portrait_next", "portrait_cycle_action", "portrait_cycle_seed"}),
         3: frozenset({"landscape_prev", "landscape_next", "landscape_cycle_action", "landscape_cycle_seed"}),
     }
@@ -361,9 +370,10 @@ class DispatchLoopRunner:
             self._last_sync = now
             if self.dashboard_enabled:
                 self._update_dashboard()
-        if not self.state.omni_paused and now - self._last_satellite_sample >= self._SATELLITE_SAMPLE_INTERVAL_S:
-            self._last_satellite_sample = now
+        if not self.state.omni_paused and now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
+            self._last_watch_sample = now
             self._sample_satellites(now=now)
+            self._sample_primary()
 
     def _sync_voice_suspension(self) -> None:
         """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
@@ -502,6 +512,21 @@ class DispatchLoopRunner:
             self._timelines[which].observe(path, now=now)
             for event, video in self._watch_trackers[which].observe(path, fraction):
                 record_watch_event(self._watch_stats_file, video, event)
+
+    def _sample_primary(self) -> None:
+        """Sample the primary Nau player's current video for watch tracking.
+
+        Nau publishes its playback to the status file; the watched fraction is
+        position/duration.  A paused player, one with nothing loaded, or one
+        whose duration is not yet known yields no usable sample, so those ticks
+        are dropped rather than fed to the tracker.
+        """
+        status = read_nau_status(self.config.nau_status_file)
+        if not status.video or status.paused or status.duration_ms <= 0:
+            return
+        fraction = status.position_ms / status.duration_ms
+        for event, video in self._watch_trackers[1].observe(status.video, fraction):
+            record_watch_event(self._watch_stats_file, video, event)
 
     def _back_dated_video(self, command: str, spoken_at: float | None) -> str:
         """The video *command* was aimed at, or "" for "whatever is playing now".
