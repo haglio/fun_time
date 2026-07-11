@@ -11,7 +11,9 @@ from unittest.mock import patch
 import pytest
 
 from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
+from fun_time.media_metadata import normalize_path_key
 from fun_time.voice_commands import parse_command_line
+from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     execute_window_ops,
@@ -90,6 +92,22 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
     )
     settings.update(overrides)
     return BridgeConfig(**settings)
+
+
+def _make_video(tmp_path, name: str) -> Path:
+    """A real file on disk — record_watch_event prunes keys that don't exist."""
+    path = tmp_path / name
+    path.write_text("x", encoding="utf-8")
+    return path
+
+
+def _write_nau_status(path: Path, video, *, position_ms: int, duration_ms: int, paused: bool = False) -> None:
+    """Write a Nau status file the way nau/status.py does."""
+    path.write_text(
+        f"video={video}\nposition_ms={position_ms}\nduration_ms={duration_ms}\n"
+        f"state=normal\npaused={'1' if paused else '0'}\n",
+        encoding="utf-8",
+    )
 
 
 def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
@@ -530,7 +548,7 @@ class TestDispatchLoopRunner:
         was on screen then."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner._last_satellite_sample = float("inf")
+        runner._last_watch_sample = float("inf")
         runner.state = BridgeState(active_side=2, locked2=False)
         runner._timelines[2].observe("C:\\clips\\meant.mp4", now=100.0)
         runner._timelines[2].observe("C:\\clips\\advanced_to.mp4", now=101.0)
@@ -549,7 +567,7 @@ class TestDispatchLoopRunner:
         back-dated against the portrait's videos."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner._last_satellite_sample = float("inf")
+        runner._last_watch_sample = float("inf")
         runner.state = BridgeState(active_side=3, locked3=False)
         runner._timelines[2].observe("C:\\clips\\portrait.mp4", now=100.0)
         runner._timelines[3].observe("C:\\clips\\landscape.mp4", now=100.0)
@@ -566,7 +584,7 @@ class TestDispatchLoopRunner:
         """A keypress is instantaneous: it means whatever is playing right now."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner._last_satellite_sample = float("inf")
+        runner._last_watch_sample = float("inf")
         runner._timelines[2].observe("C:\\clips\\meant.mp4", now=100.0)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_trash", encoding="utf-8")
 
@@ -588,6 +606,102 @@ class TestDispatchLoopRunner:
 
         assert runner._timelines[2].path_at(500.0) == "C:\\clips\\portrait.mp4"
         assert runner._timelines[3].path_at(500.0) == "C:\\clips\\landscape.mp4"
+
+    def test_primary_sampling_records_a_completion_when_a_watched_nau_video_departs(self, tmp_path):
+        """Nau's status feed is watch-tracked just like a satellite: a video seen
+        to ~the end, then auto-advanced past, is one completion."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        watched = _make_video(tmp_path, "watched.mp4")
+        nextv = _make_video(tmp_path, "next.mp4")
+        status = tmp_path / "nau_status.txt"
+
+        _write_nau_status(status, watched, position_ms=9000, duration_ms=10000)
+        runner._sample_primary()
+        _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
+        runner._sample_primary()
+
+        stats = load_watch_stats(runner._watch_stats_file)
+        assert stats[normalize_path_key(str(watched))]["completions"] == 1
+
+    def test_primary_sampling_skips_when_duration_is_unknown(self, tmp_path):
+        """Before Nau knows the clip length it publishes duration_ms=0; no
+        fraction can be formed, so the sample is dropped (never a divide-by-zero)."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        early = _make_video(tmp_path, "early.mp4")
+        nextv = _make_video(tmp_path, "next.mp4")
+        status = tmp_path / "nau_status.txt"
+
+        _write_nau_status(status, early, position_ms=5000, duration_ms=0)
+        runner._sample_primary()
+        _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
+        runner._sample_primary()
+
+        assert normalize_path_key(str(early)) not in load_watch_stats(runner._watch_stats_file)
+
+    def test_primary_sampling_ignores_paused_nau_samples(self, tmp_path):
+        """A paused player isn't watching; its samples are dropped, so a position
+        held near the end under pause is not later scored as a completion."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        watched = _make_video(tmp_path, "watched.mp4")
+        nextv = _make_video(tmp_path, "next.mp4")
+        status = tmp_path / "nau_status.txt"
+
+        _write_nau_status(status, watched, position_ms=9000, duration_ms=10000, paused=True)
+        runner._sample_primary()
+        _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
+        runner._sample_primary()
+
+        assert normalize_path_key(str(watched)) not in load_watch_stats(runner._watch_stats_file)
+
+    def test_primary_sampling_ignores_status_with_no_video(self, tmp_path):
+        """Between videos Nau can briefly publish an empty video path; that blank
+        must not read as the watched video departing (a spurious completion)."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        watched = _make_video(tmp_path, "watched.mp4")
+        status = tmp_path / "nau_status.txt"
+
+        _write_nau_status(status, watched, position_ms=9000, duration_ms=10000)
+        runner._sample_primary()
+        _write_nau_status(status, "", position_ms=0, duration_ms=10000)
+        runner._sample_primary()
+
+        assert normalize_path_key(str(watched)) not in load_watch_stats(runner._watch_stats_file)
+
+    def test_primary_next_marks_the_departed_nau_video_as_a_skip(self, tmp_path):
+        """Pressing next on the primary is the "user nav" signal: a Nau video left
+        early right after a next counts as a skip, just like a satellite next."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        early = _make_video(tmp_path, "early.mp4")
+        nextv = _make_video(tmp_path, "next.mp4")
+        status = tmp_path / "nau_status.txt"
+
+        _write_nau_status(status, early, position_ms=1000, duration_ms=10000)
+        runner._sample_primary()
+        runner._dispatch("primary_next")
+        _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
+        runner._sample_primary()
+
+        stats = load_watch_stats(runner._watch_stats_file)
+        assert stats[normalize_path_key(str(early))]["skips"] == 1
+
+    def test_tick_samples_the_primary_player(self, tmp_path):
+        """Nau watch tracking rides the same periodic sample tick as the satellites."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+
+        with patch.object(runner, "_sample_primary") as mock_primary:
+            runner.tick()
+
+        mock_primary.assert_called_once()
+
+    def test_tick_does_not_sample_the_primary_under_omnipause(self, tmp_path):
+        """Omnipause halts sampling for every player, primary included."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+
+        with patch.object(runner, "_sample_primary") as mock_primary:
+            runner.tick()
+
+        mock_primary.assert_not_called()
 
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the primary display in every mode it appears, so a nudge
@@ -1081,7 +1195,7 @@ class TestDispatchLoopRunner:
 
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner._last_satellite_sample = float("inf")
+        runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
         vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
         runner.voice_controller = vc
@@ -1099,7 +1213,7 @@ class TestDispatchLoopRunner:
 
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner._last_satellite_sample = float("inf")
+        runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
         vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
         vc.suspend()
