@@ -1164,8 +1164,9 @@ def test_portrait_cycle_seed_swaps_in_library_sister_when_none_in_playlist(tmp_p
         _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
     swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_b"])
-    # An exact same-config sister is not a widened match, so it carries no label.
-    assert "Similar clip" not in [op.key for op in ops if op.op == "notice"]
+    # Every seed hit narrates itself so the log/flash shows what happened; an exact
+    # sister reads "Next seed", which is the contrast that makes a widen legible.
+    assert [op.key for op in ops if op.op == "notice"] == ["Next seed"]
 
 
 def test_portrait_cycle_seed_notices_without_seed_siblings(tmp_path: Path):

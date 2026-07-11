@@ -1,7 +1,7 @@
 """Brief notices, flashed over the player they concern.
 
-"Clip saved", "No other seeds", "Similar clip" — the messages that used to be
-AHK tooltips at the mouse pointer — appear at the top-center of the window they
+"Clip saved", "No other seeds", "Next seed", "Similar clip" — the messages that
+used to be AHK tooltips at the mouse pointer — appear at the top-center of the window they
 are about: a primary notice over the Nau/Genau display, a portrait/landscape
 notice over that satellite.  They also land in the event log, so the log panel
 keeps the running history; this is just the glanceable, in-place flash.
