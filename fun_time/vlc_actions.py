@@ -221,6 +221,27 @@ def ensure_playback_state(
     return not should_play and last_state == "stopped"
 
 
+def pause_if_playing(port: int, password: str) -> bool:
+    """Pause a satellite only if it is actually playing; return whether it acted.
+
+    The OmniPause watchdog calls this on every enforcement tick.  Unlike
+    :func:`ensure_playback_state` it never blocks and never settles: a satellite
+    that is already paused, stopped, or unreachable is left untouched, and a
+    single ``pl_pause`` is sent only to one observed ``playing``.
+
+    The "playing"-only gate is the whole safety of it.  ``pl_pause`` toggles, so
+    firing it at a *stopped* VLC would START item 1 (the phantom-load trap), and
+    firing a second one at an already-*paused* VLC would un-pause it.  Reading
+    the state first and acting only on ``playing`` avoids both — and because
+    each tick sends at most one toggle to a confirmed-playing VLC, it cannot
+    oscillate the way a tight retry loop can.
+    """
+    if get_playback_state(port, password) == "playing":
+        vlc_http_cmd(port, "pl_pause", password)
+        return True
+    return False
+
+
 def set_repeat_mode(
     port: int,
     password: str,

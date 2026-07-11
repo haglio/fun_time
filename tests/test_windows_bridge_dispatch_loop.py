@@ -52,11 +52,15 @@ TOPMOST_HWNDS = {
 
 
 @pytest.fixture(autouse=True)
-def _no_satellite_sampling():
-    """Every tick() samples both satellites over VLC's HTTP interface.  These
-    tests are about dispatch, not sampling, and a real request would land on
-    whichever VLC happens to own that port on this machine."""
-    with patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=None):
+def _no_satellite_vlc_io():
+    """A tick() reaches VLC over HTTP for both satellites: it SAMPLES them when
+    unpaused and ENFORCES the pause (the OmniPause watchdog) when paused.  These
+    tests are about dispatch, not either, and a real request would land on
+    whichever VLC happens to own that port on this machine — so both channels
+    are neutralised (no fraction to sample, nothing found playing to re-pause).
+    A test exercising the watchdog patches ``pause_if_playing`` itself."""
+    with patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=None), \
+         patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing", return_value=False):
         yield
 
 
@@ -702,6 +706,63 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         mock_primary.assert_not_called()
+
+    def test_tick_under_omnipause_re_pauses_playing_satellites(self, tmp_path):
+        """OmniPause pauses the satellites once on entry, but one can resume on
+        its own afterward — most often a slow load that only began playing after
+        the enter settle window.  On the sampling cadence the tick runs a
+        watchdog that re-pauses any satellite slipped back into playing, and
+        samples neither player (nothing is watched while paused)."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+        checked_ports: list[int] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
+                   side_effect=lambda port, pw: checked_ports.append(port) or True), \
+             patch.object(runner, "_sample_satellites") as mock_sat, \
+             patch.object(runner, "_sample_primary") as mock_primary:
+            runner.tick()
+
+        assert checked_ports == [9091, 9092], "both satellites are checked every enforcement tick"
+        mock_sat.assert_not_called()
+        mock_primary.assert_not_called()
+
+    def test_omnipause_watchdog_shares_the_sampling_throttle(self, tmp_path):
+        """The watchdog rides the same twice-a-second cadence as sampling, so a
+        just-checked tick does not re-poll the satellites 20 times a second."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+        runner._last_watch_sample = float("inf")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing") as mock_pause:
+            runner.tick()
+
+        mock_pause.assert_not_called()
+
+    def test_tick_never_runs_the_watchdog_while_playing_normally(self, tmp_path):
+        """Outside OmniPause the satellites are meant to play, so the watchdog
+        stays idle and never fights normal playback."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing") as mock_pause:
+            runner.tick()
+
+        mock_pause.assert_not_called()
+
+    def test_omnipause_watchdog_logs_the_satellite_it_catches(self, tmp_path, caplog):
+        """A satellite resuming under OmniPause is the recurring bug; when the
+        watchdog catches one it names the side in the log, so a recurrence is
+        visible instead of silent."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
+                   side_effect=lambda port, pw: port == 9091), \
+             caplog.at_level("WARNING"):
+            runner.tick()
+
+        assert any("Portrait" in r.getMessage() for r in caplog.records)
+        assert not any("Landscape" in r.getMessage() for r in caplog.records)
 
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the primary display in every mode it appears, so a nudge
