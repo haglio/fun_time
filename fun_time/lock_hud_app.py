@@ -18,7 +18,7 @@ from PyQt6.QtCore import Qt, QTimer, QRect
 from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QApplication, QWidget
 
-from shared_ui.colors import AMBER, BG_PRIMARY, BORDER_PANEL, GREEN, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.colors import BG_PRIMARY, BORDER_PANEL, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_TINY, make_font
 
 from fun_time.command_dispatch import BridgeState
@@ -30,49 +30,32 @@ from fun_time.lock_hud import (
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
-    primary_sound_label,
 )
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.startup_progress import loading_screen_active
+from fun_time.thumbnail_cache import thumbnail_for
 from fun_time.vlc_actions import get_current_file_path
 from fun_time.window_layout import compute_window_layout
 from fun_time.windows_bridge_dispatch_loop import read_shared_state
 
-OVERLAY_WIDTH = 300
-OVERLAY_HEIGHT = 244
+OVERLAY_WIDTH = 320
+OVERLAY_HEIGHT = 300
 REFRESH_MS = 600
-THUMBS_PER_AXIS = 4
+SEED_LIMIT = 6
+ACTION_LIMIT = 4
 
 _PAD = 10
-_THUMB_H = 60
-_THUMB_GAP = 6
+_MAP_THUMB_H = 54
+_MAP_GAP = 5
+_BORDER_W = 2
 _LOCK_BAND_H = 24
 _STATUS_LINE_H = 15
-_ROW_LABEL_H = 16
+_BORDER_COLOR = QColor(255, 255, 255)
 
 _HWND_TOPMOST = -1
 _SWP_NOSIZE = 0x0001
 _SWP_NOMOVE = 0x0002
 _SWP_NOACTIVATE = 0x0010
-
-
-def _draw_axis_row(
-    painter: QPainter, x: int, y: int, width: int, label: str, count: int, thumbs: list[QPixmap]
-) -> int:
-    """Draw a "LABEL · N" header and a row of thumbnails; return the next y."""
-    painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
-    painter.setPen(TEXT_MUTED)
-    painter.drawText(x, y + 10, f"{label} · {count}")
-
-    thumb_y = y + _ROW_LABEL_H
-    thumb_x = x
-    for pixmap in thumbs:
-        scaled = pixmap.scaledToHeight(_THUMB_H, Qt.TransformationMode.SmoothTransformation)
-        if thumb_x + scaled.width() > x + width:
-            break
-        painter.drawPixmap(thumb_x, thumb_y, scaled)
-        thumb_x += scaled.width() + _THUMB_GAP
-    return thumb_y + _THUMB_H + 8
 
 
 def _draw_status_line(painter: QPainter, x: int, y: int, text: str, color) -> int:
@@ -82,18 +65,23 @@ def _draw_status_line(painter: QPainter, x: int, y: int, text: str, color) -> in
     return y + _STATUS_LINE_H
 
 
+def _scaled(pixmap: QPixmap, height: int) -> QPixmap:
+    return pixmap.scaledToHeight(height, Qt.TransformationMode.SmoothTransformation)
+
+
 def paint_hud(
     painter: QPainter,
     rect: QRect,
     panel: HudPanel,
+    current_thumb: QPixmap | None,
     seed_thumbs: list[QPixmap],
     action_thumbs: list[QPixmap],
-    sound_label: str = "",
 ) -> None:
-    """Render one satellite's HUD.
+    """Render one satellite's HUD: lock band, optional filter, then the map.
 
-    Lock band, then the primary display's sound and this satellite's active
-    filter, then the seed and action thumbnail rows.
+    The current clip anchors the map with a white border; its seed family runs
+    right along the row and its distinct other actions run down the column, so
+    stepping an action moves down and the row reloads with that action's seeds.
     """
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
@@ -115,17 +103,38 @@ def paint_hud(
     painter.drawText(x + 18, y + 11, panel.lock_label)
     y += _LOCK_BAND_H
 
-    if sound_label:
-        muted = sound_label == "MUTED"
-        y = _draw_status_line(
-            painter, x, y, f"PRIMARY · {sound_label}", AMBER if muted else TEXT_MUTED
-        )
     if panel.filter_query:
         y = _draw_status_line(painter, x, y, f"FILTER · {panel.filter_query}", TEXT_PRIMARY)
 
-    width = rect.width() - 2 * _PAD
-    y = _draw_axis_row(painter, x, y, width, "SEED", len(panel.seed_siblings), seed_thumbs)
-    _draw_axis_row(painter, x, y, width, "ACTION", len(panel.action_siblings), action_thumbs)
+    if current_thumb is None:
+        return
+
+    right = rect.right() - _PAD
+    bottom = rect.bottom() - _PAD
+
+    corner = _scaled(current_thumb, _MAP_THUMB_H)
+    painter.drawPixmap(x, y, corner)
+    painter.setPen(QPen(_BORDER_COLOR, _BORDER_W))
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawRect(x, y, corner.width(), corner.height())
+
+    # Seeds run right from the corner: the same act under other seeds.
+    seed_x = x + corner.width() + _MAP_GAP
+    for pixmap in seed_thumbs:
+        scaled = _scaled(pixmap, _MAP_THUMB_H)
+        if seed_x + scaled.width() > right:
+            break
+        painter.drawPixmap(seed_x, y, scaled)
+        seed_x += scaled.width() + _MAP_GAP
+
+    # Distinct other actions run down from the corner.
+    action_y = y + corner.height() + _MAP_GAP
+    for pixmap in action_thumbs:
+        scaled = _scaled(pixmap, _MAP_THUMB_H)
+        if action_y + scaled.height() > bottom:
+            break
+        painter.drawPixmap(x, action_y, scaled)
+        action_y += scaled.height() + _MAP_GAP
 
 
 def _load_pixmaps(pairs: list[tuple[str, Path]]) -> list[QPixmap]:
@@ -137,15 +146,22 @@ def _load_pixmaps(pairs: list[tuple[str, Path]]) -> list[QPixmap]:
     return pixmaps
 
 
+def _load_pixmap(thumb: Path | None) -> QPixmap | None:
+    if thumb is None:
+        return None
+    pixmap = QPixmap(str(thumb))
+    return pixmap if not pixmap.isNull() else None
+
+
 class HudOverlay(QWidget):
     """A frameless, click-through, always-on-top overlay for one satellite."""
 
     def __init__(self, side: str) -> None:
         super().__init__()
         self._panel: HudPanel | None = None
+        self._current_thumb: QPixmap | None = None
         self._seed_thumbs: list[QPixmap] = []
         self._action_thumbs: list[QPixmap] = []
-        self._sound_label = ""
 
         self.setWindowTitle(f"Fun Time HUD ({side})")
         self.setWindowFlags(
@@ -161,14 +177,14 @@ class HudOverlay(QWidget):
     def set_content(
         self,
         panel: HudPanel,
+        current_thumb: QPixmap | None,
         seed_thumbs: list[QPixmap],
         action_thumbs: list[QPixmap],
-        sound_label: str = "",
     ) -> None:
         self._panel = panel
+        self._current_thumb = current_thumb
         self._seed_thumbs = seed_thumbs
         self._action_thumbs = action_thumbs
-        self._sound_label = sound_label
         self.update()
 
     def reassert_topmost(self) -> None:
@@ -189,7 +205,7 @@ class HudOverlay(QWidget):
         try:
             paint_hud(
                 painter, self.rect(), self._panel,
-                self._seed_thumbs, self._action_thumbs, self._sound_label,
+                self._current_thumb, self._seed_thumbs, self._action_thumbs,
             )
         finally:
             painter.end()
@@ -221,8 +237,8 @@ class LockHud:
         self.refresh()
 
     def refresh(self) -> None:
-        # One file carries it all: the locks, each satellite's filter, the
-        # primary display's sound, and whether OmniPause has the floor.
+        # One file carries it: the locks, each satellite's filter, and whether
+        # OmniPause has the floor.
         state = read_shared_state(self._config.shared_state_file) or BridgeState()
         loading = loading_screen_active(self._config.shared_state_file.parent)
         visible, reassert_topmost = hud_display_state(loading, state.omni_paused)
@@ -242,16 +258,16 @@ class LockHud:
             portrait_filter=state.portrait_filter,
             landscape_filter=state.landscape_filter,
         )
-        sound_label = primary_sound_label(state.volume, state.muted)
-        self._apply("portrait", portrait_panel, sound_label, reassert_topmost)
-        self._apply("landscape", landscape_panel, sound_label, reassert_topmost)
+        self._apply("portrait", portrait_panel, reassert_topmost)
+        self._apply("landscape", landscape_panel, reassert_topmost)
 
-    def _apply(self, side: str, panel: HudPanel, sound_label: str, reassert_topmost: bool) -> None:
+    def _apply(self, side: str, panel: HudPanel, reassert_topmost: bool) -> None:
         cache_dir = self._config.thumbnail_cache_dir
-        seed = _load_pixmaps(panel_thumbnails(panel.seed_siblings, cache_dir, limit=THUMBS_PER_AXIS))
-        action = _load_pixmaps(panel_thumbnails(panel.action_siblings, cache_dir, limit=THUMBS_PER_AXIS))
+        current_thumb = _load_pixmap(thumbnail_for(panel.current, cache_dir)) if panel.current else None
+        seed = _load_pixmaps(panel_thumbnails(panel.seed_siblings, cache_dir, limit=SEED_LIMIT))
+        action = _load_pixmaps(panel_thumbnails(panel.action_siblings, cache_dir, limit=ACTION_LIMIT))
         overlay = self._overlays[side]
-        overlay.set_content(panel, seed, action, sound_label)
+        overlay.set_content(panel, current_thumb, seed, action)
         if not overlay.isVisible():
             overlay.show()
         if reassert_topmost:

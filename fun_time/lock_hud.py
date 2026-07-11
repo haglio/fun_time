@@ -34,15 +34,6 @@ SHARED_STATE_FILENAME = "shared_bridge_state.ini"
 HUD_MARGIN = 12
 
 
-def primary_sound_label(volume: int, muted: bool) -> str:
-    """What the HUD says about the primary display's sound.
-
-    A mute leaves the level alone, so the volume is only worth showing when the
-    sound is actually coming through.
-    """
-    return "MUTED" if muted else f"VOL {volume}"
-
-
 def overlay_rect(vlc_rect: WindowRect, *, width: int, height: int, margin: int = HUD_MARGIN) -> WindowRect:
     """The HUD overlay's screen rect, pinned to *vlc_rect*'s top-left corner."""
     return WindowRect(
@@ -130,13 +121,18 @@ def _lock_label(locked: bool, lock_type: str | None) -> str:
 
 @dataclass(frozen=True)
 class HudPanel:
-    """One satellite's HUD contents (portrait or landscape)."""
+    """One satellite's HUD contents (portrait or landscape).
+
+    The current clip anchors the map: seeds (the same act, other subjects) run
+    right from it, and distinct other actions run down from it.
+    """
 
     side: str
     locked: bool
     lock_label: str
-    action_siblings: list[str]
+    current: str
     seed_siblings: list[str]
+    action_siblings: list[str]
     filter_query: str = ""
 
 
@@ -144,6 +140,25 @@ def _others(members: list[str], current: str) -> list[str]:
     """*members* without *current* itself — the clips you could reach from here."""
     key = normalize_path_key(current)
     return [member for member in members if normalize_path_key(member) != key]
+
+
+def _distinct_action_siblings(index: GroupIndex, current: str) -> list[str]:
+    """One representative clip per OTHER action in the current clip's group.
+
+    The action axis steps between distinct acts, so same-act twins collapse to a
+    single entry and the current clip's own act is left out — it is the corner.
+    """
+    current_key = normalize_path_key(current)
+    current_action = index.action_by_path.get(current_key, "")
+    reps: list[str] = []
+    seen: set[str] = set()
+    for member in action_group_members(index, current):
+        action = index.action_by_path.get(normalize_path_key(member), "")
+        if not action or action == current_action or action in seen:
+            continue
+        seen.add(action)
+        reps.append(member)
+    return reps
 
 
 def build_hud_panel(
@@ -157,18 +172,20 @@ def build_hud_panel(
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
-    Siblings come from the same helpers the loop commands use, so what the HUD
-    shows is exactly what looping that axis would cycle through.
+    Seeds come from the same helper the loop commands use, so the row is exactly
+    what looping the seed axis would cycle through; the action column collapses
+    to one clip per distinct other act.
     """
     have_siblings = bool(current) and index is not None
-    action = _others(action_group_members(index, current), current) if have_siblings else []
     seed = _others(seed_family_members(index, current), current) if have_siblings else []
+    action = _distinct_action_siblings(index, current) if have_siblings else []
     return HudPanel(
         side=side,
         locked=locked,
         lock_label=_lock_label(locked, lock_type),
-        action_siblings=action,
+        current=current,
         seed_siblings=seed,
+        action_siblings=action,
         filter_query=filter_query,
     )
 
