@@ -13,7 +13,6 @@ from fun_time.lock_hud import (
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
-    primary_sound_label,
 )
 from fun_time.media_metadata import (
     GroupIndex,
@@ -67,6 +66,7 @@ def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
     assert panel.side == "portrait"
     assert panel.locked is True
     assert panel.lock_label == "Locked"
+    assert panel.current == CUR
     assert panel.action_siblings == sorted([A1, A2])
     assert panel.seed_siblings == [S1]
 
@@ -107,19 +107,6 @@ def test_panel_carries_the_active_filter():
 
     assert panel.filter_query == "beta gamma"
     assert build_hud_panel("portrait", locked=False, current=CUR, index=index).filter_query == ""
-
-
-# --- primary_sound_label ---
-
-
-def test_primary_sound_label_reports_the_level_when_audible():
-    assert primary_sound_label(80, muted=False) == "VOL 80"
-    assert primary_sound_label(0, muted=False) == "VOL 0"
-
-
-def test_primary_sound_label_reports_mute_over_the_level():
-    """A mute leaves the level alone, so the level is meaningless while silenced."""
-    assert primary_sound_label(80, muted=True) == "MUTED"
 
 
 # --- load_hud_app_config ---

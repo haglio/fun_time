@@ -25,67 +25,65 @@ def _solid_pixmap(color: QColor, width: int = 40, height: int = 60) -> QPixmap:
     return pixmap
 
 
-def _non_transparent_samples(image: QImage) -> int:
-    return sum(
-        1
-        for y in range(0, image.height(), 4)
-        for x in range(0, image.width(), 4)
-        if image.pixelColor(x, y).alpha() > 0
+def _panel(**overrides) -> HudPanel:
+    base = dict(
+        side="portrait", locked=True, lock_label="Locked",
+        current="C:/vids/cur.mp4", seed_siblings=["s1", "s2"], action_siblings=["a1"],
     )
+    base.update(overrides)
+    return HudPanel(**base)
 
 
-def _render(panel: HudPanel, seed_thumbs, action_thumbs, sound_label: str = "") -> QImage:
+def _render(panel: HudPanel, current_thumb, seed_thumbs, action_thumbs) -> QImage:
     image = QImage(OVERLAY_WIDTH, OVERLAY_HEIGHT, QImage.Format.Format_ARGB32)
     image.fill(Qt.GlobalColor.transparent)
     painter = QPainter(image)
     try:
-        paint_hud(painter, image.rect(), panel, seed_thumbs, action_thumbs, sound_label)
+        paint_hud(painter, image.rect(), panel, current_thumb, seed_thumbs, action_thumbs)
     finally:
         painter.end()
     return image
 
 
-def test_paint_hud_fills_the_panel_and_draws_thumbnails(qt_app):
-    panel = HudPanel(
-        side="portrait", locked=True, lock_label="Locked",
-        action_siblings=["a", "b"], seed_siblings=["s"],
+def _samples(image: QImage, predicate) -> int:
+    return sum(
+        1
+        for y in range(0, image.height(), 2)
+        for x in range(0, image.width(), 2)
+        if predicate(image.pixelColor(x, y))
     )
+
+
+def _is_near_white(color: QColor) -> bool:
+    return color.red() > 248 and color.green() > 248 and color.blue() > 248 and color.alpha() > 200
+
+
+def test_paint_hud_fills_the_panel_and_draws_the_map(qt_app):
     image = _render(
-        panel,
+        _panel(),
+        current_thumb=_solid_pixmap(QColor(200, 120, 150)),
         seed_thumbs=[_solid_pixmap(QColor(220, 40, 40))],
-        action_thumbs=[_solid_pixmap(QColor(40, 40, 220)), _solid_pixmap(QColor(40, 200, 40))],
+        action_thumbs=[_solid_pixmap(QColor(40, 40, 220))],
     )
 
-    # The rounded background fills most of the panel, so most samples have paint.
-    total = (OVERLAY_WIDTH // 4) * (OVERLAY_HEIGHT // 4)
-    assert _non_transparent_samples(image) > total * 0.5
+    total = (OVERLAY_WIDTH // 2) * (OVERLAY_HEIGHT // 2)
+    assert _samples(image, lambda c: c.alpha() > 0) > total * 0.5
 
 
-def test_paint_hud_handles_an_empty_unlocked_panel(qt_app):
-    panel = HudPanel(
-        side="landscape", locked=False, lock_label="Unlocked",
-        action_siblings=[], seed_siblings=[],
-    )
+def test_paint_hud_borders_the_current_clip_in_white(qt_app):
+    """The corner (current) thumbnail gets a white outline nothing else has."""
+    # Unlocked so the lock label is muted grey, not near-white; the border is
+    # then the only near-white ink on the panel.
+    panel = _panel(locked=False, lock_label="Unlocked")
 
-    image = _render(panel, seed_thumbs=[], action_thumbs=[])
+    with_current = _render(panel, _solid_pixmap(QColor(30, 30, 30)), [], [])
+    without_current = _render(panel, None, [], [])
 
-    # Still draws its background even with no siblings — never blows up.
-    assert _non_transparent_samples(image) > 0
+    assert _samples(with_current, _is_near_white) > 0
+    assert _samples(without_current, _is_near_white) == 0
 
 
-def test_paint_hud_draws_the_primary_sound_and_filter_lines(qt_app):
-    """A muted primary and an active filter add ink the bare panel does not have."""
-    bare = HudPanel(
-        side="portrait", locked=False, lock_label="Unlocked",
-        action_siblings=[], seed_siblings=[],
-    )
-    annotated = HudPanel(
-        side="portrait", locked=False, lock_label="Unlocked",
-        action_siblings=[], seed_siblings=[], filter_query="beta gamma",
-    )
+def test_paint_hud_without_a_current_thumb_still_draws_its_shell(qt_app):
+    image = _render(_panel(current="", seed_siblings=[], action_siblings=[]), None, [], [])
 
-    plain = _render(bare, [], [])
-    with_status = _render(annotated, [], [], sound_label="MUTED")
-
-    assert _non_transparent_samples(with_status) > 0
-    assert plain != with_status  # the two status lines changed the pixels
+    assert _samples(image, lambda c: c.alpha() > 0) > 0
