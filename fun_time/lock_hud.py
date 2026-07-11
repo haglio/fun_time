@@ -53,6 +53,17 @@ def overlay_rect(vlc_rect: WindowRect, *, width: int, height: int, margin: int =
     )
 
 
+def hud_display_state(loading_active: bool, omni_paused: bool) -> tuple[bool, bool]:
+    """``(visible, reassert_topmost)`` for the overlays right now.
+
+    Hidden while the loading overlay is up, so they never flash mid-startup.
+    Visible under OmniPause — but without re-staking the topmost band, so they
+    stay in place instead of fighting OmniPause lowering everything.
+    """
+    visible = not loading_active
+    return visible, visible and not omni_paused
+
+
 @dataclass(frozen=True)
 class HudAppConfig:
     """Everything the HUD overlay process needs, read from the bridge manifest.

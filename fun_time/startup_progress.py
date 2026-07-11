@@ -8,6 +8,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+PROGRESS_FILENAME = "startup_progress.txt"
+
+
+def loading_screen_active(state_dir: Path) -> bool:
+    """True while the startup loading overlay is up.
+
+    The overlay writes ``startup_progress.txt`` in the state dir for the
+    duration of startup and deletes it when it closes, so its presence is the
+    cue for other always-on-top windows to stay out of its way.
+    """
+    return (Path(state_dir) / PROGRESS_FILENAME).exists()
+
 
 @runtime_checkable
 class ProgressReporter(Protocol):

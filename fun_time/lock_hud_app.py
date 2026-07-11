@@ -26,12 +26,14 @@ from fun_time.lock_hud import (
     HudAppConfig,
     HudPanel,
     build_panels,
+    hud_display_state,
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
     primary_sound_label,
 )
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
+from fun_time.startup_progress import loading_screen_active
 from fun_time.vlc_actions import get_current_file_path
 from fun_time.window_layout import compute_window_layout
 from fun_time.windows_bridge_dispatch_loop import read_shared_state
@@ -222,7 +224,9 @@ class LockHud:
         # One file carries it all: the locks, each satellite's filter, the
         # primary display's sound, and whether OmniPause has the floor.
         state = read_shared_state(self._config.shared_state_file) or BridgeState()
-        if state.omni_paused:
+        loading = loading_screen_active(self._config.shared_state_file.parent)
+        visible, reassert_topmost = hud_display_state(loading, state.omni_paused)
+        if not visible:
             for overlay in self._overlays.values():
                 overlay.hide()
             return
@@ -239,10 +243,10 @@ class LockHud:
             landscape_filter=state.landscape_filter,
         )
         sound_label = primary_sound_label(state.volume, state.muted)
-        self._apply("portrait", portrait_panel, sound_label)
-        self._apply("landscape", landscape_panel, sound_label)
+        self._apply("portrait", portrait_panel, sound_label, reassert_topmost)
+        self._apply("landscape", landscape_panel, sound_label, reassert_topmost)
 
-    def _apply(self, side: str, panel: HudPanel, sound_label: str) -> None:
+    def _apply(self, side: str, panel: HudPanel, sound_label: str, reassert_topmost: bool) -> None:
         cache_dir = self._config.thumbnail_cache_dir
         seed = _load_pixmaps(panel_thumbnails(panel.seed_siblings, cache_dir, limit=THUMBS_PER_AXIS))
         action = _load_pixmaps(panel_thumbnails(panel.action_siblings, cache_dir, limit=THUMBS_PER_AXIS))
@@ -250,7 +254,8 @@ class LockHud:
         overlay.set_content(panel, seed, action, sound_label)
         if not overlay.isVisible():
             overlay.show()
-        overlay.reassert_topmost()
+        if reassert_topmost:
+            overlay.reassert_topmost()
 
 
 def main(argv: list[str] | None = None) -> int:

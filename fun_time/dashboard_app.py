@@ -40,6 +40,7 @@ from shared_ui.fonts import (
 )
 
 from fun_time.config import LayoutConfig
+from fun_time.startup_progress import loading_screen_active
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.vlc_actions import get_current_file_path
 from fun_time.win32 import is_window_topmost, set_always_on_top
@@ -217,16 +218,6 @@ class DashboardScene:
     lines: tuple[DashboardLineItem, ...] = ()
     ovals: tuple[DashboardOvalItem, ...] = ()
     arcs: tuple[DashboardArcItem, ...] = ()
-
-
-def loading_screen_active(state_dir: Path) -> bool:
-    """True while the startup loading overlay is up.
-
-    The overlay writes ``startup_progress.txt`` in the state dir for the
-    duration of startup and deletes it when it closes, so its presence is
-    the dashboard's cue to stay minimized (and out of the overlay's way).
-    """
-    return (Path(state_dir) / "startup_progress.txt").exists()
 
 
 def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:

@@ -9,6 +9,7 @@ from fun_time.lock_hud import (
     HudAppConfig,
     build_hud_panel,
     build_panels,
+    hud_display_state,
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
@@ -46,6 +47,16 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
         loose_seed_members={},
         indexed_paths=frozenset(K(p) for p in (current, *action_sibs, *seed_sibs)),
     )
+
+
+def test_hud_display_state_hides_on_load_and_freezes_topmost_under_omnipause():
+    # Loading: hidden, and topmost never re-staked (nothing on screen yet).
+    assert hud_display_state(loading_active=True, omni_paused=False) == (False, False)
+    assert hud_display_state(loading_active=True, omni_paused=True) == (False, False)
+    # OmniPause (not loading): visible, but does not fight for topmost.
+    assert hud_display_state(loading_active=False, omni_paused=True) == (True, False)
+    # Normal: visible and holding the top.
+    assert hud_display_state(loading_active=False, omni_paused=False) == (True, True)
 
 
 def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
