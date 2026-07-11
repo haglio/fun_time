@@ -133,7 +133,9 @@ The main monitor's left column stacks the **Dashboard** in its top-left corner, 
 
 The log panel is a second window in the dashboard's process. It tails `state/event_log.jsonl` and shows the **stream** of everything the session logs, filtered by a verbosity dial (`DEBUG`/`INFO`/`NOTICE`/`WARNING`/`ERROR`, default `NOTICE`) and by per-window toggles across one compact row. Both settings persist in `state/log_panel.ini`.
 
-The brief **notices** — "Clip saved", "No other seeds", "Similar clip" — flash over the top-center of the player they concern (a portrait notice over the portrait satellite, a primary notice over the Nau/Genau display) and then fade. They also land in the stream, coloured by level, so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream.
+The brief **notices** — "Clip saved", "No other seeds", "Similar clip" — flash over the top-center of the player they concern (a portrait notice over the portrait satellite, a primary notice over the Nau/Genau display) and then fade. They also land in the stream, coloured by level, so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream. Long lines in the stream **word-wrap** rather than being cut off, so the tail of a message (a video name, a phrase heard) is readable.
+
+Every recognized voice command flashes a **green confirmation** — the phrase it matched — over the player it addresses, so you can see what was heard. A command that hits a dead end ("No other seeds", "No action metadata") flashes **red** instead. And when the recognizer clearly hears speech that matches no command, it flashes **"unrecognized command: ‹what it heard›"** in red — a second, unrestricted recognizer runs alongside the grammar one purely to transcribe that, so an out-of-grammar phrase surfaces as text instead of vanishing.
 
 ## Requirements
 

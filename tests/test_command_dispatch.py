@@ -7,12 +7,16 @@ from unittest.mock import patch
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 
+import logging
+
 from fun_time.command_dispatch import (
+    FAILED_NOTICE_LEVEL,
     BridgeState,
     BridgeConfig,
     WindowOp,
     dispatch_command,
 )
+from fun_time.event_log import NOTICE
 from fun_time.media_metadata import GroupIndex, normalize_path_key
 
 
@@ -1018,7 +1022,29 @@ def test_portrait_cycle_action_notices_when_video_has_no_siblings(tmp_path: Path
         _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
 
     swap.assert_not_called()
-    assert [op.key for op in ops if op.op == "notice"] == ["No other actions"]
+    dead_end = [op for op in ops if op.op == "notice"]
+    assert [op.key for op in dead_end] == ["No other actions"]
+    # A command that hit a dead end reads red, not green.
+    assert dead_end[0].level == FAILED_NOTICE_LEVEL == logging.ERROR
+
+
+def test_a_successful_cycle_action_notice_is_an_ordinary_green_notice(tmp_path: Path):
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_zeta": _cycle_meta("111", "Zeta Massage"),
+        "subject_alpha": _cycle_meta("111", "Alpha"),
+    })
+    state = _make_state()
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_zeta"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_zeta"])], 3)),
+        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True),
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
+
+    notices = [op for op in ops if op.op == "notice"]
+    assert notices and all(op.level == NOTICE for op in notices)
 
 
 def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
@@ -1123,7 +1149,9 @@ def test_portrait_cycle_seed_notices_without_seed_siblings(tmp_path: Path):
         _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
     swap.assert_not_called()
-    assert [op.key for op in ops if op.op == "notice"] == ["No other seeds"]
+    dead_end = [op for op in ops if op.op == "notice"]
+    assert [op.key for op in dead_end] == ["No other seeds"]
+    assert dead_end[0].level == FAILED_NOTICE_LEVEL
 
 
 def _scene_meta(*, image_seed: str, quality: str) -> dict:

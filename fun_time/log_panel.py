@@ -267,7 +267,12 @@ class LogPanelWindow(QMainWindow):
         self._list.setStyleSheet(
             f"background-color: {BG_SECONDARY.name()}; border: none;"
         )
+        # The strip is narrow, so a long line wraps to as many rows as it needs
+        # rather than being cut off with an ellipsis — the tail of a message
+        # (the video name, the phrase heard) is exactly what the reader is after.
         self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._list.setWordWrap(True)
+        self._list.setTextElideMode(Qt.TextElideMode.ElideNone)
         self._list.setMinimumWidth(0)
         outer.addWidget(self._list, stretch=1)
 
