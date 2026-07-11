@@ -388,6 +388,29 @@ def test_read_nau_status_defaults_funscript_resting_to_false(tmp_path: Path):
     assert read_nau_status(tmp_path / "missing.txt").funscript_resting is False
 
 
+def test_read_nau_status_parses_position_and_duration(tmp_path: Path):
+    # Watch tracking (breeding) needs the playback fraction, so both the
+    # position and the clip length are read off Nau's status file.
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text(
+        "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nstate=normal\npaused=0\n",
+        encoding="utf-8",
+    )
+
+    status = read_nau_status(status_file)
+
+    assert status.position_ms == 54233
+    assert status.duration_ms == 60000
+
+
+def test_read_nau_status_defaults_duration_to_zero(tmp_path: Path):
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text("video=C:\\clip.mp4\n", encoding="utf-8")
+
+    assert read_nau_status(status_file).duration_ms == 0
+    assert read_nau_status(tmp_path / "missing.txt").duration_ms == 0
+
+
 def test_funscript_driving_is_scripted_and_not_resting():
     assert NauStatus(has_funscript=True, funscript_resting=False).funscript_driving is True
     assert NauStatus(has_funscript=True, funscript_resting=True).funscript_driving is False
