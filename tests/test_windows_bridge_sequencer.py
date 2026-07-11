@@ -188,6 +188,10 @@ class TestRunStartupSequence:
             "nau_y": PRIMARY_MEDIA_RECT["y"],
             "nau_width": PRIMARY_MEDIA_RECT["width"],
             "nau_height": PRIMARY_MEDIA_RECT["height"],
+            # This manifest has no provider_regen.metadata_root, so Nau is left to
+            # group by name; launch_nau's --metadata-dir wiring is covered in
+            # test_windows_bridge_startup.
+            "metadata_dir": None,
         }
 
     def test_positions_vlc_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
