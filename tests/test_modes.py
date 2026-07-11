@@ -42,8 +42,8 @@ def _i2v_meta(image_seed: str, action: str) -> dict:
 
 def _grouped_library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, SatelliteLibraryContext, dict[str, str]]:
     """A satellite source dir whose videos (optionally) carry sidecars."""
-    media_root = tmp_path / "media"
-    metadata_root = tmp_path / "metadata"
+    media_root = tmp_path / "videos" / "videos"
+    metadata_root = tmp_path / "videos" / "metadata"
     source_dir = media_root / "portrait"
     source_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[str, str] = {}
@@ -52,11 +52,10 @@ def _grouped_library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Pa
         video.write_text("x", encoding="utf-8")
         paths[name] = str(video)
         if meta is not None:
-            sidecar = metadata_path_for(video, media_root, metadata_root)
+            sidecar = metadata_path_for(video, metadata_root)
             sidecar.parent.mkdir(parents=True, exist_ok=True)
             sidecar.write_text(json.dumps(meta), encoding="utf-8")
     library = SatelliteLibraryContext(
-        media_root=media_root,
         metadata_root=metadata_root,
         watch_stats_file=tmp_path / "state" / "watch_stats.json",
     )
@@ -600,8 +599,8 @@ def test_satellite_filter_is_ignored_without_a_library(tmp_path: Path):
 
 
 def test_build_satellite_playlists_applies_independent_per_vlc_filters(tmp_path: Path):
-    media_root = tmp_path / "media"
-    metadata_root = tmp_path / "metadata"
+    media_root = tmp_path / "videos" / "videos"
+    metadata_root = tmp_path / "videos" / "metadata"
     portrait_dir = media_root / "portrait"
     landscape_dir = media_root / "landscape"
     portrait_dir.mkdir(parents=True)
@@ -610,7 +609,7 @@ def test_build_satellite_playlists_applies_independent_per_vlc_filters(tmp_path:
     def make(folder: Path, name: str, action: str) -> str:
         video = folder / f"{name}.mp4"
         video.write_text("x", encoding="utf-8")
-        sidecar = metadata_path_for(video, media_root, metadata_root)
+        sidecar = metadata_path_for(video, metadata_root)
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(
             json.dumps({"video": {"action": action, "prompt": "x", "seed": name}}),
@@ -621,7 +620,7 @@ def test_build_satellite_playlists_applies_independent_per_vlc_filters(tmp_path:
     p_cum, p_kiss = make(portrait_dir, "pc", "Alpha"), make(portrait_dir, "pk", "Kissing")
     l_cum, l_kiss = make(landscape_dir, "lc", "Alpha"), make(landscape_dir, "lk", "Kissing")
     library = SatelliteLibraryContext(
-        media_root=media_root, metadata_root=metadata_root, watch_stats_file=tmp_path / "ws.json"
+        metadata_root=metadata_root, watch_stats_file=tmp_path / "ws.json"
     )
 
     plan = build_satellite_playlists(

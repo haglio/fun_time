@@ -27,12 +27,10 @@ NAU_RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
 
 def _satellite_library(
     state_dir: str | Path,
-    media_root: Path | None,
     metadata_root: Path | None,
 ) -> SatelliteLibraryContext:
-    """The library context satellite builds need: metadata roots + watch stats."""
+    """The library context satellite builds need: metadata root + watch stats."""
     return SatelliteLibraryContext(
-        media_root=media_root,
         metadata_root=metadata_root,
         watch_stats_file=watch_stats_path(state_dir),
     )
@@ -144,7 +142,7 @@ def apply_toggle_fmode(
         recent=recent,
         portrait_filter=portrait_filter,
         landscape_filter=landscape_filter,
-        library=_satellite_library(state_dir, provider_media_root, provider_metadata_root),
+        library=_satellite_library(state_dir, provider_metadata_root),
     )
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
         logger.warning("Portrait VLC failed to load F-mode playlist")
@@ -196,7 +194,7 @@ def apply_reorder_satellites(
         recent=recent,
         portrait_filter=portrait_filter,
         landscape_filter=landscape_filter,
-        library=_satellite_library(state_dir, provider_media_root, provider_metadata_root),
+        library=_satellite_library(state_dir, provider_metadata_root),
     )
     order = "newest-first" if recent else "reshuffled"
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
@@ -276,7 +274,7 @@ def apply_satellite_filter(
     """
     label = "portrait" if which == 2 else "landscape"
     name = PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE
-    library = _satellite_library(state_dir, provider_media_root, provider_metadata_root)
+    library = _satellite_library(state_dir, provider_metadata_root)
     paths = build_satellite_playlist_paths(
         sources, f_mode_enabled, Path(favs_file),
         filter_query=query, recent=recent, library=library,

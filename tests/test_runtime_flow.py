@@ -27,7 +27,7 @@ def _make_action_video(
     video.write_text("x", encoding="utf-8")
     from fun_time.media_metadata import metadata_path_for
 
-    sidecar = metadata_path_for(video, media_root, metadata_root)
+    sidecar = metadata_path_for(video, metadata_root)
     sidecar.parent.mkdir(parents=True, exist_ok=True)
     sidecar.write_text(
         json.dumps({"video": {"action": action, "prompt": prompt, "seed": name}}), encoding="utf-8"
@@ -221,8 +221,8 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(monkeypatch, t
     same-source-image action groups to one entry."""
     import json
 
-    media_root = tmp_path / "media"
-    metadata_root = tmp_path / "metadata"
+    media_root = tmp_path / "videos" / "videos"
+    metadata_root = tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     portrait_root.mkdir(parents=True)
     meta = {
@@ -393,8 +393,8 @@ def test_refresh_recency_order_collapses_action_groups_with_provider_roots(monke
     same-source-image clips collapse to one entry, its newest member."""
     import json
 
-    media_root = tmp_path / "media"
-    metadata_root = tmp_path / "metadata"
+    media_root = tmp_path / "videos" / "videos"
+    metadata_root = tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     portrait_root.mkdir(parents=True)
     meta = {
@@ -430,7 +430,7 @@ def test_refresh_recency_order_collapses_action_groups_with_provider_roots(monke
 
 
 def test_toggle_fmode_applies_per_vlc_metadata_filters(monkeypatch, tmp_path: Path):
-    media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root, landscape_root = media_root / "portrait", media_root / "landscape"
     p_cum = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
@@ -463,7 +463,7 @@ def test_toggle_fmode_applies_per_vlc_metadata_filters(monkeypatch, tmp_path: Pa
 
 
 def test_refresh_recency_order_honours_filters_and_orders_newest_first(monkeypatch, tmp_path: Path):
-    media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     # Distinct prompts keep the two Alphas in distinct seed families, so the
     # filtered build keeps both and premiere's newest-first order is visible.
@@ -494,7 +494,7 @@ def test_refresh_recency_order_honours_filters_and_orders_newest_first(monkeypat
 
 
 def test_apply_satellite_filter_reloads_only_its_port(monkeypatch, tmp_path: Path):
-    media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     p_cum = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
@@ -526,7 +526,7 @@ def test_apply_satellite_filter_reloads_only_its_port(monkeypatch, tmp_path: Pat
 
 
 def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(monkeypatch, tmp_path: Path):
-    media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
     state_dir = tmp_path / "state"
@@ -560,7 +560,7 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(monkeypat
 
 
 def test_apply_satellite_filter_clear_restores_everything(monkeypatch, tmp_path: Path):
-    media_root, metadata_root = tmp_path / "media", tmp_path / "metadata"
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")

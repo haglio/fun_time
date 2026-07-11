@@ -46,10 +46,10 @@ def _orientation_of(path: str) -> str:
 
 
 def _identity_of(
-    path: str, media_root: str | Path | None, metadata_root: str | Path | None
+    path: str, metadata_root: str | Path | None
 ) -> tuple[str, str, str]:
     """(action, seed, prompt) from the clip's sidecar, blanks when absent."""
-    sidecar = metadata_path_for(path, media_root, metadata_root)
+    sidecar = metadata_path_for(path, metadata_root)
     if sidecar is None or not sidecar.is_file():
         return "", "", ""
     metadata = load_metadata(sidecar)
@@ -63,13 +63,12 @@ def _identity_of(
 
 def build_breeding_rows(
     stats: dict[str, dict[str, int]],
-    media_root: str | Path | None,
     metadata_root: str | Path | None,
 ) -> list[BreedingRow]:
     """Every tracked clip as a row, heaviest (most loved) first."""
     rows: list[BreedingRow] = []
     for path, entry in stats.items():
-        action, seed, prompt = _identity_of(path, media_root, metadata_root)
+        action, seed, prompt = _identity_of(path, metadata_root)
         rows.append(BreedingRow(
             path=path,
             weight=weight_for(entry),
@@ -166,9 +165,7 @@ def main(argv: list[str] | None = None) -> int:
 
     config = load_config(args.config)
     stats = load_watch_stats(watch_stats_path(config.paths.state_dir))
-    rows = build_breeding_rows(
-        stats, config.provider_regen.media_root, config.provider_regen.metadata_root
-    )
+    rows = build_breeding_rows(stats, config.provider_regen.metadata_root)
     print(render_breeding_report(rows, top=len(rows) if args.all else args.top))
     return 0
 

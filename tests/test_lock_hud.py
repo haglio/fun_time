@@ -216,7 +216,7 @@ def _clip(media_root: Path, metadata_root: Path, name: str, meta: dict) -> str:
     video = media_root / "portrait" / f"{name}.mp4"
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_text("x", encoding="utf-8")
-    sidecar = metadata_path_for(video, media_root, metadata_root)
+    sidecar = metadata_path_for(video, metadata_root)
     sidecar.parent.mkdir(parents=True, exist_ok=True)
     sidecar.write_text(json.dumps(meta), encoding="utf-8")
     return str(video)
@@ -237,7 +237,7 @@ def _hud_config(**overrides) -> HudAppConfig:
 
 def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
     reset_group_index_cache()
-    media_root, metadata_root = tmp_path / "AI", tmp_path / "metadata"
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sibling = _clip(media_root, metadata_root, "b", _i2v("redacted", "2"))
     config = _hud_config(

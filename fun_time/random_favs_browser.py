@@ -115,7 +115,6 @@ def target_for_fav(entry: FavEntry, regen: ProviderRegenConfig) -> TabTarget:
     """
     regen_url = regen_url_for_video(
         entry.local_path,
-        media_root=regen.media_root,
         metadata_root=regen.metadata_root,
         video_url=regen.generate_video_url,
         image_url=regen.generate_image_url,

@@ -215,7 +215,7 @@ def test_landscape_lock_emits_provider_regen_url_when_metadata_present(tmp_path:
     metadata_root = tmp_path / "videos" / "metadata"
     rel = Path("2_outbox") / "upscaled_by_orientation" / "landscape" / "provider"
     video = media_root / rel / "vid_topaz.mp4"
-    meta_file = metadata_root / rel / "vid_topaz.json"
+    meta_file = metadata_root / "2D" / "AI" / rel / "vid_topaz.json"
     meta_file.parent.mkdir(parents=True, exist_ok=True)
     meta_file.write_text(json.dumps({"video": {"prompt": "hi", "model": "Realism"}}), encoding="utf-8")
     video.parent.mkdir(parents=True, exist_ok=True)
@@ -957,8 +957,8 @@ def _make_grouped_config(tmp_path: Path, videos: dict[str, dict | None]) -> tupl
     from fun_time.media_metadata import metadata_path_for, reset_group_index_cache
 
     reset_group_index_cache()
-    media_root = tmp_path / "media"
-    metadata_root = tmp_path / "metadata"
+    media_root = tmp_path / "videos" / "videos"  # the metadata tree mirrors this
+    metadata_root = tmp_path / "videos" / "metadata"
     portrait_dir = media_root / "portrait"
     portrait_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[str, str] = {}
@@ -967,7 +967,7 @@ def _make_grouped_config(tmp_path: Path, videos: dict[str, dict | None]) -> tupl
         video.write_text("x", encoding="utf-8")
         paths[name] = str(video)
         if meta is not None:
-            sidecar = metadata_path_for(video, media_root, metadata_root)
+            sidecar = metadata_path_for(video, metadata_root)
             sidecar.parent.mkdir(parents=True, exist_ok=True)
             sidecar.write_text(json.dumps(meta), encoding="utf-8")
     config = replace(
@@ -1237,7 +1237,7 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
         video = landscape_dir / f"{name}.mp4"
         video.write_text("x", encoding="utf-8")
         videos[name] = str(video)
-        sidecar = metadata_path_for(video, media_root, config.provider_metadata_root)
+        sidecar = metadata_path_for(video, config.provider_metadata_root)
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
     config = replace(config, landscape_sources=str(landscape_dir))

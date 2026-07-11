@@ -198,7 +198,6 @@ def _side_panel(
         index = cached_group_index(
             sources,
             paths_supplier=lambda: collect_video_files(sources),
-            media_root=config.provider_media_root,
             metadata_root=config.provider_metadata_root,
             must_contain=current,
         )

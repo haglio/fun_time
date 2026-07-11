@@ -138,7 +138,6 @@ def start_core_session(
         state_dir=Path(state_dir),
         enabled=False,
         library=SatelliteLibraryContext(
-            media_root=provider_media_root,
             metadata_root=provider_metadata_root,
             watch_stats_file=watch_stats_path(state_dir),
         ),

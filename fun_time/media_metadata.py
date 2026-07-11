@@ -29,17 +29,25 @@ def _norm(path: str | Path) -> Path:
 
 def metadata_path_for(
     video_path: str | Path,
-    media_root: str | Path | None,
     metadata_root: str | Path | None,
 ) -> Path | None:
-    """Map a video file under *media_root* to its metadata JSON under *metadata_root*."""
-    if media_root is None or metadata_root is None:
+    """Map a video to its metadata JSON, mirroring the whole video library.
+
+    The metadata tree parallels the video tree one-to-one: a clip at
+    ``<library>/2D/AI/2_outbox/x.mp4`` has its sidecar at
+    ``<metadata_root>/2D/AI/2_outbox/x.json``.  The library root is the
+    ``videos`` sibling of *metadata_root* (``…/videos/metadata`` pairs with
+    ``…/videos/videos``), so AI and non-AI clips both resolve through here.
+    """
+    if metadata_root is None:
         return None
+    metadata_root = Path(metadata_root)
+    library_root = metadata_root.parent / "videos"
     try:
-        rel = _norm(video_path).relative_to(_norm(media_root))
+        rel = _norm(video_path).relative_to(_norm(library_root))
     except ValueError:
         return None
-    return Path(metadata_root) / rel.with_suffix(".json")
+    return metadata_root / rel.with_suffix(".json")
 
 
 def load_metadata(json_path: str | Path) -> dict:
@@ -84,7 +92,6 @@ def matches_query(metadata: dict, query: str) -> bool:
 
 def path_matches_query(
     video_path: str,
-    media_root: str | Path | None,
     metadata_root: str | Path | None,
     query: str,
 ) -> bool:
@@ -96,7 +103,7 @@ def path_matches_query(
     """
     if not _norm_text(query):
         return True
-    sidecar = metadata_path_for(video_path, media_root, metadata_root)
+    sidecar = metadata_path_for(video_path, metadata_root)
     if sidecar is None or not sidecar.is_file():
         return False
     return matches_query(load_metadata(sidecar), query)
@@ -287,7 +294,6 @@ def _record_seed_membership(
 
 def build_group_index(
     video_paths: Iterable[str],
-    media_root: str | Path | None,
     metadata_root: str | Path | None,
 ) -> GroupIndex:
     """Index *video_paths* into action groups and seed families.
@@ -305,7 +311,7 @@ def build_group_index(
     indexed: set[str] = set()
     for path in video_paths:
         indexed.add(normalize_path_key(path))
-        sidecar = metadata_path_for(path, media_root, metadata_root)
+        sidecar = metadata_path_for(path, metadata_root)
         if sidecar is None or not sidecar.is_file():
             continue
         metadata = load_metadata(sidecar)
@@ -344,13 +350,12 @@ def cached_group_index(
     cache_key: str,
     *,
     paths_supplier,
-    media_root: str | Path | None,
     metadata_root: str | Path | None,
     must_contain: str | None = None,
 ) -> GroupIndex:
     index = _INDEX_CACHE.get(cache_key)
     if index is None or (must_contain is not None and not index.contains(must_contain)):
-        index = build_group_index(paths_supplier(), media_root, metadata_root)
+        index = build_group_index(paths_supplier(), metadata_root)
         _INDEX_CACHE[cache_key] = index
     return index
 
