@@ -18,7 +18,7 @@ from pathlib import Path
 
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
-from .startup_progress import NullProgress, StartupProgress
+from .startup_progress import NullProgress, PROGRESS_FILENAME, StartupProgress
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -271,7 +271,7 @@ def run_python_orchestrated_bridge(
 
     # --- Launch loading screen (normal mode only) ---
     loading_proc = None
-    progress_file = state_dir / "startup_progress.txt"
+    progress_file = state_dir / PROGRESS_FILENAME
     if show_loading:
         progress = StartupProgress(progress_file, total_steps=_STARTUP_PROGRESS_STEPS)
         python_exe = sys.executable
