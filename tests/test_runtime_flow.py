@@ -11,7 +11,7 @@ from fun_time.runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_mode_switch,
-    apply_refresh_recency_order,
+    apply_reorder_satellites,
     apply_satellite_filter,
     apply_satellite_loop,
     apply_toggle_fmode,
@@ -304,7 +304,8 @@ def test_refresh_recency_order_reorders_only_satellites(monkeypatch, tmp_path: P
 
     monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", fake_replace)
 
-    result = apply_refresh_recency_order(
+    result = apply_reorder_satellites(
+        recent=True,
         f_mode_enabled=False,
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
@@ -327,6 +328,33 @@ def test_refresh_recency_order_reorders_only_satellites(monkeypatch, tmp_path: P
     assert landscape_lines[1:] == [str(l_new), str(l_old)]
 
 
+def test_reorder_satellites_shuffle_clears_recency_and_reloads_both(monkeypatch, tmp_path: Path):
+    portrait_root = tmp_path / "portrait"
+    portrait_root.mkdir(parents=True)
+    (portrait_root / "clip.mp4").write_text("x", encoding="utf-8")
+    ports: list[int] = []
+    monkeypatch.setattr(
+        "fun_time.runtime_flow.replace_playlist_from_file",
+        lambda port, *a, **k: ports.append(port) or True,
+    )
+
+    result = apply_reorder_satellites(
+        recent=False,
+        f_mode_enabled=False,
+        portrait_sources=str(portrait_root),
+        landscape_sources="",
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        portrait_port=9002,
+        landscape_port=9003,
+        password="pw",
+    )
+
+    assert result.next_recency_order is False  # Shuffle, not Premiere
+    assert ports == [9002, 9003]
+    assert "Shuffle" in result.log_message
+
+
 def test_refresh_recency_order_repicks_up_new_files(monkeypatch, tmp_path: Path):
     """A repeat press rescans the sources so newly-arrived files land on top."""
     portrait_root = tmp_path / "portrait"
@@ -337,7 +365,8 @@ def test_refresh_recency_order_repicks_up_new_files(monkeypatch, tmp_path: Path)
     monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
 
     def refresh():
-        apply_refresh_recency_order(
+        apply_reorder_satellites(
+        recent=True,
             f_mode_enabled=False,
             portrait_sources=str(portrait_root),
             landscape_sources="",
@@ -381,7 +410,8 @@ def test_refresh_recency_order_collapses_action_groups_with_provider_roots(monke
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
     monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
 
-    apply_refresh_recency_order(
+    apply_reorder_satellites(
+        recent=True,
         f_mode_enabled=False,
         portrait_sources=str(portrait_root),
         landscape_sources="",
@@ -444,7 +474,8 @@ def test_refresh_recency_order_honours_filters_and_orders_newest_first(monkeypat
     os.utime(new, (2000, 2000))
     monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
 
-    apply_refresh_recency_order(
+    apply_reorder_satellites(
+        recent=True,
         f_mode_enabled=False,
         portrait_sources=str(portrait_root),
         landscape_sources="",

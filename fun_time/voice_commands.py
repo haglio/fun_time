@@ -51,6 +51,14 @@ VOICE_COMMANDS: dict[str, str] = {
     "exit": "quit",
     "pause": "pause",
     "play": "play",
+    # Synonyms for "play"/resume.  vosk has no "unpause" token but does have
+    # "un", so the recognizer listens for the two-word "un pause"; the reference
+    # shows it as "unpause" via the row's friendly_voice override.
+    "resume": "play",
+    "un pause": "play",
+    # "Shuffle" reshuffles Portrait/Landscape, cancelling Premiere's newest-first
+    # order (the counterpart to "premiere"); each satellite keeps its filter.
+    "shuffle": "shuffle",
     # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
     # generated as an order-agnostic grid below the literal.
     "f mode": "fmode_toggle",
@@ -141,6 +149,9 @@ _SATELLITE_ACTIONS: dict[str, str] = {
     "weird": "trash",
     "action": "cycle_action",
     "seed": "cycle_seed",
+    # Drop any filter/premiere/loop and reshuffle back to the default browse
+    # order (all clips, one per subject).
+    "reset": "reset",
 }
 for _act_word, _act in _SATELLITE_ACTIONS.items():
     VOICE_COMMANDS[_act_word] = f"active_{_act}"

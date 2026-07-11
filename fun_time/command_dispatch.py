@@ -36,7 +36,7 @@ from .runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_mode_switch,
-    apply_refresh_recency_order,
+    apply_reorder_satellites,
     apply_satellite_filter,
     apply_satellite_loop,
     apply_toggle_fmode,
@@ -495,6 +495,13 @@ _LOCK_ACTION_SIDES: dict[str, str] = {
     "landscape_lock_action": "landscape",
 }
 
+# "reset" clears a satellite's filter and reshuffles it back to the default
+# browse; "both reset" expands to these two before dispatch.
+_RESET_SIDES: dict[str, str] = {
+    "portrait_reset": "portrait",
+    "landscape_reset": "landscape",
+}
+
 
 def _dispatch_group_loop(
     which: int, axis: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
@@ -737,7 +744,14 @@ def dispatch_command(
         return _dispatch_fmode_toggle(state, config)
 
     if command == "recency_order_refresh":
-        return _dispatch_recency_order_refresh(state, config)
+        return _dispatch_reorder_satellites(state, config, recent=True)
+
+    if command == "shuffle":
+        return _dispatch_reorder_satellites(state, config, recent=False)
+
+    reset_scope = _RESET_SIDES.get(command)
+    if reset_scope is not None:
+        return _dispatch_reset(reset_scope, state, config)
 
     filter_target = decode_filter_command(command)
     if filter_target is not None:
@@ -986,10 +1000,13 @@ def _dispatch_fmode_toggle(
     ), []
 
 
-def _dispatch_recency_order_refresh(
-    state: BridgeState, config: BridgeConfig
+def _dispatch_reorder_satellites(
+    state: BridgeState, config: BridgeConfig, *, recent: bool
 ) -> tuple[BridgeState, list[WindowOp]]:
-    result = apply_refresh_recency_order(
+    """Reorder both satellites — Premiere (newest-first) or Shuffle — keeping
+    each one's filter."""
+    result = apply_reorder_satellites(
+        recent=recent,
         f_mode_enabled=state.f_mode_enabled,
         portrait_sources=config.portrait_sources,
         landscape_sources=config.landscape_sources,
@@ -1011,6 +1028,16 @@ def _dispatch_recency_order_refresh(
         locked2=result.next_locked2,
         locked3=result.next_locked3,
     ), []
+
+
+def _dispatch_reset(
+    scope: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Return a satellite (or both) to the default browse: no filter, no
+    premiere, no loop — reshuffled, one clip per subject.  Clearing the filter
+    rebuilds the full playlist, which also drops any group loop."""
+    state = replace(state, recency_order=False)
+    return _dispatch_set_filter(scope, "", state, config)
 
 
 def _dispatch_set_filter(

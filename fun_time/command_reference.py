@@ -63,6 +63,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Omnipause", ("Space",), ("enter_omnipause",), ("pause",)),
             _Row("Toggle F-Mode", ("F",), ("fmode_toggle", "fmode_on", "fmode_off")),
             _Row("Premiere — (re)load Portrait/Landscape newest-first", ("P",), ("recency_order_refresh",)),
+            _Row("Shuffle — reshuffle Portrait/Landscape (cancels Premiere; keeps filters)", (), ("shuffle",)),
             # The primary display's sound, in whichever mode owns it — Nau's
             # video in nau/hybrid, Genau's clip audio in genau.
             _Row("Mute / unmute the primary display", (), ("audio_mute", "audio_unmute")),
@@ -120,6 +121,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Loop the subject's actions — repeat that group", (), ("portrait_action_loop",)),
             _Row("Loop the act's other seeds — repeat that family", (), ("portrait_seed_loop",)),
             _Row("Filter portrait to the current clip's action", (), ("portrait_lock_action",)),
+            _Row("Reset portrait — clear filter, reshuffle to default", (), ("portrait_reset",)),
         ),
     ),
     (
@@ -134,6 +136,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Loop the subject's actions — repeat that group", (), ("landscape_action_loop",)),
             _Row("Loop the act's other seeds — repeat that family", (), ("landscape_seed_loop",)),
             _Row("Filter landscape to the current clip's action", (), ("landscape_lock_action",)),
+            _Row("Reset landscape — clear filter, reshuffle to default", (), ("landscape_reset",)),
         ),
     ),
     (
@@ -148,6 +151,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Loop each subject's actions on both", (), ("both_action_loop",)),
             _Row("Loop each act's other seeds on both", (), ("both_seed_loop",)),
             _Row("Filter both to their current clip's action", (), ("both_lock_action",)),
+            _Row("Reset both — clear filters, reshuffle to default", (), ("both_reset",)),
         ),
     ),
     (
@@ -177,6 +181,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Loop the subject's actions — repeat that group", (), ("active_action_loop",)),
             _Row("Loop the act's other seeds — repeat that family", (), ("active_seed_loop",)),
             _Row("Filter the active side to the current clip's action", (), ("active_lock_action",)),
+            _Row("Reset the active side — clear filter, reshuffle to default", (), ("active_reset",)),
         ),
     ),
     (
@@ -246,6 +251,7 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     # Likewise no "unmute" token — but there is "un", so the recognizer hears
     # the two-word "un mute" and the reference shows "unmute".
     ("un mute", "unmute"),
+    ("un pause", "unpause"),
 )
 
 
