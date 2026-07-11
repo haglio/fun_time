@@ -19,7 +19,7 @@ from .event_log import notice
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
 from .video_timeline import VideoTimeline
-from .vlc_actions import get_current_file_path, get_playback_fraction
+from .vlc_actions import get_current_file_path, get_playback_fraction, pause_if_playing
 from .voice_commands import parse_command_line
 from .watch_stats import WatchTracker, record_watch_event, watch_stats_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
@@ -310,11 +310,15 @@ class DispatchLoopRunner:
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
-    # Twice a second: the shared cadence for sampling every player's playback
-    # (both satellites and the primary Nau feed).  A satellite video switch is
-    # only ever bracketed by two samples, so this also bounds how far a back-dated
-    # command can misplace a switch (the timeline halves it again by dating the
-    # switch to the bracket's midpoint).
+    # Twice a second: the shared cadence for looking at every player over VLC.
+    # Unpaused, that look SAMPLES playback (both satellites and the primary Nau
+    # feed) for watch tracking; under OmniPause it instead ENFORCES the pause,
+    # re-pausing any satellite that has resumed on its own (see
+    # _enforce_satellites_paused).  The two never run in the same tick, so one
+    # clock gates both.  A satellite video switch is only ever bracketed by two
+    # samples, so this also bounds how far a back-dated command can misplace a
+    # switch (the timeline halves it again by dating the switch to the bracket's
+    # midpoint).
     _WATCH_SAMPLE_INTERVAL_S = 0.5
 
     # Commands that count as the user navigating away from a video — the signal
@@ -370,10 +374,13 @@ class DispatchLoopRunner:
             self._last_sync = now
             if self.dashboard_enabled:
                 self._update_dashboard()
-        if not self.state.omni_paused and now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
+        if now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
             self._last_watch_sample = now
-            self._sample_satellites(now=now)
-            self._sample_primary()
+            if self.state.omni_paused:
+                self._enforce_satellites_paused()
+            else:
+                self._sample_satellites(now=now)
+                self._sample_primary()
 
     def _sync_voice_suspension(self) -> None:
         """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
@@ -527,6 +534,32 @@ class DispatchLoopRunner:
         fraction = status.position_ms / status.duration_ms
         for event, video in self._watch_trackers[1].observe(status.video, fraction):
             record_watch_event(self._watch_stats_file, video, event)
+
+    def _enforce_satellites_paused(self) -> None:
+        """Re-pause any satellite that has slipped back into playing while
+        OmniPause holds — the watchdog half of OmniPause.
+
+        Entering OmniPause pauses the satellites once, but that is a one-shot
+        best effort: a satellite can end up playing again afterward — most
+        concretely a slow load (the favs are HEVC) that only finished, and began
+        playing, after the enter settle window closed.  With no re-check the
+        video just plays on under the pause, which is the bug that kept coming
+        back.  Running here on the shared twice-a-second cadence catches it
+        within one tick instead.
+
+        ``pause_if_playing`` is safe to call every tick: it pauses only a
+        satellite it observes actually playing, so a correctly-paused one costs
+        a single state read and a stopped/mid-load one is left alone (its
+        ``pl_pause`` would phantom-load item 1).  A catch is logged — a satellite
+        resuming under OmniPause is an anomaly worth seeing in the event log.
+        """
+        for which, port in self._satellite_ports.items():
+            if pause_if_playing(port, self.config.vlc_password):
+                side = "Portrait" if which == 2 else "Landscape"
+                logger.warning(
+                    "OmniPause watchdog re-paused the %s satellite — it had resumed on its own",
+                    side,
+                )
 
     def _back_dated_video(self, command: str, spoken_at: float | None) -> str:
         """The video *command* was aimed at, or "" for "whatever is playing now".

@@ -556,6 +556,51 @@ def test_ensure_playback_state_never_pauses_a_stopped_vlc(monkeypatch):
     assert cmds == []
 
 
+def test_pause_if_playing_pauses_only_a_playing_vlc(monkeypatch):
+    """The OmniPause watchdog re-pauses a satellite that has slipped back into
+    playing.  A single pl_pause on a confirmed-playing VLC pauses it."""
+    cmds: list[str] = []
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: "playing")
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, password: cmds.append(cmd) or True)
+
+    assert vlc_actions.pause_if_playing(8090, "pw") is True
+    assert cmds == ["pl_pause"]
+
+
+def test_pause_if_playing_leaves_a_paused_vlc_untouched(monkeypatch):
+    """An already-paused satellite is the steady state; sending pl_pause would
+    toggle it back into playing."""
+    cmds: list[str] = []
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: "paused")
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, password: cmds.append(cmd) or True)
+
+    assert vlc_actions.pause_if_playing(8090, "pw") is False
+    assert cmds == []
+
+
+def test_pause_if_playing_never_touches_a_stopped_vlc(monkeypatch):
+    """The phantom-load trap: pl_pause on a stopped VLC STARTS item 1.  A
+    satellite mid-load reports 'stopped', so the watchdog must leave it alone
+    and catch it on the next tick once it actually turns playing."""
+    cmds: list[str] = []
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: "stopped")
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, password: cmds.append(cmd) or True)
+
+    assert vlc_actions.pause_if_playing(8090, "pw") is False
+    assert cmds == []
+
+
+def test_pause_if_playing_does_nothing_when_vlc_is_unreachable(monkeypatch):
+    """A None state (VLC down / HTTP silent) is not 'playing', so no command
+    is sent."""
+    cmds: list[str] = []
+    monkeypatch.setattr(vlc_actions, "get_playback_state", lambda port, password: None)
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, password: cmds.append(cmd) or True)
+
+    assert vlc_actions.pause_if_playing(8090, "pw") is False
+    assert cmds == []
+
+
 # --- vlc_http_req connection reuse ---
 #
 # vlc_http_req used to open a fresh TCP connection per call.  VLC's httpd closes
