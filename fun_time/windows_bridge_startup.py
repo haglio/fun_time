@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .audio_volume import MAX_VOLUME, write_volume
 from .config import load_config
+from .dashboard_runtime import is_broker_heartbeat_fresh
 from .modes import SatelliteLibraryContext, build_fmode_playlists
 from .watch_stats import watch_stats_path
 from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
@@ -64,6 +65,25 @@ def restart_broker(project_dir: str | Path, broker_tray_launcher: Path | None = 
         )
 
 
+def ensure_broker(
+    project_dir: str | Path,
+    broker_heartbeat_file: str | Path | None,
+    broker_tray_launcher: Path | None = None,
+) -> None:
+    """Start the broker only if one is not already running.
+
+    A healthy broker outlives the session that launched it: harem and the user's
+    direct VLC+MFP use keep talking to it over the shared UDP inlet, and
+    osr2_broker installs a self-healing scheduled task that keeps one alive.
+    Killing a live broker to relaunch our own would drop every client
+    mid-stream, so a session (re)starts it only when the heartbeat is stale —
+    the same liveness signal the dashboard and dispatch loop already read.
+    """
+    if broker_heartbeat_file is not None and is_broker_heartbeat_fresh(Path(broker_heartbeat_file)):
+        return
+    restart_broker(project_dir, broker_tray_launcher)
+
+
 def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: str | Path) -> None:
     """Pick this session's favourites and record the tabs Chrome should open.
 
@@ -106,6 +126,7 @@ def start_core_session(
     project_dir: str | Path,
     config_path: str | Path,
     broker_tray_launcher: Path | None = None,
+    broker_heartbeat_file: str | Path | None = None,
     random_favs_browser_manifest_file: str | Path,
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
@@ -125,7 +146,7 @@ def start_core_session(
     provider_media_root: Path | None = None,
     provider_metadata_root: Path | None = None,
 ) -> None:
-    restart_broker(project_dir, broker_tray_launcher)
+    ensure_broker(project_dir, broker_heartbeat_file, broker_tray_launcher)
     seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     # One playlist authority: the same builder the F-mode toggle uses writes
