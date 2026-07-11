@@ -16,6 +16,7 @@ from fun_time.windows_bridge_startup import (
     _VLC_HTTP_BIND_TIMEOUT_MS,
     _await_vlc_http,
     _build_vlc_launch_command,
+    ensure_broker,
     launch_core_apps,
     launch_genau,
     launch_nau,
@@ -56,6 +57,32 @@ def test_restart_broker_skips_launch_when_no_launcher(tmp_path: Path):
 
     stop.assert_called_once_with(tmp_path)
     popen.assert_not_called()
+
+
+def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):
+    """A fresh heartbeat means a healthy broker is already running — a previous
+    session's, or the one osr2_broker's self-healing task keeps up.  Startup must
+    not kill it: harem and the user's direct VLC+MFP use keep talking to it, and
+    tearing it down would drop every client mid-stream."""
+    heartbeat = tmp_path / "broker_heartbeat.txt"
+    with patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True) as fresh, \
+         patch("fun_time.windows_bridge_startup.restart_broker") as restart:
+        ensure_broker(tmp_path, heartbeat, tmp_path / "launch_broker_tray.vbs")
+
+    fresh.assert_called_once_with(heartbeat)
+    restart.assert_not_called()
+
+
+def test_ensure_broker_restarts_a_dead_broker(tmp_path: Path):
+    """A stale or missing heartbeat means no broker is up, so start one —
+    restart_broker clears any zombie first, then relaunches the tray."""
+    heartbeat = tmp_path / "broker_heartbeat.txt"
+    launcher = tmp_path / "launch_broker_tray.vbs"
+    with patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=False), \
+         patch("fun_time.windows_bridge_startup.restart_broker") as restart:
+        ensure_broker(tmp_path, heartbeat, launcher)
+
+    restart.assert_called_once_with(tmp_path, launcher)
 
 
 def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
@@ -160,7 +187,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     state_dir = tmp_path / "state"
     plan = _fake_playlist_plan(state_dir)
 
-    with patch("fun_time.windows_bridge_startup.restart_broker") as restart, patch(
+    with patch("fun_time.windows_bridge_startup.ensure_broker") as ensure, patch(
         "fun_time.windows_bridge_startup.seed_startup_states"
     ) as seed, patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
@@ -170,6 +197,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         start_core_session(
             project_dir=tmp_path,
             config_path="fun_time_config.json",
+            broker_heartbeat_file=state_dir / "broker_heartbeat.txt",
             random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
             genau_paused_file=tmp_path / "genau_paused.txt",
             audio_paused_file=tmp_path / "audio_paused.txt",
@@ -189,7 +217,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
             provider_metadata_root=tmp_path / "metadata",
         )
 
-    restart.assert_called_once_with(tmp_path, None)
+    # Startup leaves a live broker alone, only (re)starting a dead one.
+    ensure.assert_called_once_with(tmp_path, state_dir / "broker_heartbeat.txt", None)
     seed.assert_called_once_with(
         tmp_path / "genau_paused.txt",
         tmp_path / "audio_paused.txt",
@@ -227,7 +256,7 @@ def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
     """start_core_session forwards hide_windows to launch_core_apps."""
     result_file = tmp_path / "core_session.ini"
 
-    with patch("fun_time.windows_bridge_startup.restart_broker"), patch(
+    with patch("fun_time.windows_bridge_startup.ensure_broker"), patch(
         "fun_time.windows_bridge_startup.seed_startup_states"
     ), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"

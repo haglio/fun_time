@@ -200,6 +200,7 @@ def run_startup_sequence(
         project_dir=m["runtime"]["project_dir"],
         config_path=m["runtime"]["config_path"],
         broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
+        broker_heartbeat_file=m["commands"]["broker_heartbeat_file"],
         random_favs_browser_manifest_file=m["random_favs_browser"]["manifest_file"],
         genau_paused_file=m["commands"]["genau_paused_file"],
         audio_paused_file=m["commands"]["audio_paused_file"],

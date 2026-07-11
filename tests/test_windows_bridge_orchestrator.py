@@ -163,6 +163,20 @@ class TestShutdownChildren:
 
         mock_kill.assert_called_once_with(200)
 
+    def test_the_broker_is_never_a_recorded_child_so_teardown_leaves_it_running(self):
+        """A session's teardown taskkills only the children it recorded at
+        startup.  The broker is deliberately not one of them — it is a service
+        that outlives the session (harem and the user's direct VLC+MFP use keep
+        talking to it), launched detached with its handle discarded — so a normal
+        exit must leave it running."""
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            side_effect=lambda pid: pid * 10,
+        ):
+            children = identify_children(_fake_startup_result())
+
+        assert not any("broker" in key for key in children)
+
 
 class TestWritePidsFile:
     def _write(self, tmp_path):
