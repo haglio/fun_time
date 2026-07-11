@@ -4,6 +4,9 @@ Each entry tells vulture the name is used, suppressing the report.
 Grouped by reason so reviewers can verify each entry belongs here.
 """
 
+# --- http.server handler dispatch (called by the framework via getattr) ---
+_.do_GET  # noqa
+
 # --- Qt event overrides (called by the framework, not by our code) ---
 _.paintEvent  # noqa
 _.mousePressEvent  # noqa
