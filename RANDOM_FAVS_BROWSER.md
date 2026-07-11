@@ -53,20 +53,21 @@ The userscript only acts when the URL carries a `#ft=` fragment (i.e. opened by 
 
 ### Updating or maintaining the userscript
 
-The script is **not hosted, so it does not auto-update** — every edit to `fun_time/static/provider_autofill.user.js` must be re-pasted into Tampermonkey by hand.
+The script now **auto-updates over localhost**. It carries `@updateURL` / `@downloadURL` pointing at `http://127.0.0.1:8770/provider_autofill.user.js`, and Fun Time's orchestrator serves that file (`fun_time/userscript_server.py`, a loopback-only daemon thread) whenever a session is running. Every edit bumps `@version`, so Tampermonkey pulls the new copy on its next update check. No more hand-pasting after the first install.
 
 Environment facts (learned the hard way):
 
 - Tampermonkey is already installed in the **Blair** Chrome profile (`Profile 2`).
 - Chrome's **"Allow user scripts"** toggle must be **ON** (recent Chrome versions gate userscripts behind it). If the script stops running *entirely* — no floating note appears at all on a locked video — re-check this first at `chrome://extensions`.
-- **Do not** open the `.user.js` via a `file://` URL to install/update it — Chrome blocks that ("can't open scripts that way"). Use the dashboard paste flow below.
+- **Do not** open the `.user.js` via a `file://` URL to install/update it — Chrome blocks that ("can't open scripts that way"). Auto-update goes through the localhost **http** server precisely because `file://` is blocked.
 
-To push a change:
+To pull a change (normal path):
 
-1. Open `fun_time/static/provider_autofill.user.js` in a **text editor** (VS Code / Notepad — *not* Chrome) and copy all.
-2. Tampermonkey icon → **Dashboard** → click **"Fun Time — Provider prompt autofill"** to open its editor.
-3. `Ctrl+A`, paste, `Ctrl+S`. Bump `@version` in the header so you can confirm the new copy took (the dashboard shows the version).
-4. Test by locking a video. The script only runs on a `#ft=` URL and **strips the fragment after reading it**, so a plain reload won't re-run it — lock again (or re-paste a test URL) to re-test.
+1. Make sure a Fun Time session is running (that's what serves the script on `127.0.0.1:8770`).
+2. Tampermonkey icon → **Check for userscript updates** (or wait for its scheduled check). The dashboard version for **"Fun Time — Provider prompt autofill"** should tick up to match the header's `@version`.
+3. Test by locking a video. The script only runs on a `#ft=` URL and **strips the fragment after reading it**, so a plain reload won't re-run it — lock again (or re-paste a test URL) to re-test.
+
+First-time install, or if auto-update ever won't take, paste it by hand: open `fun_time/static/provider_autofill.user.js` in a **text editor** (VS Code / Notepad — *not* Chrome), copy all; Tampermonkey **Dashboard** → the script → `Ctrl+A`, paste, `Ctrl+S`. (This one-time paste is also how you install the first version that carries the `@updateURL`, after which the steps above take over.)
 
 When Provider changes its UI (the usual cause of breakage), expect to tweak selectors:
 

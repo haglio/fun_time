@@ -19,6 +19,7 @@ from pathlib import Path
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
 from .startup_progress import NullProgress, PROGRESS_FILENAME, StartupProgress
+from .userscript_server import USERSCRIPT_PORT, serve_userscript_updates
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -395,6 +396,15 @@ def run_python_orchestrated_bridge(
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()
     logger.info("Background dispatch loop started")
+
+    # Serve the Provider autofill userscript so Tampermonkey can auto-update it
+    # instead of needing a hand-paste after every edit. A busy port (a second
+    # Fun Time, a leftover server) is not worth failing startup over.
+    try:
+        serve_userscript_updates()
+        logger.info("Userscript update server started on 127.0.0.1:%d", USERSCRIPT_PORT)
+    except OSError:
+        logger.warning("Userscript update server not started (port %d busy)", USERSCRIPT_PORT, exc_info=True)
 
     # --- Optional voice control ---
     voice_controller: VoiceController | None = None
