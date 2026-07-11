@@ -160,8 +160,9 @@ def apply_toggle_fmode(
     )
 
 
-def apply_refresh_recency_order(
+def apply_reorder_satellites(
     *,
+    recent: bool,
     f_mode_enabled: bool,
     portrait_sources: str,
     landscape_sources: str,
@@ -175,16 +176,16 @@ def apply_refresh_recency_order(
     provider_media_root: Path | None = None,
     provider_metadata_root: Path | None = None,
 ) -> RecencyOrderFlowResult:
-    """Refresh the Portrait/Landscape VLC playlists to newest-first (Premiere).
+    """Rebuild and reload the Portrait/Landscape playlists in a fresh order.
 
-    Rescans the satellite sources (honouring the current F-mode and metadata
-    filters), rebuilds their playlists newest-first, and reloads them — so a
-    repeat press picks up any newly-arrived files and restarts each player from
-    the top (``replace_playlist_from_file`` empties then re-plays from item 0).
-    Action groups still collapse to one entry (the group's newest member) when
-    the provider roots are supplied.  The primary/Nau player is left alone.  Pushing
-    a fresh playlist with repeat-all clears any per-window lock, so the caller's
-    lock flags reset to match.
+    ``recent`` chooses the order: newest-first (Premiere) or reshuffled
+    (Shuffle, Premiere's counterpart).  Either rescans the satellite sources —
+    honouring the current F-mode and metadata filters — so newly-arrived files
+    are picked up, and restarts each player from the top
+    (``replace_playlist_from_file`` empties then re-plays from item 0).  Clips
+    still collapse to one entry per group when the provider roots are supplied.  The
+    primary/Nau player is left alone.  Pushing a fresh playlist with repeat-all
+    clears any per-window lock, so the caller's lock flags reset to match.
     """
     plan = build_satellite_playlists(
         portrait_sources=portrait_sources,
@@ -192,20 +193,21 @@ def apply_refresh_recency_order(
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         f_mode=f_mode_enabled,
-        recent=True,
+        recent=recent,
         portrait_filter=portrait_filter,
         landscape_filter=landscape_filter,
         library=_satellite_library(state_dir, provider_media_root, provider_metadata_root),
     )
+    order = "newest-first" if recent else "reshuffled"
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
-        logger.warning("Portrait VLC failed to load recency-ordered playlist")
+        logger.warning("Portrait VLC failed to load %s playlist", order)
     if not replace_playlist_from_file(landscape_port, password, plan.landscape_playlist_path, repeat_mode="all"):
-        logger.warning("Landscape VLC failed to load recency-ordered playlist")
+        logger.warning("Landscape VLC failed to load %s playlist", order)
     return RecencyOrderFlowResult(
-        next_recency_order=True,
+        next_recency_order=recent,
         next_locked2=False,
         next_locked3=False,
-        log_message="Premiere: Portrait/Landscape reloaded newest-first",
+        log_message=f"{'Premiere' if recent else 'Shuffle'}: Portrait/Landscape {order}",
     )
 
 

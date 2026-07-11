@@ -895,7 +895,7 @@ def test_premiere_refresh_passes_active_filters_and_roots(tmp_path: Path):
     )
     state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
 
-    with patch("fun_time.command_dispatch.apply_refresh_recency_order") as mock_recency:
+    with patch("fun_time.command_dispatch.apply_reorder_satellites") as mock_recency:
         mock_recency.return_value = type("R", (), {
             "next_recency_order": True, "next_locked2": False,
             "next_locked3": False, "log_message": "x",
@@ -903,9 +903,43 @@ def test_premiere_refresh_passes_active_filters_and_roots(tmp_path: Path):
         dispatch_command("recency_order_refresh", state, config)
 
     kwargs = mock_recency.call_args.kwargs
+    assert kwargs["recent"] is True  # Premiere = newest-first
     assert kwargs["portrait_filter"] == "alpha"
     assert kwargs["landscape_filter"] == "kissing"
     assert kwargs["provider_media_root"] == tmp_path / "media"
+
+
+def test_shuffle_reorders_both_satellites_without_recency(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_filter="alpha")
+
+    with patch("fun_time.command_dispatch.apply_reorder_satellites") as mock_reorder:
+        mock_reorder.return_value = type("R", (), {
+            "next_recency_order": False, "next_locked2": False,
+            "next_locked3": False, "log_message": "x",
+        })()
+        new_state, _ops = dispatch_command("shuffle", state, config)
+
+    kwargs = mock_reorder.call_args.kwargs
+    assert kwargs["recent"] is False  # Shuffle cancels Premiere's newest-first
+    assert kwargs["portrait_filter"] == "alpha"  # filters kept
+    assert new_state.recency_order is False
+
+
+def test_reset_clears_the_filter_and_reshuffles(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_filter="alpha", landscape_filter="kissing", recency_order=True)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        new_state, _ops = dispatch_command("portrait_reset", state, config)
+
+    # Clears only its side's filter, drops premiere, and rebuilds (query="").
+    assert mock_filter.call_args.kwargs["query"] == ""
+    assert mock_filter.call_args.kwargs["recent"] is False
+    assert new_state.portrait_filter == ""
+    assert new_state.landscape_filter == "kissing"
+    assert new_state.recency_order is False
 
 
 # --- portrait/landscape cycle action & cycle seed ---
@@ -1232,7 +1266,7 @@ def test_recency_order_refresh_keeps_recent_and_resets_locks(tmp_path: Path):
     # Already in Premiere: pressing again must keep newest-first, never toggle off.
     state = _make_state(recency_order=True, locked2=True, locked3=True)
 
-    with patch("fun_time.command_dispatch.apply_refresh_recency_order") as mock_recency:
+    with patch("fun_time.command_dispatch.apply_reorder_satellites") as mock_recency:
         mock_recency.return_value = type("R", (), {
             "next_recency_order": True,
             "next_locked2": False,

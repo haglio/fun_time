@@ -558,6 +558,23 @@ def test_group_commands_join_the_order_agnostic_grid():
                 assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
 
 
+def test_resume_and_unpause_are_synonyms_for_play():
+    assert VOICE_COMMANDS["resume"] == "play"
+    assert VOICE_COMMANDS["un pause"] == "play"  # recognizer form of "unpause"
+    assert "unpause" not in VOICE_COMMANDS  # single OOV token — never a phrase
+
+
+def test_shuffle_is_a_standalone_command():
+    assert VOICE_COMMANDS["shuffle"] == "shuffle"
+
+
+def test_reset_joins_the_order_agnostic_satellite_grid():
+    assert VOICE_COMMANDS["reset"] == "active_reset"
+    for side in ("portrait", "landscape", "both"):
+        assert VOICE_COMMANDS[f"{side} reset"] == f"{side}_reset"
+        assert VOICE_COMMANDS[f"reset {side}"] == f"{side}_reset"
+
+
 def test_group_commands_do_not_shadow_the_single_word_actions():
     # "lock action" must not disturb "lock"/"action"; "action loop" not "loop".
     assert VOICE_COMMANDS["lock"] == "active_lock_on"
