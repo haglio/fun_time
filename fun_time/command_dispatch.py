@@ -593,8 +593,13 @@ def _cycle_variant(
         action = action_label(index, target)
         if action:
             ops.append(WindowOp(op="notice", key=f"Action: {action}", source=source))
-    elif widened:
-        ops.append(WindowOp(op="notice", key="Similar clip", source=source))
+    else:
+        # Narrate every seed hit so the log panel and the flash over the player
+        # show what happened: an exact same-config sister reads "Next seed", a
+        # widened same-scene near-match "Similar clip".  The contrast is what makes
+        # the widening visible — otherwise an exact jump is silent and you cannot
+        # tell it apart from a widen or from nothing.
+        ops.append(WindowOp(op="notice", key="Similar clip" if widened else "Next seed", source=source))
     return state, ops
 
 
