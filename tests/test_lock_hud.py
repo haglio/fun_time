@@ -48,13 +48,13 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     )
 
 
-def test_hud_display_state_hides_on_load_and_freezes_topmost_under_omnipause():
-    # Loading: hidden, and topmost never re-staked (nothing on screen yet).
+def test_hud_display_state_hides_on_load_and_drops_topmost_under_omnipause():
+    # Loading: hidden, and not topmost (nothing on screen yet).
     assert hud_display_state(loading_active=True, omni_paused=False) == (False, False)
     assert hud_display_state(loading_active=True, omni_paused=True) == (False, False)
-    # OmniPause (not loading): visible, but does not fight for topmost.
+    # OmniPause (not loading): visible, but must LEAVE the topmost band.
     assert hud_display_state(loading_active=False, omni_paused=True) == (True, False)
-    # Normal: visible and holding the top.
+    # Normal: visible and topmost.
     assert hud_display_state(loading_active=False, omni_paused=False) == (True, True)
 
 

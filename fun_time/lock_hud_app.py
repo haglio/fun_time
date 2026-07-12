@@ -7,7 +7,8 @@ each satellite VLC (portrait and landscape) showing whether that player is
 locked and thumbnails of the other clips reachable in the current video's seed
 family and action group. All of *what* it shows and *where* is decided by the
 framework-free helpers in :mod:`fun_time.lock_hud`; this module is only the Qt
-shell that draws them and keeps itself on top.
+shell that draws them and keeps each overlay's topmost band in step with
+OmniPause (topmost normally, non-topmost while paused so the desktop is free).
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.startup_progress import loading_screen_active
 from fun_time.thumbnail_cache import thumbnail_for
 from fun_time.vlc_actions import get_current_file_path
+from fun_time.win32 import is_window_topmost, set_always_on_top
 from fun_time.window_layout import compute_window_layout
 from fun_time.windows_bridge_dispatch_loop import read_shared_state
 
@@ -51,11 +53,6 @@ _BORDER_W = 2
 _LOCK_BAND_H = 24
 _STATUS_LINE_H = 15
 _BORDER_COLOR = QColor(255, 255, 255)
-
-_HWND_TOPMOST = -1
-_SWP_NOSIZE = 0x0001
-_SWP_NOMOVE = 0x0002
-_SWP_NOACTIVATE = 0x0010
 
 
 def _draw_status_line(painter: QPainter, x: int, y: int, text: str, color) -> int:
@@ -187,16 +184,23 @@ class HudOverlay(QWidget):
         self._action_thumbs = action_thumbs
         self.update()
 
-    def reassert_topmost(self) -> None:
-        """Re-stake the TOPMOST band so mode-switch promotions don't bury us."""
+    def sync_topmost(self, desired_topmost: bool) -> None:
+        """Drive this overlay's z-order band to match, drift-corrected.
+
+        Created WindowStaysOnTop, the overlay floats above its satellite — but
+        OmniPause must free the desktop, so while paused it has to LEAVE the
+        topmost band, not merely stop re-asserting it (the WS_EX_TOPMOST style
+        persists otherwise and it stays glued on top). SetWindowPos runs only
+        when the actual band differs from the desired one, so there is no
+        flicker in the steady state and a stray Qt re-assert of the hint is
+        corrected on the next refresh. Mirrors the dashboard's own
+        ``_sync_own_topmost``.
+        """
         if sys.platform != "win32":
             return
-        import ctypes
-
-        ctypes.windll.user32.SetWindowPos(
-            int(self.winId()), _HWND_TOPMOST, 0, 0, 0, 0,
-            _SWP_NOMOVE | _SWP_NOSIZE | _SWP_NOACTIVATE,
-        )
+        hwnd = int(self.winId())
+        if is_window_topmost(hwnd) != desired_topmost:
+            set_always_on_top(hwnd, desired_topmost)
 
     def paintEvent(self, event: object) -> None:  # noqa: N802
         if self._panel is None:
@@ -241,7 +245,7 @@ class LockHud:
         # OmniPause has the floor.
         state = read_shared_state(self._config.shared_state_file) or BridgeState()
         loading = loading_screen_active(self._config.shared_state_file.parent)
-        visible, reassert_topmost = hud_display_state(loading, state.omni_paused)
+        visible, desired_topmost = hud_display_state(loading, state.omni_paused)
         if not visible:
             for overlay in self._overlays.values():
                 overlay.hide()
@@ -258,10 +262,10 @@ class LockHud:
             portrait_filter=state.portrait_filter,
             landscape_filter=state.landscape_filter,
         )
-        self._apply("portrait", portrait_panel, reassert_topmost)
-        self._apply("landscape", landscape_panel, reassert_topmost)
+        self._apply("portrait", portrait_panel, desired_topmost)
+        self._apply("landscape", landscape_panel, desired_topmost)
 
-    def _apply(self, side: str, panel: HudPanel, reassert_topmost: bool) -> None:
+    def _apply(self, side: str, panel: HudPanel, desired_topmost: bool) -> None:
         cache_dir = self._config.thumbnail_cache_dir
         current_thumb = _load_pixmap(thumbnail_for(panel.current, cache_dir)) if panel.current else None
         seed = _load_pixmaps(panel_thumbnails(panel.seed_siblings, cache_dir, limit=SEED_LIMIT))
@@ -270,8 +274,7 @@ class LockHud:
         overlay.set_content(panel, current_thumb, seed, action)
         if not overlay.isVisible():
             overlay.show()
-        if reassert_topmost:
-            overlay.reassert_topmost()
+        overlay.sync_topmost(desired_topmost)
 
 
 def main(argv: list[str] | None = None) -> int:
