@@ -4,13 +4,15 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from unittest.mock import patch
+
 import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication
 
 from fun_time.lock_hud import HudPanel
-from fun_time.lock_hud_app import OVERLAY_HEIGHT, OVERLAY_WIDTH, paint_hud
+from fun_time.lock_hud_app import HudOverlay, OVERLAY_HEIGHT, OVERLAY_WIDTH, paint_hud
 
 
 @pytest.fixture(scope="module")
@@ -87,3 +89,33 @@ def test_paint_hud_without_a_current_thumb_still_draws_its_shell(qt_app):
     image = _render(_panel(current="", seed_siblings=[], action_siblings=[]), None, [], [])
 
     assert _samples(image, lambda c: c.alpha() > 0) > 0
+
+
+def test_sync_topmost_drops_the_band_under_omnipause_and_drift_corrects(qt_app):
+    """Under OmniPause the overlay must LEAVE the topmost band, not merely stop
+    re-asserting it — the window keeps its WindowStaysOnTop style otherwise and
+    stays glued on top. Leaving OmniPause restores it; an unchanged band issues
+    no SetWindowPos (no flicker), mirroring the dashboard's own topmost sync."""
+    overlay = HudOverlay("portrait")
+    try:
+        hwnd = int(overlay.winId())
+
+        # OmniPause (desired_topmost=False) while actually topmost → clear it.
+        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=True), \
+             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
+            overlay.sync_topmost(desired_topmost=False)
+        mock_set.assert_called_once_with(hwnd, False)
+
+        # Leaving OmniPause while non-topmost → float it back on top.
+        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=False), \
+             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
+            overlay.sync_topmost(desired_topmost=True)
+        mock_set.assert_called_once_with(hwnd, True)
+
+        # Already in the desired band → no redundant SetWindowPos.
+        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=True), \
+             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
+            overlay.sync_topmost(desired_topmost=True)
+        mock_set.assert_not_called()
+    finally:
+        overlay.close()

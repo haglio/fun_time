@@ -45,11 +45,12 @@ def overlay_rect(vlc_rect: WindowRect, *, width: int, height: int, margin: int =
 
 
 def hud_display_state(loading_active: bool, omni_paused: bool) -> tuple[bool, bool]:
-    """``(visible, reassert_topmost)`` for the overlays right now.
+    """``(visible, desired_topmost)`` for the overlays right now.
 
     Hidden while the loading overlay is up, so they never flash mid-startup.
-    Visible under OmniPause — but without re-staking the topmost band, so they
-    stay in place instead of fighting OmniPause lowering everything.
+    Visible under OmniPause but *not* topmost: OmniPause must free the desktop,
+    so the overlays leave the topmost band (the app clears it) instead of
+    staying glued above everything.
     """
     visible = not loading_active
     return visible, visible and not omni_paused
