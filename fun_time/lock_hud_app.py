@@ -42,7 +42,11 @@ from fun_time.windows_bridge_dispatch_loop import read_shared_state
 
 OVERLAY_WIDTH = 320
 OVERLAY_HEIGHT = 300
-REFRESH_MS = 600
+# The satellites play ~5 s clips, so the map has to track the current clip
+# almost the instant it changes.  Polling this fast is cheap: get_current_file_path
+# reuses a keep-alive socket per port, and _apply reloads thumbnails / repaints
+# only when the panel actually changed, so an unchanged tick costs a state read.
+REFRESH_MS = 150
 SEED_LIMIT = 6
 ACTION_LIMIT = 4
 
@@ -230,6 +234,9 @@ class LockHud:
     def __init__(self, config: HudAppConfig) -> None:
         self._config = config
         self._overlays = {"portrait": HudOverlay("portrait"), "landscape": HudOverlay("landscape")}
+        # The last panel drawn per side, so a fast refresh skips reloading
+        # thumbnails and repainting when nothing about the map has changed.
+        self._last_panels: dict[str, HudPanel | None] = {"portrait": None, "landscape": None}
 
         monitors = enumerate_monitors()
         main_rect, secondary_rect = get_logical_monitor_rects(
@@ -275,12 +282,18 @@ class LockHud:
         self._apply("landscape", landscape_panel, desired_topmost)
 
     def _apply(self, side: str, panel: HudPanel, desired_topmost: bool) -> None:
-        cache_dir = self._config.thumbnail_cache_dir
-        current_thumb = _load_pixmap(thumbnail_for(panel.current, cache_dir)) if panel.current else None
-        seed = _load_pixmaps(panel_thumbnails(panel.seed_siblings, cache_dir, limit=SEED_LIMIT))
-        action = _load_pixmaps(panel_thumbnails(panel.action_siblings, cache_dir, limit=ACTION_LIMIT))
         overlay = self._overlays[side]
-        overlay.set_content(panel, current_thumb, seed, action)
+        # Reload thumbnails and repaint only when the map actually changed; the
+        # panel captures everything drawn, so an equal one would render
+        # identically.  Topmost is re-staked every tick regardless — that is
+        # what keeps the overlay above a re-promoted VLC.
+        if panel != self._last_panels[side]:
+            cache_dir = self._config.thumbnail_cache_dir
+            current_thumb = _load_pixmap(thumbnail_for(panel.current, cache_dir)) if panel.current else None
+            seed = _load_pixmaps(panel_thumbnails(panel.seed_siblings, cache_dir, limit=SEED_LIMIT))
+            action = _load_pixmaps(panel_thumbnails(panel.action_siblings, cache_dir, limit=ACTION_LIMIT))
+            overlay.set_content(panel, current_thumb, seed, action)
+            self._last_panels[side] = panel
         if not overlay.isVisible():
             overlay.show()
         overlay.sync_topmost(desired_topmost)
