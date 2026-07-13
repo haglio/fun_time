@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from fun_time.config import LayoutConfig
-from fun_time.dashboard_layout import Size, compute_dashboard_preview_layout
+from fun_time.dashboard_layout import (
+    Rect,
+    Size,
+    client_rect_filling_frame,
+    compute_dashboard_preview_layout,
+)
 
 
 def _layout_config() -> LayoutConfig:
@@ -144,6 +149,22 @@ def test_help_button_in_dash_box_top_row_third_slot():
     assert help_b.y + help_b.height <= strip.y + strip.height
     # No overlap with omnipause.
     assert omni_b.x + omni_b.width <= help_b.x
+
+
+def test_client_rect_filling_frame_insets_by_the_chrome():
+    """When a window's whole FRAME must fill the rect, its client drops below
+    the title bar and shrinks, so the decorated window — not its content —
+    occupies the rect."""
+    rect = Rect(x=100, y=200, width=600, height=400)
+
+    assert client_rect_filling_frame(rect, left=8, top=31, right=8, bottom=8) == (108, 231, 584, 361)
+
+
+def test_client_rect_filling_frame_is_identity_without_decorations():
+    """An undecorated (zero-margin) window's client already is its frame."""
+    rect = Rect(x=0, y=0, width=300, height=300)
+
+    assert client_rect_filling_frame(rect, left=0, top=0, right=0, bottom=0) == (0, 0, 300, 300)
 
 
 def test_dash_box_side_margin_matches_top_margin():

@@ -727,9 +727,12 @@ def test_toggle_reference_dialog_opens_then_closes(cfg_path: Path):
         window.close()
 
 
-def test_reference_dialog_fills_rfb_rect(cfg_path: Path):
-    """The reference popup is sized and placed to occupy the RFB's exact rect."""
+def test_reference_dialog_frame_fills_rfb_rect(cfg_path: Path):
+    """The reference popup is sized so its whole FRAME — title bar included —
+    fills the RFB rect: it is placed at the rect, then its client insets by the
+    window's chrome margins so the decoration no longer overhangs the top."""
     from unittest.mock import MagicMock
+    from PyQt6.QtCore import QRect
     from fun_time.dashboard_layout import Rect
 
     config = load_config(cfg_path)
@@ -742,9 +745,17 @@ def test_reference_dialog_fills_rfb_rect(cfg_path: Path):
         window = build_dashboard_window(app_config, launch_geometry=launch_geo, rfb_rect=rfb_rect)
 
     try:
-        with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
+        dialog = MagicMock()
+        # An 8px border and a 31px title bar: the client is where it was placed,
+        # the frame extends around it.
+        dialog.geometry.return_value = QRect(7, 408, 640, 984)
+        dialog.frameGeometry.return_value = QRect(7 - 8, 408 - 31, 640 + 16, 984 + 39)
+        with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
             window._show_reference_dialog()
-        mock_dialog.return_value.setGeometry.assert_called_once_with(7, 408, 640, 984)
+        calls = [c.args for c in dialog.setGeometry.call_args_list]
+        assert calls[0] == (7, 408, 640, 984), "first placed at the rect"
+        # Then inset so the frame fills it: down by the title bar, in by the borders.
+        assert calls[-1] == (15, 439, 624, 945)
     finally:
         window.close()
 
