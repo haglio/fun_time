@@ -215,15 +215,33 @@ def _side_panel(
 ) -> HudPanel:
     index: GroupIndex | None = None
     if current:
+        # must_contain=None: read the up-front index (see prime_group_indexes),
+        # never a per-clip rebuild — the library does not change during a session,
+        # so the map is drawn from memory the instant the clip changes.
         index = cached_group_index(
             sources,
             paths_supplier=lambda: collect_video_files(sources),
             metadata_root=config.provider_metadata_root,
-            must_contain=current,
+            must_contain=None,
         )
     return build_hud_panel(
         side, locked=locked, current=current, index=index, filter_query=filter_query
     )
+
+
+def prime_group_indexes(config: HudAppConfig) -> None:
+    """Build both satellites' group indexes up front — behind the loading screen,
+    before the first clip is drawn — so the map is instant on the first refresh
+    and no later refresh pays for a rebuild.  The library is fixed for the run,
+    so one build is enough (premiere is what would extend it)."""
+    for sources in (config.portrait_sources, config.landscape_sources):
+        if sources:
+            cached_group_index(
+                sources,
+                paths_supplier=lambda captured=sources: collect_video_files(captured),
+                metadata_root=config.provider_metadata_root,
+                must_contain=None,
+            )
 
 
 def build_panels(
