@@ -261,17 +261,17 @@ def test_loop_buttons_toggle_and_are_mutually_exclusive(qt_app):
         overlay.close()
 
 
-def test_hud_expand_button_sits_under_the_seed_loop_button():
-    """The expand ("more seeds") button sits directly under the seed-loop button
-    (both act on the seed row), and hides rather than overflow the panel."""
+def test_hud_expand_button_sits_in_the_row_right_of_the_seed_loop_button():
+    """The expand ("more seeds") button lives in the seed row, just right of the
+    seed-loop button, and hides rather than overflow the panel's right edge."""
     from fun_time.lock_hud_app import _LOOP_BTN, _MAP_GAP
 
     loop_seed = (60, 10, 18, 30)  # right of the seed row
 
-    assert hud_expand_button_rect(loop_seed, bottom=200) == (60, 10 + 30 + _MAP_GAP, 18, _LOOP_BTN)
-    assert hud_expand_button_rect(None, bottom=200) is None
-    # No vertical room left → dropped, not spilled past the panel bottom.
-    assert hud_expand_button_rect(loop_seed, bottom=50) is None
+    assert hud_expand_button_rect(loop_seed, right=200) == (60 + 18 + _MAP_GAP, 10, _LOOP_BTN, 30)
+    assert hud_expand_button_rect(None, right=200) is None
+    # No horizontal room left → dropped, not spilled past the panel's right edge.
+    assert hud_expand_button_rect(loop_seed, right=90) is None
 
 
 def test_hud_button_tooltip_names_each_button():
@@ -316,7 +316,13 @@ def test_friendly_action_label_titlecases_and_keeps_acronyms_upper():
     assert _friendly_action_label("pov gamma") == "POV Gamma"
     assert _friendly_action_label("POV Gamma") == "POV Gamma"
     assert _friendly_action_label("epsilon") == "Epsilon"
-    assert _friendly_action_label("delta") == "Delta"
+    assert _friendly_action_label("cowsubject") == "Cowsubject"
+
+
+def test_friendly_action_label_splits_a_long_single_word_over_two_lines():
+    # "Delta"/"Delta" clip the narrow gutter on one line, so they wrap.
+    assert _friendly_action_label("delta") == "Doggy\nstyle"
+    assert _friendly_action_label("delta") == "Missi\nonary"
 
 
 def test_friendly_action_label_shows_unknown_for_missing_metadata():

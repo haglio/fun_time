@@ -67,7 +67,7 @@ _BORDER_COLOR = QColor(255, 255, 255)
 _DIM_OPACITY = 0.5  # non-playing thumbnails; the currently-playing one stays full
 _COL_LABEL_H = 13  # header strip above the map for the "Seed N" column labels
 _COL_LABEL_GAP = 4  # breathing room between a column label and the thumbnail under it
-_ROW_LABEL_W = 62  # left gutter for the action-name row labels (fits "delta")
+_ROW_LABEL_W = 85  # left gutter for the action-name row labels (fits "Gamma"; longer wrap)
 _LOOP_BTN = 18  # loop-button thickness (px): below the action column, right of the seed row
 
 
@@ -145,18 +145,18 @@ def hud_loop_button_rects(
 
 
 def hud_expand_button_rect(
-    loop_seed_rect: _ThumbRect | None, bottom: int
+    loop_seed_rect: _ThumbRect | None, right: int
 ) -> _ThumbRect | None:
-    """The "more seeds" expand button, directly under the seed-loop button — both
-    act on the seed row, so it reads as "one more of these".  None when there is
-    no seed-loop button or it would overflow the panel's bottom."""
+    """The "more seeds" expand button, in the seed row just right of the seed-loop
+    button — widening is the row's effect, so it lives in the row.  None when
+    there is no seed-loop button or it would overflow the panel's right edge."""
     if loop_seed_rect is None:
         return None
     sx, sy, sw, sh = loop_seed_rect
-    ey = sy + sh + _MAP_GAP
-    if ey + _LOOP_BTN > bottom:
+    ex = sx + sw + _MAP_GAP
+    if ex + _LOOP_BTN > right:
         return None
-    return (sx, ey, sw, _LOOP_BTN)
+    return (ex, sy, _LOOP_BTN, sh)
 
 
 def _draw_loop_controls(
@@ -223,13 +223,22 @@ _ACTION_ACRONYMS = {"pov": "POV"}
 def _friendly_action_label(name: str) -> str:
     """A row's action drawn nicely: title-cased with known acronyms upper
     ("pov gamma" → "POV Gamma"), or "(unknown)" when the clip has no action
-    metadata, so the row is never a blank, invisible gutter."""
+    metadata, so the row is never a blank, invisible gutter.
+
+    A single word too long for the gutter is split across two lines
+    ("delta" → "Doggy\\nstyle"); multi-word names wrap at their spaces.
+    """
     if not name.strip():
         return "(unknown)"
-    return " ".join(
+    words = [
         _ACTION_ACRONYMS.get(word.lower(), word[:1].upper() + word[1:].lower())
         for word in name.split()
-    )
+    ]
+    if len(words) == 1 and len(words[0]) > 8:
+        word = words[0]
+        mid = (len(word) + 1) // 2
+        return f"{word[:mid]}\n{word[mid:]}"
+    return " ".join(words)
 
 
 def paint_hud(
@@ -540,7 +549,7 @@ class HudOverlay(QWidget):
             loop_action_rect, loop_seed_rect = hud_loop_button_rects(
                 corner_rect, seed_rects, action_rects, rect.right() - _PAD, rect.bottom() - _PAD,
             )
-            expand_rect = hud_expand_button_rect(loop_seed_rect, rect.bottom() - _PAD)
+            expand_rect = hud_expand_button_rect(loop_seed_rect, rect.right() - _PAD)
             if corner_rect is not None:
                 _draw_loop_controls(
                     painter, corner_rect, loop_action_rect, loop_seed_rect,
@@ -553,9 +562,9 @@ class HudOverlay(QWidget):
                     painter.drawRoundedRect(ex, ey, ew, eh, 3, 3)
                     painter.setFont(make_font(FONT_UI, SIZE_BODY, bold=True))
                     painter.setPen(TEXT_MUTED)
-                    # A plain "+" reads clearly at 18 px where the old ⤢ glyph did
-                    # not; it means "one more seed" — widen the net.
-                    painter.drawText(QRect(ex, ey, ew, eh), Qt.AlignmentFlag.AlignCenter, "+")
+                    # "»" reads as "widen / more to the right" — the row growing —
+                    # and stays legible at this size where the old ⤢ glyph did not.
+                    painter.drawText(QRect(ex, ey, ew, eh), Qt.AlignmentFlag.AlignCenter, "»")
         finally:
             painter.end()
         self._click_targets = build_click_targets(
