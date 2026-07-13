@@ -265,6 +265,20 @@ class TestVoiceCommands:
         for phrase in ("cycle seed", "next seed", "change seed"):
             assert VOICE_COMMANDS[phrase] == "active_cycle_seed"
 
+    def test_loop_family_phrases(self):
+        """The grid's loop names ("loop actions" / "loop seeds"), the equivalent
+        singular/reversed forms, "loop scene(s)" (scene == action), and "no loop"
+        / "loop off" to end one — all sided in either order like the rest."""
+        for phrase in ("loop actions", "loop action", "action loop", "loop scenes", "loop scene"):
+            assert VOICE_COMMANDS[phrase] == "active_action_loop"
+        for phrase in ("loop seeds", "loop seed", "seed loop"):
+            assert VOICE_COMMANDS[phrase] == "active_seed_loop"
+        for phrase in ("no loop", "loop off"):
+            assert VOICE_COMMANDS[phrase] == "active_no_loop"
+        assert VOICE_COMMANDS["portrait loop actions"] == "portrait_action_loop"
+        assert VOICE_COMMANDS["loop actions portrait"] == "portrait_action_loop"
+        assert VOICE_COMMANDS["both no loop"] == "both_no_loop"
+
     def test_primary_nav_phrases_both_orders(self):
         """The primary player joins the grid for navigation only, in either
         order; "main" is a synonym for "primary". Bare "next"/"previous" reach

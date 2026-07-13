@@ -818,6 +818,22 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     assert any(op.op == "notice" for op in ops)
 
 
+def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
+    """"no loop" ends a group loop by rebuilding the browse, but re-applies the
+    satellite's own filter so it survives — unlike reset, which clears it."""
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_filter="alpha")
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result()
+        new_state, ops = dispatch_command("portrait_no_loop", state, config)
+
+    # Rebuilt with the CURRENT filter (kept), not cleared to "".
+    assert mock_filter.call_args.kwargs["query"] == "alpha"
+    assert new_state.portrait_filter == "alpha"
+    assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
+
+
 def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()

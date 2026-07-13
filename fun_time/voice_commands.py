@@ -172,8 +172,12 @@ for _act_word, _act in _SATELLITE_ACTIONS.items():
 # command's own two words are order-agnostic too ("loop action" == "action
 # loop"), so a speaker never has to remember which word leads.
 _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
-    "action_loop": ("action loop", "loop action"),
-    "seed_loop": ("seed loop", "loop seed"),
+    # "loop actions"/"loop seeds" are the grid's names; the singular/reversed
+    # forms and "loop scene(s)" (scene == action) are kept as equivalents.
+    "action_loop": ("action loop", "loop action", "loop actions", "loop scene", "loop scenes"),
+    "seed_loop": ("seed loop", "loop seed", "loop seeds"),
+    # "no loop" / "loop off" ends any group loop, back to the browse.
+    "no_loop": ("no loop", "loop off"),
     "lock_action": ("lock action", "action lock"),
 }
 for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
