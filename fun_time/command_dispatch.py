@@ -513,6 +513,12 @@ _RESET_SIDES: dict[str, str] = {
     "landscape_reset": "landscape",
 }
 
+# "no loop" ends a group loop but, unlike reset, keeps the satellite's filter.
+_NO_LOOP_SIDES: dict[str, str] = {
+    "portrait_no_loop": "portrait",
+    "landscape_no_loop": "landscape",
+}
+
 
 def _dispatch_group_loop(
     which: int, axis: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
@@ -665,6 +671,10 @@ def dispatch_command(
     if loop_target is not None:
         which, axis = loop_target
         return _dispatch_group_loop(which, axis, state, config, target_path)
+
+    no_loop_scope = _NO_LOOP_SIDES.get(command)
+    if no_loop_scope is not None:
+        return _dispatch_no_loop(no_loop_scope, state, config)
 
     lock_action_scope = _LOCK_ACTION_SIDES.get(command)
     if lock_action_scope is not None:
@@ -1054,6 +1064,21 @@ def _dispatch_reset(
     rebuilds the full playlist, which also drops any group loop."""
     state = replace(state, recency_order=False)
     return _dispatch_set_filter(scope, "", state, config)
+
+
+def _dispatch_no_loop(
+    scope: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """End a group loop, back to the current browse — but keep the filter.
+
+    A loop is repeat-all over a loaded sub-playlist, and any full playlist
+    rebuild drops it; re-applying the satellite's own filter rebuilds the browse
+    while keeping that filter (reset, by contrast, also clears it).
+    """
+    which = 2 if scope == "portrait" else 3
+    current_filter = state.portrait_filter if which == 2 else state.landscape_filter
+    state, _filter_ops = _dispatch_set_filter(scope, current_filter, state, config)
+    return state, [WindowOp(op="notice", key="Loop off", source=_satellite_source(which))]
 
 
 def _dispatch_set_filter(
