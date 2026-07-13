@@ -824,7 +824,9 @@ def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait_filter="alpha")
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter, \
+         patch("fun_time.command_dispatch.get_current_file_path", return_value=""), \
+         patch("fun_time.command_dispatch.get_playback_fraction", return_value=None):
         mock_filter.return_value = _filter_result()
         new_state, ops = dispatch_command("portrait_no_loop", state, config)
 
@@ -2204,6 +2206,8 @@ def test_action_loop_loads_the_subjects_action_group(tmp_path: Path):
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch._rebuild_keeping_current",
+               side_effect=lambda port, pw, current, rebuild: rebuild()), \
          patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
         mock_loop.return_value = _loop_result()
         _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
@@ -2223,6 +2227,8 @@ def test_seed_loop_loads_the_current_acts_seed_family(tmp_path: Path):
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch._rebuild_keeping_current",
+               side_effect=lambda port, pw, current, rebuild: rebuild()), \
          patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
         mock_loop.return_value = _loop_result(message="Loop landscape: 2 seeds")
         dispatch_command("landscape_seed_loop", _make_state(), config)
@@ -2269,6 +2275,8 @@ def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch._rebuild_keeping_current",
+               side_effect=lambda port, pw, current, rebuild: rebuild()), \
          patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
         mock_loop.return_value = _loop_result()
         state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
@@ -2284,6 +2292,8 @@ def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch._rebuild_keeping_current",
+               side_effect=lambda port, pw, current, rebuild: rebuild()), \
          patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
         mock_loop.return_value = _loop_result(message="Loop landscape: 2 seeds")
         state, _ops = dispatch_command("landscape_seed_loop", _make_state(), config)
@@ -2301,6 +2311,8 @@ def test_a_loop_that_fails_to_apply_records_no_loop(tmp_path: Path):
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch._rebuild_keeping_current",
+               side_effect=lambda port, pw, current, rebuild: rebuild()), \
          patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
         mock_loop.return_value = _loop_result(applied=False)
         state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
@@ -2371,11 +2383,61 @@ def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
 def test_no_loop_clears_the_loop_flag(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter, \
+         patch("fun_time.command_dispatch.get_current_file_path", return_value=""), \
+         patch("fun_time.command_dispatch.get_playback_fraction", return_value=None):
         mock_filter.return_value = _filter_result()
         state, _ops = dispatch_command("portrait_no_loop", _make_state(portrait_loop="action"), config)
 
     assert state.portrait_loop == ""
+
+
+def test_rebuild_keeping_current_restores_the_clip_and_its_position():
+    """A playlist replace restarts on item 0; keeping the current clip means
+    replaying it and seeking back to where it was."""
+    from fun_time.command_dispatch import _rebuild_keeping_current
+    ran = []
+
+    with patch("fun_time.command_dispatch.get_playback_fraction", return_value=0.42), \
+         patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(7, "C:/v/cur.mp4")], 7)), \
+         patch("fun_time.command_dispatch._play_video", return_value=True) as play, \
+         patch("fun_time.command_dispatch.vlc_seek_fraction") as seek:
+        _rebuild_keeping_current(8091, "pw", "C:/v/cur.mp4", lambda: ran.append("rebuilt"))
+
+    assert ran == ["rebuilt"]
+    play.assert_called_once_with(8091, "pw", "C:/v/cur.mp4", [(7, "C:/v/cur.mp4")])
+    seek.assert_called_once_with(8091, "pw", 0.42)
+
+
+def test_rebuild_keeping_current_does_not_seek_from_the_very_start():
+    """At fraction 0 there is nothing to restore, so no needless seek fires."""
+    from fun_time.command_dispatch import _rebuild_keeping_current
+
+    with patch("fun_time.command_dispatch.get_playback_fraction", return_value=0.0), \
+         patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(7, "x")], 7)), \
+         patch("fun_time.command_dispatch._play_video", return_value=True), \
+         patch("fun_time.command_dispatch.vlc_seek_fraction") as seek:
+        _rebuild_keeping_current(8091, "pw", "x", lambda: None)
+
+    seek.assert_not_called()
+
+
+def test_no_loop_keeps_the_current_clip_playing_where_it_was(tmp_path: Path):
+    """Cancelling a loop must not yank you to a different clip — the video on
+    screen keeps playing at its position across the browse rebuild."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter, \
+         patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/watching.mp4"), \
+         patch("fun_time.command_dispatch.get_playback_fraction", return_value=0.6), \
+         patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, "C:/v/watching.mp4")], 3)), \
+         patch("fun_time.command_dispatch._play_video", return_value=True) as play, \
+         patch("fun_time.command_dispatch.vlc_seek_fraction") as seek:
+        mock_filter.return_value = _filter_result()
+        dispatch_command("portrait_no_loop", _make_state(), config)
+
+    play.assert_called_once_with(config.portrait_port, "pw", "C:/v/watching.mp4", [(3, "C:/v/watching.mp4")])
+    seek.assert_called_once_with(config.portrait_port, "pw", 0.6)
 
 
 def test_premiere_clears_both_loops(tmp_path: Path):
@@ -2431,6 +2493,8 @@ def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Pat
     with patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/advanced_to.mp4"), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch._rebuild_keeping_current",
+               side_effect=lambda port, pw, current, rebuild: rebuild()), \
          patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
         mock_loop.return_value = _loop_result()
         dispatch_command("portrait_action_loop", _make_state(), config, target_path=meant)

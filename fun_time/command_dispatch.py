@@ -45,12 +45,14 @@ from .runtime_flow import (
 from .vlc_actions import (
     ensure_playback_state,
     get_current_file_path,
+    get_playback_fraction,
     get_playlist_entries,
     set_repeat_mode,
     vlc_advance_and_remove,
     vlc_http_cmd,
     vlc_nav_step,
     vlc_play_playlist_item,
+    vlc_seek_fraction,
     vlc_swap_current_with,
 )
 from .watch_stats import record_watch_event, watch_stats_path
@@ -293,6 +295,24 @@ def _play_video(port: int, password: str, path: str, entries: list[tuple[int, st
     if target_id is not None:
         return vlc_play_playlist_item(port, password, target_id)
     return vlc_swap_current_with(port, password, path)
+
+
+def _rebuild_keeping_current(
+    port: int, password: str, current: str, rebuild: Callable[[], object]
+) -> None:
+    """Run *rebuild* (which replaces the satellite's playlist) but keep *current*
+    playing right where it was.
+
+    A playlist replace otherwise restarts on item 0 — for a loop toggle that
+    yanks you off the clip you were watching onto a different one.  Capturing the
+    position, then replaying the same clip and seeking back, makes toggling a loop
+    on or off leave the current video alone.
+    """
+    fraction = get_playback_fraction(port, password) or 0.0
+    rebuild()
+    entries, _current_id = get_playlist_entries(port, password)
+    if _play_video(port, password, current, entries) and fraction > 0.0:
+        vlc_seek_fraction(port, password, fraction)
 
 
 def _cancel_lock(which: int, state: BridgeState, config: BridgeConfig) -> BridgeState:
@@ -595,14 +615,18 @@ def _dispatch_group_loop(
         return state, [WindowOp(op="notice", key="Locked", source=source)]
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = _cancel_lock(which, state, config)
-    result = apply_satellite_loop(
-        which=which,
-        axis=axis,
-        members=members,
-        state_dir=config.state_dir,
-        port=port,
-        password=config.vlc_password,
+    # Put the clip on screen first in the sub-playlist and restore its position
+    # across the replace, so turning the loop on doesn't restart or jump it.
+    members = [current] + [m for m in members if normalize_path_key(m) != normalize_path_key(current)]
+    result_box = []
+    _rebuild_keeping_current(
+        port, config.vlc_password, current,
+        lambda: result_box.append(apply_satellite_loop(
+            which=which, axis=axis, members=members,
+            state_dir=config.state_dir, port=port, password=config.vlc_password,
+        )),
     )
+    result = result_box[0]
     logger.info(result.log_message)
     if result.applied:
         ensure_playback_state(port, config.vlc_password, should_play=True)
@@ -1191,8 +1215,18 @@ def _dispatch_no_loop(
     while keeping that filter (reset, by contrast, also clears it).
     """
     which = 2 if scope == "portrait" else 3
+    port = config.portrait_port if which == 2 else config.landscape_port
+    # The clip on screen when the loop ends should keep playing — not be swapped
+    # for whatever the rebuilt browse starts on.  Capture it and its position
+    # first, rebuild, then bring it back where it was.
+    current = get_current_file_path(port, config.vlc_password)
+    fraction = get_playback_fraction(port, config.vlc_password) or 0.0
     current_filter = state.portrait_filter if which == 2 else state.landscape_filter
     state, _filter_ops = _dispatch_set_filter(scope, current_filter, state, config)
+    if current:
+        entries, _current_id = get_playlist_entries(port, config.vlc_password)
+        if _play_video(port, config.vlc_password, current, entries) and fraction > 0.0:
+            vlc_seek_fraction(port, config.vlc_password, fraction)
     return state, [WindowOp(op="notice", key="Loop off", source=_satellite_source(which))]
 
 

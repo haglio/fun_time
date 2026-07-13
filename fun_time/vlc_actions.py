@@ -176,6 +176,18 @@ def get_playback_fraction(port: int, password: str) -> float | None:
         return None
 
 
+def vlc_seek_fraction(port: int, password: str, fraction: float) -> bool:
+    """Seek the current item to *fraction* (0..1) of its length.
+
+    Used to restore playback position after a playlist replace, so toggling a
+    loop keeps the clip where it was instead of restarting it.  ``%25`` is an
+    encoded ``%``, so VLC receives ``val=<n>%`` — a percentage seek.
+    """
+    percent = max(0, min(100, int(round(fraction * 100))))
+    status, _ = vlc_http_req(port, f"/requests/status.xml?command=seek&val={percent}%25", password)
+    return status == 200
+
+
 def get_playback_state(port: int, password: str) -> str | None:
     status, xml = vlc_http_req(port, "/requests/status.xml", password)
     if status != 200 or not xml:
