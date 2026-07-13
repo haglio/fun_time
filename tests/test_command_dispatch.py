@@ -1220,6 +1220,34 @@ def test_portrait_cycle_seed_widens_to_a_near_match_when_no_exact_sister(tmp_pat
     assert [op.key for op in ops if op.op == "notice"] == ["Similar clip"]
 
 
+def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
+    """Image-to-video clips of one source image share a seed family across
+    actions (the family is keyed on the image, action-blind).  But the seed axis
+    is "the same act, another subject", and the HUD draws only same-action members,
+    so "next seed" must skip a different-action clip even though it is a sister
+    seed — that clip is reached on the action axis instead."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "a_alpha": _cycle_meta("200", "Alpha"),
+        "b_alpha": _cycle_meta("300", "Alpha"),
+        "c_gamma": _cycle_meta("250", "Gamma"),  # sister seed, other action
+    })
+    state = _make_state()
+    # c sorts first above the current seed (200 < 250 < 300): without the action
+    # gate the walk would land on it; with the gate it must reach b instead.
+    entries = [(3, paths["a_alpha"]), (4, paths["c_gamma"]), (5, paths["b_alpha"])]
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["a_alpha"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=(entries, 3)),
+        patch("fun_time.command_dispatch.vlc_play_playlist_item", return_value=True) as play,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
+
+    play.assert_called_once_with(config.portrait_port, "pw", 5)  # b_alpha, not c_gamma
+    assert [op.key for op in ops if op.op == "notice"] == ["Next seed"]
+
+
 def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
     """The landscape variants must hit the landscape port and lock flag."""
     from fun_time.media_metadata import metadata_path_for, reset_group_index_cache

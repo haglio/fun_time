@@ -420,6 +420,7 @@ def _next_seed_sibling(
     current one, wrapping to the lowest — preferring playlist entries.
     """
     current_key = normalize_path_key(current)
+    current_action = index.action_by_path.get(current_key, "")
 
     def pool(key_by_path, members_by_family, accept) -> tuple[str | None, list[tuple[str, str]]]:
         entry = key_by_path.get(current_key)
@@ -430,8 +431,19 @@ def _next_seed_sibling(
         def gather(paths) -> list[tuple[str, str]]:
             found: list[tuple[str, str]] = []
             for path in paths:
-                candidate = key_by_path.get(normalize_path_key(path))
-                if candidate and candidate[0] == family and accept(candidate[1], path, current_seed):
+                key = normalize_path_key(path)
+                candidate = key_by_path.get(key)
+                # Same action only. An image-to-video seed family is keyed on the
+                # source image alone, so it spans actions; but the seed axis is
+                # "the same act, another subject", so a sister seed doing a different
+                # act belongs on the action axis, not here. This keeps the walk in
+                # step with what seed_family_members draws in the HUD.
+                if (
+                    candidate
+                    and candidate[0] == family
+                    and index.action_by_path.get(key, "") == current_action
+                    and accept(candidate[1], path, current_seed)
+                ):
                     found.append((candidate[1], path))
             return sorted(found)
 
