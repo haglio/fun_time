@@ -569,6 +569,23 @@ def _dispatch_lock_action(
     return _dispatch_set_filter(scope, action.lower(), state, config)
 
 
+def _dispatch_play_video(
+    which: int, path: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Switch a satellite straight to *path* — the command a HUD thumbnail click
+    sends.  Plays it from the playlist if it is already there, else swaps it into
+    the current slot, exactly as cycling to a sibling does."""
+    port = config.portrait_port if which == 2 else config.landscape_port
+    if not path:
+        return state, []
+    entries, _current_id = get_playlist_entries(port, config.vlc_password)
+    if not _play_video(port, config.vlc_password, path, entries):
+        logger.warning("play_video: could not switch %s to %s", _satellite_source(which), path)
+        return state, []
+    ensure_playback_state(port, config.vlc_password, should_play=True)
+    return state, [WindowOp(op="notice", key="Switched", source=_satellite_source(which))]
+
+
 def _cycle_variant(
     which: int, kind: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -661,6 +678,13 @@ def dispatch_command(
     side = command_side(command)
     if side is not None:
         state = replace(state, active_side=side)
+
+    # A HUD thumbnail click sends "<side>_play_video|<path>": switch straight to
+    # that clip. The path is carried after the "|" ("|" is illegal in a Windows
+    # path, so it is an unambiguous delimiter).
+    if "_play_video|" in command:
+        head, _, path = command.partition("|")
+        return _dispatch_play_video(2 if head.startswith("portrait_") else 3, path, state, config)
 
     cycle_target = _CYCLE_COMMANDS.get(command)
     if cycle_target is not None:

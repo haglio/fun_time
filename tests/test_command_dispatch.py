@@ -834,6 +834,26 @@ def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
+def test_play_video_command_switches_the_satellite_to_the_path(tmp_path: Path):
+    """A HUD thumbnail click sends "<side>_play_video|<path>"; the satellite
+    switches straight to that clip via the same play helper cycling uses, and
+    clicking it makes that satellite the active side."""
+    config = _make_config(tmp_path)
+    state = _make_state()
+    path = "C:/vids/portrait/pick_me.mp4"
+
+    with (
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, path)], 3)),
+        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        new_state, ops = dispatch_command(f"portrait_play_video|{path}", state, config)
+
+    play.assert_called_once_with(config.portrait_port, "pw", path, [(3, path)])
+    assert new_state.active_side == 2
+    assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
+
+
 def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()

@@ -13,6 +13,7 @@ OmniPause (topmost normally, non-topmost while paused so the desktop is free).
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer, QRect
@@ -137,12 +138,16 @@ def paint_hud(
     current_thumb: QPixmap | None,
     seed_thumbs: list[QPixmap],
     action_thumbs: list[QPixmap],
-) -> None:
+) -> tuple[_ThumbRect | None, list[_ThumbRect], list[_ThumbRect]]:
     """Render one satellite's HUD: lock band, optional filter, then the map.
 
     The current clip anchors the map with a white border; its seed family runs
     right along the row and its distinct other actions run down the column, so
     stepping an action moves down and the row reloads with that action's seeds.
+
+    Returns the map thumbnails' positioned rects — the corner (current clip),
+    then each drawn seed and action — so the caller can hit-test clicks against
+    exactly what was drawn.  The corner is None when there is no map to draw.
     """
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
@@ -168,7 +173,7 @@ def paint_hud(
         y = _draw_status_line(painter, x, y, f"FILTER · {panel.filter_query}", TEXT_PRIMARY)
 
     if current_thumb is None:
-        return
+        return None, [], []
 
     right = rect.right() - _PAD
     bottom = rect.bottom() - _PAD
@@ -228,14 +233,44 @@ def paint_hud(
         label = panel.action_labels[i] if i < len(panel.action_labels) else ""
         _row_label(ay, ah, label)
 
+    return corner_rect, seed_rects, action_rects
 
-def _load_pixmaps(pairs: list[tuple[str, Path]]) -> list[QPixmap]:
-    pixmaps: list[QPixmap] = []
-    for _path, thumb in pairs:
+
+def _load_pixmaps(pairs: list[tuple[str, Path]]) -> list[tuple[str, QPixmap]]:
+    """(video_path, pixmap) for each readable thumbnail, keeping the video path so
+    a click on the drawn thumbnail knows which clip it is."""
+    loaded: list[tuple[str, QPixmap]] = []
+    for path, thumb in pairs:
         pixmap = QPixmap(str(thumb))
         if not pixmap.isNull():
-            pixmaps.append(pixmap)
-    return pixmaps
+            loaded.append((path, pixmap))
+    return loaded
+
+
+def build_click_targets(
+    corner_rect: _ThumbRect | None,
+    seed_rects: list[_ThumbRect],
+    action_rects: list[_ThumbRect],
+    current_path: str,
+    seed_paths: list[str],
+    action_paths: list[str],
+) -> list[tuple[_ThumbRect, str]]:
+    """(rect, video_path) for every clickable thumbnail: the corner is the
+    current clip, then each drawn seed and action zipped to its path."""
+    targets: list[tuple[_ThumbRect, str]] = []
+    if corner_rect is not None and current_path:
+        targets.append((corner_rect, current_path))
+    targets.extend(zip(seed_rects, seed_paths))
+    targets.extend(zip(action_rects, action_paths))
+    return targets
+
+
+def hit_test_targets(targets: list[tuple[_ThumbRect, str]], px: int, py: int) -> str:
+    """The video path whose rect contains ``(px, py)``, or "" if none does."""
+    for (x, y, w, h), path in targets:
+        if x <= px < x + w and y <= py < y + h:
+            return path
+    return ""
 
 
 def _load_pixmap(thumb: Path | None) -> QPixmap | None:
@@ -246,25 +281,37 @@ def _load_pixmap(thumb: Path | None) -> QPixmap | None:
 
 
 class HudOverlay(QWidget):
-    """A frameless, click-through, always-on-top overlay for one satellite."""
+    """A frameless, always-on-top overlay for one satellite.
 
-    def __init__(self, side: str) -> None:
+    Clicking a thumbnail posts a "play this clip" command through
+    *command_writer* — the overlay takes mouse input but never activates
+    (WS_EX_NOACTIVATE), so the VLC beneath it keeps focus.
+    """
+
+    def __init__(self, side: str, command_writer: Callable[[str], None]) -> None:
         super().__init__()
+        self._side = side
+        self._command_writer = command_writer
         self._panel: HudPanel | None = None
         self._current_thumb: QPixmap | None = None
         self._seed_thumbs: list[QPixmap] = []
         self._action_thumbs: list[QPixmap] = []
+        self._seed_paths: list[str] = []
+        self._action_paths: list[str] = []
+        self._click_targets: list[tuple[_ThumbRect, str]] = []
 
         self.setWindowTitle(f"Fun Time HUD ({side})")
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
-            | Qt.WindowType.WindowTransparentForInput
+            # Take clicks (no WindowTransparentForInput), but never take focus:
+            # WindowDoesNotAcceptFocus sets WS_EX_NOACTIVATE, so clicking the
+            # overlay does not steal activation from the satellite VLC under it.
+            | Qt.WindowType.WindowDoesNotAcceptFocus
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
     def set_content(
         self,
@@ -272,11 +319,15 @@ class HudOverlay(QWidget):
         current_thumb: QPixmap | None,
         seed_thumbs: list[QPixmap],
         action_thumbs: list[QPixmap],
+        seed_paths: list[str],
+        action_paths: list[str],
     ) -> None:
         self._panel = panel
         self._current_thumb = current_thumb
         self._seed_thumbs = seed_thumbs
         self._action_thumbs = action_thumbs
+        self._seed_paths = seed_paths
+        self._action_paths = action_paths
         self.update()
 
     def sync_topmost(self, desired_topmost: bool) -> None:
@@ -311,12 +362,23 @@ class HudOverlay(QWidget):
             return
         painter = QPainter(self)
         try:
-            paint_hud(
+            corner_rect, seed_rects, action_rects = paint_hud(
                 painter, self.rect(), self._panel,
                 self._current_thumb, self._seed_thumbs, self._action_thumbs,
             )
         finally:
             painter.end()
+        self._click_targets = build_click_targets(
+            corner_rect, seed_rects, action_rects,
+            self._panel.current, self._seed_paths, self._action_paths,
+        )
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        """A click on a thumbnail switches the satellite straight to that clip."""
+        point = event.position().toPoint()
+        path = hit_test_targets(self._click_targets, point.x(), point.y())
+        if path:
+            self._command_writer(f"{self._side}_play_video|{path}")
 
 
 class LockHud:
@@ -324,7 +386,10 @@ class LockHud:
 
     def __init__(self, config: HudAppConfig) -> None:
         self._config = config
-        self._overlays = {"portrait": HudOverlay("portrait"), "landscape": HudOverlay("landscape")}
+        self._overlays = {
+            "portrait": HudOverlay("portrait", self._write_command),
+            "landscape": HudOverlay("landscape", self._write_command),
+        }
         # The last panel drawn per side, so a fast refresh skips reloading
         # thumbnails and repainting when nothing about the map has changed.
         self._last_panels: dict[str, HudPanel | None] = {"portrait": None, "landscape": None}
@@ -383,11 +448,25 @@ class LockHud:
             current_thumb = _load_pixmap(thumbnail_for(panel.current, cache_dir)) if panel.current else None
             seed = _load_pixmaps(panel_thumbnails(panel.seed_siblings, cache_dir, limit=SEED_LIMIT))
             action = _load_pixmaps(panel_thumbnails(panel.action_siblings, cache_dir, limit=ACTION_LIMIT))
-            overlay.set_content(panel, current_thumb, seed, action)
+            overlay.set_content(
+                panel, current_thumb,
+                [pixmap for _path, pixmap in seed], [pixmap for _path, pixmap in action],
+                [path for path, _pixmap in seed], [path for path, _pixmap in action],
+            )
             self._last_panels[side] = panel
         if not overlay.isVisible():
             overlay.show()
         overlay.sync_topmost(desired_topmost)
+
+    def _write_command(self, command: str) -> None:
+        """Post a command for the dispatch loop — the channel a thumbnail click
+        rides.  Overwrites like the dashboard's own writer; clicks are user-paced,
+        so a rare collision would at worst drop one."""
+        try:
+            self._config.dashboard_cmd_file.parent.mkdir(parents=True, exist_ok=True)
+            self._config.dashboard_cmd_file.write_text(command, encoding="utf-8")
+        except OSError:
+            pass
 
 
 def main(argv: list[str] | None = None) -> int:
