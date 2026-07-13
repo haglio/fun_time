@@ -23,6 +23,7 @@ from fun_time.lock_hud_app import (
     LockHud,
     OVERLAY_HEIGHT,
     OVERLAY_WIDTH,
+    _friendly_action_label,
     _playing_cell,
     build_click_targets,
     build_label_targets,
@@ -260,17 +261,29 @@ def test_loop_buttons_toggle_and_are_mutually_exclusive(qt_app):
         overlay.close()
 
 
-def test_hud_expand_button_sits_at_the_loop_button_corner():
-    """The expand ("more seeds") button tucks into the corner where the two loop
-    buttons' arms meet, and only when both loop buttons are present."""
-    from fun_time.lock_hud_app import _LOOP_BTN
+def test_hud_expand_button_sits_under_the_seed_loop_button():
+    """The expand ("more seeds") button sits directly under the seed-loop button
+    (both act on the seed row), and hides rather than overflow the panel."""
+    from fun_time.lock_hud_app import _LOOP_BTN, _MAP_GAP
 
-    loop_action = (10, 60, 30, 18)
-    loop_seed = (60, 10, 18, 30)
+    loop_seed = (60, 10, 18, 30)  # right of the seed row
 
-    assert hud_expand_button_rect(loop_action, loop_seed) == (60, 60, _LOOP_BTN, _LOOP_BTN)
-    assert hud_expand_button_rect(None, loop_seed) is None
-    assert hud_expand_button_rect(loop_action, None) is None
+    assert hud_expand_button_rect(loop_seed, bottom=200) == (60, 10 + 30 + _MAP_GAP, 18, _LOOP_BTN)
+    assert hud_expand_button_rect(None, bottom=200) is None
+    # No vertical room left → dropped, not spilled past the panel bottom.
+    assert hud_expand_button_rect(loop_seed, bottom=50) is None
+
+
+def test_hud_button_tooltip_names_each_button():
+    from fun_time.lock_hud_app import hud_button_tooltip
+
+    loop_targets = [((0, 0, 20, 20), "action"), ((30, 0, 20, 20), "seed")]
+    expand = (30, 30, 18, 18)
+
+    assert hud_button_tooltip(loop_targets, expand, 5, 5) == "Loop this action column"
+    assert hud_button_tooltip(loop_targets, expand, 35, 5) == "Loop this seed row"
+    assert hud_button_tooltip(loop_targets, expand, 35, 35) == "More seeds — widen the net"
+    assert hud_button_tooltip(loop_targets, expand, 200, 200) == ""
 
 
 def test_clicking_the_expand_button_posts_more_seeds(qt_app):
@@ -297,6 +310,18 @@ def test_hovering_a_loop_button_marks_the_preview_axis(qt_app):
         assert overlay._hover_loop == ""
     finally:
         overlay.close()
+
+
+def test_friendly_action_label_titlecases_and_keeps_acronyms_upper():
+    assert _friendly_action_label("pov gamma") == "POV Gamma"
+    assert _friendly_action_label("POV Gamma") == "POV Gamma"
+    assert _friendly_action_label("epsilon") == "Epsilon"
+    assert _friendly_action_label("delta") == "Delta"
+
+
+def test_friendly_action_label_shows_unknown_for_missing_metadata():
+    assert _friendly_action_label("") == "(unknown)"
+    assert _friendly_action_label("   ") == "(unknown)"
 
 
 def test_playing_cell_is_the_corner_when_the_live_clip_is_the_anchor():
@@ -363,13 +388,15 @@ def test_paint_hud_labels_seed_columns_and_action_rows(qt_app):
 
     named = _panel(current="c.mp4", seed_siblings=[], action_siblings=["a1"],
                    current_action="Alpha", action_labels=("Delta",))
-    unnamed = _panel(current="c.mp4", seed_siblings=[], action_siblings=["a1"],
-                     current_action="", action_labels=("",))
+    no_map = _panel(current="c.mp4", seed_siblings=[], action_siblings=["a1"],
+                    current_action="Alpha", action_labels=("Delta",))
 
     def gutter(image: QImage) -> int:
         return _label_ink_in_rect(image, _PAD, map_top, _PAD + _ROW_LABEL_W, OVERLAY_HEIGHT)
 
-    assert gutter(_render(named, thumb, [], [thumb])) > gutter(_render(unnamed, thumb, [], [thumb]))
+    # Naming the rows fills the gutter with action ink; with no map drawn (no
+    # current thumbnail) there is no gutter at all.
+    assert gutter(_render(named, thumb, [], [thumb])) > gutter(_render(no_map, None, [], []))
 
     def header(image: QImage) -> int:
         return _label_ink_in_rect(image, _PAD + _ROW_LABEL_W, map_top, OVERLAY_WIDTH - _PAD, map_top + _COL_LABEL_H)
@@ -377,6 +404,19 @@ def test_paint_hud_labels_seed_columns_and_action_rows(qt_app):
     two_cols = _render(_panel(current="c.mp4", seed_siblings=["s1"], action_siblings=[]), thumb, [thumb], [])
     one_col = _render(_panel(current="c.mp4", seed_siblings=[], action_siblings=[]), thumb, [], [])
     assert header(two_cols) > header(one_col)
+
+
+def test_paint_hud_draws_unknown_for_a_row_missing_its_action(qt_app):
+    """A clip with no action metadata still gets a labelled row — "(unknown)" —
+    rather than an invisible, blank gutter."""
+    thumb = _solid_pixmap(QColor(30, 30, 30))
+    map_top = _PAD + _LOCK_BAND_H
+    unnamed = _panel(current="c.mp4", seed_siblings=[], action_siblings=["a1"],
+                     current_action="", action_labels=("",))
+
+    ink = _label_ink_in_rect(_render(unnamed, thumb, [], [thumb]), _PAD, map_top,
+                             _PAD + _ROW_LABEL_W, OVERLAY_HEIGHT)
+    assert ink > 0
 
 
 def test_restake_topmost_always_reasserts_the_band(qt_app):

@@ -13,12 +13,13 @@ OmniPause (topmost normally, non-topmost while paused so the desktop is free).
 from __future__ import annotations
 
 import sys
+import threading
 from collections.abc import Callable
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer, QRect
 from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication, QToolTip, QWidget
 
 from shared_ui.colors import BG_PRIMARY, BORDER_PANEL, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_TINY, make_font
@@ -34,6 +35,7 @@ from fun_time.lock_hud import (
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
+    prewarm_thumbnails,
     prime_group_indexes,
     signal_hud_ready,
 )
@@ -143,13 +145,18 @@ def hud_loop_button_rects(
 
 
 def hud_expand_button_rect(
-    loop_action_rect: _ThumbRect | None, loop_seed_rect: _ThumbRect | None
+    loop_seed_rect: _ThumbRect | None, bottom: int
 ) -> _ThumbRect | None:
-    """The "more seeds" expand button, tucked into the corner where the two loop
-    buttons' arms meet — present only when both loop buttons are."""
-    if loop_action_rect is None or loop_seed_rect is None:
+    """The "more seeds" expand button, directly under the seed-loop button — both
+    act on the seed row, so it reads as "one more of these".  None when there is
+    no seed-loop button or it would overflow the panel's bottom."""
+    if loop_seed_rect is None:
         return None
-    return (loop_seed_rect[0], loop_action_rect[1], _LOOP_BTN, _LOOP_BTN)
+    sx, sy, sw, sh = loop_seed_rect
+    ey = sy + sh + _MAP_GAP
+    if ey + _LOOP_BTN > bottom:
+        return None
+    return (sx, ey, sw, _LOOP_BTN)
 
 
 def _draw_loop_controls(
@@ -207,6 +214,22 @@ def _playing_cell(
             if key(path) == key(playing):
                 return ("action", i)
     return ("corner", 0)
+
+
+# Action words that read wrong in plain title case — kept upper.
+_ACTION_ACRONYMS = {"pov": "POV"}
+
+
+def _friendly_action_label(name: str) -> str:
+    """A row's action drawn nicely: title-cased with known acronyms upper
+    ("pov gamma" → "POV Gamma"), or "(unknown)" when the clip has no action
+    metadata, so the row is never a blank, invisible gutter."""
+    if not name.strip():
+        return "(unknown)"
+    return " ".join(
+        _ACTION_ACRONYMS.get(word.lower(), word[:1].upper() + word[1:].lower())
+        for word in name.split()
+    )
 
 
 def paint_hud(
@@ -274,12 +297,13 @@ def paint_hud(
         )
 
     def _row_label(row_y: int, height: int, text: str) -> None:
-        if not text:
-            return
+        # Long / two-word actions ("POV Gamma") wrap within the gutter rather
+        # than clipping on the left; a missing action shows "(unknown)".
         painter.setPen(TEXT_MUTED)
         painter.drawText(
             QRect(x, row_y, _ROW_LABEL_W - _MAP_GAP, height),
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text,
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextWordWrap,
+            _friendly_action_label(text),
         )
 
     corner = _scaled(current_thumb, _MAP_THUMB_H)
@@ -362,6 +386,29 @@ def hit_test_targets(targets: list[tuple[_ThumbRect, str]], px: int, py: int) ->
     for (x, y, w, h), value in targets:
         if x <= px < x + w and y <= py < y + h:
             return value
+    return ""
+
+
+_LOOP_TOOLTIPS = {"action": "Loop this action column", "seed": "Loop this seed row"}
+_EXPAND_TOOLTIP = "More seeds — widen the net"
+
+
+def hud_button_tooltip(
+    loop_targets: list[tuple[_ThumbRect, str]],
+    expand_rect: _ThumbRect | None,
+    px: int,
+    py: int,
+) -> str:
+    """The tooltip for whichever HUD button is under ``(px, py)`` — the loop
+    buttons or the expand button — or "" when the cursor is over neither, so the
+    user can tell what each cryptic glyph does."""
+    loop = hit_test_targets(loop_targets, px, py)
+    if loop:
+        return _LOOP_TOOLTIPS.get(loop, "")
+    if expand_rect is not None:
+        ex, ey, ew, eh = expand_rect
+        if ex <= px < ex + ew and ey <= py < ey + eh:
+            return _EXPAND_TOOLTIP
     return ""
 
 
@@ -493,7 +540,7 @@ class HudOverlay(QWidget):
             loop_action_rect, loop_seed_rect = hud_loop_button_rects(
                 corner_rect, seed_rects, action_rects, rect.right() - _PAD, rect.bottom() - _PAD,
             )
-            expand_rect = hud_expand_button_rect(loop_action_rect, loop_seed_rect)
+            expand_rect = hud_expand_button_rect(loop_seed_rect, rect.bottom() - _PAD)
             if corner_rect is not None:
                 _draw_loop_controls(
                     painter, corner_rect, loop_action_rect, loop_seed_rect,
@@ -504,9 +551,11 @@ class HudOverlay(QWidget):
                     painter.setPen(QPen(TEXT_MUTED, 1))
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     painter.drawRoundedRect(ex, ey, ew, eh, 3, 3)
-                    painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
+                    painter.setFont(make_font(FONT_UI, SIZE_BODY, bold=True))
                     painter.setPen(TEXT_MUTED)
-                    painter.drawText(QRect(ex, ey, ew, eh), Qt.AlignmentFlag.AlignCenter, "⤢")
+                    # A plain "+" reads clearly at 18 px where the old ⤢ glyph did
+                    # not; it means "one more seed" — widen the net.
+                    painter.drawText(QRect(ex, ey, ew, eh), Qt.AlignmentFlag.AlignCenter, "+")
         finally:
             painter.end()
         self._click_targets = build_click_targets(
@@ -565,6 +614,11 @@ class HudOverlay(QWidget):
         if hover != self._hover_loop:
             self._hover_loop = hover
             self.update()
+        tip = hud_button_tooltip(self._loop_targets, self._expand_rect, point.x(), point.y())
+        if tip:
+            QToolTip.showText(self.mapToGlobal(point), tip, self)
+        else:
+            QToolTip.hideText()
 
     def _fire_pending_click(self) -> None:
         if self._pending_click_path:
@@ -591,6 +645,12 @@ class LockHud:
         # will paint immediately rather than blank.
         prime_group_indexes(config)
         signal_hud_ready(config.ready_file)
+        # Fill the thumbnail cache off the UI thread so a clip change paints from
+        # cache instead of blocking on a first-use frame grab.  Daemon: it must
+        # never hold the process open, and losing a half-done warm is harmless.
+        threading.Thread(
+            target=prewarm_thumbnails, args=(config,), daemon=True, name="hud-thumb-prewarm",
+        ).start()
         self._overlays = {
             "portrait": HudOverlay("portrait", self._write_command),
             "landscape": HudOverlay("landscape", self._write_command),
