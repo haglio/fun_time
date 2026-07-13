@@ -26,6 +26,7 @@ from fun_time.lock_hud_app import (
     build_click_targets,
     build_label_targets,
     hit_test_targets,
+    hud_expand_button_rect,
     hud_loop_button_rects,
     hud_thumbnail_rects,
     paint_hud,
@@ -254,6 +255,31 @@ def test_loop_buttons_toggle_and_are_mutually_exclusive(qt_app):
         overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(35, 5)))
         assert sent == ["portrait_no_loop"]
         assert overlay._active_loop == ""
+    finally:
+        overlay.close()
+
+
+def test_hud_expand_button_sits_at_the_loop_button_corner():
+    """The expand ("more seeds") button tucks into the corner where the two loop
+    buttons' arms meet, and only when both loop buttons are present."""
+    from fun_time.lock_hud_app import _LOOP_BTN
+
+    loop_action = (10, 60, 30, 18)
+    loop_seed = (60, 10, 18, 30)
+
+    assert hud_expand_button_rect(loop_action, loop_seed) == (60, 60, _LOOP_BTN, _LOOP_BTN)
+    assert hud_expand_button_rect(None, loop_seed) is None
+    assert hud_expand_button_rect(loop_action, None) is None
+
+
+def test_clicking_the_expand_button_posts_more_seeds(qt_app):
+    """The expand button widens the net — the click posts "<side>_more_seeds"."""
+    sent: list[str] = []
+    overlay = HudOverlay("landscape", sent.append)
+    try:
+        overlay._expand_rect = (0, 0, 18, 18)
+        overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(5, 5)))
+        assert sent == ["landscape_more_seeds"]
     finally:
         overlay.close()
 

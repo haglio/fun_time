@@ -139,6 +139,16 @@ def hud_loop_button_rects(
     return loop_action, loop_seed
 
 
+def hud_expand_button_rect(
+    loop_action_rect: _ThumbRect | None, loop_seed_rect: _ThumbRect | None
+) -> _ThumbRect | None:
+    """The "more seeds" expand button, tucked into the corner where the two loop
+    buttons' arms meet — present only when both loop buttons are."""
+    if loop_action_rect is None or loop_seed_rect is None:
+        return None
+    return (loop_seed_rect[0], loop_action_rect[1], _LOOP_BTN, _LOOP_BTN)
+
+
 def _draw_loop_controls(
     painter: QPainter,
     corner_rect: _ThumbRect,
@@ -386,6 +396,7 @@ class HudOverlay(QWidget):
         self._hover_loop = ""
         self._loop_targets: list[tuple[_ThumbRect, str]] = []
         self._label_targets: list[tuple[_ThumbRect, str]] = []
+        self._expand_rect: _ThumbRect | None = None
         self._prev_current = ""
 
         self.setWindowTitle(f"Fun Time HUD ({side})")
@@ -451,11 +462,20 @@ class HudOverlay(QWidget):
             loop_action_rect, loop_seed_rect = hud_loop_button_rects(
                 corner_rect, seed_rects, action_rects, rect.right() - _PAD, rect.bottom() - _PAD,
             )
+            expand_rect = hud_expand_button_rect(loop_action_rect, loop_seed_rect)
             if corner_rect is not None:
                 _draw_loop_controls(
                     painter, corner_rect, loop_action_rect, loop_seed_rect,
                     seed_rects, action_rects, self._active_loop, self._hover_loop,
                 )
+                if expand_rect is not None:
+                    ex, ey, ew, eh = expand_rect
+                    painter.setPen(QPen(TEXT_MUTED, 1))
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRoundedRect(ex, ey, ew, eh, 3, 3)
+                    painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
+                    painter.setPen(TEXT_MUTED)
+                    painter.drawText(QRect(ex, ey, ew, eh), Qt.AlignmentFlag.AlignCenter, "⤢")
         finally:
             painter.end()
         self._click_targets = build_click_targets(
@@ -467,6 +487,7 @@ class HudOverlay(QWidget):
             for kind, button in (("action", loop_action_rect), ("seed", loop_seed_rect))
             if button is not None
         ]
+        self._expand_rect = expand_rect
         self._label_targets = build_label_targets(
             corner_rect, action_rects, _PAD, _ROW_LABEL_W - _MAP_GAP,
             self._panel.current_action, self._panel.action_labels,
@@ -482,6 +503,11 @@ class HudOverlay(QWidget):
         if loop:
             self._toggle_loop(loop)
             return
+        if self._expand_rect is not None:
+            ex, ey, ew, eh = self._expand_rect
+            if ex <= point.x() < ex + ew and ey <= point.y() < ey + eh:
+                self._command_writer(f"{self._side}_more_seeds")
+                return
         action = hit_test_targets(self._label_targets, point.x(), point.y())
         if action:
             self._command_writer(set_command(self._side, action.lower()))
