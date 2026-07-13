@@ -90,6 +90,46 @@ def _draw_lock_icon(painter: QPainter, x: int, y: int, size: int) -> None:
     painter.restore()
 
 
+_ThumbRect = tuple[int, int, int, int]  # (x, y, w, h)
+
+
+def hud_thumbnail_rects(
+    *,
+    map_x: int,
+    map_y: int,
+    right: int,
+    bottom: int,
+    corner_size: tuple[int, int],
+    seed_sizes: list[tuple[int, int]],
+    action_sizes: list[tuple[int, int]],
+) -> tuple[_ThumbRect, list[_ThumbRect], list[_ThumbRect]]:
+    """Positioned ``(x, y, w, h)`` rects for the map's thumbnails.
+
+    The corner sits at the origin, seeds walk right until one would cross
+    *right*, actions walk down until one would cross *bottom* — each dropped
+    rather than clipped, exactly as the map is drawn.  Sizes are the thumbnails'
+    already-scaled dimensions.  This is the single source of the map geometry,
+    so painting and (next) click hit-testing cannot drift apart.
+    """
+    cw, ch = corner_size
+    corner = (map_x, map_y, cw, ch)
+    seeds: list[_ThumbRect] = []
+    seed_x = map_x + cw + _MAP_GAP
+    for w, h in seed_sizes:
+        if seed_x + w > right:
+            break
+        seeds.append((seed_x, map_y, w, h))
+        seed_x += w + _MAP_GAP
+    actions: list[_ThumbRect] = []
+    action_y = map_y + ch + _MAP_GAP
+    for w, h in action_sizes:
+        if action_y + h > bottom:
+            break
+        actions.append((map_x, action_y, w, h))
+        action_y += h + _MAP_GAP
+    return corner, seeds, actions
+
+
 def paint_hud(
     painter: QPainter,
     rect: QRect,
@@ -156,35 +196,37 @@ def paint_hud(
         )
 
     corner = _scaled(current_thumb, _MAP_THUMB_H)
-    painter.drawPixmap(map_x, map_y, corner)
+    seeds_scaled = [_scaled(pixmap, _MAP_THUMB_H) for pixmap in seed_thumbs]
+    actions_scaled = [_scaled(pixmap, _MAP_THUMB_H) for pixmap in action_thumbs]
+    corner_rect, seed_rects, action_rects = hud_thumbnail_rects(
+        map_x=map_x, map_y=map_y, right=right, bottom=bottom,
+        corner_size=(corner.width(), corner.height()),
+        seed_sizes=[(p.width(), p.height()) for p in seeds_scaled],
+        action_sizes=[(p.width(), p.height()) for p in actions_scaled],
+    )
+
+    # Corner = the current clip: bordered, "Seed 1", named by its action, and
+    # padlocked when locked.
+    cx, cy, cw, ch = corner_rect
+    painter.drawPixmap(cx, cy, corner)
     painter.setPen(QPen(_BORDER_COLOR, _BORDER_W))
     painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.drawRect(map_x, map_y, corner.width(), corner.height())
-    _col_label(map_x, corner.width(), "Seed 1")
-    _row_label(map_y, corner.height(), panel.current_action)
+    painter.drawRect(cx, cy, cw, ch)
+    _col_label(cx, cw, "Seed 1")
+    _row_label(cy, ch, panel.current_action)
     if panel.locked:
-        _draw_lock_icon(painter, map_x + 3, map_y + 3, 15)
+        _draw_lock_icon(painter, cx + 3, cy + 3, 15)
 
     # Seeds run right from the corner: the same act under other seeds.
-    seed_x = map_x + corner.width() + _MAP_GAP
-    for i, pixmap in enumerate(seed_thumbs):
-        scaled = _scaled(pixmap, _MAP_THUMB_H)
-        if seed_x + scaled.width() > right:
-            break
-        painter.drawPixmap(seed_x, map_y, scaled)
-        _col_label(seed_x, scaled.width(), f"Seed {i + 2}")
-        seed_x += scaled.width() + _MAP_GAP
+    for i, (sx, sy, sw, _sh) in enumerate(seed_rects):
+        painter.drawPixmap(sx, sy, seeds_scaled[i])
+        _col_label(sx, sw, f"Seed {i + 2}")
 
     # Distinct other actions run down from the corner, each named by its action.
-    action_y = map_y + corner.height() + _MAP_GAP
-    for i, pixmap in enumerate(action_thumbs):
-        scaled = _scaled(pixmap, _MAP_THUMB_H)
-        if action_y + scaled.height() > bottom:
-            break
-        painter.drawPixmap(map_x, action_y, scaled)
+    for i, (ax, ay, _aw, ah) in enumerate(action_rects):
+        painter.drawPixmap(ax, ay, actions_scaled[i])
         label = panel.action_labels[i] if i < len(panel.action_labels) else ""
-        _row_label(action_y, scaled.height(), label)
-        action_y += scaled.height() + _MAP_GAP
+        _row_label(ay, ah, label)
 
 
 def _load_pixmaps(pairs: list[tuple[str, Path]]) -> list[QPixmap]:

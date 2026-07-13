@@ -23,6 +23,7 @@ from fun_time.lock_hud_app import (
     LockHud,
     OVERLAY_HEIGHT,
     OVERLAY_WIDTH,
+    hud_thumbnail_rects,
     paint_hud,
 )
 from fun_time.window_layout import WindowRect
@@ -102,6 +103,25 @@ def test_paint_hud_without_a_current_thumb_still_draws_its_shell(qt_app):
     image = _render(_panel(current="", seed_siblings=[], action_siblings=[]), None, [], [])
 
     assert _samples(image, lambda c: c.alpha() > 0) > 0
+
+
+def test_hud_thumbnail_rects_positions_the_map_and_drops_overflow():
+    """The corner anchors the map; seeds walk right and actions walk down, each
+    dropped (not clipped) when it would cross the panel edge."""
+    from fun_time.lock_hud_app import _MAP_GAP
+
+    corner, seeds, actions = hud_thumbnail_rects(
+        map_x=100, map_y=50, right=300, bottom=280,
+        corner_size=(30, 54),
+        seed_sizes=[(30, 54), (30, 54), (200, 54)],   # the third would cross right=300
+        action_sizes=[(30, 54), (30, 200)],           # the second would cross bottom=280
+    )
+
+    assert corner == (100, 50, 30, 54)
+    s1 = 100 + 30 + _MAP_GAP
+    s2 = s1 + 30 + _MAP_GAP
+    assert seeds == [(s1, 50, 30, 54), (s2, 50, 30, 54)]  # third dropped
+    assert actions == [(100, 50 + 54 + _MAP_GAP, 30, 54)]  # second dropped
 
 
 def _label_ink_in_rect(image: QImage, x0: int, y0: int, x1: int, y1: int) -> int:
