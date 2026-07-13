@@ -299,6 +299,12 @@ class HudOverlay(QWidget):
         self._seed_paths: list[str] = []
         self._action_paths: list[str] = []
         self._click_targets: list[tuple[_ThumbRect, str]] = []
+        # A single click is deferred by the double-click interval so a
+        # double-click can cancel it — one posts "switch", the other "lock".
+        self._pending_click_path = ""
+        self._click_timer = QTimer(self)
+        self._click_timer.setSingleShot(True)
+        self._click_timer.timeout.connect(self._fire_pending_click)
 
         self.setWindowTitle(f"Fun Time HUD ({side})")
         self.setWindowFlags(
@@ -374,11 +380,26 @@ class HudOverlay(QWidget):
         )
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
-        """A click on a thumbnail switches the satellite straight to that clip."""
+        """A single click switches the satellite to the thumbnail under the
+        cursor; a double-click locks it.  The single-click action waits out the
+        double-click interval so a double-click cancels it — one command, not two."""
+        point = event.position().toPoint()
+        self._pending_click_path = hit_test_targets(self._click_targets, point.x(), point.y())
+        if self._pending_click_path:
+            self._click_timer.start(QApplication.doubleClickInterval())
+
+    def _fire_pending_click(self) -> None:
+        if self._pending_click_path:
+            self._command_writer(f"{self._side}_play_video|{self._pending_click_path}")
+            self._pending_click_path = ""
+
+    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802
+        self._click_timer.stop()
         point = event.position().toPoint()
         path = hit_test_targets(self._click_targets, point.x(), point.y())
+        self._pending_click_path = ""
         if path:
-            self._command_writer(f"{self._side}_play_video|{path}")
+            self._command_writer(f"{self._side}_lock_video|{path}")
 
 
 class LockHud:
