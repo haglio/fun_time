@@ -9,7 +9,7 @@ from fun_time.lock_hud import (
     HudAppConfig,
     build_hud_panel,
     build_panels,
-    hud_display_state,
+    hud_overlays_visible,
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
@@ -48,14 +48,11 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     )
 
 
-def test_hud_display_state_hides_on_load_and_drops_topmost_under_omnipause():
-    # Loading: hidden, and not topmost (nothing on screen yet).
-    assert hud_display_state(loading_active=True, omni_paused=False) == (False, False)
-    assert hud_display_state(loading_active=True, omni_paused=True) == (False, False)
-    # OmniPause (not loading): visible, but must LEAVE the topmost band.
-    assert hud_display_state(loading_active=False, omni_paused=True) == (True, False)
-    # Normal: visible and topmost.
-    assert hud_display_state(loading_active=False, omni_paused=False) == (True, True)
+def test_hud_overlays_visible_only_hides_during_loading():
+    """Shown whenever the loading overlay is down — OmniPause included, so the
+    map stays up (and topmost) while paused."""
+    assert hud_overlays_visible(loading_active=True) is False
+    assert hud_overlays_visible(loading_active=False) is True
 
 
 def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
