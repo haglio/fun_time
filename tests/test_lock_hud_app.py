@@ -90,17 +90,25 @@ def test_paint_hud_fills_the_panel_and_draws_the_map(qt_app):
     assert _samples(image, lambda c: c.alpha() > 0) > total * 0.5
 
 
-def test_paint_hud_borders_the_current_clip_in_white(qt_app):
-    """The corner (current) thumbnail gets a white outline nothing else has."""
-    # Unlocked so the lock label is muted grey, not near-white; the border is
-    # then the only near-white ink on the panel.
-    panel = _panel(locked=False, lock_label="Unlocked")
+def test_paint_hud_rings_the_locked_clip_in_white(qt_app):
+    """The white ring now marks a lock, not the current clip: a locked panel
+    rings the corner, an unlocked one leaves no near-white ink on the map (below
+    the lock band, where the "Locked" word can't be mistaken for the ring)."""
+    from fun_time.lock_hud_app import _LOCK_BAND_H, _PAD
 
-    with_current = _render(panel, _solid_pixmap(QColor(30, 30, 30)), [], [])
-    without_current = _render(panel, None, [], [])
+    thumb = _solid_pixmap(QColor(30, 30, 30))
+    map_top = _PAD + _LOCK_BAND_H
 
-    assert _samples(with_current, _is_near_white) > 0
-    assert _samples(without_current, _is_near_white) == 0
+    def ring_ink(image: QImage) -> int:
+        return sum(
+            1
+            for yy in range(map_top, image.height(), 2)
+            for xx in range(0, image.width(), 2)
+            if _is_near_white(image.pixelColor(xx, yy))
+        )
+
+    assert ring_ink(_render(_panel(locked=True), thumb, [], [])) > 0
+    assert ring_ink(_render(_panel(locked=False, lock_label="Unlocked"), thumb, [], [])) == 0
 
 
 def test_paint_hud_without_a_current_thumb_still_draws_its_shell(qt_app):
@@ -298,31 +306,6 @@ def test_paint_hud_labels_seed_columns_and_action_rows(qt_app):
     two_cols = _render(_panel(current="c.mp4", seed_siblings=["s1"], action_siblings=[]), thumb, [thumb], [])
     one_col = _render(_panel(current="c.mp4", seed_siblings=[], action_siblings=[]), thumb, [], [])
     assert header(two_cols) > header(one_col)
-
-
-def test_paint_hud_shows_a_lock_icon_on_the_current_clip_when_locked(qt_app):
-    """A locked satellite paints a green padlock over the current clip; unlocked
-    paints none, so the corner's top-left carries green ink only when locked."""
-    thumb = _solid_pixmap(QColor(30, 30, 30))
-    map_x = _PAD + _ROW_LABEL_W
-    map_y = _PAD + _LOCK_BAND_H + _COL_LABEL_H  # no filter line on these panels
-
-    def green_ink(image: QImage) -> int:
-        total = 0
-        for yy in range(map_y, map_y + 22):
-            for xx in range(map_x, map_x + 22):
-                c = image.pixelColor(xx, yy)
-                if c.green() > c.red() + 40 and c.green() > c.blue() + 40:
-                    total += 1
-        return total
-
-    locked = _render(_panel(locked=True, current="c.mp4", seed_siblings=[], action_siblings=[]), thumb, [], [])
-    unlocked = _render(
-        _panel(locked=False, lock_label="Unlocked", current="c.mp4", seed_siblings=[], action_siblings=[]),
-        thumb, [], [],
-    )
-    assert green_ink(locked) > 0
-    assert green_ink(unlocked) == 0
 
 
 def test_restake_topmost_always_reasserts_the_band(qt_app):
