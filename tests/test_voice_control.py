@@ -279,6 +279,20 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["loop actions portrait"] == "portrait_action_loop"
         assert VOICE_COMMANDS["both no loop"] == "both_no_loop"
 
+    def test_grid_lock_scopes_are_aliases_of_existing_commands(self):
+        """The grid's lock scopes collapse onto commands that already exist,
+        since every satellite playlist runs repeat-all: "lock seed" is the action
+        loop, "lock type" the seed loop, "lock all" the repeat-one lock, and
+        "loop all" the whole unfiltered browse (reset)."""
+        assert VOICE_COMMANDS["lock seed"] == "active_action_loop"
+        assert VOICE_COMMANDS["lock type"] == "active_seed_loop"
+        assert VOICE_COMMANDS["lock all"] == "active_lock_on"
+        assert VOICE_COMMANDS["loop all"] == "active_reset"
+        # sided, either order, like the rest of the grid
+        assert VOICE_COMMANDS["portrait lock seed"] == "portrait_action_loop"
+        assert VOICE_COMMANDS["lock all landscape"] == "landscape_lock_on"
+        assert VOICE_COMMANDS["both loop all"] == "both_reset"
+
     def test_primary_nav_phrases_both_orders(self):
         """The primary player joins the grid for navigation only, in either
         order; "main" is a synonym for "primary". Bare "next"/"previous" reach

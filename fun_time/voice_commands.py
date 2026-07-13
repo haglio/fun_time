@@ -174,11 +174,18 @@ for _act_word, _act in _SATELLITE_ACTIONS.items():
 _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
     # "loop actions"/"loop seeds" are the grid's names; the singular/reversed
     # forms and "loop scene(s)" (scene == action) are kept as equivalents.
-    "action_loop": ("action loop", "loop action", "loop actions", "loop scene", "loop scenes"),
-    "seed_loop": ("seed loop", "loop seed", "loop seeds"),
+    #
+    # The grid's lock scopes are aliases here: because every satellite playlist
+    # runs repeat-all, "lock seed" (hold the seed, its acts vary) IS the action
+    # loop and "lock type" (the seed family) IS the seed loop; "lock all" is the
+    # repeat-one lock and "loop all" is the whole unfiltered browse (reset).
+    "action_loop": ("action loop", "loop action", "loop actions", "loop scene", "loop scenes", "lock seed"),
+    "seed_loop": ("seed loop", "loop seed", "loop seeds", "lock type"),
     # "no loop" / "loop off" ends any group loop, back to the browse.
     "no_loop": ("no loop", "loop off"),
     "lock_action": ("lock action", "action lock"),
+    "lock_on": ("lock all",),
+    "reset": ("loop all",),
 }
 for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
     for _group_word in _group_words:
