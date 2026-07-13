@@ -297,41 +297,18 @@ def test_paint_hud_shows_a_lock_icon_on_the_current_clip_when_locked(qt_app):
     assert green_ink(unlocked) == 0
 
 
-def test_sync_topmost_restakes_over_the_vlc_but_leaves_the_band_once_under_omnipause(qt_app):
-    """Topmost is re-staked on every call, even when the overlay is already
-    topmost: the satellite VLC it floats over is itself topmost and gets
-    re-promoted above the HUD on mode switches and on resume from OmniPause,
-    burying it — only an unconditional re-assert climbs back over, since a
-    drift-corrected bit check cannot see "topmost but buried". The paused
-    direction IS drift-corrected: leave the band once, don't churn it."""
+def test_restake_topmost_always_reasserts_the_band(qt_app):
+    """The HUD stays topmost the whole time it is shown (OmniPause included), so
+    every refresh re-asserts the band — even when it already carries the bit —
+    to climb back over a satellite VLC re-promoted above it."""
     overlay = HudOverlay("portrait", lambda command: None)
     try:
         hwnd = int(overlay.winId())
-
-        # Resume/normal, already topmost but buried under the re-promoted VLC →
-        # re-stake anyway to climb back over it.
-        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=True), \
-             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
-            overlay.sync_topmost(desired_topmost=True)
-        mock_set.assert_called_once_with(hwnd, True)
-
-        # Just left OmniPause while non-topmost → restore topmost.
-        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=False), \
-             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
-            overlay.sync_topmost(desired_topmost=True)
-        mock_set.assert_called_once_with(hwnd, True)
-
-        # OmniPause while topmost → drop out of the band.
-        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=True), \
-             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
-            overlay.sync_topmost(desired_topmost=False)
-        mock_set.assert_called_once_with(hwnd, False)
-
-        # OmniPause and already out of the band → no churn.
-        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=False), \
-             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
-            overlay.sync_topmost(desired_topmost=False)
-        mock_set.assert_not_called()
+        with patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
+            overlay.restake_topmost()
+            overlay.restake_topmost()
+        assert mock_set.call_count == 2
+        assert all(c.args == (hwnd, True) for c in mock_set.call_args_list)
     finally:
         overlay.close()
 
@@ -379,11 +356,11 @@ def test_apply_reloads_thumbnails_only_when_the_panel_changes(qt_app, tmp_path):
     try:
         with patch("fun_time.lock_hud_app.thumbnail_for", return_value=None), \
              patch("fun_time.lock_hud_app.panel_thumbnails", return_value=[]), \
-             patch.object(overlay, "sync_topmost") as mock_topmost, \
+             patch.object(overlay, "restake_topmost") as mock_topmost, \
              patch.object(overlay, "set_content") as mock_set_content:
-            hud._apply("portrait", panel_a, desired_topmost=True)   # first → build
-            hud._apply("portrait", panel_a, desired_topmost=True)   # same → skip
-            hud._apply("portrait", panel_b, desired_topmost=True)   # changed → build
+            hud._apply("portrait", panel_a)   # first → build
+            hud._apply("portrait", panel_a)   # same → skip
+            hud._apply("portrait", panel_b)   # changed → build
 
         assert mock_set_content.call_count == 2, "rebuilt for A and B, skipped the repeat"
         assert mock_topmost.call_count == 3, "topmost is re-staked every tick regardless"

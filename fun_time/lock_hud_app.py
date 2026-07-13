@@ -28,7 +28,7 @@ from fun_time.lock_hud import (
     HudAppConfig,
     HudPanel,
     build_panels,
-    hud_display_state,
+    hud_overlays_visible,
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
@@ -37,7 +37,7 @@ from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.startup_progress import loading_screen_active
 from fun_time.thumbnail_cache import thumbnail_for
 from fun_time.vlc_actions import get_current_file_path
-from fun_time.win32 import is_window_topmost, set_always_on_top
+from fun_time.win32 import set_always_on_top
 from fun_time.window_layout import compute_window_layout
 from fun_time.windows_bridge_dispatch_loop import read_shared_state
 
@@ -411,32 +411,19 @@ class HudOverlay(QWidget):
         self._action_paths = action_paths
         self.update()
 
-    def sync_topmost(self, desired_topmost: bool) -> None:
-        """Drive this overlay's z-order band to match OmniPause.
+    def restake_topmost(self) -> None:
+        """Re-assert the topmost band on every refresh — including OmniPause.
 
-        Created WindowStaysOnTop, the overlay floats above its satellite. Two
-        directions, and they are NOT symmetric:
-
-        - **Topmost** (normal / resumed): re-staked on *every* refresh, even
-          when the overlay already carries the topmost bit. The satellite VLC
-          it sits over is itself topmost and gets re-promoted to the top of the
-          band on mode switches and on resume from OmniPause, which buries the
-          HUD *within* the band. A drift-corrected bit check can't see "topmost
-          but buried", so only an unconditional re-assert climbs it back over.
-          (The dashboard can drift-correct its own topmost because nothing
-          re-promotes over it; the HUD cannot.)
-        - **Non-topmost** (OmniPause): the desktop must be freed, so the overlay
-          leaves the band — but only once. Nothing re-buries a non-topmost
-          window, so this direction is drift-corrected to avoid churning
-          SetWindowPos every tick while paused.
+        The overlay floats above its satellite via WindowStaysOnTop, but the
+        satellite VLC is itself topmost and gets re-promoted to the top of the
+        band on mode switches and on resume from OmniPause, burying the HUD
+        *within* the band.  A drift-corrected bit check can't see "topmost but
+        buried", so we re-stake unconditionally, so the map stays legible the
+        whole time it is shown.
         """
         if sys.platform != "win32":
             return
-        hwnd = int(self.winId())
-        if desired_topmost:
-            set_always_on_top(hwnd, True)
-        elif is_window_topmost(hwnd):
-            set_always_on_top(hwnd, False)
+        set_always_on_top(int(self.winId()), True)
 
     def paintEvent(self, event: object) -> None:  # noqa: N802
         if self._panel is None:
@@ -551,8 +538,7 @@ class LockHud:
         # OmniPause has the floor.
         state = read_shared_state(self._config.shared_state_file) or BridgeState()
         loading = loading_screen_active(self._config.shared_state_file.parent)
-        visible, desired_topmost = hud_display_state(loading, state.omni_paused)
-        if not visible:
+        if not hud_overlays_visible(loading):
             for overlay in self._overlays.values():
                 overlay.hide()
             return
@@ -568,10 +554,10 @@ class LockHud:
             portrait_filter=state.portrait_filter,
             landscape_filter=state.landscape_filter,
         )
-        self._apply("portrait", portrait_panel, desired_topmost)
-        self._apply("landscape", landscape_panel, desired_topmost)
+        self._apply("portrait", portrait_panel)
+        self._apply("landscape", landscape_panel)
 
-    def _apply(self, side: str, panel: HudPanel, desired_topmost: bool) -> None:
+    def _apply(self, side: str, panel: HudPanel) -> None:
         overlay = self._overlays[side]
         # Reload thumbnails and repaint only when the map actually changed; the
         # panel captures everything drawn, so an equal one would render
@@ -590,7 +576,7 @@ class LockHud:
             self._last_panels[side] = panel
         if not overlay.isVisible():
             overlay.show()
-        overlay.sync_topmost(desired_topmost)
+        overlay.restake_topmost()
 
     def _write_command(self, command: str) -> None:
         """Post a command for the dispatch loop — the channel a thumbnail click
