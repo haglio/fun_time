@@ -59,6 +59,7 @@ _BORDER_W = 2
 _LOCK_BAND_H = 24
 _STATUS_LINE_H = 15
 _BORDER_COLOR = QColor(255, 255, 255)
+_DIM_OPACITY = 0.5  # non-playing thumbnails; the currently-playing one stays full
 _COL_LABEL_H = 13  # header strip above the map for the "Seed N" column labels
 _COL_LABEL_GAP = 4  # breathing room between a column label and the thumbnail under it
 _ROW_LABEL_W = 62  # left gutter for the action-name row labels (fits "delta")
@@ -74,24 +75,6 @@ def _draw_status_line(painter: QPainter, x: int, y: int, text: str, color) -> in
 
 def _scaled(pixmap: QPixmap, height: int) -> QPixmap:
     return pixmap.scaledToHeight(height, Qt.TransformationMode.SmoothTransformation)
-
-
-def _draw_lock_icon(painter: QPainter, x: int, y: int, size: int) -> None:
-    """A small green padlock, drawn on the current clip while its satellite is
-    locked, so the lock reads at a glance in addition to the "Locked" band."""
-    painter.save()
-    body_h = int(size * 0.58)
-    body_y = y + size - body_h
-    shackle_w = max(4, int(size * 0.5))
-    shackle_x = x + (size - shackle_w) // 2
-    painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.setPen(QPen(GREEN, 2))
-    # Top half of an ellipse = the shackle, sitting just above the body.
-    painter.drawArc(shackle_x, y, shackle_w, (size - body_h) * 2, 0, 180 * 16)
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(GREEN)
-    painter.drawRoundedRect(x, body_y, size, body_h, 3, 3)
-    painter.restore()
 
 
 _ThumbRect = tuple[int, int, int, int]  # (x, y, w, h)
@@ -274,26 +257,31 @@ def paint_hud(
         action_sizes=[(p.width(), p.height()) for p in actions_scaled],
     )
 
-    # Corner = the current clip: bordered, "Seed 1", named by its action, and
-    # padlocked when locked.
+    # The currently-playing clip (the corner) is drawn at full opacity; the rest
+    # dim to half, so the bright one reads as "this is what's on".  A locked
+    # single clip is ringed in white (the padlock is gone); the looping-row and
+    # looping-column borders are drawn by the overlay on top.
     cx, cy, cw, ch = corner_rect
     painter.drawPixmap(cx, cy, corner)
-    painter.setPen(QPen(_BORDER_COLOR, _BORDER_W))
-    painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.drawRect(cx, cy, cw, ch)
+
+    painter.setOpacity(_DIM_OPACITY)
+    for i, (sx, sy, _sw, _sh) in enumerate(seed_rects):
+        painter.drawPixmap(sx, sy, seeds_scaled[i])
+    for i, (ax, ay, _aw, _ah) in enumerate(action_rects):
+        painter.drawPixmap(ax, ay, actions_scaled[i])
+    painter.setOpacity(1.0)
+
+    if panel.locked:
+        painter.setPen(QPen(_BORDER_COLOR, _BORDER_W))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(cx, cy, cw, ch)
+
+    # Labels stay crisp (full opacity) over the dimmed thumbnails.
     _col_label(cx, cw, "Seed 1")
     _row_label(cy, ch, panel.current_action)
-    if panel.locked:
-        _draw_lock_icon(painter, cx + 3, cy + 3, 15)
-
-    # Seeds run right from the corner: the same act under other seeds.
-    for i, (sx, sy, sw, _sh) in enumerate(seed_rects):
-        painter.drawPixmap(sx, sy, seeds_scaled[i])
+    for i, (sx, _sy, sw, _sh) in enumerate(seed_rects):
         _col_label(sx, sw, f"Seed {i + 2}")
-
-    # Distinct other actions run down from the corner, each named by its action.
-    for i, (ax, ay, _aw, ah) in enumerate(action_rects):
-        painter.drawPixmap(ax, ay, actions_scaled[i])
+    for i, (_ax, ay, _aw, ah) in enumerate(action_rects):
         label = panel.action_labels[i] if i < len(panel.action_labels) else ""
         _row_label(ay, ah, label)
 
