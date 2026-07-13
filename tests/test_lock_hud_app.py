@@ -4,6 +4,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -11,8 +12,10 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication
 
-from fun_time.lock_hud import HudPanel
-from fun_time.lock_hud_app import HudOverlay, OVERLAY_HEIGHT, OVERLAY_WIDTH, paint_hud
+from fun_time.config import LayoutConfig
+from fun_time.lock_hud import HudAppConfig, HudPanel
+from fun_time.lock_hud_app import HudOverlay, LockHud, OVERLAY_HEIGHT, OVERLAY_WIDTH, paint_hud
+from fun_time.window_layout import WindowRect
 
 
 @pytest.fixture(scope="module")
@@ -128,3 +131,58 @@ def test_sync_topmost_restakes_over_the_vlc_but_leaves_the_band_once_under_omnip
         mock_set.assert_not_called()
     finally:
         overlay.close()
+
+
+def _hud_config(tmp_path) -> HudAppConfig:
+    return HudAppConfig(
+        layout=LayoutConfig(
+            main_monitor=1, secondary_monitor=2,
+            primary_top_ratio=0.7, landscape_width_ratio=0.66,
+        ),
+        portrait_port=8091, landscape_port=8092, vlc_password="",
+        portrait_sources="C:/vids/p", landscape_sources="C:/vids/l",
+        provider_media_root=None, provider_metadata_root=None,
+        shared_state_file=tmp_path / "shared_bridge_state.ini",
+        thumbnail_cache_dir=tmp_path / "thumbs",
+    )
+
+
+def _build_lock_hud(tmp_path) -> LockHud:
+    """A LockHud with monitors stubbed and its constructor refresh suppressed,
+    so a test can drive ``_apply`` without touching real monitors or VLC."""
+    plan = SimpleNamespace(
+        portrait=WindowRect(x=0, y=0, width=400, height=800),
+        landscape=WindowRect(x=400, y=0, width=800, height=400),
+    )
+    corner = WindowRect(x=0, y=0, width=10, height=10)
+    with patch("fun_time.lock_hud_app.enumerate_monitors", return_value=[]), \
+         patch("fun_time.lock_hud_app.get_logical_monitor_rects", return_value=(corner, corner)), \
+         patch("fun_time.lock_hud_app.compute_window_layout", return_value=plan), \
+         patch.object(LockHud, "refresh"):
+        return LockHud(_hud_config(tmp_path))
+
+
+def test_apply_reloads_thumbnails_only_when_the_panel_changes(qt_app, tmp_path):
+    """At 5 s clips the map has to flip the instant the clip changes, so the HUD
+    polls fast — but a tick whose panel is unchanged must not reload thumbnails
+    or repaint, or fast polling would burn the CPU it was meant to save.  It
+    still re-stakes topmost every tick (that is what keeps it over the VLC)."""
+    hud = _build_lock_hud(tmp_path)
+    overlay = hud._overlays["portrait"]
+    panel_a = _panel(current="C:/vids/a.mp4")
+    panel_b = _panel(current="C:/vids/b.mp4")
+
+    try:
+        with patch("fun_time.lock_hud_app.thumbnail_for", return_value=None), \
+             patch("fun_time.lock_hud_app.panel_thumbnails", return_value=[]), \
+             patch.object(overlay, "sync_topmost") as mock_topmost, \
+             patch.object(overlay, "set_content") as mock_set_content:
+            hud._apply("portrait", panel_a, desired_topmost=True)   # first → build
+            hud._apply("portrait", panel_a, desired_topmost=True)   # same → skip
+            hud._apply("portrait", panel_b, desired_topmost=True)   # changed → build
+
+        assert mock_set_content.call_count == 2, "rebuilt for A and B, skipped the repeat"
+        assert mock_topmost.call_count == 3, "topmost is re-staked every tick regardless"
+    finally:
+        for ov in hud._overlays.values():
+            ov.close()
