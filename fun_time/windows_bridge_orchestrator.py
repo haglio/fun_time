@@ -31,7 +31,6 @@ from .windows_bridge_sequencer import (
     resolve_shortcut,
     run_startup_sequence,
 )
-from .window_roles import LOG_PANEL_WINDOW_TITLE
 from .win32 import (
     close_window,
     find_window_by_pid,
@@ -247,12 +246,10 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
     screen overlay is destroyed (its teardown can shuffle activation, and
     the dashboard may only become resolvable this late)."""
     dash_hwnd = 0
-    logs_hwnd = 0
     if result.dashboard_pid:
         dash_hwnd = find_window_by_pid(result.dashboard_pid)
         if not dash_hwnd:
             dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0, exact=True)
-        logs_hwnd = wait_for_window_by_title(LOG_PANEL_WINDOW_TITLE, timeout_s=3.0, exact=True)
 
     nau_hwnd = find_window_by_pid(result.nau_pid) or wait_for_window_by_title(
         "Nau", timeout_s=3.0, exact=True
@@ -264,7 +261,6 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
         nau_hwnd=nau_hwnd,
         dashboard_hwnd=dash_hwnd,
-        logs_hwnd=logs_hwnd,
     )
     logger.info("Post-loading window state corrected")
     _log_nau_obstruction(nau_hwnd)

@@ -23,7 +23,7 @@ from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
 from .runtime_flow import write_flag_file
 from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
-from .window_roles import LOG_PANEL_WINDOW_TITLE, role_topmost
+from .window_roles import role_topmost
 from .win32 import (
     disable_window_transitions,
     find_window_by_pid,
@@ -90,7 +90,6 @@ def _startup_role_hwnds(
     genau_hwnd: int,
     nau_hwnd: int,
     dashboard_hwnd: int = 0,
-    logs_hwnd: int = 0,
     rfb_hwnd: int = 0,
 ) -> dict[str, int]:
     """The managed windows by role, as resolved at startup."""
@@ -100,7 +99,6 @@ def _startup_role_hwnds(
         "genau": genau_hwnd,
         "nau": nau_hwnd,
         "dashboard": dashboard_hwnd,
-        "logs": logs_hwnd,
         "rfb": rfb_hwnd,
     }
 
@@ -145,7 +143,6 @@ def _apply_startup_window_state(
     genau_hwnd: int,
     nau_hwnd: int,
     dashboard_hwnd: int = 0,
-    logs_hwnd: int = 0,
     rfb_hwnd: int = 0,
 ) -> dict[str, int]:
     """Set the full window state for the nau startup mode: bands, then visibility.
@@ -160,7 +157,6 @@ def _apply_startup_window_state(
         genau_hwnd=genau_hwnd,
         nau_hwnd=nau_hwnd,
         dashboard_hwnd=dashboard_hwnd,
-        logs_hwnd=logs_hwnd,
         rfb_hwnd=rfb_hwnd,
     )
     _apply_topmost_bands(role_hwnds)
@@ -322,11 +318,6 @@ def run_startup_sequence(
         rfb_y=plan.random_favs_browser.y,
         rfb_width=plan.random_favs_browser.width,
         rfb_height=plan.random_favs_browser.height,
-        # The log panel is a second window the dashboard process owns.
-        log_x=plan.log_panel.x,
-        log_y=plan.log_panel.y,
-        log_width=plan.log_panel.width,
-        log_height=plan.log_panel.height,
         audio_module=m["modules"]["audio_module"],
         config_path=m["runtime"]["config_path"],
         audio_folder=m["media"]["genau_audio"],
@@ -363,10 +354,9 @@ def run_startup_sequence(
         # HWND_TOPMOST inserts above it, so each promotion would flash its window
         # over the overlay.  _fix_post_loading_windows applies them once the
         # overlay process has exited.  This is still the last moment the dashboard
-        # and log panel are resolvable, so their handles are captured now.
+        # is resolvable, so its handle is captured now.
         dashboard_pid = ui_pids["dashboard_pid"]
         dash_hwnd = 0
-        logs_hwnd = 0
         if dashboard_pid:
             # The dashboard is hidden (SW_HIDE) behind the loading overlay here,
             # so both lookups must include hidden windows — a visible-only lookup
@@ -378,11 +368,6 @@ def run_startup_sequence(
                 dash_hwnd = wait_for_window_by_title(
                     "Fun Time", timeout_s=5.0, exact=True, include_hidden=True
                 )
-            # The log panel shares the dashboard's process, so only its title
-            # tells the two windows apart.
-            logs_hwnd = wait_for_window_by_title(
-                LOG_PANEL_WINDOW_TITLE, timeout_s=5.0, exact=True, include_hidden=True
-            )
 
         role_hwnds = _startup_role_hwnds(
             rfb_hwnd=rfb_hwnd,
@@ -392,7 +377,6 @@ def run_startup_sequence(
             nau_hwnd=wait_for_window(nau_pid, timeout_s=5.0)
             or wait_for_window_by_title("Nau", timeout_s=5.0, exact=True),
             dashboard_hwnd=dash_hwnd,
-            logs_hwnd=logs_hwnd,
         )
         _apply_primary_slot_visibility(role_hwnds["nau"], role_hwnds["genau"])
         logger.info("Startup windows resolved and parked (bands deferred past the overlay)")

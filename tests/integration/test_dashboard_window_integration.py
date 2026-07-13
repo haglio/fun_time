@@ -24,12 +24,10 @@ from fun_time.dashboard_app import (
     build_dashboard_window,
     load_dashboard_app_config,
 )
-from fun_time.dashboard_layout import Rect, Size
+from fun_time.dashboard_layout import Size
 from fun_time.event_log import NOTICE, event_log_path, notice
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.window_layout import MonitorRect, compute_window_layout
-from fun_time.window_roles import LOG_PANEL_WINDOW_TITLE
-from fun_time.win32 import find_window_by_title
 
 
 pytestmark = [
@@ -88,8 +86,12 @@ def test_dashboard_window_shows_native_minimize_and_close_buttons(cfg_path: Path
         window.close()
 
 
-def _build_window_with_log_panel(cfg_path: Path):
-    """Build the real dashboard + log panel at the rects production computes."""
+def _build_merged_dashboard(cfg_path: Path):
+    """Build the real dashboard at the rect production computes — one window that
+    spans the whole left column, with the log stream embedded beside the schematic.
+    """
+    from PyQt6.QtWidgets import QApplication
+
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
     app_config = load_dashboard_app_config(manifest_path)
@@ -102,53 +104,46 @@ def _build_window_with_log_panel(cfg_path: Path):
     launch_geo = DashboardLaunchGeometry(
         plan.dashboard.x, plan.dashboard.y, plan.dashboard.width, plan.dashboard.height,
     )
-    log_rect = Rect(
-        plan.log_panel.x, plan.log_panel.y, plan.log_panel.width, plan.log_panel.height,
-    )
     with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
-        window = build_dashboard_window(app_config, launch_geometry=launch_geo, log_panel_rect=log_rect)
-    return window, manifest_path.parent, log_rect
+        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    # Let the central layout distribute the strip to the embedded log widget so
+    # its geometry is final before the tests read it.
+    QApplication.processEvents()
+    return window, manifest_path.parent
 
 
-def test_log_panel_window_is_resolvable_by_its_exact_title(cfg_path: Path):
-    """The dispatch loop reaches the panel by title alone — it shares the
-    dashboard's pid — so omnipause and omniminimize hang on this lookup working
-    against the real window.
-    """
-    window, _state_dir, _log_rect = _build_window_with_log_panel(cfg_path)
+def test_log_stream_fills_the_strip_beside_the_schematic(cfg_path: Path):
+    """The log stream is embedded to the schematic's right and the two together
+    fill the window — the same strip the separate log window used to occupy."""
+    window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
-        panel_hwnd = int(window._log_panel.winId())
-
-        assert find_window_by_title(LOG_PANEL_WINDOW_TITLE, exact=True) == panel_hwnd
-        assert find_window_by_title("Fun Time", exact=True) != panel_hwnd
+        schematic = window._widget
+        log = window._log_widget
+        # The log sits immediately to the right of the schematic ...
+        assert log.x() == schematic.x() + schematic.width()
+        # ... is genuinely wide ...
+        assert log.width() > 0
+        # ... and the two together span the window's client width.
+        assert schematic.width() + log.width() == window.centralWidget().width()
     finally:
         window.close()
 
 
-def test_log_panel_fills_the_strip_beside_the_dashboard(cfg_path: Path):
-    window, _state_dir, log_rect = _build_window_with_log_panel(cfg_path)
-    try:
-        geo = window._log_panel.geometry()
-        assert (geo.x(), geo.y()) == (log_rect.x, log_rect.y)
-        assert (geo.width(), geo.height()) == (log_rect.width, log_rect.height)
-    finally:
-        window.close()
-
-
-def test_log_panel_controls_fit_one_row_and_lines_word_wrap(cfg_path: Path):
-    """The controls share a single row that fits inside the pinned window (real
+def test_log_controls_fit_one_row_and_lines_word_wrap(cfg_path: Path):
+    """The controls share a single row that fits inside the embedded strip (real
     font metrics enforce a minimum the offscreen platform never does), and long
     log lines wrap instead of being cut off with an ellipsis."""
     from PyQt6.QtCore import Qt
 
-    window, _state_dir, log_rect = _build_window_with_log_panel(cfg_path)
+    window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
-        panel = window._log_panel
-        # The last source toggle's right edge stays inside the window: nothing is
-        # pushed off the strip, so it is genuinely one row that fits.
+        panel = window._log_widget
+        strip_width = panel.width()
+        # The last source toggle's right edge stays inside the strip: nothing is
+        # pushed off it, so it is genuinely one row that fits.
         last = panel._source_boxes["system"]
-        assert last.x() + last.width() <= log_rect.width
-        assert panel.centralWidget().minimumSizeHint().width() <= log_rect.width
+        assert last.x() + last.width() <= strip_width
+        assert panel.minimumSizeHint().width() <= strip_width
         # Long lines wrap rather than elide.
         assert panel._list.wordWrap()
         assert panel._list.textElideMode() == Qt.TextElideMode.ElideNone
@@ -164,7 +159,7 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
 
     from fun_time.event_log import EventLogHandler
 
-    window, state_dir, _log_rect = _build_window_with_log_panel(cfg_path)
+    window, state_dir = _build_merged_dashboard(cfg_path)
     try:
         writer = logging.getLogger("integration.event_log.writer")
         writer.handlers.clear()
@@ -197,24 +192,22 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
         window.close()
 
 
-def test_closing_the_dashboard_stops_its_pollers_and_disposes_the_panel(cfg_path: Path):
+def test_closing_the_dashboard_stops_its_pollers_and_the_log_tail(cfg_path: Path):
     """A dashboard left running keeps polling VLC's HTTP interface twice a second
     and holds a UDP socket.  Several dashboards are built and closed inside this
     one pytest process, so a leaked poller would pile connections onto whichever
-    VLC holds those ports for the rest of the run."""
-    window, _state_dir, _log_rect = _build_window_with_log_panel(cfg_path)
-    panel = window._log_panel
+    VLC holds those ports for the rest of the run.  The embedded log widget's
+    tail must stop with them."""
+    window, _state_dir = _build_merged_dashboard(cfg_path)
+    log = window._log_widget
     overlay = window._notice_overlay
-    assert panel is not None
 
     window.close()
 
     assert window._stopping.is_set()
     assert not window._refresh_timer.isActive()
     assert not window._notice_timer.isActive()
-    assert not panel._timer.isActive()
-    assert window._log_panel is None
+    assert not log._timer.isActive()
     assert window._notice_overlay is None
     if overlay is not None:
         assert not overlay.isVisible()
-    assert find_window_by_title(LOG_PANEL_WINDOW_TITLE, exact=True) == 0

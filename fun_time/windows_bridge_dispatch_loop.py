@@ -30,7 +30,6 @@ from .runtime_flow import read_flag_file
 from .windows_bridge_startup import restart_broker, stop_broker_processes
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
-    LOG_PANEL_WINDOW_TITLE,
     MANAGED_ROLES,
     role_topmost,
 )
@@ -722,10 +721,6 @@ class DispatchLoopRunner:
             hwnd = find_window_by_pid(self.landscape_pid)
         elif role == "dashboard":
             hwnd = self._find_dashboard_hwnd()
-        elif role == "logs":
-            # The dashboard process owns it, so it shares the dashboard's pid
-            # ambiguity; the exact title is what reliably resolves it.
-            hwnd = find_window_by_title(LOG_PANEL_WINDOW_TITLE, exact=True)
         elif role == "rfb":
             hwnd = self.rfb_hwnd
         if hwnd:
@@ -738,7 +733,7 @@ class DispatchLoopRunner:
             "genau": ["genau"],
             "hybrid": ["nau", "genau"],
         }.get(self.state.primary_mode, ["nau"])
-        return ["rfb", "portrait", "landscape", "dashboard", "logs", *slot]
+        return ["rfb", "portrait", "landscape", "dashboard", *slot]
 
     def _remove_all_topmost(self) -> None:
         """Drop EVERY managed window out of the TOPMOST band (omnipause frees
