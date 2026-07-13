@@ -392,6 +392,10 @@ _CYCLE_COMMANDS = {
     "landscape_cycle_seed": (3, "seed"),
 }
 
+# "more seeds" is cycle-seed with the net widened to same-scene near-matches —
+# the manual trigger for what cycle-seed used to do automatically.
+_MORE_SEEDS_SIDES = {"portrait_more_seeds": 2, "landscape_more_seeds": 3}
+
 
 def _next_action_sibling(index: GroupIndex, current: str) -> str | None:
     """The action-group member after *current*, cycling in sorted order."""
@@ -409,15 +413,17 @@ def _next_action_sibling(index: GroupIndex, current: str) -> str | None:
 
 
 def _next_seed_sibling(
-    index: GroupIndex, current: str, entries: list[tuple[int, str]]
+    index: GroupIndex, current: str, entries: list[tuple[int, str]], *, allow_widen: bool = False
 ) -> tuple[str | None, bool]:
     """The next seed sibling of *current* and whether the net had to widen.
 
     First choice is an exact same-config sister (a different seed of the
-    identical config). When none exists, the net widens to the same *scene*
-    with the render knobs freed, so a near-match still comes up instead of a
-    dead end. Either pool is toured in seed order — the first seed above the
-    current one, wrapping to the lowest — preferring playlist entries.
+    identical config).  Only when *allow_widen* is set — the "more seeds"
+    command — does an empty result widen to the same *scene* with the render
+    knobs freed; plain "cycle seed" dead-ends instead, now that the HUD shows
+    exactly which sisters exist.  Either pool is toured in seed order — the
+    first seed above the current one, wrapping to the lowest — preferring
+    playlist entries.
     """
     current_key = normalize_path_key(current)
     current_action = index.action_by_path.get(current_key, "")
@@ -457,7 +463,7 @@ def _next_seed_sibling(
         lambda seed, _path, cur: seed != cur,
     )
     widened = False
-    if not candidates:
+    if not candidates and allow_widen:
         current_seed, candidates = pool(
             index.loose_seed_key_by_path, index.loose_seed_members,
             lambda _seed, path, _cur: normalize_path_key(path) != current_key,
@@ -602,7 +608,8 @@ def _dispatch_lock_video(
 
 
 def _cycle_variant(
-    which: int, kind: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
+    which: int, kind: str, state: BridgeState, config: BridgeConfig,
+    target_path: str = "", *, widen: bool = False,
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Switch the satellite's current video to a sibling: another action of the
     same subject(s)+situation, or the same configuration under another seed.
@@ -628,7 +635,7 @@ def _cycle_variant(
         target = _next_action_sibling(index, current)
         missing_message = "No other actions"
     else:
-        target, widened = _next_seed_sibling(index, current, entries)
+        target, widened = _next_seed_sibling(index, current, entries, allow_widen=widen)
         missing_message = "No other seeds"
     if target is None:
         ops.append(WindowOp(op="notice", key=missing_message, source=source, level=FAILED_NOTICE_LEVEL))
@@ -710,6 +717,10 @@ def dispatch_command(
     if cycle_target is not None:
         which, kind = cycle_target
         return _cycle_variant(which, kind, state, config, target_path)
+
+    more_seeds_side = _MORE_SEEDS_SIDES.get(command)
+    if more_seeds_side is not None:
+        return _cycle_variant(more_seeds_side, "seed", state, config, target_path, widen=True)
 
     loop_target = _LOOP_COMMANDS.get(command)
     if loop_target is not None:

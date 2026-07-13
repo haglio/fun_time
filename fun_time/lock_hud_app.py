@@ -59,7 +59,8 @@ _LOCK_BAND_H = 24
 _STATUS_LINE_H = 15
 _BORDER_COLOR = QColor(255, 255, 255)
 _COL_LABEL_H = 13  # header strip above the map for the "Seed N" column labels
-_ROW_LABEL_W = 46  # left gutter for the action-name row labels
+_COL_LABEL_GAP = 4  # breathing room between a column label and the thumbnail under it
+_ROW_LABEL_W = 62  # left gutter for the action-name row labels (fits "delta")
 _LOOP_BTN = 18  # loop-button thickness (px): below the action column, right of the seed row
 
 
@@ -240,10 +241,10 @@ def paint_hud(
     right = rect.right() - _PAD
     bottom = rect.bottom() - _PAD
 
-    # The map sits below a header strip (the seed-column labels) and right of a
-    # gutter (the action-row labels).
+    # The map sits below a header strip (the seed-column labels, with a little
+    # gap under them) and right of a gutter (the action-row labels).
     map_x = x + _ROW_LABEL_W
-    map_y = y + _COL_LABEL_H
+    map_y = y + _COL_LABEL_H + _COL_LABEL_GAP
     painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
 
     def _col_label(cx: int, width: int, text: str) -> None:
