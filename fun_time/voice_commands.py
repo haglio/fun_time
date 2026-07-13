@@ -148,6 +148,9 @@ _SATELLITE_ACTIONS: dict[str, str] = {
     "previous": "prev",
     "weird": "trash",
     "action": "cycle_action",
+    # "scene" is a synonym for "action" — a scene IS an act — so it cycles the
+    # subject's other acts exactly like "action", bare or sided.
+    "scene": "cycle_action",
     "seed": "cycle_seed",
     # Drop any filter/premiere/loop and reshuffle back to the default browse
     # order (all clips, one per subject).
@@ -180,6 +183,21 @@ for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
             _sided = f"{_side}_{_group_act}"
             VOICE_COMMANDS[f"{_side} {_group_word}"] = _sided
             VOICE_COMMANDS[f"{_group_word} {_side}"] = _sided
+
+# The cycle axes also take an explicit verb up front — "cycle / next / change
+# <axis>" — and "scene" reads as "action".  These are extra spoken forms for the
+# active-side cycle command (a side word already reaches a specific satellite via
+# the bare "portrait action" / "portrait seed" forms above).
+_SATELLITE_CYCLE_PHRASES: dict[str, tuple[str, ...]] = {
+    "active_cycle_action": (
+        "cycle action", "next action", "change action",
+        "cycle scene", "next scene", "change scene",
+    ),
+    "active_cycle_seed": ("cycle seed", "next seed", "change seed"),
+}
+for _cycle_cmd, _cycle_phrases in _SATELLITE_CYCLE_PHRASES.items():
+    for _cycle_phrase in _cycle_phrases:
+        VOICE_COMMANDS[_cycle_phrase] = _cycle_cmd
 
 # The primary (Nau) player joins the grid for navigation ONLY — "primary next"
 # / "next primary" (either order) — since it has no lock/weird/cycle.  "main" is
