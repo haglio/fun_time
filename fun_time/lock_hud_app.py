@@ -57,6 +57,8 @@ _BORDER_W = 2
 _LOCK_BAND_H = 24
 _STATUS_LINE_H = 15
 _BORDER_COLOR = QColor(255, 255, 255)
+_COL_LABEL_H = 13  # header strip above the map for the "Seed N" column labels
+_ROW_LABEL_W = 46  # left gutter for the action-name row labels
 
 
 def _draw_status_line(painter: QPainter, x: int, y: int, text: str, color) -> int:
@@ -113,28 +115,55 @@ def paint_hud(
     right = rect.right() - _PAD
     bottom = rect.bottom() - _PAD
 
+    # The map sits below a header strip (the seed-column labels) and right of a
+    # gutter (the action-row labels).
+    map_x = x + _ROW_LABEL_W
+    map_y = y + _COL_LABEL_H
+    painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
+
+    def _col_label(cx: int, width: int, text: str) -> None:
+        painter.setPen(TEXT_MUTED)
+        painter.drawText(
+            QRect(cx, y, width, _COL_LABEL_H),
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, text,
+        )
+
+    def _row_label(row_y: int, height: int, text: str) -> None:
+        if not text:
+            return
+        painter.setPen(TEXT_MUTED)
+        painter.drawText(
+            QRect(x, row_y, _ROW_LABEL_W - _MAP_GAP, height),
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text,
+        )
+
     corner = _scaled(current_thumb, _MAP_THUMB_H)
-    painter.drawPixmap(x, y, corner)
+    painter.drawPixmap(map_x, map_y, corner)
     painter.setPen(QPen(_BORDER_COLOR, _BORDER_W))
     painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.drawRect(x, y, corner.width(), corner.height())
+    painter.drawRect(map_x, map_y, corner.width(), corner.height())
+    _col_label(map_x, corner.width(), "Seed 1")
+    _row_label(map_y, corner.height(), panel.current_action)
 
     # Seeds run right from the corner: the same act under other seeds.
-    seed_x = x + corner.width() + _MAP_GAP
-    for pixmap in seed_thumbs:
+    seed_x = map_x + corner.width() + _MAP_GAP
+    for i, pixmap in enumerate(seed_thumbs):
         scaled = _scaled(pixmap, _MAP_THUMB_H)
         if seed_x + scaled.width() > right:
             break
-        painter.drawPixmap(seed_x, y, scaled)
+        painter.drawPixmap(seed_x, map_y, scaled)
+        _col_label(seed_x, scaled.width(), f"Seed {i + 2}")
         seed_x += scaled.width() + _MAP_GAP
 
-    # Distinct other actions run down from the corner.
-    action_y = y + corner.height() + _MAP_GAP
-    for pixmap in action_thumbs:
+    # Distinct other actions run down from the corner, each named by its action.
+    action_y = map_y + corner.height() + _MAP_GAP
+    for i, pixmap in enumerate(action_thumbs):
         scaled = _scaled(pixmap, _MAP_THUMB_H)
         if action_y + scaled.height() > bottom:
             break
-        painter.drawPixmap(x, action_y, scaled)
+        painter.drawPixmap(map_x, action_y, scaled)
+        label = panel.action_labels[i] if i < len(panel.action_labels) else ""
+        _row_label(action_y, scaled.height(), label)
         action_y += scaled.height() + _MAP_GAP
 
 

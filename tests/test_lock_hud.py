@@ -71,6 +71,20 @@ def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
     assert panel.seed_siblings == [S1]
 
 
+def test_panel_carries_axis_labels_for_the_map():
+    """The map's rows are named by action: the current clip's own action labels
+    the top row, and each action sibling carries its action name, in step with
+    action_siblings, so the HUD can draw the row labels."""
+    index = _index(current=CUR, action_sibs=[A1, A2], seed_sibs=[S1])
+
+    panel = build_hud_panel("portrait", locked=True, current=CUR, index=index)
+
+    assert panel.current_action == "Alpha"
+    # action_siblings is sorted([A1, A2]); A1→"Act0", A2→"Act1" in _index.
+    assert panel.action_labels == ("Act0", "Act1")
+    assert len(panel.action_labels) == len(panel.action_siblings)
+
+
 def test_panel_labels_an_unlocked_satellite():
     index = _index(current=CUR, action_sibs=[A1])
 

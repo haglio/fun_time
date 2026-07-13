@@ -134,6 +134,11 @@ class HudPanel:
     current: str
     seed_siblings: list[str]
     action_siblings: list[str]
+    # Labels for the map's axes: the current clip's own action (the top row),
+    # and each action sibling's action name (the rows down the column). Seed
+    # columns are labelled by ordinal ("Seed 1", …) so need no data here.
+    current_action: str = ""
+    action_labels: tuple[str, ...] = ()
     filter_query: str = ""
 
 
@@ -180,6 +185,13 @@ def build_hud_panel(
     have_siblings = bool(current) and index is not None
     seed = _others(seed_family_members(index, current), current) if have_siblings else []
     action = _distinct_action_siblings(index, current) if have_siblings else []
+    current_action = ""
+    action_labels: tuple[str, ...] = ()
+    if have_siblings:
+        current_action = index.action_by_path.get(normalize_path_key(current), "")
+        action_labels = tuple(
+            index.action_by_path.get(normalize_path_key(member), "") for member in action
+        )
     return HudPanel(
         side=side,
         locked=locked,
@@ -187,6 +199,8 @@ def build_hud_panel(
         current=current,
         seed_siblings=seed,
         action_siblings=action,
+        current_action=current_action,
+        action_labels=action_labels,
         filter_query=filter_query,
     )
 
