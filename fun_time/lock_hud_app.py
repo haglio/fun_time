@@ -185,22 +185,31 @@ class HudOverlay(QWidget):
         self.update()
 
     def sync_topmost(self, desired_topmost: bool) -> None:
-        """Drive this overlay's z-order band to match, drift-corrected.
+        """Drive this overlay's z-order band to match OmniPause.
 
-        Created WindowStaysOnTop, the overlay floats above its satellite — but
-        OmniPause must free the desktop, so while paused it has to LEAVE the
-        topmost band, not merely stop re-asserting it (the WS_EX_TOPMOST style
-        persists otherwise and it stays glued on top). SetWindowPos runs only
-        when the actual band differs from the desired one, so there is no
-        flicker in the steady state and a stray Qt re-assert of the hint is
-        corrected on the next refresh. Mirrors the dashboard's own
-        ``_sync_own_topmost``.
+        Created WindowStaysOnTop, the overlay floats above its satellite. Two
+        directions, and they are NOT symmetric:
+
+        - **Topmost** (normal / resumed): re-staked on *every* refresh, even
+          when the overlay already carries the topmost bit. The satellite VLC
+          it sits over is itself topmost and gets re-promoted to the top of the
+          band on mode switches and on resume from OmniPause, which buries the
+          HUD *within* the band. A drift-corrected bit check can't see "topmost
+          but buried", so only an unconditional re-assert climbs it back over.
+          (The dashboard can drift-correct its own topmost because nothing
+          re-promotes over it; the HUD cannot.)
+        - **Non-topmost** (OmniPause): the desktop must be freed, so the overlay
+          leaves the band — but only once. Nothing re-buries a non-topmost
+          window, so this direction is drift-corrected to avoid churning
+          SetWindowPos every tick while paused.
         """
         if sys.platform != "win32":
             return
         hwnd = int(self.winId())
-        if is_window_topmost(hwnd) != desired_topmost:
-            set_always_on_top(hwnd, desired_topmost)
+        if desired_topmost:
+            set_always_on_top(hwnd, True)
+        elif is_window_topmost(hwnd):
+            set_always_on_top(hwnd, False)
 
     def paintEvent(self, event: object) -> None:  # noqa: N802
         if self._panel is None:
