@@ -854,6 +854,24 @@ def test_play_video_command_switches_the_satellite_to_the_path(tmp_path: Path):
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
 
 
+def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_path: Path):
+    """A HUD double-click sends "<side>_lock_video|<path>": on an already-locked
+    satellite (repeat-one) it just plays the picked clip, which keeps it locked."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=True)
+    path = "C:/vids/portrait/lock_me.mp4"
+
+    with (
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, path)], 3)),
+        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        new_state, _ops = dispatch_command(f"portrait_lock_video|{path}", state, config)
+
+    play.assert_called_once_with(config.portrait_port, "pw", path, [(3, path)])
+    assert new_state.locked2 is True
+
+
 def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()

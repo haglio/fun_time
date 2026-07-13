@@ -150,19 +150,31 @@ def test_build_click_targets_skips_a_missing_corner():
     assert build_click_targets(None, [], [], "cur.mp4", [], []) == []
 
 
-def test_clicking_a_thumbnail_posts_a_play_command(qt_app):
-    """A press inside a target's rect posts "<side>_play_video|<path>"; a press
-    in empty space posts nothing."""
+def test_single_click_switches_and_double_click_locks(qt_app):
+    """A single click (deferred, then fired) posts play_video; a double-click
+    cancels the pending single and posts lock_video; empty space posts nothing."""
     sent: list[str] = []
     overlay = HudOverlay("landscape", sent.append)
     try:
         overlay._click_targets = [((0, 0, 30, 30), "C:/vids/pick.mp4")]
+        at_target = SimpleNamespace(position=lambda: QPointF(10, 10))
 
-        overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(10, 10)))
+        # Single click → switch, once the double-click timer fires.
+        overlay.mousePressEvent(at_target)
+        overlay._fire_pending_click()
         assert sent == ["landscape_play_video|C:/vids/pick.mp4"]
 
+        # Double click → lock, and the pending single is cancelled (no switch).
+        sent.clear()
+        overlay.mousePressEvent(at_target)
+        overlay.mouseDoubleClickEvent(at_target)
+        overlay._fire_pending_click()
+        assert sent == ["landscape_lock_video|C:/vids/pick.mp4"]
+
+        # Empty space → nothing.
         sent.clear()
         overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(200, 200)))
+        overlay._fire_pending_click()
         assert sent == []
     finally:
         overlay.close()

@@ -586,6 +586,21 @@ def _dispatch_play_video(
     return state, [WindowOp(op="notice", key="Switched", source=_satellite_source(which))]
 
 
+def _dispatch_lock_video(
+    which: int, path: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Double-click a HUD thumbnail: switch to *path* and lock it (repeat-one).
+
+    When already locked the satellite is repeat-one, so playing the picked clip
+    just moves the lock onto it; when unlocked, toggling the lock with the target
+    both switches to it and locks it (the same back-dating a spoken "lock" uses).
+    """
+    locked = state.locked2 if which == 2 else state.locked3
+    if locked:
+        return _dispatch_play_video(which, path, state, config)
+    return _toggle_lock(which, state, config, target_path=path)
+
+
 def _cycle_variant(
     which: int, kind: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -685,6 +700,11 @@ def dispatch_command(
     if "_play_video|" in command:
         head, _, path = command.partition("|")
         return _dispatch_play_video(2 if head.startswith("portrait_") else 3, path, state, config)
+
+    # Double-click of a HUD thumbnail: "<side>_lock_video|<path>" — switch and lock.
+    if "_lock_video|" in command:
+        head, _, path = command.partition("|")
+        return _dispatch_lock_video(2 if head.startswith("portrait_") else 3, path, state, config)
 
     cycle_target = _CYCLE_COMMANDS.get(command)
     if cycle_target is not None:
