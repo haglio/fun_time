@@ -540,8 +540,12 @@ def _dispatch_group_loop(
     gather = action_group_members if axis == "action" else seed_family_members
     members = [member for member in gather(index, current) if Path(member).exists()]
     if len(members) < 2:
-        ops.append(WindowOp(op="notice", key=f"No other {axis}s", source=source, level=FAILED_NOTICE_LEVEL))
-        return state, ops
+        # Only this clip is in the group, so "looping" it is a single-video lock:
+        # repeat this one.  Never a dead end — the loop buttons are still valid
+        # with one video, they just mean "lock" then.
+        set_repeat_mode(port, config.vlc_password, "one")
+        state = replace(state, locked2=True) if which == 2 else replace(state, locked3=True)
+        return state, [WindowOp(op="notice", key="Locked", source=source)]
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = _cancel_lock(which, state, config)
     result = apply_satellite_loop(

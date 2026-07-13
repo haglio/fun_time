@@ -2179,7 +2179,9 @@ def test_seed_loop_loads_the_current_acts_seed_family(tmp_path: Path):
     assert sorted(kwargs["members"]) == sorted([a, b])
 
 
-def test_loop_with_no_siblings_leaves_the_playlist_alone(tmp_path: Path):
+def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
+    """A group of one is not a dead end: the loop buttons still work, they just
+    mean "lock" then — repeat-one on the current clip, no sub-playlist."""
     config = _make_config(tmp_path)
     only = tmp_path / "only.mp4"
     only.write_text("x", encoding="utf-8")
@@ -2194,11 +2196,14 @@ def test_loop_with_no_siblings_leaves_the_playlist_alone(tmp_path: Path):
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=str(only)), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
-        _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
+         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop, \
+         patch("fun_time.command_dispatch.set_repeat_mode") as mock_repeat:
+        new_state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
-    mock_loop.assert_not_called()
-    assert any(op.op == "notice" and "No other actions" in op.key for op in ops)
+    mock_loop.assert_not_called()  # no sub-playlist for a group of one
+    mock_repeat.assert_called_once_with(config.portrait_port, "pw", "one")
+    assert new_state.locked2 is True
+    assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
 
 
 def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
