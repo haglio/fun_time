@@ -19,7 +19,12 @@ from .event_log import SOURCE_LANDSCAPE, SOURCE_PORTRAIT, notice
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
 from .video_timeline import VideoTimeline
-from .vlc_actions import get_current_file_path, get_playback_fraction, pause_if_playing
+from .vlc_actions import (
+    get_current_file_path,
+    get_playback_fraction,
+    get_repeat_mode,
+    pause_if_playing,
+)
 from .voice_commands import parse_command_line
 from .watch_stats import WatchTracker, record_watch_event, watch_stats_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
@@ -301,6 +306,12 @@ class DispatchLoopRunner:
         self._satellite_ports = {2: config.portrait_port, 3: config.landscape_port}
         self._watch_stats_file = watch_stats_path(config.state_dir)
         self._last_watch_sample = 0.0
+        # The clip each satellite was on the last time the OmniPause watchdog
+        # caught it playing.  A catch compares against this to say whether the
+        # satellite restarted the *same* clip (VLC's own repeat loop) or moved to
+        # a different one (a playlist advance) — the field that tells the resume's
+        # cause apart.  Cleared whenever OmniPause is not holding.
+        self._omnipause_prev_clip: dict[int, str] = {2: "", 3: ""}
         # Hybrid funscript handoff: whether the funscript is driving the OSR2
         # right now (so Genau is paused and Nau's T-Code is on) or Genau is (a
         # funscript gap or an unscripted video).  None means "no decision applied
@@ -378,6 +389,7 @@ class DispatchLoopRunner:
             if self.state.omni_paused:
                 self._enforce_satellites_paused()
             else:
+                self._omnipause_prev_clip = {2: "", 3: ""}
                 self._sample_satellites(now=now)
                 self._sample_primary()
 
@@ -549,8 +561,11 @@ class DispatchLoopRunner:
         ``pause_if_playing`` is safe to call every tick: it pauses only a
         satellite it observes actually playing, so a correctly-paused one costs
         a single state read and a stopped/mid-load one is left alone (its
-        ``pl_pause`` would phantom-load item 1).  A catch is logged — a satellite
-        resuming under OmniPause is an anomaly worth seeing in the event log.
+        ``pl_pause`` would phantom-load item 1).  A catch is logged with a
+        diagnosis of what the satellite resumed into (see
+        :meth:`_resume_diagnosis`); a satellite resuming under OmniPause is an
+        anomaly worth seeing in the event log, and the diagnosis is what turns a
+        storm of identical lines into an actionable cause.
         """
         for which, port in self._satellite_ports.items():
             if pause_if_playing(port, self.config.vlc_password):
@@ -558,10 +573,39 @@ class DispatchLoopRunner:
                 notice(
                     logger,
                     f"OmniPause watchdog re-paused the {source.capitalize()} satellite"
-                    " — it had resumed on its own",
+                    f" — it had resumed on its own ({self._resume_diagnosis(which, port)})",
                     source=source,
                     level=logging.WARNING,
                 )
+
+    def _resume_diagnosis(self, which: int, port: int) -> str:
+        """Describe what a just-caught satellite resumed *into*, so the event log
+        records the cause of the resume and not merely the fact of it.
+
+        Nothing in this app plays a satellite while OmniPause holds — the
+        dispatch loop only enforces the pause, voice is suspended, and the lock
+        HUD is read-only — so a resume originates in VLC's own playlist.  Which
+        force it is shows in what the satellite lands on: repeat restarting the
+        same clip from the top (``repeat=one``/``all``, ``pos``≈0, an unchanged
+        clip) is VLC looping a short clip under the pause; a *different* clip is a
+        playlist advance; a mid-clip ``pos`` is an outside play or seek.  These
+        reads run only on the rare catch, never on the common already-paused
+        tick.
+        """
+        password = self.config.vlc_password
+        repeat = get_repeat_mode(port, password)
+        clip = Path(get_current_file_path(port, password) or "").name
+        fraction = get_playback_fraction(port, password)
+        previous = self._omnipause_prev_clip.get(which, "")
+        self._omnipause_prev_clip[which] = clip
+        if not previous:
+            movement = "first catch"
+        elif clip == previous:
+            movement = "same clip"
+        else:
+            movement = f"advanced from {previous}"
+        pos = "?" if fraction is None else f"{fraction:.2f}"
+        return f"repeat={repeat}, pos={pos}, clip={clip or '?'}, {movement}"
 
     def _back_dated_video(self, command: str, spoken_at: float | None) -> str:
         """The video *command* was aimed at, or "" for "whatever is playing now".
