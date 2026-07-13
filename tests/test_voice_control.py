@@ -246,6 +246,7 @@ class TestVoiceCommands:
             "previous": "prev",
             "weird": "trash",
             "action": "cycle_action",
+            "scene": "cycle_action",  # scene == action
             "seed": "cycle_seed",
         }
         for word, act in actions.items():
@@ -254,6 +255,15 @@ class TestVoiceCommands:
                 target = f"{side}_{act}"
                 assert VOICE_COMMANDS[f"{side} {word}"] == target  # side first
                 assert VOICE_COMMANDS[f"{word} {side}"] == target  # side last
+
+    def test_cycle_verb_phrases_map_to_the_active_cycle(self):
+        """"cycle / next / change <axis>" are extra active-side spoken forms for
+        the cycle commands, and "scene" reads as "action"."""
+        for phrase in ("cycle action", "next action", "change action",
+                       "cycle scene", "next scene", "change scene"):
+            assert VOICE_COMMANDS[phrase] == "active_cycle_action"
+        for phrase in ("cycle seed", "next seed", "change seed"):
+            assert VOICE_COMMANDS[phrase] == "active_cycle_seed"
 
     def test_primary_nav_phrases_both_orders(self):
         """The primary player joins the grid for navigation only, in either
