@@ -72,6 +72,24 @@ def _scaled(pixmap: QPixmap, height: int) -> QPixmap:
     return pixmap.scaledToHeight(height, Qt.TransformationMode.SmoothTransformation)
 
 
+def _draw_lock_icon(painter: QPainter, x: int, y: int, size: int) -> None:
+    """A small green padlock, drawn on the current clip while its satellite is
+    locked, so the lock reads at a glance in addition to the "Locked" band."""
+    painter.save()
+    body_h = int(size * 0.58)
+    body_y = y + size - body_h
+    shackle_w = max(4, int(size * 0.5))
+    shackle_x = x + (size - shackle_w) // 2
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setPen(QPen(GREEN, 2))
+    # Top half of an ellipse = the shackle, sitting just above the body.
+    painter.drawArc(shackle_x, y, shackle_w, (size - body_h) * 2, 0, 180 * 16)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(GREEN)
+    painter.drawRoundedRect(x, body_y, size, body_h, 3, 3)
+    painter.restore()
+
+
 def paint_hud(
     painter: QPainter,
     rect: QRect,
@@ -144,6 +162,8 @@ def paint_hud(
     painter.drawRect(map_x, map_y, corner.width(), corner.height())
     _col_label(map_x, corner.width(), "Seed 1")
     _row_label(map_y, corner.height(), panel.current_action)
+    if panel.locked:
+        _draw_lock_icon(painter, map_x + 3, map_y + 3, 15)
 
     # Seeds run right from the corner: the same act under other seeds.
     seed_x = map_x + corner.width() + _MAP_GAP
