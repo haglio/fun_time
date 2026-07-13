@@ -24,6 +24,7 @@ from fun_time.lock_hud_app import (
     OVERLAY_HEIGHT,
     OVERLAY_WIDTH,
     build_click_targets,
+    build_label_targets,
     hit_test_targets,
     hud_loop_button_rects,
     hud_thumbnail_rects,
@@ -149,6 +150,33 @@ def test_build_and_hit_test_click_targets():
 
 def test_build_click_targets_skips_a_missing_corner():
     assert build_click_targets(None, [], [], "cur.mp4", [], []) == []
+
+
+def test_build_label_targets_maps_the_gutter_rows_to_actions():
+    """Each row's action-name label is a gutter-wide target beside its thumbnail
+    row: the corner's is the current action, the rows below their siblings."""
+    corner = (60, 50, 30, 54)
+    actions = [(60, 110, 30, 54)]
+
+    targets = build_label_targets(
+        corner, actions, gutter_x=10, gutter_w=50,
+        current_action="Alpha", action_labels=["Gamma"],
+    )
+
+    assert targets == [((10, 50, 50, 54), "Alpha"), ((10, 110, 50, 54), "Gamma")]
+
+
+def test_clicking_an_action_label_filters_to_that_action(qt_app):
+    """A click on a row's action name posts filter_<side>_<action>, the same
+    command speaking "[side] gamma" would."""
+    sent: list[str] = []
+    overlay = HudOverlay("portrait", sent.append)
+    try:
+        overlay._label_targets = [((0, 0, 50, 20), "Gamma")]
+        overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(5, 5)))
+        assert sent == ["filter_portrait_gamma"]
+    finally:
+        overlay.close()
 
 
 def test_single_click_switches_and_double_click_locks(qt_app):
