@@ -44,7 +44,7 @@ def test_compute_window_layout_uses_main_monitor_for_landscape_and_random_favs_b
 def test_dashboard_sits_at_the_top_left_corner_of_the_left_column(cfg_path: Path):
     """The dashboard and the RFB stack in the left column so every window
     is fully visible at once.  The dashboard is flush against the column's
-    top-left corner, leaving the space beside it for the log panel."""
+    top-left corner."""
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
@@ -57,9 +57,10 @@ def test_dashboard_sits_at_the_top_left_corner_of_the_left_column(cfg_path: Path
     assert plan.dashboard.y == 0
 
 
-def test_log_panel_fills_the_column_beside_the_dashboard(cfg_path: Path):
-    """The log panel takes the whole strip to the dashboard's right, matching
-    its height, so the two together span the column above the RFB."""
+def test_dashboard_spans_the_whole_left_column_above_the_rfb(cfg_path: Path):
+    """The dashboard now embeds the log stream, so its window spans the full
+    left-column width — schematic on the left, log strip filling the rest —
+    rather than leaving room for a second log-panel window beside it."""
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
@@ -69,11 +70,8 @@ def test_log_panel_fills_the_column_beside_the_dashboard(cfg_path: Path):
     )
 
     left_width = plan.random_favs_browser.width
-    assert plan.log_panel.x == plan.dashboard.x + plan.dashboard.width
-    assert plan.log_panel.y == plan.dashboard.y
-    assert plan.log_panel.height == plan.dashboard.height
-    assert plan.log_panel.width > 0
-    assert plan.dashboard.width + plan.log_panel.width == left_width
+    assert plan.dashboard.x == 0
+    assert plan.dashboard.width == left_width
 
 
 def test_rfb_fills_the_rectangle_below_the_dashboard(cfg_path: Path):
@@ -107,8 +105,6 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
 
     assert plan.dashboard.x == 100
     assert plan.dashboard.y == 50
-    assert plan.log_panel.x == 100 + plan.dashboard.width
-    assert plan.log_panel.y == 50
     assert plan.random_favs_browser.x == 100
     assert plan.random_favs_browser.y == 50 + plan.dashboard.height
 
@@ -135,10 +131,11 @@ def test_primary_media_rect_is_the_secondary_below_the_portrait_satellite(cfg_pa
     assert primary.y + primary.height == secondary.y + secondary.height
 
 
-def test_dashboard_uses_its_natural_size(cfg_path: Path):
-    """The dashboard keeps its natural (fixed-scale) scene size — the shape it
-    has always had — rather than being stretched to fill the column, and it is
-    small enough to leave horizontal room for the log panel beside it."""
+def test_dashboard_scene_keeps_its_natural_size(cfg_path: Path):
+    """``compute_dashboard_size`` returns the schematic's natural (fixed-scale)
+    scene size — the shape the schematic has always had.  The window is wider
+    than this (it spans the column, with the log stream filling the remainder),
+    so the schematic must be strictly narrower than the column."""
     config = load_config(cfg_path)
     main = MonitorRect(0, 0, 2560, 1392)
     secondary = MonitorRect(2560, 0, 1440, 3440)
@@ -157,7 +154,7 @@ def test_dashboard_uses_its_natural_size(cfg_path: Path):
     assert size.width == natural.dashboard_width
     assert size.height == natural.dashboard_height
 
-    # Fits within the left column with room to spare (so centering is visible).
+    # The schematic is narrower than the column, leaving room for the log strip.
     landscape_w = int(2560 * config.layout.landscape_width_ratio)
     left_width = 2560 - landscape_w
     assert size.width < left_width

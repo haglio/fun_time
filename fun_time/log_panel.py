@@ -102,16 +102,15 @@ def save_prefs(path: str | Path, prefs: LogPanelPrefs) -> None:
 
 
 # ---------------------------------------------------------------------------
-# PyQt6 window
+# PyQt6 widget
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QColor, QIcon
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
-    QMainWindow,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -140,9 +139,6 @@ from shared_ui.colors import (
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
 
-from fun_time.win32 import is_window_topmost, set_always_on_top
-from fun_time.window_roles import LOG_PANEL_WINDOW_TITLE
-
 _LEVEL_COLORS: dict[int, QColor] = {
     logging.DEBUG: TEXT_MUTED,
     logging.INFO: TEXT_MUTED,
@@ -160,8 +156,12 @@ def level_color(level: int) -> QColor:
     return TEXT_PRIMARY
 
 
-class LogPanelWindow(QMainWindow):
-    """Tails the event log beside the dashboard.
+class LogPanelWidget(QWidget):
+    """Tails the event log in the strip beside the dashboard schematic.
+
+    A child of the dashboard window rather than a window of its own, so it rides
+    the dashboard's topmost band, minimize/restore and close for free instead of
+    being a second managed window the bridge has to track by title.
 
     Polls rather than watches: the writers are other processes appending to a
     shared file, and a 300ms poll of the bytes past our offset costs nothing next
@@ -174,41 +174,18 @@ class LogPanelWindow(QMainWindow):
         self,
         event_log: Path,
         prefs_file: Path,
-        *,
-        geometry: tuple[int, int, int, int] | None = None,
+        parent: QWidget | None = None,
     ) -> None:
-        super().__init__()
+        super().__init__(parent)
         self._event_log = Path(event_log)
         self._prefs_file = Path(prefs_file)
         self._offset = 0
         self._records: list[EventRecord] = []
-        self._disposing = False
 
         prefs = load_prefs(self._prefs_file)
         self._filter = LogFilter(verbosity=prefs.verbosity, sources=prefs.sources)
 
-        self.setWindowTitle(LOG_PANEL_WINDOW_TITLE)
-        icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
-        if icon_path.exists():
-            self.setWindowIcon(QIcon(str(icon_path)))
-        self.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.CustomizeWindowHint
-            | Qt.WindowType.WindowTitleHint
-        )
         self._build_ui()
-        if geometry is not None:
-            x, y, width, height = geometry
-            # Pin the panel to its strip.  Left to itself Qt would grow the window
-            # to the controls' minimum width — on the real desktop that came out
-            # 523px against a 312px strip — and the panel would sit over the
-            # landscape player.  The strip is exactly as wide as the layout says,
-            # so the window takes it and the controls fit themselves in.
-            self.setFixedSize(width, height)
-            self.setGeometry(x, y, width, height)
-
-        self._hwnd = int(self.winId())
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._poll)
@@ -218,9 +195,8 @@ class LogPanelWindow(QMainWindow):
     # -- construction ------------------------------------------------------
 
     def _build_ui(self) -> None:
-        central = QWidget(self)
-        central.setStyleSheet(f"background-color: {BG_PRIMARY.name()};")
-        outer = QVBoxLayout(central)
+        self.setStyleSheet(f"background-color: {BG_PRIMARY.name()};")
+        outer = QVBoxLayout(self)
         outer.setContentsMargins(6, 6, 6, 6)
         outer.setSpacing(4)
 
@@ -230,7 +206,7 @@ class LogPanelWindow(QMainWindow):
         # minimum width fits the strip instead of forcing the window wider.
         controls = QHBoxLayout()
         controls.setSpacing(2)
-        self._verbosity = QComboBox(central)
+        self._verbosity = QComboBox(self)
         self._verbosity.setFont(make_font(FONT_UI, SIZE_SMALL))
         self._verbosity.setFixedWidth(80)
         for name in LEVEL_NAMES:
@@ -241,7 +217,7 @@ class LogPanelWindow(QMainWindow):
 
         self._source_boxes: dict[str, QToolButton] = {}
         for source in SOURCES:
-            button = QToolButton(central)
+            button = QToolButton(self)
             button.setText(_SOURCE_LABELS[source])
             button.setToolTip(source)
             button.setCheckable(True)
@@ -262,7 +238,7 @@ class LogPanelWindow(QMainWindow):
         controls.addStretch(1)
         outer.addLayout(controls)
 
-        self._list = QListWidget(central)
+        self._list = QListWidget(self)
         self._list.setFont(make_font(FONT_UI, SIZE_SMALL))
         self._list.setStyleSheet(
             f"background-color: {BG_SECONDARY.name()}; border: none;"
@@ -275,8 +251,6 @@ class LogPanelWindow(QMainWindow):
         self._list.setTextElideMode(Qt.TextElideMode.ElideNone)
         self._list.setMinimumWidth(0)
         outer.addWidget(self._list, stretch=1)
-
-        self.setCentralWidget(central)
 
     # -- live state --------------------------------------------------------
 
@@ -322,28 +296,13 @@ class LogPanelWindow(QMainWindow):
         if at_bottom:
             self._list.scrollToBottom()
 
-    # -- window management -------------------------------------------------
-
-    def sync_topmost(self, omni_paused: bool) -> None:
-        """Track the dashboard's topmost band; OmniPause must free the desktop."""
-        desired = not omni_paused
-        if is_window_topmost(self._hwnd) != desired:
-            set_always_on_top(self._hwnd, desired)
+    # -- lifecycle ---------------------------------------------------------
 
     def shutdown(self) -> None:
-        """Stop tailing and dispose of the window; the dashboard is going away."""
-        self._timer.stop()
-        self._disposing = True
-        self.close()
-        self.deleteLater()
+        """Stop tailing; the dashboard that owns this widget is going away.
 
-    def closeEvent(self, event: object) -> None:  # noqa: N802
-        """The panel is furniture: only the dashboard's shutdown closes it.
-
-        Ignoring the close means Alt+F4 on the panel cannot leave the session
-        without the one surface that says what it is doing.
+        Only the timer needs stopping — the widget itself is destroyed with its
+        parent window.  It matters under test, where several dashboards are built
+        and torn down in one process and a live poll would keep reading the file.
         """
-        if self._disposing:
-            event.accept()
-        else:
-            event.ignore()
+        self._timer.stop()

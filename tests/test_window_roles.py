@@ -22,15 +22,15 @@ class TestRoleTopmost:
         assert role_topmost("nau", "genau") is False
 
     def test_every_other_role_is_always_topmost(self):
-        for role in ("rfb", "portrait", "landscape", "genau", "dashboard", "logs"):
+        for role in ("rfb", "portrait", "landscape", "genau", "dashboard"):
             for mode in ("nau", "hybrid", "genau"):
                 assert role_topmost(role, mode) is True, (role, mode)
 
     def test_role_groups_partition_the_managed_set(self):
         assert set(MANAGED_ROLES) == {
-            "rfb", "portrait", "landscape", "genau", "nau", "dashboard", "logs",
+            "rfb", "portrait", "landscape", "genau", "nau", "dashboard",
         }
-        assert set(FIXED_TOPMOST_ROLES) == {"rfb", "portrait", "landscape", "dashboard", "logs"}
+        assert set(FIXED_TOPMOST_ROLES) == {"rfb", "portrait", "landscape", "dashboard"}
         assert set(PRIMARY_SLOT_ROLES) == {"nau", "genau"}
         # The two groups are disjoint and together cover every managed role.
         assert set(FIXED_TOPMOST_ROLES) & set(PRIMARY_SLOT_ROLES) == set()

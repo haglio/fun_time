@@ -1530,22 +1530,6 @@ class TestResolveRole:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup):
             assert runner._resolve_role("dashboard") == 9999
 
-    def test_log_panel_resolves_by_its_exact_title(self, tmp_path):
-        """The panel is a second window in the dashboard's process, so a pid
-        lookup cannot distinguish them; only the exact title does."""
-        runner = make_runner(tmp_path)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title",
-                   return_value=4242) as by_title:
-            assert runner._resolve_role("logs") == 4242
-
-        by_title.assert_called_once_with("Fun Time Logs", exact=True)
-
-    def test_omniminimize_takes_the_log_panel_down_with_the_rest(self, tmp_path):
-        runner = make_runner(tmp_path)
-
-        assert "logs" in runner._visible_roles()
-
     def test_cached_hwnd_survives_hiding_and_show_role_reaches_it(self, tmp_path):
         """Hidden windows are invisible to the pid/title lookups, so the
         HWND captured while a window was visible must be cached and reused —

@@ -28,7 +28,7 @@ def _fake_plan() -> WindowLayoutPlan:
     r = WindowRect(0, 0, 100, 100)
     return WindowLayoutPlan(
         portrait=r, landscape=r,
-        dashboard=r, log_panel=r, random_favs_browser=r,
+        dashboard=r, random_favs_browser=r,
     )
 
 

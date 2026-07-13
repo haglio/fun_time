@@ -463,7 +463,6 @@ _DASHBOARD_COMMAND = [
     "python.exe", "-m", "fun_time.dashboard_app", "windows_bridge_launch.ini",
     "--x", "10", "--y", "20", "--width", "30", "--height", "40",
     "--rfb-x", "5", "--rfb-y", "44", "--rfb-width", "31", "--rfb-height", "96",
-    "--log-x", "30", "--log-y", "20", "--log-width", "60", "--log-height", "40",
 ]
 _AUDIO_COMMAND = [
     "python.exe", "-m", "fun_time.audio_companion_app",
@@ -482,7 +481,6 @@ def _call_launch_ui_companions(result_file, *, dashboard_enabled, hud_enabled):
         windows_bridge_manifest_path="windows_bridge_launch.ini",
         dashboard_x=10, dashboard_y=20, dashboard_width=30, dashboard_height=40,
         rfb_x=5, rfb_y=44, rfb_width=31, rfb_height=96,
-        log_x=30, log_y=20, log_width=60, log_height=40,
         audio_module="fun_time.audio_companion_app",
         config_path="cfg.json",
         audio_folder="audio",

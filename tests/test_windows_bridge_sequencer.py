@@ -130,14 +130,9 @@ class TestRunStartupSequence:
             isinstance(ui_called[key], int)
             for key in ("rfb_x", "rfb_y", "rfb_width", "rfb_height")
         )
-        # ... and so is the log panel's, the strip beside the dashboard.
-        assert (ui_called["log_x"], ui_called["log_y"]) == (
-            result.layout_plan.log_panel.x, result.layout_plan.log_panel.y,
-        )
-        assert (ui_called["log_width"], ui_called["log_height"]) == (
-            result.layout_plan.log_panel.width, result.layout_plan.log_panel.height,
-        )
-        assert ui_called["log_x"] == ui_called["dashboard_x"] + ui_called["dashboard_width"]
+        # The log stream is embedded in the dashboard window now, so there is no
+        # separate log-panel rect to forward.
+        assert not any(key.startswith("log_") for key in ui_called)
 
     def test_launches_genau_and_nau_with_primary_media_rect(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
