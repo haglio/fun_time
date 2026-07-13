@@ -72,6 +72,25 @@ def test_log_box_sits_beside_the_dash_box_above_the_rfb():
     assert rfb.x + rfb.width <= layout.landscape_panel.x
 
 
+def test_app_name_lockup_sits_in_the_top_left_band_above_the_schematic():
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    icon, title = layout.app_icon, layout.app_title
+    # The lockup lives in the empty band above the main-monitor mini-map ...
+    assert icon.y + icon.height <= layout.main_monitor.y
+    assert title.y + title.height <= layout.main_monitor.y
+    # ... hence above the dash's own box, in the scene's top-left corner.
+    assert title.y + title.height <= layout.dash_panel.y
+    assert icon.x == layout.main_monitor.x
+    # Icon first, then the name to its right.
+    assert icon.x + icon.width <= title.x
+    assert icon.width > 0 and title.width > 0
+
+
 def test_dashboard_preview_places_osr2_left_of_secondary_stack():
     layout = compute_dashboard_preview_layout(
         Size(width=2560, height=1392),

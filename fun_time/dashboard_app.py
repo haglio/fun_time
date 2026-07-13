@@ -34,6 +34,7 @@ from shared_ui.fonts import (
     FONT_EMOJI,
     FONT_SYMBOL,
     FONT_UI,
+    SIZE_BODY,
     SIZE_SMALL,
     SIZE_TINY,
     make_font,
@@ -647,6 +648,12 @@ def build_dashboard_scene(
     _font_ui_sm = make_font(FONT_UI, SIZE_SMALL, bold=True)
     _font_emoji = make_font(FONT_EMOJI, SIZE_SMALL)
     _font_ui_tiny = make_font(FONT_UI, SIZE_TINY, bold=True)
+    # The app-name lockup, styled like the loading screen: pink, bold italic, a
+    # step larger than the box titles.  Built fresh (not via the cached make_font)
+    # so setItalic can't leak into every other user of a shared QFont.
+    _font_app = QFont(FONT_UI, SIZE_BODY)
+    _font_app.setBold(True)
+    _font_app.setItalic(True)
 
     texts = (
         DashboardTextItem("\u23FB", layout.quit_button, font=_font_symbol),
@@ -656,6 +663,9 @@ def build_dashboard_scene(
         DashboardTextItem(portrait_label, layout.portrait_panel, anchor="n"),
         DashboardTextItem(primary_label, layout.primary_panel, anchor="n"),
         DashboardTextItem(osr2_label, layout.osr2_panel, anchor="n"),
+        DashboardTextItem("Favs Browser", layout.rfb_panel, anchor="n"),
+        DashboardTextItem("Logs", layout.log_panel, anchor="n"),
+        DashboardTextItem("Fun Time", layout.app_title, color=COLOR_PINK, anchor="w", font=_font_app),
         DashboardTextItem("<", layout.portrait_prev, font=_font_ui_sm),
         DashboardTextItem(">", layout.portrait_next, font=_font_ui_sm),
         DashboardTextItem(ICON_LOCK, layout.portrait_lock, font=_font_emoji),
@@ -718,6 +728,7 @@ def build_dashboard_scene(
     )
     _icon_h = layout.broker_panel.height
     images = (
+        DashboardImageItem(_load_icon_pixmap("icon.ico", layout.app_icon.height), layout.app_icon),
         DashboardImageItem(_load_icon_pixmap("broker_icon.ico", _icon_h), layout.broker_panel),
         DashboardImageItem(_load_icon_pixmap("fmode_icon.ico", _icon_h), layout.fmode_panel),
         *(
@@ -772,7 +783,9 @@ def build_dashboard_scene(
     )
     cable_arcs: tuple[DashboardArcItem, ...] = ()
 
-    # The log box carries no controls, so ruled lines stand in for its text.
+    # The log box carries a "Logs" title (in texts) with ruled lines below
+    # standing in for the stream.  The lines start below the title — the top one
+    # made way for it.
     log_lines: tuple[DashboardLineItem, ...] = tuple(
         DashboardLineItem(
             points=(
@@ -782,7 +795,7 @@ def build_dashboard_scene(
             color=TEXT_MUTED,
             width=1,
         )
-        for y in range(layout.log_panel.y + 8, layout.log_panel.y + layout.log_panel.height - 4, 8)
+        for y in range(layout.log_panel.y + 16, layout.log_panel.y + layout.log_panel.height - 4, 8)
     )
 
     scene = DashboardScene(

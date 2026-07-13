@@ -107,6 +107,8 @@ class DashboardPreviewLayout:
     broker_panel: Rect
     fmode_panel: Rect
     voice_panel: Rect
+    app_icon: Rect
+    app_title: Rect
 
 
 def compute_dashboard_preview_layout(
@@ -334,6 +336,17 @@ def _preview_layout_with_log_box(
         nau_record_y = primary_center_y - 40
     nau_record_rect = Rect(nau_record_x, nau_record_y, nau_record_w, nau_record_h)
 
+    # App-name lockup — the icon followed by "Fun Time" — in the empty band
+    # above the main-monitor mini-map, at the scene's top-left corner.  Sized a
+    # touch larger than the individual box titles.  main_y is that band's floor.
+    app_row_h = 30
+    app_icon_size = 28
+    app_row_y = max(1, (main_y - app_row_h) // 2)
+    app_icon_rect = Rect(
+        main_x, app_row_y + (app_row_h - app_icon_size) // 2, app_icon_size, app_icon_size
+    )
+    app_title_rect = Rect(main_x + app_icon_size + 6, app_row_y, 130, app_row_h)
+
     dashboard_w = secondary_x + right_w + outer_pad
     dashboard_h = max(preview_bottom, osr2_y + osr2_h, primary_shadow_y + primary_h) + bottom_pad
 
@@ -399,4 +412,6 @@ def _preview_layout_with_log_box(
         broker_panel=Rect(status_row_x, chip_row_y, mini_button_w, mini_button_h),
         fmode_panel=Rect(status_row_x + mini_button_w + mini_button_gap, chip_row_y, mini_button_w, mini_button_h),
         voice_panel=Rect(status_row_x + (mini_button_w + mini_button_gap) * 2, chip_row_y, mini_button_w, mini_button_h),
+        app_icon=app_icon_rect,
+        app_title=app_title_rect,
     )

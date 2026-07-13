@@ -163,7 +163,7 @@ def test_dashboard_app_builds_scene_from_preview_layout(cfg_path: Path):
 
     assert scene.width == preview_layout.dashboard_width
     assert scene.height == preview_layout.dashboard_height
-    assert not any(item.text == "Fun Time" for item in scene.texts)
+    assert any(item.text == "Fun Time" for item in scene.texts)
     assert len(_cable_lines(scene)) == 1, "Default scene should show cable (one straight line)"
 
 
@@ -904,13 +904,48 @@ def test_dashboard_scene_draws_the_log_box_beside_the_dash_box(cfg_path: Path):
     drawn = {item.rect for item in scene.rects}
     assert layout.dash_panel in drawn
     assert layout.log_panel in drawn
-    # The log box is inert: ruled lines stand in for text, and it triggers nothing.
+    # The log box is inert: a "Logs" title over ruled lines, and it triggers nothing.
     assert not any(rect == layout.log_panel for _action, rect in scene.actions)
+    log_titles = [item for item in scene.texts if item.rect == layout.log_panel]
+    assert [item.text for item in log_titles] == ["Logs"]
+    assert log_titles[0].anchor == "n"
     log_rules = [
         line for line in scene.lines
         if line.points[0][0] == layout.log_panel.x + 4
     ]
     assert log_rules, "log box should be drawn with ruled stand-in lines"
+    # The title took the top line's place, so the ruled lines start below it.
+    assert min(line.points[0][1] for line in log_rules) >= layout.log_panel.y + 16
+
+
+def test_dashboard_scene_titles_the_favs_browser_box(cfg_path: Path):
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    rfb_titles = [item for item in scene.texts if item.rect == layout.rfb_panel]
+    assert [item.text for item in rfb_titles] == ["Favs Browser"]
+    assert rfb_titles[0].anchor == "n"
+
+
+def test_dashboard_scene_shows_the_app_name_lockup_top_left(cfg_path: Path):
+    """The icon followed by "Fun Time", styled like the loading screen (pink,
+    bold italic), a step larger than the box titles, in the top-left band."""
+    layout = _make_layout(cfg_path)
+
+    scene = build_dashboard_scene(layout)
+
+    title = next(item for item in scene.texts if item.text == "Fun Time")
+    assert title.rect == layout.app_title
+    assert title.anchor == "w"
+    assert title.color == COLOR_PINK
+    assert title.font is not None and title.font.bold() and title.font.italic()
+    # Larger than a box title (SIZE_SMALL, 9pt).
+    assert title.font.pointSize() > 9
+    # The app icon is drawn to its left.
+    icon_rects = {item.rect for item in scene.images}
+    assert layout.app_icon in icon_rects
+    assert layout.app_icon.x + layout.app_icon.width <= layout.app_title.x
 
 
 def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_path: Path):
