@@ -24,6 +24,7 @@ from shared_ui.colors import BG_PRIMARY, BORDER_PANEL, GREEN, TEXT_MUTED, TEXT_P
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_TINY, make_font
 
 from fun_time.command_dispatch import BridgeState
+from fun_time.filter_vocab import set_command
 from fun_time.lock_hud import (
     HudAppConfig,
     HudPanel,
@@ -329,11 +330,33 @@ def build_click_targets(
 
 
 def hit_test_targets(targets: list[tuple[_ThumbRect, str]], px: int, py: int) -> str:
-    """The video path whose rect contains ``(px, py)``, or "" if none does."""
-    for (x, y, w, h), path in targets:
+    """The value whose rect contains ``(px, py)``, or "" if none does — used for
+    the thumbnail (path), loop-button (axis) and action-label (action) targets."""
+    for (x, y, w, h), value in targets:
         if x <= px < x + w and y <= py < y + h:
-            return path
+            return value
     return ""
+
+
+def build_label_targets(
+    corner_rect: _ThumbRect | None,
+    action_rects: list[_ThumbRect],
+    gutter_x: int,
+    gutter_w: int,
+    current_action: str,
+    action_labels: list[str],
+) -> list[tuple[_ThumbRect, str]]:
+    """(rect, action_name) for each clickable action-name label in the left
+    gutter — the corner's row is the current action, the rows below are the
+    sibling actions.  Clicking one filters the satellite to that action."""
+    targets: list[tuple[_ThumbRect, str]] = []
+    if corner_rect is not None and current_action:
+        _cx, cy, _cw, ch = corner_rect
+        targets.append(((gutter_x, cy, gutter_w, ch), current_action))
+    for (_ax, ay, _aw, ah), name in zip(action_rects, action_labels):
+        if name:
+            targets.append(((gutter_x, ay, gutter_w, ah), name))
+    return targets
 
 
 def _load_pixmap(thumb: Path | None) -> QPixmap | None:
@@ -374,6 +397,7 @@ class HudOverlay(QWidget):
         self._active_loop = ""
         self._hover_loop = ""
         self._loop_targets: list[tuple[_ThumbRect, str]] = []
+        self._label_targets: list[tuple[_ThumbRect, str]] = []
         self._prev_current = ""
 
         self.setWindowTitle(f"Fun Time HUD ({side})")
@@ -455,6 +479,10 @@ class HudOverlay(QWidget):
             for kind, button in (("action", loop_action_rect), ("seed", loop_seed_rect))
             if button is not None
         ]
+        self._label_targets = build_label_targets(
+            corner_rect, action_rects, _PAD, _ROW_LABEL_W - _MAP_GAP,
+            self._panel.current_action, self._panel.action_labels,
+        )
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         """A click on a loop button toggles that loop; a click on a thumbnail
@@ -465,6 +493,10 @@ class HudOverlay(QWidget):
         loop = hit_test_targets(self._loop_targets, point.x(), point.y())
         if loop:
             self._toggle_loop(loop)
+            return
+        action = hit_test_targets(self._label_targets, point.x(), point.y())
+        if action:
+            self._command_writer(set_command(self._side, action.lower()))
             return
         self._pending_click_path = hit_test_targets(self._click_targets, point.x(), point.y())
         if self._pending_click_path:
