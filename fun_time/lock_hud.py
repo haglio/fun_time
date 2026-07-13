@@ -75,6 +75,9 @@ class HudAppConfig:
     provider_metadata_root: Path | None
     shared_state_file: Path
     thumbnail_cache_dir: Path
+    # Where the HUD posts commands (thumbnail clicks) for the dispatch loop to
+    # pick up — the same file the dashboard writes, read the same way.
+    dashboard_cmd_file: Path
 
 
 def load_hud_app_config(manifest_path: str | Path) -> HudAppConfig:
@@ -105,6 +108,9 @@ def load_hud_app_config(manifest_path: str | Path) -> HudAppConfig:
         provider_metadata_root=_root("metadata_root"),
         shared_state_file=manifest_path.parent / SHARED_STATE_FILENAME,
         thumbnail_cache_dir=manifest_path.parent / THUMBNAIL_CACHE_DIRNAME,
+        dashboard_cmd_file=Path(
+            parser.get("commands", "dashboard_cmd_file", fallback=str(manifest_path.parent / "dashboard_cmd.txt"))
+        ),
     )
 
 

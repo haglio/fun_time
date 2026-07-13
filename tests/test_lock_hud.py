@@ -244,6 +244,7 @@ def _hud_config(**overrides) -> HudAppConfig:
         provider_media_root=None, provider_metadata_root=None,
         shared_state_file=Path("shared_bridge_state.ini"),
         thumbnail_cache_dir=Path("thumbs"),
+        dashboard_cmd_file=Path("dashboard_cmd.txt"),
     )
     base.update(overrides)
     return HudAppConfig(**base)

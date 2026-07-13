@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication
 
@@ -23,6 +23,8 @@ from fun_time.lock_hud_app import (
     LockHud,
     OVERLAY_HEIGHT,
     OVERLAY_WIDTH,
+    build_click_targets,
+    hit_test_targets,
     hud_thumbnail_rects,
     paint_hud,
 )
@@ -124,6 +126,48 @@ def test_hud_thumbnail_rects_positions_the_map_and_drops_overflow():
     assert actions == [(100, 50 + 54 + _MAP_GAP, 30, 54)]  # second dropped
 
 
+def test_build_and_hit_test_click_targets():
+    """Targets zip the drawn rects to their paths — corner=current, then each
+    seed, then each action — and a point resolves to the clip it falls in."""
+    corner = (10, 10, 20, 20)
+    seeds = [(40, 10, 20, 20)]
+    actions = [(10, 40, 20, 20)]
+
+    targets = build_click_targets(corner, seeds, actions, "cur.mp4", ["s1.mp4"], ["a1.mp4"])
+
+    assert targets == [
+        ((10, 10, 20, 20), "cur.mp4"),
+        ((40, 10, 20, 20), "s1.mp4"),
+        ((10, 40, 20, 20), "a1.mp4"),
+    ]
+    assert hit_test_targets(targets, 15, 15) == "cur.mp4"
+    assert hit_test_targets(targets, 45, 15) == "s1.mp4"
+    assert hit_test_targets(targets, 15, 45) == "a1.mp4"
+    assert hit_test_targets(targets, 100, 100) == ""  # empty area hits nothing
+
+
+def test_build_click_targets_skips_a_missing_corner():
+    assert build_click_targets(None, [], [], "cur.mp4", [], []) == []
+
+
+def test_clicking_a_thumbnail_posts_a_play_command(qt_app):
+    """A press inside a target's rect posts "<side>_play_video|<path>"; a press
+    in empty space posts nothing."""
+    sent: list[str] = []
+    overlay = HudOverlay("landscape", sent.append)
+    try:
+        overlay._click_targets = [((0, 0, 30, 30), "C:/vids/pick.mp4")]
+
+        overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(10, 10)))
+        assert sent == ["landscape_play_video|C:/vids/pick.mp4"]
+
+        sent.clear()
+        overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(200, 200)))
+        assert sent == []
+    finally:
+        overlay.close()
+
+
 def _label_ink_in_rect(image: QImage, x0: int, y0: int, x1: int, y1: int) -> int:
     """Pixels in the region that carry label text — lighter than the dark panel
     background (24) but not the white border, i.e. the muted-grey glyphs."""
@@ -192,7 +236,7 @@ def test_sync_topmost_restakes_over_the_vlc_but_leaves_the_band_once_under_omnip
     burying it — only an unconditional re-assert climbs back over, since a
     drift-corrected bit check cannot see "topmost but buried". The paused
     direction IS drift-corrected: leave the band once, don't churn it."""
-    overlay = HudOverlay("portrait")
+    overlay = HudOverlay("portrait", lambda command: None)
     try:
         hwnd = int(overlay.winId())
 
@@ -235,6 +279,7 @@ def _hud_config(tmp_path) -> HudAppConfig:
         provider_media_root=None, provider_metadata_root=None,
         shared_state_file=tmp_path / "shared_bridge_state.ini",
         thumbnail_cache_dir=tmp_path / "thumbs",
+        dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
     )
 
 
