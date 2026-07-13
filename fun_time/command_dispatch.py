@@ -94,6 +94,14 @@ class BridgeState:
     # are honoured by later F-mode / premiere rebuilds.
     portrait_filter: str = ""
     landscape_filter: str = ""
+    # Which group loop each satellite is running: "" none, "action" (looping the
+    # action column) or "seed" (looping the seed row).  A loop is repeat-all over
+    # a sub-playlist; VLC's own auto-advance keeps it alive, but any dispatch
+    # command that rebuilds or re-navigates the side drops it.  Persisted so the
+    # HUD can freeze its map on the looped group and keep the loop button lit
+    # while the clip auto-advances.
+    portrait_loop: str = ""
+    landscape_loop: str = ""
     # The primary display's sound level, 0-100, and whether it is silenced.  A
     # mute leaves the level alone so a second "mute" restores what was set.
     volume: int = MAX_VOLUME
@@ -338,9 +346,10 @@ def _toggle_lock(
         if target.url:
             uri = write_lock_tab_page(tabs_dir(config.state_dir), target)
             lock_ops.append(WindowOp(op="open_rfb_tab", key=uri))
-    if which == 2:
-        return replace(state, locked2=plan.next_locked), lock_ops
-    return replace(state, locked3=plan.next_locked), lock_ops
+    # A lock is repeat-one on a single clip — incompatible with a group loop's
+    # repeat-all — so toggling the lock ends any loop the side was running.
+    next_state = replace(state, locked2=plan.next_locked) if which == 2 else replace(state, locked3=plan.next_locked)
+    return _clear_side_loop(next_state, which), lock_ops
 
 
 def _drop_playlist_entry(port: int, password: str, path: str) -> bool:
@@ -526,6 +535,17 @@ _NO_LOOP_SIDES: dict[str, str] = {
 }
 
 
+def _set_side_loop(state: BridgeState, which: int, axis: str) -> BridgeState:
+    """Record that *which* satellite is now running *axis*'s group loop."""
+    return replace(state, portrait_loop=axis) if which == 2 else replace(state, landscape_loop=axis)
+
+
+def _clear_side_loop(state: BridgeState, which: int) -> BridgeState:
+    """Forget any group loop on *which* satellite — its playlist was rebuilt or
+    re-navigated, which drops the loop.  A no-op when none was running."""
+    return replace(state, portrait_loop="") if which == 2 else replace(state, landscape_loop="")
+
+
 def _dispatch_group_loop(
     which: int, axis: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -542,9 +562,11 @@ def _dispatch_group_loop(
     if len(members) < 2:
         # Only this clip is in the group, so "looping" it is a single-video lock:
         # repeat this one.  Never a dead end — the loop buttons are still valid
-        # with one video, they just mean "lock" then.
+        # with one video, they just mean "lock" then.  A lock is not a loop, so
+        # any prior loop flag is dropped.
         set_repeat_mode(port, config.vlc_password, "one")
         state = replace(state, locked2=True) if which == 2 else replace(state, locked3=True)
+        state = _clear_side_loop(state, which)
         return state, [WindowOp(op="notice", key="Locked", source=source)]
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = _cancel_lock(which, state, config)
@@ -559,6 +581,7 @@ def _dispatch_group_loop(
     logger.info(result.log_message)
     if result.applied:
         ensure_playback_state(port, config.vlc_password, should_play=True)
+        state = _set_side_loop(state, which, axis)
     ops.append(WindowOp(op="notice", key=result.log_message, source=source))
     return state, ops
 
@@ -1077,11 +1100,14 @@ def _dispatch_fmode_toggle(
     )
     if result.log_message:
         logger.info(result.log_message)
+    # F-mode rebuilds both satellites' playlists, dropping any group loops.
     return replace(
         state,
         f_mode_enabled=result.next_f_mode_enabled,
         locked2=result.next_locked2,
         locked3=result.next_locked3,
+        portrait_loop="",
+        landscape_loop="",
     ), []
 
 
@@ -1107,11 +1133,14 @@ def _dispatch_reorder_satellites(
     )
     if result.log_message:
         logger.info(result.log_message)
+    # Premiere/Shuffle rebuild both satellites' playlists, dropping any loops.
     return replace(
         state,
         recency_order=result.next_recency_order,
         locked2=result.next_locked2,
         locked3=result.next_locked3,
+        portrait_loop="",
+        landscape_loop="",
     ), []
 
 
@@ -1170,12 +1199,15 @@ def _dispatch_set_filter(
         )
         # Only remember a filter that actually selected videos: a zero-match
         # filter left the current playlist alone, so recording it would let the
-        # next F-mode/premiere rebuild blank the VLC.
+        # next F-mode/premiere rebuild blank the VLC.  A filter that *did* rebuild
+        # also replaced any loop's sub-playlist, so the loop is gone; a zero-match
+        # one touched nothing, so a running loop survives it.
         if result.applied:
             if which == 2:
                 state = replace(state, portrait_filter=query)
             else:
                 state = replace(state, landscape_filter=query)
+            state = _clear_side_loop(state, which)
         logger.info(result.log_message)
         # A filter that selected nothing left the playlist untouched — a dead end,
         # so it reads red like the other no-effect notices.

@@ -2206,6 +2206,154 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
     assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
 
 
+def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
+    """The HUD reads this flag to freeze its map on the looped group and keep the
+    loop button lit while the clip auto-advances, so it must live in the state."""
+    config = _make_config(tmp_path)
+    index, a, _b = _loop_index(tmp_path, axis="action")
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
+        mock_loop.return_value = _loop_result()
+        state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
+
+    assert state.portrait_loop == "action"
+    assert state.landscape_loop == ""
+
+
+def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
+    config = _make_config(tmp_path)
+    index, a, _b = _loop_index(tmp_path, axis="seed")
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
+        mock_loop.return_value = _loop_result(message="Loop landscape: 2 seeds")
+        state, _ops = dispatch_command("landscape_seed_loop", _make_state(), config)
+
+    assert state.landscape_loop == "seed"
+    assert state.portrait_loop == ""
+
+
+def test_a_loop_that_fails_to_apply_records_no_loop(tmp_path: Path):
+    """If the sub-playlist never loads (apply not applied) nothing is looping, so
+    the flag stays clear rather than lying to the HUD."""
+    config = _make_config(tmp_path)
+    index, a, _b = _loop_index(tmp_path, axis="action")
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
+        mock_loop.return_value = _loop_result(applied=False)
+        state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
+
+    assert state.portrait_loop == ""
+
+
+def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
+    """The one-member "loop" is really a lock, so it must drop any loop the side
+    was running instead of leaving a stale flag."""
+    config = _make_config(tmp_path)
+    only = tmp_path / "only.mp4"
+    only.write_text("x", encoding="utf-8")
+    key = normalize_path_key(str(only))
+    index = GroupIndex(
+        action_key_by_path={key: "subject"}, action_members={"subject": [str(only)]},
+        action_by_path={key: "Alpha"},
+        seed_key_by_path={}, seed_members={},
+        loose_seed_key_by_path={}, loose_seed_members={},
+        indexed_paths=frozenset({key}),
+    )
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=str(only)), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.set_repeat_mode"):
+        state, _ops = dispatch_command("portrait_action_loop", _make_state(portrait_loop="seed"), config)
+
+    assert state.portrait_loop == ""
+
+
+def test_toggling_the_lock_ends_a_loop(tmp_path: Path):
+    """A lock is repeat-one on one clip — incompatible with a loop's repeat-all —
+    so locking clears the loop flag."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider2\abc_123.mp4"), \
+         patch("fun_time.command_dispatch.set_repeat_mode"), \
+         patch("fun_time.command_dispatch.ensure_in_favs"):
+        state, _ops = dispatch_command("portrait_lock", _make_state(locked2=False, portrait_loop="action"), config)
+
+    assert state.portrait_loop == ""
+
+
+def test_an_applied_filter_clears_a_running_loop(tmp_path: Path):
+    """A filter that selects videos rebuilds the playlist, replacing the loop's
+    sub-playlist — so the loop is gone."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(applied=True)
+        state, _ops = dispatch_command("filter_portrait_alpha", _make_state(portrait_loop="seed"), config)
+
+    assert state.portrait_loop == ""
+
+
+def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
+    """A filter that matches nothing never touches the playlist, so a loop that
+    was running survives it."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(applied=False)
+        state, _ops = dispatch_command("filter_portrait_alpha", _make_state(portrait_loop="seed"), config)
+
+    assert state.portrait_loop == "seed"
+
+
+def test_no_loop_clears_the_loop_flag(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result()
+        state, _ops = dispatch_command("portrait_no_loop", _make_state(portrait_loop="action"), config)
+
+    assert state.portrait_loop == ""
+
+
+def test_premiere_clears_both_loops(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_reorder_satellites") as mock_reorder:
+        mock_reorder.return_value = type(
+            "R", (), {"next_recency_order": True, "next_locked2": False,
+                      "next_locked3": False, "log_message": ""}
+        )()
+        state, _ops = dispatch_command(
+            "recency_order_refresh", _make_state(portrait_loop="seed", landscape_loop="action"), config
+        )
+
+    assert (state.portrait_loop, state.landscape_loop) == ("", "")
+
+
+def test_fmode_toggle_clears_both_loops(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode:
+        mock_fmode.return_value = type(
+            "R", (), {"next_f_mode_enabled": True, "next_locked2": False,
+                      "next_locked3": False, "log_message": ""}
+        )()
+        state, _ops = dispatch_command(
+            "fmode_toggle", _make_state(portrait_loop="seed", landscape_loop="action"), config
+        )
+
+    assert (state.portrait_loop, state.landscape_loop) == ("", "")
+
+
 def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
     config = _make_config(tmp_path)
 

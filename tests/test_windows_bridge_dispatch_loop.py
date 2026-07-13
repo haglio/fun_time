@@ -450,6 +450,33 @@ class TestSharedState:
         assert loaded.portrait_filter == "beta gamma"
         assert loaded.landscape_filter == "alpha"
 
+    def test_roundtrip_preserves_per_vlc_loops(self, tmp_path):
+        """The HUD runs in its own process and reads its loop state from this
+        file, so a loop set by a command has to survive the round-trip."""
+        state_file = tmp_path / "shared_state.ini"
+        state = BridgeState(portrait_loop="seed", landscape_loop="action")
+
+        write_shared_state(state_file, state)
+        loaded = read_shared_state(state_file)
+
+        assert loaded.portrait_loop == "seed"
+        assert loaded.landscape_loop == "action"
+
+    def test_state_files_without_loop_keys_load_as_unlooped(self, tmp_path):
+        # A state file written before loops were tracked must still load.
+        state_file = tmp_path / "shared_state.ini"
+        state_file.write_text(
+            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
+            "f_mode_enabled = 0\nomni_paused = 0\n",
+            encoding="utf-8",
+        )
+
+        loaded = read_shared_state(state_file)
+
+        assert loaded is not None
+        assert loaded.portrait_loop == ""
+        assert loaded.landscape_loop == ""
+
     def test_state_files_without_filter_keys_load_as_unfiltered(self, tmp_path):
         # A state file written before filters existed must still load.
         state_file = tmp_path / "shared_state.ini"
