@@ -126,6 +126,9 @@ COLOR_GREEN = GREEN
 COLOR_PINK = PINK
 COLOR_RED = RED
 COLOR_YELLOW = AMBER
+# The "Fun Time" wordmark matches the loading screen's redder pink text, NOT the
+# logo's magenta-pink (COLOR_PINK) — they are deliberately different hues.
+COLOR_APP_TITLE = QColor("#e94560")
 
 ICON_LOCK = "\U0001F512"
 ICON_TRASH = "\U0001F5D1"
@@ -665,7 +668,7 @@ def build_dashboard_scene(
         DashboardTextItem(osr2_label, layout.osr2_panel, anchor="n"),
         DashboardTextItem("Favs Browser", layout.rfb_panel, anchor="n"),
         DashboardTextItem("Logs", layout.log_panel, anchor="n"),
-        DashboardTextItem("Fun Time", layout.app_title, color=COLOR_PINK, anchor="w", font=_font_app),
+        DashboardTextItem("Fun Time", layout.app_title, color=COLOR_APP_TITLE, anchor="w", font=_font_app),
         DashboardTextItem("<", layout.portrait_prev, font=_font_ui_sm),
         DashboardTextItem(">", layout.portrait_next, font=_font_ui_sm),
         DashboardTextItem(ICON_LOCK, layout.portrait_lock, font=_font_emoji),

@@ -13,6 +13,7 @@ from fun_time.dashboard_app import (
     COLOR_CABLE,
     COLOR_CABLE_DIM,
     COLOR_RED,
+    COLOR_APP_TITLE,
     COLOR_PINK,
     COLOR_PANEL,
     COLOR_YELLOW,
@@ -938,7 +939,9 @@ def test_dashboard_scene_shows_the_app_name_lockup_top_left(cfg_path: Path):
     title = next(item for item in scene.texts if item.text == "Fun Time")
     assert title.rect == layout.app_title
     assert title.anchor == "w"
-    assert title.color == COLOR_PINK
+    # The wordmark is the loading screen's redder pink, not the logo's COLOR_PINK.
+    assert title.color == COLOR_APP_TITLE
+    assert title.color != COLOR_PINK
     assert title.font is not None and title.font.bold() and title.font.italic()
     # Larger than a box title (SIZE_SMALL, 9pt).
     assert title.font.pointSize() > 9
