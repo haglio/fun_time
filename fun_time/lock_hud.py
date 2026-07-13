@@ -8,6 +8,7 @@ is unit-testable; the Qt overlay in :mod:`fun_time.lock_hud_app` renders it.
 from __future__ import annotations
 
 import configparser
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,11 @@ THUMBNAIL_CACHE_DIRNAME = "hud_thumbnails"
 # The dispatch loop rewrites this beside the manifest after every command; it
 # carries the locks, the per-satellite filters and the primary display's sound.
 SHARED_STATE_FILENAME = "shared_bridge_state.ini"
+
+# The HUD process touches this beside the manifest once its indexes are primed;
+# startup waits for it before dropping the loading screen (see
+# windows_bridge_sequencer), so the maps are ready the instant Fun Time appears.
+HUD_READY_FILENAME = "lock_hud_ready.txt"
 
 # Inset (px) of the HUD from its satellite's exact top-left corner.
 HUD_MARGIN = 12
@@ -77,6 +83,10 @@ class HudAppConfig:
     # Where the HUD posts commands (thumbnail clicks) for the dispatch loop to
     # pick up — the same file the dashboard writes, read the same way.
     dashboard_cmd_file: Path
+    # The HUD touches this once its indexes are primed; startup waits for it
+    # before tearing down the loading screen, so Fun Time isn't revealed with
+    # the maps not yet ready.
+    ready_file: Path
 
 
 def load_hud_app_config(manifest_path: str | Path) -> HudAppConfig:
@@ -110,6 +120,7 @@ def load_hud_app_config(manifest_path: str | Path) -> HudAppConfig:
         dashboard_cmd_file=Path(
             parser.get("commands", "dashboard_cmd_file", fallback=str(manifest_path.parent / "dashboard_cmd.txt"))
         ),
+        ready_file=manifest_path.parent / HUD_READY_FILENAME,
     )
 
 
@@ -242,6 +253,36 @@ def prime_group_indexes(config: HudAppConfig) -> None:
                 metadata_root=config.provider_metadata_root,
                 must_contain=None,
             )
+
+
+def signal_hud_ready(ready_file: str | Path) -> None:
+    """Mark the HUD ready to be shown — its indexes are primed, so its first
+    paint is instant.  Startup waits on this before dropping the loading screen
+    (see :func:`wait_for_hud_ready`), so Fun Time never appears with blank maps."""
+    Path(ready_file).write_text("ready", encoding="utf-8")
+
+
+def wait_for_hud_ready(
+    ready_file: str | Path,
+    *,
+    timeout_s: float,
+    poll_s: float = 0.1,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> bool:
+    """Block until the HUD has signalled ready, or *timeout_s* elapses.
+
+    Returns whether the flag appeared.  The timeout is a hard cap: a HUD that
+    never primes (or was never launched) must not wedge startup — the caller
+    reveals Fun Time anyway once it lapses.
+    """
+    ready = Path(ready_file)
+    deadline = clock() + timeout_s
+    while clock() < deadline:
+        if ready.exists():
+            return True
+        sleep_fn(poll_s)
+    return ready.exists()
 
 
 def build_panels(

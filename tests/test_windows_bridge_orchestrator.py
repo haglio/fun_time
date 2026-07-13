@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch, MagicMock, call
 
@@ -326,6 +327,58 @@ class TestRunPythonOrchestratedBridge:
         assert 500 in killed_pids  # dashboard
         assert 600 in killed_pids  # genau
         assert 700 in killed_pids  # audio
+
+    def test_holds_loading_screen_until_the_hud_signals_ready(self, cfg_factory, tmp_path, monkeypatch):
+        """The loading-screen reveal blocks on the HUD's ready flag, so Fun Time
+        never appears with its maps still blank."""
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+
+        def fake_sequence(**kwargs):
+            return replace(_fake_startup_result(), lock_hud_pid=555)
+
+        fake_proc = MagicMock()
+        fake_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.wait_for_hud_ready", return_value=True) as mock_wait:
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=state_dir, project_dir=tmp_path,
+            )
+
+        mock_wait.assert_called_once()
+        assert mock_wait.call_args.args[0] == state_dir / "lock_hud_ready.txt"
+
+    def test_does_not_wait_on_the_hud_when_it_was_not_launched(self, cfg_factory, tmp_path, monkeypatch):
+        """With the HUD disabled (lock_hud_pid 0), there is no flag to wait on, so
+        the reveal must not block on one."""
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        fake_proc = MagicMock()
+        fake_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=lambda **kwargs: _fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.wait_for_hud_ready") as mock_wait:
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state", project_dir=tmp_path,
+            )
+
+        mock_wait.assert_not_called()
 
     def test_passes_manifest_and_pids_file_to_ahk(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())

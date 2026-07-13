@@ -14,6 +14,8 @@ from fun_time.lock_hud import (
     overlay_rect,
     panel_thumbnails,
     prime_group_indexes,
+    signal_hud_ready,
+    wait_for_hud_ready,
 )
 from fun_time.media_metadata import (
     GroupIndex,
@@ -158,6 +160,7 @@ def test_load_hud_app_config_reads_the_bridge_manifest(tmp_path: Path):
     assert cfg.layout.main_monitor == 1
     assert cfg.layout.secondary_monitor == 2
     assert cfg.thumbnail_cache_dir == manifest.parent / "hud_thumbnails"
+    assert cfg.ready_file == manifest.parent / "lock_hud_ready.txt"
 
 
 def test_load_hud_app_config_tolerates_absent_provider_roots(tmp_path: Path):
@@ -243,6 +246,7 @@ def _hud_config(**overrides) -> HudAppConfig:
         shared_state_file=Path("shared_bridge_state.ini"),
         thumbnail_cache_dir=Path("thumbs"),
         dashboard_cmd_file=Path("dashboard_cmd.txt"),
+        ready_file=Path("lock_hud_ready.txt"),
     )
     base.update(overrides)
     return HudAppConfig(**base)
@@ -265,6 +269,44 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     # empty, so a non-empty index proves prime populated it from the real tree.
     index = cached_group_index(sources, paths_supplier=lambda: [], metadata_root=metadata_root, must_contain=None)
     assert index.indexed_paths
+
+
+def test_signal_hud_ready_writes_the_flag(tmp_path: Path):
+    ready = tmp_path / "lock_hud_ready.txt"
+
+    signal_hud_ready(ready)
+
+    assert ready.exists()
+
+
+def test_wait_for_hud_ready_returns_true_once_the_flag_appears(tmp_path: Path):
+    """The flag is written a few polls in; the wait must catch it and report True
+    without running out the full timeout."""
+    ready = tmp_path / "lock_hud_ready.txt"
+    ticks = iter([0.0, 0.0, 0.1, 0.2, 0.3])
+
+    def fake_sleep(_s: float) -> None:
+        # The HUD finishes priming on the third poll.
+        if not ready.exists() and fake_sleep.calls == 1:
+            ready.write_text("ready", encoding="utf-8")
+        fake_sleep.calls += 1
+
+    fake_sleep.calls = 0
+
+    assert wait_for_hud_ready(
+        ready, timeout_s=5.0, poll_s=0.1, sleep_fn=fake_sleep, clock=lambda: next(ticks)
+    ) is True
+
+
+def test_wait_for_hud_ready_times_out_when_the_flag_never_appears(tmp_path: Path):
+    """A HUD that never primes must not wedge startup — the wait lapses and
+    reports False so the caller reveals anyway."""
+    ready = tmp_path / "never.txt"
+    ticks = iter([0.0, 0.5, 1.0, 1.5])
+
+    assert wait_for_hud_ready(
+        ready, timeout_s=1.0, poll_s=0.1, sleep_fn=lambda _s: None, clock=lambda: next(ticks)
+    ) is False
 
 
 def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):

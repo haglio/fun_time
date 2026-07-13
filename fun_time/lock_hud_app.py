@@ -34,6 +34,7 @@ from fun_time.lock_hud import (
     overlay_rect,
     panel_thumbnails,
     prime_group_indexes,
+    signal_hud_ready,
 )
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.startup_progress import loading_screen_active
@@ -556,8 +557,11 @@ class LockHud:
     def __init__(self, config: HudAppConfig) -> None:
         self._config = config
         # Build the group indexes up front, while the loading screen is still up,
-        # so the very first map is instant instead of paying for a scan.
+        # so the very first map is instant instead of paying for a scan, then
+        # signal ready so startup can drop the loading screen knowing the maps
+        # will paint immediately rather than blank.
         prime_group_indexes(config)
+        signal_hud_ready(config.ready_file)
         self._overlays = {
             "portrait": HudOverlay("portrait", self._write_command),
             "landscape": HudOverlay("landscape", self._write_command),
