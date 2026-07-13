@@ -25,6 +25,7 @@ from fun_time.lock_hud_app import (
     OVERLAY_WIDTH,
     build_click_targets,
     hit_test_targets,
+    hud_loop_button_rects,
     hud_thumbnail_rects,
     paint_hud,
 )
@@ -176,6 +177,61 @@ def test_single_click_switches_and_double_click_locks(qt_app):
         overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(200, 200)))
         overlay._fire_pending_click()
         assert sent == []
+    finally:
+        overlay.close()
+
+
+def test_hud_loop_button_rects_places_below_the_column_and_right_of_the_row():
+    from fun_time.lock_hud_app import _LOOP_BTN, _MAP_GAP
+
+    corner = (10, 10, 20, 20)
+    loop_action, loop_seed = hud_loop_button_rects(
+        corner, [(35, 10, 20, 20)], [(10, 35, 20, 20)], right=200, bottom=200,
+    )
+
+    assert loop_action == (10, 35 + 20 + _MAP_GAP, 20, _LOOP_BTN)   # below the lowest action
+    assert loop_seed == (35 + 20 + _MAP_GAP, 10, _LOOP_BTN, 20)     # right of the rightmost seed
+
+    # A panel too small for either drops it rather than overflowing.
+    assert hud_loop_button_rects(corner, [(35, 10, 20, 20)], [(10, 35, 20, 20)], right=70, bottom=70) == (None, None)
+
+
+def test_loop_buttons_toggle_and_are_mutually_exclusive(qt_app):
+    """Clicking a loop button posts action_loop/seed_loop and marks it active;
+    the other going on turns it off (they cannot coexist); clicking the active
+    one again posts no_loop."""
+    sent: list[str] = []
+    overlay = HudOverlay("portrait", sent.append)
+    try:
+        overlay._loop_targets = [((0, 0, 20, 20), "action"), ((30, 0, 20, 20), "seed")]
+
+        overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(5, 5)))
+        assert sent == ["portrait_action_loop"]
+        assert overlay._active_loop == "action"
+
+        sent.clear()
+        overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(35, 5)))
+        assert sent == ["portrait_seed_loop"]
+        assert overlay._active_loop == "seed"  # action turned off
+
+        sent.clear()
+        overlay.mousePressEvent(SimpleNamespace(position=lambda: QPointF(35, 5)))
+        assert sent == ["portrait_no_loop"]
+        assert overlay._active_loop == ""
+    finally:
+        overlay.close()
+
+
+def test_hovering_a_loop_button_marks_the_preview_axis(qt_app):
+    overlay = HudOverlay("portrait", lambda command: None)
+    try:
+        overlay._loop_targets = [((0, 0, 20, 20), "action")]
+
+        overlay.mouseMoveEvent(SimpleNamespace(position=lambda: QPointF(5, 5)))
+        assert overlay._hover_loop == "action"
+
+        overlay.mouseMoveEvent(SimpleNamespace(position=lambda: QPointF(100, 100)))
+        assert overlay._hover_loop == ""
     finally:
         overlay.close()
 
