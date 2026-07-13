@@ -156,6 +156,13 @@ class HudPanel:
     current_action: str = ""
     action_labels: tuple[str, ...] = ()
     filter_query: str = ""
+    # Which axis this side is looping ("" none / "action" / "seed").  While a
+    # loop runs, ``current`` is frozen to the group's anchor (so the map does not
+    # re-orient as the clip auto-advances) and ``playing`` names the map cell
+    # actually on screen, which the overlay lights up.  With no loop, ``playing``
+    # is just ``current`` — the corner.
+    active_loop: str = ""
+    playing: str = ""
 
 
 def _others(members: list[str], current: str) -> list[str]:
@@ -183,6 +190,26 @@ def _distinct_action_siblings(index: GroupIndex, current: str) -> list[str]:
     return reps
 
 
+def _playing_member(
+    index: GroupIndex, anchor: str, current: str, seed: list[str], action: list[str], axis: str
+) -> str:
+    """Which drawn map cell the live *current* clip is — the one the overlay
+    lights up.  On the seed axis the clip is itself a seed cell; on the action
+    axis it is represented by the sibling sharing its action."""
+    key = normalize_path_key
+    if key(current) == key(anchor):
+        return anchor
+    if axis == "seed":
+        return current
+    current_action = index.action_by_path.get(key(current), "")
+    if current_action == index.action_by_path.get(key(anchor), ""):
+        return anchor
+    for member in action:
+        if index.action_by_path.get(key(member), "") == current_action:
+            return member
+    return anchor
+
+
 def build_hud_panel(
     side: str,
     *,
@@ -191,38 +218,59 @@ def build_hud_panel(
     index: GroupIndex | None,
     lock_type: str | None = None,
     filter_query: str = "",
+    loop_axis: str = "",
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
     Seeds come from the same helper the loop commands use, so the row is exactly
     what looping the seed axis would cycle through; the action column collapses
     to one clip per distinct other act.
+
+    When *loop_axis* names a running loop, the map anchors on the looped group's
+    fixed representative instead of the live clip, so it does not re-orient as the
+    loop auto-advances; ``playing`` then marks the cell that is actually on screen.
     """
     have_siblings = bool(current) and index is not None
-    seed = _others(seed_family_members(index, current), current) if have_siblings else []
-    action = _distinct_action_siblings(index, current) if have_siblings else []
+    anchor = current
+    active_loop = ""
+    if have_siblings and loop_axis in ("seed", "action"):
+        gather = seed_family_members if loop_axis == "seed" else action_group_members
+        group = gather(index, current)
+        if len(group) >= 2:
+            # Anchor on the group's lowest-keyed member — the same clip whichever
+            # member is playing — so the map holds still while the loop advances.
+            anchor = min(group, key=normalize_path_key)
+            active_loop = loop_axis
+    seed = _others(seed_family_members(index, anchor), anchor) if have_siblings else []
+    action = _distinct_action_siblings(index, anchor) if have_siblings else []
     current_action = ""
     action_labels: tuple[str, ...] = ()
+    playing = anchor
     if have_siblings:
-        current_action = index.action_by_path.get(normalize_path_key(current), "")
+        current_action = index.action_by_path.get(normalize_path_key(anchor), "")
         action_labels = tuple(
             index.action_by_path.get(normalize_path_key(member), "") for member in action
         )
+        if active_loop:
+            playing = _playing_member(index, anchor, current, seed, action, active_loop)
     return HudPanel(
         side=side,
         locked=locked,
         lock_label=_lock_label(locked, lock_type),
-        current=current,
+        current=anchor,
         seed_siblings=seed,
         action_siblings=action,
         current_action=current_action,
         action_labels=action_labels,
         filter_query=filter_query,
+        active_loop=active_loop,
+        playing=playing,
     )
 
 
 def _side_panel(
-    config: HudAppConfig, side: str, sources: str, current: str, locked: bool, filter_query: str
+    config: HudAppConfig, side: str, sources: str, current: str, locked: bool,
+    filter_query: str, loop_axis: str,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if current:
@@ -236,7 +284,8 @@ def _side_panel(
             must_contain=None,
         )
     return build_hud_panel(
-        side, locked=locked, current=current, index=index, filter_query=filter_query
+        side, locked=locked, current=current, index=index,
+        filter_query=filter_query, loop_axis=loop_axis,
     )
 
 
@@ -294,6 +343,8 @@ def build_panels(
     landscape_locked: bool,
     portrait_filter: str = "",
     landscape_filter: str = "",
+    portrait_loop: str = "",
+    landscape_loop: str = "",
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -303,11 +354,11 @@ def build_panels(
     return (
         _side_panel(
             config, "portrait", config.portrait_sources,
-            portrait_current, portrait_locked, portrait_filter,
+            portrait_current, portrait_locked, portrait_filter, portrait_loop,
         ),
         _side_panel(
             config, "landscape", config.landscape_sources,
-            landscape_current, landscape_locked, landscape_filter,
+            landscape_current, landscape_locked, landscape_filter, landscape_loop,
         ),
     )
 

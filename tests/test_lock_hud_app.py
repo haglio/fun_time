@@ -23,6 +23,7 @@ from fun_time.lock_hud_app import (
     LockHud,
     OVERLAY_HEIGHT,
     OVERLAY_WIDTH,
+    _playing_cell,
     build_click_targets,
     build_label_targets,
     hit_test_targets,
@@ -294,6 +295,50 @@ def test_hovering_a_loop_button_marks_the_preview_axis(qt_app):
 
         overlay.mouseMoveEvent(SimpleNamespace(position=lambda: QPointF(100, 100)))
         assert overlay._hover_loop == ""
+    finally:
+        overlay.close()
+
+
+def test_playing_cell_is_the_corner_when_the_live_clip_is_the_anchor():
+    assert _playing_cell("C:/v/a.mp4", "C:/v/a.mp4", ["C:/v/s.mp4"], []) == ("corner", 0)
+
+
+def test_playing_cell_finds_the_seed_actually_on_screen():
+    """A seed loop plays a family member off the row; the overlay lights whichever
+    seed cell that is."""
+    cell = _playing_cell("C:/v/s2.mp4", "C:/v/a.mp4", ["C:/v/s1.mp4", "C:/v/s2.mp4"], [])
+    assert cell == ("seed", 1)
+
+
+def test_playing_cell_finds_the_playing_action():
+    cell = _playing_cell("C:/v/act.mp4", "C:/v/a.mp4", [], ["C:/v/act.mp4"])
+    assert cell == ("action", 0)
+
+
+def test_playing_cell_falls_back_to_the_corner_when_not_drawn():
+    """A clip whose thumbnail failed is not among the drawn cells, so the corner
+    stays lit rather than nothing."""
+    assert _playing_cell("C:/v/ghost.mp4", "C:/v/a.mp4", ["C:/v/s.mp4"], []) == ("corner", 0)
+
+
+def _loop_panel(active_loop: str) -> HudPanel:
+    return HudPanel(
+        side="portrait", locked=False, lock_label="", current="C:/v/a.mp4",
+        seed_siblings=[], action_siblings=[], active_loop=active_loop, playing="C:/v/a.mp4",
+    )
+
+
+def test_set_content_keeps_the_loop_lit_from_the_panel(qt_app):
+    """The loop's lit state is authoritative from the shared state (carried on the
+    panel), so it survives the clip auto-advancing within the loop and clears only
+    when the state says the loop ended."""
+    overlay = HudOverlay("portrait", lambda command: None)
+    try:
+        overlay.set_content(_loop_panel("seed"), None, [], [], [], [])
+        assert overlay._active_loop == "seed"
+
+        overlay.set_content(_loop_panel(""), None, [], [], [], [])
+        assert overlay._active_loop == ""
     finally:
         overlay.close()
 
