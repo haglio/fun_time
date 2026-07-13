@@ -181,8 +181,9 @@ _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
     # repeat-one lock and "loop all" is the whole unfiltered browse (reset).
     "action_loop": ("action loop", "loop action", "loop actions", "loop scene", "loop scenes", "lock seed"),
     "seed_loop": ("seed loop", "loop seed", "loop seeds", "lock type"),
-    # "more seeds" widens cycle-seed to same-scene near-matches on demand.
-    "more_seeds": ("more seeds",),
+    # "more seeds" / "widen (the) net" widens cycle-seed's reach on demand until
+    # it finds another subject doing the same act.
+    "more_seeds": ("more seeds", "widen net", "widen the net"),
     # "no loop" / "loop off" ends any group loop, back to the browse.
     "no_loop": ("no loop", "loop off"),
     "lock_action": ("lock action", "action lock"),

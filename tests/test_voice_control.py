@@ -280,6 +280,10 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["both no loop"] == "both_no_loop"
         assert VOICE_COMMANDS["more seeds"] == "active_more_seeds"
         assert VOICE_COMMANDS["portrait more seeds"] == "portrait_more_seeds"
+        # "widen (the) net" are spoken synonyms for "more seeds".
+        assert VOICE_COMMANDS["widen net"] == "active_more_seeds"
+        assert VOICE_COMMANDS["widen the net"] == "active_more_seeds"
+        assert VOICE_COMMANDS["portrait widen the net"] == "portrait_more_seeds"
 
     def test_grid_lock_scopes_are_aliases_of_existing_commands(self):
         """The grid's lock scopes collapse onto commands that already exist,

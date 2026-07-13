@@ -437,6 +437,25 @@ def _next_seed_sibling(
     current_key = normalize_path_key(current)
     current_action = index.action_by_path.get(current_key, "")
 
+    def same_action_others() -> list[str]:
+        """Every other clip doing this same action, whatever its config — the
+        widest net, "another subject doing the same act", so widening reliably
+        finds something rather than dead-ending on a clip with unique params."""
+        seen: set[str] = set()
+        out: list[str] = []
+        for members in index.action_members.values():
+            for path in members:
+                key = normalize_path_key(path)
+                if (
+                    key != current_key
+                    and key not in seen
+                    and index.action_by_path.get(key, "") == current_action
+                    and Path(path).exists()
+                ):
+                    seen.add(key)
+                    out.append(path)
+        return sorted(out)
+
     def pool(key_by_path, members_by_family, accept) -> tuple[str | None, list[tuple[str, str]]]:
         entry = key_by_path.get(current_key)
         if entry is None:
@@ -477,6 +496,12 @@ def _next_seed_sibling(
             index.loose_seed_key_by_path, index.loose_seed_members,
             lambda _seed, path, _cur: normalize_path_key(path) != current_key,
         )
+        widened = bool(candidates)
+
+    if not candidates and allow_widen:
+        # Widest net: same act, any config.  Ordered by path (there is no seed
+        # ordering across it), so it tours deterministically.
+        current_seed, candidates = "", [("", path) for path in same_action_others()]
         widened = bool(candidates)
 
     if not candidates:
@@ -663,7 +688,9 @@ def _cycle_variant(
         missing_message = "No other actions"
     else:
         target, widened = _next_seed_sibling(index, current, entries, allow_widen=widen)
-        missing_message = "No other seeds"
+        # "more seeds" widens the net; if even that finds nothing the act is unique
+        # in the library, so say the widen failed rather than the plain dead-end.
+        missing_message = "Widening net failed" if widen else "No other seeds"
     if target is None:
         ops.append(WindowOp(op="notice", key=missing_message, source=source, level=FAILED_NOTICE_LEVEL))
         return state, ops

@@ -1295,6 +1295,60 @@ def test_portrait_more_seeds_widens_to_a_near_match(tmp_path: Path):
     assert [op.key for op in ops if op.op == "notice"] == ["Similar clip"]
 
 
+def test_more_seeds_last_resort_reaches_any_same_action_clip(tmp_path: Path):
+    """When neither an exact sister nor a same-scene near-match exists, "more
+    seeds" keeps widening to any other clip of the same act — so it finds
+    something rather than dead-ending, which is the whole point of widening."""
+    from fun_time.command_dispatch import _next_seed_sibling
+
+    cur, other = tmp_path / "cur.mp4", tmp_path / "other.mp4"
+    cur.write_text("x", encoding="utf-8")
+    other.write_text("x", encoding="utf-8")
+    c, o = str(cur), str(other)
+    kc, ko = normalize_path_key(c), normalize_path_key(o)
+    index = GroupIndex(
+        action_key_by_path={kc: "g1", ko: "g2"},   # different subjects
+        action_members={"g1": [c], "g2": [o]},
+        action_by_path={kc: "Gamma", ko: "Gamma"},   # same act
+        seed_key_by_path={}, seed_members={},            # no exact sister
+        loose_seed_key_by_path={}, loose_seed_members={},  # no near-match
+        indexed_paths=frozenset({kc, ko}),
+    )
+
+    # Plain cycle-seed still dead-ends...
+    assert _next_seed_sibling(index, c, [], allow_widen=False) == (None, False)
+    # ...but "more seeds" widens all the way to the same-act clip.
+    target, widened = _next_seed_sibling(index, c, [], allow_widen=True)
+    assert target == o
+    assert widened is True
+
+
+def test_more_seeds_reports_widening_failed_when_the_act_is_unique(tmp_path: Path):
+    """If even the widest net finds nothing, the act is unique in the library, so
+    the notice says the widen failed — not the plain "no other seeds" dead-end,
+    which reads as if the request was ignored."""
+    config = _make_config(tmp_path)
+    only = tmp_path / "only.mp4"
+    only.write_text("x", encoding="utf-8")
+    key = normalize_path_key(str(only))
+    index = GroupIndex(
+        action_key_by_path={key: "g"}, action_members={"g": [str(only)]},
+        action_by_path={key: "Alpha"},
+        seed_key_by_path={}, seed_members={},
+        loose_seed_key_by_path={}, loose_seed_members={},
+        indexed_paths=frozenset({key}),
+    )
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=str(only)), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, str(only))], 3)):
+        _state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
+
+    dead = [op for op in ops if op.op == "notice"]
+    assert [op.key for op in dead] == ["Widening net failed"]
+    assert dead[0].level == FAILED_NOTICE_LEVEL
+
+
 def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
     """Image-to-video clips of one source image share a seed family across
     actions (the family is keyed on the image, action-blind).  But the seed axis
