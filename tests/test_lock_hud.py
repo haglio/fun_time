@@ -13,6 +13,7 @@ from fun_time.lock_hud import (
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
+    prime_group_indexes,
 )
 from fun_time.media_metadata import (
     GroupIndex,
@@ -245,6 +246,25 @@ def _hud_config(**overrides) -> HudAppConfig:
     )
     base.update(overrides)
     return HudAppConfig(**base)
+
+
+def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
+    """Priming builds each side's real index up front and caches it, so a later
+    read serves it from memory — no per-clip rebuild during the session."""
+    from fun_time.media_metadata import cached_group_index
+
+    reset_group_index_cache()
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+    _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
+    sources = str(media_root / "portrait")
+    config = _hud_config(portrait_sources=sources, landscape_sources=sources, provider_metadata_root=metadata_root)
+
+    prime_group_indexes(config)
+
+    # Served from the primed cache: a lazy build here (empty supplier) would be
+    # empty, so a non-empty index proves prime populated it from the real tree.
+    index = cached_group_index(sources, paths_supplier=lambda: [], metadata_root=metadata_root, must_contain=None)
+    assert index.indexed_paths
 
 
 def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):

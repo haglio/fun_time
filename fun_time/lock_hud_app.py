@@ -33,6 +33,7 @@ from fun_time.lock_hud import (
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
+    prime_group_indexes,
 )
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.startup_progress import loading_screen_active
@@ -554,6 +555,9 @@ class LockHud:
 
     def __init__(self, config: HudAppConfig) -> None:
         self._config = config
+        # Build the group indexes up front, while the loading screen is still up,
+        # so the very first map is instant instead of paying for a scan.
+        prime_group_indexes(config)
         self._overlays = {
             "portrait": HudOverlay("portrait", self._write_command),
             "landscape": HudOverlay("landscape", self._write_command),
