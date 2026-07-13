@@ -285,6 +285,31 @@ def test_get_playback_fraction_none_when_unreachable_or_absent(monkeypatch):
     assert vlc_actions.get_playback_fraction(8090, "pw") is None
 
 
+def test_vlc_seek_fraction_sends_a_percentage_seek(monkeypatch):
+    seen: dict[str, str] = {}
+
+    def fake(port, path, password, user=""):
+        seen["path"] = path
+        return (200, "")
+
+    monkeypatch.setattr(vlc_actions, "vlc_http_req", fake)
+
+    assert vlc_actions.vlc_seek_fraction(8091, "pw", 0.5) is True
+    # "%25" is an encoded "%", so VLC receives val=50% (a percentage seek).
+    assert "command=seek&val=50%25" in seen["path"]
+
+
+def test_vlc_seek_fraction_clamps_out_of_range_fractions(monkeypatch):
+    seen: dict[str, str] = {}
+    monkeypatch.setattr(
+        vlc_actions, "vlc_http_req",
+        lambda port, path, password, user="": (seen.__setitem__("path", path), (200, ""))[1],
+    )
+
+    vlc_actions.vlc_seek_fraction(8091, "pw", 1.9)
+    assert "val=100%25" in seen["path"]
+
+
 # --- vlc_swap_current_with ---
 
 _PLAYLIST_XML_WITH_D = _PLAYLIST_XML.replace(
