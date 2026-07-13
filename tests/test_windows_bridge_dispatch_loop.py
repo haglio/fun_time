@@ -54,12 +54,15 @@ TOPMOST_HWNDS = {
 @pytest.fixture(autouse=True)
 def _no_satellite_vlc_io():
     """A tick() reaches VLC over HTTP for both satellites: it SAMPLES them when
-    unpaused and ENFORCES the pause (the OmniPause watchdog) when paused.  These
-    tests are about dispatch, not either, and a real request would land on
-    whichever VLC happens to own that port on this machine — so both channels
-    are neutralised (no fraction to sample, nothing found playing to re-pause).
-    A test exercising the watchdog patches ``pause_if_playing`` itself."""
+    unpaused and ENFORCES the pause (the OmniPause watchdog) when paused, reading
+    the caught satellite's clip/repeat/position for its catch diagnosis.  These
+    tests are about dispatch, not any of that, and a real request would land on
+    whichever VLC happens to own that port on this machine — so every channel is
+    neutralised (no fraction to sample, nothing found playing to re-pause, inert
+    diagnosis reads).  A test exercising the watchdog patches these itself."""
     with patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=None), \
+         patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path", return_value=""), \
+         patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value=None), \
          patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing", return_value=False):
         yield
 
@@ -779,6 +782,84 @@ class TestDispatchLoopRunner:
         caught = [r for r in caplog.records if "Landscape" in r.getMessage()]
         assert caught, "the watchdog logged the landscape satellite it caught"
         assert all(getattr(r, "source", None) == "landscape" for r in caught)
+
+    def test_omnipause_watchdog_records_what_the_satellite_resumed_into(self, tmp_path, caplog):
+        """The bare 'it resumed on its own' line is the symptom, not the cause.
+        A catch also records what the satellite resumed *into* — its repeat mode,
+        position and current clip — so a recurrence is diagnosable from the log
+        alone instead of needing a live repro."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
+                   side_effect=lambda port, pw: port == 9091), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value="one"), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
+                   return_value=r"C:\clips\abc_topaz.mp4"), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.03), \
+             caplog.at_level("WARNING"):
+            runner.tick()
+
+        caught = [r for r in caplog.records if "Portrait" in r.getMessage()]
+        assert caught, "the watchdog logged the portrait catch"
+        message = caught[0].getMessage()
+        assert "repeat=one" in message
+        assert "abc_topaz.mp4" in message
+        assert "pos=0.03" in message
+
+    def test_omnipause_watchdog_flags_a_repeated_clip_as_the_same_clip(self, tmp_path, caplog):
+        """Two catches of the *same* clip is VLC's repeat looping it under the
+        pause, not a playlist advance — the diagnosis says so, which is the
+        single field that tells the storm's cause apart."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
+                   side_effect=lambda port, pw: port == 9091), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value="one"), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
+                   return_value=r"C:\clips\abc_topaz.mp4"), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.01), \
+             caplog.at_level("WARNING"):
+            runner._last_watch_sample = 0.0
+            runner.tick()
+            runner._last_watch_sample = 0.0
+            runner.tick()
+
+        caught = [r for r in caplog.records if "Portrait" in r.getMessage()]
+        assert len(caught) == 2, "the watchdog caught the same satellite on both ticks"
+        assert "first catch" in caught[0].getMessage()
+        assert "same clip" in caught[1].getMessage()
+
+    def test_omnipause_watchdog_diagnosis_resets_when_the_pause_lifts(self, tmp_path, caplog):
+        """A fresh OmniPause episode must not describe its first catch as an
+        advance from a clip caught in a previous episode: leaving the pause (a
+        sampling tick) clears the remembered clip, so the next catch reads as a
+        first catch again."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
+                   side_effect=lambda port, pw: port == 9091), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value="one"), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
+                   return_value=r"C:\clips\abc_topaz.mp4"), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.01), \
+             caplog.at_level("WARNING"):
+            runner._last_watch_sample = 0.0
+            runner.tick()
+            # OmniPause lifts: a sampling tick runs and clears the memory.
+            runner.state = BridgeState(omni_paused=False)
+            runner._last_watch_sample = 0.0
+            runner.tick()
+            # A new episode catches the same clip — it must read as a first catch.
+            runner.state = BridgeState(omni_paused=True)
+            runner._last_watch_sample = 0.0
+            runner.tick()
+
+        caught = [r for r in caplog.records if "Portrait" in r.getMessage()]
+        assert len(caught) == 2, "one catch per omnipause episode"
+        assert "first catch" in caught[1].getMessage()
 
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the primary display in every mode it appears, so a nudge
