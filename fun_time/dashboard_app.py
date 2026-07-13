@@ -94,7 +94,13 @@ from fun_time.notice_overlay import (
     notice_target_rect,
 )
 from fun_time.window_layout import compute_primary_media_rect, compute_window_layout
-from fun_time.dashboard_layout import DashboardPreviewLayout, Rect, Size, compute_dashboard_preview_layout
+from fun_time.dashboard_layout import (
+    DashboardPreviewLayout,
+    Rect,
+    Size,
+    client_rect_filling_frame,
+    compute_dashboard_preview_layout,
+)
 from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status, read_nau_status
 from fun_time.dashboard_state import (
     LABEL_LANDSCAPE_VLC,
@@ -1392,11 +1398,31 @@ class DashboardWindow(QMainWindow):
         if self._reference_dialog is None:
             self._reference_dialog = ReferenceDialog(self)
             if self._rfb_rect is not None:
-                r = self._rfb_rect
-                self._reference_dialog.setGeometry(r.x, r.y, r.width, r.height)
+                self._fit_reference_frame_to_rect(self._rfb_rect)
         self._reference_dialog.show()
         self._reference_dialog.raise_()
         self._reference_dialog.activateWindow()
+
+    def _fit_reference_frame_to_rect(self, rect: Rect) -> None:
+        """Size the reference popup so its whole frame — title bar included —
+        fills *rect*, rather than its client area (which left the chrome
+        overhanging the top).  Frame margins are known only once the window is
+        realized, so place it at the rect, show it, measure, then inset the
+        client to fill the frame."""
+        dialog = self._reference_dialog
+        assert dialog is not None
+        dialog.setGeometry(rect.x, rect.y, rect.width, rect.height)
+        dialog.show()
+        frame = dialog.frameGeometry()
+        client = dialog.geometry()
+        x, y, w, h = client_rect_filling_frame(
+            rect,
+            left=client.left() - frame.left(),
+            top=client.top() - frame.top(),
+            right=frame.right() - client.right(),
+            bottom=frame.bottom() - client.bottom(),
+        )
+        dialog.setGeometry(x, y, w, h)
 
     def _close_reference_dialog(self) -> None:
         """Dismiss the reference popup if it is open (the "close …" voice phrases)."""

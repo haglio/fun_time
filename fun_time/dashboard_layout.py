@@ -24,6 +24,26 @@ class Rect:
     height: int
 
 
+def client_rect_filling_frame(
+    rect: Rect, *, left: int, top: int, right: int, bottom: int
+) -> tuple[int, int, int, int]:
+    """Client ``(x, y, w, h)`` so a decorated window's whole FRAME fills *rect*.
+
+    ``QWidget.setGeometry`` positions the *client* area; the window manager draws
+    the title bar and borders outside it, so setting the client to *rect* leaves
+    the title bar overhanging *rect*'s top by its height.  Insetting the client
+    by the frame margins drops it down and shrinks it to match, so the decorated
+    window — chrome included — occupies exactly *rect*.  Zero margins (an
+    undecorated window) leave *rect* unchanged.
+    """
+    return (
+        rect.x + left,
+        rect.y + top,
+        max(0, rect.width - left - right),
+        max(0, rect.height - top - bottom),
+    )
+
+
 @dataclass(frozen=True)
 class DashboardPreviewLayout:
     dashboard_width: int
