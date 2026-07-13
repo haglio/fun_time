@@ -60,6 +60,7 @@ _STATUS_LINE_H = 15
 _BORDER_COLOR = QColor(255, 255, 255)
 _COL_LABEL_H = 13  # header strip above the map for the "Seed N" column labels
 _ROW_LABEL_W = 46  # left gutter for the action-name row labels
+_LOOP_BTN = 18  # loop-button thickness (px): below the action column, right of the seed row
 
 
 def _draw_status_line(painter: QPainter, x: int, y: int, text: str, color) -> int:
@@ -129,6 +130,67 @@ def hud_thumbnail_rects(
         actions.append((map_x, action_y, w, h))
         action_y += h + _MAP_GAP
     return corner, seeds, actions
+
+
+def hud_loop_button_rects(
+    corner_rect: _ThumbRect | None,
+    seed_rects: list[_ThumbRect],
+    action_rects: list[_ThumbRect],
+    right: int,
+    bottom: int,
+) -> tuple[_ThumbRect | None, _ThumbRect | None]:
+    """``(loop_action_rect, loop_seed_rect)``: a button below the action column
+    and one right of the seed row — or None for either that would overflow the
+    panel.  The action button loops the column, the seed button the row."""
+    if corner_rect is None:
+        return None, None
+    cx, cy, cw, ch = corner_rect
+    col_bottom = max([cy + ch] + [ay + ah for _ax, ay, _aw, ah in action_rects])
+    loop_action_y = col_bottom + _MAP_GAP
+    loop_action = (cx, loop_action_y, cw, _LOOP_BTN) if loop_action_y + _LOOP_BTN <= bottom else None
+    row_right = max([cx + cw] + [sx + sw for sx, _sy, sw, _sh in seed_rects])
+    loop_seed_x = row_right + _MAP_GAP
+    loop_seed = (loop_seed_x, cy, _LOOP_BTN, ch) if loop_seed_x + _LOOP_BTN <= right else None
+    return loop_action, loop_seed
+
+
+def _draw_loop_controls(
+    painter: QPainter,
+    corner_rect: _ThumbRect,
+    loop_action_rect: _ThumbRect | None,
+    loop_seed_rect: _ThumbRect | None,
+    seed_rects: list[_ThumbRect],
+    action_rects: list[_ThumbRect],
+    active_loop: str,
+    hover_loop: str,
+) -> None:
+    """Draw the two loop buttons, and — while a button is hovered or its loop is
+    on — a border around the videos it loops (dashed for a hover preview, solid
+    green once on)."""
+    cx, cy, cw, ch = corner_rect
+    col_bottom = max([cy + ch] + [ay + ah for _ax, ay, _aw, ah in action_rects])
+    row_right = max([cx + cw] + [sx + sw for sx, _sy, sw, _sh in seed_rects])
+    boxes = {
+        "action": (loop_action_rect, (cx, cy, cw, col_bottom - cy)),
+        "seed": (loop_seed_rect, (cx, cy, row_right - cx, ch)),
+    }
+    for kind, (button, group_box) in boxes.items():
+        if button is None:
+            continue
+        on = active_loop == kind
+        bx, by, bw, bh = button
+        painter.setPen(QPen(GREEN if on else TEXT_MUTED, 1))
+        painter.setBrush(GREEN if on else Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(bx, by, bw, bh, 3, 3)
+        painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
+        painter.setPen(QColor(BG_PRIMARY) if on else TEXT_MUTED)
+        painter.drawText(QRect(bx, by, bw, bh), Qt.AlignmentFlag.AlignCenter, "↻")
+        if on or hover_loop == kind:
+            gx, gy, gw, gh = group_box
+            style = Qt.PenStyle.SolidLine if on else Qt.PenStyle.DashLine
+            painter.setPen(QPen(_BORDER_COLOR, 2 if on else 1, style))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(gx, gy, gw, gh)
 
 
 def paint_hud(
@@ -305,6 +367,13 @@ class HudOverlay(QWidget):
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
         self._click_timer.timeout.connect(self._fire_pending_click)
+        # Loop buttons: which axis is looping ("", "action", "seed" — mutually
+        # exclusive), which is hovered (for the preview border), their hit rects,
+        # and the last current clip (so switching clips clears a stale loop).
+        self._active_loop = ""
+        self._hover_loop = ""
+        self._loop_targets: list[tuple[_ThumbRect, str]] = []
+        self._prev_current = ""
 
         self.setWindowTitle(f"Fun Time HUD ({side})")
         self.setWindowFlags(
@@ -318,6 +387,7 @@ class HudOverlay(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setMouseTracking(True)  # hover the loop buttons without a pressed button
 
     def set_content(
         self,
@@ -328,6 +398,11 @@ class HudOverlay(QWidget):
         seed_paths: list[str],
         action_paths: list[str],
     ) -> None:
+        if panel.current != self._prev_current:
+            # A switch / next / cycle rebuilds the playlist and drops any loop,
+            # so a loop button left "on" from the previous clip is now stale.
+            self._active_loop = ""
+            self._prev_current = panel.current
         self._panel = panel
         self._current_thumb = current_thumb
         self._seed_thumbs = seed_thumbs
@@ -366,27 +441,65 @@ class HudOverlay(QWidget):
     def paintEvent(self, event: object) -> None:  # noqa: N802
         if self._panel is None:
             return
+        rect = self.rect()
         painter = QPainter(self)
         try:
             corner_rect, seed_rects, action_rects = paint_hud(
-                painter, self.rect(), self._panel,
+                painter, rect, self._panel,
                 self._current_thumb, self._seed_thumbs, self._action_thumbs,
             )
+            loop_action_rect, loop_seed_rect = hud_loop_button_rects(
+                corner_rect, seed_rects, action_rects, rect.right() - _PAD, rect.bottom() - _PAD,
+            )
+            if corner_rect is not None:
+                _draw_loop_controls(
+                    painter, corner_rect, loop_action_rect, loop_seed_rect,
+                    seed_rects, action_rects, self._active_loop, self._hover_loop,
+                )
         finally:
             painter.end()
         self._click_targets = build_click_targets(
             corner_rect, seed_rects, action_rects,
             self._panel.current, self._seed_paths, self._action_paths,
         )
+        self._loop_targets = [
+            (button, kind)
+            for kind, button in (("action", loop_action_rect), ("seed", loop_seed_rect))
+            if button is not None
+        ]
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
-        """A single click switches the satellite to the thumbnail under the
-        cursor; a double-click locks it.  The single-click action waits out the
-        double-click interval so a double-click cancels it — one command, not two."""
+        """A click on a loop button toggles that loop; a click on a thumbnail
+        switches to it, and a double-click locks it.  The single-click switch
+        waits out the double-click interval so a double-click cancels it — one
+        command, not two."""
         point = event.position().toPoint()
+        loop = hit_test_targets(self._loop_targets, point.x(), point.y())
+        if loop:
+            self._toggle_loop(loop)
+            return
         self._pending_click_path = hit_test_targets(self._click_targets, point.x(), point.y())
         if self._pending_click_path:
             self._click_timer.start(QApplication.doubleClickInterval())
+
+    def _toggle_loop(self, kind: str) -> None:
+        """Turn *kind*'s loop on (posting action_loop/seed_loop) or, if it is
+        already on, off (no_loop).  Turning one on turns the other off — the two
+        loops cannot coexist — matching the command the dispatch loop runs."""
+        if self._active_loop == kind:
+            self._command_writer(f"{self._side}_no_loop")
+            self._active_loop = ""
+        else:
+            self._command_writer(f"{self._side}_{kind}_loop")
+            self._active_loop = kind
+        self.update()
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        point = event.position().toPoint()
+        hover = hit_test_targets(self._loop_targets, point.x(), point.y())
+        if hover != self._hover_loop:
+            self._hover_loop = hover
+            self.update()
 
     def _fire_pending_click(self) -> None:
         if self._pending_click_path:
