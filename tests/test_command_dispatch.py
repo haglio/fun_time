@@ -1252,9 +1252,31 @@ def _scene_meta(*, image_seed: str, quality: str) -> dict:
     }
 
 
-def test_portrait_cycle_seed_widens_to_a_near_match_when_no_exact_sister(tmp_path: Path):
-    """No same-config sister exists (a render knob differs), so 'seed' widens the
-    net to the same-scene clip instead of giving up with 'No other seeds'."""
+def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
+    """Now that the HUD shows which sisters exist, plain cycle-seed dead-ends
+    instead of auto-widening — the widening moved to the "more seeds" command."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_best": _scene_meta(image_seed="111", quality="Best"),
+        "subject_draft": _scene_meta(image_seed="222", quality="Draft"),  # near-match only
+    })
+    state = _make_state()
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_best"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_best"])], 3)),
+        patch("fun_time.command_dispatch.vlc_swap_current_with") as swap,
+    ):
+        _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
+
+    swap.assert_not_called()
+    dead = [op for op in ops if op.op == "notice"]
+    assert [op.key for op in dead] == ["No other seeds"]
+    assert dead[0].level == FAILED_NOTICE_LEVEL
+
+
+def test_portrait_more_seeds_widens_to_a_near_match(tmp_path: Path):
+    """"more seeds" widens the net to the same-scene near-match that cycle-seed
+    used to reach automatically, flagged "Similar clip"."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_best": _scene_meta(image_seed="111", quality="Best"),
         "subject_draft": _scene_meta(image_seed="222", quality="Draft"),
@@ -1267,10 +1289,9 @@ def test_portrait_cycle_seed_widens_to_a_near_match_when_no_exact_sister(tmp_pat
         patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
         patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
     ):
-        _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
+        _new_state, ops = dispatch_command("portrait_more_seeds", state, config)
 
     swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_draft"])
-    # A widened hit is flagged so it reads as a near-match, not an exact seed sister.
     assert [op.key for op in ops if op.op == "notice"] == ["Similar clip"]
 
 
