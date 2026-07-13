@@ -362,6 +362,7 @@ def _hud_config(tmp_path) -> HudAppConfig:
         shared_state_file=tmp_path / "shared_bridge_state.ini",
         thumbnail_cache_dir=tmp_path / "thumbs",
         dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+        ready_file=tmp_path / "lock_hud_ready.txt",
     )
 
 
@@ -378,6 +379,16 @@ def _build_lock_hud(tmp_path) -> LockHud:
          patch("fun_time.lock_hud_app.compute_window_layout", return_value=plan), \
          patch.object(LockHud, "refresh"):
         return LockHud(_hud_config(tmp_path))
+
+
+def test_constructing_the_hud_signals_ready(qt_app, tmp_path):
+    """The HUD touches its ready flag once built (indexes primed), so startup can
+    drop the loading screen knowing the maps will paint immediately."""
+    assert not (tmp_path / "lock_hud_ready.txt").exists()
+
+    _build_lock_hud(tmp_path)
+
+    assert (tmp_path / "lock_hud_ready.txt").exists()
 
 
 def test_apply_reloads_thumbnails_only_when_the_panel_changes(qt_app, tmp_path):

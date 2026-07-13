@@ -19,6 +19,7 @@ from pathlib import Path
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
 from .startup_progress import NullProgress, PROGRESS_FILENAME, StartupProgress
+from .lock_hud import HUD_READY_FILENAME, wait_for_hud_ready
 from .userscript_server import USERSCRIPT_PORT, serve_userscript_updates
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
@@ -306,6 +307,12 @@ def run_python_orchestrated_bridge(
     else:
         progress = NullProgress()
 
+    # Clear any stale ready flag from a prior session before the HUD (launched
+    # inside the sequence) writes a fresh one, so the wait below can't see an
+    # old file and reveal Fun Time before this run's maps are primed.
+    hud_ready_file = state_dir / HUD_READY_FILENAME
+    hud_ready_file.unlink(missing_ok=True)
+
     logger.info("Running startup sequence")
     result = run_startup_sequence(
         manifest_path=manifest_path,
@@ -323,6 +330,14 @@ def run_python_orchestrated_bridge(
     # --- Close loading screen (normal mode only) ---
     # The sequencer already positioned all windows in Phase 4 (the reveal).
     if show_loading:
+        # Hold the loading screen until the lock HUD has primed its indexes, so
+        # Fun Time isn't revealed with the maps still blank.  Capped so a HUD
+        # that never signals (or was never launched) can't wedge startup.
+        if result.lock_hud_pid:
+            if wait_for_hud_ready(hud_ready_file, timeout_s=20.0):
+                logger.info("Lock HUD ready; dropping loading screen")
+            else:
+                logger.warning("Lock HUD not ready after 20s; revealing anyway")
         progress.finish()
         if loading_proc:
             try:
