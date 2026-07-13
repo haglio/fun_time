@@ -91,31 +91,40 @@ def test_paint_hud_without_a_current_thumb_still_draws_its_shell(qt_app):
     assert _samples(image, lambda c: c.alpha() > 0) > 0
 
 
-def test_sync_topmost_drops_the_band_under_omnipause_and_drift_corrects(qt_app):
-    """Under OmniPause the overlay must LEAVE the topmost band, not merely stop
-    re-asserting it — the window keeps its WindowStaysOnTop style otherwise and
-    stays glued on top. Leaving OmniPause restores it; an unchanged band issues
-    no SetWindowPos (no flicker), mirroring the dashboard's own topmost sync."""
+def test_sync_topmost_restakes_over_the_vlc_but_leaves_the_band_once_under_omnipause(qt_app):
+    """Topmost is re-staked on every call, even when the overlay is already
+    topmost: the satellite VLC it floats over is itself topmost and gets
+    re-promoted above the HUD on mode switches and on resume from OmniPause,
+    burying it — only an unconditional re-assert climbs back over, since a
+    drift-corrected bit check cannot see "topmost but buried". The paused
+    direction IS drift-corrected: leave the band once, don't churn it."""
     overlay = HudOverlay("portrait")
     try:
         hwnd = int(overlay.winId())
 
-        # OmniPause (desired_topmost=False) while actually topmost → clear it.
+        # Resume/normal, already topmost but buried under the re-promoted VLC →
+        # re-stake anyway to climb back over it.
         with patch("fun_time.lock_hud_app.is_window_topmost", return_value=True), \
              patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
-            overlay.sync_topmost(desired_topmost=False)
-        mock_set.assert_called_once_with(hwnd, False)
+            overlay.sync_topmost(desired_topmost=True)
+        mock_set.assert_called_once_with(hwnd, True)
 
-        # Leaving OmniPause while non-topmost → float it back on top.
+        # Just left OmniPause while non-topmost → restore topmost.
         with patch("fun_time.lock_hud_app.is_window_topmost", return_value=False), \
              patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
             overlay.sync_topmost(desired_topmost=True)
         mock_set.assert_called_once_with(hwnd, True)
 
-        # Already in the desired band → no redundant SetWindowPos.
+        # OmniPause while topmost → drop out of the band.
         with patch("fun_time.lock_hud_app.is_window_topmost", return_value=True), \
              patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
-            overlay.sync_topmost(desired_topmost=True)
+            overlay.sync_topmost(desired_topmost=False)
+        mock_set.assert_called_once_with(hwnd, False)
+
+        # OmniPause and already out of the band → no churn.
+        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=False), \
+             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
+            overlay.sync_topmost(desired_topmost=False)
         mock_set.assert_not_called()
     finally:
         overlay.close()
