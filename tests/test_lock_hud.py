@@ -123,6 +123,56 @@ def test_panel_carries_the_active_filter():
     assert build_hud_panel("portrait", locked=False, current=CUR, index=index).filter_query == ""
 
 
+def test_without_a_loop_the_map_anchors_on_the_live_clip():
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    panel = build_hud_panel("portrait", locked=False, current=CUR, index=index)
+
+    assert panel.active_loop == ""
+    assert panel.current == CUR
+    assert panel.playing == CUR  # the corner is what's on
+
+
+def test_a_seed_loop_freezes_the_map_on_the_family_anchor():
+    """While the seed row loops, the map anchors on the family's fixed member
+    (its lowest-keyed clip) so it holds still, and ``playing`` follows the clip
+    actually on screen so the overlay can light it up."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    # S1 is on screen, but CUR sorts first, so the map anchors on CUR.
+    panel = build_hud_panel("portrait", locked=False, current=S1, index=index, loop_axis="seed")
+
+    assert panel.active_loop == "seed"
+    assert panel.current == CUR       # frozen anchor, not the live clip
+    assert panel.playing == S1        # the seed actually playing
+    assert panel.seed_siblings == [S1]
+
+
+def test_an_action_loop_freezes_the_map_and_marks_the_playing_action():
+    index = _index(current=CUR, action_sibs=[A1])
+
+    # CUR is on screen; A1 sorts first, so the column anchors on A1 and the
+    # playing cell is the sibling that carries CUR's action.
+    panel = build_hud_panel("portrait", locked=False, current=CUR, index=index, loop_axis="action")
+
+    assert panel.active_loop == "action"
+    assert panel.current == A1
+    assert panel.playing == CUR
+    assert panel.action_siblings == [CUR]
+
+
+def test_a_group_of_one_does_not_freeze_the_map():
+    """A "loop" over a family of one is really a lock, so there is nothing to
+    freeze — the map stays anchored on the live clip and reports no loop."""
+    index = _index(current=CUR)
+
+    panel = build_hud_panel("portrait", locked=False, current=CUR, index=index, loop_axis="seed")
+
+    assert panel.active_loop == ""
+    assert panel.current == CUR
+    assert panel.playing == CUR
+
+
 # --- load_hud_app_config ---
 
 
@@ -333,6 +383,29 @@ def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
     assert landscape.side == "landscape" and landscape.locked is False
     assert landscape.action_siblings == [] and landscape.seed_siblings == []
     assert landscape.filter_query == ""
+
+
+def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):
+    """The loop kind comes off the shared state and must reach the panel so the
+    map freezes — two seeds of one act make a real family to loop."""
+    reset_group_index_cache()
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+    _a = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
+    b = _clip(media_root, metadata_root, "b", _i2v("Alpha", "2"))
+    config = _hud_config(
+        portrait_sources=str(media_root / "portrait"),
+        provider_media_root=media_root, provider_metadata_root=metadata_root,
+    )
+
+    portrait, _landscape = build_panels(
+        config,
+        portrait_current=b, landscape_current="",
+        portrait_locked=False, landscape_locked=False,
+        portrait_loop="seed",
+    )
+
+    assert portrait.active_loop == "seed"
+    assert portrait.seed_siblings  # the other seed is on the row
 
 
 # --- panel_thumbnails ---

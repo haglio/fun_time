@@ -25,6 +25,7 @@ from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_TINY, make_font
 
 from fun_time.command_dispatch import BridgeState
 from fun_time.filter_vocab import set_command
+from fun_time.media_metadata import normalize_path_key
 from fun_time.lock_hud import (
     HudAppConfig,
     HudPanel,
@@ -190,6 +191,24 @@ def _draw_loop_controls(
             painter.drawRect(gx, gy, gw, gh)
 
 
+def _playing_cell(
+    playing: str, current: str, seed_paths: list[str], action_paths: list[str]
+) -> tuple[str, int]:
+    """Which drawn map cell — ``("corner", 0)``, ``("seed", i)`` or
+    ``("action", i)`` — holds the clip that is actually on screen, so paint can
+    light it up.  Defaults to the corner (the not-looping case, where the corner
+    itself is playing, and the fallback when *playing* was not thumbnailed)."""
+    key = normalize_path_key
+    if playing and key(playing) != key(current):
+        for i, path in enumerate(seed_paths):
+            if key(path) == key(playing):
+                return ("seed", i)
+        for i, path in enumerate(action_paths):
+            if key(path) == key(playing):
+                return ("action", i)
+    return ("corner", 0)
+
+
 def paint_hud(
     painter: QPainter,
     rect: QRect,
@@ -197,12 +216,16 @@ def paint_hud(
     current_thumb: QPixmap | None,
     seed_thumbs: list[QPixmap],
     action_thumbs: list[QPixmap],
+    playing: tuple[str, int] = ("corner", 0),
 ) -> tuple[_ThumbRect | None, list[_ThumbRect], list[_ThumbRect]]:
     """Render one satellite's HUD: lock band, optional filter, then the map.
 
     The current clip anchors the map with a white border; its seed family runs
     right along the row and its distinct other actions run down the column, so
     stepping an action moves down and the row reloads with that action's seeds.
+
+    *playing* names the cell to draw at full opacity (the rest dim) — the corner
+    normally, or another cell while a loop plays a non-anchor member of the group.
 
     Returns the map thumbnails' positioned rects — the corner (current clip),
     then each drawn seed and action — so the caller can hit-test clicks against
@@ -269,17 +292,21 @@ def paint_hud(
         action_sizes=[(p.width(), p.height()) for p in actions_scaled],
     )
 
-    # The currently-playing clip (the corner) is drawn at full opacity; the rest
-    # dim to half, so the bright one reads as "this is what's on".  A locked
-    # single clip is ringed in white (the padlock is gone); the looping-row and
-    # looping-column borders are drawn by the overlay on top.
+    # The clip that is actually on screen is drawn at full opacity; the rest dim
+    # to half, so the bright one reads as "this is what's on".  Usually that is
+    # the corner, but while a loop plays a non-anchor member the bright cell moves
+    # to it (the map itself stays put).  A locked single clip is ringed in white
+    # (the padlock is gone); the looping borders are drawn by the overlay on top.
+    play_bucket, play_index = playing
     cx, cy, cw, ch = corner_rect
+    painter.setOpacity(1.0 if play_bucket == "corner" else _DIM_OPACITY)
     painter.drawPixmap(cx, cy, corner)
 
-    painter.setOpacity(_DIM_OPACITY)
     for i, (sx, sy, _sw, _sh) in enumerate(seed_rects):
+        painter.setOpacity(1.0 if play_bucket == "seed" and play_index == i else _DIM_OPACITY)
         painter.drawPixmap(sx, sy, seeds_scaled[i])
     for i, (ax, ay, _aw, _ah) in enumerate(action_rects):
+        painter.setOpacity(1.0 if play_bucket == "action" and play_index == i else _DIM_OPACITY)
         painter.drawPixmap(ax, ay, actions_scaled[i])
     painter.setOpacity(1.0)
 
@@ -392,14 +419,13 @@ class HudOverlay(QWidget):
         self._click_timer.setSingleShot(True)
         self._click_timer.timeout.connect(self._fire_pending_click)
         # Loop buttons: which axis is looping ("", "action", "seed" — mutually
-        # exclusive), which is hovered (for the preview border), their hit rects,
-        # and the last current clip (so switching clips clears a stale loop).
+        # exclusive, mirrored from the shared state each refresh) and which is
+        # hovered (for the preview border), plus their hit rects.
         self._active_loop = ""
         self._hover_loop = ""
         self._loop_targets: list[tuple[_ThumbRect, str]] = []
         self._label_targets: list[tuple[_ThumbRect, str]] = []
         self._expand_rect: _ThumbRect | None = None
-        self._prev_current = ""
 
         self.setWindowTitle(f"Fun Time HUD ({side})")
         self.setWindowFlags(
@@ -424,11 +450,11 @@ class HudOverlay(QWidget):
         seed_paths: list[str],
         action_paths: list[str],
     ) -> None:
-        if panel.current != self._prev_current:
-            # A switch / next / cycle rebuilds the playlist and drops any loop,
-            # so a loop button left "on" from the previous clip is now stale.
-            self._active_loop = ""
-            self._prev_current = panel.current
+        # The loop's on/off is authoritative from the shared state (the dispatch
+        # sets it on apply and clears it on any rebuild), so mirror it here rather
+        # than guessing from clip changes — auto-advance inside a loop changes the
+        # clip without ending the loop, and the button must stay lit through it.
+        self._active_loop = panel.active_loop
         self._panel = panel
         self._current_thumb = current_thumb
         self._seed_thumbs = seed_thumbs
@@ -457,9 +483,12 @@ class HudOverlay(QWidget):
         rect = self.rect()
         painter = QPainter(self)
         try:
+            playing = _playing_cell(
+                self._panel.playing, self._panel.current, self._seed_paths, self._action_paths,
+            )
             corner_rect, seed_rects, action_rects = paint_hud(
                 painter, rect, self._panel,
-                self._current_thumb, self._seed_thumbs, self._action_thumbs,
+                self._current_thumb, self._seed_thumbs, self._action_thumbs, playing,
             )
             loop_action_rect, loop_seed_rect = hud_loop_button_rects(
                 corner_rect, seed_rects, action_rects, rect.right() - _PAD, rect.bottom() - _PAD,
@@ -608,6 +637,8 @@ class LockHud:
             landscape_locked=state.locked3,
             portrait_filter=state.portrait_filter,
             landscape_filter=state.landscape_filter,
+            portrait_loop=state.portrait_loop,
+            landscape_loop=state.landscape_loop,
         )
         self._apply("portrait", portrait_panel)
         self._apply("landscape", landscape_panel)
