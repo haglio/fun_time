@@ -140,6 +140,31 @@ def test_paint_hud_labels_seed_columns_and_action_rows(qt_app):
     assert header(two_cols) > header(one_col)
 
 
+def test_paint_hud_shows_a_lock_icon_on_the_current_clip_when_locked(qt_app):
+    """A locked satellite paints a green padlock over the current clip; unlocked
+    paints none, so the corner's top-left carries green ink only when locked."""
+    thumb = _solid_pixmap(QColor(30, 30, 30))
+    map_x = _PAD + _ROW_LABEL_W
+    map_y = _PAD + _LOCK_BAND_H + _COL_LABEL_H  # no filter line on these panels
+
+    def green_ink(image: QImage) -> int:
+        total = 0
+        for yy in range(map_y, map_y + 22):
+            for xx in range(map_x, map_x + 22):
+                c = image.pixelColor(xx, yy)
+                if c.green() > c.red() + 40 and c.green() > c.blue() + 40:
+                    total += 1
+        return total
+
+    locked = _render(_panel(locked=True, current="c.mp4", seed_siblings=[], action_siblings=[]), thumb, [], [])
+    unlocked = _render(
+        _panel(locked=False, lock_label="Unlocked", current="c.mp4", seed_siblings=[], action_siblings=[]),
+        thumb, [], [],
+    )
+    assert green_ink(locked) > 0
+    assert green_ink(unlocked) == 0
+
+
 def test_sync_topmost_restakes_over_the_vlc_but_leaves_the_band_once_under_omnipause(qt_app):
     """Topmost is re-staked on every call, even when the overlay is already
     topmost: the satellite VLC it floats over is itself topmost and gets
