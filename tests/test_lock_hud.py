@@ -13,6 +13,7 @@ from fun_time.lock_hud import (
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
+    prewarm_thumbnails,
     prime_group_indexes,
     signal_hud_ready,
     wait_for_hud_ready,
@@ -319,6 +320,27 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     # empty, so a non-empty index proves prime populated it from the real tree.
     index = cached_group_index(sources, paths_supplier=lambda: [], metadata_root=metadata_root, must_contain=None)
     assert index.indexed_paths
+
+
+def test_prewarm_thumbnails_covers_every_clip_in_both_libraries(tmp_path: Path):
+    """Every library clip is thumbnailed up front so a clip change never blocks on
+    a first-use frame grab — the source of the multi-second map lag."""
+    portrait, landscape = tmp_path / "portrait", tmp_path / "landscape"
+    portrait.mkdir()
+    landscape.mkdir()
+    (portrait / "a.mp4").write_text("x", encoding="utf-8")
+    (portrait / "b.mp4").write_text("x", encoding="utf-8")
+    (landscape / "c.mp4").write_text("x", encoding="utf-8")
+    config = _hud_config(
+        portrait_sources=str(portrait), landscape_sources=str(landscape),
+        thumbnail_cache_dir=tmp_path / "thumbs",
+    )
+    warmed: list[tuple[str, object]] = []
+
+    prewarm_thumbnails(config, thumbnailer=lambda path, cache: warmed.append((path, cache)))
+
+    assert sorted(Path(p).name for p, _cache in warmed) == ["a.mp4", "b.mp4", "c.mp4"]
+    assert all(cache == config.thumbnail_cache_dir for _p, cache in warmed)
 
 
 def test_signal_hud_ready_writes_the_flag(tmp_path: Path):

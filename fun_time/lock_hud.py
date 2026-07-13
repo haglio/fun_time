@@ -304,6 +304,22 @@ def prime_group_indexes(config: HudAppConfig) -> None:
             )
 
 
+def prewarm_thumbnails(
+    config: HudAppConfig,
+    thumbnailer: Callable[[str, str | Path], object] = thumbnail_for,
+) -> None:
+    """Extract and cache every library clip's thumbnail up front, so the map
+    paints from cache the instant a clip changes instead of blocking seconds on a
+    first-use frame grab (the ~3 s lag on a 5 s clip).  Idempotent — an already
+    cached thumbnail is skipped — so it is cheap to re-run.  Heavy I/O: run it off
+    the UI thread; ordering does not matter since it fills the shared disk cache."""
+    for sources in (config.portrait_sources, config.landscape_sources):
+        if not sources:
+            continue
+        for path in collect_video_files(sources):
+            thumbnailer(path, config.thumbnail_cache_dir)
+
+
 def signal_hud_ready(ready_file: str | Path) -> None:
     """Mark the HUD ready to be shown — its indexes are primed, so its first
     paint is instant.  Startup waits on this before dropping the loading screen
