@@ -14,7 +14,17 @@ from PyQt6.QtWidgets import QApplication
 
 from fun_time.config import LayoutConfig
 from fun_time.lock_hud import HudAppConfig, HudPanel
-from fun_time.lock_hud_app import HudOverlay, LockHud, OVERLAY_HEIGHT, OVERLAY_WIDTH, paint_hud
+from fun_time.lock_hud_app import (
+    _COL_LABEL_H,
+    _LOCK_BAND_H,
+    _PAD,
+    _ROW_LABEL_W,
+    HudOverlay,
+    LockHud,
+    OVERLAY_HEIGHT,
+    OVERLAY_WIDTH,
+    paint_hud,
+)
 from fun_time.window_layout import WindowRect
 
 
@@ -92,6 +102,42 @@ def test_paint_hud_without_a_current_thumb_still_draws_its_shell(qt_app):
     image = _render(_panel(current="", seed_siblings=[], action_siblings=[]), None, [], [])
 
     assert _samples(image, lambda c: c.alpha() > 0) > 0
+
+
+def _label_ink_in_rect(image: QImage, x0: int, y0: int, x1: int, y1: int) -> int:
+    """Pixels in the region that carry label text — lighter than the dark panel
+    background (24) but not the white border, i.e. the muted-grey glyphs."""
+    return sum(
+        1
+        for y in range(max(0, y0), min(image.height(), y1))
+        for x in range(max(0, x0), min(image.width(), x1))
+        if 70 < image.pixelColor(x, y).red() < 200
+    )
+
+
+def test_paint_hud_labels_seed_columns_and_action_rows(qt_app):
+    """Row labels (the action names) live in the left gutter, so naming the
+    rows adds ink there; column labels ("Seed 1", "Seed 2", …) live in the
+    header strip, so more seed columns add more label ink up top."""
+    thumb = _solid_pixmap(QColor(30, 30, 30))
+    map_top = _PAD + _LOCK_BAND_H  # no filter line on these panels
+
+    named = _panel(current="c.mp4", seed_siblings=[], action_siblings=["a1"],
+                   current_action="Alpha", action_labels=("Delta",))
+    unnamed = _panel(current="c.mp4", seed_siblings=[], action_siblings=["a1"],
+                     current_action="", action_labels=("",))
+
+    def gutter(image: QImage) -> int:
+        return _label_ink_in_rect(image, _PAD, map_top, _PAD + _ROW_LABEL_W, OVERLAY_HEIGHT)
+
+    assert gutter(_render(named, thumb, [], [thumb])) > gutter(_render(unnamed, thumb, [], [thumb]))
+
+    def header(image: QImage) -> int:
+        return _label_ink_in_rect(image, _PAD + _ROW_LABEL_W, map_top, OVERLAY_WIDTH - _PAD, map_top + _COL_LABEL_H)
+
+    two_cols = _render(_panel(current="c.mp4", seed_siblings=["s1"], action_siblings=[]), thumb, [thumb], [])
+    one_col = _render(_panel(current="c.mp4", seed_siblings=[], action_siblings=[]), thumb, [], [])
+    assert header(two_cols) > header(one_col)
 
 
 def test_sync_topmost_restakes_over_the_vlc_but_leaves_the_band_once_under_omnipause(qt_app):
