@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, command_side, dispatch_command
-from .event_log import notice
+from .event_log import SOURCE_LANDSCAPE, SOURCE_PORTRAIT, notice
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
 from .video_timeline import VideoTimeline
@@ -555,10 +555,13 @@ class DispatchLoopRunner:
         """
         for which, port in self._satellite_ports.items():
             if pause_if_playing(port, self.config.vlc_password):
-                side = "Portrait" if which == 2 else "Landscape"
-                logger.warning(
-                    "OmniPause watchdog re-paused the %s satellite — it had resumed on its own",
-                    side,
+                source = SOURCE_PORTRAIT if which == 2 else SOURCE_LANDSCAPE
+                notice(
+                    logger,
+                    f"OmniPause watchdog re-paused the {source.capitalize()} satellite"
+                    " — it had resumed on its own",
+                    source=source,
+                    level=logging.WARNING,
                 )
 
     def _back_dated_video(self, command: str, spoken_at: float | None) -> str:

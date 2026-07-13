@@ -764,6 +764,22 @@ class TestDispatchLoopRunner:
         assert any("Portrait" in r.getMessage() for r in caplog.records)
         assert not any("Landscape" in r.getMessage() for r in caplog.records)
 
+    def test_omnipause_watchdog_flashes_on_the_caught_satellite(self, tmp_path, caplog):
+        """The re-pause toast must appear over the satellite it re-paused, not
+        the primary — so the record carries that satellite's source. The default
+        (system) would flash the toast on the primary instead."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
+                   side_effect=lambda port, pw: port == 9092), \
+             caplog.at_level("WARNING"):
+            runner.tick()
+
+        caught = [r for r in caplog.records if "Landscape" in r.getMessage()]
+        assert caught, "the watchdog logged the landscape satellite it caught"
+        assert all(getattr(r, "source", None) == "landscape" for r in caught)
+
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the primary display in every mode it appears, so a nudge
         dispatches to Nau's SEEK command (which stacks against its live clock)."""
