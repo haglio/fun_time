@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from fun_time.thumbnail_cache import thumbnail_for, thumbnail_path
+from fun_time.thumbnail_cache import cached_thumbnail, thumbnail_for, thumbnail_path
 
 
 def _make_video(path: Path, *, width: int = 64, height: int = 48, frames: int = 10) -> None:
@@ -80,3 +80,19 @@ def test_thumbnail_for_returns_none_for_an_unreadable_video(tmp_path: Path):
 
 def test_thumbnail_for_returns_none_for_a_missing_video(tmp_path: Path):
     assert thumbnail_for(tmp_path / "nope.mp4", tmp_path / "cache") is None
+
+
+def test_cached_thumbnail_returns_the_file_only_when_it_exists(tmp_path: Path):
+    """The HUD paints with this, so it must never extract — just report the cached
+    file if the prewarm has already made it, else None."""
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"x")
+    cache = tmp_path / "cache"
+
+    assert cached_thumbnail(video, cache) is None  # nothing extracted yet
+
+    dest = thumbnail_path(video, cache)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(b"JPEG")  # as if the prewarm produced it
+
+    assert cached_thumbnail(video, cache) == dest

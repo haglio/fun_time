@@ -39,6 +39,15 @@ def thumbnail_path(video_path: str | Path, cache_dir: str | Path) -> Path:
     return Path(cache_dir) / f"{digest}.jpg"
 
 
+def cached_thumbnail(video_path: str | Path, cache_dir: str | Path) -> Path | None:
+    """The cached thumbnail for *video_path* if it already exists, else None —
+    never extracting one.  The HUD paints with this so its refresh never blocks
+    on a cv2 frame grab (seconds, for HEVC); the background prewarm does the
+    extracting, and the next refresh picks the file up."""
+    dest = thumbnail_path(video_path, cache_dir)
+    return dest if dest.is_file() else None
+
+
 def _read_representative_frame(video_path: str | Path):
     """A frame ~20% into the clip (skipping fade-ins), or the first readable one."""
     capture = cv2.VideoCapture(str(video_path))
