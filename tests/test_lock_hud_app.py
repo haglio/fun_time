@@ -126,7 +126,7 @@ def test_paint_hud_without_a_current_thumb_still_draws_its_shell(qt_app):
 def test_hud_thumbnail_rects_positions_the_map_and_drops_overflow():
     """The corner anchors the map; seeds walk right and actions walk down, each
     dropped (not clipped) when it would cross the panel edge."""
-    from fun_time.lock_hud_app import _MAP_GAP
+    from fun_time.lock_hud_app import _MAP_GAP, _ROW_GAP
 
     corner, seeds, actions = hud_thumbnail_rects(
         map_x=100, map_y=50, right=300, bottom=280,
@@ -139,7 +139,7 @@ def test_hud_thumbnail_rects_positions_the_map_and_drops_overflow():
     s1 = 100 + 30 + _MAP_GAP
     s2 = s1 + 30 + _MAP_GAP
     assert seeds == [(s1, 50, 30, 54), (s2, 50, 30, 54)]  # third dropped
-    assert actions == [(100, 50 + 54 + _MAP_GAP, 30, 54)]  # second dropped
+    assert actions == [(100, 50 + 54 + _ROW_GAP, 30, 54)]  # second dropped
 
 
 def test_build_and_hit_test_click_targets():
@@ -289,19 +289,20 @@ def test_hud_button_tooltip_names_each_button():
     assert hud_button_tooltip(loop_targets, expand, 200, 200) == ""
 
 
-def test_hovering_a_button_updates_the_widget_tooltip(qt_app):
-    """The widget's own tooltip string tracks the button under the cursor, so Qt
-    displays it natively (reliable) — and clears off the buttons."""
+def test_hovering_a_button_arms_the_self_drawn_tooltip(qt_app):
+    """The overlay tracks the tooltip text for the button under the cursor and
+    draws it itself (a native tooltip falls behind this topmost window); it
+    clears off the buttons."""
     overlay = HudOverlay("portrait", lambda command: None)
     try:
         overlay._loop_targets = [((0, 0, 20, 20), "seed")]
         overlay._expand_rect = None
 
         overlay.mouseMoveEvent(SimpleNamespace(position=lambda: QPointF(5, 5)))
-        assert overlay.toolTip() == "Loop this seed row"
+        assert overlay._hover_tip == "Loop this seed row"
 
         overlay.mouseMoveEvent(SimpleNamespace(position=lambda: QPointF(200, 200)))
-        assert overlay.toolTip() == ""
+        assert overlay._hover_tip == ""
     finally:
         overlay.close()
 
@@ -338,6 +339,17 @@ def test_friendly_action_label_titlecases_and_keeps_acronyms_upper():
     # Each word wraps to its own line, with acronyms kept upper.
     assert _friendly_action_label("pov gamma") == "POV\nGamma"
     assert _friendly_action_label("reverse cowsubject") == "Reverse\nCowsubject"
+
+
+def test_gutter_width_fits_the_acts_present(qt_app):
+    """The gutter is sized to the acts actually shown — narrow for short ones, no
+    wider than the cap for a long one — so it isn't a big empty margin."""
+    from fun_time.lock_hud_app import gutter_width_for, _MAX_GUTTER
+
+    short = gutter_width_for("Iota", ("Iota",))
+    long = gutter_width_for("Delta", ("Delta",))
+
+    assert short < long <= _MAX_GUTTER
 
 
 def test_friendly_action_label_keeps_a_single_word_whole():
