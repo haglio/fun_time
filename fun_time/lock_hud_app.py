@@ -17,9 +17,9 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QEvent, QTimer, QRect
+from PyQt6.QtCore import Qt, QTimer, QRect
 from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap
-from PyQt6.QtWidgets import QApplication, QToolTip, QWidget
+from PyQt6.QtWidgets import QApplication, QWidget
 
 from shared_ui.colors import BG_PRIMARY, BORDER_PANEL, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_TINY, make_font
@@ -70,7 +70,8 @@ _BORDER_COLOR = QColor(255, 255, 255)
 _DIM_OPACITY = 0.5  # non-playing thumbnails; the currently-playing one stays full
 _COL_LABEL_H = 13  # header strip above the map for the "Seed N" column labels
 _COL_LABEL_GAP = 4  # breathing room between a column label and the thumbnail under it
-_ROW_LABEL_W = 85  # left gutter for the action-name row labels (fits "Gamma"; longer wrap)
+_ROW_LABEL_W = 98  # left gutter for the action-name row labels (fits "Delta" at 7pt)
+_ROW_LABEL_PT = 7  # a touch smaller than the map labels, so long acts fit on one line
 _LOOP_BTN = 18  # loop-button thickness (px): below the action column, right of the seed row
 
 
@@ -232,23 +233,18 @@ _ACTION_ACRONYMS = {"pov": "POV"}
 
 
 def _friendly_action_label(name: str) -> str:
-    """A row's action drawn nicely, newline-delimited into the lines it should
-    wrap to: title-cased with known acronyms upper, or "(unknown)" when the clip
-    has no action metadata so the row is never a blank, invisible gutter.
+    """A row's action drawn nicely, newline-delimited into the lines it wraps to:
+    title-cased with known acronyms kept upper, or "(unknown)" when the clip has
+    no action metadata so the row is never a blank, invisible gutter.
 
-    Each word goes on its own line ("pov gamma" → "POV\\nGamma"); a lone word
-    too long for the gutter is split in half ("delta" → "Doggy\\nstyle")."""
+    Each word goes on its own line ("pov gamma" → "POV\\nGamma"); a single
+    word stays whole on one line (the gutter and font are sized to fit it)."""
     if not name.strip():
         return "(unknown)"
-    words = [
+    return "\n".join(
         _ACTION_ACRONYMS.get(word.lower(), word[:1].upper() + word[1:].lower())
         for word in name.split()
-    ]
-    if len(words) == 1 and len(words[0]) > 8:
-        word = words[0]
-        mid = (len(word) + 1) // 2
-        return f"{word[:mid]}\n{word[mid:]}"
-    return "\n".join(words)
+    )
 
 
 def paint_hud(
@@ -321,18 +317,20 @@ def paint_hud(
         )
 
     def _row_label(row_y: int, height: int, text: str) -> None:
-        # Draw each wrapped line by hand at a tightened line height, so two-line
-        # actions ("POV" / "Gamma") sit close together, vertically centred in
-        # the row, instead of clipping or spreading out on the default leading.
+        # Draw each wrapped line by hand at a tight line height, so a two-word act
+        # ("POV" / "Gamma") sits close together, vertically centred in the row.
+        # A slightly smaller font lets a long single word ("Delta") fit whole.
+        painter.setFont(make_font(FONT_UI, _ROW_LABEL_PT, bold=True))
         painter.setPen(TEXT_MUTED)
         lines = _friendly_action_label(text).split("\n")
-        line_h = painter.fontMetrics().height() - 2
+        line_h = painter.fontMetrics().height() - 4
         top = row_y + (height - line_h * len(lines)) // 2
         for i, line in enumerate(lines):
             painter.drawText(
                 QRect(x, top + i * line_h, _ROW_LABEL_W - _MAP_GAP, line_h),
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, line,
             )
+        painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))  # restore for col labels
 
     corner = _scaled(current_thumb, _MAP_THUMB_H)
     seeds_scaled = [_scaled(pixmap, _MAP_THUMB_H) for pixmap in seed_thumbs]
@@ -642,20 +640,10 @@ class HudOverlay(QWidget):
         if hover != self._hover_loop:
             self._hover_loop = hover
             self.update()
-
-    def event(self, event) -> bool:  # noqa: N802
-        """Show button tooltips via Qt's own ToolTip event rather than pushing
-        them on every mouse move — Qt then owns the show/hide timing and placement,
-        which stops the flicker and the tooltip appearing in the wrong spot."""
-        if event.type() == QEvent.Type.ToolTip:
-            point = event.pos()
-            tip = hud_button_tooltip(self._loop_targets, self._expand_rect, point.x(), point.y())
-            if tip:
-                QToolTip.showText(event.globalPos(), tip, self)
-            else:
-                QToolTip.hideText()
-            return True
-        return super().event(event)
+        # Keep the widget's own tooltip string in step with the button under the
+        # cursor and let Qt display it natively — reliable timing and placement,
+        # no per-move showText (which flickered and mispositioned).
+        self.setToolTip(hud_button_tooltip(self._loop_targets, self._expand_rect, point.x(), point.y()))
 
     def _fire_pending_click(self) -> None:
         if self._pending_click_path:
@@ -740,6 +728,8 @@ class LockHud:
             landscape_filter=state.landscape_filter,
             portrait_loop=state.portrait_loop,
             landscape_loop=state.landscape_loop,
+            portrait_widen_clip=state.portrait_widen_clip,
+            landscape_widen_clip=state.landscape_widen_clip,
         )
         self._apply("portrait", portrait_panel)
         self._apply("landscape", landscape_panel)

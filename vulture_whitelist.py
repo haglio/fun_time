@@ -13,7 +13,6 @@ _.mousePressEvent  # noqa
 _.mouseDoubleClickEvent  # noqa
 _.mouseMoveEvent  # noqa
 _.closeEvent  # noqa
-_.globalPos  # noqa — QHelpEvent accessor used in the ToolTip event handler
 
 # --- Win32 struct fields (must be set for API calls to work) ---
 _.cbSize  # noqa
