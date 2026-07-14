@@ -289,6 +289,23 @@ def test_hud_button_tooltip_names_each_button():
     assert hud_button_tooltip(loop_targets, expand, 200, 200) == ""
 
 
+def test_hovering_a_button_updates_the_widget_tooltip(qt_app):
+    """The widget's own tooltip string tracks the button under the cursor, so Qt
+    displays it natively (reliable) — and clears off the buttons."""
+    overlay = HudOverlay("portrait", lambda command: None)
+    try:
+        overlay._loop_targets = [((0, 0, 20, 20), "seed")]
+        overlay._expand_rect = None
+
+        overlay.mouseMoveEvent(SimpleNamespace(position=lambda: QPointF(5, 5)))
+        assert overlay.toolTip() == "Loop this seed row"
+
+        overlay.mouseMoveEvent(SimpleNamespace(position=lambda: QPointF(200, 200)))
+        assert overlay.toolTip() == ""
+    finally:
+        overlay.close()
+
+
 def test_clicking_the_expand_button_posts_more_seeds(qt_app):
     """The expand button widens the net — the click posts "<side>_more_seeds"."""
     sent: list[str] = []
@@ -323,10 +340,11 @@ def test_friendly_action_label_titlecases_and_keeps_acronyms_upper():
     assert _friendly_action_label("reverse cowsubject") == "Reverse\nCowsubject"
 
 
-def test_friendly_action_label_splits_a_long_single_word_over_two_lines():
-    # "Delta"/"Delta" clip the narrow gutter on one line, so they wrap.
-    assert _friendly_action_label("delta") == "Doggy\nstyle"
-    assert _friendly_action_label("delta") == "Missi\nonary"
+def test_friendly_action_label_keeps_a_single_word_whole():
+    # A long single word stays on one line (the gutter/font are sized to fit it),
+    # rather than being split at an unnatural point.
+    assert _friendly_action_label("delta") == "Delta"
+    assert _friendly_action_label("delta") == "Delta"
 
 
 def test_friendly_action_label_shows_unknown_for_missing_metadata():
