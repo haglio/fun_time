@@ -162,6 +162,28 @@ def test_an_action_loop_freezes_the_map_and_marks_the_playing_action():
     assert panel.action_siblings == [CUR]
 
 
+def test_widen_grows_the_seed_row_to_the_same_act_pool():
+    """"more seeds" widens the display: the seed row grows from the exact family
+    to include another subject's same-act clip, without the current clip changing."""
+    other = "C:/vids/other.mp4"
+    index = GroupIndex(
+        action_key_by_path={K(CUR): "g1", K(S1): "g1", K(other): "g2"},
+        action_members={"g1": sorted([CUR, S1]), "g2": [other]},
+        action_by_path={K(CUR): "Alpha", K(S1): "Alpha", K(other): "Alpha"},
+        seed_key_by_path={K(CUR): ("S", "0"), K(S1): ("S", "1")},
+        seed_members={"S": sorted([CUR, S1])},
+        loose_seed_key_by_path={}, loose_seed_members={},
+        indexed_paths=frozenset({K(CUR), K(S1), K(other)}),
+    )
+
+    narrow = build_hud_panel("portrait", locked=False, current=CUR, index=index)
+    wide = build_hud_panel("portrait", locked=False, current=CUR, index=index, widen=True)
+
+    assert narrow.seed_siblings == [S1]                 # exact family only
+    assert set(wide.seed_siblings) == {S1, other}       # widened to the same-act pool
+    assert wide.current == CUR                          # the clip on screen is unchanged
+
+
 def test_a_group_of_one_does_not_freeze_the_map():
     """A "loop" over a family of one is really a lock, so there is nothing to
     freeze — the map stays anchored on the live clip and reports no loop."""

@@ -24,6 +24,7 @@ from .media_metadata import (
     metadata_path_for,
     normalize_path_key,
     seed_family_members,
+    widened_seed_members,
 )
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
@@ -104,6 +105,12 @@ class BridgeState:
     # while the clip auto-advances.
     portrait_loop: str = ""
     landscape_loop: str = ""
+    # The clip each satellite's seed row has been widened around ("more seeds").
+    # While it equals the clip on screen the HUD shows the wider net (same act,
+    # any config); navigating to another clip leaves it behind, so the widen
+    # auto-resets without any explicit clear.
+    portrait_widen_clip: str = ""
+    landscape_widen_clip: str = ""
     # The primary display's sound level, 0-100, and whether it is silenced.  A
     # mute leaves the level alone so a second "mute" restores what was set.
     volume: int = MAX_VOLUME
@@ -442,39 +449,16 @@ def _next_action_sibling(index: GroupIndex, current: str) -> str | None:
 
 
 def _next_seed_sibling(
-    index: GroupIndex, current: str, entries: list[tuple[int, str]], *, allow_widen: bool = False
-) -> tuple[str | None, bool]:
-    """The next seed sibling of *current* and whether the net had to widen.
-
-    First choice is an exact same-config sister (a different seed of the
-    identical config).  Only when *allow_widen* is set — the "more seeds"
-    command — does an empty result widen to the same *scene* with the render
-    knobs freed; plain "cycle seed" dead-ends instead, now that the HUD shows
-    exactly which sisters exist.  Either pool is toured in seed order — the
-    first seed above the current one, wrapping to the lowest — preferring
-    playlist entries.
+    index: GroupIndex, current: str, entries: list[tuple[int, str]]
+) -> str | None:
+    """The next exact seed sibling of *current* — a different seed of the
+    identical config — toured in seed order (the first seed above the current
+    one, wrapping to the lowest) and preferring playlist entries.  None when
+    there is no sister; the HUD shows exactly which sisters exist, and widening
+    the net is a separate, HUD-only action ("more seeds"), not a cycle.
     """
     current_key = normalize_path_key(current)
     current_action = index.action_by_path.get(current_key, "")
-
-    def same_action_others() -> list[str]:
-        """Every other clip doing this same action, whatever its config — the
-        widest net, "another subject doing the same act", so widening reliably
-        finds something rather than dead-ending on a clip with unique params."""
-        seen: set[str] = set()
-        out: list[str] = []
-        for members in index.action_members.values():
-            for path in members:
-                key = normalize_path_key(path)
-                if (
-                    key != current_key
-                    and key not in seen
-                    and index.action_by_path.get(key, "") == current_action
-                    and Path(path).exists()
-                ):
-                    seen.add(key)
-                    out.append(path)
-        return sorted(out)
 
     def pool(key_by_path, members_by_family, accept) -> tuple[str | None, list[tuple[str, str]]]:
         entry = key_by_path.get(current_key)
@@ -510,26 +494,12 @@ def _next_seed_sibling(
         index.seed_key_by_path, index.seed_members,
         lambda seed, _path, cur: seed != cur,
     )
-    widened = False
-    if not candidates and allow_widen:
-        current_seed, candidates = pool(
-            index.loose_seed_key_by_path, index.loose_seed_members,
-            lambda _seed, path, _cur: normalize_path_key(path) != current_key,
-        )
-        widened = bool(candidates)
-
-    if not candidates and allow_widen:
-        # Widest net: same act, any config.  Ordered by path (there is no seed
-        # ordering across it), so it tours deterministically.
-        current_seed, candidates = "", [("", path) for path in same_action_others()]
-        widened = bool(candidates)
-
     if not candidates:
-        return None, False
+        return None
     for seed, path in candidates:
         if seed > current_seed:
-            return path, widened
-    return candidates[0][1], widened
+            return path
+    return candidates[0][1]
 
 
 def _video_action_label(video_path: str, config: BridgeConfig) -> str:
@@ -589,6 +559,36 @@ def _clear_side_loop(state: BridgeState, which: int) -> BridgeState:
     """Forget any group loop on *which* satellite — its playlist was rebuilt or
     re-navigated, which drops the loop.  A no-op when none was running."""
     return replace(state, portrait_loop="") if which == 2 else replace(state, landscape_loop="")
+
+
+def _set_side_widen(state: BridgeState, which: int, clip: str) -> BridgeState:
+    """Record that *which* satellite's seed row is widened around *clip*."""
+    if which == 2:
+        return replace(state, portrait_widen_clip=clip)
+    return replace(state, landscape_widen_clip=clip)
+
+
+def _dispatch_more_seeds(
+    which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Widen the seed row the HUD draws around the current clip — "more seeds".
+
+    This does NOT change what is playing; it records that this clip's net is
+    widened, and the HUD redraws its seed row with the wider same-act pool.  If
+    there is nothing beyond the exact seed family to add, it says so rather than
+    silently doing nothing."""
+    port = config.portrait_port if which == 2 else config.landscape_port
+    source = _satellite_source(which)
+    current = target_path or get_current_file_path(port, config.vlc_password)
+    if not current:
+        return state, []
+    index = _satellite_group_index(which, config, current)
+    current_key = normalize_path_key(current)
+    exact = {normalize_path_key(m) for m in seed_family_members(index, current)} - {current_key}
+    wide = {normalize_path_key(m) for m in widened_seed_members(index, current)} - {current_key}
+    if wide <= exact:
+        return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
+    return _set_side_widen(state, which, current), [WindowOp(op="notice", key="More seeds", source=source)]
 
 
 def _dispatch_group_loop(
@@ -685,7 +685,7 @@ def _dispatch_lock_video(
 
 def _cycle_variant(
     which: int, kind: str, state: BridgeState, config: BridgeConfig,
-    target_path: str = "", *, widen: bool = False,
+    target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Switch the satellite's current video to a sibling: another action of the
     same subject(s)+situation, or the same configuration under another seed.
@@ -706,15 +706,12 @@ def _cycle_variant(
         return state, ops
     index = _satellite_group_index(which, config, current)
     entries, _current_id = get_playlist_entries(port, config.vlc_password)
-    widened = False
     if kind == "action":
         target = _next_action_sibling(index, current)
         missing_message = "No other actions"
     else:
-        target, widened = _next_seed_sibling(index, current, entries, allow_widen=widen)
-        # "more seeds" widens the net; if even that finds nothing the act is unique
-        # in the library, so say the widen failed rather than the plain dead-end.
-        missing_message = "Widening net failed" if widen else "No other seeds"
+        target = _next_seed_sibling(index, current, entries)
+        missing_message = "No other seeds"
     if target is None:
         ops.append(WindowOp(op="notice", key=missing_message, source=source, level=FAILED_NOTICE_LEVEL))
         return state, ops
@@ -728,12 +725,7 @@ def _cycle_variant(
         if action:
             ops.append(WindowOp(op="notice", key=f"Action: {action}", source=source))
     else:
-        # Narrate every seed hit so the log panel and the flash over the player
-        # show what happened: an exact same-config sister reads "Next seed", a
-        # widened same-scene near-match "Similar clip".  The contrast is what makes
-        # the widening visible — otherwise an exact jump is silent and you cannot
-        # tell it apart from a widen or from nothing.
-        ops.append(WindowOp(op="notice", key="Similar clip" if widened else "Next seed", source=source))
+        ops.append(WindowOp(op="notice", key="Next seed", source=source))
     return state, ops
 
 
@@ -798,7 +790,7 @@ def dispatch_command(
 
     more_seeds_side = _MORE_SEEDS_SIDES.get(command)
     if more_seeds_side is not None:
-        return _cycle_variant(more_seeds_side, "seed", state, config, target_path, widen=True)
+        return _dispatch_more_seeds(more_seeds_side, state, config, target_path)
 
     loop_target = _LOOP_COMMANDS.get(command)
     if loop_target is not None:

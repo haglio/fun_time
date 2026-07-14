@@ -1276,59 +1276,39 @@ def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
     assert dead[0].level == FAILED_NOTICE_LEVEL
 
 
-def test_portrait_more_seeds_widens_to_a_near_match(tmp_path: Path):
-    """"more seeds" widens the net to the same-scene near-match that cycle-seed
-    used to reach automatically, flagged "Similar clip"."""
-    config, paths = _make_grouped_config(tmp_path, {
-        "subject_best": _scene_meta(image_seed="111", quality="Best"),
-        "subject_draft": _scene_meta(image_seed="222", quality="Draft"),
-    })
-    state = _make_state()
-
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_best"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_best"])], 3)),
-        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        _new_state, ops = dispatch_command("portrait_more_seeds", state, config)
-
-    swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_draft"])
-    assert [op.key for op in ops if op.op == "notice"] == ["Similar clip"]
-
-
-def test_more_seeds_last_resort_reaches_any_same_action_clip(tmp_path: Path):
-    """When neither an exact sister nor a same-scene near-match exists, "more
-    seeds" keeps widening to any other clip of the same act — so it finds
-    something rather than dead-ending, which is the whole point of widening."""
-    from fun_time.command_dispatch import _next_seed_sibling
-
+def test_more_seeds_widens_the_display_without_changing_the_clip(tmp_path: Path):
+    """"more seeds" no longer switches the video — it records that this clip's
+    seed row is widened, which the HUD reads to grow the row in place."""
     cur, other = tmp_path / "cur.mp4", tmp_path / "other.mp4"
     cur.write_text("x", encoding="utf-8")
     other.write_text("x", encoding="utf-8")
     c, o = str(cur), str(other)
     kc, ko = normalize_path_key(c), normalize_path_key(o)
+    config = _make_config(tmp_path)
     index = GroupIndex(
         action_key_by_path={kc: "g1", ko: "g2"},   # different subjects
         action_members={"g1": [c], "g2": [o]},
-        action_by_path={kc: "Gamma", ko: "Gamma"},   # same act
-        seed_key_by_path={}, seed_members={},            # no exact sister
-        loose_seed_key_by_path={}, loose_seed_members={},  # no near-match
+        action_by_path={kc: "Gamma", ko: "Gamma"},   # same act, so widening finds o
+        seed_key_by_path={}, seed_members={},
+        loose_seed_key_by_path={}, loose_seed_members={},
         indexed_paths=frozenset({kc, ko}),
     )
 
-    # Plain cycle-seed still dead-ends...
-    assert _next_seed_sibling(index, c, [], allow_widen=False) == (None, False)
-    # ...but "more seeds" widens all the way to the same-act clip.
-    target, widened = _next_seed_sibling(index, c, [], allow_widen=True)
-    assert target == o
-    assert widened is True
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=c), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch._play_video") as play, \
+         patch("fun_time.command_dispatch.vlc_swap_current_with") as swap:
+        state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
+
+    play.assert_not_called()   # nothing switched
+    swap.assert_not_called()
+    assert state.portrait_widen_clip == c
+    assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
 def test_more_seeds_reports_widening_failed_when_the_act_is_unique(tmp_path: Path):
-    """If even the widest net finds nothing, the act is unique in the library, so
-    the notice says the widen failed — not the plain "no other seeds" dead-end,
-    which reads as if the request was ignored."""
+    """If there is nothing beyond the exact seed family to add, the notice says
+    the widen failed rather than silently widening the display to the same set."""
     config = _make_config(tmp_path)
     only = tmp_path / "only.mp4"
     only.write_text("x", encoding="utf-8")
@@ -1342,13 +1322,13 @@ def test_more_seeds_reports_widening_failed_when_the_act_is_unique(tmp_path: Pat
     )
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=str(only)), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, str(only))], 3)):
-        _state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+        state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    dead = [op for op in ops if op.op == "notice"]
-    assert [op.key for op in dead] == ["Widening net failed"]
-    assert dead[0].level == FAILED_NOTICE_LEVEL
+    assert state.portrait_widen_clip == ""  # nothing widened
+    notices = [op for op in ops if op.op == "notice"]
+    assert [op.key for op in notices] == ["Widening net failed"]
+    assert notices[0].level == FAILED_NOTICE_LEVEL
 
 
 def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):

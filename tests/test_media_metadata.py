@@ -463,6 +463,25 @@ def test_seed_family_members_pin_the_action_for_image_to_video(tmp_path: Path):
     assert paths["kiss_b"] not in members  # same family, wrong act
 
 
+def test_widened_seed_members_add_same_act_clips_from_other_subjects(tmp_path: Path):
+    """The widened seed row ("more seeds") is the exact family plus every other
+    same-act clip, whatever its config — but never a different act."""
+    from fun_time.media_metadata import widened_seed_members
+
+    media_root, metadata_root, paths = _write_library(tmp_path, {
+        "cum_a": _t2v("Alpha", "1"),                 # current
+        "cum_b": _t2v("Alpha", "2"),                 # exact family (same prompt)
+        "cum_other": _t2v("Alpha", "9", prompt="a different scene"),  # same act, other config
+        "kiss": _t2v("Kissing", "1"),                  # different act — excluded
+    })
+    index = build_group_index(list(paths.values()), metadata_root)
+
+    members = widened_seed_members(index, paths["cum_a"])
+
+    assert set(members) >= {paths["cum_a"], paths["cum_b"], paths["cum_other"]}
+    assert paths["kiss"] not in members
+
+
 def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
     """Two Alphas of one seed are ordinary action-group siblings, read as
     "Alpha 1" and "Alpha 2"."""

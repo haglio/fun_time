@@ -462,6 +462,18 @@ class TestSharedState:
         assert loaded.portrait_loop == "seed"
         assert loaded.landscape_loop == "action"
 
+    def test_roundtrip_preserves_the_widen_clip(self, tmp_path):
+        """The HUD reads which clip each side's seed row is widened around from
+        this file, so it must survive the round-trip."""
+        state_file = tmp_path / "shared_state.ini"
+        state = BridgeState(portrait_widen_clip="C:/v/a.mp4", landscape_widen_clip="C:/v/b.mp4")
+
+        write_shared_state(state_file, state)
+        loaded = read_shared_state(state_file)
+
+        assert loaded.portrait_widen_clip == "C:/v/a.mp4"
+        assert loaded.landscape_widen_clip == "C:/v/b.mp4"
+
     def test_state_files_without_loop_keys_load_as_unlooped(self, tmp_path):
         # A state file written before loops were tracked must still load.
         state_file = tmp_path / "shared_state.ini"
