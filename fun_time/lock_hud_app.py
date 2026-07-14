@@ -18,7 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer, QRect
-from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap
+from PyQt6.QtGui import QColor, QFontMetrics, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from shared_ui.colors import BG_PRIMARY, BORDER_PANEL, GREEN, TEXT_MUTED, TEXT_PRIMARY
@@ -63,6 +63,7 @@ ACTION_LIMIT = 4
 _PAD = 10
 _MAP_THUMB_H = 54
 _MAP_GAP = 5
+_ROW_GAP = 12  # vertical gap between action rows — roomier than the seed gap
 _BORDER_W = 2
 _LOCK_BAND_H = 24
 _STATUS_LINE_H = 15
@@ -70,8 +71,10 @@ _BORDER_COLOR = QColor(255, 255, 255)
 _DIM_OPACITY = 0.5  # non-playing thumbnails; the currently-playing one stays full
 _COL_LABEL_H = 13  # header strip above the map for the "Seed N" column labels
 _COL_LABEL_GAP = 4  # breathing room between a column label and the thumbnail under it
-_ROW_LABEL_W = 98  # left gutter for the action-name row labels (fits "Delta" at 7pt)
+_ROW_LABEL_W = 98  # fallback gutter width (paint sizes it to the labels present)
 _ROW_LABEL_PT = 7  # a touch smaller than the map labels, so long acts fit on one line
+_MIN_GUTTER = 30   # never narrower than this, even with only short acts
+_MAX_GUTTER = 100  # never wider than this, so a stray long act can't eat the map
 _LOOP_BTN = 18  # loop-button thickness (px): below the action column, right of the seed row
 
 
@@ -117,12 +120,12 @@ def hud_thumbnail_rects(
         seeds.append((seed_x, map_y, w, h))
         seed_x += w + _MAP_GAP
     actions: list[_ThumbRect] = []
-    action_y = map_y + ch + _MAP_GAP
+    action_y = map_y + ch + _ROW_GAP
     for w, h in action_sizes:
         if action_y + h > bottom:
             break
         actions.append((map_x, action_y, w, h))
-        action_y += h + _MAP_GAP
+        action_y += h + _ROW_GAP
     return corner, seeds, actions
 
 
@@ -220,6 +223,39 @@ def _playing_cell(
     return ("corner", 0)
 
 
+def _draw_tooltip(painter: QPainter, rect: QRect, text: str, pos: tuple[int, int]) -> None:
+    """Draw a tooltip box inside the overlay near *pos* — a native Qt tooltip
+    falls behind this always-on-top window, so the HUD draws its own."""
+    painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
+    fm = painter.fontMetrics()
+    pad = 5
+    w = fm.horizontalAdvance(text) + 2 * pad
+    h = fm.height() + 2 * pad
+    x = max(rect.left() + 2, min(pos[0] + 14, rect.right() - w - 2))
+    y = max(rect.top() + 2, min(pos[1] + 16, rect.bottom() - h - 2))
+    background = QColor(BG_PRIMARY)
+    background.setAlpha(240)
+    painter.setPen(QPen(BORDER_PANEL, 1))
+    painter.setBrush(background)
+    painter.drawRoundedRect(x, y, w, h, 4, 4)
+    painter.setPen(TEXT_PRIMARY)
+    painter.drawText(QRect(x, y, w, h), Qt.AlignmentFlag.AlignCenter, text)
+
+
+def gutter_width_for(current_action: str, action_labels: tuple[str, ...]) -> int:
+    """Size the row-label gutter to the actions actually present — wide enough for
+    the widest word, no wider — so a map of short acts doesn't carry a big empty
+    gutter, and a long one ("Delta") still fits without splitting."""
+    fm = QFontMetrics(make_font(FONT_UI, _ROW_LABEL_PT, bold=True))
+    words = [
+        word
+        for label in (current_action, *action_labels)
+        for word in _friendly_action_label(label).split("\n")
+    ]
+    widest = max((fm.horizontalAdvance(word) for word in words), default=0)
+    return min(max(widest + 2 * _MAP_GAP, _MIN_GUTTER), _MAX_GUTTER)
+
+
 def _placeholder_pixmap(side: str) -> QPixmap:
     """A neutral stand-in for a thumbnail still being generated, shaped like the
     side's clips (portrait tall, landscape wide) so the map lays out correctly."""
@@ -255,6 +291,7 @@ def paint_hud(
     seed_thumbs: list[QPixmap],
     action_thumbs: list[QPixmap],
     playing: tuple[str, int] = ("corner", 0),
+    gutter_w: int = _ROW_LABEL_W,
 ) -> tuple[_ThumbRect | None, list[_ThumbRect], list[_ThumbRect]]:
     """Render one satellite's HUD: lock band, optional filter, then the map.
 
@@ -304,8 +341,9 @@ def paint_hud(
     bottom = rect.bottom() - _PAD
 
     # The map sits below a header strip (the seed-column labels, with a little
-    # gap under them) and right of a gutter (the action-row labels).
-    map_x = x + _ROW_LABEL_W
+    # gap under them) and right of a gutter (the action-row labels), sized to fit
+    # the acts actually present.
+    map_x = x + gutter_w
     map_y = y + _COL_LABEL_H + _COL_LABEL_GAP
     painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
 
@@ -327,7 +365,7 @@ def paint_hud(
         top = row_y + (height - line_h * len(lines)) // 2
         for i, line in enumerate(lines):
             painter.drawText(
-                QRect(x, top + i * line_h, _ROW_LABEL_W - _MAP_GAP, line_h),
+                QRect(x, top + i * line_h, gutter_w - _MAP_GAP, line_h),
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, line,
             )
         painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))  # restore for col labels
@@ -335,8 +373,13 @@ def paint_hud(
     corner = _scaled(current_thumb, _MAP_THUMB_H)
     seeds_scaled = [_scaled(pixmap, _MAP_THUMB_H) for pixmap in seed_thumbs]
     actions_scaled = [_scaled(pixmap, _MAP_THUMB_H) for pixmap in action_thumbs]
+    # Reserve room past the map for its buttons — the seed-loop + expand buttons
+    # sit right of the seed row, the action-loop button below the column — so a
+    # widened row can never push them off the panel and make them vanish.
     corner_rect, seed_rects, action_rects = hud_thumbnail_rects(
-        map_x=map_x, map_y=map_y, right=right, bottom=bottom,
+        map_x=map_x, map_y=map_y,
+        right=right - (2 * _LOOP_BTN + 2 * _MAP_GAP),
+        bottom=bottom - (_LOOP_BTN + _MAP_GAP),
         corner_size=(corner.width(), corner.height()),
         seed_sizes=[(p.width(), p.height()) for p in seeds_scaled],
         action_sizes=[(p.width(), p.height()) for p in actions_scaled],
@@ -496,6 +539,10 @@ class HudOverlay(QWidget):
         # hovered (for the preview border), plus their hit rects.
         self._active_loop = ""
         self._hover_loop = ""
+        # Tooltip drawn by the overlay itself (a native Qt tooltip loses the
+        # z-fight with this always-on-top window); text + where the cursor was.
+        self._hover_tip = ""
+        self._hover_pos = (0, 0)
         self._loop_targets: list[tuple[_ThumbRect, str]] = []
         self._label_targets: list[tuple[_ThumbRect, str]] = []
         self._expand_rect: _ThumbRect | None = None
@@ -559,9 +606,10 @@ class HudOverlay(QWidget):
             playing = _playing_cell(
                 self._panel.playing, self._panel.current, self._seed_paths, self._action_paths,
             )
+            gutter_w = gutter_width_for(self._panel.current_action, self._panel.action_labels)
             corner_rect, seed_rects, action_rects = paint_hud(
                 painter, rect, self._panel,
-                self._current_thumb, self._seed_thumbs, self._action_thumbs, playing,
+                self._current_thumb, self._seed_thumbs, self._action_thumbs, playing, gutter_w,
             )
             loop_action_rect, loop_seed_rect = hud_loop_button_rects(
                 corner_rect, seed_rects, action_rects, rect.right() - _PAD, rect.bottom() - _PAD,
@@ -582,6 +630,8 @@ class HudOverlay(QWidget):
                     # "↔" reads as expanding — the seed row widening — and is
                     # legible at this size where the old tiny ⤢ glyph was not.
                     painter.drawText(QRect(ex, ey, ew, eh), Qt.AlignmentFlag.AlignCenter, "↔")
+            if self._hover_tip:
+                _draw_tooltip(painter, rect, self._hover_tip, self._hover_pos)
         finally:
             painter.end()
         self._click_targets = build_click_targets(
@@ -595,7 +645,7 @@ class HudOverlay(QWidget):
         ]
         self._expand_rect = expand_rect
         self._label_targets = build_label_targets(
-            corner_rect, action_rects, _PAD, _ROW_LABEL_W - _MAP_GAP,
+            corner_rect, action_rects, _PAD, gutter_w - _MAP_GAP,
             self._panel.current_action, self._panel.action_labels,
         )
 
@@ -637,13 +687,12 @@ class HudOverlay(QWidget):
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
         point = event.position().toPoint()
         hover = hit_test_targets(self._loop_targets, point.x(), point.y())
-        if hover != self._hover_loop:
+        tip = hud_button_tooltip(self._loop_targets, self._expand_rect, point.x(), point.y())
+        if hover != self._hover_loop or tip != self._hover_tip:
             self._hover_loop = hover
+            self._hover_tip = tip
+            self._hover_pos = (point.x(), point.y())
             self.update()
-        # Keep the widget's own tooltip string in step with the button under the
-        # cursor and let Qt display it natively — reliable timing and placement,
-        # no per-move showText (which flickered and mispositioned).
-        self.setToolTip(hud_button_tooltip(self._loop_targets, self._expand_rect, point.x(), point.y()))
 
     def _fire_pending_click(self) -> None:
         if self._pending_click_path:
