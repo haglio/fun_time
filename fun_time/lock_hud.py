@@ -307,17 +307,20 @@ def prime_group_indexes(config: HudAppConfig) -> None:
 def prewarm_thumbnails(
     config: HudAppConfig,
     thumbnailer: Callable[[str, str | Path], object] = thumbnail_for,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    pause_s: float = 0.05,
 ) -> None:
-    """Extract and cache every library clip's thumbnail up front, so the map
-    paints from cache the instant a clip changes instead of blocking seconds on a
-    first-use frame grab (the ~3 s lag on a 5 s clip).  Idempotent — an already
-    cached thumbnail is skipped — so it is cheap to re-run.  Heavy I/O: run it off
-    the UI thread; ordering does not matter since it fills the shared disk cache."""
+    """Extract and cache every library clip's thumbnail in the background, so the
+    map paints from cache instead of blocking on a first-use frame grab.
+    Idempotent — an already cached thumbnail is skipped.  Sleeps briefly between
+    clips so decoding a big HEVC library never starves the HUD's own paint (that
+    starvation was showing up as multi-second blinks); run it off the UI thread."""
     for sources in (config.portrait_sources, config.landscape_sources):
         if not sources:
             continue
         for path in collect_video_files(sources):
             thumbnailer(path, config.thumbnail_cache_dir)
+            sleep_fn(pause_s)
 
 
 def signal_hud_ready(ready_file: str | Path) -> None:

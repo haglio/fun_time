@@ -337,7 +337,9 @@ def test_prewarm_thumbnails_covers_every_clip_in_both_libraries(tmp_path: Path):
     )
     warmed: list[tuple[str, object]] = []
 
-    prewarm_thumbnails(config, thumbnailer=lambda path, cache: warmed.append((path, cache)))
+    prewarm_thumbnails(
+        config, thumbnailer=lambda path, cache: warmed.append((path, cache)), sleep_fn=lambda _s: None,
+    )
 
     assert sorted(Path(p).name for p, _cache in warmed) == ["a.mp4", "b.mp4", "c.mp4"]
     assert all(cache == config.thumbnail_cache_dir for _p, cache in warmed)
