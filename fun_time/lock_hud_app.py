@@ -17,7 +17,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer, QRect
+from PyQt6.QtCore import Qt, QEvent, QTimer, QRect
 from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QApplication, QToolTip, QWidget
 
@@ -41,14 +41,17 @@ from fun_time.lock_hud import (
 )
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.startup_progress import loading_screen_active
-from fun_time.thumbnail_cache import thumbnail_for
+from fun_time.thumbnail_cache import cached_thumbnail, thumbnail_for
 from fun_time.vlc_actions import get_current_file_path
 from fun_time.win32 import set_always_on_top
 from fun_time.window_layout import compute_window_layout
 from fun_time.windows_bridge_dispatch_loop import read_shared_state
 
-OVERLAY_WIDTH = 320
-OVERLAY_HEIGHT = 300
+# Each overlay is shaped like its satellite's thumbnails so more of the map fits:
+# the landscape HUD is wide (wide clips → wide seed columns, plus room for the
+# seed-loop and expand buttons past them), the portrait HUD is tall (tall clips →
+# tall rows, plus room for the action column to grow down).
+OVERLAY_SIZE = {"portrait": (300, 430), "landscape": (500, 300)}
 # The satellites play ~5 s clips, so the map has to track the current clip
 # almost the instant it changes.  Polling this fast is cheap: get_current_file_path
 # reuses a keep-alive socket per port, and _apply reloads thumbnails / repaints
@@ -216,18 +219,25 @@ def _playing_cell(
     return ("corner", 0)
 
 
+def _placeholder_pixmap(side: str) -> QPixmap:
+    """A neutral stand-in for a thumbnail still being generated, shaped like the
+    side's clips (portrait tall, landscape wide) so the map lays out correctly."""
+    pixmap = QPixmap(30 if side == "portrait" else 96, _MAP_THUMB_H)
+    pixmap.fill(QColor(48, 48, 60))
+    return pixmap
+
+
 # Action words that read wrong in plain title case — kept upper.
 _ACTION_ACRONYMS = {"pov": "POV"}
 
 
 def _friendly_action_label(name: str) -> str:
-    """A row's action drawn nicely: title-cased with known acronyms upper
-    ("pov gamma" → "POV Gamma"), or "(unknown)" when the clip has no action
-    metadata, so the row is never a blank, invisible gutter.
+    """A row's action drawn nicely, newline-delimited into the lines it should
+    wrap to: title-cased with known acronyms upper, or "(unknown)" when the clip
+    has no action metadata so the row is never a blank, invisible gutter.
 
-    A single word too long for the gutter is split across two lines
-    ("delta" → "Doggy\\nstyle"); multi-word names wrap at their spaces.
-    """
+    Each word goes on its own line ("pov gamma" → "POV\\nGamma"); a lone word
+    too long for the gutter is split in half ("delta" → "Doggy\\nstyle")."""
     if not name.strip():
         return "(unknown)"
     words = [
@@ -238,7 +248,7 @@ def _friendly_action_label(name: str) -> str:
         word = words[0]
         mid = (len(word) + 1) // 2
         return f"{word[:mid]}\n{word[mid:]}"
-    return " ".join(words)
+    return "\n".join(words)
 
 
 def paint_hud(
@@ -287,7 +297,12 @@ def paint_hud(
         y = _draw_status_line(painter, x, y, f"FILTER · {panel.filter_query}", TEXT_PRIMARY)
 
     if current_thumb is None:
-        return None, [], []
+        if not panel.current:
+            return None, [], []
+        # The clip's thumbnail hasn't been cached yet — draw the map now with a
+        # placeholder in the corner so it appears instantly, and let the real
+        # frame fill in on a later refresh rather than blocking on it.
+        current_thumb = _placeholder_pixmap(panel.side)
 
     right = rect.right() - _PAD
     bottom = rect.bottom() - _PAD
@@ -306,14 +321,18 @@ def paint_hud(
         )
 
     def _row_label(row_y: int, height: int, text: str) -> None:
-        # Long / two-word actions ("POV Gamma") wrap within the gutter rather
-        # than clipping on the left; a missing action shows "(unknown)".
+        # Draw each wrapped line by hand at a tightened line height, so two-line
+        # actions ("POV" / "Gamma") sit close together, vertically centred in
+        # the row, instead of clipping or spreading out on the default leading.
         painter.setPen(TEXT_MUTED)
-        painter.drawText(
-            QRect(x, row_y, _ROW_LABEL_W - _MAP_GAP, height),
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextWordWrap,
-            _friendly_action_label(text),
-        )
+        lines = _friendly_action_label(text).split("\n")
+        line_h = painter.fontMetrics().height() - 2
+        top = row_y + (height - line_h * len(lines)) // 2
+        for i, line in enumerate(lines):
+            painter.drawText(
+                QRect(x, top + i * line_h, _ROW_LABEL_W - _MAP_GAP, line_h),
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, line,
+            )
 
     corner = _scaled(current_thumb, _MAP_THUMB_H)
     seeds_scaled = [_scaled(pixmap, _MAP_THUMB_H) for pixmap in seed_thumbs]
@@ -562,9 +581,9 @@ class HudOverlay(QWidget):
                     painter.drawRoundedRect(ex, ey, ew, eh, 3, 3)
                     painter.setFont(make_font(FONT_UI, SIZE_BODY, bold=True))
                     painter.setPen(TEXT_MUTED)
-                    # "»" reads as "widen / more to the right" — the row growing —
-                    # and stays legible at this size where the old ⤢ glyph did not.
-                    painter.drawText(QRect(ex, ey, ew, eh), Qt.AlignmentFlag.AlignCenter, "»")
+                    # "↔" reads as expanding — the seed row widening — and is
+                    # legible at this size where the old tiny ⤢ glyph was not.
+                    painter.drawText(QRect(ex, ey, ew, eh), Qt.AlignmentFlag.AlignCenter, "↔")
         finally:
             painter.end()
         self._click_targets = build_click_targets(
@@ -623,11 +642,20 @@ class HudOverlay(QWidget):
         if hover != self._hover_loop:
             self._hover_loop = hover
             self.update()
-        tip = hud_button_tooltip(self._loop_targets, self._expand_rect, point.x(), point.y())
-        if tip:
-            QToolTip.showText(self.mapToGlobal(point), tip, self)
-        else:
-            QToolTip.hideText()
+
+    def event(self, event) -> bool:  # noqa: N802
+        """Show button tooltips via Qt's own ToolTip event rather than pushing
+        them on every mouse move — Qt then owns the show/hide timing and placement,
+        which stops the flicker and the tooltip appearing in the wrong spot."""
+        if event.type() == QEvent.Type.ToolTip:
+            point = event.pos()
+            tip = hud_button_tooltip(self._loop_targets, self._expand_rect, point.x(), point.y())
+            if tip:
+                QToolTip.showText(event.globalPos(), tip, self)
+            else:
+                QToolTip.hideText()
+            return True
+        return super().event(event)
 
     def _fire_pending_click(self) -> None:
         if self._pending_click_path:
@@ -667,6 +695,9 @@ class LockHud:
         # The last panel drawn per side, so a fast refresh skips reloading
         # thumbnails and repainting when nothing about the map has changed.
         self._last_panels: dict[str, HudPanel | None] = {"portrait": None, "landscape": None}
+        # Whether a side still has thumbnails the prewarm hasn't produced yet, so
+        # the next refresh reloads and lets them fill in without a clip change.
+        self._thumbs_pending: dict[str, bool] = {"portrait": False, "landscape": False}
 
         monitors = enumerate_monitors()
         main_rect, secondary_rect = get_logical_monitor_rects(
@@ -678,7 +709,8 @@ class LockHud:
             main_monitor=main_rect, secondary_monitor=secondary_rect, layout_config=config.layout
         )
         for side, vlc_rect in (("portrait", plan.portrait), ("landscape", plan.landscape)):
-            rect = overlay_rect(vlc_rect, width=OVERLAY_WIDTH, height=OVERLAY_HEIGHT)
+            width, height = OVERLAY_SIZE[side]
+            rect = overlay_rect(vlc_rect, width=width, height=height)
             self._overlays[side].setGeometry(rect.x, rect.y, rect.width, rect.height)
 
         self._timer = QTimer()
@@ -718,17 +750,27 @@ class LockHud:
         # panel captures everything drawn, so an equal one would render
         # identically.  Topmost is re-staked every tick regardless — that is
         # what keeps the overlay above a re-promoted VLC.
-        if panel != self._last_panels[side]:
+        if panel != self._last_panels[side] or self._thumbs_pending[side]:
             cache_dir = self._config.thumbnail_cache_dir
-            current_thumb = _load_pixmap(thumbnail_for(panel.current, cache_dir)) if panel.current else None
-            seed = _load_pixmaps(panel_thumbnails(panel.seed_siblings, cache_dir, limit=SEED_LIMIT))
-            action = _load_pixmaps(panel_thumbnails(panel.action_siblings, cache_dir, limit=ACTION_LIMIT))
+            # Cached-only: the refresh never generates a thumbnail (a cv2 frame
+            # grab can take seconds on HEVC), so the map flips immediately.  Any
+            # not-yet-cached thumb is simply absent this pass and fills in on a
+            # later refresh once the background prewarm has produced it.
+            current_thumb = _load_pixmap(cached_thumbnail(panel.current, cache_dir)) if panel.current else None
+            seed = _load_pixmaps(panel_thumbnails(
+                panel.seed_siblings, cache_dir, limit=SEED_LIMIT, thumbnailer=cached_thumbnail))
+            action = _load_pixmaps(panel_thumbnails(
+                panel.action_siblings, cache_dir, limit=ACTION_LIMIT, thumbnailer=cached_thumbnail))
             overlay.set_content(
                 panel, current_thumb,
                 [pixmap for _path, pixmap in seed], [pixmap for _path, pixmap in action],
                 [path for path, _pixmap in seed], [path for path, _pixmap in action],
             )
             self._last_panels[side] = panel
+            want = (1 if panel.current else 0) + min(len(panel.seed_siblings), SEED_LIMIT) \
+                + min(len(panel.action_siblings), ACTION_LIMIT)
+            have = (1 if current_thumb else 0) + len(seed) + len(action)
+            self._thumbs_pending[side] = have < want
         if not overlay.isVisible():
             overlay.show()
         overlay.restake_topmost()

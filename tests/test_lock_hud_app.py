@@ -21,8 +21,6 @@ from fun_time.lock_hud_app import (
     _ROW_LABEL_W,
     HudOverlay,
     LockHud,
-    OVERLAY_HEIGHT,
-    OVERLAY_WIDTH,
     _friendly_action_label,
     _playing_cell,
     build_click_targets,
@@ -34,6 +32,11 @@ from fun_time.lock_hud_app import (
     paint_hud,
 )
 from fun_time.window_layout import WindowRect
+
+
+# Canvas the pixel tests render a panel onto — independent of the live overlay
+# sizes (OVERLAY_SIZE), which vary per side.
+_CANVAS_W, _CANVAS_H = 320, 300
 
 
 @pytest.fixture(scope="module")
@@ -58,7 +61,7 @@ def _panel(**overrides) -> HudPanel:
 
 
 def _render(panel: HudPanel, current_thumb, seed_thumbs, action_thumbs) -> QImage:
-    image = QImage(OVERLAY_WIDTH, OVERLAY_HEIGHT, QImage.Format.Format_ARGB32)
+    image = QImage(_CANVAS_W, _CANVAS_H, QImage.Format.Format_ARGB32)
     image.fill(Qt.GlobalColor.transparent)
     painter = QPainter(image)
     try:
@@ -89,7 +92,7 @@ def test_paint_hud_fills_the_panel_and_draws_the_map(qt_app):
         action_thumbs=[_solid_pixmap(QColor(40, 40, 220))],
     )
 
-    total = (OVERLAY_WIDTH // 2) * (OVERLAY_HEIGHT // 2)
+    total = (_CANVAS_W // 2) * (_CANVAS_H // 2)
     assert _samples(image, lambda c: c.alpha() > 0) > total * 0.5
 
 
@@ -313,10 +316,11 @@ def test_hovering_a_loop_button_marks_the_preview_axis(qt_app):
 
 
 def test_friendly_action_label_titlecases_and_keeps_acronyms_upper():
-    assert _friendly_action_label("pov gamma") == "POV Gamma"
-    assert _friendly_action_label("POV Gamma") == "POV Gamma"
     assert _friendly_action_label("epsilon") == "Epsilon"
     assert _friendly_action_label("cowsubject") == "Cowsubject"
+    # Each word wraps to its own line, with acronyms kept upper.
+    assert _friendly_action_label("pov gamma") == "POV\nGamma"
+    assert _friendly_action_label("reverse cowsubject") == "Reverse\nCowsubject"
 
 
 def test_friendly_action_label_splits_a_long_single_word_over_two_lines():
@@ -398,14 +402,14 @@ def test_paint_hud_labels_seed_columns_and_action_rows(qt_app):
                     current_action="Alpha", action_labels=("Delta",))
 
     def gutter(image: QImage) -> int:
-        return _label_ink_in_rect(image, _PAD, map_top, _PAD + _ROW_LABEL_W, OVERLAY_HEIGHT)
+        return _label_ink_in_rect(image, _PAD, map_top, _PAD + _ROW_LABEL_W, _CANVAS_H)
 
     # Naming the rows fills the gutter with action ink; with no map drawn (no
     # current thumbnail) there is no gutter at all.
     assert gutter(_render(named, thumb, [], [thumb])) > gutter(_render(no_map, None, [], []))
 
     def header(image: QImage) -> int:
-        return _label_ink_in_rect(image, _PAD + _ROW_LABEL_W, map_top, OVERLAY_WIDTH - _PAD, map_top + _COL_LABEL_H)
+        return _label_ink_in_rect(image, _PAD + _ROW_LABEL_W, map_top, _CANVAS_W - _PAD, map_top + _COL_LABEL_H)
 
     two_cols = _render(_panel(current="c.mp4", seed_siblings=["s1"], action_siblings=[]), thumb, [thumb], [])
     one_col = _render(_panel(current="c.mp4", seed_siblings=[], action_siblings=[]), thumb, [], [])
@@ -421,7 +425,7 @@ def test_paint_hud_draws_unknown_for_a_row_missing_its_action(qt_app):
                      current_action="", action_labels=("",))
 
     ink = _label_ink_in_rect(_render(unnamed, thumb, [], [thumb]), _PAD, map_top,
-                             _PAD + _ROW_LABEL_W, OVERLAY_HEIGHT)
+                             _PAD + _ROW_LABEL_W, _CANVAS_H)
     assert ink > 0
 
 
@@ -489,20 +493,46 @@ def test_apply_reloads_thumbnails_only_when_the_panel_changes(qt_app, tmp_path):
     still re-stakes topmost every tick (that is what keeps it over the VLC)."""
     hud = _build_lock_hud(tmp_path)
     overlay = hud._overlays["portrait"]
-    panel_a = _panel(current="C:/vids/a.mp4")
-    panel_b = _panel(current="C:/vids/b.mp4")
+    panel_a = _panel(current="C:/vids/a.mp4", seed_siblings=[], action_siblings=[])
+    panel_b = _panel(current="C:/vids/b.mp4", seed_siblings=[], action_siblings=[])
 
+    loaded = _solid_pixmap(QColor(1, 1, 1))
     try:
-        with patch("fun_time.lock_hud_app.thumbnail_for", return_value=None), \
+        # Corner thumbnail resolves (cached), so the panel is fully loaded and an
+        # unchanged tick is not pending — the skip can happen.
+        with patch("fun_time.lock_hud_app.cached_thumbnail", return_value=tmp_path / "x.jpg"), \
+             patch("fun_time.lock_hud_app._load_pixmap", return_value=loaded), \
              patch("fun_time.lock_hud_app.panel_thumbnails", return_value=[]), \
              patch.object(overlay, "restake_topmost") as mock_topmost, \
              patch.object(overlay, "set_content") as mock_set_content:
             hud._apply("portrait", panel_a)   # first → build
-            hud._apply("portrait", panel_a)   # same → skip
+            hud._apply("portrait", panel_a)   # same, fully loaded → skip
             hud._apply("portrait", panel_b)   # changed → build
 
         assert mock_set_content.call_count == 2, "rebuilt for A and B, skipped the repeat"
         assert mock_topmost.call_count == 3, "topmost is re-staked every tick regardless"
+    finally:
+        for ov in hud._overlays.values():
+            ov.close()
+
+
+def test_apply_reloads_an_unchanged_panel_until_its_thumbnails_cache(qt_app, tmp_path):
+    """A not-yet-cached thumbnail must not freeze the map on a placeholder: while
+    a side is still missing thumbnails the HUD reloads each tick (even with the
+    same panel) so they fill in without waiting for the clip to change."""
+    hud = _build_lock_hud(tmp_path)
+    overlay = hud._overlays["portrait"]
+    panel = _panel(current="C:/vids/a.mp4")
+
+    try:
+        with patch("fun_time.lock_hud_app.cached_thumbnail", return_value=None), \
+             patch("fun_time.lock_hud_app.panel_thumbnails", return_value=[]), \
+             patch.object(overlay, "restake_topmost"), \
+             patch.object(overlay, "set_content") as mock_set_content:
+            hud._apply("portrait", panel)   # corner thumb missing → pending
+            hud._apply("portrait", panel)   # same panel, still pending → reload
+
+        assert mock_set_content.call_count == 2
     finally:
         for ov in hud._overlays.values():
             ov.close()
