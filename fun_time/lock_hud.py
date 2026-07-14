@@ -20,6 +20,7 @@ from fun_time.media_metadata import (
     cached_group_index,
     normalize_path_key,
     seed_family_members,
+    widened_seed_members,
 )
 from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
@@ -219,12 +220,14 @@ def build_hud_panel(
     lock_type: str | None = None,
     filter_query: str = "",
     loop_axis: str = "",
+    widen: bool = False,
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
     Seeds come from the same helper the loop commands use, so the row is exactly
     what looping the seed axis would cycle through; the action column collapses
-    to one clip per distinct other act.
+    to one clip per distinct other act.  When *widen* is set ("more seeds"), the
+    seed row grows to the wider same-act pool instead of just the exact family.
 
     When *loop_axis* names a running loop, the map anchors on the looped group's
     fixed representative instead of the live clip, so it does not re-orient as the
@@ -241,7 +244,8 @@ def build_hud_panel(
             # member is playing — so the map holds still while the loop advances.
             anchor = min(group, key=normalize_path_key)
             active_loop = loop_axis
-    seed = _others(seed_family_members(index, anchor), anchor) if have_siblings else []
+    seed_pool = widened_seed_members if widen else seed_family_members
+    seed = _others(seed_pool(index, anchor), anchor) if have_siblings else []
     action = _distinct_action_siblings(index, anchor) if have_siblings else []
     current_action = ""
     action_labels: tuple[str, ...] = ()
@@ -270,7 +274,7 @@ def build_hud_panel(
 
 def _side_panel(
     config: HudAppConfig, side: str, sources: str, current: str, locked: bool,
-    filter_query: str, loop_axis: str,
+    filter_query: str, loop_axis: str, widen: bool,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if current:
@@ -285,7 +289,7 @@ def _side_panel(
         )
     return build_hud_panel(
         side, locked=locked, current=current, index=index,
-        filter_query=filter_query, loop_axis=loop_axis,
+        filter_query=filter_query, loop_axis=loop_axis, widen=widen,
     )
 
 
@@ -364,20 +368,29 @@ def build_panels(
     landscape_filter: str = "",
     portrait_loop: str = "",
     landscape_loop: str = "",
+    portrait_widen_clip: str = "",
+    landscape_widen_clip: str = "",
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
     The group index is built (and cached) per side exactly as ``_cycle_variant``
-    does, so the siblings shown match what cycling would actually reach.
+    does, so the siblings shown match what cycling would actually reach.  A side's
+    seed row is widened only while its widen-clip still matches the clip on
+    screen, so the widen auto-resets on navigation.
     """
+    def widened(clip: str, current: str) -> bool:
+        return bool(clip) and normalize_path_key(clip) == normalize_path_key(current)
+
     return (
         _side_panel(
             config, "portrait", config.portrait_sources,
             portrait_current, portrait_locked, portrait_filter, portrait_loop,
+            widened(portrait_widen_clip, portrait_current),
         ),
         _side_panel(
             config, "landscape", config.landscape_sources,
             landscape_current, landscape_locked, landscape_filter, landscape_loop,
+            widened(landscape_widen_clip, landscape_current),
         ),
     )
 

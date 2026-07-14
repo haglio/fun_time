@@ -172,6 +172,8 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         "landscape_filter": state.landscape_filter,
         "portrait_loop": state.portrait_loop,
         "landscape_loop": state.landscape_loop,
+        "portrait_widen_clip": state.portrait_widen_clip,
+        "landscape_widen_clip": state.landscape_widen_clip,
         "volume": str(state.volume),
         "muted": "1" if state.muted else "0",
     }
@@ -220,6 +222,8 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         landscape_filter=s.get("landscape_filter", ""),
         portrait_loop=s.get("portrait_loop", ""),
         landscape_loop=s.get("landscape_loop", ""),
+        portrait_widen_clip=s.get("portrait_widen_clip", ""),
+        landscape_widen_clip=s.get("landscape_widen_clip", ""),
         volume=_int_or(s, "volume", MAX_VOLUME),
         muted=s.get("muted", "0") == "1",
     )

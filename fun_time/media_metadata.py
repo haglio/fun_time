@@ -255,6 +255,23 @@ def seed_family_members(index: GroupIndex, path: str) -> list[str]:
     ]
 
 
+def widened_seed_members(index: GroupIndex, path: str) -> list[str]:
+    """The widened seed row for *path* — "more seeds": its exact seed family, plus
+    every other clip of the same act whatever its config ("another subject doing the
+    same act").  Used when the HUD's net has been widened, so the row shows more
+    than just the identical parameter set."""
+    action = index.action_by_path.get(normalize_path_key(path), "")
+    members = list(seed_family_members(index, path))
+    seen = {normalize_path_key(member) for member in members}
+    for group in index.action_members.values():
+        for member in group:
+            key = normalize_path_key(member)
+            if key not in seen and index.action_by_path.get(key, "") == action:
+                seen.add(key)
+                members.append(member)
+    return members
+
+
 def action_label(index: GroupIndex, path: str) -> str:
     """*path*'s action, numbered when its group holds several of that action.
 
