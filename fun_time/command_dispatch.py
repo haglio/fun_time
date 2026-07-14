@@ -602,7 +602,15 @@ def _dispatch_group_loop(
     if not current:
         return state, ops
     index = _satellite_group_index(which, config, current)
-    gather = action_group_members if axis == "action" else seed_family_members
+    # Loop what the HUD is showing: if the seed row has been widened around this
+    # very clip ("more seeds"), loop that wider pool, not just the exact family.
+    widen_clip = state.portrait_widen_clip if which == 2 else state.landscape_widen_clip
+    seed_gather = (
+        widened_seed_members
+        if axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
+        else seed_family_members
+    )
+    gather = action_group_members if axis == "action" else seed_gather
     members = [member for member in gather(index, current) if Path(member).exists()]
     if len(members) < 2:
         # Only this clip is in the group, so "looping" it is a single-video lock:
