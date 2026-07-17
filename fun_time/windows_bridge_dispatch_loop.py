@@ -1037,8 +1037,8 @@ def build_bridge_config_from_manifest(
         broker_cmd_file=Path(manifest["commands"]["broker_cmd_file"]),
         broker_heartbeat_file=Path(manifest["commands"]["broker_heartbeat_file"]),
         broker_tray_launcher=Path(v) if (v := manifest["commands"].get("broker_tray_launcher", "").strip()) else None,
-        provider_media_root=Path(v) if (v := manifest.get("provider_regen", "media_root", fallback="").strip()) else None,
-        provider_metadata_root=Path(v) if (v := manifest.get("provider_regen", "metadata_root", fallback="").strip()) else None,
-        provider_generate_video_url=manifest.get("provider_regen", "generate_video_url", fallback="https://example.com/video"),
-        provider_generate_image_url=manifest.get("provider_regen", "generate_image_url", fallback="https://example.com/create"),
+        regen_media_root=Path(v) if (v := manifest.get("regen", "media_root", fallback="").strip()) else None,
+        regen_metadata_root=Path(v) if (v := manifest.get("regen", "metadata_root", fallback="").strip()) else None,
+        regen_generate_video_url=manifest.get("regen", "generate_video_url", fallback="https://example.com/video"),
+        regen_generate_image_url=manifest.get("regen", "generate_image_url", fallback="https://example.com/create"),
     )

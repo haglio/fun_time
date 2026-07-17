@@ -77,11 +77,11 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "shortcut_path": str(config.random_favs_browser.shortcut_path),
             "manifest_file": str(config.random_favs_browser_manifest_file),
         },
-        "provider_regen": {
-            "generate_video_url": config.provider_regen.generate_video_url,
-            "generate_image_url": config.provider_regen.generate_image_url,
-            "media_root": str(config.provider_regen.media_root or ""),
-            "metadata_root": str(config.provider_regen.metadata_root or ""),
+        "regen": {
+            "generate_video_url": config.regen.generate_video_url,
+            "generate_image_url": config.regen.generate_image_url,
+            "media_root": str(config.regen.media_root or ""),
+            "metadata_root": str(config.regen.metadata_root or ""),
         },
     }
 

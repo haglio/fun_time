@@ -213,8 +213,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
             landscape_port=8092,
             password="pw",
             result_file=result_file,
-            provider_media_root=tmp_path / "media",
-            provider_metadata_root=tmp_path / "metadata",
+            regen_media_root=tmp_path / "media",
+            regen_metadata_root=tmp_path / "metadata",
         )
 
     # Startup leaves a live broker alone, only (re)starting a dead one.

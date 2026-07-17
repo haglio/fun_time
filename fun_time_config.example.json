@@ -62,7 +62,7 @@
     "model_path": "vosk-model-small-en-us-0.15",
     "device_index": 1
   },
-  "provider_regen": {
+  "regen": {
     "generate_video_url": "https://example.com/video",
     "generate_image_url": "https://example.com/create",
     "media_root": "C:/path/to/library/generated",

@@ -63,7 +63,7 @@ def _fake_ui(**kwargs):
 class TestRunStartupSequence:
     def test_calls_start_core_session_and_launch_ui_companions(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory({
-            "provider_regen": {
+            "regen": {
                 "media_root": str(tmp_path / "media"),
                 "metadata_root": str(tmp_path / "metadata"),
             }
@@ -115,8 +115,8 @@ class TestRunStartupSequence:
         assert core_called["state_dir"] == tmp_path
         assert core_called["nau_paused_file"] == str(cfg.nau_paused_file)
         # Provider roots flow through so the startup build can collapse action groups.
-        assert core_called["provider_media_root"] == tmp_path / "media"
-        assert core_called["provider_metadata_root"] == tmp_path / "metadata"
+        assert core_called["regen_media_root"] == tmp_path / "media"
+        assert core_called["regen_metadata_root"] == tmp_path / "metadata"
         # The broker heartbeat path flows through so startup can leave a live
         # broker running instead of killing and relaunching it.
         assert core_called["broker_heartbeat_file"] == str(cfg.paths.state_dir / "broker_heartbeat.txt")
@@ -186,7 +186,7 @@ class TestRunStartupSequence:
             "nau_y": PRIMARY_MEDIA_RECT["y"],
             "nau_width": PRIMARY_MEDIA_RECT["width"],
             "nau_height": PRIMARY_MEDIA_RECT["height"],
-            # This manifest has no provider_regen.metadata_root, so Nau is left to
+            # This manifest has no regen.metadata_root, so Nau is left to
             # group by name; launch_nau's --metadata-dir wiring is covered in
             # test_windows_bridge_startup.
             "metadata_dir": None,

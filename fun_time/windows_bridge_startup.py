@@ -143,8 +143,8 @@ def start_core_session(
     password: str,
     result_file: str | Path,
     hide_windows: bool = False,
-    provider_media_root: Path | None = None,
-    provider_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
+    regen_metadata_root: Path | None = None,
 ) -> None:
     ensure_broker(project_dir, broker_heartbeat_file, broker_tray_launcher)
     seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
@@ -159,7 +159,7 @@ def start_core_session(
         state_dir=Path(state_dir),
         enabled=False,
         library=SatelliteLibraryContext(
-            metadata_root=provider_metadata_root,
+            metadata_root=regen_metadata_root,
             watch_stats_file=watch_stats_path(state_dir),
         ),
     )

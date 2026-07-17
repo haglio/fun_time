@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
 
-from .config import ProviderRegenConfig, ProjectConfig
+from .config import RegenConfig, ProjectConfig
 from .media_renditions import original_rendition
-from .provider_regen import regen_url_for_video
+from .regen import regen_url_for_video
 from .rfb_tab_page import TabTarget
 
 _T = TypeVar("_T")
@@ -99,7 +99,7 @@ def load_favs_entries(favs_file: Path) -> list[FavEntry]:
     return entries
 
 
-def target_for_fav(entry: FavEntry, regen: ProviderRegenConfig) -> TabTarget:
+def target_for_fav(entry: FavEntry, regen: RegenConfig) -> TabTarget:
     """Resolve the page a favourite should open, and the clip it shows meanwhile.
 
     A Provider video with a metadata sidecar targets the generate page carrying its
@@ -149,7 +149,7 @@ def build_manifest(config: ProjectConfig) -> tuple[str, list[TabTarget]]:
     targets = [
         target
         for target in (
-            target_for_fav(entry, config.provider_regen)
+            target_for_fav(entry, config.regen)
             for entry in load_favs_entries(config.paths.favs_file)
         )
         if target.url

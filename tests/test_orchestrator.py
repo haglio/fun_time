@@ -209,23 +209,23 @@ class TestControllerManifest:
         assert result["random_favs_browser"]["shortcut_path"] == str(cfg.random_favs_browser.shortcut_path)
         assert result["random_favs_browser"]["manifest_file"] == str(cfg.random_favs_browser_manifest_file)
 
-    def test_provider_regen_section_included(self, cfg_factory, tmp_path: Path):
-        path = cfg_factory({"provider_regen": {
+    def test_regen_section_included(self, cfg_factory, tmp_path: Path):
+        path = cfg_factory({"regen": {
             "media_root": str(tmp_path / "media"),
             "metadata_root": str(tmp_path / "meta"),
         }})
         cfg = load_config(path)
         result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["provider_regen"]["generate_video_url"] == "https://example.com/video"
-        assert result["provider_regen"]["generate_image_url"] == "https://example.com/create"
-        assert result["provider_regen"]["media_root"] == str(tmp_path / "media")
-        assert result["provider_regen"]["metadata_root"] == str(tmp_path / "meta")
+        assert result["regen"]["generate_video_url"] == "https://example.com/video"
+        assert result["regen"]["generate_image_url"] == "https://example.com/create"
+        assert result["regen"]["media_root"] == str(tmp_path / "media")
+        assert result["regen"]["metadata_root"] == str(tmp_path / "meta")
 
-    def test_provider_regen_roots_blank_when_unset(self, cfg_path: Path):
+    def test_regen_roots_blank_when_unset(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["provider_regen"]["media_root"] == ""
-        assert result["provider_regen"]["metadata_root"] == ""
+        assert result["regen"]["media_root"] == ""
+        assert result["regen"]["metadata_root"] == ""
 
     def test_write_windows_bridge_manifest_writes_expected_ini(self, cfg_factory, tmp_path: Path):
         cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))

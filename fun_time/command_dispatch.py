@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, write_volume
-from .config import ProviderRegenConfig
+from .config import RegenConfig
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .media_metadata import (
     GroupIndex,
@@ -140,19 +140,19 @@ class BridgeConfig:
     broker_cmd_file: Path | None = None
     broker_heartbeat_file: Path | None = None
     broker_tray_launcher: Path | None = None
-    provider_media_root: Path | None = None
-    provider_metadata_root: Path | None = None
-    provider_generate_video_url: str = "https://example.com/video"
-    provider_generate_image_url: str = "https://example.com/create"
+    regen_media_root: Path | None = None
+    regen_metadata_root: Path | None = None
+    regen_generate_video_url: str = "https://example.com/video"
+    regen_generate_image_url: str = "https://example.com/create"
 
     @property
-    def provider_regen(self) -> ProviderRegenConfig:
+    def regen(self) -> RegenConfig:
         """The four Provider settings, in the shape the regenerate code expects."""
-        return ProviderRegenConfig(
-            generate_video_url=self.provider_generate_video_url,
-            generate_image_url=self.provider_generate_image_url,
-            media_root=self.provider_media_root,
-            metadata_root=self.provider_metadata_root,
+        return RegenConfig(
+            generate_video_url=self.regen_generate_video_url,
+            generate_image_url=self.regen_generate_image_url,
+            media_root=self.regen_media_root,
+            metadata_root=self.regen_metadata_root,
         )
 
 
@@ -368,7 +368,7 @@ def _toggle_lock(
         # Ctrl+R landing page, so a lock never drops a heavy generate page on you.
         target = target_for_fav(
             FavEntry(local_path=current_path, web_url=make_web_url_from_path(current_path)),
-            config.provider_regen,
+            config.regen,
         )
         if target.url:
             uri = write_lock_tab_page(tabs_dir(config.state_dir), target)
@@ -503,7 +503,7 @@ def _next_seed_sibling(
 
 
 def _video_action_label(video_path: str, config: BridgeConfig) -> str:
-    meta_path = metadata_path_for(video_path, config.provider_metadata_root)
+    meta_path = metadata_path_for(video_path, config.regen_metadata_root)
     if meta_path is None or not meta_path.is_file():
         return ""
     video = load_metadata(meta_path).get("video") or {}
@@ -516,7 +516,7 @@ def _satellite_group_index(which: int, config: BridgeConfig, current: str) -> Gr
     return cached_group_index(
         sources,
         paths_supplier=lambda: collect_video_files(sources),
-        metadata_root=config.provider_metadata_root,
+        metadata_root=config.regen_metadata_root,
         must_contain=current,
     )
 
@@ -1144,8 +1144,8 @@ def _dispatch_fmode_toggle(
         landscape_port=config.landscape_port,
         password=config.vlc_password,
         nau_cmd_file=config.nau_cmd_file,
-        provider_media_root=config.provider_media_root,
-        provider_metadata_root=config.provider_metadata_root,
+        regen_media_root=config.regen_media_root,
+        regen_metadata_root=config.regen_metadata_root,
         portrait_filter=state.portrait_filter,
         landscape_filter=state.landscape_filter,
     )
@@ -1179,8 +1179,8 @@ def _dispatch_reorder_satellites(
         password=config.vlc_password,
         portrait_filter=state.portrait_filter,
         landscape_filter=state.landscape_filter,
-        provider_media_root=config.provider_media_root,
-        provider_metadata_root=config.provider_metadata_root,
+        regen_media_root=config.regen_media_root,
+        regen_metadata_root=config.regen_metadata_root,
     )
     if result.log_message:
         logger.info(result.log_message)
@@ -1255,8 +1255,8 @@ def _dispatch_set_filter(
             state_dir=config.state_dir,
             port=port,
             password=config.vlc_password,
-            provider_media_root=config.provider_media_root,
-            provider_metadata_root=config.provider_metadata_root,
+            regen_media_root=config.regen_media_root,
+            regen_metadata_root=config.regen_metadata_root,
         )
         # Only remember a filter that actually selected videos: a zero-match
         # filter left the current playlist alone, so recording it would let the

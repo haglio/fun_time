@@ -208,7 +208,7 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     assert '"https://example.com/image/def"' in _tab_page(rfb_ops[0].key)
 
 
-def test_landscape_lock_emits_provider_regen_url_when_metadata_present(tmp_path: Path):
+def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
     """A locked Provider video with a metadata sidecar opens the generate page
     (prompts in the #ft fragment), not the dead /image/{id} gallery link."""
     media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
@@ -222,8 +222,8 @@ def test_landscape_lock_emits_provider_regen_url_when_metadata_present(tmp_path:
     video.write_text("x", encoding="utf-8")
 
     config = _make_config(tmp_path)
-    config.provider_media_root = media_root
-    config.provider_metadata_root = metadata_root
+    config.regen_media_root = media_root
+    config.regen_metadata_root = metadata_root
     state = _make_state(locked3=False)
 
     with (
@@ -770,8 +770,8 @@ def test_fmode_toggle_passes_current_recency_order(tmp_path: Path):
 def test_fmode_toggle_passes_provider_roots_for_group_collapse(tmp_path: Path):
     config = replace(
         _make_config(tmp_path),
-        provider_media_root=tmp_path / "media",
-        provider_metadata_root=tmp_path / "metadata",
+        regen_media_root=tmp_path / "media",
+        regen_metadata_root=tmp_path / "metadata",
     )
     state = _make_state(f_mode_enabled=False)
 
@@ -786,8 +786,8 @@ def test_fmode_toggle_passes_provider_roots_for_group_collapse(tmp_path: Path):
         dispatch_command("fmode_toggle", state, config)
 
     kwargs = mock_fmode.call_args.kwargs
-    assert kwargs["provider_media_root"] == tmp_path / "media"
-    assert kwargs["provider_metadata_root"] == tmp_path / "metadata"
+    assert kwargs["regen_media_root"] == tmp_path / "media"
+    assert kwargs["regen_metadata_root"] == tmp_path / "metadata"
 
 
 def _filter_result(count=1, applied=True, message="ok"):
@@ -797,8 +797,8 @@ def _filter_result(count=1, applied=True, message="ok"):
 def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     config = replace(
         _make_config(tmp_path),
-        provider_media_root=tmp_path / "media",
-        provider_metadata_root=tmp_path / "metadata",
+        regen_media_root=tmp_path / "media",
+        regen_metadata_root=tmp_path / "metadata",
     )
     state = _make_state()
 
@@ -814,7 +814,7 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     assert kwargs["query"] == "alpha"
     assert kwargs["port"] == config.portrait_port
     assert kwargs["sources"] == config.portrait_sources
-    assert kwargs["provider_media_root"] == tmp_path / "media"
+    assert kwargs["regen_media_root"] == tmp_path / "media"
     assert any(op.op == "notice" for op in ops)
 
 
@@ -946,8 +946,8 @@ def test_fmode_toggle_passes_active_filters(tmp_path: Path):
 def test_premiere_refresh_passes_active_filters_and_roots(tmp_path: Path):
     config = replace(
         _make_config(tmp_path),
-        provider_media_root=tmp_path / "media",
-        provider_metadata_root=tmp_path / "metadata",
+        regen_media_root=tmp_path / "media",
+        regen_metadata_root=tmp_path / "metadata",
     )
     state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
 
@@ -962,7 +962,7 @@ def test_premiere_refresh_passes_active_filters_and_roots(tmp_path: Path):
     assert kwargs["recent"] is True  # Premiere = newest-first
     assert kwargs["portrait_filter"] == "alpha"
     assert kwargs["landscape_filter"] == "kissing"
-    assert kwargs["provider_media_root"] == tmp_path / "media"
+    assert kwargs["regen_media_root"] == tmp_path / "media"
 
 
 def test_shuffle_reorders_both_satellites_without_recency(tmp_path: Path):
@@ -1029,8 +1029,8 @@ def _make_grouped_config(tmp_path: Path, videos: dict[str, dict | None]) -> tupl
     config = replace(
         _make_config(tmp_path),
         portrait_sources=str(portrait_dir),
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
+        regen_media_root=media_root,
+        regen_metadata_root=metadata_root,
     )
     return config, paths
 
@@ -1365,7 +1365,7 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
 
     reset_group_index_cache()
     config, paths = _make_grouped_config(tmp_path, {})
-    media_root = config.provider_media_root
+    media_root = config.regen_media_root
     landscape_dir = media_root / "landscape"
     landscape_dir.mkdir(parents=True, exist_ok=True)
     videos: dict[str, str] = {}
@@ -1376,7 +1376,7 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
         video = landscape_dir / f"{name}.mp4"
         video.write_text("x", encoding="utf-8")
         videos[name] = str(video)
-        sidecar = metadata_path_for(video, config.provider_metadata_root)
+        sidecar = metadata_path_for(video, config.regen_metadata_root)
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
     config = replace(config, landscape_sources=str(landscape_dir))
@@ -1401,8 +1401,8 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
 
 def test_recency_order_refresh_keeps_recent_and_resets_locks(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.provider_media_root = tmp_path / "media"
-    config.provider_metadata_root = tmp_path / "metadata"
+    config.regen_media_root = tmp_path / "media"
+    config.regen_metadata_root = tmp_path / "metadata"
     # Already in Premiere: pressing again must keep newest-first, never toggle off.
     state = _make_state(recency_order=True, locked2=True, locked3=True)
 
@@ -1425,8 +1425,8 @@ def test_recency_order_refresh_keeps_recent_and_resets_locks(tmp_path: Path):
     assert kwargs["portrait_port"] == config.portrait_port
     assert kwargs["landscape_port"] == config.landscape_port
     # Premiere must collapse action groups too, so the provider roots flow through.
-    assert kwargs["provider_media_root"] == config.provider_media_root
-    assert kwargs["provider_metadata_root"] == config.provider_metadata_root
+    assert kwargs["regen_media_root"] == config.regen_media_root
+    assert kwargs["regen_metadata_root"] == config.regen_metadata_root
 
 
 # --- mode switch (genau_activate / vlc_activate / hybrid_activate) ---
