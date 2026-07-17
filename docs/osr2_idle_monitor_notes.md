@@ -38,8 +38,8 @@ The OSR2's firmware generates motion internally. The only PC-visible signal is t
 
 **The OSR2 does NOT send periodic data during free mode operation.** It sends status messages at state transitions only, and only if the serial connection was freshly established at that moment.
 
-### Robot hand auto mode (broker-controlled)
-The broker's `BrokerAutoController` sends UDP to a robot hand listener process. The robot hand generates TCode clips. The robot hand does NOT write to any serial port directly (confirmed by grepping all Python files — only broker files reference serial). How the robot hand's TCode reaches the OSR2 is unclear — possibly via AHK or the virtual port, but when `auto_mode.is_active` is True, `forward_virtual_to_real` skips `real.write`.
+### Genau auto mode (broker-controlled)
+The broker's `BrokerAutoController` sends UDP to a Genau listener process. Genau generates TCode clips. Genau does NOT write to any serial port directly (confirmed by grepping all Python files — only broker files reference serial). How Genau's TCode reaches the OSR2 is unclear — possibly via AHK or the virtual port, but when `auto_mode.is_active` is True, `forward_virtual_to_real` skips `real.write`.
 
 ## What was attempted and why it failed
 
