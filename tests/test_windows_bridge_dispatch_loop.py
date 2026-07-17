@@ -2046,9 +2046,14 @@ class TestHandleOpenFileDialog:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
+        # With no Nau window found, the dialog is owner-less.  find_window_by_title
+        # is stubbed too: _resolve_role("nau") falls back to it when the pid lookup
+        # misses, and left live it would enumerate the real desktop and return a
+        # stray HWND (e.g. a running Fun Time's Nau window) — a flake.
         with patch.object(runner, "_remove_all_topmost"), \
              patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
             runner._handle_open_file_dialog()
 
