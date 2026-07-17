@@ -176,18 +176,6 @@ def get_playback_fraction(port: int, password: str) -> float | None:
         return None
 
 
-def vlc_seek_fraction(port: int, password: str, fraction: float) -> bool:
-    """Seek the current item to *fraction* (0..1) of its length.
-
-    Used to restore playback position after a playlist replace, so toggling a
-    loop keeps the clip where it was instead of restarting it.  ``%25`` is an
-    encoded ``%``, so VLC receives ``val=<n>%`` — a percentage seek.
-    """
-    percent = max(0, min(100, int(round(fraction * 100))))
-    status, _ = vlc_http_req(port, f"/requests/status.xml?command=seek&val={percent}%25", password)
-    return status == 200
-
-
 def get_playback_state(port: int, password: str) -> str | None:
     status, xml = vlc_http_req(port, "/requests/status.xml", password)
     if status != 200 or not xml:
@@ -444,6 +432,50 @@ def vlc_advance_and_remove(
         vlc_http_cmd(port, f"pl_play&id={next_id}", password)
         sleep_fn(0.15)
     vlc_http_cmd(port, f"pl_delete&id={current_id}", password)
+    return True
+
+
+def retarget_playlist_keeping_current(
+    port: int,
+    password: str,
+    desired_paths: list[str],
+    *,
+    repeat_mode: str = "all",
+    sleep_fn=time.sleep,
+) -> bool:
+    """Reshape the live playlist to hold *desired_paths*, without disturbing the
+    clip currently playing.
+
+    A playlist *replace* (``pl_empty`` + ``in_play``) restarts on item 0 — for a
+    loop toggle that yanks you off the video on screen.  To change only what a
+    satellite plays *next*, the queue is edited in place around the current item:
+
+    * each desired path not already queued is enqueued (``in_enqueue``, landing
+      at the end) — done first, so the current clip always has somewhere to go;
+    * each queued item that is not desired, except the one playing, is deleted
+      (``pl_delete``);
+    * ``repeat_mode`` is applied last so the reshaped queue cycles.
+
+    The playing item is never re-enqueued nor deleted, so playback continues
+    uninterrupted; when the clip ends VLC advances into the new queue.  Returns
+    False if the playlist could not be read (nothing is changed then) or the
+    repeat mode never took.
+    """
+    entries, current_id = get_playlist_entries(port, password)
+    if current_id < 0:
+        return False
+    present_keys = {normalize_path_key(path) for _item_id, path in entries}
+    desired_keys = {normalize_path_key(path) for path in desired_paths}
+    for path in desired_paths:
+        key = normalize_path_key(path)
+        if key not in present_keys:
+            send_vlc_input_command(port, "in_enqueue", path, password)
+            present_keys.add(key)  # don't enqueue the same clip twice in one call
+    for item_id, path in entries:
+        if item_id != current_id and normalize_path_key(path) not in desired_keys:
+            vlc_http_cmd(port, f"pl_delete&id={item_id}", password)
+    if repeat_mode:
+        return set_repeat_mode(port, password, repeat_mode, sleep_fn=sleep_fn)
     return True
 
 

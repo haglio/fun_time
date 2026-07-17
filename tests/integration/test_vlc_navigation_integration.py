@@ -22,8 +22,12 @@ from fun_time.orchestrator import vlc_http_password_from_vlcrc
 from fun_time.vlc_actions import (
     _parse_playlist_ids,
     get_current_file_path,
+    get_playback_fraction,
     get_playback_state,
+    get_playlist_entries,
+    get_repeat_mode,
     replace_playlist_from_file,
+    retarget_playlist_keeping_current,
     vlc_advance_and_remove,
     vlc_http_cmd,
     vlc_http_req,
@@ -407,6 +411,62 @@ def test_advance_and_remove_preserves_navigation(vlc_with_playlist):
     vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
     after = _wait_for_item_change(TEST_PORT, before)
     assert after != before, "nav should change video after advance_and_remove"
+
+
+# --- retarget_playlist_keeping_current (loop-toggle path) ---
+# The loop buttons and "loop"/"no loop" voice commands must reshape the queue
+# WITHOUT interrupting the clip on screen.  A playlist replace empties item 0 out
+# and reloads it (new id, restart); the in-place edit must leave it untouched.
+
+
+def test_retarget_never_tears_down_the_current_clip(vlc_with_playlist):
+    """Toggling a loop on and off must leave the clip on screen in place — same
+    playlist id, still playing, position not reset — and only change what comes up
+    next.  This is the whole point of the in-place reshape over a replace."""
+    _proc, videos = vlc_with_playlist
+    # Re-establish a known 4-item browse so this test is independent of any
+    # playlist mutation earlier tests left on this module-scoped VLC.
+    playlist_path = Path(tempfile.gettempdir()) / "fun_time_retarget.m3u"
+    write_playlist_file(playlist_path, videos)
+    replace_playlist_from_file(TEST_PORT, TEST_PASSWORD, playlist_path, repeat_mode="all")
+    _wait_for_stable_current()
+
+    # Seek to mid-clip so a restart (position -> ~0) would be unmistakable, then
+    # freeze the rate so the position is stable across the reshape.
+    vlc_http_cmd(TEST_PORT, "seek&val=50%25", TEST_PASSWORD)
+    time.sleep(0.4)
+    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
+    entries_before, id_before = get_playlist_entries(TEST_PORT, TEST_PASSWORD)
+    path_before = _current()
+    pos_before = get_playback_fraction(TEST_PORT, TEST_PASSWORD)
+    assert id_before >= 0 and path_before, "setup: no current item"
+    assert pos_before and pos_before > 0.2, f"setup: expected mid-clip, got {pos_before}"
+
+    # Loop ON: reshape to a 2-clip group that includes the current clip; the other
+    # browse items must be pruned while the current one survives.
+    sibling = next(path for _id, path in entries_before if path != path_before)
+    group = [path_before, sibling]
+    assert retarget_playlist_keeping_current(TEST_PORT, TEST_PASSWORD, group) is True
+
+    _ids_loop, id_loop = _wait_for_playlist_count(TEST_PORT, len(group))
+    assert id_loop == id_before, "current clip was torn down (playlist id changed)"
+    assert _current() == path_before, "loop-on switched the clip on screen"
+    assert _wait_for_playing(TEST_PORT) == "playing", "current clip stopped"
+    assert get_repeat_mode(TEST_PORT, TEST_PASSWORD) == "all", "loop must be repeat-all"
+    pos_loop = get_playback_fraction(TEST_PORT, TEST_PASSWORD)
+    assert pos_loop and abs(pos_loop - pos_before) < 0.1, \
+        f"loop-on restarted the clip: {pos_before} -> {pos_loop}"
+
+    # Loop OFF: reshape back to the full browse — the current clip STILL in place,
+    # never restarted, with the pruned items re-enqueued around it.
+    assert retarget_playlist_keeping_current(TEST_PORT, TEST_PASSWORD, videos) is True
+    _ids_browse, id_browse = _wait_for_playlist_count(TEST_PORT, len(videos))
+    assert id_browse == id_before, "no-loop tore down the current clip (id changed)"
+    assert _current() == path_before, "no-loop switched the clip on screen"
+    pos_browse = get_playback_fraction(TEST_PORT, TEST_PASSWORD)
+    assert pos_browse and abs(pos_browse - pos_before) < 0.15, \
+        f"no-loop restarted the clip: {pos_before} -> {pos_browse}"
+    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
 
 
 # --- Production config verification ---
