@@ -321,3 +321,26 @@ class TestConstants:
         assert HWND_NOTOPMOST.value == (2**64 - 2)
 
 
+class TestLiveWindowMutationGuard:
+    """The autouse guard in tests/conftest.py must keep a unit test from moving,
+    topmosting, activating or closing a REAL window — the test bleed that surfaced for
+    months as "Nau pops on top during OmniPause" (a concurrent agent's unit run
+    resolving the live 'Nau'/'Genau' window by title and forcing it topmost)."""
+
+    def test_mutating_user32_calls_are_inert(self):
+        from fun_time import win32
+
+        for name in ("SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW"):
+            # Stubbed to an inert no-op for the whole unit suite: callable, returns the
+            # sentinel, and can never reach the real Win32 API on any hwnd.
+            assert getattr(win32._user32, name)(0xDEAD, 0, 0, 0, 0, 0, 0) == 0
+        # so a full wrapper call is a harmless no-op, even on a would-be live hwnd
+        assert set_always_on_top(0xDEAD, True) is None
+
+    def test_reader_user32_calls_stay_real(self):
+        # Only the mutators are neutralised; is_window_topmost reads GWL_EXSTYLE through
+        # the real GetWindowLongW, which returns 0 for a bogus hwnd -> False.  (A blanket
+        # _user32 stub would have made this a truthy Mock instead.)
+        assert is_window_topmost(0xDEAD) is False
+
+

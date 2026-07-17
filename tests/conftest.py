@@ -21,7 +21,7 @@ import http.client
 import pytest
 from PyQt6.QtWidgets import QApplication
 
-from fun_time import vlc_actions
+from fun_time import vlc_actions, win32
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -57,6 +57,35 @@ def _never_open_a_socket_to_vlc(monkeypatch):
         return _real_get_pooled_conn(port)
 
     monkeypatch.setattr(vlc_actions, "_get_pooled_conn", _guard)
+
+
+# The window wrappers in fun_time.win32 all funnel through a few user32 calls, and
+# the same machine runs the user's live Fun Time.  So an unmocked window call in a
+# unit test lands on THEIR windows: a test that reaches the real ``set_always_on_top``
+# resolves the live "Nau"/"Genau" window by title and forces it on top — the test
+# bleed behind "Nau pops on top during OmniPause" (it looked like a runtime/OmniPause
+# bug for months because it WAS our code, run by a concurrent agent's test process).
+# This is the window analog of _never_open_a_socket_to_vlc.
+_MUTATING_USER32_CALLS = ("SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW")
+
+
+@pytest.fixture(autouse=True)
+def _never_mutate_a_real_window(monkeypatch):
+    """Neutralise the win32 calls that MOVE/topmost/activate/close a window, so no
+    unit test can touch the user's live windows.
+
+    Only the mutating primitives are stubbed; the readers (``GetWindowLongW``,
+    ``EnumWindows``, the z-order walk) stay real, so ``is_window_topmost`` /
+    ``find_window_*`` / ``iter_zorder`` still behave — resolving a live handle is
+    harmless, and any attempt to then mutate it is inert.  Tests that assert on these
+    calls patch ``fun_time.win32._user32`` themselves, which overrides this; the
+    integration suite overrides it too, because it drives real native windows.
+    """
+    def _inert(*_args, **_kwargs):
+        return 0
+
+    for name in _MUTATING_USER32_CALLS:
+        monkeypatch.setattr(win32._user32, name, _inert)
 
 
 TMP_ROOT = Path(
