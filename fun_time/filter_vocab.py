@@ -1,42 +1,55 @@
-"""Spoken filter vocabulary and command decoding for the satellite VLCs.
+"""Spoken filter vocabulary and command decoding for the satellite players.
 
 A metadata filter is issued by voice: an optional orientation scope
-("portrait"/"landscape", or none for both VLCs) plus an act drawn from the
-library's real ``video.action`` values.  This module is the single source of
-truth mapping those to dispatch commands.  It is kept free of the vosk runtime
-so the command reference and tests can import it cheaply — the same reason
+("portrait"/"landscape", or none for both players) plus an act drawn from the
+library's ``video.action`` values.  This module is the single source of truth
+mapping those to dispatch commands.  It stays free of the speech runtime so the
+command reference and tests can import it cheaply — the same reason
 :mod:`fun_time.voice_commands` is split from :mod:`fun_time.voice_control`.
+
+The act vocabulary is content, not logic, so it lives in a JSON overlay
+(``content.local.json``, git-ignored) with a committed ``content.example.json``
+placeholder — the recognizer behaves the same whichever is loaded.  Some spoken
+forms deliberately differ from the query they match: a word the small speech
+model does not know is voiced with in-vocabulary words while the command keeps
+the real query (the same trick the mode commands use, "genau" for "go now").
+Queries stay lowercase; a single query substring-matches every metadata value
+that contains it.
 """
 from __future__ import annotations
 
-# Canonical query (the substring matched against a video's metadata) -> the
-# spoken forms the recognizer should listen for.  The vosk small model's lexicon
-# lacks the generated-specific compounds ("alpha", "gamma", ...), so each act is
-# voiced with plain-English words — the same trick the mode commands use
-# ("genau" listens for "go now").  Queries stay lowercase; a single query such
-# as "insertion" substring-matches both "Oral Insertion" and "redacted Insertion".
-#
-# The acts Provider never labelled — zeta, delta, and the catch-all other —
-# reach the library through Evolver's backfill tool, where a viewer dictates the
-# act of a clip whose source publishes no metadata of its own.
-FILTER_ACTS: dict[str, tuple[str, ...]] = {
-    "alpha": ("alpha form",),
-    "epsilon": ("epsilon",),
-    "gamma": ("gamma",),
-    "zeta": ("zeta",),
-    "delta": ("delta",),
-    "beta gamma": ("beta gamma",),
-    "delta": ("delta",),
-    "insertion": ("insertion",),
-    "zeta massage": ("redacted massage",),
-    "dancing": ("dancing",),
-    "kissing": ("kissing",),
-    "eta form": ("come on face",),
-    "other": ("other",),
-}
+import json
+from pathlib import Path
+from typing import Mapping
+
+_PROJECT_DIR = Path(__file__).resolve().parent.parent
+_LOCAL_CONTENT = _PROJECT_DIR / "content.local.json"
+_EXAMPLE_CONTENT = _PROJECT_DIR / "content.example.json"
+
+Acts = Mapping[str, tuple[str, ...]]
+
+
+def load_filter_acts(
+    local_path: Path = _LOCAL_CONTENT,
+    example_path: Path = _EXAMPLE_CONTENT,
+) -> dict[str, tuple[str, ...]]:
+    """Canonical query -> spoken forms, from the local overlay or the example.
+
+    The git-ignored ``content.local.json`` holds the real vocabulary; the
+    committed ``content.example.json`` is a tame placeholder used whenever it is
+    absent (a fresh or public checkout).
+    """
+    path = local_path if local_path.exists() else example_path
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {query: tuple(forms) for query, forms in data["filter_acts"].items()}
+
+
+# The canonical query (matched against a video's metadata) -> spoken forms to
+# listen for.  Loaded once at import; see :func:`load_filter_acts`.
+FILTER_ACTS: dict[str, tuple[str, ...]] = load_filter_acts()
 
 # Spoken scope word -> command scope token.  "" means no orientation was said,
-# so the filter applies to both VLCs.
+# so the filter applies to both players.
 _SCOPES: dict[str, str] = {"": "both", "portrait": "portrait", "landscape": "landscape"}
 
 _SCOPE_TOKENS: tuple[str, ...] = ("both", "portrait", "landscape")
@@ -87,10 +100,10 @@ def decode_filter_command(command: str) -> tuple[str, str] | None:
     return None
 
 
-def filter_voice_commands() -> dict[str, str]:
+def filter_voice_commands(acts: Acts = FILTER_ACTS) -> dict[str, str]:
     """Spoken phrase -> dispatch command for every filter trigger."""
     out: dict[str, str] = {}
-    for query, forms in FILTER_ACTS.items():
+    for query, forms in acts.items():
         for scope_word, scope in _SCOPES.items():
             command = set_command(scope, query)
             for form in forms:
@@ -100,11 +113,11 @@ def filter_voice_commands() -> dict[str, str]:
     return out
 
 
-def set_commands_for_scope(scope: str) -> tuple[str, ...]:
+def set_commands_for_scope(scope: str, acts: Acts = FILTER_ACTS) -> tuple[str, ...]:
     """Every set (non-clear) command for *scope* — for the command reference."""
-    return tuple(set_command(scope, query) for query in FILTER_ACTS)
+    return tuple(set_command(scope, query) for query in acts)
 
 
-def spoken_forms_for_both() -> tuple[str, ...]:
+def spoken_forms_for_both(acts: Acts = FILTER_ACTS) -> tuple[str, ...]:
     """The bare (unscoped) spoken forms — one recognizer phrase per act form."""
-    return tuple(form for forms in FILTER_ACTS.values() for form in forms)
+    return tuple(form for forms in acts.values() for form in forms)

@@ -1,0 +1,8 @@
+{
+  "_comment": "Placeholder content overlay. Real copy lives in content.local.json (git-ignored). filter_acts maps a canonical query (matched against a video's metadata) to the spoken forms the recognizer listens for; a spoken form may differ from its query when the query word is out of the speech model's vocabulary.",
+  "filter_acts": {
+    "alpha": ["alpha"],
+    "beta gamma": ["beta gamma"],
+    "delta": ["delta form"]
+  }
+}
