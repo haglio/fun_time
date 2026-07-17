@@ -363,9 +363,10 @@ def _toggle_lock(
             uri = write_lock_tab_page(tabs_dir(config.state_dir), target)
             lock_ops.append(WindowOp(op="open_rfb_tab", key=uri))
     # A lock is repeat-one on a single clip — incompatible with a group loop's
-    # repeat-all — so toggling the lock ends any loop the side was running.
+    # repeat-all — so toggling the lock ends any loop (and widened row) the side
+    # was running.
     next_state = replace(state, locked2=plan.next_locked) if which == 2 else replace(state, locked3=plan.next_locked)
-    return _clear_side_loop(next_state, which), lock_ops
+    return _clear_side_grouping(next_state, which), lock_ops
 
 
 def _drop_playlist_entry(port: int, password: str, path: str) -> bool:
@@ -544,14 +545,18 @@ def _set_side_loop(state: BridgeState, which: int, axis: str) -> BridgeState:
     return replace(state, portrait_loop=axis) if which == 2 else replace(state, landscape_loop=axis)
 
 
-def _clear_side_loop(state: BridgeState, which: int) -> BridgeState:
-    """Forget any group loop on *which* satellite — its playlist was rebuilt or
-    re-navigated, which drops the loop.  A no-op when none was running."""
-    return replace(state, portrait_loop="") if which == 2 else replace(state, landscape_loop="")
+def _clear_side_grouping(state: BridgeState, which: int) -> BridgeState:
+    """Forget any group loop AND any widened seed row on *which* satellite — its
+    playlist was rebuilt or re-navigated, which drops both.  A no-op when neither
+    was set.  The widen only ever means something in the context of the clip/loop
+    it was taken around, so a rebuild that drops the loop drops the widen with it."""
+    if which == 2:
+        return replace(state, portrait_loop="", portrait_widen_clip="")
+    return replace(state, landscape_loop="", landscape_widen_clip="")
 
 
 def _set_side_widen(state: BridgeState, which: int, clip: str) -> BridgeState:
-    """Record that *which* satellite's seed row is widened around *clip*."""
+    """Record that *which* satellite's seed row is widened around *clip* ("" clears)."""
     if which == 2:
         return replace(state, portrait_widen_clip=clip)
     return replace(state, landscape_widen_clip=clip)
@@ -564,8 +569,10 @@ def _dispatch_more_seeds(
 
     This does NOT change what is playing; it records that this clip's net is
     widened, and the HUD redraws its seed row with the loose family (the same
-    scene, render knobs freed).  If there is nothing beyond the exact seed family
-    to add, it says so rather than silently doing nothing."""
+    scene, render knobs freed).  If a seed loop is already running it is re-looped
+    over that wider pool so VLC cycles exactly what the HUD now shows.  If there is
+    nothing beyond the exact seed family to add, it says so rather than silently
+    doing nothing."""
     port = config.portrait_port if which == 2 else config.landscape_port
     source = _satellite_source(which)
     current = target_path or get_current_file_path(port, config.vlc_password)
@@ -577,7 +584,13 @@ def _dispatch_more_seeds(
     wide = {normalize_path_key(m) for m in loose_seed_family_members(index, current)} - {current_key}
     if wide <= exact:
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
-    return _set_side_widen(state, which, current), [WindowOp(op="notice", key="More seeds", source=source)]
+    state = _set_side_widen(state, which, current)
+    # If the row is already being looped, widen the loop too: rebuild its
+    # sub-playlist to the wider pool so VLC cycles what the HUD now draws (the
+    # widen anchor now matches the clip on screen, so the loop picks it up).
+    if (state.portrait_loop if which == 2 else state.landscape_loop) == "seed":
+        state, _loop_ops = _dispatch_group_loop(which, "seed", state, config, target_path=current)
+    return state, [WindowOp(op="notice", key="More seeds", source=source)]
 
 
 def _dispatch_group_loop(
@@ -592,23 +605,21 @@ def _dispatch_group_loop(
         return state, ops
     index = _satellite_group_index(which, config, current)
     # Loop what the HUD is showing: if the seed row has been widened around this
-    # very clip ("more seeds"), loop that wider pool, not just the exact family.
+    # very clip ("more seeds"), loop that loose family, not just the exact family.
     widen_clip = state.portrait_widen_clip if which == 2 else state.landscape_widen_clip
-    seed_gather = (
-        loose_seed_family_members
-        if axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
-        else seed_family_members
+    widened = axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
+    gather = loose_seed_family_members if widened else (
+        action_group_members if axis == "action" else seed_family_members
     )
-    gather = action_group_members if axis == "action" else seed_gather
     members = [member for member in gather(index, current) if Path(member).exists()]
     if len(members) < 2:
         # Only this clip is in the group, so "looping" it is a single-video lock:
         # repeat this one.  Never a dead end — the loop buttons are still valid
         # with one video, they just mean "lock" then.  A lock is not a loop, so
-        # any prior loop flag is dropped.
+        # any prior loop (and widened row) is dropped.
         set_repeat_mode(port, config.vlc_password, "one")
         state = replace(state, locked2=True) if which == 2 else replace(state, locked3=True)
-        state = _clear_side_loop(state, which)
+        state = _clear_side_grouping(state, which)
         return state, [WindowOp(op="notice", key="Locked", source=source)]
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = _cancel_lock(which, state, config)
@@ -626,6 +637,10 @@ def _dispatch_group_loop(
     if applied:
         ensure_playback_state(port, config.vlc_password, should_play=True)
         state = _set_side_loop(state, which, axis)
+        # Anchor the widen on the loop iff it is the loose family being looped, so
+        # the HUD reads a running seed loop as widened exactly when it truly is —
+        # and a plain exact-family loop drops any stale anchor.
+        state = _set_side_widen(state, which, current if widened else "")
     ops.append(WindowOp(op="notice", key=message, source=source))
     return state, ops
 
@@ -1241,7 +1256,8 @@ def _dispatch_fmode_toggle(
     )
     if result.log_message:
         logger.info(result.log_message)
-    # F-mode rebuilds both satellites' playlists, dropping any group loops.
+    # F-mode rebuilds both satellites' playlists, dropping any group loops and the
+    # widened seed rows that rode on them.
     return replace(
         state,
         f_mode_enabled=result.next_f_mode_enabled,
@@ -1249,6 +1265,8 @@ def _dispatch_fmode_toggle(
         locked3=result.next_locked3,
         portrait_loop="",
         landscape_loop="",
+        portrait_widen_clip="",
+        landscape_widen_clip="",
     ), []
 
 
@@ -1274,7 +1292,8 @@ def _dispatch_reorder_satellites(
     )
     if result.log_message:
         logger.info(result.log_message)
-    # Premiere/Shuffle rebuild both satellites' playlists, dropping any loops.
+    # Premiere/Shuffle rebuild both satellites' playlists, dropping any loops and
+    # the widened seed rows that rode on them.
     return replace(
         state,
         recency_order=result.next_recency_order,
@@ -1282,6 +1301,8 @@ def _dispatch_reorder_satellites(
         locked3=result.next_locked3,
         portrait_loop="",
         landscape_loop="",
+        portrait_widen_clip="",
+        landscape_widen_clip="",
     ), []
 
 
@@ -1325,7 +1346,7 @@ def _dispatch_no_loop(
     if browse:
         retarget_playlist_keeping_current(port, config.vlc_password, browse, repeat_mode="all")
         ensure_playback_state(port, config.vlc_password, should_play=True)
-    state = _clear_side_loop(state, which)
+    state = _clear_side_grouping(state, which)
     return state, [WindowOp(op="notice", key="Loop off", source=_satellite_source(which))]
 
 
@@ -1360,14 +1381,14 @@ def _dispatch_set_filter(
         # Only remember a filter that actually selected videos: a zero-match
         # filter left the current playlist alone, so recording it would let the
         # next F-mode/premiere rebuild blank the VLC.  A filter that *did* rebuild
-        # also replaced any loop's sub-playlist, so the loop is gone; a zero-match
-        # one touched nothing, so a running loop survives it.
+        # also replaced any loop's sub-playlist, so the loop (and its widened row)
+        # is gone; a zero-match one touched nothing, so a running loop survives it.
         if result.applied:
             if which == 2:
                 state = replace(state, portrait_filter=query)
             else:
                 state = replace(state, landscape_filter=query)
-            state = _clear_side_loop(state, which)
+            state = _clear_side_grouping(state, which)
         logger.info(result.log_message)
         # A filter that selected nothing left the playlist untouched — a dead end,
         # so it reads red like the other no-effect notices.

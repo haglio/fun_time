@@ -1493,6 +1493,26 @@ def test_more_seeds_reports_widening_failed_when_the_act_is_unique(tmp_path: Pat
     assert notices[0].level == FAILED_NOTICE_LEVEL
 
 
+def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
+    """Widening the row while a seed loop runs must widen the loop too, so VLC
+    cycles the wider pool the HUD now shows instead of only the exact family."""
+    config = _make_config(tmp_path)
+    index, a, a2, b = _widened_loop_index(tmp_path)
+    state = _make_state(portrait_loop="seed")  # a seed loop is already running
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
+        new_state, ops = dispatch_command("portrait_more_seeds", state, config)
+
+    _port, _pw, members = mock_retarget.call_args.args
+    assert sorted(members) == sorted([a, a2, b])  # re-looped wide
+    assert new_state.portrait_widen_clip == a
+    assert new_state.portrait_loop == "seed"
+    assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]  # keeps its own notice
+
+
 def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
     """Image-to-video clips of one source image share a seed family across
     actions (the family is keyed on the image, action-blind).  But the seed axis
@@ -2337,6 +2357,28 @@ def _loop_index(tmp_path: Path, *, axis: str) -> tuple[GroupIndex, str, str]:
     ), a, b
 
 
+def _widened_loop_index(tmp_path: Path) -> tuple[GroupIndex, str, str, str]:
+    """A loose family {a, a2, b} on real files — the same scene re-rendered — whose
+    exact seed families split: a and a2 share the exact family F1, while b is its own
+    render F2. So `seed_family_members(a)` is {a, a2} but `loose_seed_family_members(a)`
+    (the widened pool) is all three."""
+    files = {name: tmp_path / f"{name}.mp4" for name in ("a", "a2", "b")}
+    for f in files.values():
+        f.write_text("x", encoding="utf-8")
+    a, a2, b = (str(files["a"]), str(files["a2"]), str(files["b"]))
+    ka, ka2, kb = normalize_path_key(a), normalize_path_key(a2), normalize_path_key(b)
+    return GroupIndex(
+        action_key_by_path={ka: "scene", ka2: "scene", kb: "scene"},
+        action_members={"scene": sorted([a, a2, b])},
+        action_by_path={ka: "Alpha", ka2: "Alpha", kb: "Alpha"},
+        seed_key_by_path={ka: ("F1", "0"), ka2: ("F1", "1"), kb: ("F2", "0")},
+        seed_members={"F1": sorted([a, a2]), "F2": [b]},
+        loose_seed_key_by_path={ka: ("L", "0"), ka2: ("L", "1"), kb: ("L", "2")},
+        loose_seed_members={"L": sorted([a, a2, b])},
+        indexed_paths=frozenset({ka, ka2, kb}),
+    ), a, a2, b
+
+
 def test_action_loop_reshapes_the_queue_to_the_subjects_action_group(tmp_path: Path):
     config = _make_config(tmp_path)
     index, a, b = _loop_index(tmp_path, axis="action")
@@ -2367,6 +2409,46 @@ def test_seed_loop_reshapes_the_queue_to_the_current_acts_seed_family(tmp_path: 
     port, _pw, members = mock_retarget.call_args.args
     assert port == config.landscape_port
     assert sorted(members) == sorted([a, b])
+
+
+def test_a_widened_seed_loop_loops_the_loose_family_and_keeps_the_widen_anchor(tmp_path: Path):
+    """When the row was widened around the clip on screen, "loop seeds" loops the
+    whole loose family (across its exact seed families) and keeps the widen anchor in
+    state, so the HUD stays widened and frozen as the loop auto-advances the re-renders."""
+    config = _make_config(tmp_path)
+    index, a, a2, b = _widened_loop_index(tmp_path)
+    state = _make_state(portrait_widen_clip=a)  # widened around the clip on screen
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
+        new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
+
+    _port, _pw, members = mock_retarget.call_args.args
+    assert sorted(members) == sorted([a, a2, b])
+    assert new_state.portrait_loop == "seed"
+    assert new_state.portrait_widen_clip == a  # anchor kept so the HUD stays wide
+
+
+def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
+    """A plain "loop seeds" (widen anchor does not match the clip on screen) loops
+    only the exact family, so it must drop any stale widen anchor — otherwise the
+    HUD would wrongly read the exact-family loop as a widened one."""
+    config = _make_config(tmp_path)
+    index, a, b = _loop_index(tmp_path, axis="seed")
+    state = _make_state(portrait_widen_clip="C:/somewhere/else.mp4")  # stale, not on screen
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
+         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+         patch("fun_time.command_dispatch.ensure_playback_state"), \
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
+        new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
+
+    _port, _pw, members = mock_retarget.call_args.args
+    assert sorted(members) == sorted([a, b])  # exact family only
+    assert new_state.portrait_loop == "seed"
+    assert new_state.portrait_widen_clip == ""  # stale anchor dropped
 
 
 def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
@@ -2459,46 +2541,63 @@ def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=str(only)), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.set_repeat_mode"):
-        state, _ops = dispatch_command("portrait_action_loop", _make_state(portrait_loop="seed"), config)
+        state, _ops = dispatch_command(
+            "portrait_action_loop",
+            _make_state(portrait_loop="seed", portrait_widen_clip=str(only)), config,
+        )
 
     assert state.portrait_loop == ""
+    assert state.portrait_widen_clip == ""  # the lock drops the widened row too
 
 
 def test_toggling_the_lock_ends_a_loop(tmp_path: Path):
     """A lock is repeat-one on one clip — incompatible with a loop's repeat-all —
-    so locking clears the loop flag."""
+    so locking clears the loop flag and the widened row that rode on it."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider2\abc_123.mp4"), \
          patch("fun_time.command_dispatch.set_repeat_mode"), \
          patch("fun_time.command_dispatch.ensure_in_favs"):
-        state, _ops = dispatch_command("portrait_lock", _make_state(locked2=False, portrait_loop="action"), config)
+        state, _ops = dispatch_command(
+            "portrait_lock",
+            _make_state(locked2=False, portrait_loop="action", portrait_widen_clip=r"C:\videos\provider2\abc_123.mp4"),
+            config,
+        )
 
     assert state.portrait_loop == ""
+    assert state.portrait_widen_clip == ""
 
 
 def test_an_applied_filter_clears_a_running_loop(tmp_path: Path):
     """A filter that selects videos rebuilds the playlist, replacing the loop's
-    sub-playlist — so the loop is gone."""
+    sub-playlist — so the loop (and any widened row) is gone."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
-        state, _ops = dispatch_command("filter_portrait_alpha", _make_state(portrait_loop="seed"), config)
+        state, _ops = dispatch_command(
+            "filter_portrait_alpha",
+            _make_state(portrait_loop="seed", portrait_widen_clip="C:/v/anchor.mp4"), config,
+        )
 
     assert state.portrait_loop == ""
+    assert state.portrait_widen_clip == ""
 
 
 def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
     """A filter that matches nothing never touches the playlist, so a loop that
-    was running survives it."""
+    was running — and its widened row — survives it."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=False)
-        state, _ops = dispatch_command("filter_portrait_alpha", _make_state(portrait_loop="seed"), config)
+        state, _ops = dispatch_command(
+            "filter_portrait_alpha",
+            _make_state(portrait_loop="seed", portrait_widen_clip="C:/v/anchor.mp4"), config,
+        )
 
     assert state.portrait_loop == "seed"
+    assert state.portrait_widen_clip == "C:/v/anchor.mp4"
 
 
 def test_no_loop_clears_the_loop_flag(tmp_path: Path):
@@ -2507,9 +2606,13 @@ def test_no_loop_clears_the_loop_flag(tmp_path: Path):
     with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]), \
          patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True), \
          patch("fun_time.command_dispatch.ensure_playback_state"):
-        state, _ops = dispatch_command("portrait_no_loop", _make_state(portrait_loop="action"), config)
+        state, _ops = dispatch_command(
+            "portrait_no_loop",
+            _make_state(portrait_loop="action", portrait_widen_clip="C:/v/anchor.mp4"), config,
+        )
 
     assert state.portrait_loop == ""
+    assert state.portrait_widen_clip == ""  # ending the loop drops the widened row
 
 
 def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
@@ -2553,10 +2656,14 @@ def test_premiere_clears_both_loops(tmp_path: Path):
                       "next_locked3": False, "log_message": ""}
         )()
         state, _ops = dispatch_command(
-            "recency_order_refresh", _make_state(portrait_loop="seed", landscape_loop="action"), config
+            "recency_order_refresh",
+            _make_state(portrait_loop="seed", landscape_loop="action",
+                        portrait_widen_clip="C:/v/p.mp4", landscape_widen_clip="C:/v/l.mp4"),
+            config,
         )
 
     assert (state.portrait_loop, state.landscape_loop) == ("", "")
+    assert (state.portrait_widen_clip, state.landscape_widen_clip) == ("", "")
 
 
 def test_fmode_toggle_clears_both_loops(tmp_path: Path):
@@ -2568,10 +2675,14 @@ def test_fmode_toggle_clears_both_loops(tmp_path: Path):
                       "next_locked3": False, "log_message": ""}
         )()
         state, _ops = dispatch_command(
-            "fmode_toggle", _make_state(portrait_loop="seed", landscape_loop="action"), config
+            "fmode_toggle",
+            _make_state(portrait_loop="seed", landscape_loop="action",
+                        portrait_widen_clip="C:/v/p.mp4", landscape_widen_clip="C:/v/l.mp4"),
+            config,
         )
 
     assert (state.portrait_loop, state.landscape_loop) == ("", "")
+    assert (state.portrait_widen_clip, state.landscape_widen_clip) == ("", "")
 
 
 def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
