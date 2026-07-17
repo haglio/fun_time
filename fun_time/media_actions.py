@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .content import WEB_PROVIDERS, WebProvider
+
 
 FORMULA_SEP = ";"
 
@@ -24,19 +26,22 @@ def to_file_uri(win_path: str) -> str:
     return "file:///" + win_path.replace("\\", "/").replace(" ", "%20")
 
 
-def make_web_url_from_path(full_path: str) -> str:
+def make_web_url_from_path(
+    full_path: str, providers: tuple[WebProvider, ...] | None = None
+) -> str:
     if not full_path:
         return ""
+    if providers is None:
+        providers = WEB_PROVIDERS
 
     path = full_path.replace("/", "\\")
     name_no_ext = Path(path).stem
     image_id = name_no_ext.rsplit("_", 1)[0] if "_" in name_no_ext else name_no_ext
     lower_path = path.lower()
 
-    if "\\provider2\\" in lower_path:
-        return f"https://example.net/image/{image_id}"
-    if "\\provider\\" in lower_path:
-        return f"https://example.com/image/{image_id}"
+    for provider in providers:
+        if f"\\{provider.marker}\\" in lower_path:
+            return provider.gallery_url.format(id=image_id)
     return ""
 
 
@@ -47,20 +52,24 @@ def make_local_cell(full_path: str) -> str:
     return f'=HYPERLINK("{uri}"{FORMULA_SEP}"{full_path}")'
 
 
-def make_web_cell(full_path: str) -> str:
-    url = make_web_url_from_path(full_path)
+def make_web_cell(
+    full_path: str, providers: tuple[WebProvider, ...] | None = None
+) -> str:
+    url = make_web_url_from_path(full_path, providers)
     if not url:
         return ""
     return f'=HYPERLINK("{url}"{FORMULA_SEP}"{url}")'
 
 
-def ensure_in_favs(favs_file: Path, full_path: str) -> None:
+def ensure_in_favs(
+    favs_file: Path, full_path: str, providers: tuple[WebProvider, ...] | None = None
+) -> None:
     if not full_path:
         return
 
     ensure_favs_csv_exists(favs_file)
     local_cell = make_local_cell(full_path)
-    web_cell = make_web_cell(full_path)
+    web_cell = make_web_cell(full_path, providers)
     content = favs_file.read_text(encoding="utf-8")
     prefix = csv_escape(local_cell) + ","
     if prefix in content:

@@ -1,8 +1,12 @@
 {
-  "_comment": "Placeholder content overlay. Real copy lives in content.local.json (git-ignored). filter_acts maps a canonical query (matched against a video's metadata) to the spoken forms the recognizer listens for; a spoken form may differ from its query when the query word is out of the speech model's vocabulary.",
+  "_comment": "Placeholder content overlay. Real copy lives in content.local.json (git-ignored). filter_acts maps a canonical query (matched against a video's metadata) to the spoken forms the recognizer listens for; a spoken form may differ from its query when the query word is out of the speech model's vocabulary. web_providers maps a library-folder marker to the gallery-URL template ({id} = the id parsed from a filename) used when recording a favourite's web link.",
   "filter_acts": {
     "alpha": ["alpha"],
     "beta gamma": ["beta gamma"],
     "delta": ["delta form"]
-  }
+  },
+  "web_providers": [
+    {"marker": "alpha", "gallery_url": "https://example.com/alpha/{id}"},
+    {"marker": "beta", "gallery_url": "https://example.com/beta/{id}"}
+  ]
 }
