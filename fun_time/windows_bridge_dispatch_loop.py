@@ -233,6 +233,19 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
     )
 
 
+# A paused session changes nothing until it is resumed: under OmniPause the
+# dispatch loop drops every command except the handful that resume or quit.
+# Voice self-suspends at its writer and the AHK hotkeys sleep under ``Suspend``,
+# but the mouse-driven dashboard and lock HUD write the shared command file
+# directly, bypassing both — so the one choke point every channel flows through
+# has to hold the line.  ``omnipause_toggle`` is the resume when already paused
+# (the dashboard button and the exempt Esc hotkey both send it); ``play`` is the
+# spoken/keyed resume; ``quit`` mirrors AHK's ``#SuspendExempt`` Ctrl+Alt+Q.
+OMNIPAUSE_ALLOWED_COMMANDS: frozenset[str] = frozenset(
+    {"play", "quit", "omnipause_toggle", "leave_omnipause"}
+)
+
+
 def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 90.0) -> float | None:
     """Elapsed seconds if the loop stalled far longer than its tick cadence.
 
@@ -464,6 +477,11 @@ class DispatchLoopRunner:
         ``spoken_at`` is when a voice command's utterance began, and None for
         the instantaneous hotkey and dashboard presses.
         """
+        if self.state.omni_paused and cmd not in OMNIPAUSE_ALLOWED_COMMANDS:
+            # Freeze every input channel at the one point they all pass through:
+            # only a resume/quit acts while paused, no matter its source.
+            logger.debug("OmniPause blocked non-exempt command: %s", cmd)
+            return
         button = self._HOTKEY_TO_BUTTON.get(cmd, cmd)
         self._send_press(button)
         if cmd == "quit":

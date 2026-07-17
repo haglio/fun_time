@@ -2135,6 +2135,82 @@ class TestUpdateDashboardOsr2Off:
 # Idempotent voice commands
 # ---------------------------------------------------------------------------
 
+class TestOmnipauseCommandFilter:
+    """Under OmniPause only commands that resume or quit may act.
+
+    Voice already self-suspends (VoiceController) and the AHK hotkeys sleep
+    under ``Suspend``, but the mouse-driven dashboard and lock HUD write the
+    shared command file directly, bypassing both.  The dispatch loop is the one
+    choke point every channel flows through, so it holds the line for all of
+    them: a paused session changes nothing until it is resumed.
+    """
+
+    def test_blocks_a_lock_hud_command_under_omnipause(self, tmp_path):
+        """The lock HUD writes ``portrait_lock_video|<path>`` straight to the
+        command file; under OmniPause it must not reach the dispatcher."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner._handle_command("portrait_lock_video|C:/clip.mp4")
+        mock_dispatch.assert_not_called()
+
+    def test_blocks_a_nav_command_under_omnipause(self, tmp_path):
+        """A plain satellite nav (from a dashboard button or a stray command
+        file line) is frozen too — nothing but resume/quit acts."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner._handle_command("landscape_next")
+        mock_dispatch.assert_not_called()
+
+    def test_blocks_the_reference_popup_under_omnipause(self, tmp_path):
+        """The original mid-pause bug: a noise-triggered "help" opening the
+        reference popup.  Blocked here it never even reaches the dashboard."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        with patch.object(runner, "_send_press") as mock_press:
+            runner._handle_command("help_reference")
+        mock_press.assert_not_called()
+
+    def test_allows_play_to_resume_under_omnipause(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+            runner._handle_command("play")
+        mock_toggle.assert_called_once()
+
+    def test_allows_omnipause_toggle_to_resume_under_omnipause(self, tmp_path):
+        """The dashboard OmniPause button and the exempt Esc hotkey both send
+        ``omnipause_toggle``; it must survive the freeze so the session can
+        be un-paused."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+            runner._handle_command("omnipause_toggle")
+        mock_toggle.assert_called_once()
+
+    def test_allows_quit_under_omnipause(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        runner._handle_command("quit")
+        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+
+    def test_outside_omnipause_the_lock_hud_command_dispatches(self, tmp_path):
+        """The gate is OmniPause-only: with the session live, the very command
+        blocked above dispatches normally."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False)
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+            mock_dispatch.return_value = (runner.state, [])
+            runner._handle_command("portrait_lock_video|C:/clip.mp4")
+        assert mock_dispatch.call_args[0][0] == "portrait_lock_video|C:/clip.mp4"
+
+
 class TestIdempotentVoiceCommands:
     """Tests for idempotent command variants used by voice control.
 
