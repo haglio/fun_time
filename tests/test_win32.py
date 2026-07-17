@@ -33,8 +33,6 @@ from fun_time.win32 import (
     SW_RESTORE,
     SWP_NOZORDER,
     SWP_NOACTIVATE,
-    SWP_NOMOVE,
-    SWP_NOSIZE,
 )
 
 
