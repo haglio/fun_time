@@ -13,6 +13,7 @@ OmniPause (topmost normally, non-topmost while paused so the desktop is free).
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import threading
 import time
@@ -32,10 +33,13 @@ from fun_time.event_log import EventLogHandler, SOURCE_SYSTEM, event_log_path
 from fun_time.filter_vocab import set_command
 from fun_time.media_metadata import normalize_path_key
 from fun_time.lock_hud import (
+    BRIDGE_PIDS_FILENAME,
     HudAppConfig,
     HudPanel,
     build_panels,
     hud_overlays_visible,
+    hud_should_be_topmost,
+    load_fun_time_pids,
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
@@ -47,7 +51,12 @@ from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.startup_progress import loading_screen_active
 from fun_time.thumbnail_cache import cached_thumbnail
 from fun_time.vlc_actions import get_current_file_path
-from fun_time.win32 import is_window_topmost, set_always_on_top
+from fun_time.win32 import (
+    get_foreground_window,
+    get_window_pid,
+    is_window_topmost,
+    set_always_on_top,
+)
 from fun_time.window_layout import compute_window_layout
 from fun_time.windows_bridge_dispatch_loop import read_shared_state
 
@@ -674,28 +683,34 @@ class HudOverlay(QWidget):
         self._paints_since_content = 0  # this content change schedules paint #1
         self.update()
 
-    def restake_topmost(self) -> tuple[bool, float]:
-        """Re-assert the topmost band on every refresh — including OmniPause.
+    def restake_topmost(self, topmost: bool) -> tuple[bool, float]:
+        """Re-assert — or release — the topmost band on this refresh.
 
-        The overlay floats above its satellite via WindowStaysOnTop, but the
-        satellite VLC is itself topmost and gets re-promoted to the top of the
-        band on mode switches and on resume from OmniPause, burying the HUD
-        *within* the band.  A drift-corrected bit check can't see "topmost but
-        buried", so we re-stake unconditionally, so the map stays legible the
-        whole time it is shown.
+        While a Fun Time window holds the foreground (*topmost* True) the overlay
+        must float above its satellite, and the satellite VLC is itself topmost
+        and gets re-promoted to the top of the band on mode switches and on
+        resume from OmniPause, burying the HUD *within* the band.  A drift-checked
+        bit test can't see "topmost but buried", so we re-stake HWND_TOPMOST every
+        tick, so the map stays legible the whole time Fun Time is up front.
+
+        When the user has switched to another app (*topmost* False) we instead
+        clear the flag (HWND_NOTOPMOST): a topmost window sits above every
+        non-topmost window desktop-wide, so left staked the overlay would cover
+        the app they switched to — most visibly during OmniPause.  Dropped, it
+        falls behind that app and climbs back the next refresh once Fun Time is
+        refocused.
 
         Returns ``(was_topmost, elapsed_ms)`` for the blink probe: whether the
-        overlay already carried the topmost bit (a redundant re-stake) versus had
-        to flip it back on (the OmniPause-resume flash), and the SetWindowPos
-        cost.  The re-stake itself is still unconditional — measuring, not yet
-        fixing.
+        overlay already carried the topmost bit before this re-stake (a redundant
+        re-stake versus a band flip — the OmniPause-resume flash) and the
+        SetWindowPos cost.
         """
         if sys.platform != "win32":
             return True, 0.0
         hwnd = int(self.winId())
         was_topmost = is_window_topmost(hwnd)
         start = time.perf_counter()
-        set_always_on_top(hwnd, True)
+        set_always_on_top(hwnd, topmost)
         return was_topmost, (time.perf_counter() - start) * 1000.0
 
     def paintEvent(self, event: object) -> None:  # noqa: N802
@@ -843,6 +858,11 @@ class LockHud:
         # Whether a side still has thumbnails the prewarm hasn't produced yet, so
         # the next refresh reloads and lets them fill in without a clip change.
         self._thumbs_pending: dict[str, bool] = {"portrait": False, "landscape": False}
+        # This session's window-owning PIDs, read once from bridge_pids.ini (the
+        # orchestrator writes it at startup and never rewrites it), so the refresh
+        # can tell whether the foreground window is Fun Time's.  None until the
+        # file exists — the HUD process starts before startup writes it.
+        self._fun_time_pids: set[int] | None = None
 
         monitors = enumerate_monitors()
         main_rect, secondary_rect = get_logical_monitor_rects(
@@ -893,17 +913,50 @@ class LockHud:
             landscape_widen_clip=state.landscape_widen_clip,
         )
         build_ms = (time.perf_counter() - build_start) * 1000.0
-        sides = [self._apply("portrait", portrait_panel), self._apply("landscape", landscape_panel)]
+        # One foreground query drives both overlays' topmost band this tick.
+        topmost = self._fun_time_has_foreground()
+        sides = [
+            self._apply("portrait", portrait_panel, topmost),
+            self._apply("landscape", landscape_panel, topmost),
+        ]
         line = hud_refresh_probe_line(poll_ms, build_ms, sides)
         if line:
             logger.debug(line, extra={"source": SOURCE_SYSTEM})
 
-    def _apply(self, side: str, panel: HudPanel) -> HudSideProbe:
+    def _fun_time_has_foreground(self) -> bool:
+        """Whether the window the user is focused on right now belongs to Fun Time.
+
+        The overlays float topmost over their satellites, so they must give up the
+        band the moment the user switches to another app — otherwise they cover it
+        (most visibly during OmniPause, when the user has deliberately switched
+        away).  The foreground window's owning process answers it: if it is one of
+        this session's PIDs, Fun Time is up front and the overlays stay topmost.
+        """
+        if sys.platform != "win32":
+            return True
+        foreground_pid = get_window_pid(get_foreground_window())
+        return hud_should_be_topmost(foreground_pid, self._resolve_fun_time_pids())
+
+    def _resolve_fun_time_pids(self) -> set[int]:
+        """This session's window-owning PIDs, read once from bridge_pids.ini and
+        cached (it is written once at startup and never rewritten).  Until the
+        file exists the set is just our own PID, so every other window reads as
+        foreign — the safe default of dropping rather than staying stuck on top."""
+        if self._fun_time_pids is not None:
+            return self._fun_time_pids
+        pids_file = self._config.shared_state_file.parent / BRIDGE_PIDS_FILENAME
+        pids = load_fun_time_pids(pids_file, os.getpid())
+        if pids_file.exists():
+            self._fun_time_pids = pids
+        return pids
+
+    def _apply(self, side: str, panel: HudPanel, topmost: bool) -> HudSideProbe:
         overlay = self._overlays[side]
         # Reload thumbnails and repaint only when the map actually changed; the
         # panel captures everything drawn, so an equal one would render
-        # identically.  Topmost is re-staked every tick regardless — that is
-        # what keeps the overlay above a re-promoted VLC.
+        # identically.  Topmost is re-staked every tick regardless — that keeps
+        # the overlay above a re-promoted VLC while Fun Time is up front, and
+        # drops it out of the band the moment the user switches away.
         rebuilt = panel != self._last_panels[side] or self._thumbs_pending[side]
         thumb_ms = 0.0
         if rebuilt:
@@ -931,7 +984,7 @@ class LockHud:
             thumb_ms = (time.perf_counter() - thumb_start) * 1000.0
         if not overlay.isVisible():
             overlay.show()
-        was_topmost, restake_ms = overlay.restake_topmost()
+        was_topmost, restake_ms = overlay.restake_topmost(topmost)
         return HudSideProbe(
             side=side, changed=rebuilt, thumb_ms=thumb_ms,
             restake_was_topmost=was_topmost, restake_ms=restake_ms,

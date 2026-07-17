@@ -352,6 +352,31 @@ def get_foreground_window() -> int:
     return _user32.GetForegroundWindow()
 
 
+# argtypes matter on 64-bit: without them ctypes marshals the HWND as a 32-bit
+# c_int and truncates the handle, and the process-id out-param pointer must be a
+# real pointer (same reasoning as the SetWindowPos/OpenProcess declarations).
+_user32.GetWindowThreadProcessId.argtypes = [
+    ctypes.wintypes.HWND,                   # hWnd
+    ctypes.POINTER(ctypes.wintypes.DWORD),  # lpdwProcessId (out)
+]
+_user32.GetWindowThreadProcessId.restype = ctypes.wintypes.DWORD
+
+
+def get_window_pid(hwnd: int) -> int:
+    """The process ID that owns *hwnd*, or 0 for a null/invalid handle.
+
+    ``GetWindowThreadProcessId`` returns the owning *thread* ID and writes the
+    *process* ID into its out-param; window ownership is a process fact, so the
+    process ID is what we return.  Used to test whether the foreground window
+    belongs to one of Fun Time's processes.
+    """
+    if not hwnd:
+        return 0
+    pid = ctypes.wintypes.DWORD()
+    _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value
+
+
 def find_window_by_title(title: str, *, exact: bool = False, include_hidden: bool = False) -> int:
     """Find a visible window whose title contains (or, with *exact*, equals)
     *title*. Returns 0 if not found.
