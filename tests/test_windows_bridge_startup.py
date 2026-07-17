@@ -17,6 +17,7 @@ from fun_time.windows_bridge_startup import (
     _await_vlc_http,
     _build_satellite_launch_command,
     _build_vlc_launch_command,
+    launch_satellite,
     ensure_broker,
     launch_core_apps,
     launch_genau,
@@ -844,3 +845,30 @@ def test_build_satellite_launch_command_passes_no_config_flag():
         x=0, y=0, width=1, height=1,
     )
     assert "--config" not in cmd
+
+
+def test_launch_satellite_starts_process_and_returns_pid():
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(51)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+    ):
+        pid = launch_satellite(
+            python_exe="python.exe",
+            satellite_module="satellite",
+            playlist_file="state/portrait_playlist.tsv",
+            command_file="state/portrait_cmd.txt",
+            paused_file="state/portrait_paused.txt",
+            status_file="state/portrait_status.txt",
+            x=2560,
+            y=0,
+            width=1440,
+            height=2500,
+        )
+
+    assert pid == 51
+    assert popen.call_args.kwargs == {"creationflags": 1}
+    assert popen.call_args.args[0][:3] == ["python.exe", "-m", "satellite"]
+    assert popen.call_args.args[0][-1] == "--no-audio"

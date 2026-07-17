@@ -509,3 +509,38 @@ def _build_satellite_launch_command(
         str(height),
         "--no-audio",
     ]
+
+
+def launch_satellite(
+    *,
+    python_exe: str | Path,
+    satellite_module: str,
+    playlist_file: str | Path,
+    command_file: str | Path,
+    paused_file: str | Path,
+    status_file: str | Path,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+) -> int:
+    """Launch a native satellite player subprocess, returning its PID.
+
+    The native counterpart to the VLC satellite spawn (and a sibling of
+    :func:`launch_nau`): our own mpv-backed process, hidden until fun_time
+    positions it by HWND, driven through the command/paused/status file quartet.
+    """
+    cmd = _build_satellite_launch_command(
+        python_exe,
+        satellite_module,
+        playlist_file=playlist_file,
+        command_file=command_file,
+        paused_file=paused_file,
+        status_file=status_file,
+        x=x,
+        y=y,
+        width=width,
+        height=height,
+    )
+    proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
+    return proc.pid
