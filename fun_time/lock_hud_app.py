@@ -64,6 +64,7 @@ _PAD = 10
 _MAP_THUMB_H = 54
 _MAP_GAP = 5
 _ROW_GAP = 12  # vertical gap between action rows — roomier than the seed gap
+_ACT_GAP = 6   # gap between two acts stacked in one row label ("Alpha" / "Theta Motion")
 _BORDER_W = 2
 _LOCK_BAND_H = 24
 _STATUS_LINE_H = 15
@@ -268,19 +269,28 @@ def _placeholder_pixmap(side: str) -> QPixmap:
 _ACTION_ACRONYMS = {"pov": "POV"}
 
 
-def _friendly_action_label(name: str) -> str:
-    """A row's action drawn nicely, newline-delimited into the lines it wraps to:
-    title-cased with known acronyms kept upper, or "(unknown)" when the clip has
-    no action metadata so the row is never a blank, invisible gutter.
+def _titlecase_word(word: str) -> str:
+    return _ACTION_ACRONYMS.get(word.lower(), word[:1].upper() + word[1:].lower())
 
-    Each word goes on its own line ("pov gamma" → "POV\\nGamma"); a single
-    word stays whole on one line (the gutter and font are sized to fit it)."""
-    if not name.strip():
-        return "(unknown)"
-    return "\n".join(
-        _ACTION_ACRONYMS.get(word.lower(), word[:1].upper() + word[1:].lower())
-        for word in name.split()
-    )
+
+def _action_label_blocks(name: str) -> list[list[str]]:
+    """A clip's action(s) drawn nicely, as one block of word-lines per action.
+
+    A clip can carry several comma-separated acts ("Alpha, Theta Motion") — each
+    becomes its own block, so they can be drawn with a gap between the acts but
+    tight wrapping within one.  "(unknown)" when there is no action metadata."""
+    blocks = [
+        [_titlecase_word(word) for word in act.split()]
+        for act in name.split(",")
+        if act.strip()
+    ]
+    return blocks or [["(unknown)"]]
+
+
+def _friendly_action_label(name: str) -> str:
+    """The flat, newline-per-word form of an action label — used for measuring the
+    gutter.  ``_action_label_blocks`` is what the row is actually drawn from."""
+    return "\n".join(word for block in _action_label_blocks(name) for word in block)
 
 
 def paint_hud(
@@ -355,19 +365,23 @@ def paint_hud(
         )
 
     def _row_label(row_y: int, height: int, text: str) -> None:
-        # Draw each wrapped line by hand at a tight line height, so a two-word act
-        # ("POV" / "Gamma") sits close together, vertically centred in the row.
-        # A slightly smaller font lets a long single word ("Delta") fit whole.
+        # One block of tight word-lines per act, with a bigger gap between acts, so
+        # a two-word act ("Motion" / "Bounce") wraps close but two acts ("Alpha"
+        # then "Theta Motion") are clearly separated.  Centred in the row.
         painter.setFont(make_font(FONT_UI, _ROW_LABEL_PT, bold=True))
         painter.setPen(TEXT_MUTED)
-        lines = _friendly_action_label(text).split("\n")
+        blocks = _action_label_blocks(text)
         line_h = painter.fontMetrics().height() - 4
-        top = row_y + (height - line_h * len(lines)) // 2
-        for i, line in enumerate(lines):
-            painter.drawText(
-                QRect(x, top + i * line_h, gutter_w - _MAP_GAP, line_h),
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, line,
-            )
+        total = sum(len(b) for b in blocks) * line_h + (len(blocks) - 1) * _ACT_GAP
+        ty = row_y + (height - total) // 2
+        for block in blocks:
+            for line in block:
+                painter.drawText(
+                    QRect(x, ty, gutter_w - _MAP_GAP, line_h),
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, line,
+                )
+                ty += line_h
+            ty += _ACT_GAP
         painter.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))  # restore for col labels
 
     corner = _scaled(current_thumb, _MAP_THUMB_H)
