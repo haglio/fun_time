@@ -547,7 +547,7 @@ def test_build_fmode_playlists_forwards_library_to_satellites(tmp_path: Path):
 
 def test_satellite_filter_narrows_to_the_matching_action(tmp_path: Path):
     source_dir, library, paths = _grouped_library(tmp_path, {
-        "redacted": _i2v_meta("1", "Alpha"),
+        "clip": _i2v_meta("1", "Alpha"),
         "prone": _i2v_meta("2", "Beta Gamma"),
         "kiss": _i2v_meta("3", "Kissing"),
     })
@@ -560,14 +560,14 @@ def test_satellite_filter_narrows_to_the_matching_action(tmp_path: Path):
 
 def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
     source_dir, library, paths = _grouped_library(tmp_path, {
-        "redacted": _i2v_meta("1", "Alpha"),
+        "clip": _i2v_meta("1", "Alpha"),
         "nometa": None,
     })
     got = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
         filter_query="alpha", rng=random.Random(1), library=library,
     )
-    assert got == [paths["redacted"]]
+    assert got == [paths["clip"]]
 
 
 def test_satellite_filter_composes_with_premiere_recency_order(tmp_path: Path):
@@ -663,43 +663,43 @@ def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
     """A filtered view has already pinned the act, so same-params-different-seed
     clips are one seed family and collapse to a single entry."""
     source_dir, library, paths = _grouped_library(tmp_path, {
-        "cum_a": _t2v_meta("Alpha", "1"),
-        "cum_b": _t2v_meta("Alpha", "2"),
+        "clip_a": _t2v_meta("Alpha", "1"),
+        "clip_b": _t2v_meta("Alpha", "2"),
     })
-    os.utime(paths["cum_a"], (1000, 1000))
-    os.utime(paths["cum_b"], (2000, 2000))
+    os.utime(paths["clip_a"], (1000, 1000))
+    os.utime(paths["clip_b"], (2000, 2000))
 
     built = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
         filter_query="alpha", recent=True, library=library,
     )
 
-    assert built == [paths["cum_b"]]  # one per param-set, represented by its newest
+    assert built == [paths["clip_b"]]  # one per param-set, represented by its newest
 
 
 def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
     """Unfiltered browsing keeps today's one-clip-per-subject (action group),
     so two different-seed subjects both appear."""
     source_dir, library, paths = _grouped_library(tmp_path, {
-        "cum_a": _t2v_meta("Alpha", "1"),
-        "cum_b": _t2v_meta("Alpha", "2"),
+        "clip_a": _t2v_meta("Alpha", "1"),
+        "clip_b": _t2v_meta("Alpha", "2"),
     })
-    os.utime(paths["cum_a"], (1000, 1000))
-    os.utime(paths["cum_b"], (2000, 2000))
+    os.utime(paths["clip_a"], (1000, 1000))
+    os.utime(paths["clip_b"], (2000, 2000))
 
     built = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv", recent=True, library=library,
     )
 
-    assert sorted(built) == sorted([paths["cum_a"], paths["cum_b"]])
+    assert sorted(built) == sorted([paths["clip_a"], paths["clip_b"]])
 
 
 def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
     """Seed-family collapse must not merge different acts: the t2v family pins
     the action, so a Kissing clip stays its own family."""
     source_dir, library, paths = _grouped_library(tmp_path, {
-        "cum_a": _t2v_meta("Alpha", "1"),
-        "cum_b": _t2v_meta("Alpha", "2"),
+        "clip_a": _t2v_meta("Alpha", "1"),
+        "clip_b": _t2v_meta("Alpha", "2"),
         "kiss": _t2v_meta("Kissing", "1"),
     })
 

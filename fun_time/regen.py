@@ -83,8 +83,9 @@ def regen_url_for_video(
     """Return the regenerate URL for a provider video, or "" if it has none.
 
     Eligibility is decided by the sidecar alone: a clip with no metadata JSON
-    under *metadata_root* (anything outside the regen library — a Provider2
-    fav, a local import) maps to no sidecar and falls back to its stored link.
+    under *metadata_root* (anything outside the regen library — a fav from a
+    gallery-only provider, a local import) maps to no sidecar and falls back to
+    its stored link.
     """
     meta_path = metadata_path_for(video_path, metadata_root)
     if meta_path is None or not meta_path.is_file():
