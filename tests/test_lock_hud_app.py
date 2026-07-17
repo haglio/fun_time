@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -12,6 +13,7 @@ from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication
 
+from fun_time.command_dispatch import BridgeState
 from fun_time.config import LayoutConfig
 from fun_time.lock_hud import HudAppConfig, HudPanel
 from fun_time.lock_hud_app import (
@@ -20,6 +22,7 @@ from fun_time.lock_hud_app import (
     _PAD,
     _ROW_LABEL_W,
     HudOverlay,
+    HudSideProbe,
     LockHud,
     _friendly_action_label,
     _playing_cell,
@@ -28,6 +31,8 @@ from fun_time.lock_hud_app import (
     hit_test_targets,
     hud_expand_button_rect,
     hud_loop_button_rects,
+    hud_paint_probe_line,
+    hud_refresh_probe_line,
     hud_thumbnail_rects,
     paint_hud,
 )
@@ -469,20 +474,125 @@ def test_paint_hud_draws_unknown_for_a_row_missing_its_action(qt_app):
     assert ink > 0
 
 
-def test_restake_topmost_always_reasserts_the_band(qt_app):
-    """The HUD stays topmost the whole time it is shown (OmniPause included), so
-    every refresh re-asserts the band — even when it already carries the bit —
-    to climb back over a satellite VLC re-promoted above it."""
+def test_restake_topmost_reasserts_the_band_and_reports_prior_state(qt_app):
+    """The HUD re-asserts topmost every refresh it is shown (OmniPause included) to
+    climb back over a re-promoted satellite VLC — even when it already carries the
+    bit.  For the blink probe it also reports whether it was ALREADY topmost, so a
+    live run can tell a redundant re-stake from one that actually flipped the band
+    (the second is the OmniPause-resume flash)."""
     overlay = HudOverlay("portrait", lambda command: None)
     try:
         hwnd = int(overlay.winId())
-        with patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
-            overlay.restake_topmost()
-            overlay.restake_topmost()
-        assert mock_set.call_count == 2
-        assert all(c.args == (hwnd, True) for c in mock_set.call_args_list)
+        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=False), \
+             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
+            was_topmost, elapsed_ms = overlay.restake_topmost()
+        assert mock_set.call_args == ((hwnd, True),), "re-asserts the band regardless"
+        assert was_topmost is False, "reports it had to flip the band back on top"
+        assert elapsed_ms >= 0.0
+        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=True), \
+             patch("fun_time.lock_hud_app.set_always_on_top"):
+            assert overlay.restake_topmost()[0] is True, "reports a redundant re-stake"
     finally:
         overlay.close()
+
+
+def test_hud_refresh_probe_line_is_silent_on_a_quiet_tick():
+    """The blink probe must not flood the event log: a tick whose maps are both
+    unchanged and both already on top, with no slow phase, produces no line."""
+    sides = [
+        HudSideProbe("portrait", changed=False, thumb_ms=0.0, restake_was_topmost=True, restake_ms=0.2),
+        HudSideProbe("landscape", changed=False, thumb_ms=0.0, restake_was_topmost=True, restake_ms=0.2),
+    ]
+    assert hud_refresh_probe_line(1.0, 0.5, sides) is None
+
+
+def test_hud_refresh_probe_line_reports_a_rebuild():
+    """A new clip rebuilds one side's map (a repaint) — that tick is logged, with
+    each side's phase timings and which one rebuilt vs stayed idle."""
+    sides = [
+        HudSideProbe("portrait", changed=True, thumb_ms=8.0, restake_was_topmost=True, restake_ms=0.2),
+        HudSideProbe("landscape", changed=False, thumb_ms=0.0, restake_was_topmost=True, restake_ms=0.2),
+    ]
+    line = hud_refresh_probe_line(2.0, 1.0, sides)
+    assert line is not None and line.startswith("HUD probe:")
+    assert "portrait[rebuilt" in line and "landscape[idle" in line
+
+
+def test_hud_refresh_probe_line_flags_a_topmost_flip():
+    """A tick where nothing rebuilt but an overlay had to climb back on top — the
+    OmniPause-resume flash — is exactly what must not stay silent."""
+    sides = [
+        HudSideProbe("portrait", changed=False, thumb_ms=0.0, restake_was_topmost=False, restake_ms=0.3),
+        HudSideProbe("landscape", changed=False, thumb_ms=0.0, restake_was_topmost=True, restake_ms=0.2),
+    ]
+    line = hud_refresh_probe_line(1.0, 0.5, sides)
+    assert line is not None and "FLIPPED" in line
+
+
+def test_hud_refresh_probe_line_flags_a_slow_phase():
+    """A stall in any phase is logged even on an otherwise-quiet tick, so a slow
+    VLC poll or thumbnail load that could show as a hitch is captured."""
+    sides = [
+        HudSideProbe("portrait", changed=False, thumb_ms=0.0, restake_was_topmost=True, restake_ms=0.2),
+        HudSideProbe("landscape", changed=False, thumb_ms=0.0, restake_was_topmost=True, restake_ms=0.2),
+    ]
+    line = hud_refresh_probe_line(45.0, 0.5, sides)
+    assert line is not None and "poll=45ms" in line
+
+
+def test_hud_paint_probe_line_is_tagged_and_counts_paints_since_change():
+    """The repaint line shares the "HUD probe:" tag (one grep gets the lot) and
+    carries how many paints have fired since the content last changed — >1 flags
+    Qt repainting the translucent overlay on its own, a flash nobody asked for."""
+    line = hud_paint_probe_line("landscape", 3.4, 2)
+    assert line.startswith("HUD probe: paint")
+    assert "landscape" in line and "since_change=2" in line
+
+
+def test_apply_returns_a_probe_reporting_the_rebuild_and_restake(qt_app, tmp_path):
+    """``_apply`` hands the refresh loop a per-side probe: it rebuilt (repainted)
+    on the first, unchanged panel, skipped on the cached repeat, and each carries
+    the re-stake's prior-topmost read for the blink diagnosis."""
+    hud = _build_lock_hud(tmp_path)
+    overlay = hud._overlays["portrait"]
+    panel = _panel(current="C:/vids/a.mp4", seed_siblings=[], action_siblings=[])
+    loaded = _solid_pixmap(QColor(1, 1, 1))
+    try:
+        with patch("fun_time.lock_hud_app.cached_thumbnail", return_value=tmp_path / "x.jpg"), \
+             patch("fun_time.lock_hud_app._load_pixmap", return_value=loaded), \
+             patch("fun_time.lock_hud_app.panel_thumbnails", return_value=[]), \
+             patch.object(overlay, "restake_topmost", return_value=(False, 0.5)):
+            first = hud._apply("portrait", panel)   # rebuild
+            second = hud._apply("portrait", panel)  # cached + unchanged → skip
+        assert first.changed is True and first.thumb_ms >= 0.0
+        assert first.restake_was_topmost is False and first.restake_ms == 0.5
+        assert second.changed is False
+    finally:
+        for ov in hud._overlays.values():
+            ov.close()
+
+
+def test_refresh_logs_a_blink_probe_line_when_a_map_rebuilds(qt_app, tmp_path, caplog):
+    """End to end: a refresh whose clip changed rebuilds a map and writes a tagged
+    probe line to the event log — the whole point of the instrumentation."""
+    hud = _build_lock_hud(tmp_path)
+    panel = _panel(current="C:/vids/a.mp4", seed_siblings=[], action_siblings=[])
+    try:
+        with patch("fun_time.lock_hud_app.read_shared_state", return_value=BridgeState()), \
+             patch("fun_time.lock_hud_app.loading_screen_active", return_value=False), \
+             patch("fun_time.lock_hud_app.get_current_file_path", return_value="C:/vids/a.mp4"), \
+             patch("fun_time.lock_hud_app.build_panels", return_value=(panel, panel)), \
+             patch("fun_time.lock_hud_app.cached_thumbnail", return_value=None), \
+             patch("fun_time.lock_hud_app.panel_thumbnails", return_value=[]), \
+             patch.object(hud._overlays["portrait"], "restake_topmost", return_value=(True, 0.0)), \
+             patch.object(hud._overlays["landscape"], "restake_topmost", return_value=(True, 0.0)), \
+             caplog.at_level(logging.DEBUG, logger="fun_time.lock_hud_app"):
+            hud.refresh()
+        lines = [r.getMessage() for r in caplog.records if "HUD probe: refresh" in r.getMessage()]
+        assert lines, "a rebuild tick emits a refresh probe line"
+    finally:
+        for ov in hud._overlays.values():
+            ov.close()
 
 
 def _hud_config(tmp_path) -> HudAppConfig:
@@ -543,7 +653,7 @@ def test_apply_reloads_thumbnails_only_when_the_panel_changes(qt_app, tmp_path):
         with patch("fun_time.lock_hud_app.cached_thumbnail", return_value=tmp_path / "x.jpg"), \
              patch("fun_time.lock_hud_app._load_pixmap", return_value=loaded), \
              patch("fun_time.lock_hud_app.panel_thumbnails", return_value=[]), \
-             patch.object(overlay, "restake_topmost") as mock_topmost, \
+             patch.object(overlay, "restake_topmost", return_value=(True, 0.0)) as mock_topmost, \
              patch.object(overlay, "set_content") as mock_set_content:
             hud._apply("portrait", panel_a)   # first → build
             hud._apply("portrait", panel_a)   # same, fully loaded → skip
@@ -567,7 +677,7 @@ def test_apply_reloads_an_unchanged_panel_until_its_thumbnails_cache(qt_app, tmp
     try:
         with patch("fun_time.lock_hud_app.cached_thumbnail", return_value=None), \
              patch("fun_time.lock_hud_app.panel_thumbnails", return_value=[]), \
-             patch.object(overlay, "restake_topmost"), \
+             patch.object(overlay, "restake_topmost", return_value=(True, 0.0)), \
              patch.object(overlay, "set_content") as mock_set_content:
             hud._apply("portrait", panel)   # corner thumb missing → pending
             hud._apply("portrait", panel)   # same panel, still pending → reload
