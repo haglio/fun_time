@@ -29,6 +29,7 @@ from shared_ui.colors import BG_PRIMARY, BORDER_PANEL, GREEN, TEXT_MUTED, TEXT_P
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_TINY, make_font
 
 from fun_time.command_dispatch import BridgeState
+from fun_time.voice_commands import append_command_line
 from fun_time.event_log import EventLogHandler, SOURCE_SYSTEM, event_log_path
 from fun_time.filter_vocab import set_command
 from fun_time.lock_hud import (
@@ -976,13 +977,9 @@ class LockHud:
 
     def _write_command(self, command: str) -> None:
         """Post a command for the dispatch loop — the channel a thumbnail click
-        rides.  Overwrites like the dashboard's own writer; clicks are user-paced,
-        so a rare collision would at worst drop one."""
-        try:
-            self._config.dashboard_cmd_file.parent.mkdir(parents=True, exist_ok=True)
-            self._config.dashboard_cmd_file.write_text(command, encoding="utf-8")
-        except OSError:
-            pass
+        rides.  Shares the dashboard's robust writer, which retries past the
+        dispatch loop's ~20 Hz rename-drain instead of dropping the click."""
+        append_command_line(self._config.dashboard_cmd_file, command)
 
 
 def _attach_event_log(state_dir: Path) -> None:

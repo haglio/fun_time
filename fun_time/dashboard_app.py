@@ -85,6 +85,7 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.command_reference import render_reference_html
+from fun_time.voice_commands import append_command_line
 from fun_time.event_log import EVENT_LOG_FILENAME, event_log_path, read_events
 from fun_time.log_panel import LogPanelWidget, prefs_path
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
@@ -1087,8 +1088,13 @@ class ReferenceDialog(QDialog):
 
 
 def write_dashboard_command(path: Path, action_id: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(action_id, encoding="utf-8")
+    """Post a dashboard button (or voice-toggle) action for the dispatch loop.
+
+    Robust to the dispatch loop's ~20 Hz rename-drain of the same file: the write
+    retries past the transient sharing violation rather than raising into the Qt
+    slot, which would abort the dashboard (see :func:`append_command_line`).
+    """
+    append_command_line(path, action_id)
 
 
 def apply_dashboard_window_geometry(

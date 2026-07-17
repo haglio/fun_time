@@ -329,7 +329,74 @@ def test_dashboard_app_writes_commands_for_click_actions(tmp_path: Path):
 
     write_dashboard_command(command_file, "portrait_next")
 
-    assert command_file.read_text(encoding="utf-8") == "portrait_next"
+    assert command_file.read_text(encoding="utf-8").strip() == "portrait_next"
+
+
+def test_write_dashboard_command_retries_past_a_transient_file_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """The dispatch loop drains this file ~20x/s by renaming it, so a click whose
+    write overlaps a drain hits a Windows sharing violation (WinError 32) — the
+    same race AHK's QueueCommand retries past.  The write must retry rather than
+    raise: unhandled, the PermissionError propagates out of the Qt slot and PyQt6
+    aborts the whole dashboard, which is the "power button closed the Dash instead
+    of quitting Fun Time" bug."""
+    command_file = tmp_path / "state" / "dashboard_cmd.txt"
+    command_file.parent.mkdir(parents=True)
+
+    real_open = Path.open
+    attempts = {"n": 0}
+
+    def flaky_open(self: Path, *args: object, **kwargs: object):
+        if self == command_file:
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise PermissionError(32, "being used by another process")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", flaky_open)
+    monkeypatch.setattr("fun_time.voice_commands.time.sleep", lambda _s: None)
+
+    write_dashboard_command(command_file, "quit")  # must not raise
+
+    assert attempts["n"] >= 2  # retried past the first failure
+    assert command_file.read_text(encoding="utf-8").strip() == "quit"
+
+
+def test_write_dashboard_command_drops_rather_than_raises_when_locked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """If the file stays locked for every retry, the click is dropped — never
+    raised.  A raise here aborts the whole PyQt6 dashboard; a dropped click just
+    means the user clicks again."""
+    command_file = tmp_path / "state" / "dashboard_cmd.txt"
+    command_file.parent.mkdir(parents=True)
+
+    def always_locked(self: Path, *args: object, **kwargs: object):
+        if self == command_file:
+            raise PermissionError(32, "being used by another process")
+        raise AssertionError("unexpected open")
+
+    monkeypatch.setattr(Path, "open", always_locked)
+    monkeypatch.setattr("fun_time.voice_commands.time.sleep", lambda _s: None)
+
+    write_dashboard_command(command_file, "quit")  # must not raise
+
+    assert not command_file.exists()
+
+
+def test_write_dashboard_command_queues_rather_than_clobbers(tmp_path: Path):
+    """Two clicks landing between dispatch-loop drains must both survive: the
+    writer appends newline-terminated lines, so ``poll_dashboard_commands`` reads
+    both in order rather than only the last."""
+    from fun_time.windows_bridge_dispatch_loop import poll_dashboard_commands
+
+    command_file = tmp_path / "state" / "dashboard_cmd.txt"
+
+    write_dashboard_command(command_file, "portrait_lock")
+    write_dashboard_command(command_file, "quit")
+
+    assert poll_dashboard_commands(command_file) == ["portrait_lock", "quit"]
 
 
 def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path: Path):
@@ -431,7 +498,7 @@ def test_minimize_routes_omniminimize_command(cfg_path: Path):
 
         window._maybe_route_omniminimize(now_minimized=True, was_minimized=False)
 
-        assert cmd_file.read_text(encoding="utf-8") == "omniminimize"
+        assert cmd_file.read_text(encoding="utf-8").strip() == "omniminimize"
     finally:
         window.close()
 
@@ -478,7 +545,7 @@ def test_restore_routes_omnirestore_command(cfg_path: Path):
 
         # Restore edge (minimized -> normal) routes omnirestore.
         window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
-        assert cmd_file.read_text(encoding="utf-8") == "omnirestore"
+        assert cmd_file.read_text(encoding="utf-8").strip() == "omnirestore"
 
         # Minimize edge and steady state must not route omnirestore.
         cmd_file.unlink()
