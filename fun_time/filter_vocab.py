@@ -18,20 +18,17 @@ that contains it.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Mapping
 
-_PROJECT_DIR = Path(__file__).resolve().parent.parent
-_LOCAL_CONTENT = _PROJECT_DIR / "content.local.json"
-_EXAMPLE_CONTENT = _PROJECT_DIR / "content.example.json"
+from .content import EXAMPLE_CONTENT, LOCAL_CONTENT, load_content
 
 Acts = Mapping[str, tuple[str, ...]]
 
 
 def load_filter_acts(
-    local_path: Path = _LOCAL_CONTENT,
-    example_path: Path = _EXAMPLE_CONTENT,
+    local_path: Path = LOCAL_CONTENT,
+    example_path: Path = EXAMPLE_CONTENT,
 ) -> dict[str, tuple[str, ...]]:
     """Canonical query -> spoken forms, from the local overlay or the example.
 
@@ -39,8 +36,7 @@ def load_filter_acts(
     committed ``content.example.json`` is a tame placeholder used whenever it is
     absent (a fresh or public checkout).
     """
-    path = local_path if local_path.exists() else example_path
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = load_content(local_path, example_path)
     return {query: tuple(forms) for query, forms in data["filter_acts"].items()}
 
 
