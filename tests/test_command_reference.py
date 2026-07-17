@@ -397,10 +397,12 @@ def test_render_reference_html_has_no_heading_or_subtitle():
 
 
 def test_filters_section_documents_the_spoken_filters():
+    from fun_time.filter_vocab import spoken_forms_for_both
+
     sections = {s.title: s for s in build_reference_sections()}
     assert "Filters (satellite VLCs)" in sections
     blob = " ".join(v for row in sections["Filters (satellite VLCs)"].rows for v in row.voice)
-    assert "beta gamma" in blob  # example act
+    assert any(form in blob for form in spoken_forms_for_both())  # a spoken act form
     assert "clear portrait" in blob  # a clear phrase
 
 

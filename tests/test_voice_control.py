@@ -628,17 +628,21 @@ def test_group_commands_do_not_shadow_the_single_word_actions():
 
 
 def test_voice_commands_include_generated_filter_phrases():
-    from fun_time.filter_vocab import clear_command, set_command
+    from fun_time.filter_vocab import clear_command, load_filter_acts, set_command
 
-    assert VOICE_COMMANDS["portrait beta gamma"] == set_command("portrait", "beta gamma")
-    assert VOICE_COMMANDS["alpha form"] == set_command("both", "alpha")
+    query, forms = next(iter(load_filter_acts().items()))
+    form = forms[0]
+    assert VOICE_COMMANDS[f"portrait {form}"] == set_command("portrait", query)
+    assert VOICE_COMMANDS[form] == set_command("both", query)
     assert VOICE_COMMANDS["clear portrait"] == clear_command("portrait")
 
 
 def test_filter_phrases_reach_the_recognizer_grammar():
+    from fun_time.filter_vocab import filter_voice_commands
+
     grammar = build_grammar()
-    assert "portrait beta gamma" in grammar
-    assert "alpha form" in grammar
+    for phrase in filter_voice_commands():
+        assert phrase in grammar
 
 
 def test_filter_phrases_do_not_shadow_other_commands():
