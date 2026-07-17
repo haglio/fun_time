@@ -50,6 +50,18 @@ def _never_open_a_socket_to_vlc():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _never_mutate_a_real_window():
+    """Override the unit suite's window-mutation guard.
+
+    These tests launch the real bridge and position / topmost / activate / minimize
+    real native windows on the hidden desktop, so the ``user32`` mutating calls must
+    run for real.  They cannot reach the user's windows because ``live_session_guard``
+    refuses to start a run while Fun Time is open.
+    """
+    yield
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _serialize_integration_runs():
     """Hold one machine-wide lock for the entire integration run.
