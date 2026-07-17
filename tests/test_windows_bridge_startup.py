@@ -15,6 +15,7 @@ from fun_time.modes import SatelliteLibraryContext
 from fun_time.windows_bridge_startup import (
     _VLC_HTTP_BIND_TIMEOUT_MS,
     _await_vlc_http,
+    _build_satellite_launch_command,
     _build_vlc_launch_command,
     ensure_broker,
     launch_core_apps,
@@ -800,3 +801,46 @@ def test_build_vlc_launch_command_appends_playlist_path_when_given(tmp_path):
 def test_build_vlc_launch_command_omits_playlist_when_not_given():
     cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="loop")
     assert not any(arg.endswith(".m3u") for arg in cmd)
+
+
+def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry():
+    cmd = _build_satellite_launch_command(
+        "python.exe", "satellite",
+        playlist_file="state/portrait_playlist.tsv",
+        command_file="state/portrait_cmd.txt",
+        paused_file="state/portrait_paused.txt",
+        status_file="state/portrait_status.txt",
+        x=2560, y=0, width=1440, height=2500,
+    )
+    assert cmd[:3] == ["python.exe", "-m", "satellite"]
+
+    def _val(flag):
+        return cmd[cmd.index(flag) + 1]
+
+    assert _val("--playlist") == "state/portrait_playlist.tsv"
+    assert _val("--command-file") == "state/portrait_cmd.txt"
+    assert _val("--paused-file") == "state/portrait_paused.txt"
+    assert _val("--status-file") == "state/portrait_status.txt"
+    assert (_val("--x"), _val("--y"), _val("--width"), _val("--height")) == ("2560", "0", "1440", "2500")
+
+
+def test_build_satellite_launch_command_always_disables_audio():
+    # A satellite must never be heard; unlike VLC there is no shared Windows
+    # mixer to worry about, but the clip's own audio track must still be dropped.
+    cmd = _build_satellite_launch_command(
+        "python.exe", "satellite",
+        playlist_file="p", command_file="c", paused_file="pa", status_file="s",
+        x=0, y=0, width=1, height=1,
+    )
+    assert "--no-audio" in cmd
+
+
+def test_build_satellite_launch_command_passes_no_config_flag():
+    # The satellite CLI takes no --config (unlike Nau); it is fully specified by
+    # the file quartet and geometry, so none must be forwarded.
+    cmd = _build_satellite_launch_command(
+        "python.exe", "satellite",
+        playlist_file="p", command_file="c", paused_file="pa", status_file="s",
+        x=0, y=0, width=1, height=1,
+    )
+    assert "--config" not in cmd
