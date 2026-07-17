@@ -7,18 +7,16 @@ each satellite VLC (portrait and landscape) showing whether that player is
 locked and thumbnails of the other clips reachable in the current video's seed
 family and action group. All of *what* it shows and *where* is decided by the
 framework-free helpers in :mod:`fun_time.lock_hud`; this module is only the Qt
-shell that draws them and keeps each overlay's topmost band in step with
-OmniPause (topmost normally, non-topmost while paused so the desktop is free).
+shell that draws them and keeps each overlay stacked directly above its own
+satellite VLC, so it inherits the satellite's z-band: topmost over the desktop
+during play, and — when OmniPause drops the satellites to free the desktop —
+non-topmost right above its video, so other apps can sit over both.
 """
 from __future__ import annotations
 
-import logging
-import os
 import sys
 import threading
-import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer, QRect
@@ -30,7 +28,6 @@ from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_TINY, make_font
 
 from fun_time.command_dispatch import BridgeState
 from fun_time.voice_commands import append_command_line
-from fun_time.event_log import EventLogHandler, SOURCE_SYSTEM, event_log_path
 from fun_time.filter_vocab import set_command
 from fun_time.lock_hud import (
     ACTION_LIMIT,
@@ -40,9 +37,8 @@ from fun_time.lock_hud import (
     HudPanel,
     build_panels,
     hud_overlays_visible,
-    hud_should_be_topmost,
-    load_fun_time_pids,
     load_hud_app_config,
+    load_satellite_pid,
     locate_cell,
     overlay_rect,
     panel_thumbnails,
@@ -54,12 +50,7 @@ from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.startup_progress import loading_screen_active
 from fun_time.thumbnail_cache import cached_thumbnail
 from fun_time.vlc_actions import get_current_file_path
-from fun_time.win32 import (
-    get_foreground_window,
-    get_window_pid,
-    is_window_topmost,
-    set_always_on_top,
-)
+from fun_time.win32 import find_window_by_pid, is_window, place_window_above
 from fun_time.window_layout import compute_window_layout
 from fun_time.windows_bridge_dispatch_loop import read_shared_state
 
@@ -91,75 +82,6 @@ _ROW_LABEL_PT = 7  # a touch smaller than the map labels, so long acts fit on on
 _MIN_GUTTER = 30   # never narrower than this, even with only short acts
 _MAX_GUTTER = 100  # never wider than this, so a stray long act can't eat the map
 _LOOP_BTN = 18  # loop-button thickness (px): below the action column, right of the seed row
-
-
-# ── HUD blink probe (temporary instrumentation) ───────────────────────────────
-# Diagnosis for the "lock HUD blinks on a new clip / for seconds on OmniPause
-# resume" report.  Every line is tagged "HUD probe:" so a live-session reader can
-# grep event_log.jsonl for it, and — once the cause is fixed at the source — the
-# whole block (this section, the timing calls in refresh/_apply/paintEvent, the
-# restake measurement, and _attach_event_log in main) can be deleted.
-#
-# It times the five phases of a refresh — VLC poll, panel build, thumbnail load,
-# repaint, topmost re-stake — and logs a refresh line only when a tick is
-# interesting (a map actually rebuilt, an overlay had to climb back on top, or a
-# phase stalled), so a quiet steady state stays silent instead of flooding the
-# ~13-lines/second poll cadence.  Repaints log their own line where they run
-# (paintEvent), since Qt schedules them asynchronously.
-logger = logging.getLogger(__name__)
-
-_PROBE_SLOW_MS = 20.0  # a phase at/over this is "slow" — worth a line on its own
-
-
-@dataclass(frozen=True)
-class HudSideProbe:
-    """One satellite's per-refresh measurements, folded into the refresh line."""
-
-    side: str
-    changed: bool  # did the map rebuild (panel changed / thumbnails still pending)?
-    thumb_ms: float  # cached-thumbnail (re)load time; 0.0 on a skipped tick
-    restake_was_topmost: bool  # was the overlay already topmost before re-staking?
-    restake_ms: float  # cost of the SetWindowPos re-stake
-
-
-def _probe_side_summary(probe: HudSideProbe) -> str:
-    build = f"rebuilt thumbs={probe.thumb_ms:.0f}ms" if probe.changed else "idle"
-    stake = "already-top" if probe.restake_was_topmost else "FLIPPED->top"
-    return f"{probe.side}[{build} restake={stake} {probe.restake_ms:.0f}ms]"
-
-
-def hud_refresh_probe_line(
-    poll_ms: float,
-    build_ms: float,
-    sides: list[HudSideProbe],
-    *,
-    slow_ms: float = _PROBE_SLOW_MS,
-) -> str | None:
-    """A one-line refresh summary for the event log, or None on a quiet tick.
-
-    Interesting = a map rebuilt (a repaint), an overlay had to climb back on top
-    (a topmost flip — the OmniPause-resume flash), or a phase stalled.  A steady
-    tick (both maps unchanged, both already on top, nothing slow) returns None so
-    fast polling never floods the log.
-    """
-    slow = poll_ms >= slow_ms or build_ms >= slow_ms or any(s.thumb_ms >= slow_ms for s in sides)
-    flipped = any(not s.restake_was_topmost for s in sides)
-    changed = any(s.changed for s in sides)
-    if not (slow or flipped or changed):
-        return None
-    summaries = " ".join(_probe_side_summary(s) for s in sides)
-    return f"HUD probe: refresh poll={poll_ms:.0f}ms build={build_ms:.0f}ms {summaries}"
-
-
-def hud_paint_probe_line(side: str, paint_ms: float, paints_since_content: int) -> str:
-    """A repaint's timing for the event log, sharing the "HUD probe:" tag.
-
-    *paints_since_content* is how many paints have fired since this map's content
-    last changed: 1 is the expected paint that a content change schedules, >1
-    flags Qt repainting the translucent overlay on its own — a flash the refresh
-    loop never asked for, and a prime blink suspect.
-    """
-    return f"HUD probe: paint {side} {paint_ms:.1f}ms since_change={paints_since_content}"
 
 
 def _draw_status_line(painter: QPainter, x: int, y: int, text: str, color) -> int:
@@ -625,9 +547,6 @@ class HudOverlay(QWidget):
         self._loop_targets: list[tuple[_ThumbRect, str]] = []
         self._label_targets: list[tuple[_ThumbRect, str]] = []
         self._expand_rect: _ThumbRect | None = None
-        # Blink probe: paints since the map's content last changed.  Reset by
-        # set_content, bumped by paintEvent — >1 means Qt repainted us unbidden.
-        self._paints_since_content = 0
 
         self.setWindowTitle(f"Fun Time HUD ({side})")
         self.setWindowFlags(
@@ -663,43 +582,29 @@ class HudOverlay(QWidget):
         self._action_thumbs = action_thumbs
         self._seed_paths = seed_paths
         self._action_paths = action_paths
-        self._paints_since_content = 0  # this content change schedules paint #1
         self.update()
 
-    def restake_topmost(self, topmost: bool) -> tuple[bool, float]:
-        """Re-assert — or release — the topmost band on this refresh.
+    def stack_above(self, satellite_hwnd: int) -> None:
+        """Keep this overlay directly above its satellite VLC in the z-order.
 
-        While a Fun Time window holds the foreground (*topmost* True) the overlay
-        must float above its satellite, and the satellite VLC is itself topmost
-        and gets re-promoted to the top of the band on mode switches and on
-        resume from OmniPause, burying the HUD *within* the band.  A drift-checked
-        bit test can't see "topmost but buried", so we re-stake HWND_TOPMOST every
-        tick, so the map stays legible the whole time Fun Time is up front.
+        The overlay inherits the satellite's band this way: while the satellite is
+        topmost (normal playback) the HUD sits topmost right above it; when
+        OmniPause drops the satellite out of the band to free the desktop, the HUD
+        follows it down to just above it — non-topmost — so other apps can sit over
+        both, yet the map still caps its own video.  Re-applied every refresh
+        because the satellite is re-promoted on mode switches and OmniPause resume;
+        a no-op when the HUD already sits directly above it, so it never flickers.
 
-        When the user has switched to another app (*topmost* False) we instead
-        clear the flag (HWND_NOTOPMOST): a topmost window sits above every
-        non-topmost window desktop-wide, so left staked the overlay would cover
-        the app they switched to — most visibly during OmniPause.  Dropped, it
-        falls behind that app and climbs back the next refresh once Fun Time is
-        refocused.
-
-        Returns ``(was_topmost, elapsed_ms)`` for the blink probe: whether the
-        overlay already carried the topmost bit before this re-stake (a redundant
-        re-stake versus a band flip — the OmniPause-resume flash) and the
-        SetWindowPos cost.
+        Does nothing until the satellite's window is resolved (*satellite_hwnd* 0),
+        so a not-yet-found or restarted satellite just skips a tick.
         """
-        if sys.platform != "win32":
-            return True, 0.0
-        hwnd = int(self.winId())
-        was_topmost = is_window_topmost(hwnd)
-        start = time.perf_counter()
-        set_always_on_top(hwnd, topmost)
-        return was_topmost, (time.perf_counter() - start) * 1000.0
+        if sys.platform != "win32" or not satellite_hwnd:
+            return
+        place_window_above(int(self.winId()), satellite_hwnd)
 
     def paintEvent(self, event: object) -> None:  # noqa: N802
         if self._panel is None:
             return
-        paint_start = time.perf_counter()  # blink probe: time the actual repaint
         rect = self.rect()
         painter = QPainter(self)
         try:
@@ -734,12 +639,6 @@ class HudOverlay(QWidget):
                 _draw_tooltip(painter, rect, self._hover_tip, self._hover_pos)
         finally:
             painter.end()
-        paint_ms = (time.perf_counter() - paint_start) * 1000.0
-        self._paints_since_content += 1
-        logger.debug(
-            hud_paint_probe_line(self._side, paint_ms, self._paints_since_content),
-            extra={"source": self._side},
-        )
         self._click_targets = build_click_targets(
             corner_rect, seed_rects, action_rects,
             self._panel.current, self._seed_paths, self._action_paths,
@@ -841,11 +740,11 @@ class LockHud:
         # Whether a side still has thumbnails the prewarm hasn't produced yet, so
         # the next refresh reloads and lets them fill in without a clip change.
         self._thumbs_pending: dict[str, bool] = {"portrait": False, "landscape": False}
-        # This session's window-owning PIDs, read once from bridge_pids.ini (the
-        # orchestrator writes it at startup and never rewrites it), so the refresh
-        # can tell whether the foreground window is Fun Time's.  None until the
-        # file exists — the HUD process starts before startup writes it.
-        self._fun_time_pids: set[int] | None = None
+        # Each satellite VLC's window handle, resolved from its recorded PID and
+        # cached (the HUD stacks itself directly above it every refresh).  0 until
+        # found — the HUD process starts before the satellites' windows exist — and
+        # re-resolved if a cached handle goes stale (a satellite restart).
+        self._satellite_hwnds: dict[str, int] = {"portrait": 0, "landscape": 0}
 
         monitors = enumerate_monitors()
         main_rect, secondary_rect = get_logical_monitor_rects(
@@ -876,12 +775,8 @@ class LockHud:
                 overlay.hide()
             return
 
-        poll_start = time.perf_counter()  # blink probe: time the VLC current-file poll
         portrait_current = get_current_file_path(self._config.portrait_port, self._config.vlc_password)
         landscape_current = get_current_file_path(self._config.landscape_port, self._config.vlc_password)
-        poll_ms = (time.perf_counter() - poll_start) * 1000.0
-
-        build_start = time.perf_counter()  # blink probe: time the panel build
         portrait_panel, landscape_panel = build_panels(
             self._config,
             portrait_current=portrait_current,
@@ -897,55 +792,33 @@ class LockHud:
             portrait_nav_anchor=state.portrait_nav_anchor,
             landscape_nav_anchor=state.landscape_nav_anchor,
         )
-        build_ms = (time.perf_counter() - build_start) * 1000.0
-        # One foreground query drives both overlays' topmost band this tick.
-        topmost = self._fun_time_has_foreground()
-        sides = [
-            self._apply("portrait", portrait_panel, topmost),
-            self._apply("landscape", landscape_panel, topmost),
-        ]
-        line = hud_refresh_probe_line(poll_ms, build_ms, sides)
-        if line:
-            logger.debug(line, extra={"source": SOURCE_SYSTEM})
+        self._apply("portrait", portrait_panel)
+        self._apply("landscape", landscape_panel)
 
-    def _fun_time_has_foreground(self) -> bool:
-        """Whether the window the user is focused on right now belongs to Fun Time.
-
-        The overlays float topmost over their satellites, so they must give up the
-        band the moment the user switches to another app — otherwise they cover it
-        (most visibly during OmniPause, when the user has deliberately switched
-        away).  The foreground window's owning process answers it: if it is one of
-        this session's PIDs, Fun Time is up front and the overlays stay topmost.
-        """
-        if sys.platform != "win32":
-            return True
-        foreground_pid = get_window_pid(get_foreground_window())
-        return hud_should_be_topmost(foreground_pid, self._resolve_fun_time_pids())
-
-    def _resolve_fun_time_pids(self) -> set[int]:
-        """This session's window-owning PIDs, read once from bridge_pids.ini and
-        cached (it is written once at startup and never rewritten).  Until the
-        file exists the set is just our own PID, so every other window reads as
-        foreign — the safe default of dropping rather than staying stuck on top."""
-        if self._fun_time_pids is not None:
-            return self._fun_time_pids
+    def _satellite_hwnd(self, side: str) -> int:
+        """This side's satellite VLC window, resolved from its recorded PID and
+        cached; 0 until the window exists.  Re-resolved when the cached handle no
+        longer names a live window (a satellite restart), so the HUD re-anchors
+        instead of clinging to a dead handle."""
+        hwnd = self._satellite_hwnds[side]
+        if hwnd and is_window(hwnd):
+            return hwnd
         pids_file = self._config.shared_state_file.parent / BRIDGE_PIDS_FILENAME
-        pids = load_fun_time_pids(pids_file, os.getpid())
-        if pids_file.exists():
-            self._fun_time_pids = pids
-        return pids
+        pid = load_satellite_pid(pids_file, side)
+        hwnd = find_window_by_pid(pid) if pid else 0
+        self._satellite_hwnds[side] = hwnd
+        return hwnd
 
-    def _apply(self, side: str, panel: HudPanel, topmost: bool) -> HudSideProbe:
+    def _apply(self, side: str, panel: HudPanel) -> None:
         overlay = self._overlays[side]
         # Reload thumbnails and repaint only when the map actually changed; the
         # panel captures everything drawn, so an equal one would render
-        # identically.  Topmost is re-staked every tick regardless — that keeps
-        # the overlay above a re-promoted VLC while Fun Time is up front, and
-        # drops it out of the band the moment the user switches away.
+        # identically.  The overlay is re-stacked above its satellite every tick
+        # regardless — that is what keeps it directly over a re-promoted VLC and
+        # in step with the satellite's band (topmost in play, dropped under
+        # OmniPause).
         rebuilt = panel != self._last_panels[side] or self._thumbs_pending[side]
-        thumb_ms = 0.0
         if rebuilt:
-            thumb_start = time.perf_counter()  # blink probe: time the thumbnail load
             cache_dir = self._config.thumbnail_cache_dir
             # Cached-only: the refresh never generates a thumbnail (a cv2 frame
             # grab can take seconds on HEVC), so the map flips immediately.  Any
@@ -966,38 +839,15 @@ class LockHud:
                 + min(len(panel.action_siblings), ACTION_LIMIT)
             have = (1 if current_thumb else 0) + len(seed) + len(action)
             self._thumbs_pending[side] = have < want
-            thumb_ms = (time.perf_counter() - thumb_start) * 1000.0
         if not overlay.isVisible():
             overlay.show()
-        was_topmost, restake_ms = overlay.restake_topmost(topmost)
-        return HudSideProbe(
-            side=side, changed=rebuilt, thumb_ms=thumb_ms,
-            restake_was_topmost=was_topmost, restake_ms=restake_ms,
-        )
+        overlay.stack_above(self._satellite_hwnd(side))
 
     def _write_command(self, command: str) -> None:
         """Post a command for the dispatch loop — the channel a thumbnail click
         rides.  Shares the dashboard's robust writer, which retries past the
         dispatch loop's ~20 Hz rename-drain instead of dropping the click."""
         append_command_line(self._config.dashboard_cmd_file, command)
-
-
-def _attach_event_log(state_dir: Path) -> None:
-    """Feed this process's blink-probe lines into the session's shared event log.
-
-    The HUD runs as its own process, so — unlike the orchestrator — it has no
-    EventLogHandler yet.  Attach one (append-only; the orchestrator owns the
-    per-session truncation) and open the package logger to DEBUG so the probe's
-    DEBUG lines actually reach it.  Part of the temporary blink probe: delete with
-    the rest of it.
-    """
-    package_logger = logging.getLogger("fun_time")
-    package_logger.setLevel(logging.DEBUG)
-    if any(isinstance(h, EventLogHandler) for h in package_logger.handlers):
-        return
-    handler = EventLogHandler(event_log_path(state_dir))
-    handler.setLevel(logging.DEBUG)
-    package_logger.addHandler(handler)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1007,7 +857,6 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     config = load_hud_app_config(argv[1])
-    _attach_event_log(config.shared_state_file.parent)  # blink probe (temporary)
     app = QApplication(argv[:1])
     hud = LockHud(config)  # noqa: F841 — kept alive for the app's lifetime
     return app.exec()
