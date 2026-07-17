@@ -7,10 +7,10 @@ each satellite VLC (portrait and landscape) showing whether that player is
 locked and thumbnails of the other clips reachable in the current video's seed
 family and action group. All of *what* it shows and *where* is decided by the
 framework-free helpers in :mod:`fun_time.lock_hud`; this module is only the Qt
-shell that draws them and keeps each overlay stacked directly above its own
-satellite VLC, so it inherits the satellite's z-band: topmost over the desktop
-during play, and — when OmniPause drops the satellites to free the desktop —
-non-topmost right above its video, so other apps can sit over both.
+shell that draws them and keeps each overlay's topmost band matched to its own
+satellite VLC's, so it floats above the satellite's video either way: topmost
+over the desktop during play, and — when OmniPause drops the satellites to free
+the desktop — non-topmost above its video, so other apps can sit over both.
 """
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.startup_progress import loading_screen_active
 from fun_time.thumbnail_cache import cached_thumbnail
 from fun_time.vlc_actions import get_current_file_path
-from fun_time.win32 import find_window_by_pid, is_window, place_window_above
+from fun_time.win32 import find_window_by_pid, is_window, is_window_topmost, set_always_on_top
 from fun_time.window_layout import compute_window_layout
 from fun_time.windows_bridge_dispatch_loop import read_shared_state
 
@@ -585,22 +585,25 @@ class HudOverlay(QWidget):
         self.update()
 
     def stack_above(self, satellite_hwnd: int) -> None:
-        """Keep this overlay directly above its satellite VLC in the z-order.
+        """Match this overlay's topmost band to its satellite's, every refresh.
 
-        The overlay inherits the satellite's band this way: while the satellite is
-        topmost (normal playback) the HUD sits topmost right above it; when
-        OmniPause drops the satellite out of the band to free the desktop, the HUD
-        follows it down to just above it — non-topmost — so other apps can sit over
-        both, yet the map still caps its own video.  Re-applied every refresh
-        because the satellite is re-promoted on mode switches and OmniPause resume;
-        a no-op when the HUD already sits directly above it, so it never flickers.
+        Re-staking to HWND_TOPMOST/HWND_NOTOPMOST puts the overlay at the TOP of
+        whichever band its satellite is in, so it floats above the satellite's own
+        video either way: topmost over the desktop while the satellite is topmost
+        (normal play, re-staked so it climbs back over a satellite re-promoted on a
+        mode switch or OmniPause resume), and non-topmost when OmniPause drops the
+        satellite to free the desktop — dropped alongside it so other apps can sit
+        over both, yet still above its own paused clip.  (An overlay window handle
+        can't be the SetWindowPos insert-after target of its own satellite without
+        landing *under* it, which is why we mirror the band rather than splice into
+        the z-order directly.)
 
         Does nothing until the satellite's window is resolved (*satellite_hwnd* 0),
         so a not-yet-found or restarted satellite just skips a tick.
         """
         if sys.platform != "win32" or not satellite_hwnd:
             return
-        place_window_above(int(self.winId()), satellite_hwnd)
+        set_always_on_top(int(self.winId()), is_window_topmost(satellite_hwnd))
 
     def paintEvent(self, event: object) -> None:  # noqa: N802
         if self._panel is None:

@@ -447,28 +447,35 @@ def test_paint_hud_draws_unknown_for_a_row_missing_its_action(qt_app):
     assert ink > 0
 
 
-def test_stack_above_places_the_overlay_directly_above_its_satellite(qt_app):
-    """The overlay stacks itself immediately above its satellite VLC, inheriting
-    the satellite's z-band (topmost in play, non-topmost under OmniPause) without
-    the HUD having to track OmniPause itself."""
+def test_stack_above_matches_the_overlays_band_to_its_satellite(qt_app):
+    """The overlay re-stakes into whatever band its satellite is in — topmost while
+    the satellite is topmost (play), non-topmost when OmniPause drops it — landing
+    at the top of that band, above its own video either way (never tracking
+    OmniPause itself, just its satellite)."""
     overlay = HudOverlay("portrait", lambda command: None)
     try:
         hwnd = int(overlay.winId())
-        with patch("fun_time.lock_hud_app.place_window_above") as mock_place:
+        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=True) as mock_top, \
+             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
             overlay.stack_above(4242)
-        mock_place.assert_called_once_with(hwnd, 4242)
+        mock_top.assert_called_once_with(4242)          # reads the satellite's band
+        mock_set.assert_called_once_with(hwnd, True)    # matches its own to it
+        with patch("fun_time.lock_hud_app.is_window_topmost", return_value=False), \
+             patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
+            overlay.stack_above(4242)                    # satellite dropped (OmniPause)
+        mock_set.assert_called_once_with(hwnd, False)   # HUD drops with it
     finally:
         overlay.close()
 
 
 def test_stack_above_does_nothing_without_a_resolved_satellite(qt_app):
     """No satellite window yet (hwnd 0) → skip this tick and try again next, rather
-    than stacking above a bogus window."""
+    than banding against a bogus window."""
     overlay = HudOverlay("portrait", lambda command: None)
     try:
-        with patch("fun_time.lock_hud_app.place_window_above") as mock_place:
+        with patch("fun_time.lock_hud_app.set_always_on_top") as mock_set:
             overlay.stack_above(0)
-        mock_place.assert_not_called()
+        mock_set.assert_not_called()
     finally:
         overlay.close()
 

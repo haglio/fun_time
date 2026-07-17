@@ -18,7 +18,6 @@ from fun_time.win32 import (
     wait_for_window,
     move_window,
     set_always_on_top,
-    place_window_above,
     is_window,
     is_window_topmost,
     activate_window,
@@ -130,20 +129,6 @@ class TestSetAlwaysOnTop:
 
         args = mock.SetWindowPos.call_args[0]
         assert args[1] == HWND_NOTOPMOST
-
-
-class TestPlaceWindowAbove:
-    """Stacks a window directly above a specific other window, inheriting its
-    band — how the lock HUD follows its satellite VLC into and out of topmost."""
-
-    def test_inserts_directly_above_the_target(self):
-        with patch("fun_time.win32._user32") as mock:
-            place_window_above(111, 222)
-
-        args = mock.SetWindowPos.call_args[0]
-        assert args[0] == 111
-        assert args[1] == 222, "hWndInsertAfter is the target window, so 111 lands right on top"
-        assert args[6] == SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
 
 
 class TestIsWindow:
