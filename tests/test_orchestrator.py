@@ -112,6 +112,21 @@ class TestControllerManifest:
         result = build_windows_bridge_manifest(cfg, "pw")
         assert result["runtime"]["config_path"] == str(cfg.config_path)
 
+    def test_satellite_module_in_manifest(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        result = build_windows_bridge_manifest(cfg, "pw")
+        assert result["modules"]["satellite_module"] == "satellite"
+
+    def test_satellite_file_quartet_in_manifest(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        commands = build_windows_bridge_manifest(cfg, "pw")["commands"]
+        state = cfg.paths.state_dir
+        for side in ("portrait", "landscape"):
+            assert commands[f"{side}_cmd_file"] == str(state / f"{side}_cmd.txt")
+            assert commands[f"{side}_paused_file"] == str(state / f"{side}_paused.txt")
+            assert commands[f"{side}_status_file"] == str(state / f"{side}_status.txt")
+            assert commands[f"{side}_playlist_file"] == str(state / f"{side}_playlist.tsv")
+
     def test_nau_library_dirs_joined_with_pipe(self, tmp_path: Path, cfg_factory):
         extra = tmp_path / "extra"
         extra.mkdir()
