@@ -349,20 +349,23 @@ def build_hud_panel(
     lock_type: str | None = None,
     filter_query: str = "",
     loop_axis: str = "",
-    widen: bool = False,
+    widen_clip: str = "",
     nav_anchor: str = "",
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
-    Seeds come from the same helper the loop commands use, so the row is exactly
-    what looping the seed axis would cycle through; the action column collapses
-    to one clip per distinct other act.  When *widen* is set ("more seeds"), the
-    seed row grows to the loose family — the same scene re-rendered with a knob or
-    seed freed — instead of just the exact parameter set.
+    to one clip per distinct other act.  *widen_clip* names the clip the seed row
+    was widened around ("more seeds"); while widening is in force the row grows to
+    the loose family — the same scene re-rendered with a render knob or seed freed —
+    instead of just the exact parameter set.
 
     When *loop_axis* names a running loop, the map anchors on the looped group's
     fixed representative instead of the live clip, so it does not re-orient as the
     loop auto-advances; ``playing`` then marks the cell that is actually on screen.
+    A *widened* seed loop cycles the loose family, whose members span several exact
+    seed families, so its anchor and row are taken from that pool — computed
+    identically from any member (they share the loose family and act) — and so hold
+    still across the whole loop.
 
     ``nav_anchor`` does the same for keyboard navigation: while it names a clip and
     the live clip is still one of that clip's map cells, the map freezes on it and
@@ -372,12 +375,31 @@ def build_hud_panel(
     wins over a nav anchor.
     """
     have_siblings = bool(current) and index is not None
+    # Is the seed row widened around the clip on screen, and over what pool?  Off
+    # a loop the widen holds only while its exact anchor clip is on screen, so a
+    # plain auto-advance drops it.  While a seed loop cycles the loose family it
+    # holds for every member of that pool (the pool is identical computed from any
+    # member — they share the loose family and act), so the row stays wide and the
+    # map stays frozen as the loop advances across the loose family's re-renders.
+    widen = False
+    widened_pool: list[str] = []
+    if have_siblings and widen_clip:
+        if loop_axis == "seed":
+            widened_pool = loose_seed_family_members(index, widen_clip)
+            pool_keys = {normalize_path_key(member) for member in widened_pool}
+            widen = normalize_path_key(current) in pool_keys
+        else:
+            widen = normalize_path_key(current) == normalize_path_key(widen_clip)
     anchor = current
     active_loop = ""
     nav_frozen = False
     if have_siblings and loop_axis in ("seed", "action"):
-        gather = seed_family_members if loop_axis == "seed" else action_group_members
-        group = gather(index, current)
+        if loop_axis == "action":
+            group = action_group_members(index, current)
+        elif widen:
+            group = widened_pool
+        else:
+            group = seed_family_members(index, current)
         if len(group) >= 2:
             # Anchor on the group's lowest-keyed member — the same clip whichever
             # member is playing — so the map holds still while the loop advances.
@@ -422,7 +444,7 @@ def build_hud_panel(
 
 def _side_panel(
     config: HudAppConfig, side: str, sources: str, current: str, locked: bool,
-    filter_query: str, loop_axis: str, widen: bool, nav_anchor: str,
+    filter_query: str, loop_axis: str, widen_clip: str, nav_anchor: str,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if current:
@@ -437,7 +459,7 @@ def _side_panel(
         )
     return build_hud_panel(
         side, locked=locked, current=current, index=index,
-        filter_query=filter_query, loop_axis=loop_axis, widen=widen, nav_anchor=nav_anchor,
+        filter_query=filter_query, loop_axis=loop_axis, widen_clip=widen_clip, nav_anchor=nav_anchor,
     )
 
 
@@ -523,26 +545,23 @@ def build_panels(
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
-    The group index is built (and cached) per side exactly as ``_cycle_variant``
-    does, so the siblings shown match what cycling would actually reach.  A side's
-    seed row is widened only while its widen-clip still matches the clip on
-    screen, so the widen auto-resets on navigation.  A side's ``nav_anchor``
-    freezes its map on the clip keyboard navigation began from (see
-    ``build_hud_panel``).
+    does, so the siblings shown match what cycling would actually reach.  Each
+    side's widen-clip and nav-anchor are threaded through as-is; ``build_hud_panel``
+    decides whether each still applies — the widen off a loop only while it is the
+    clip on screen (so it auto-resets on navigation) and across a widened seed loop
+    for every member of the looped pool, and the ``nav_anchor`` while the live clip
+    is still one of its map cells.
     """
-    def widened(clip: str, current: str) -> bool:
-        return bool(clip) and normalize_path_key(clip) == normalize_path_key(current)
-
     return (
         _side_panel(
             config, "portrait", config.portrait_sources,
             portrait_current, portrait_locked, portrait_filter, portrait_loop,
-            widened(portrait_widen_clip, portrait_current), portrait_nav_anchor,
+            portrait_widen_clip, portrait_nav_anchor,
         ),
         _side_panel(
             config, "landscape", config.landscape_sources,
             landscape_current, landscape_locked, landscape_filter, landscape_loop,
-            widened(landscape_widen_clip, landscape_current), landscape_nav_anchor,
+            landscape_widen_clip, landscape_nav_anchor,
         ),
     )
 

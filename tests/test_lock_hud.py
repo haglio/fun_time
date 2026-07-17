@@ -221,11 +221,86 @@ def test_widen_grows_the_seed_row_to_the_loose_family():
     )
 
     narrow = build_hud_panel("portrait", locked=False, current=CUR, index=index)
-    wide = build_hud_panel("portrait", locked=False, current=CUR, index=index, widen=True)
+    wide = build_hud_panel("portrait", locked=False, current=CUR, index=index, widen_clip=CUR)
 
     assert narrow.seed_siblings == [S1]                 # exact family only
     assert set(wide.seed_siblings) == {S1, other}       # widened to the loose family
     assert wide.current == CUR                          # the clip on screen is unchanged
+
+
+def test_widen_off_a_loop_resets_once_its_anchor_clip_leaves_the_screen():
+    """Without a loop, the widen holds only while its exact anchor is on screen —
+    a plain auto-advance to another clip drops it (the same-clip reset)."""
+    other = "C:/vids/other.mp4"
+    index = GroupIndex(
+        action_key_by_path={K(CUR): "g1", K(S1): "g1", K(other): "g2"},
+        action_members={"g1": sorted([CUR, S1]), "g2": [other]},
+        action_by_path={K(CUR): "Alpha", K(S1): "Alpha", K(other): "Alpha"},
+        seed_key_by_path={K(CUR): ("S", "0"), K(S1): ("S", "1")},
+        seed_members={"S": sorted([CUR, S1])},
+        loose_seed_key_by_path={}, loose_seed_members={},
+        indexed_paths=frozenset({K(CUR), K(S1), K(other)}),
+    )
+
+    # Widened around CUR, but the live clip is now `other` and no loop is running.
+    panel = build_hud_panel("portrait", locked=False, current=other, index=index, widen_clip=CUR)
+
+    assert panel.seed_siblings == []  # `other` has no same-act sisters of its own
+
+
+def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_loose_family():
+    """The bug: a seed loop over the loose family auto-advances to a re-render (a
+    different exact seed family) that is not in the current clip's exact family. The
+    row must stay wide and the map stay frozen on the widened anchor — not collapse
+    onto that clip's own exact family with no loop shown."""
+    # x, x2 share the exact family F1; y and z are their own renders F2, F3; all four
+    # are one loose family L (the same scene, render knobs freed).
+    x, x2, y, z = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4", "C:/v/z.mp4"
+    index = GroupIndex(
+        action_key_by_path={K(p): "scene" for p in (x, x2, y, z)},
+        action_members={"scene": sorted([x, x2, y, z])},
+        action_by_path={K(p): "Alpha" for p in (x, x2, y, z)},
+        seed_key_by_path={K(x): ("F1", "0"), K(x2): ("F1", "1"), K(y): ("F2", "0"), K(z): ("F3", "0")},
+        seed_members={"F1": sorted([x, x2]), "F2": [y], "F3": [z]},
+        loose_seed_key_by_path={K(x): ("L", "0"), K(x2): ("L", "1"), K(y): ("L", "2"), K(z): ("L", "3")},
+        loose_seed_members={"L": sorted([x, x2, y, z])},
+        indexed_paths=frozenset(K(p) for p in (x, x2, y, z)),
+    )
+
+    # The loop was widened around x; VLC has auto-advanced to y, a loose-family
+    # re-render that is NOT in x's exact seed family {x, x2}.
+    panel = build_hud_panel(
+        "portrait", locked=False, current=y, index=index, loop_axis="seed", widen_clip=x,
+    )
+
+    assert panel.active_loop == "seed"                 # still looping — not reset
+    assert panel.current == x                          # frozen on the widened anchor (min key)
+    assert panel.playing == y                          # the widened member actually on screen
+    assert set(panel.seed_siblings) == {x2, y, z}      # the whole loose family, minus the anchor
+
+
+def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
+    """With no widen anchor, a seed loop stays on the exact family even when the
+    live clip has loose-family kin — the widen is opt-in."""
+    x, x2, y = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4"
+    index = GroupIndex(
+        action_key_by_path={K(p): "scene" for p in (x, x2, y)},
+        action_members={"scene": sorted([x, x2, y])},
+        action_by_path={K(p): "Alpha" for p in (x, x2, y)},
+        seed_key_by_path={K(x): ("F1", "0"), K(x2): ("F1", "1"), K(y): ("F2", "0")},
+        seed_members={"F1": sorted([x, x2]), "F2": [y]},
+        loose_seed_key_by_path={K(x): ("L", "0"), K(x2): ("L", "1"), K(y): ("L", "2")},
+        loose_seed_members={"L": sorted([x, x2, y])},
+        indexed_paths=frozenset(K(p) for p in (x, x2, y)),
+    )
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=x2, index=index, loop_axis="seed", widen_clip="",
+    )
+
+    assert panel.active_loop == "seed"
+    assert panel.current == x                     # anchored on the exact family, not widened
+    assert set(panel.seed_siblings) == {x2}       # exact family only — y is not on the row
 
 
 def test_a_group_of_one_does_not_freeze_the_map():
@@ -687,6 +762,40 @@ def test_build_panels_threads_the_nav_anchor_onto_the_panel(tmp_path: Path):
 
     assert portrait.current == a       # frozen on the start clip
     assert portrait.playing == b       # the sibling on screen is lit
+
+
+def test_build_panels_keeps_a_widened_seed_loop_wide_across_the_loose_family(tmp_path: Path):
+    """The repro: widen the row, loop it, then let the loop auto-advance to a loose-
+    family re-render that is not in the exact seed family.  The panel must stay
+    widened and frozen on the anchor — not collapse with no loop shown."""
+    reset_group_index_cache()
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+    # a and a2 share the exact seed family (identical config, seed varied); b is the
+    # same scene re-rendered with a render knob freed (a different model), so it joins
+    # a's loose family but is its own exact family.
+    a = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1", image_seed="100"))
+    a2 = _clip(media_root, metadata_root, "a2", _i2v("Alpha", "2", image_seed="101"))
+    b_meta = _i2v("Alpha", "3", image_seed="200")
+    b_meta["source_image"]["model"] = "Y Sweet"  # a render knob freed → a loose sibling
+    b = _clip(media_root, metadata_root, "b", b_meta)
+    config = _hud_config(
+        portrait_sources=str(media_root / "portrait"),
+        provider_media_root=media_root, provider_metadata_root=metadata_root,
+    )
+
+    # Widened around `a`; the loop has auto-advanced to `b`, a loose-family re-render
+    # that is not in a's exact seed family {a, a2}.
+    portrait, _landscape = build_panels(
+        config,
+        portrait_current=b, landscape_current="",
+        portrait_locked=False, landscape_locked=False,
+        portrait_loop="seed", portrait_widen_clip=a,
+    )
+
+    assert portrait.active_loop == "seed"            # the loop is still recognised
+    assert portrait.current == a                     # frozen on the widened anchor
+    assert portrait.playing == b                     # the widened member on screen
+    assert set(portrait.seed_siblings) == {a2, b}    # the whole loose family, minus the anchor
 
 
 # --- panel_thumbnails ---
