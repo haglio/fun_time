@@ -505,7 +505,7 @@ def run_python_orchestrated_bridge(
             f"VOICE_AVAILABLE={VOICE_AVAILABLE}, "
             f"enabled={cfg.voice_control.enabled}, "
             f"model={cfg.voice_control.model_path}, "
-            f"device={cfg.voice_control.device_index}"
+            f"device_name={cfg.voice_control.device_name}"
         )
         logger.info("Voice control check: %s", voice_diag)
         if VOICE_AVAILABLE and cfg.voice_control.enabled:
@@ -513,7 +513,7 @@ def run_python_orchestrated_bridge(
                 cmd_file=dashboard_cmd_file,
                 model_path=cfg.voice_control.model_path,
                 confidence_threshold=cfg.voice_control.confidence_threshold,
-                device_index=cfg.voice_control.device_index,
+                device_name=cfg.voice_control.device_name,
                 sample_rate=cfg.voice_control.sample_rate,
             )
             dispatch_runner.voice_controller = voice_controller

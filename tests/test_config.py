@@ -315,7 +315,7 @@ class TestVoiceControlConfig:
                 "model_path": "vosk-model-small-en-us-0.15",
                 "sample_rate": 8000,
                 "confidence_threshold": 0.6,
-                "device_index": 2,
+                "device_name": "Brio",
             },
         })
         cfg = load_config(path)
@@ -323,7 +323,7 @@ class TestVoiceControlConfig:
         assert cfg.voice_control.model_path == "vosk-model-small-en-us-0.15"
         assert cfg.voice_control.sample_rate == 8000
         assert cfg.voice_control.confidence_threshold == 0.6
-        assert cfg.voice_control.device_index == 2
+        assert cfg.voice_control.device_name == "Brio"
 
     def test_raises_on_wrong_type(self, cfg_factory):
         path = cfg_factory({"voice_control": "not-a-dict"})
