@@ -873,6 +873,167 @@ def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_pa
     assert new_state.locked2 is True
 
 
+# --- HUD keyboard navigation ---
+
+
+def _nav_config(tmp_path: Path) -> tuple[BridgeConfig, dict[str, str]]:
+    """A grouped portrait library with a seed row (subject_b) and an action column
+    (subject_a_zeta) around subject_a — the map keyboard navigation walks."""
+    return _make_grouped_config(tmp_path, {
+        "subject_a": _cycle_meta("111", "Alpha"),           # corner
+        "subject_b": _cycle_meta("222", "Alpha"),           # seed sibling (same act, other subject)
+        "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),  # action sibling (same subject, other act)
+    })
+
+
+def test_nav_right_switches_to_the_first_seed_and_freezes_the_anchor(tmp_path: Path):
+    """Shift+Right from the corner selects the first seed, switches the satellite
+    to it (like a thumbnail click) and freezes the map on the start clip."""
+    config, paths = _nav_config(tmp_path)
+    state = _make_state()
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_a"])], 3)),
+        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        new_state, ops = dispatch_command("portrait_nav_right", state, config)
+
+    play.assert_called_once_with(config.portrait_port, "pw", paths["subject_b"], [(3, paths["subject_a"])])
+    assert new_state.portrait_nav_anchor == paths["subject_a"]
+    assert new_state.active_side == 2
+    assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
+
+
+def test_nav_down_switches_to_the_first_action(tmp_path: Path):
+    config, paths = _nav_config(tmp_path)
+    state = _make_state()
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_a"])], 3)),
+        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        dispatch_command("portrait_nav_down", state, config)
+
+    play.assert_called_once_with(config.portrait_port, "pw", paths["subject_a_zeta"], [(3, paths["subject_a"])])
+
+
+def test_nav_continues_across_the_seed_row_from_the_frozen_anchor(tmp_path: Path):
+    """A second Shift+Right, with the anchor still frozen on subject_a and the
+    satellite now on seed subject_b, steps to the next seed — traversal the frozen
+    anchor makes possible even though a plain switch would re-home the map."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_a": _cycle_meta("111", "Alpha"),
+        "subject_b": _cycle_meta("222", "Alpha"),
+        "subject_c": _cycle_meta("333", "Alpha"),
+    })
+    state = _make_state(portrait_nav_anchor=paths["subject_a"])
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_b"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_b"])], 3)),
+        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        new_state, _ops = dispatch_command("portrait_nav_right", state, config)
+
+    play.assert_called_once_with(config.portrait_port, "pw", paths["subject_c"], [(3, paths["subject_b"])])
+    assert new_state.portrait_nav_anchor == paths["subject_a"]  # the anchor held
+
+
+def test_nav_at_the_edge_of_the_map_is_a_dead_end(tmp_path: Path):
+    """Shift+Right off the last seed has nowhere to go: nothing switches and the
+    dead end reads red."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_a": _cycle_meta("111", "Alpha"),
+        "subject_b": _cycle_meta("222", "Alpha"),
+    })
+    state = _make_state(portrait_nav_anchor=paths["subject_a"])
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_b"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_b"])], 3)),
+        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        _new_state, ops = dispatch_command("portrait_nav_right", state, config)
+
+    play.assert_not_called()
+    dead_end = [op for op in ops if op.op == "notice"]
+    assert dead_end and dead_end[0].level == FAILED_NOTICE_LEVEL
+
+
+def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
+    """A stale anchor whose map no longer holds the live clip (an auto-advance)
+    is abandoned: navigation re-anchors on whatever is now playing and steps from
+    there."""
+    config, paths = _nav_config(tmp_path)
+    # Frozen on a bogus anchor subject_a_zeta is not subject_a's; the live clip
+    # subject_a is not on subject_a_zeta's seed/action map, so it re-anchors on subject_a.
+    state = _make_state(portrait_nav_anchor="C:/vids/portrait/gone.mp4")
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_a"])], 3)),
+        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
+        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
+    ):
+        new_state, _ops = dispatch_command("portrait_nav_right", state, config)
+
+    play.assert_called_once_with(config.portrait_port, "pw", paths["subject_b"], [(3, paths["subject_a"])])
+    assert new_state.portrait_nav_anchor == paths["subject_a"]  # re-anchored on the live clip
+
+
+def test_nav_lock_locks_the_current_clip_and_clears_the_anchor(tmp_path: Path):
+    """Enter locks the selected (current) clip and drops the frozen anchor, so the
+    HUD re-homes its map on the freshly locked clip."""
+    config, paths = _nav_config(tmp_path)
+    state = _make_state(portrait_nav_anchor=paths["subject_a"], locked2=False)
+
+    with (
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_b"]),
+        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_b"])], 3)),
+        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
+        patch("fun_time.command_dispatch.ensure_in_favs"),
+        patch("fun_time.command_dispatch.record_watch_event"),
+        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
+    ):
+        new_state, _ops = dispatch_command("portrait_nav_lock", state, config)
+
+    assert new_state.locked2 is True
+    assert new_state.portrait_nav_anchor == ""
+
+
+def test_a_non_nav_side_command_clears_the_nav_anchor(tmp_path: Path):
+    """Any side command that is not a navigation step ends navigation, so the map
+    stops freezing and re-homes on the live clip."""
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_nav_anchor="C:/vids/portrait/anchor.mp4")
+
+    with (
+        patch("fun_time.command_dispatch.vlc_nav_step"),
+        patch("fun_time.command_dispatch.ensure_playback_state"),
+    ):
+        new_state, _ops = dispatch_command("portrait_next", state, config)
+
+    assert new_state.portrait_nav_anchor == ""
+
+
+def test_landscape_nav_sets_the_active_side(tmp_path: Path):
+    """A landscape nav key (Shift+WASD) makes landscape the active side, so a
+    later bare Enter (active_nav_lock) resolves to it."""
+    config = _make_config(tmp_path)
+    state = _make_state()
+
+    with patch("fun_time.command_dispatch.get_current_file_path", return_value=""):
+        new_state, _ops = dispatch_command("landscape_nav_right", state, config)
+
+    assert new_state.active_side == 3
+
+
 def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()

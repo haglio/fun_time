@@ -477,6 +477,18 @@ class TestSharedState:
         assert loaded.portrait_widen_clip == "C:/v/a.mp4"
         assert loaded.landscape_widen_clip == "C:/v/b.mp4"
 
+    def test_roundtrip_preserves_the_nav_anchor(self, tmp_path):
+        """The HUD reads which clip each side's map is frozen on for keyboard
+        navigation from this file, so it must survive the round-trip."""
+        state_file = tmp_path / "shared_state.ini"
+        state = BridgeState(portrait_nav_anchor="C:/v/a.mp4", landscape_nav_anchor="C:/v/b.mp4")
+
+        write_shared_state(state_file, state)
+        loaded = read_shared_state(state_file)
+
+        assert loaded.portrait_nav_anchor == "C:/v/a.mp4"
+        assert loaded.landscape_nav_anchor == "C:/v/b.mp4"
+
     def test_state_files_without_loop_keys_load_as_unlooped(self, tmp_path):
         # A state file written before loops were tracked must still load.
         state_file = tmp_path / "shared_state.ini"
@@ -524,6 +536,12 @@ class TestResolveActiveSideCommand:
 
     def test_rewrites_to_landscape_when_active_side_is_landscape(self):
         assert resolve_active_side_command("active_next", 3) == "landscape_next"
+
+    def test_rewrites_the_bare_enter_lock_onto_the_active_side(self):
+        # Enter enqueues "active_nav_lock"; it locks whichever satellite was last
+        # navigated (by an arrow / WASD nav step).
+        assert resolve_active_side_command("active_nav_lock", 2) == "portrait_nav_lock"
+        assert resolve_active_side_command("active_nav_lock", 3) == "landscape_nav_lock"
 
     def test_passes_non_active_commands_through(self):
         assert resolve_active_side_command("primary_next", 3) == "primary_next"

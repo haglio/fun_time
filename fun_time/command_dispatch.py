@@ -28,6 +28,7 @@ from .media_metadata import (
 )
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
+from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
 from .modes import collect_video_files
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
@@ -110,6 +111,13 @@ class BridgeState:
     # the widen auto-resets without any explicit clear.
     portrait_widen_clip: str = ""
     landscape_widen_clip: str = ""
+    # The clip each satellite's HUD map is frozen on for keyboard navigation ("" =
+    # not navigating).  The arrow / WASD keys move a selection across that frozen
+    # map, switching the satellite to each cell's clip; the anchor holds until Enter
+    # locks the selection, another command re-homes the side, or the satellite
+    # drifts off the map.  Persisted so the HUD freezes its map to match.
+    portrait_nav_anchor: str = ""
+    landscape_nav_anchor: str = ""
     # The primary display's sound level, 0-100, and whether it is silenced.  A
     # mute leaves the level alone so a second "mute" restores what was set.
     volume: int = MAX_VOLUME
@@ -670,6 +678,95 @@ def _dispatch_lock_video(
     return _toggle_lock(which, state, config, target_path=path)
 
 
+# Keyboard navigation of the HUD map.  "<side>_nav_<dir>" moves a selection
+# around the frozen map (right/left walk the seed row, down/up the action
+# column) and switches the satellite to the picked cell; "<side>_nav_lock"
+# (Enter) locks the selection and re-homes the map on it.
+_NAV_DIRECTIONS = ("left", "right", "up", "down")
+_NAV_LOCK_SIDES = {"portrait_nav_lock": 2, "landscape_nav_lock": 3}
+
+
+def _parse_nav(command: str) -> tuple[int, str] | None:
+    """``(slot, direction)`` for a ``<side>_nav_<dir>`` command, else None."""
+    for prefix, which in (("portrait_nav_", 2), ("landscape_nav_", 3)):
+        if command.startswith(prefix):
+            direction = command[len(prefix):]
+            if direction in _NAV_DIRECTIONS:
+                return which, direction
+    return None
+
+
+def _is_hud_nav_command(command: str) -> bool:
+    """Whether *command* drives HUD keyboard navigation — a direction step or the
+    Enter lock.  Those manage the side's nav anchor themselves, so the generic
+    "any other side command re-homes the map" rule leaves them alone."""
+    return _parse_nav(command) is not None or command in _NAV_LOCK_SIDES
+
+
+def _nav_anchor(state: BridgeState, which: int) -> str:
+    return state.portrait_nav_anchor if which == 2 else state.landscape_nav_anchor
+
+
+def _set_nav_anchor(state: BridgeState, which: int, anchor: str) -> BridgeState:
+    if which == 2:
+        return replace(state, portrait_nav_anchor=anchor)
+    return replace(state, landscape_nav_anchor=anchor)
+
+
+def _clear_nav_anchor(state: BridgeState, which: int) -> BridgeState:
+    return _set_nav_anchor(state, which, "")
+
+
+def _navigate_hud(
+    which: int, direction: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Move the HUD map's keyboard selection one step and switch the satellite to
+    the picked clip, keeping the map frozen on the clip navigation began from.
+
+    The selection is wherever the satellite is now playing on the frozen map; the
+    step lands on a neighbouring cell, whose clip becomes the new current video.
+    A satellite that auto-advanced off the frozen map re-anchors on whatever is
+    now playing.  An at-the-edge step (nothing that way) is a dead end, reported
+    red like the other no-effect notices.
+    """
+    port = config.portrait_port if which == 2 else config.landscape_port
+    source = _satellite_source(which)
+    current = get_current_file_path(port, config.vlc_password)
+    if not current:
+        return state, []
+    index = _satellite_group_index(which, config, current)
+    anchor = _nav_anchor(state, which)
+    if anchor:
+        seeds, actions = hud_map_cells(index, anchor)
+        if locate_cell(current, anchor, seeds, actions) is None:
+            anchor = ""  # drifted off the frozen map — start over from the live clip
+    if not anchor:
+        anchor = current
+    seeds, actions = hud_map_cells(index, anchor)
+    cell = locate_cell(current, anchor, seeds, actions) or ("corner", 0)
+    target_cell = navigate_cell(cell, direction, seed_count=len(seeds), action_count=len(actions))
+    target = cell_path(target_cell, anchor, seeds, actions)
+    state = _set_nav_anchor(state, which, anchor)
+    if target_cell == cell or not target or _same_video(target, current):
+        return state, [WindowOp(op="notice", key="No clip that way", source=source, level=FAILED_NOTICE_LEVEL)]
+    return _dispatch_play_video(which, target, state, config)
+
+
+def _dispatch_nav_lock(
+    which: int, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Enter: lock the selected clip and re-home the map on it (like a
+    double-click).  The selection is whatever the satellite is now playing, so
+    this locks the current clip and drops the frozen nav anchor, letting the HUD
+    re-home its map on the freshly locked clip."""
+    state = _clear_nav_anchor(state, which)
+    port = config.portrait_port if which == 2 else config.landscape_port
+    current = get_current_file_path(port, config.vlc_password)
+    if not current:
+        return state, []
+    return _dispatch_lock_video(which, current, state, config)
+
+
 def _cycle_variant(
     which: int, kind: str, state: BridgeState, config: BridgeConfig,
     target_path: str = "",
@@ -757,6 +854,20 @@ def dispatch_command(
     side = command_side(command)
     if side is not None:
         state = replace(state, active_side=side)
+        # Every side command except a navigation step ends keyboard navigation on
+        # that side, so its map re-homes on the live clip; nav commands manage
+        # their own anchor.
+        if not _is_hud_nav_command(command):
+            state = _clear_nav_anchor(state, side)
+
+    # Keyboard navigation of the HUD map: "<side>_nav_<dir>" moves the selection
+    # and switches the satellite; "<side>_nav_lock" (Enter) locks the selection.
+    nav = _parse_nav(command)
+    if nav is not None:
+        return _navigate_hud(*nav, state, config)
+    nav_lock_side = _NAV_LOCK_SIDES.get(command)
+    if nav_lock_side is not None:
+        return _dispatch_nav_lock(nav_lock_side, state, config)
 
     # A HUD thumbnail click sends "<side>_play_video|<path>": switch straight to
     # that clip. The path is carried after the "|" ("|" is illegal in a Windows

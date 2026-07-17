@@ -9,10 +9,14 @@ from fun_time.lock_hud import (
     HudAppConfig,
     build_hud_panel,
     build_panels,
+    cell_path,
+    hud_map_cells,
     hud_overlays_visible,
     hud_should_be_topmost,
     load_fun_time_pids,
     load_hud_app_config,
+    locate_cell,
+    navigate_cell,
     overlay_rect,
     panel_thumbnails,
     prewarm_thumbnails,
@@ -234,6 +238,172 @@ def test_a_group_of_one_does_not_freeze_the_map():
     assert panel.active_loop == ""
     assert panel.current == CUR
     assert panel.playing == CUR
+
+
+def test_nav_anchor_freezes_the_map_on_the_clip_navigation_began_from():
+    """Keyboard navigation pins the map to the clip the user began from: while
+    the live clip is still one of its cells the corner stays the anchor and
+    ``playing`` marks the cell on screen, so a highlight moves across a stable
+    map (not a loop — playback still auto-advances)."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    # Started from CUR; the satellite has since been switched to seed S1.
+    panel = build_hud_panel("portrait", locked=False, current=S1, index=index, nav_anchor=CUR)
+
+    assert panel.current == CUR       # frozen on the start clip, not the live one
+    assert panel.playing == S1        # the seed actually on screen is lit
+    assert panel.seed_siblings == [S1]
+    assert panel.active_loop == ""
+
+
+def test_nav_anchor_lights_a_selected_action_cell():
+    index = _index(current=CUR, action_sibs=[A1])
+
+    # Navigated down from CUR onto its action sibling A1.
+    panel = build_hud_panel("portrait", locked=False, current=A1, index=index, nav_anchor=CUR)
+
+    assert panel.current == CUR
+    assert panel.playing == A1
+    assert panel.action_siblings == [A1]
+
+
+def test_nav_anchor_equal_to_the_live_clip_is_the_ordinary_map():
+    """Right after navigation starts (before any switch) the anchor is the live
+    clip, so the map is the plain one homed on it."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    panel = build_hud_panel("portrait", locked=False, current=CUR, index=index, nav_anchor=CUR)
+
+    assert panel.current == CUR
+    assert panel.playing == CUR
+    assert panel.seed_siblings == [S1]
+
+
+def test_nav_anchor_re_homes_once_the_clip_drifts_off_the_map():
+    """If the satellite auto-advances to a clip that is not on the frozen map, the
+    map re-homes on the live clip rather than lying about what is playing."""
+    index = _index(current=CUR, seed_sibs=[S1])
+    elsewhere = "C:/vids/elsewhere.mp4"  # not on CUR's family — the satellite advanced off it
+
+    panel = build_hud_panel("portrait", locked=False, current=elsewhere, index=index, nav_anchor=CUR)
+
+    assert panel.current == elsewhere   # frozen anchor abandoned
+    assert panel.playing == elsewhere
+    assert panel.seed_siblings == []
+
+
+def test_a_loop_takes_precedence_over_a_stale_nav_anchor():
+    """A running loop wins the freeze — starting a loop is what clears any nav
+    anchor, so if both arrive the loop's frozen group is what shows."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=S1, index=index, loop_axis="seed", nav_anchor="C:/vids/other.mp4"
+    )
+
+    assert panel.active_loop == "seed"
+    assert panel.current == CUR  # the loop's family anchor, not the nav anchor
+
+
+# --- map navigation geometry ---
+
+
+def test_navigate_from_the_corner_steps_onto_each_axis():
+    """From the anchor, right enters the seed row and down enters the action
+    column; left/up stay put — there is nothing above or left of the corner."""
+    corner = ("corner", 0)
+    assert navigate_cell(corner, "right", seed_count=3, action_count=2) == ("seed", 0)
+    assert navigate_cell(corner, "down", seed_count=3, action_count=2) == ("action", 0)
+    assert navigate_cell(corner, "left", seed_count=3, action_count=2) == corner
+    assert navigate_cell(corner, "up", seed_count=3, action_count=2) == corner
+
+
+def test_navigate_walks_the_seed_row_and_clamps_at_its_end():
+    assert navigate_cell(("seed", 0), "right", seed_count=3, action_count=0) == ("seed", 1)
+    assert navigate_cell(("seed", 1), "right", seed_count=3, action_count=0) == ("seed", 2)
+    # Already on the last seed — right has nowhere to go.
+    assert navigate_cell(("seed", 2), "right", seed_count=3, action_count=0) == ("seed", 2)
+
+
+def test_navigate_walks_the_seed_row_back_to_the_corner():
+    assert navigate_cell(("seed", 1), "left", seed_count=3, action_count=0) == ("seed", 0)
+    assert navigate_cell(("seed", 0), "left", seed_count=3, action_count=0) == ("corner", 0)
+
+
+def test_navigate_walks_the_action_column_and_clamps_at_its_end():
+    assert navigate_cell(("action", 0), "down", seed_count=0, action_count=2) == ("action", 1)
+    assert navigate_cell(("action", 1), "down", seed_count=0, action_count=2) == ("action", 1)
+    assert navigate_cell(("action", 1), "up", seed_count=0, action_count=2) == ("action", 0)
+    assert navigate_cell(("action", 0), "up", seed_count=0, action_count=2) == ("corner", 0)
+
+
+def test_navigate_off_axis_moves_are_no_ops():
+    """The map is an L: a seed has nothing below it, an action nothing to its
+    right — those moves keep the selection where it is."""
+    assert navigate_cell(("seed", 1), "down", seed_count=3, action_count=2) == ("seed", 1)
+    assert navigate_cell(("seed", 1), "up", seed_count=3, action_count=2) == ("seed", 1)
+    assert navigate_cell(("action", 1), "right", seed_count=3, action_count=2) == ("action", 1)
+    assert navigate_cell(("action", 1), "left", seed_count=3, action_count=2) == ("action", 1)
+
+
+def test_navigate_from_the_corner_onto_an_empty_axis_stays_put():
+    corner = ("corner", 0)
+    assert navigate_cell(corner, "right", seed_count=0, action_count=2) == corner
+    assert navigate_cell(corner, "down", seed_count=3, action_count=0) == corner
+
+
+def test_locate_cell_matches_the_corner_a_seed_or_an_action():
+    seeds = [S1, "C:/vids/seed2.mp4"]
+    actions = [A1]
+    assert locate_cell(CUR, CUR, seeds, actions) == ("corner", 0)
+    assert locate_cell(S1, CUR, seeds, actions) == ("seed", 0)
+    assert locate_cell("C:/vids/seed2.mp4", CUR, seeds, actions) == ("seed", 1)
+    assert locate_cell(A1, CUR, seeds, actions) == ("action", 0)
+
+
+def test_locate_cell_is_none_when_the_clip_is_off_the_map():
+    """A clip the map does not draw — e.g. after the satellite auto-advanced off
+    the family — is reported as absent so the caller can re-home."""
+    assert locate_cell("C:/vids/elsewhere.mp4", CUR, [S1], [A1]) is None
+
+
+def test_locate_cell_matches_case_insensitively():
+    """Paths are keyed by ``normalize_path_key`` (a case fold), so a differently
+    cased current clip still finds its cell."""
+    assert locate_cell("C:/VIDS/SEED1.MP4", CUR, [S1], []) == ("seed", 0)
+
+
+def test_cell_path_reads_the_clip_at_a_cell():
+    seeds = [S1, "C:/vids/seed2.mp4"]
+    actions = [A1, A2]
+    assert cell_path(("corner", 0), CUR, seeds, actions) == CUR
+    assert cell_path(("seed", 1), CUR, seeds, actions) == "C:/vids/seed2.mp4"
+    assert cell_path(("action", 1), CUR, seeds, actions) == A2
+
+
+def test_cell_path_is_empty_for_an_out_of_range_cell():
+    assert cell_path(("seed", 5), CUR, [S1], []) == ""
+    assert cell_path(("action", 0), CUR, [S1], []) == ""
+
+
+def test_hud_map_cells_lists_the_drawn_seed_and_action_clips():
+    """Navigation walks the same seed row and action column the HUD draws around
+    an anchor, so a keyboard selection always lands on a visible thumbnail."""
+    index = _index(current=CUR, action_sibs=[A1, A2], seed_sibs=[S1])
+
+    seeds, actions = hud_map_cells(index, CUR)
+
+    assert seeds == [S1]
+    assert actions == sorted([A1, A2])
+
+
+def test_hud_map_cells_caps_each_axis_at_the_draw_limit():
+    seed_sibs = [f"C:/vids/seed{i}.mp4" for i in range(9)]
+    index = _index(current=CUR, seed_sibs=seed_sibs)
+
+    seeds, _actions = hud_map_cells(index, CUR, seed_limit=6, action_limit=4)
+
+    assert len(seeds) == 6
 
 
 # --- load_hud_app_config ---
@@ -492,6 +662,31 @@ def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):
 
     assert portrait.active_loop == "seed"
     assert portrait.seed_siblings  # the other seed is on the row
+
+
+def test_build_panels_threads_the_nav_anchor_onto_the_panel(tmp_path: Path):
+    """The nav anchor comes off the shared state and must reach the panel so the
+    map freezes on the clip navigation began from while the satellite plays a
+    sibling."""
+    reset_group_index_cache()
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+    a = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
+    b = _clip(media_root, metadata_root, "b", _i2v("Alpha", "2"))
+    config = _hud_config(
+        portrait_sources=str(media_root / "portrait"),
+        provider_media_root=media_root, provider_metadata_root=metadata_root,
+    )
+
+    # Navigation began from a; the satellite has since switched to its seed sibling b.
+    portrait, _landscape = build_panels(
+        config,
+        portrait_current=b, landscape_current="",
+        portrait_locked=False, landscape_locked=False,
+        portrait_nav_anchor=a,
+    )
+
+    assert portrait.current == a       # frozen on the start clip
+    assert portrait.playing == b       # the sibling on screen is lit
 
 
 # --- panel_thumbnails ---

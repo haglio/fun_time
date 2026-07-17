@@ -25,7 +25,6 @@ from fun_time.lock_hud_app import (
     HudSideProbe,
     LockHud,
     _friendly_action_label,
-    _playing_cell,
     build_click_targets,
     build_label_targets,
     hit_test_targets,
@@ -377,28 +376,6 @@ def test_action_label_blocks_separate_comma_joined_acts():
 def test_friendly_action_label_shows_unknown_for_missing_metadata():
     assert _friendly_action_label("") == "(unknown)"
     assert _friendly_action_label("   ") == "(unknown)"
-
-
-def test_playing_cell_is_the_corner_when_the_live_clip_is_the_anchor():
-    assert _playing_cell("C:/v/a.mp4", "C:/v/a.mp4", ["C:/v/s.mp4"], []) == ("corner", 0)
-
-
-def test_playing_cell_finds_the_seed_actually_on_screen():
-    """A seed loop plays a family member off the row; the overlay lights whichever
-    seed cell that is."""
-    cell = _playing_cell("C:/v/s2.mp4", "C:/v/a.mp4", ["C:/v/s1.mp4", "C:/v/s2.mp4"], [])
-    assert cell == ("seed", 1)
-
-
-def test_playing_cell_finds_the_playing_action():
-    cell = _playing_cell("C:/v/act.mp4", "C:/v/a.mp4", [], ["C:/v/act.mp4"])
-    assert cell == ("action", 0)
-
-
-def test_playing_cell_falls_back_to_the_corner_when_not_drawn():
-    """A clip whose thumbnail failed is not among the drawn cells, so the corner
-    stays lit rather than nothing."""
-    assert _playing_cell("C:/v/ghost.mp4", "C:/v/a.mp4", ["C:/v/s.mp4"], []) == ("corner", 0)
 
 
 def _loop_panel(active_loop: str) -> HudPanel:
