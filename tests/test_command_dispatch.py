@@ -73,11 +73,13 @@ def _tab_page(op_key: str) -> str:
 
 def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
     """Lock defers the load behind the same Ctrl+R page the RFB's own tabs use."""
+    from fun_time.media_actions import WEB_PROVIDERS, make_web_url_from_path
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
+    path = rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4"
 
     with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider2\abc_123.mp4"),
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=path),
         patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
         patch("fun_time.command_dispatch.ensure_in_favs"),
     ):
@@ -86,13 +88,14 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
     assert new_state.locked2 is True
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
-    assert '"https://example.net/image/abc"' in _tab_page(rfb_ops[0].key)
+    assert f'"{make_web_url_from_path(path)}"' in _tab_page(rfb_ops[0].key)
 
 
 def test_lock_landing_page_plays_the_locked_video(tmp_path: Path):
+    from fun_time.media_actions import WEB_PROVIDERS
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
-    video = tmp_path / "videos" / "provider2" / "abc_123.mp4"
+    video = tmp_path / "videos" / WEB_PROVIDERS[0].marker / "abc_123.mp4"
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"")
 
@@ -108,12 +111,14 @@ def test_lock_landing_page_plays_the_locked_video(tmp_path: Path):
 
 
 def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path: Path):
+    from fun_time.media_actions import WEB_PROVIDERS
     config = _make_config(tmp_path)
+    path = rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4"
 
     keys = []
     for _ in range(2):
         with (
-            patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider2\abc_123.mp4"),
+            patch("fun_time.command_dispatch.get_current_file_path", return_value=path),
             patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
             patch("fun_time.command_dispatch.ensure_in_favs"),
             patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
@@ -192,11 +197,13 @@ def test_portrait_lock_no_open_rfb_tab_op_when_unlocking(tmp_path: Path):
 
 
 def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
+    from fun_time.media_actions import WEB_PROVIDERS, make_web_url_from_path
     config = _make_config(tmp_path)
     state = _make_state(locked3=False)
+    path = rf"C:\videos\{WEB_PROVIDERS[0].marker}\def_456.mp4"
 
     with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider\def_456.mp4"),
+        patch("fun_time.command_dispatch.get_current_file_path", return_value=path),
         patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
         patch("fun_time.command_dispatch.ensure_in_favs"),
     ):
@@ -205,7 +212,7 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     assert new_state.locked3 is True
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
-    assert '"https://example.com/image/def"' in _tab_page(rfb_ops[0].key)
+    assert f'"{make_web_url_from_path(path)}"' in _tab_page(rfb_ops[0].key)
 
 
 def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
