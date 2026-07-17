@@ -53,17 +53,20 @@ TOPMOST_HWNDS = {
 
 @pytest.fixture(autouse=True)
 def _no_satellite_vlc_io():
-    """A tick() reaches VLC over HTTP for both satellites: it SAMPLES them when
-    unpaused and ENFORCES the pause (the OmniPause watchdog) when paused, reading
-    the caught satellite's clip/repeat/position for its catch diagnosis.  These
-    tests are about dispatch, not any of that, and a real request would land on
-    whichever VLC happens to own that port on this machine — so every channel is
-    neutralised (no fraction to sample, nothing found playing to re-pause, inert
-    diagnosis reads).  A test exercising the watchdog patches these itself."""
+    """A tick()'s OmniPause branch reaches out to the real machine: it ENFORCES
+    the satellite pause over VLC HTTP (reading the caught satellite's
+    clip/repeat/position for its diagnosis) and runs the observe-only topmost
+    probe (reading each player's WS_EX_TOPMOST flag), and the unpaused branch
+    SAMPLES playback.  These tests are about dispatch, not any of that, and a real
+    call would land on whichever VLC/window happens to answer on this machine — so
+    every channel is neutralised: no fraction to sample, nothing found playing to
+    re-pause, inert diagnosis reads, and nothing found topmost.  A test exercising
+    a watchdog/probe patches the relevant one itself."""
     with patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=None), \
          patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path", return_value=""), \
          patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value=None), \
-         patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing", return_value=False):
+         patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing", return_value=False), \
+         patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False):
         yield
 
 
@@ -899,6 +902,114 @@ class TestDispatchLoopRunner:
         caught = [r for r in caplog.records if "Portrait" in r.getMessage()]
         assert len(caught) == 2, "one catch per omnipause episode"
         assert "first catch" in caught[1].getMessage()
+
+    def test_omnipause_probe_logs_when_a_player_reacquires_topmost_mid_hold(self, tmp_path, caplog):
+        """The recurring "Nau pops on top during OmniPause" bug is a player
+        reacquiring WS_EX_TOPMOST from a layer we don't control.  The probe logs
+        it — with a z-order diagnosis, filed under the primary source — the instant
+        it flips, so the next recurrence is captured instead of being a ghost."""
+        runner = make_runner(tmp_path)
+        runner._role_hwnds = {"nau": NAU_HWND, "genau": GENAU_HWND}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost",
+                   side_effect=lambda h: h == NAU_HWND), \
+             patch.object(runner, "_topmost_diagnosis", return_value="diag"), \
+             caplog.at_level("WARNING"):
+            runner._observe_players_topmost()
+
+        caught = [r for r in caplog.records
+                  if "Nau" in r.getMessage() and "WS_EX_TOPMOST" in r.getMessage()]
+        assert caught, "the probe logged Nau reacquiring topmost"
+        assert all(getattr(r, "source", None) == "primary" for r in caught)
+
+    def test_omnipause_probe_never_touches_window_z_order(self, tmp_path):
+        """It is a probe, not a watchdog: even when it catches a player on top it
+        must NEVER call set_always_on_top — observing, never fighting (that
+        distinction is the entire reason it exists)."""
+        runner = make_runner(tmp_path)
+        runner._role_hwnds = {"nau": NAU_HWND, "genau": GENAU_HWND}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=True), \
+             patch.object(runner, "_topmost_diagnosis", return_value="diag"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_set:
+            runner._observe_players_topmost()
+
+        mock_set.assert_not_called()
+
+    def test_omnipause_probe_is_silent_on_a_quiet_hold(self, tmp_path, caplog):
+        """A correctly-demoted player costs one flag read and logs nothing — a
+        quiet hold is not a stream of log lines."""
+        runner = make_runner(tmp_path)
+        runner._role_hwnds = {"nau": NAU_HWND, "genau": GENAU_HWND}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False), \
+             caplog.at_level("WARNING"):
+            runner._observe_players_topmost()
+
+        assert not caplog.records
+
+    def test_omnipause_probe_logs_once_per_episode(self, tmp_path, caplog):
+        """A player that stays topmost tick after tick is logged once, not every
+        tick; once it drops and pops again, that new episode logs afresh."""
+        runner = make_runner(tmp_path)
+        runner._role_hwnds = {"nau": NAU_HWND, "genau": GENAU_HWND}
+        on_top = {"nau": True}
+
+        with patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost",
+                   side_effect=lambda h: h == NAU_HWND and on_top["nau"]), \
+             patch.object(runner, "_topmost_diagnosis", return_value="diag"), \
+             caplog.at_level("WARNING"):
+            runner._observe_players_topmost()   # flip -> log
+            runner._observe_players_topmost()   # still up -> no re-log
+            on_top["nau"] = False
+            runner._observe_players_topmost()   # cleared
+            on_top["nau"] = True
+            runner._observe_players_topmost()   # pops again -> log
+
+        nau_logs = [r for r in caplog.records if "Nau" in r.getMessage()]
+        assert len(nau_logs) == 2, "two distinct pop episodes, not four ticks"
+
+    def test_topmost_diagnosis_reports_the_foreground_and_the_topmost_band(self, tmp_path):
+        """The catch diagnosis distinguishes a focus-steal (the player holds the
+        foreground) from a bare flag flip and names what else is topmost — the
+        reads that turn 'it happened' into a cause."""
+        from fun_time.win32 import StackedWindow
+
+        runner = make_runner(tmp_path)
+        stack = [
+            StackedWindow(hwnd=NAU_HWND, title="Nau", topmost=True, rect=(0, 0, 100, 100)),
+            StackedWindow(hwnd=DASHBOARD_HWND, title="Fun Time", topmost=True, rect=(200, 0, 50, 50)),
+        ]
+
+        with patch("fun_time.windows_bridge_dispatch_loop.iter_zorder", return_value=stack), \
+             patch("fun_time.windows_bridge_dispatch_loop.get_foreground_window", return_value=NAU_HWND):
+            diag = runner._topmost_diagnosis(NAU_HWND)
+
+        assert "this window" in diag  # Nau holds the foreground -> focus-steal signal
+        assert "Nau" in diag and "Fun Time" in diag  # the topmost band is named
+
+    def test_tick_under_omnipause_runs_the_topmost_probe(self, tmp_path):
+        """The probe rides the same twice-a-second OmniPause tick as the satellite
+        re-pause."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner.state = BridgeState(omni_paused=True)
+
+        with patch.object(runner, "_observe_players_topmost") as mock_probe:
+            runner.tick()
+
+        mock_probe.assert_called_once()
+
+    def test_tick_outside_omnipause_does_not_probe_and_clears_its_memory(self, tmp_path):
+        """Outside a hold the players are meant to be topmost, so the probe is idle
+        and its per-hold edge-trigger memory is reset for the next hold."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._hold_topmost_seen = {"nau": True}
+
+        with patch.object(runner, "_observe_players_topmost") as mock_probe:
+            runner.tick()
+
+        mock_probe.assert_not_called()
+        assert runner._hold_topmost_seen == {}
 
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the primary display in every mode it appears, so a nudge
