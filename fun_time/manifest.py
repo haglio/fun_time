@@ -7,7 +7,7 @@ from pathlib import Path
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 
 
-def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[str, str]]:
+def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
     layout = config.layout
     dashboard_enabled = os.environ.get("FUN_TIME_DISABLE_DASHBOARD") != "1"
     return {
@@ -70,11 +70,6 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
         "dashboard": {
             "enabled": "1" if dashboard_enabled else "0",
         },
-        "vlc": {
-            "vlc2_port": str(config.vlc.vlc2_http_port),
-            "vlc3_port": str(config.vlc.vlc3_http_port),
-            "vlc_pass": vlc_http_pass,
-        },
         "layout": {
             "main_monitor": str(layout.main_monitor),
             "secondary_monitor": str(layout.secondary_monitor),
@@ -95,13 +90,13 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
     }
 
 
-def write_windows_bridge_manifest(config, vlc_http_pass: str, destination: Path | None = None) -> Path:
+def write_windows_bridge_manifest(config, destination: Path | None = None) -> Path:
     manifest_path = destination or (config.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
     parser = configparser.ConfigParser()
     parser.optionxform = str
-    parser.read_dict(build_windows_bridge_manifest(config, vlc_http_pass))
+    parser.read_dict(build_windows_bridge_manifest(config))
     with manifest_path.open("w", encoding="utf-8") as fp:
         parser.write(fp)
     return manifest_path

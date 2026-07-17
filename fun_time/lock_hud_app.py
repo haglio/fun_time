@@ -47,9 +47,9 @@ from fun_time.lock_hud import (
     signal_hud_ready,
 )
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
+from fun_time.satellite_control import read_satellite_status
 from fun_time.startup_progress import loading_screen_active
 from fun_time.thumbnail_cache import cached_thumbnail
-from fun_time.vlc_actions import get_current_file_path
 from fun_time.win32 import find_window_by_pid, is_window, is_window_topmost, set_always_on_top
 from fun_time.window_layout import compute_window_layout
 from fun_time.windows_bridge_dispatch_loop import read_shared_state
@@ -60,9 +60,9 @@ from fun_time.windows_bridge_dispatch_loop import read_shared_state
 # tall rows, plus room for the action column to grow down).
 OVERLAY_SIZE = {"portrait": (300, 430), "landscape": (500, 300)}
 # The satellites play ~5 s clips, so the map has to track the current clip
-# almost the instant it changes.  Polling this fast is cheap: get_current_file_path
-# reuses a keep-alive socket per port, and _apply reloads thumbnails / repaints
-# only when the panel actually changed, so an unchanged tick costs a state read.
+# almost the instant it changes.  Polling this fast is cheap: each satellite's
+# current clip is a small status-file read, and _apply reloads thumbnails /
+# repaints only when the panel actually changed, so an unchanged tick is cheap.
 REFRESH_MS = 150
 
 _PAD = 10
@@ -778,8 +778,8 @@ class LockHud:
                 overlay.hide()
             return
 
-        portrait_current = get_current_file_path(self._config.portrait_port, self._config.vlc_password)
-        landscape_current = get_current_file_path(self._config.landscape_port, self._config.vlc_password)
+        portrait_current = read_satellite_status(self._config.portrait_status_file).video
+        landscape_current = read_satellite_status(self._config.landscape_status_file).video
         portrait_panel, landscape_panel = build_panels(
             self._config,
             portrait_current=portrait_current,

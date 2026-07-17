@@ -19,11 +19,9 @@ from fun_time.orchestrator import (
     main,
     require_dir,
     require_file,
-    resolve_vlc_http_password,
     run_windows_bridge,
     start_broker,
     validate_config,
-    vlc_http_password_from_vlcrc,
 )
 from fun_time.config import load_config
 
@@ -91,35 +89,35 @@ class TestRequireDir:
 class TestControllerManifest:
     def test_returns_sections(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "testpass")
+        result = build_windows_bridge_manifest(cfg)
         assert isinstance(result, dict)
 
-    def test_vlc_pass_is_included(self, cfg_path: Path):
+    def test_no_vlc_section(self, cfg_path: Path):
+        """The native satellites replaced the VLC ones: there is no VLC HTTP
+        port or password to publish, so the manifest carries no [vlc] section."""
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "mysecret")
-        assert result["vlc"]["vlc_pass"] == "mysecret"
+        result = build_windows_bridge_manifest(cfg)
+        assert "vlc" not in result
 
-    def test_vlc_ports_included(self, cfg_path: Path):
+    def test_layout_monitors_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
-        assert result["vlc"]["vlc2_port"] == "8091"
-        assert result["vlc"]["vlc3_port"] == "8092"
+        result = build_windows_bridge_manifest(cfg)
         assert result["layout"]["main_monitor"] == "1"
         assert result["layout"]["secondary_monitor"] == "2"
 
     def test_runtime_section_includes_config_path(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["runtime"]["config_path"] == str(cfg.config_path)
 
     def test_satellite_module_in_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["modules"]["satellite_module"] == "satellite"
 
     def test_satellite_file_quartet_in_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        commands = build_windows_bridge_manifest(cfg, "pw")["commands"]
+        commands = build_windows_bridge_manifest(cfg)["commands"]
         state = cfg.paths.state_dir
         for side in ("portrait", "landscape"):
             assert commands[f"{side}_cmd_file"] == str(state / f"{side}_cmd.txt")
@@ -135,7 +133,7 @@ class TestControllerManifest:
             str(extra),
         ]}})
         cfg = load_config(path)
-        manifest = build_windows_bridge_manifest(cfg, "pw")
+        manifest = build_windows_bridge_manifest(cfg)
         joined = manifest["media"]["nau_library_sources"]
         assert str(tmp_path / "nau_library") in joined
         assert str(extra) in joined
@@ -151,7 +149,7 @@ class TestControllerManifest:
             "landscape_dirs": [str(tmp_path / "landscape"), str(landscape_extra)],
         }})
         cfg = load_config(path)
-        manifest = build_windows_bridge_manifest(cfg, "pw")
+        manifest = build_windows_bridge_manifest(cfg)
         assert str(tmp_path / "portrait") in manifest["media"]["portrait_dirs"]
         assert str(portrait_extra) in manifest["media"]["portrait_dirs"]
         assert "|" in manifest["media"]["portrait_dirs"]
@@ -161,54 +159,54 @@ class TestControllerManifest:
 
     def test_genau_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["modules"]["genau_module"] == "genau"
 
     def test_audio_companion_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["modules"]["audio_module"] == "fun_time.audio_companion_app"
 
     def test_dashboard_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["modules"]["dashboard_module"] == "fun_time.dashboard_app"
 
     def test_lock_hud_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["modules"]["lock_hud_module"] == "fun_time.lock_hud_app"
 
     def test_dashboard_enabled_defaults_true(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["dashboard"]["enabled"] == "1"
 
     def test_dashboard_enabled_can_be_disabled_for_integration(self, cfg_path: Path, monkeypatch):
         cfg = load_config(cfg_path)
         monkeypatch.setenv("FUN_TIME_DISABLE_DASHBOARD", "1")
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["dashboard"]["enabled"] == "0"
 
     def test_media_actions_module_removed_from_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert "media_actions_module" not in result["modules"]
 
     def test_windows_bridge_lock_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert "windows_bridge_lock_module" not in result["modules"]
 
     def test_removed_modules_are_not_in_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert "windows_bridge_runtime_flow_module" not in result["modules"]
         assert "windows_bridge_vlc_actions_module" not in result["modules"]
 
     def test_dead_app_modules_absent_from_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         for dead_key in (
             "windows_bridge_window_layout_module",
             "windows_bridge_random_favs_browser_module",
@@ -219,7 +217,7 @@ class TestControllerManifest:
 
     def test_random_favs_browser_paths_included(self, cfg_factory):
         cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["random_favs_browser"]["enabled"] == "1"
         assert result["random_favs_browser"]["shortcut_path"] == str(cfg.random_favs_browser.shortcut_path)
         assert result["random_favs_browser"]["manifest_file"] == str(cfg.random_favs_browser_manifest_file)
@@ -230,7 +228,7 @@ class TestControllerManifest:
             "metadata_root": str(tmp_path / "meta"),
         }})
         cfg = load_config(path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["provider_regen"]["generate_video_url"] == "https://example.com/video"
         assert result["provider_regen"]["generate_image_url"] == "https://example.com/create"
         assert result["provider_regen"]["media_root"] == str(tmp_path / "media")
@@ -238,13 +236,13 @@ class TestControllerManifest:
 
     def test_provider_regen_roots_blank_when_unset(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg, "pw")
+        result = build_windows_bridge_manifest(cfg)
         assert result["provider_regen"]["media_root"] == ""
         assert result["provider_regen"]["metadata_root"] == ""
 
     def test_write_windows_bridge_manifest_writes_expected_ini(self, cfg_factory, tmp_path: Path):
         cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
-        manifest_path = write_windows_bridge_manifest(cfg, "pw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        manifest_path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
         parser = configparser.ConfigParser()
         parser.optionxform = str
@@ -252,7 +250,11 @@ class TestControllerManifest:
 
         assert manifest_path.name == WINDOWS_BRIDGE_MANIFEST_FILENAME
         assert parser["runtime"]["project_dir"] == str(cfg.project_dir)
-        assert parser["vlc"]["vlc_pass"] == "pw"
+        assert "vlc" not in parser
+        # The native satellites are wired through their command/paused/status/playlist
+        # files, so the written INI carries the quartet instead of a VLC port/pass.
+        assert parser["modules"]["satellite_module"] == "satellite"
+        assert parser["commands"]["portrait_playlist_file"] == str(cfg.paths.state_dir / "portrait_playlist.tsv")
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
         assert "windows_bridge_lock_module" not in parser["modules"]
@@ -411,27 +413,18 @@ class TestBrokerHelpers:
 
 
 class TestRunController:
-    def test_prefers_vlcrc_http_password(self):
-        with patch("fun_time.orchestrator.vlc_http_password_from_vlcrc", return_value="from-vlcrc"), \
-             patch("fun_time.orchestrator.secrets.token_hex", return_value="abc123"):
-            assert resolve_vlc_http_password() == "from-vlcrc"
-
-    def test_falls_back_to_generated_http_password(self):
-        with patch("fun_time.orchestrator.vlc_http_password_from_vlcrc", return_value=None), \
-             patch("fun_time.orchestrator.secrets.token_hex", return_value="abc123"):
-            assert resolve_vlc_http_password() == "fun_time_abc123"
-
     def test_uses_manifest_path_for_bridge_launch(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
-        with patch("fun_time.orchestrator.resolve_vlc_http_password", return_value="pw-from-config"), \
-             patch("fun_time.orchestrator.write_windows_bridge_manifest", return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME) as writer, \
+        with patch("fun_time.orchestrator.write_windows_bridge_manifest", return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME) as writer, \
              patch("fun_time.orchestrator.run_python_orchestrated_bridge", return_value=0) as bridge:
             result = run_windows_bridge(cfg, logger)
 
         assert result == 0
-        writer.assert_called_once_with(cfg, "pw-from-config")
+        # The native satellites need no VLC HTTP password, so the manifest is
+        # written from the config alone.
+        writer.assert_called_once_with(cfg)
         bridge.assert_called_once()
         call_kwargs = bridge.call_args.kwargs
         assert call_kwargs["manifest_path"] == cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -446,47 +439,6 @@ def subprocess_result(*, stdout: str, returncode: int):
     mock.stdout = stdout
     mock.returncode = returncode
     return mock
-
-
-# --- vlc_http_password_from_vlcrc ---
-
-
-class TestVlcHttpPasswordFromVlcrc:
-    def test_reads_password_from_vlcrc(self, tmp_path: Path, monkeypatch):
-        vlcrc = tmp_path / "vlc" / "vlcrc"
-        vlcrc.parent.mkdir(parents=True)
-        vlcrc.write_text("# comment\n\nhttp-password=mysecret\n", encoding="utf-8")
-        monkeypatch.setenv("APPDATA", str(tmp_path))
-        assert vlc_http_password_from_vlcrc() == "mysecret"
-
-    def test_returns_none_when_appdata_unset(self, monkeypatch):
-        monkeypatch.delenv("APPDATA", raising=False)
-        assert vlc_http_password_from_vlcrc() is None
-
-    def test_returns_none_when_vlcrc_missing(self, tmp_path: Path, monkeypatch):
-        monkeypatch.setenv("APPDATA", str(tmp_path))
-        assert vlc_http_password_from_vlcrc() is None
-
-    def test_returns_none_when_no_password_line(self, tmp_path: Path, monkeypatch):
-        vlcrc = tmp_path / "vlc" / "vlcrc"
-        vlcrc.parent.mkdir(parents=True)
-        vlcrc.write_text("# just comments\nsome-other-setting=value\n", encoding="utf-8")
-        monkeypatch.setenv("APPDATA", str(tmp_path))
-        assert vlc_http_password_from_vlcrc() is None
-
-    def test_skips_comment_and_blank_lines(self, tmp_path: Path, monkeypatch):
-        vlcrc = tmp_path / "vlc" / "vlcrc"
-        vlcrc.parent.mkdir(parents=True)
-        vlcrc.write_text("# http-password=wrong\n\nhttp-password=correct\n", encoding="utf-8")
-        monkeypatch.setenv("APPDATA", str(tmp_path))
-        assert vlc_http_password_from_vlcrc() == "correct"
-
-    def test_returns_none_for_empty_password_value(self, tmp_path: Path, monkeypatch):
-        vlcrc = tmp_path / "vlc" / "vlcrc"
-        vlcrc.parent.mkdir(parents=True)
-        vlcrc.write_text("http-password=\n", encoding="utf-8")
-        monkeypatch.setenv("APPDATA", str(tmp_path))
-        assert vlc_http_password_from_vlcrc() is None
 
 
 # --- main() --check flag ---

@@ -35,9 +35,26 @@ def _make_action_video(
     return str(video)
 
 
+def _satellite_lines(state_dir: Path, side: str) -> list[str]:
+    """The plain video-path lines a satellite's playlist file holds.
+
+    The native player reads a plain one-path-per-line file (no VLC ``#EXTM3U``
+    header), written to ``state_dir/{side}_playlist.tsv``."""
+    return (state_dir / f"{side}_playlist.tsv").read_text(encoding="utf-8").splitlines()
+
+
+def _reloaded(cmd_file: Path) -> bool:
+    """Whether a RELOAD_PLAYLIST verb was queued on a satellite's command file."""
+    if not cmd_file.exists():
+        return False
+    return "RELOAD_PLAYLIST" in cmd_file.read_text(encoding="utf-8").splitlines()
+
+
 @pytest.fixture
 def flow_files(tmp_path: Path) -> dict[str, Path]:
     return {
+        "portrait_paused_file": tmp_path / "portrait_paused.txt",
+        "landscape_paused_file": tmp_path / "landscape_paused.txt",
         "genau_paused_file": tmp_path / "genau_paused.txt",
         "audio_paused_file": tmp_path / "audio_paused.txt",
         "genau_cmd_file": tmp_path / "genau_cmd.txt",
@@ -162,7 +179,7 @@ def test_nau_to_genau_does_not_write_broker_cmd(flow_files):
     assert not flow_files["broker_cmd_file"].exists(), "Activation must not write to broker"
 
 
-def test_toggle_fmode_replaces_playlists_and_reloads_nau(monkeypatch, tmp_path: Path):
+def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
@@ -181,14 +198,10 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(monkeypatch, tmp_path: 
         f'local_file,web_url\r\n"x","{portrait_video}"\r\n"x","{landscape_video}"\r\n',
         encoding="utf-8",
     )
+    state_dir = tmp_path / "state"
+    portrait_cmd_file = tmp_path / "portrait_cmd.txt"
+    landscape_cmd_file = tmp_path / "landscape_cmd.txt"
     nau_cmd_file = tmp_path / "nau_cmd.txt"
-    playlist_calls: list[tuple[int, str, str, str]] = []
-
-    def fake_replace(port, password, playlist_path, repeat_mode=""):
-        playlist_calls.append((port, password, str(playlist_path), repeat_mode))
-        return True
-
-    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", fake_replace)
 
     result = apply_toggle_fmode(
         f_mode_enabled=False,
@@ -197,10 +210,9 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(monkeypatch, tmp_path: 
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
         favs_file=favs_file,
-        state_dir=tmp_path / "state",
-        portrait_port=9002,
-        landscape_port=9003,
-        password="pw",
+        state_dir=state_dir,
+        portrait_cmd_file=portrait_cmd_file,
+        landscape_cmd_file=landscape_cmd_file,
         nau_cmd_file=nau_cmd_file,
     )
 
@@ -208,19 +220,19 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(monkeypatch, tmp_path: 
     assert result.next_f_mode_enabled is True
     assert result.next_locked2 is False
     assert result.next_locked3 is False
-    # Only the two satellites reload over HTTP; Nau reloads via its command file.
-    assert [call[0] for call in playlist_calls] == [9002, 9003]
-    assert playlist_calls[0][3] == "all"
-    assert playlist_calls[1][3] == "all"
+    # Each satellite is told to re-read its playlist file; Nau reloads via its own
+    # command file too.  All three playlist files are rewritten in place.
+    assert portrait_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
+    assert landscape_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
     assert nau_cmd_file.read_text(encoding="utf-8") == "RELOAD_PLAYLIST"
-    assert (tmp_path / "state" / "nau_playlist.tsv").exists()
+    assert (state_dir / "portrait_playlist.tsv").exists()
+    assert (state_dir / "landscape_playlist.tsv").exists()
+    assert (state_dir / "nau_playlist.tsv").exists()
 
 
-def test_toggle_fmode_collapses_action_groups_with_provider_roots(monkeypatch, tmp_path: Path):
+def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path):
     """With the provider roots supplied, the rebuilt satellite playlists collapse
     same-source-image action groups to one entry."""
-    import json
-
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
@@ -235,7 +247,6 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(monkeypatch, t
         sidecar = metadata_root / "portrait" / f"{Path(name).stem}.json"
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
-    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
 
     apply_toggle_fmode(
         f_mode_enabled=True,
@@ -245,27 +256,24 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(monkeypatch, t
         landscape_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_port=9002,
-        landscape_port=9003,
-        password="pw",
+        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
+        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
         provider_media_root=media_root,
         provider_metadata_root=metadata_root,
     )
 
-    portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
-    entries = [line for line in portrait_lines if line and not line.startswith("#")]
+    entries = [line for line in _satellite_lines(tmp_path / "state", "portrait") if line]
     assert len(entries) == 1
 
 
-def test_toggle_fmode_preserves_recency_ordering(monkeypatch, tmp_path: Path):
+def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
     p_old, p_new = portrait_root / "p_old.mp4", portrait_root / "p_new.mp4"
     for path, mtime in ((p_old, 1000), (p_new, 2000)):
         path.write_text("x", encoding="utf-8")
         os.utime(path, (mtime, mtime))
-    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
 
     # Toggling F-mode off must keep the satellite playlists newest-first, not reshuffle.
     apply_toggle_fmode(
@@ -276,17 +284,15 @@ def test_toggle_fmode_preserves_recency_ordering(monkeypatch, tmp_path: Path):
         landscape_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_port=9002,
-        landscape_port=9003,
-        password="pw",
+        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
+        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
     )
 
-    portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
-    assert portrait_lines[1:] == [str(p_new), str(p_old)]
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(p_new), str(p_old)]
 
 
-def test_refresh_recency_order_reorders_only_satellites(monkeypatch, tmp_path: Path):
+def test_refresh_recency_order_reorders_only_satellites(tmp_path: Path):
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
     for root in (portrait_root, landscape_root):
@@ -296,13 +302,8 @@ def test_refresh_recency_order_reorders_only_satellites(monkeypatch, tmp_path: P
     for path, mtime in ((p_old, 1000), (p_new, 2000), (l_old, 1000), (l_new, 2000)):
         path.write_text("x", encoding="utf-8")
         os.utime(path, (mtime, mtime))
-    playlist_calls: list[tuple[int, str, str, str]] = []
-
-    def fake_replace(port, password, playlist_path, repeat_mode=""):
-        playlist_calls.append((port, password, str(playlist_path), repeat_mode))
-        return True
-
-    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", fake_replace)
+    portrait_cmd_file = tmp_path / "portrait_cmd.txt"
+    landscape_cmd_file = tmp_path / "landscape_cmd.txt"
 
     result = apply_reorder_satellites(
         recent=True,
@@ -311,32 +312,26 @@ def test_refresh_recency_order_reorders_only_satellites(monkeypatch, tmp_path: P
         landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_port=9002,
-        landscape_port=9003,
-        password="pw",
+        portrait_cmd_file=portrait_cmd_file,
+        landscape_cmd_file=landscape_cmd_file,
     )
 
     assert result.next_recency_order is True
     assert result.next_locked2 is False
     assert result.next_locked3 is False
-    # Only the two satellite VLCs are touched — never the primary/Nau.
-    assert [call[0] for call in playlist_calls] == [9002, 9003]
-    assert all(call[3] == "all" for call in playlist_calls)
-    portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
-    landscape_lines = (tmp_path / "state" / "landscape_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
-    assert portrait_lines[1:] == [str(p_new), str(p_old)]
-    assert landscape_lines[1:] == [str(l_new), str(l_old)]
+    # Only the two satellites are reloaded — never the primary/Nau.
+    assert _reloaded(portrait_cmd_file)
+    assert _reloaded(landscape_cmd_file)
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(p_new), str(p_old)]
+    assert _satellite_lines(tmp_path / "state", "landscape") == [str(l_new), str(l_old)]
 
 
-def test_reorder_satellites_shuffle_clears_recency_and_reloads_both(monkeypatch, tmp_path: Path):
+def test_reorder_satellites_shuffle_clears_recency_and_reloads_both(tmp_path: Path):
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
     (portrait_root / "clip.mp4").write_text("x", encoding="utf-8")
-    ports: list[int] = []
-    monkeypatch.setattr(
-        "fun_time.runtime_flow.replace_playlist_from_file",
-        lambda port, *a, **k: ports.append(port) or True,
-    )
+    portrait_cmd_file = tmp_path / "portrait_cmd.txt"
+    landscape_cmd_file = tmp_path / "landscape_cmd.txt"
 
     result = apply_reorder_satellites(
         recent=False,
@@ -345,54 +340,50 @@ def test_reorder_satellites_shuffle_clears_recency_and_reloads_both(monkeypatch,
         landscape_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_port=9002,
-        landscape_port=9003,
-        password="pw",
+        portrait_cmd_file=portrait_cmd_file,
+        landscape_cmd_file=landscape_cmd_file,
     )
 
     assert result.next_recency_order is False  # Shuffle, not Premiere
-    assert ports == [9002, 9003]
+    # Both satellites reload even when a side is empty.
+    assert _reloaded(portrait_cmd_file)
+    assert _reloaded(landscape_cmd_file)
     assert "Shuffle" in result.log_message
 
 
-def test_refresh_recency_order_repicks_up_new_files(monkeypatch, tmp_path: Path):
+def test_refresh_recency_order_repicks_up_new_files(tmp_path: Path):
     """A repeat press rescans the sources so newly-arrived files land on top."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
     old = portrait_root / "old.mp4"
     old.write_text("x", encoding="utf-8")
     os.utime(old, (1000, 1000))
-    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
 
     def refresh():
         apply_reorder_satellites(
-        recent=True,
+            recent=True,
             f_mode_enabled=False,
             portrait_sources=str(portrait_root),
             landscape_sources="",
             favs_file=tmp_path / "favs.csv",
             state_dir=tmp_path / "state",
-            portrait_port=9002,
-            landscape_port=9003,
-            password="pw",
+            portrait_cmd_file=tmp_path / "portrait_cmd.txt",
+            landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         )
 
-    portrait = tmp_path / "state" / "portrait_vlc_playlist.m3u"
     refresh()
-    assert portrait.read_text(encoding="utf-8").splitlines()[1:] == [str(old)]
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(old)]
 
     new = portrait_root / "new.mp4"
     new.write_text("x", encoding="utf-8")
     os.utime(new, (2000, 2000))
     refresh()
-    assert portrait.read_text(encoding="utf-8").splitlines()[1:] == [str(new), str(old)]
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(new), str(old)]
 
 
-def test_refresh_recency_order_collapses_action_groups_with_provider_roots(monkeypatch, tmp_path: Path):
+def test_refresh_recency_order_collapses_action_groups_with_provider_roots(tmp_path: Path):
     """Premiere honours action groups too: with the provider roots supplied,
     same-source-image clips collapse to one entry, its newest member."""
-    import json
-
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
@@ -408,7 +399,6 @@ def test_refresh_recency_order_collapses_action_groups_with_provider_roots(monke
         sidecar = metadata_root / "portrait" / f"{video.stem}.json"
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
-    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
 
     apply_reorder_satellites(
         recent=True,
@@ -417,26 +407,23 @@ def test_refresh_recency_order_collapses_action_groups_with_provider_roots(monke
         landscape_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_port=9002,
-        landscape_port=9003,
-        password="pw",
+        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
+        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         provider_media_root=media_root,
         provider_metadata_root=metadata_root,
     )
 
-    portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
-    entries = [line for line in portrait_lines if line and not line.startswith("#")]
+    entries = [line for line in _satellite_lines(tmp_path / "state", "portrait") if line]
     assert entries == [str(newer)], "the two-action group collapses to its newest member"
 
 
-def test_toggle_fmode_applies_per_vlc_metadata_filters(monkeypatch, tmp_path: Path):
+def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root, landscape_root = media_root / "portrait", media_root / "landscape"
     p_cum = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
     l_kiss = _make_action_video(landscape_root, media_root, metadata_root, "lk", "Kissing")
     _make_action_video(landscape_root, media_root, metadata_root, "lc", "Alpha")
-    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
 
     apply_toggle_fmode(
         f_mode_enabled=True,  # toggles F-mode OFF, so only the metadata filter applies
@@ -446,9 +433,8 @@ def test_toggle_fmode_applies_per_vlc_metadata_filters(monkeypatch, tmp_path: Pa
         landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_port=9002,
-        landscape_port=9003,
-        password="pw",
+        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
+        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
         provider_media_root=media_root,
         provider_metadata_root=metadata_root,
@@ -456,13 +442,13 @@ def test_toggle_fmode_applies_per_vlc_metadata_filters(monkeypatch, tmp_path: Pa
         landscape_filter="kissing",
     )
 
-    portrait = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8")
-    landscape = (tmp_path / "state" / "landscape_vlc_playlist.m3u").read_text(encoding="utf-8")
+    portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
+    landscape = "\n".join(_satellite_lines(tmp_path / "state", "landscape"))
     assert p_cum in portrait and "pk.mp4" not in portrait
     assert l_kiss in landscape and "lc.mp4" not in landscape
 
 
-def test_refresh_recency_order_honours_filters_and_orders_newest_first(monkeypatch, tmp_path: Path):
+def test_refresh_recency_order_honours_filters_and_orders_newest_first(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     # Distinct prompts keep the two Alphas in distinct seed families, so the
@@ -472,7 +458,6 @@ def test_refresh_recency_order_honours_filters_and_orders_newest_first(monkeypat
     _make_action_video(portrait_root, media_root, metadata_root, "other", "Kissing", "scene three")
     os.utime(old, (1000, 1000))
     os.utime(new, (2000, 2000))
-    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
 
     apply_reorder_satellites(
         recent=True,
@@ -481,28 +466,23 @@ def test_refresh_recency_order_honours_filters_and_orders_newest_first(monkeypat
         landscape_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_port=9002,
-        landscape_port=9003,
-        password="pw",
+        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
+        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         provider_media_root=media_root,
         provider_metadata_root=metadata_root,
         portrait_filter="alpha",
     )
 
-    portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
-    assert portrait_lines[1:] == [new, old]  # filtered to alpha, newest-first
+    assert _satellite_lines(tmp_path / "state", "portrait") == [new, old]  # filtered to alpha, newest-first
 
 
-def test_apply_satellite_filter_reloads_only_its_port(monkeypatch, tmp_path: Path):
+def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     p_cum = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
-    calls: list[int] = []
-    monkeypatch.setattr(
-        "fun_time.runtime_flow.replace_playlist_from_file",
-        lambda port, *a, **k: calls.append(port) or True,
-    )
+    portrait_cmd_file = tmp_path / "portrait_cmd.txt"
+    landscape_cmd_file = tmp_path / "landscape_cmd.txt"
 
     result = apply_satellite_filter(
         which=2,
@@ -512,32 +492,29 @@ def test_apply_satellite_filter_reloads_only_its_port(monkeypatch, tmp_path: Pat
         sources=str(portrait_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        port=9002,
-        password="pw",
+        cmd_file=portrait_cmd_file,
         provider_media_root=media_root,
         provider_metadata_root=metadata_root,
     )
 
     assert result.applied is True
     assert result.count == 1
-    assert calls == [9002]
-    portrait = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8")
+    # Only the targeted satellite's command file gets a reload.
+    assert _reloaded(portrait_cmd_file)
+    assert not landscape_cmd_file.exists()
+    portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
     assert p_cum in portrait and "pk.mp4" not in portrait
 
 
-def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(monkeypatch, tmp_path: Path):
+def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
     state_dir = tmp_path / "state"
-    playlist = state_dir / "portrait_vlc_playlist.m3u"
+    playlist = state_dir / "portrait_playlist.tsv"
     playlist.parent.mkdir(parents=True)
-    playlist.write_text("#EXTM3U\r\nPRIOR\r\n", encoding="utf-8")
-    calls: list[int] = []
-    monkeypatch.setattr(
-        "fun_time.runtime_flow.replace_playlist_from_file",
-        lambda port, *a, **k: calls.append(port) or True,
-    )
+    playlist.write_text("PRIOR\n", encoding="utf-8")
+    cmd_file = tmp_path / "portrait_cmd.txt"
 
     result = apply_satellite_filter(
         which=2,
@@ -547,24 +524,22 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(monkeypat
         sources=str(portrait_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        port=9002,
-        password="pw",
+        cmd_file=cmd_file,
         provider_media_root=media_root,
         provider_metadata_root=metadata_root,
     )
 
     assert result.applied is False
     assert result.count == 0
-    assert calls == []  # no reload
+    assert not cmd_file.exists()  # no reload
     assert "PRIOR" in playlist.read_text(encoding="utf-8")  # left in place, not rebuilt
 
 
-def test_apply_satellite_filter_clear_restores_everything(monkeypatch, tmp_path: Path):
+def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
-    monkeypatch.setattr("fun_time.runtime_flow.replace_playlist_from_file", lambda *a, **k: True)
 
     result = apply_satellite_filter(
         which=2,
@@ -574,8 +549,7 @@ def test_apply_satellite_filter_clear_restores_everything(monkeypatch, tmp_path:
         sources=str(portrait_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        port=9002,
-        password="pw",
+        cmd_file=tmp_path / "portrait_cmd.txt",
         provider_media_root=media_root,
         provider_metadata_root=metadata_root,
     )
@@ -586,7 +560,7 @@ def test_apply_satellite_filter_clear_restores_everything(monkeypatch, tmp_path:
 
 def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
     """The pure browse builder "no loop" reshapes the queue back to: it honours
-    the satellite's filter and returns the paths, with no port to touch VLC."""
+    the satellite's filter and returns the paths, with no file to touch."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     redacted = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
@@ -617,20 +591,12 @@ def test_build_omnipause_toggle_returns_enter_or_leave():
     assert leave.next_omni_paused is False
 
 
-def test_apply_enter_omnipause_pauses_satellites_and_flags(monkeypatch, flow_files):
-    calls: list[tuple[int, str, bool]] = []
-
-    monkeypatch.setattr(
-        "fun_time.runtime_flow.ensure_playback_state",
-        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
-    )
-
+def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     result = apply_enter_omnipause(
         omni_paused=False,
         primary_mode="genau",
-        portrait_port=9002,
-        landscape_port=9003,
-        password="pw",
+        portrait_paused_file=flow_files["portrait_paused_file"],
+        landscape_paused_file=flow_files["landscape_paused_file"],
         genau_paused_file=flow_files["genau_paused_file"],
         audio_paused_file=flow_files["audio_paused_file"],
         genau_cmd_file=flow_files["genau_cmd_file"],
@@ -645,22 +611,18 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(monkeypatch, flow_fil
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE"
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "PARK"
-    # Only the two satellites are paused over HTTP; the primary slot (Nau/Genau)
-    # is paused via its flag files. Order is non-deterministic (parallel).
-    assert sorted(calls) == sorted([(9002, "pw", False), (9003, "pw", False)])
+    # Both satellites are frozen via their paused flag file — a paused native
+    # satellite simply cannot auto-advance, so no HTTP re-pause is needed.
+    assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "1"
+    assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
 
-def _leave_omnipause(files, monkeypatch, calls, *, primary_mode, broker=True):
-    monkeypatch.setattr(
-        "fun_time.runtime_flow.ensure_playback_state",
-        lambda port, password, should_play: calls.append((port, password, should_play)) or True,
-    )
+def _leave_omnipause(files, *, primary_mode, broker=True):
     return apply_leave_omnipause(
         omni_paused=True,
         primary_mode=primary_mode,
-        portrait_port=9002,
-        landscape_port=9003,
-        password="pw",
+        portrait_paused_file=files["portrait_paused_file"],
+        landscape_paused_file=files["landscape_paused_file"],
         genau_paused_file=files["genau_paused_file"],
         audio_paused_file=files["audio_paused_file"],
         genau_cmd_file=files["genau_cmd_file"],
@@ -669,12 +631,11 @@ def _leave_omnipause(files, monkeypatch, calls, *, primary_mode, broker=True):
     )
 
 
-def test_apply_leave_omnipause_in_nau_mode_resumes_nau(monkeypatch, flow_files):
+def test_apply_leave_omnipause_in_nau_mode_resumes_nau(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["nau_paused_file"].write_text("1", encoding="utf-8")
-    calls: list[tuple[int, str, bool]] = []
 
-    result = _leave_omnipause(flow_files, monkeypatch, calls, primary_mode="nau")
+    result = _leave_omnipause(flow_files, primary_mode="nau")
 
     assert result.action == "leave"
     assert result.next_omni_paused is False
@@ -684,34 +645,37 @@ def test_apply_leave_omnipause_in_nau_mode_resumes_nau(monkeypatch, flow_files):
     assert not flow_files["genau_cmd_file"].exists()
     # Broker is un-PARKed regardless of mode
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "RESUME"
-    assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True)])
+    # Both satellites are unfrozen via their paused flag file.
+    assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
+    assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
 
-def test_apply_leave_omnipause_in_hybrid_mode_resumes_nau_and_genau(monkeypatch, flow_files):
+def test_apply_leave_omnipause_in_hybrid_mode_resumes_nau_and_genau(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
     flow_files["nau_paused_file"].write_text("1", encoding="utf-8")
-    calls: list[tuple[int, str, bool]] = []
 
-    _leave_omnipause(flow_files, monkeypatch, calls, primary_mode="hybrid")
+    _leave_omnipause(flow_files, primary_mode="hybrid")
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME"
     # Hybrid displays Nau, so Nau resumes too (Genau just drives the OSR2).
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
-    assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True)])
+    assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
+    assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
 
-def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(monkeypatch, flow_files):
+def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
-    calls: list[tuple[int, str, bool]] = []
 
-    result = _leave_omnipause(flow_files, monkeypatch, calls, primary_mode="genau", broker=False)
+    result = _leave_omnipause(flow_files, primary_mode="genau", broker=False)
 
     assert result.action == "leave"
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME"
     assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
-    assert sorted(calls) == sorted([(9002, "pw", True), (9003, "pw", True)])
+    # Both satellites are unfrozen regardless of the primary mode.
+    assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
+    assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"

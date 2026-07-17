@@ -16,12 +16,10 @@ from pathlib import Path
 # inspect real windows and need real HWNDs, which the offscreen platform cannot give.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-import http.client
-
 import pytest
 from PyQt6.QtWidgets import QApplication
 
-from fun_time import vlc_actions, win32
+from fun_time import win32
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -31,32 +29,10 @@ def _qapp():
     yield app
 
 
-_REAL_HTTP_CONNECTION = http.client.HTTPConnection
-_real_get_pooled_conn = vlc_actions._get_pooled_conn
-
-
-@pytest.fixture(autouse=True)
-def _never_open_a_socket_to_vlc(monkeypatch):
-    """A unit test must never reach a real VLC.
-
-    The suite runs on the same machine as the user's Fun Time, whose two
-    satellites listen on the production HTTP ports.  An unmocked call lands on
-    THEM: `ensure_playback_state` answers a paused VLC with `pl_pause`, and
-    `pl_pause` toggles — so a background test run starts the user's video
-    playing in the middle of their own OmniPause.
-
-    Tests that exercise the HTTP layer itself substitute their own
-    `HTTPConnection`; they are let through, because then no socket is opened.
-    """
-    def _guard(port: int):
-        if vlc_actions.http.client.HTTPConnection is _REAL_HTTP_CONNECTION:
-            raise AssertionError(
-                f"a unit test tried to open a real socket to VLC on port {port} — "
-                "mock the vlc_actions function this call goes through"
-            )
-        return _real_get_pooled_conn(port)
-
-    monkeypatch.setattr(vlc_actions, "_get_pooled_conn", _guard)
+# The old "never open a socket to a live VLC" guard is gone with VLC itself: the
+# satellites are native mpv players driven through per-test tmp command/status
+# files (satellite_control), so a unit test can no longer reach the user's live
+# session the way an unmocked vlc_actions HTTP call once could.
 
 
 # The window wrappers in fun_time.win32 all funnel through a few user32 calls, and
@@ -142,10 +118,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "audio_dir": str(tmp_path / "audio"),
             "favs_file": str(tmp_path / "favs.csv"),
             "state_dir": str(tmp_path / "state"),
-        },
-        "vlc": {
-            "vlc2_http_port": 8091,
-            "vlc3_http_port": 8092,
         },
         "layout": {
             "main_monitor": 1,

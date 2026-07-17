@@ -8,32 +8,7 @@ from __future__ import annotations
 from hypothesis import given, assume
 from hypothesis import strategies as st
 
-from fun_time.vlc_actions import decode_file_uri
 from fun_time.media_actions import csv_escape, to_file_uri, make_web_url_from_path
-
-
-# ---------------------------------------------------------------------------
-# vlc_actions: decode_file_uri
-# ---------------------------------------------------------------------------
-
-@given(uri=st.text(max_size=500))
-def test_decode_file_uri_never_crashes(uri: str):
-    result = decode_file_uri(uri)
-    assert isinstance(result, str)
-
-
-
-@given(path=st.text(alphabet=st.characters(whitelist_categories=("L", "N", "P", "Z")), min_size=1, max_size=200))
-def test_decode_file_uri_roundtrips_simple_paths(path: str):
-    """For paths without special URL characters, encode then decode should roundtrip."""
-    assume("/" not in path)
-    assume("\\" not in path)
-    assume("%" not in path)
-    assume("#" not in path)
-    assume("?" not in path)
-    uri = "file:///" + path
-    result = decode_file_uri(uri)
-    assert result == path
 
 
 # ---------------------------------------------------------------------------
@@ -111,39 +86,3 @@ def test_make_web_url_from_path_builds_provider_url(image_id: str):
     path = f"C:\\images\\provider\\{image_id}.png"
     result = make_web_url_from_path(path)
     assert result == f"https://example.com/image/{image_id}"
-
-
-# ---------------------------------------------------------------------------
-# vlc_actions: XML parsing regexes (extracted from HTTP functions)
-# ---------------------------------------------------------------------------
-
-import re
-
-_RE_STATE = re.compile(r"<state>([^<]+)</state>")
-_RE_LOOP = re.compile(r"<loop>([^<]+)</loop>")
-_RE_REPEAT = re.compile(r"<repeat>([^<]+)</repeat>")
-_RE_CURRENT = re.compile(r'uri="([^"]+)"[^>]*current="current"', re.IGNORECASE)
-
-
-@given(xml=st.text(max_size=1000))
-def test_vlc_state_regex_never_crashes(xml: str):
-    result = _RE_STATE.search(xml)
-    if result:
-        assert isinstance(result.group(1), str)
-
-
-@given(xml=st.text(max_size=1000))
-def test_vlc_loop_repeat_regex_never_crashes(xml: str):
-    loop = _RE_LOOP.search(xml)
-    repeat = _RE_REPEAT.search(xml)
-    if loop:
-        assert isinstance(loop.group(1), str)
-    if repeat:
-        assert isinstance(repeat.group(1), str)
-
-
-@given(xml=st.text(max_size=1000))
-def test_vlc_current_uri_regex_never_crashes(xml: str):
-    result = _RE_CURRENT.search(xml)
-    if result:
-        assert isinstance(result.group(1), str)

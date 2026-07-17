@@ -52,18 +52,16 @@ TOPMOST_HWNDS = {
 
 
 @pytest.fixture(autouse=True)
-def _no_satellite_vlc_io():
-    """A tick()'s OmniPause branch reaches VLC over HTTP: it ENFORCES the satellite
-    pause (reading the caught satellite's clip/repeat/position for its diagnosis),
-    and the unpaused branch SAMPLES playback.  These tests are about dispatch, not
-    either, and a real call would land on whichever VLC happens to answer on this
-    machine — so every channel is neutralised: no fraction to sample, nothing found
-    playing to re-pause, inert diagnosis reads.  A test exercising the watchdog
-    patches the relevant one itself."""
-    with patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=None), \
-         patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path", return_value=""), \
-         patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value=None), \
-         patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing", return_value=False):
+def _neutralise_topmost_reads():
+    """The only real-desktop reach left in a tick() is _log_topmost_state, which
+    reads each managed window's WS_EX_TOPMOST flag on every OmniPause toggle.
+    These tests are about dispatch, not z-order, and a real read would land on
+    whichever window answers on this machine — so the flag read is neutralised
+    (nothing is ever found topmost).  The native satellites publish their
+    playback to status files, so a tick's satellite/primary sampling is inert
+    here (no status files written).  A test asserting on topmost state patches
+    is_window_topmost itself."""
+    with patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False):
         yield
 
 
@@ -77,9 +75,14 @@ def lookup_title(title, exact=False):
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
     settings = dict(
-        portrait_port=9091,
-        landscape_port=9092,
-        vlc_password="test",
+        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
+        portrait_paused_file=tmp_path / "portrait_paused.txt",
+        portrait_status_file=tmp_path / "portrait_status.txt",
+        portrait_playlist_file=tmp_path / "portrait_playlist.tsv",
+        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
+        landscape_paused_file=tmp_path / "landscape_paused.txt",
+        landscape_status_file=tmp_path / "landscape_status.txt",
+        landscape_playlist_file=tmp_path / "landscape_playlist.tsv",
         favs_file=tmp_path / "favs.txt",
         weird_dir=tmp_path / "weird",
         state_dir=tmp_path,
@@ -113,6 +116,24 @@ def _write_nau_status(path: Path, video, *, position_ms: int, duration_ms: int, 
     path.write_text(
         f"video={video}\nposition_ms={position_ms}\nduration_ms={duration_ms}\n"
         f"state=normal\npaused={'1' if paused else '0'}\n",
+        encoding="utf-8",
+    )
+
+
+def _write_satellite_status(path: Path, video, *, fraction: float | None = None,
+                            paused: bool = False, locked: bool = False) -> None:
+    """Write a native satellite's status file the way its player publishes it.
+
+    ``fraction`` sets how far through the clip the player reports: None writes a
+    not-yet-known duration (``read_satellite_status().fraction`` is then None, so
+    the sample is dropped), otherwise position/duration encode the fraction.
+    """
+    duration_ms = 0 if fraction is None else 1000
+    position_ms = 0 if fraction is None else round(fraction * duration_ms)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"video={video}\nposition_ms={position_ms}\nduration_ms={duration_ms}\n"
+        f"paused={'1' if paused else '0'}\nlocked={'1' if locked else '0'}\n",
         encoding="utf-8",
     )
 
@@ -661,12 +682,10 @@ class TestDispatchLoopRunner:
 
     def test_sampling_records_each_satellites_video_into_its_timeline(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
-        paths = {9091: "C:\\clips\\portrait.mp4", 9092: "C:\\clips\\landscape.mp4"}
+        _write_satellite_status(runner.config.portrait_status_file, "C:\\clips\\portrait.mp4", fraction=0.1)
+        _write_satellite_status(runner.config.landscape_status_file, "C:\\clips\\landscape.mp4", fraction=0.1)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.1), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                   side_effect=lambda port, _pw: paths[port]):
-            runner._sample_satellites(now=500.0)
+        runner._sample_satellites(now=500.0)
 
         assert runner._timelines[2].path_at(500.0) == "C:\\clips\\portrait.mp4"
         assert runner._timelines[3].path_at(500.0) == "C:\\clips\\landscape.mp4"
@@ -767,157 +786,6 @@ class TestDispatchLoopRunner:
 
         mock_primary.assert_not_called()
 
-    def test_tick_under_omnipause_re_pauses_playing_satellites(self, tmp_path):
-        """OmniPause pauses the satellites once on entry, but one can resume on
-        its own afterward — most often a slow load that only began playing after
-        the enter settle window.  On the sampling cadence the tick runs a
-        watchdog that re-pauses any satellite slipped back into playing, and
-        samples neither player (nothing is watched while paused)."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-        checked_ports: list[int] = []
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: checked_ports.append(port) or True), \
-             patch.object(runner, "_sample_satellites") as mock_sat, \
-             patch.object(runner, "_sample_primary") as mock_primary:
-            runner.tick()
-
-        assert checked_ports == [9091, 9092], "both satellites are checked every enforcement tick"
-        mock_sat.assert_not_called()
-        mock_primary.assert_not_called()
-
-    def test_omnipause_watchdog_shares_the_sampling_throttle(self, tmp_path):
-        """The watchdog rides the same twice-a-second cadence as sampling, so a
-        just-checked tick does not re-poll the satellites 20 times a second."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-        runner._last_watch_sample = float("inf")
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing") as mock_pause:
-            runner.tick()
-
-        mock_pause.assert_not_called()
-
-    def test_tick_never_runs_the_watchdog_while_playing_normally(self, tmp_path):
-        """Outside OmniPause the satellites are meant to play, so the watchdog
-        stays idle and never fights normal playback."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing") as mock_pause:
-            runner.tick()
-
-        mock_pause.assert_not_called()
-
-    def test_omnipause_watchdog_logs_the_satellite_it_catches(self, tmp_path, caplog):
-        """A satellite resuming under OmniPause is the recurring bug; when the
-        watchdog catches one it names the side in the log, so a recurrence is
-        visible instead of silent."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: port == 9091), \
-             caplog.at_level("WARNING"):
-            runner.tick()
-
-        assert any("Portrait" in r.getMessage() for r in caplog.records)
-        assert not any("Landscape" in r.getMessage() for r in caplog.records)
-
-    def test_omnipause_watchdog_flashes_on_the_caught_satellite(self, tmp_path, caplog):
-        """The re-pause toast must appear over the satellite it re-paused, not
-        the primary — so the record carries that satellite's source. The default
-        (system) would flash the toast on the primary instead."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: port == 9092), \
-             caplog.at_level("WARNING"):
-            runner.tick()
-
-        caught = [r for r in caplog.records if "Landscape" in r.getMessage()]
-        assert caught, "the watchdog logged the landscape satellite it caught"
-        assert all(getattr(r, "source", None) == "landscape" for r in caught)
-
-    def test_omnipause_watchdog_records_what_the_satellite_resumed_into(self, tmp_path, caplog):
-        """The bare 'it resumed on its own' line is the symptom, not the cause.
-        A catch also records what the satellite resumed *into* — its repeat mode,
-        position and current clip — so a recurrence is diagnosable from the log
-        alone instead of needing a live repro."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: port == 9091), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value="one"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                   return_value=r"C:\clips\abc_topaz.mp4"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.03), \
-             caplog.at_level("WARNING"):
-            runner.tick()
-
-        caught = [r for r in caplog.records if "Portrait" in r.getMessage()]
-        assert caught, "the watchdog logged the portrait catch"
-        message = caught[0].getMessage()
-        assert "repeat=one" in message
-        assert "abc_topaz.mp4" in message
-        assert "pos=0.03" in message
-
-    def test_omnipause_watchdog_flags_a_repeated_clip_as_the_same_clip(self, tmp_path, caplog):
-        """Two catches of the *same* clip is VLC's repeat looping it under the
-        pause, not a playlist advance — the diagnosis says so, which is the
-        single field that tells the storm's cause apart."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: port == 9091), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value="one"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                   return_value=r"C:\clips\abc_topaz.mp4"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.01), \
-             caplog.at_level("WARNING"):
-            runner._last_watch_sample = 0.0
-            runner.tick()
-            runner._last_watch_sample = 0.0
-            runner.tick()
-
-        caught = [r for r in caplog.records if "Portrait" in r.getMessage()]
-        assert len(caught) == 2, "the watchdog caught the same satellite on both ticks"
-        assert "first catch" in caught[0].getMessage()
-        assert "same clip" in caught[1].getMessage()
-
-    def test_omnipause_watchdog_diagnosis_resets_when_the_pause_lifts(self, tmp_path, caplog):
-        """A fresh OmniPause episode must not describe its first catch as an
-        advance from a clip caught in a previous episode: leaving the pause (a
-        sampling tick) clears the remembered clip, so the next catch reads as a
-        first catch again."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: port == 9091), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value="one"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                   return_value=r"C:\clips\abc_topaz.mp4"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.01), \
-             caplog.at_level("WARNING"):
-            runner._last_watch_sample = 0.0
-            runner.tick()
-            # OmniPause lifts: a sampling tick runs and clears the memory.
-            runner.state = BridgeState(omni_paused=False)
-            runner._last_watch_sample = 0.0
-            runner.tick()
-            # A new episode catches the same clip — it must read as a first catch.
-            runner.state = BridgeState(omni_paused=True)
-            runner._last_watch_sample = 0.0
-            runner.tick()
-
-        caught = [r for r in caplog.records if "Portrait" in r.getMessage()]
-        assert len(caught) == 2, "one catch per omnipause episode"
-        assert "first catch" in caught[1].getMessage()
-
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the primary display in every mode it appears, so a nudge
         dispatches to Nau's SEEK command (which stacks against its live clock)."""
@@ -943,8 +811,7 @@ class TestDispatchLoopRunner:
 
         topmost_calls: list[tuple[int, bool]] = []
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
@@ -968,8 +835,7 @@ class TestDispatchLoopRunner:
         topmost_calls: list[tuple[int, bool]] = []
         activated: list[int] = []
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window", side_effect=activated.append), \
@@ -987,8 +853,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omnipause_toggle", encoding="utf-8")
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner.tick()
@@ -1057,8 +922,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
@@ -1082,8 +946,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
@@ -1571,8 +1434,7 @@ class TestModeSwitchVisibility:
                    side_effect=lambda h, **kw: calls.append(("hide", h))), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window",
                    side_effect=lambda h: calls.append(("activate", h))), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner._dispatch(command)
 
         assert runner.state.primary_mode == {
@@ -2174,8 +2036,7 @@ class TestIdempotentVoiceCommands:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("enter_omnipause", encoding="utf-8")
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner.tick()
@@ -2191,8 +2052,7 @@ class TestIdempotentVoiceCommands:
 
         topmost_calls: list[tuple[int, bool]] = []
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
@@ -2427,28 +2287,17 @@ class TestWatchTracking:
     watch-stats events, with user nav commands marking skips."""
 
     def _run_samples(self, runner, monkeypatch, timeline):
-        """Drive tick() through (t, portrait_path, portrait_fraction) samples."""
-        current = {"value": ("", None)}
+        """Drive tick() through (t, portrait_path, portrait_fraction) samples,
+        publishing each to the portrait satellite's status file the way its
+        native player would (a None fraction writes an unknown duration, which
+        the sampler drops)."""
         fake_now = {"t": 0.0}
         monkeypatch.setattr(
             "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
         )
-
-        def fake_path(port, pw):
-            return current["value"][0] if port == 9091 else ""
-
-        def fake_fraction(port, pw):
-            return current["value"][1] if port == 9091 else None
-
-        monkeypatch.setattr(
-            "fun_time.windows_bridge_dispatch_loop.get_current_file_path", fake_path
-        )
-        monkeypatch.setattr(
-            "fun_time.windows_bridge_dispatch_loop.get_playback_fraction", fake_fraction
-        )
         for t, path, fraction in timeline:
             fake_now["t"] = t
-            current["value"] = (path, fraction)
+            _write_satellite_status(runner.config.portrait_status_file, path, fraction=fraction)
             runner.tick()
 
     def test_tick_records_a_completion_for_a_fully_watched_video(self, tmp_path, monkeypatch):
@@ -2477,28 +2326,16 @@ class TestWatchTracking:
         a = tmp_path / "a.mp4"
         a.write_text("x", encoding="utf-8")
 
-        with (
-            patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
-            patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-        ):
-            current = {"value": (str(a), 0.2)}
-            fake_now = {"t": 100.0}
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
-            )
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                lambda port, pw: current["value"][0] if port == 9091 else "",
-            )
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.get_playback_fraction",
-                lambda port, pw: current["value"][1] if port == 9091 else None,
-            )
-            runner.tick()                       # samples a.mp4 at 20%
-            runner._dispatch("portrait_next")   # user skips
-            fake_now["t"] = 101.1
-            current["value"] = (str(tmp_path / "b.mp4"), 0.0)
-            runner.tick()
+        fake_now = {"t": 100.0}
+        monkeypatch.setattr(
+            "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
+        )
+        _write_satellite_status(runner.config.portrait_status_file, str(a), fraction=0.2)
+        runner.tick()                       # samples a.mp4 at 20%
+        runner._dispatch("portrait_next")   # user skips
+        fake_now["t"] = 101.1
+        _write_satellite_status(runner.config.portrait_status_file, str(tmp_path / "b.mp4"), fraction=0.0)
+        runner.tick()
 
         stats = load_watch_stats(tmp_path / "watch_stats.json")
         assert stats[normalize_path_key(str(a))]["skips"] == 1
@@ -2511,29 +2348,16 @@ class TestWatchTracking:
         a = tmp_path / "a.mp4"
         a.write_text("x", encoding="utf-8")
 
-        with (
-            patch("fun_time.command_dispatch.get_current_file_path", return_value=str(a)),
-            patch("fun_time.command_dispatch.vlc_advance_and_remove", return_value=True),
-            patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-        ):
-            current = {"value": (str(a), 0.2)}
-            fake_now = {"t": 100.0}
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
-            )
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                lambda port, pw: current["value"][0] if port == 9091 else "",
-            )
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.get_playback_fraction",
-                lambda port, pw: current["value"][1] if port == 9091 else None,
-            )
-            runner.tick()
-            runner._dispatch("portrait_trash")  # moves the file to weird
-            fake_now["t"] = 101.1
-            current["value"] = (str(tmp_path / "b.mp4"), 0.0)
-            runner.tick()
+        fake_now = {"t": 100.0}
+        monkeypatch.setattr(
+            "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
+        )
+        _write_satellite_status(runner.config.portrait_status_file, str(a), fraction=0.2)
+        runner.tick()
+        runner._dispatch("portrait_trash")  # moves the file to weird
+        fake_now["t"] = 101.1
+        _write_satellite_status(runner.config.portrait_status_file, str(tmp_path / "b.mp4"), fraction=0.0)
+        runner.tick()
 
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
 
@@ -2673,11 +2497,9 @@ class TestHybridFunscriptHandoff:
         runner.state = BridgeState(primary_mode="hybrid")
         self._write_status(runner, has_funscript=True, resting=False)
 
-        with patch(
-            "fun_time.windows_bridge_dispatch_loop.get_playback_fraction",
-            return_value=None,
-        ):
-            runner.tick()
+        # The native satellites publish to status files (none written here), so
+        # the tick's sampling is inert and the hybrid handoff runs alone.
+        runner.tick()
 
         assert self._genau(runner) == "PAUSE"
 

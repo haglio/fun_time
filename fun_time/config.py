@@ -74,12 +74,6 @@ class LayoutConfig:
 
 
 @dataclass(frozen=True)
-class VlcConfig:
-    vlc2_http_port: int
-    vlc3_http_port: int
-
-
-@dataclass(frozen=True)
 class GenauConfig:
     shuffle_on_load: bool
     beats_per_loop: float
@@ -133,7 +127,6 @@ class ProjectConfig:
     project_dir: Path
     config_path: Path
     paths: PathsConfig
-    vlc: VlcConfig
     layout: LayoutConfig
     genau: GenauConfig
     audio_companion: AudioCompanionConfig
@@ -259,13 +252,6 @@ def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> Layout
     )
 
 
-def _load_vlc_config(vlc_raw: dict[str, Any], source_path: Path) -> VlcConfig:
-    return VlcConfig(
-        vlc2_http_port=_require_typed_value(vlc_raw, "vlc2_http_port", source_path, "config.vlc", int),
-        vlc3_http_port=_require_typed_value(vlc_raw, "vlc3_http_port", source_path, "config.vlc", int),
-    )
-
-
 def _load_genau_config(genau_raw: dict[str, Any], source_path: Path) -> GenauConfig:
     return GenauConfig(
         shuffle_on_load=_require_typed_value(genau_raw, "shuffle_on_load", source_path, "config.genau", bool),
@@ -334,7 +320,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         raw: dict[str, Any] = json.load(fp)
 
     paths_raw = _require_dict(raw, "paths", path)
-    vlc_raw = _require_dict(raw, "vlc", path)
     layout_raw = _require_dict(raw, "layout", path)
     genau_raw = _require_dict(raw, "genau", path)
     audio_raw = _require_dict(raw, "audio_companion", path)
@@ -348,7 +333,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         project_dir=PROJECT_DIR,
         config_path=path,
         paths=_load_paths_config(paths_raw, path),
-        vlc=_load_vlc_config(vlc_raw, path),
         layout=_load_layout_config(layout_raw, path),
         genau=_load_genau_config(genau_raw, path),
         audio_companion=_load_audio_companion_config(audio_raw, path),

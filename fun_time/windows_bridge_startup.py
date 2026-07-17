@@ -10,7 +10,6 @@ from .config import load_config
 from .dashboard_runtime import is_broker_heartbeat_fresh
 from .modes import SatelliteLibraryContext, build_fmode_playlists
 from .watch_stats import watch_stats_path
-from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import (
     BROKER_PROCESS_PATTERN,
     BROKER_TRAY_PATTERN,
@@ -132,25 +131,28 @@ def start_core_session(
     audio_paused_file: str | Path,
     nau_paused_file: str | Path,
     audio_volume_file: str | Path,
-    vlc_exe: str | Path,
+    genau_python_exe: str | Path,
+    satellite_module: str,
+    portrait_cmd_file: str | Path,
+    portrait_paused_file: str | Path,
+    portrait_status_file: str | Path,
+    landscape_cmd_file: str | Path,
+    landscape_paused_file: str | Path,
+    landscape_status_file: str | Path,
     primary_sources: str,
     portrait_sources: str,
     landscape_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
-    portrait_port: int,
-    landscape_port: int,
-    password: str,
     result_file: str | Path,
-    hide_windows: bool = False,
     provider_media_root: Path | None = None,
     provider_metadata_root: Path | None = None,
 ) -> None:
     ensure_broker(project_dir, broker_heartbeat_file, broker_tray_launcher)
     seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
-    # One playlist authority: the same builder the F-mode toggle uses writes
-    # the three VLC playlists and Nau's video/funscript pair list.
+    # One playlist authority: the same builder the F-mode toggle uses writes the
+    # two satellite playlists and Nau's video/funscript pair list.
     playlist_plan = build_fmode_playlists(
         primary_sources=primary_sources,
         portrait_sources=portrait_sources,
@@ -164,15 +166,17 @@ def start_core_session(
         ),
     )
     launch_core_apps(
-        project_dir=project_dir,
-        vlc_exe=vlc_exe,
+        python_exe=genau_python_exe,
+        satellite_module=satellite_module,
         portrait_playlist=playlist_plan.portrait_playlist_path,
         landscape_playlist=playlist_plan.landscape_playlist_path,
-        portrait_port=portrait_port,
-        landscape_port=landscape_port,
-        password=password,
+        portrait_cmd_file=portrait_cmd_file,
+        portrait_paused_file=portrait_paused_file,
+        portrait_status_file=portrait_status_file,
+        landscape_cmd_file=landscape_cmd_file,
+        landscape_paused_file=landscape_paused_file,
+        landscape_status_file=landscape_status_file,
         result_file=result_file,
-        hide_windows=hide_windows,
     )
 
 
@@ -352,118 +356,66 @@ def launch_ui_companions(
     )
 
 
-# A full integration run spawns and kills VLC many times; on a loaded machine
-# the HTTP interface occasionally takes several seconds longer than a naive
-# fixed timeout to bind.  Wait generously — _await_vlc_http still fails fast if
-# the process dies, so the ceiling only bites a genuinely hung-but-alive VLC.
-_VLC_HTTP_BIND_TIMEOUT_MS = 20000
-
-
-def _await_vlc_http(port: int, password: str, proc, label: str) -> None:
-    """Block until VLC's HTTP interface binds, or fail with a precise error.
-
-    Waits up to _VLC_HTTP_BIND_TIMEOUT_MS, but only while *proc* is alive: a
-    VLC that has already exited will never bind, so we surface its exit code
-    immediately instead of waiting out the whole timeout.
-    """
-    if wait_for_http(port, password, _VLC_HTTP_BIND_TIMEOUT_MS, is_alive=lambda: proc.poll() is None):
-        return
-    if proc.poll() is not None:
-        raise RuntimeError(f"{label} VLC exited before its HTTP interface bound (exit code {proc.returncode})")
-    raise RuntimeError(f"{label} VLC HTTP did not come up within {_VLC_HTTP_BIND_TIMEOUT_MS // 1000}s")
-
-
 def launch_core_apps(
     *,
-    project_dir: str | Path,
-    vlc_exe: str | Path,
+    python_exe: str | Path,
+    satellite_module: str,
     portrait_playlist: str | Path,
     landscape_playlist: str | Path,
-    portrait_port: int,
-    landscape_port: int,
-    password: str,
+    portrait_cmd_file: str | Path,
+    portrait_paused_file: str | Path,
+    portrait_status_file: str | Path,
+    landscape_cmd_file: str | Path,
+    landscape_paused_file: str | Path,
+    landscape_status_file: str | Path,
     result_file: str | Path,
-    hide_windows: bool = False,
 ) -> None:
-    project_dir = Path(project_dir)
-    vlc_exe = str(vlc_exe)
+    """Spawn the two native satellite players (portrait + landscape).
 
-    # Behind the loading screen, hold the playlist back: VLC launches with no
-    # media on its command line and has it enqueued over HTTP afterwards, so
-    # nothing plays before the sequencer has placed the windows.
-    portrait_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, portrait_port, password, repeat_mode="loop",
-                                   playlist_path=None if hide_windows else Path(portrait_playlist)),
-        cwd=project_dir,
+    Each is our own mpv-backed process (genau's ``satellite`` package), driven
+    through its command/paused/status file quartet like Nau.  They launch at a
+    placeholder geometry and play immediately; the sequencer resolves each window
+    by HWND and moves it to its portrait/landscape rect once it appears, so there
+    is no HTTP interface to wait on and nothing to enqueue or repeat-mode here —
+    the native player owns its playlist and auto-advances (its wrap is repeat-all).
+    """
+    portrait_pid = launch_satellite(
+        python_exe=python_exe,
+        satellite_module=satellite_module,
+        playlist_file=portrait_playlist,
+        command_file=portrait_cmd_file,
+        paused_file=portrait_paused_file,
+        status_file=portrait_status_file,
+        x=_SATELLITE_LAUNCH_X, y=_SATELLITE_LAUNCH_Y,
+        width=_SATELLITE_LAUNCH_W, height=_SATELLITE_LAUNCH_H,
     )
-    landscape_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, landscape_port, password, repeat_mode="loop",
-                                   playlist_path=None if hide_windows else Path(landscape_playlist)),
-        cwd=project_dir,
+    landscape_pid = launch_satellite(
+        python_exe=python_exe,
+        satellite_module=satellite_module,
+        playlist_file=landscape_playlist,
+        command_file=landscape_cmd_file,
+        paused_file=landscape_paused_file,
+        status_file=landscape_status_file,
+        x=_SATELLITE_LAUNCH_X, y=_SATELLITE_LAUNCH_Y,
+        width=_SATELLITE_LAUNCH_W, height=_SATELLITE_LAUNCH_H,
     )
-
-    _await_vlc_http(portrait_port, password, portrait_proc, "Portrait")
-    _await_vlc_http(landscape_port, password, landscape_proc, "Landscape")
-
-    set_repeat_mode(portrait_port, password, "all")
-    set_repeat_mode(landscape_port, password, "all")
-
-    time.sleep(0.25)
-    if hide_windows:
-        replace_playlist_from_file(portrait_port, password, Path(portrait_playlist), enqueue_only=True)
-    else:
-        vlc_http_cmd(portrait_port, "pl_next", password)
-    time.sleep(0.15)
-    if hide_windows:
-        replace_playlist_from_file(landscape_port, password, Path(landscape_playlist), enqueue_only=True)
-    else:
-        vlc_http_cmd(landscape_port, "pl_next", password)
-
     _write_result_file(
         result_file,
         {
-            "portrait_pid": portrait_proc.pid,
-            "landscape_pid": landscape_proc.pid,
+            "portrait_pid": portrait_pid,
+            "landscape_pid": landscape_pid,
         },
     )
 
 
-
-def _build_vlc_launch_command(vlc_exe: str, port: int, password: str, *, repeat_mode: str, playlist_path: Path | None = None) -> list[str]:
-    command = [
-        vlc_exe,
-        "--no-one-instance",
-        "--extraintf",
-        "http",
-        "--http-host",
-        "127.0.0.1",
-        "--http-port",
-        str(port),
-        "--http-password",
-        password,
-    ]
-    # A satellite must never be heard — a stray clip with an audio track would
-    # blurt out mid-session.  --no-audio drops the audio output module, so
-    # there is nothing to hear and no audio session to leave behind.  Muting by
-    # volume instead would follow the user into their own VLC: VLC's volume is
-    # a Windows per-application mixer level shared by every vlc.exe, remembered
-    # across launches.
-    command.append("--no-audio")
-    # --start-paused must NEVER be used to keep a launching VLC quiet: VLC
-    # re-applies it on every item transition, not just startup, which blacks
-    # out the screen every time the user navigates.
-    # --no-random overrides VLC's saved vlcrc setting.  Without it, if the
-    # user ever toggled shuffle inside VLC, the preference persists across
-    # launches and VLC advances to random items instead of sequentially,
-    # breaking vlc_nav_step's index-based prev/next navigation.
-    command.append("--no-random")
-    if repeat_mode == "repeat":
-        command.append("--repeat")
-    elif repeat_mode == "loop":
-        command.append("--loop")
-    if playlist_path is not None:
-        command.append(str(playlist_path))
-    return command
+# The satellites launch at this placeholder geometry; the sequencer immediately
+# repositions and resizes each to its real portrait/landscape rect by HWND, so
+# the launch size only has to be a sane non-zero window (mpv resizes its output to
+# the window's client area when the sequencer's move_window resizes it).
+_SATELLITE_LAUNCH_X = 0
+_SATELLITE_LAUNCH_Y = 0
+_SATELLITE_LAUNCH_W = 1200
+_SATELLITE_LAUNCH_H = 900
 
 
 def _build_satellite_launch_command(
@@ -481,11 +433,10 @@ def _build_satellite_launch_command(
 ) -> list[str]:
     """The argv for a native satellite player (``python -m satellite ...``).
 
-    The native replacement for :func:`_build_vlc_launch_command`: same silent,
-    file-driven contract, but the satellite is our own mpv-backed process, so it
-    is driven through the command/paused/status file quartet (like Nau) rather
-    than a VLC HTTP port.  It takes no ``--config`` — the quartet plus geometry
-    fully specify it — and stays silent with ``--no-audio``.
+    The satellite is our own mpv-backed process, so — unlike the VLC satellites it
+    replaces — it is driven through the command/paused/status file quartet (like
+    Nau) rather than a VLC HTTP port.  It takes no ``--config`` — the quartet plus
+    geometry fully specify it — and stays silent with ``--no-audio``.
     """
     return [
         str(python_exe),
