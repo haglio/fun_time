@@ -16,8 +16,19 @@ from tkinter import ttk
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .startup_progress import cancel_file_for
+
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
+
+
+def request_startup_cancel(progress_file: str | Path) -> None:
+    """Signal the orchestrator to abort startup by dropping the cancel flag.
+
+    The orchestrator's progress reporter watches for this file and raises at
+    its next checkpoint, unwinding startup and tearing down whatever launched.
+    """
+    cancel_file_for(progress_file).write_text("", encoding="utf-8")
 
 
 def parse_progress(text: str) -> tuple[int, int, str, bool]:
@@ -72,11 +83,13 @@ class LoadingScreen:
     def __init__(self, progress_file: Path) -> None:
         self._progress_file = progress_file
         self._last_modified = 0.0
+        self._cancelling = False
 
         BG = "#1a1a2e"
         PINK = "#e94560"
         TROUGH = "#16213e"
         TEXT_DIM = "#c0c0d8"
+        HINT_DIM = "#7a7a95"  # subtler than the status line, still legible on BG
 
         self._root = tk.Tk()
         self._root.title(WINDOW_TITLE)
@@ -168,7 +181,37 @@ class LoadingScreen:
         )
         self._progress_bar.pack(pady=(0, 8))
 
+        self._hint_label = tk.Label(
+            frame,
+            text="Press Esc to cancel",
+            font=("Segoe UI", 8),
+            fg=HINT_DIM,
+            bg=BG,
+        )
+        self._hint_label.pack()
+
+        # Esc anywhere on the overlay asks the orchestrator to abort startup.
+        # The overlay stays up (showing "Cancelling...") until the orchestrator
+        # has torn the half-started session down and writes DONE, so nothing
+        # half-launched ever flashes into view.
+        self._root.bind("<Escape>", self._on_escape)
+        self._root.focus_force()
+
         self._root.after(POLL_MS, self._poll)
+
+    def _on_escape(self, _event: object = None) -> None:
+        if self._cancelling:
+            return
+        self._cancelling = True
+        try:
+            request_startup_cancel(self._progress_file)
+        except OSError:
+            pass
+        try:
+            self._status_label.configure(text="Cancelling...")
+            self._hint_label.configure(text="")
+        except tk.TclError:
+            pass
 
     def _poll(self) -> None:
         # Startup promotes windows into the TOPMOST band while this overlay
@@ -187,7 +230,9 @@ class LoadingScreen:
 
                 if total > 0:
                     self._progress_var.set(step / total * 100)
-                if message:
+                # Once the user has asked to cancel, hold the "Cancelling..."
+                # status; don't let a late step message flip it back.
+                if message and not self._cancelling:
                     self._status_label.configure(text=message)
 
                 if mtime != self._last_modified:
