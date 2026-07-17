@@ -1,0 +1,71 @@
+{
+  "paths": {
+    "vlc_exe": "C:/Program Files/VideoLAN/VLC/vlc.exe",
+    "ahk_exe": "C:/Program Files/AutoHotkey/v2/AutoHotkey64.exe",
+    "python_exe": "C:/path/to/fun_time/.venv/Scripts/pythonw.exe",
+    "nau_library_dirs": [
+      "C:/path/to/library/main"
+    ],
+    "portrait_dirs": [
+      "C:/path/to/library/portrait"
+    ],
+    "landscape_dirs": [
+      "C:/path/to/library/landscape"
+    ],
+    "weird_dir": "C:/path/to/library/misc",
+    "clips_dir": "C:/path/to/clips",
+    "audio_dir": "C:/path/to/audio",
+    "favs_file": "favs.csv",
+    "state_dir": "state",
+    "genau_python_exe": "C:/path/to/genau/.venv/Scripts/pythonw.exe",
+    "genau_config_path": "C:/path/to/genau/genau_config.json",
+    "broker_tray_launcher": "../osr2_broker/launch_broker_tray.vbs"
+  },
+  "vlc": {
+    "vlc2_http_port": 8091,
+    "vlc3_http_port": 8092
+  },
+  "layout": {
+    "main_monitor": 1,
+    "secondary_monitor": 2,
+    "primary_top_ratio": 0.7272727273,
+    "landscape_width_ratio": 0.6666666667
+  },
+  "genau": {
+    "shuffle_on_load": true,
+    "beats_per_loop": 1.0,
+    "clip_cache_size": 10,
+    "render_batch": 6,
+    "bpm_smoothing": 0.14,
+    "sync_strength": 0.35,
+    "udp_host": "127.0.0.1",
+    "udp_port": 50555,
+    "notify_host": "127.0.0.1",
+    "notify_port": 50556,
+    "status_hide_ms": 1200,
+    "resize_debounce_ms": 120
+  },
+  "audio_companion": {
+    "host": "127.0.0.1",
+    "port": 50556
+  },
+  "random_favs_browser": {
+    "enabled": false,
+    "shortcut_path": "Chrome.lnk",
+    "user_data_dir": "C:/path/to/Chrome/User Data",
+    "profile_name": "Default",
+    "open_count": 10,
+    "lazy_load": true
+  },
+  "voice_control": {
+    "enabled": false,
+    "model_path": "vosk-model-small-en-us-0.15",
+    "device_index": 1
+  },
+  "provider_regen": {
+    "generate_video_url": "https://example.com/video",
+    "generate_image_url": "https://example.com/create",
+    "media_root": "C:/path/to/library/generated",
+    "metadata_root": "C:/path/to/metadata"
+  }
+}
