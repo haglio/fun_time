@@ -18,7 +18,6 @@ from fun_time.dashboard_app import (
     COLOR_PANEL,
     COLOR_YELLOW,
     ICON_LOCK,
-    ICON_MIC,
     ICON_TRASH,
     DashboardArcItem,
     DashboardLaunchGeometry,
@@ -1837,9 +1836,11 @@ def test_voice_panel_shows_mic_icon(cfg_path: Path):
 
     scene = build_dashboard_scene(layout)
 
-    voice_texts = [item for item in scene.texts if item.rect == layout.voice_panel]
-    assert len(voice_texts) == 1
-    assert voice_texts[0].text == ICON_MIC
+    # The mic is a drawn glyph (a QPixmap image), not a letter or emoji text.
+    voice_images = [item for item in scene.images if item.rect == layout.voice_panel]
+    assert len(voice_images) == 1
+    assert not voice_images[0].pixmap.isNull()
+    assert not [item for item in scene.texts if item.rect == layout.voice_panel]
 
 
 def test_voice_panel_has_hover_text(cfg_path: Path):

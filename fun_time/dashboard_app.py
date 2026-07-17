@@ -132,7 +132,6 @@ COLOR_APP_TITLE = QColor("#e94560")
 
 ICON_LOCK = "\U0001F512"
 ICON_TRASH = "\U0001F5D1"
-ICON_MIC = "\U0001F3A4"
 
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
@@ -444,6 +443,49 @@ def _draw_waveform_pixmap(shape: str, w: int, h: int) -> QPixmap:
     return _dashboard_pixmap_cache[key]
 
 
+def _draw_mic_pixmap(w: int, h: int) -> QPixmap:
+    """Draw the familiar voice-input microphone as a QPixmap, cached.
+
+    A capsule head cradled by an upward-opening arc over a short stem and base —
+    the mic glyph recording apps use — which reads as "voice" where a bare
+    letter or a karaoke-mic emoji did not.  Drawn in a square centred in the
+    panel so it stays round whatever the panel's aspect.
+    """
+    key = ("mic", w, h)
+    if key not in _dashboard_pixmap_cache:
+        from PyQt6.QtCore import Qt
+
+        pm = QPixmap(w, h)
+        pm.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pm)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        s = min(w, h)
+        oy = (h - s) / 2.0
+        cx = w / 2.0
+        pen = QPen(COLOR_TEXT, max(1, round(s * 0.09)))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        # Capsule (mic head): a filled stadium in the upper portion.
+        cap_w = s * 0.36
+        painter.setBrush(QBrush(COLOR_TEXT))
+        painter.drawRoundedRect(
+            round(cx - cap_w / 2), round(oy + s * 0.12),
+            round(cap_w), round(s * 0.44), cap_w / 2, cap_w / 2,
+        )
+        # Cradle: an upward-opening arc cupping the capsule from below.
+        painter.setBrush(Qt.GlobalColor.transparent)
+        r = round(s * 0.30)
+        arc_cy = round(oy + s * 0.40)
+        painter.drawArc(round(cx) - r, arc_cy - r, 2 * r, 2 * r, 200 * 16, 140 * 16)
+        # Stem down to a short base line.
+        base_y = round(oy + s * 0.90)
+        painter.drawLine(round(cx), arc_cy + r, round(cx), base_y)
+        painter.drawLine(round(cx - s * 0.17), base_y, round(cx + s * 0.17), base_y)
+        painter.end()
+        _dashboard_pixmap_cache[key] = pm
+    return _dashboard_pixmap_cache[key]
+
+
 # Short hover labels for every clickable dashboard action, so no button is
 # left without a tooltip. GENAU_TOGGLE_AUTO is overridden at build time with
 # its live allowed/suppressed state.
@@ -724,7 +766,6 @@ def build_dashboard_scene(
         DashboardTextItem(">", layout.landscape_next, font=_font_ui_sm),
         DashboardTextItem(ICON_LOCK, layout.landscape_lock, font=_font_emoji),
         DashboardTextItem(ICON_TRASH, layout.landscape_trash, font=_font_emoji),
-        DashboardTextItem(ICON_MIC, layout.voice_panel, font=_font_emoji),
         *(
             (DashboardTextItem("Nau", layout.genau_mode_toggle, font=_font_ui_tiny),)
             if _is_genau else ()
@@ -735,6 +776,10 @@ def build_dashboard_scene(
         DashboardImageItem(_load_icon_pixmap("icon.ico", layout.app_icon.height), layout.app_icon),
         DashboardImageItem(_load_icon_pixmap("broker_icon.ico", _icon_h), layout.broker_panel),
         DashboardImageItem(_load_icon_pixmap("fmode_icon.ico", _icon_h), layout.fmode_panel),
+        DashboardImageItem(
+            _draw_mic_pixmap(layout.voice_panel.width, layout.voice_panel.height),
+            layout.voice_panel,
+        ),
         *(
             (
                 DashboardImageItem(
