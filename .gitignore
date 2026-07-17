@@ -26,3 +26,10 @@ pytest-cache-files-*/
 /sanitize/blocklist.local.txt
 #   real userscript — provider-specific autofill: use regen_autofill.example.user.js
 /fun_time/static/regen_autofill.user.js
+
+# Visual Studio / IDE cruft
+.vs/
+
+# Internal dev logs — explicit project history, kept local, not published
+/docs/refactor-log.md
+/playnav_HUDs_logs_toasts.md

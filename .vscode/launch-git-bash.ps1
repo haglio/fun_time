@@ -1,5 +1,5 @@
 $gitBash = "C:\Program Files\Git\bin\bash.exe"
-$staleEntry = "C:\Users\Example\miniconda3\bin"
+$staleEntry = "C:\Users\$env:USERNAME\miniconda3\bin"
 
 $pathEntries = $env:PATH -split ";" | Where-Object { $_ -and $_ -ne $staleEntry }
 $env:PATH = ($pathEntries | Select-Object -Unique) -join ";"
