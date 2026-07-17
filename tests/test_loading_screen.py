@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.loading_screen import load_icon_image, parse_progress
+from fun_time.loading_screen import (
+    load_icon_image,
+    parse_progress,
+    request_startup_cancel,
+)
+from fun_time.startup_progress import cancel_file_for
 
 ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
 
@@ -31,6 +36,23 @@ class TestParseProgress:
         assert step == 0
         assert total == 1
         assert done is False
+
+
+class TestRequestStartupCancel:
+    def test_writes_the_cancel_flag_beside_the_progress_file(self, tmp_path: Path):
+        progress_file = tmp_path / "startup_progress.txt"
+
+        request_startup_cancel(progress_file)
+
+        assert cancel_file_for(progress_file).exists()
+
+    def test_is_idempotent(self, tmp_path: Path):
+        progress_file = tmp_path / "startup_progress.txt"
+
+        request_startup_cancel(progress_file)
+        request_startup_cancel(progress_file)  # must not raise
+
+        assert cancel_file_for(progress_file).exists()
 
 
 class TestLoadIconImage:
