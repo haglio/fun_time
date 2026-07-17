@@ -20,5 +20,7 @@ pytest-cache-files-*/
 # committed *.example.* template that documents its shape.
 #   real runtime config (paths to the library, provider URLs): use the example
 /fun_time_config.json
+#   real copy — filter vocabulary and other content: use content.example.json
+/content.local.json
 #   the real blocklist is itself a catalogue of excluded terms
 /sanitize/blocklist.local.txt
