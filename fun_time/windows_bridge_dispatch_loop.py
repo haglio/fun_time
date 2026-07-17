@@ -1023,10 +1023,19 @@ class DispatchLoopRunner:
             self._file_dialog_lock.release()
 
     def _handle_open_file_dialog_inner(self) -> None:
-        should_manage_omnipause = not self.state.omni_paused
+        # Browsing keeps everything playing — it must NOT enter OmniPause.  The
+        # old flow paused the whole session for the dialog, and picking a video
+        # resumed only Nau, stranding the satellites + voice frozen ("we're in
+        # omnipause").  All the dialog actually needs is to not be buried under
+        # the always-on-top windows, so drop the topmost bands for its duration
+        # and restore them after — playback and voice are never touched.  Under
+        # OmniPause the bands are already down and must stay down (restoring
+        # them would strand windows on top mid-pause), so only manage them when
+        # not paused.
+        manage_topmost = not self.state.omni_paused
 
-        if should_manage_omnipause:
-            self._dispatch("enter_omnipause")
+        if manage_topmost:
+            self._remove_all_topmost()
 
         try:
             default_dir = self.config.primary_sources.split("|")[0] if self.config.primary_sources else ""
@@ -1042,8 +1051,8 @@ class DispatchLoopRunner:
                     command = f"PLAY_FILE {selected}"
                 self.config.nau_cmd_file.write_text(command, encoding="utf-8")
         finally:
-            if should_manage_omnipause:
-                self._dispatch("leave_omnipause")
+            if manage_topmost:
+                self._restore_all_topmost()
 
     def run(self) -> None:
         """Main loop — call from a background thread."""

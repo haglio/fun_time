@@ -1838,46 +1838,50 @@ class TestModeDependentTopmost:
 
 
 class TestHandleOpenFileDialog:
-    """Tests for the open_file_dialog command that migrates
-    AHK's OpenPrimaryVlcFileDialogWithManagedOmniPause to Python.
+    """Tests for the open_file_dialog command (the Nau "browse" feature).
+
+    Browsing must leave playback and voice alone — everything keeps playing
+    while you pick.  The dialog only needs the topmost bands dropped so it is
+    not buried under the always-on-top windows; it must never enter OmniPause.
     """
 
-    def test_enters_omnipause_when_not_paused(self, tmp_path):
+    def test_browse_never_enters_omnipause(self, tmp_path):
+        """The core regression: browsing must not pause the session.
+
+        The bug — browse entered OmniPause, and picking a video resumed only
+        Nau, leaving the satellites + voice frozen (so "pause" was ignored with
+        "we're in omnipause").  Browsing keeps everything playing, so it never
+        enters OmniPause and never leaves the session paused.
+        """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "enter_omnipause" in dispatched
+        assert "enter_omnipause" not in dispatched
+        assert "leave_omnipause" not in dispatched
+        assert runner.state.omni_paused is False
 
     def test_removes_topmost_from_all_managed_windows(self, tmp_path):
+        """The dialog needs a clear stage: every managed window drops out of the
+        topmost band so it can't bury the dialog.  Nothing pauses — this is the
+        only window state browsing touches."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
         topmost_calls = []
 
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
-
-        exec_returns = iter([
-            [WindowOp(op="disable_all_topmost")],
-            [WindowOp(op="restore_all_topmost")],
-        ])
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         removed = {h for h, v in topmost_calls if not v}
@@ -1889,12 +1893,10 @@ class TestHandleOpenFileDialog:
         runner = make_runner(tmp_path, config=config)
         runner.state = BridgeState(omni_paused=False)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI", owner_hwnd=NAU_HWND)
@@ -1912,12 +1914,10 @@ class TestHandleOpenFileDialog:
         mirrored.parent.mkdir(parents=True)
         mirrored.write_text("{}", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=str(video)):
-            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner._handle_open_file_dialog()
 
         command = runner.config.nau_cmd_file.read_text(encoding="utf-8")
@@ -1930,12 +1930,10 @@ class TestHandleOpenFileDialog:
         runner = make_runner(tmp_path, config=config)
         runner.state = BridgeState(omni_paused=False, primary_mode="hybrid")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"):
-            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner._handle_open_file_dialog()
 
         assert runner.config.nau_cmd_file.read_text(encoding="utf-8") == r"PLAY_FILE C:\videos\movie.mp4"
@@ -1945,44 +1943,29 @@ class TestHandleOpenFileDialog:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         assert not runner.config.nau_cmd_file.exists()
 
-    def test_restores_topmost_in_finally(self, tmp_path):
+    def test_restores_topmost_after_the_pick(self, tmp_path):
+        """After the pick, every managed window gets its topmost band back —
+        Nau included in nau mode, so it floats above the desktop again."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
         topmost_calls = []
 
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
-
-        exec_returns = iter([
-            [WindowOp(op="disable_all_topmost")],
-            [WindowOp(op="restore_all_topmost")],
-        ])
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "leave_omnipause" in dispatched
-
-        # nau mode (the default): every managed window gets its TOPMOST bit
-        # back, Nau included — it floats above the desktop again.
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS | {NAU_HWND}
 
@@ -1992,21 +1975,11 @@ class TestHandleOpenFileDialog:
 
         topmost_calls = []
 
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
-
-        exec_returns = iter([
-            [WindowOp(op="disable_all_topmost")],
-            [WindowOp(op="restore_all_topmost")],
-        ])
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True, primary_mode="genau"), [])
             runner._handle_open_file_dialog()
 
         # genau mode: Nau is hidden and never joins the topmost band — it is
@@ -2023,36 +1996,28 @@ class TestHandleOpenFileDialog:
 
         call_log: list[str] = []
 
-        exec_returns = iter([
-            [WindowOp(op="disable_all_topmost")],
-            [WindowOp(op="restore_all_topmost")],
-        ])
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d, **kw: (call_log.append("dialog"), None)[-1]):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         assert "dialog" in call_log
         first_remove = next(i for i, c in enumerate(call_log) if c == "topmost_False")
         assert first_remove < call_log.index("dialog")
 
-    def test_skips_omnipause_when_already_paused(self, tmp_path):
+    def test_skips_topmost_management_when_already_paused(self, tmp_path):
+        """Under OmniPause the topmost bands are already down and must stay down
+        (restoring them would strand windows on top mid-pause), so browse leaves
+        them alone — but still shows the dialog."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=NAU_HWND), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=NAU_HWND), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
             runner._handle_open_file_dialog()
 
-        # Should not dispatch enter/leave omnipause
-        mock_dispatch.assert_not_called()
         # Should not touch topmost
         mock_topmost.assert_not_called()
         # Should still show the file dialog owned by the Nau window
@@ -2063,50 +2028,13 @@ class TestHandleOpenFileDialog:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         mock_dialog.assert_called_once_with("", owner_hwnd=0)
-
-    def test_forwards_suspend_and_unsuspend_via_dispatch(self, tmp_path, monkeypatch):
-        """Suspend/unsuspend reach AHK via _dispatch forwarding remaining ops."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False)
-        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
-
-        suspend_op = WindowOp(op="suspend_hotkeys")
-        unsuspend_op = WindowOp(op="unsuspend_hotkeys")
-
-        ahk_commands_written = []
-        original_write_text = Path.write_text
-
-        def capture_write(self_path, text, **kwargs):
-            if self_path == ahk_cmd_file:
-                ahk_commands_written.append(text)
-            return original_write_text(self_path, text, **kwargs)
-
-        # enter_omnipause returns suspend_hotkeys, leave_omnipause returns unsuspend
-        exec_returns = iter([[suspend_op], [unsuspend_op]])
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch.object(Path, "write_text", capture_write):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
-            runner._handle_open_file_dialog()
-
-        assert "suspend_hotkeys" in ahk_commands_written
-        assert "unsuspend_hotkeys" in ahk_commands_written
-        assert ahk_commands_written.index("suspend_hotkeys") < ahk_commands_written.index("unsuspend_hotkeys")
 
     def test_concurrent_invocations_prevented(self, tmp_path):
         runner = make_runner(tmp_path)
