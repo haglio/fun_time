@@ -110,7 +110,11 @@ VOICE_COMMANDS: dict[str, str] = {
     "previous clip": "genau_prev_clip",
     "next clip": "genau_next_clip",
     "offset": "quarter_button",
+    # "voice off" / "mic off" both mute voice control (there is no spoken way
+    # back — a muted recognizer hears nothing; the dashboard mic button or a
+    # restart re-enables it).
     "voice off": "voice_off",
+    "mic off": "voice_off",
     # The primary display's sound, whichever mode owns it.  Each pair's two
     # words mean the same thing, so a speaker never has to pick between them.
     # vosk has no "unmute" token but does have "un", so the recognizer listens
