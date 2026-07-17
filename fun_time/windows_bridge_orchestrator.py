@@ -18,7 +18,14 @@ from pathlib import Path
 
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
-from .startup_progress import NullProgress, PROGRESS_FILENAME, StartupProgress
+from .startup_progress import (
+    CANCEL_FILENAME,
+    NullProgress,
+    PROGRESS_FILENAME,
+    ProgressReporter,
+    StartupCancelled,
+    StartupProgress,
+)
 from .lock_hud import HUD_READY_FILENAME, wait_for_hud_ready
 from .userscript_server import USERSCRIPT_PORT, serve_userscript_updates
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
@@ -155,6 +162,43 @@ def _shutdown_children(rfb_hwnd: int, children: dict[str, ChildProcess]) -> None
     close_window(rfb_hwnd)
     for child in children.values():
         kill_recorded_child(child)
+
+
+# Cancelling from the loading screen is a clean, user-initiated exit.
+_CANCELLED_EXIT_CODE = 0
+
+
+def _cancel_startup(
+    *,
+    pids: list[int],
+    rfb_hwnd: int,
+    loading_proc: subprocess.Popen | None,
+    progress: ProgressReporter,
+    progress_file: Path,
+    cancel_file: Path,
+) -> int:
+    """Tear down a startup the user aborted from the loading screen, then exit.
+
+    Kills every child launched so far and closes the browser window *before*
+    bringing the overlay down, so nothing half-started ever flashes into view.
+    These children were launched seconds ago, so their PIDs are still theirs —
+    no creation-time pinning is needed the way a deferred teardown needs it.
+    """
+    logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(pids))
+    for pid in pids:
+        kill_process_tree(pid)
+    close_window(rfb_hwnd)
+    # Only now that the windows behind it are gone: drop the overlay.
+    progress.finish()
+    if loading_proc is not None:
+        try:
+            loading_proc.wait(timeout=3.0)
+        except subprocess.TimeoutExpired:
+            loading_proc.kill()
+            logger.warning("Loading screen did not exit after cancel, killed")
+    progress_file.unlink(missing_ok=True)
+    cancel_file.unlink(missing_ok=True)
+    return _CANCELLED_EXIT_CODE
 
 
 class _AppendOnWriteHandler(logging.Handler):
@@ -297,8 +341,14 @@ def run_python_orchestrated_bridge(
     # --- Launch loading screen (normal mode only) ---
     loading_proc = None
     progress_file = state_dir / PROGRESS_FILENAME
+    cancel_file = state_dir / CANCEL_FILENAME
+    # Clear a cancel flag left over from a previous session so it can't abort
+    # this one before the user has touched anything.
+    cancel_file.unlink(missing_ok=True)
     if show_loading:
-        progress = StartupProgress(progress_file, total_steps=_STARTUP_PROGRESS_STEPS)
+        progress = StartupProgress(
+            progress_file, total_steps=_STARTUP_PROGRESS_STEPS, cancel_file=cancel_file
+        )
         python_exe = sys.executable
         loading_proc = subprocess.Popen(
             [python_exe, "-m", "fun_time.loading_screen", str(progress_file)],
@@ -314,12 +364,41 @@ def run_python_orchestrated_bridge(
     hud_ready_file.unlink(missing_ok=True)
 
     logger.info("Running startup sequence")
-    result = run_startup_sequence(
-        manifest_path=manifest_path,
-        state_dir=state_dir,
-        progress=progress,
-        hide_windows=show_loading,
-    )
+    try:
+        result = run_startup_sequence(
+            manifest_path=manifest_path,
+            state_dir=state_dir,
+            progress=progress,
+            hide_windows=show_loading,
+        )
+    except StartupCancelled as cancelled:
+        # Esc during a phase: the sequence handed back exactly what it had
+        # launched.  Tear it down and exit before AHK or the dispatch loop start.
+        return _cancel_startup(
+            pids=cancelled.launched_pids,
+            rfb_hwnd=cancelled.rfb_hwnd,
+            loading_proc=loading_proc,
+            progress=progress,
+            progress_file=progress_file,
+            cancel_file=cancel_file,
+        )
+
+    # Esc can also land in the sliver after the last checkpoint but before the
+    # reveal: the sequence finished, yet the flag is set.  Tear the full result
+    # down rather than reveal a session the user asked to abort.
+    if progress.cancelled:
+        return _cancel_startup(
+            pids=[
+                result.nau_pid, result.portrait_pid, result.landscape_pid,
+                result.dashboard_pid, result.genau_pid, result.audio_pid,
+                result.lock_hud_pid,
+            ],
+            rfb_hwnd=result.rfb_hwnd,
+            loading_proc=loading_proc,
+            progress=progress,
+            progress_file=progress_file,
+            cancel_file=cancel_file,
+        )
 
     logger.info(
         "Startup complete: nau=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
