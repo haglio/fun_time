@@ -234,6 +234,92 @@ def _distinct_action_siblings(index: GroupIndex, current: str) -> list[str]:
     return reps
 
 
+# Map navigation geometry
+# -----------------------
+# The map is an L: the current clip anchors the corner, its seed family runs
+# right (columns) and its distinct other actions run down (rows).  These
+# framework-free helpers let a keyboard selection move around that L and resolve
+# a cell to the clip drawn there, so the dispatch loop can drive the map from the
+# arrow / WASD keys exactly as a thumbnail click drives it.
+
+# How many seed columns and action rows the overlay draws — navigation walks the
+# same capped lists so a selection never lands on a thumbnail that was dropped
+# for want of room.
+SEED_LIMIT = 6
+ACTION_LIMIT = 4
+
+Cell = tuple[str, int]  # ("corner", 0) | ("seed", i) | ("action", i)
+
+
+def navigate_cell(cell: Cell, direction: str, *, seed_count: int, action_count: int) -> Cell:
+    """The cell reached by moving *direction* from *cell* on the L-shaped map.
+
+    Right/left walk the seed row, down/up the action column; the corner joins
+    both axes.  Movement clamps at each end and no-ops off the axis it is on (a
+    seed has nothing below it, an action nothing to its right), so an at-the-edge
+    press simply returns *cell* unchanged.
+    """
+    bucket, index = cell
+    if direction == "right":
+        if bucket == "corner":
+            return ("seed", 0) if seed_count else cell
+        if bucket == "seed":
+            return ("seed", index + 1) if index + 1 < seed_count else cell
+        return cell
+    if direction == "left":
+        if bucket == "seed":
+            return ("seed", index - 1) if index >= 1 else ("corner", 0)
+        return cell
+    if direction == "down":
+        if bucket == "corner":
+            return ("action", 0) if action_count else cell
+        if bucket == "action":
+            return ("action", index + 1) if index + 1 < action_count else cell
+        return cell
+    if direction == "up":
+        if bucket == "action":
+            return ("action", index - 1) if index >= 1 else ("corner", 0)
+        return cell
+    return cell
+
+
+def locate_cell(current: str, corner: str, seeds: list[str], actions: list[str]) -> Cell | None:
+    """Which cell holds *current* — the corner, a seed or an action — by exact
+    path match, or None when *current* is not drawn on the map at all (e.g. the
+    satellite auto-advanced off the family)."""
+    key = normalize_path_key
+    if key(current) == key(corner):
+        return ("corner", 0)
+    for i, path in enumerate(seeds):
+        if key(path) == key(current):
+            return ("seed", i)
+    for i, path in enumerate(actions):
+        if key(path) == key(current):
+            return ("action", i)
+    return None
+
+
+def cell_path(cell: Cell, corner: str, seeds: list[str], actions: list[str]) -> str:
+    """The clip drawn at *cell*, or "" when the cell index is out of range."""
+    bucket, index = cell
+    if bucket == "corner":
+        return corner
+    members = seeds if bucket == "seed" else actions if bucket == "action" else []
+    return members[index] if 0 <= index < len(members) else ""
+
+
+def hud_map_cells(
+    index: GroupIndex, anchor: str, *, seed_limit: int = SEED_LIMIT, action_limit: int = ACTION_LIMIT
+) -> tuple[list[str], list[str]]:
+    """The seed-row and action-column clips the map draws around *anchor*, capped
+    at the overlay's draw limits.  The seed row is the exact family — keyboard
+    navigation walks the core family, never the widened "more seeds" pool — so the
+    axes match what a fresh (un-widened) map shows."""
+    seeds = _others(seed_family_members(index, anchor), anchor)[:seed_limit]
+    actions = _distinct_action_siblings(index, anchor)[:action_limit]
+    return seeds, actions
+
+
 def _playing_member(
     index: GroupIndex, anchor: str, current: str, seed: list[str], action: list[str], axis: str
 ) -> str:
@@ -264,6 +350,7 @@ def build_hud_panel(
     filter_query: str = "",
     loop_axis: str = "",
     widen: bool = False,
+    nav_anchor: str = "",
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
@@ -276,10 +363,18 @@ def build_hud_panel(
     When *loop_axis* names a running loop, the map anchors on the looped group's
     fixed representative instead of the live clip, so it does not re-orient as the
     loop auto-advances; ``playing`` then marks the cell that is actually on screen.
+
+    ``nav_anchor`` does the same for keyboard navigation: while it names a clip and
+    the live clip is still one of that clip's map cells, the map freezes on it and
+    ``playing`` lights the cell on screen, so an arrow-driven selection moves across
+    a stable map.  Once the satellite drifts off the frozen map (an auto-advance),
+    the anchor is abandoned and the map re-homes on the live clip.  A running loop
+    wins over a nav anchor.
     """
     have_siblings = bool(current) and index is not None
     anchor = current
     active_loop = ""
+    nav_frozen = False
     if have_siblings and loop_axis in ("seed", "action"):
         gather = seed_family_members if loop_axis == "seed" else action_group_members
         group = gather(index, current)
@@ -288,7 +383,14 @@ def build_hud_panel(
             # member is playing — so the map holds still while the loop advances.
             anchor = min(group, key=normalize_path_key)
             active_loop = loop_axis
-    seed_pool = loose_seed_family_members if widen else seed_family_members
+    elif have_siblings and nav_anchor and normalize_path_key(nav_anchor) != normalize_path_key(current):
+        nav_seed, nav_action = hud_map_cells(index, nav_anchor)
+        if locate_cell(current, nav_anchor, nav_seed, nav_action) is not None:
+            anchor = nav_anchor
+            nav_frozen = True
+    # Navigation walks the exact family (never widened), so a frozen map matches
+    # what the keys can reach.
+    seed_pool = loose_seed_family_members if widen and not nav_frozen else seed_family_members
     seed = _others(seed_pool(index, anchor), anchor) if have_siblings else []
     action = _distinct_action_siblings(index, anchor) if have_siblings else []
     current_action = ""
@@ -301,6 +403,8 @@ def build_hud_panel(
         )
         if active_loop:
             playing = _playing_member(index, anchor, current, seed, action, active_loop)
+        elif nav_frozen:
+            playing = current  # the live clip is exactly the cell to light
     return HudPanel(
         side=side,
         locked=locked,
@@ -318,7 +422,7 @@ def build_hud_panel(
 
 def _side_panel(
     config: HudAppConfig, side: str, sources: str, current: str, locked: bool,
-    filter_query: str, loop_axis: str, widen: bool,
+    filter_query: str, loop_axis: str, widen: bool, nav_anchor: str,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if current:
@@ -333,7 +437,7 @@ def _side_panel(
         )
     return build_hud_panel(
         side, locked=locked, current=current, index=index,
-        filter_query=filter_query, loop_axis=loop_axis, widen=widen,
+        filter_query=filter_query, loop_axis=loop_axis, widen=widen, nav_anchor=nav_anchor,
     )
 
 
@@ -414,13 +518,17 @@ def build_panels(
     landscape_loop: str = "",
     portrait_widen_clip: str = "",
     landscape_widen_clip: str = "",
+    portrait_nav_anchor: str = "",
+    landscape_nav_anchor: str = "",
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
     The group index is built (and cached) per side exactly as ``_cycle_variant``
     does, so the siblings shown match what cycling would actually reach.  A side's
     seed row is widened only while its widen-clip still matches the clip on
-    screen, so the widen auto-resets on navigation.
+    screen, so the widen auto-resets on navigation.  A side's ``nav_anchor``
+    freezes its map on the clip keyboard navigation began from (see
+    ``build_hud_panel``).
     """
     def widened(clip: str, current: str) -> bool:
         return bool(clip) and normalize_path_key(clip) == normalize_path_key(current)
@@ -429,12 +537,12 @@ def build_panels(
         _side_panel(
             config, "portrait", config.portrait_sources,
             portrait_current, portrait_locked, portrait_filter, portrait_loop,
-            widened(portrait_widen_clip, portrait_current),
+            widened(portrait_widen_clip, portrait_current), portrait_nav_anchor,
         ),
         _side_panel(
             config, "landscape", config.landscape_sources,
             landscape_current, landscape_locked, landscape_filter, landscape_loop,
-            widened(landscape_widen_clip, landscape_current),
+            widened(landscape_widen_clip, landscape_current), landscape_nav_anchor,
         ),
     )
 

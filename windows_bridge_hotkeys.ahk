@@ -89,6 +89,21 @@ w::QueueCommand("landscape_trash")
 s::QueueCommand("landscape_lock")
 e::QueueCommand("landscape_cycle_action")
 q::QueueCommand("landscape_cycle_seed")
+; HUD map keyboard navigation: Shift + arrows move a selection around the
+; portrait map and Shift + WASD around the landscape map, each switching the
+; satellite to the selected clip (like a thumbnail click).  Enter locks the
+; selected clip and re-homes the map on it (like a double-click), acting on
+; whichever map was last navigated.  These are distinct from the unshifted nav
+; keys above, and are suspended under OmniPause like the rest.
++Left::QueueCommand("portrait_nav_left")
++Right::QueueCommand("portrait_nav_right")
++Up::QueueCommand("portrait_nav_up")
++Down::QueueCommand("portrait_nav_down")
++a::QueueCommand("landscape_nav_left")
++d::QueueCommand("landscape_nav_right")
++w::QueueCommand("landscape_nav_up")
++s::QueueCommand("landscape_nav_down")
+Enter::QueueCommand("active_nav_lock")
 '::QueueCommand("clipper_save")
 ; Premiere: (re)load Portrait/Landscape VLC newest-first, restarting from the
 ; top; press again to pick up newly-arrived files.

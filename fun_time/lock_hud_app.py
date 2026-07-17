@@ -31,9 +31,10 @@ from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_TINY, make_font
 from fun_time.command_dispatch import BridgeState
 from fun_time.event_log import EventLogHandler, SOURCE_SYSTEM, event_log_path
 from fun_time.filter_vocab import set_command
-from fun_time.media_metadata import normalize_path_key
 from fun_time.lock_hud import (
+    ACTION_LIMIT,
     BRIDGE_PIDS_FILENAME,
+    SEED_LIMIT,
     HudAppConfig,
     HudPanel,
     build_panels,
@@ -41,6 +42,7 @@ from fun_time.lock_hud import (
     hud_should_be_topmost,
     load_fun_time_pids,
     load_hud_app_config,
+    locate_cell,
     overlay_rect,
     panel_thumbnails,
     prewarm_thumbnails,
@@ -70,8 +72,6 @@ OVERLAY_SIZE = {"portrait": (300, 430), "landscape": (500, 300)}
 # reuses a keep-alive socket per port, and _apply reloads thumbnails / repaints
 # only when the panel actually changed, so an unchanged tick costs a state read.
 REFRESH_MS = 150
-SEED_LIMIT = 6
-ACTION_LIMIT = 4
 
 _PAD = 10
 _MAP_THUMB_H = 54
@@ -286,24 +286,6 @@ def _draw_loop_controls(
             painter.setPen(QPen(_BORDER_COLOR, 2 if on else 1, style))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(gx, gy, gw, gh)
-
-
-def _playing_cell(
-    playing: str, current: str, seed_paths: list[str], action_paths: list[str]
-) -> tuple[str, int]:
-    """Which drawn map cell — ``("corner", 0)``, ``("seed", i)`` or
-    ``("action", i)`` — holds the clip that is actually on screen, so paint can
-    light it up.  Defaults to the corner (the not-looping case, where the corner
-    itself is playing, and the fallback when *playing* was not thumbnailed)."""
-    key = normalize_path_key
-    if playing and key(playing) != key(current):
-        for i, path in enumerate(seed_paths):
-            if key(path) == key(playing):
-                return ("seed", i)
-        for i, path in enumerate(action_paths):
-            if key(path) == key(playing):
-                return ("action", i)
-    return ("corner", 0)
 
 
 def _draw_tooltip(painter: QPainter, rect: QRect, text: str, pos: tuple[int, int]) -> None:
@@ -720,9 +702,9 @@ class HudOverlay(QWidget):
         rect = self.rect()
         painter = QPainter(self)
         try:
-            playing = _playing_cell(
+            playing = locate_cell(
                 self._panel.playing, self._panel.current, self._seed_paths, self._action_paths,
-            )
+            ) or ("corner", 0)
             gutter_w = gutter_width_for(self._panel.current_action, self._panel.action_labels)
             corner_rect, seed_rects, action_rects = paint_hud(
                 painter, rect, self._panel,
@@ -911,6 +893,8 @@ class LockHud:
             landscape_loop=state.landscape_loop,
             portrait_widen_clip=state.portrait_widen_clip,
             landscape_widen_clip=state.landscape_widen_clip,
+            portrait_nav_anchor=state.portrait_nav_anchor,
+            landscape_nav_anchor=state.landscape_nav_anchor,
         )
         build_ms = (time.perf_counter() - build_start) * 1000.0
         # One foreground query drives both overlays' topmost band this tick.
