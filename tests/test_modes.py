@@ -101,7 +101,7 @@ def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path:
     assert paths == [str(first)]
 
 
-def test_build_fmode_playlists_writes_satellite_m3u_files(tmp_path: Path):
+def test_build_fmode_playlists_writes_satellite_playlist_files(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
@@ -136,11 +136,11 @@ def test_build_fmode_playlists_writes_satellite_m3u_files(tmp_path: Path):
     assert plan.primary_count == 1
     assert plan.portrait_count == 1
     assert plan.landscape_count == 1
-    # Only the two satellites get m3u files now; the primary slot is Nau, which
-    # reads its own .tsv playlist.
-    assert (state_dir / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").startswith("#EXTM3U")
-    assert (state_dir / "landscape_vlc_playlist.m3u").read_text(encoding="utf-8").startswith("#EXTM3U")
-    assert not (state_dir / "primary_vlc_playlist.m3u").exists()
+    # Each satellite gets a plain one-path-per-line playlist the native player
+    # reads; the primary slot is Nau, which reads its own .tsv playlist.
+    assert str(portrait_video) in (state_dir / "portrait_playlist.tsv").read_text(encoding="utf-8")
+    assert str(landscape_video) in (state_dir / "landscape_playlist.tsv").read_text(encoding="utf-8")
+    assert not (state_dir / "primary_playlist.tsv").exists()
     assert str(primary_video) in (state_dir / "nau_playlist.tsv").read_text(encoding="utf-8")
 
 
@@ -303,12 +303,12 @@ def test_build_satellite_playlists_writes_both_recency_ordered_files(tmp_path: P
 
     assert plan.portrait_count == 2
     assert plan.landscape_count == 2
-    assert plan.portrait_playlist_path == state_dir / "portrait_vlc_playlist.m3u"
-    assert plan.landscape_playlist_path == state_dir / "landscape_vlc_playlist.m3u"
+    assert plan.portrait_playlist_path == state_dir / "portrait_playlist.tsv"
+    assert plan.landscape_playlist_path == state_dir / "landscape_playlist.tsv"
     portrait_lines = plan.portrait_playlist_path.read_text(encoding="utf-8").splitlines()
     landscape_lines = plan.landscape_playlist_path.read_text(encoding="utf-8").splitlines()
-    assert portrait_lines[1:] == [str(p_new), str(p_old)]
-    assert landscape_lines[1:] == [str(l_new), str(l_old)]
+    assert portrait_lines == [str(p_new), str(p_old)]
+    assert landscape_lines == [str(l_new), str(l_old)]
 
 
 def test_build_fmode_playlists_recent_orders_satellites(tmp_path: Path):
@@ -334,8 +334,8 @@ def test_build_fmode_playlists_recent_orders_satellites(tmp_path: Path):
 
     portrait_lines = plan.portrait_playlist_path.read_text(encoding="utf-8").splitlines()
     landscape_lines = plan.landscape_playlist_path.read_text(encoding="utf-8").splitlines()
-    assert portrait_lines[1:] == [str(p_new), str(p_old)]
-    assert landscape_lines[1:] == [str(l_new), str(l_old)]
+    assert portrait_lines == [str(p_new), str(p_old)]
+    assert landscape_lines == [str(l_new), str(l_old)]
 
 
 # --- shuffle_paths edge cases ---

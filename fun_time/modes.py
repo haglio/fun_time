@@ -8,8 +8,8 @@ from typing import Callable
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
 from .watch_stats import load_watch_stats, passes_inclusion, weight_for, weighted_shuffle
 
-PLAYLIST_PORTRAIT = "portrait_vlc_playlist"
-PLAYLIST_LANDSCAPE = "landscape_vlc_playlist"
+PLAYLIST_PORTRAIT = "portrait_playlist"
+PLAYLIST_LANDSCAPE = "landscape_playlist"
 PLAYLIST_NAU = "nau_playlist"
 
 
@@ -278,13 +278,20 @@ def build_satellite_playlist_paths(
 
 
 def build_playlist_file_path(state_dir: Path, name: str) -> Path:
-    return state_dir / f"{name}.m3u"
+    return state_dir / f"{name}.tsv"
 
 
 def write_playlist_file(path: Path, paths: list[str]) -> None:
+    """Write a satellite playlist: one video path per line.
+
+    The native satellite player (:mod:`satellite`) reads this with
+    ``nau.playlist.read_playlist`` — one path per line, an optional TAB-separated
+    funscript column it ignores for a silent satellite — so the file is plain
+    lines, no VLC ``#EXTM3U`` header.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    content = "#EXTM3U\r\n" + "".join(f"{full_path}\r\n" for full_path in paths)
-    path.write_text(content, encoding="utf-8", newline="")
+    content = "".join(f"{full_path}\n" for full_path in paths)
+    path.write_text(content, encoding="utf-8")
 
 
 def write_nau_playlist_file(path: Path, video_paths: list[str]) -> None:
@@ -334,7 +341,7 @@ def build_satellite_playlists(
     rng: random.Random | None = None,
     library: SatelliteLibraryContext | None = None,
 ) -> SatellitePlaylistPlan:
-    """Build and write the Portrait/Landscape VLC playlists (the two satellites).
+    """Build and write the Portrait/Landscape satellite playlists (the two satellites).
 
     Ordering follows ``recent``: newest-first when set, otherwise shuffled
     (with action-group collapse and watch weighting when *library* is given).
