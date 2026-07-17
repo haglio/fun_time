@@ -494,6 +494,42 @@ def test_nau_length_mode_not_written_in_genau_mode(tmp_path: Path):
     assert not config.nau_cmd_file.exists()
 
 
+# --- clip navigation (compilation / full vid / money shot) ---
+
+
+def test_compilation_writes_play_compilation(tmp_path: Path):
+    config = _make_config(tmp_path)
+    dispatch_command("nau_compilation", _make_state(primary_mode="nau"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION"
+
+
+def test_full_vid_writes_play_full_vid(tmp_path: Path):
+    config = _make_config(tmp_path)
+    dispatch_command("nau_full_vid", _make_state(primary_mode="hybrid"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID"
+
+
+def test_money_shot_writes_play_money_shot(tmp_path: Path):
+    config = _make_config(tmp_path)
+    dispatch_command("nau_money_shot", _make_state(primary_mode="nau"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_MONEY_SHOT"
+
+
+def test_clip_nav_inert_in_genau_mode(tmp_path: Path):
+    config = _make_config(tmp_path)
+    dispatch_command("nau_compilation", _make_state(primary_mode="genau"), config)
+    assert not config.nau_cmd_file.exists()
+
+
+def test_clip_nav_voice_phrases():
+    from fun_time.voice_commands import VOICE_COMMANDS
+
+    assert VOICE_COMMANDS["compilation"] == "nau_compilation"
+    assert VOICE_COMMANDS["full video"] == "nau_full_vid"
+    assert VOICE_COMMANDS["money shot"] == "nau_money_shot"
+    assert VOICE_COMMANDS["redacted"] == "nau_money_shot"
+
+
 # --- landscape_prev / landscape_next ---
 
 

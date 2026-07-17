@@ -121,6 +121,14 @@ VOICE_COMMANDS: dict[str, str] = {
     "next version": "nau_cycle_version",
     "shorts": "nau_length_shorts",
     "full length": "nau_length_full",
+    # Clip navigation (Winston-style clips carved from compilations). "vid" is
+    # not in the vosk vocabulary, so "full video" is the reliable phrase; "full
+    # vid" stays as a fallback the model uses only if it knows the word.
+    "compilation": "nau_compilation",
+    "full video": "nau_full_vid",
+    "full vid": "nau_full_vid",
+    "money shot": "nau_money_shot",
+    "redacted": "nau_money_shot",
     "slow down": "genau_speed_down",
     "speed down": "genau_speed_down",
     "speed up": "genau_speed_up",
