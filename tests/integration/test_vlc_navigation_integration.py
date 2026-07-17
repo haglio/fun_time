@@ -203,6 +203,27 @@ def _wait_for_playlist_count(port: int, expected: int, timeout: float = 5.0) -> 
     return _parse_playlist_ids(xml)
 
 
+def _poll_until(read, accept, timeout: float = 5.0, interval: float = 0.1):
+    """Poll *read* until *accept(value)* is truthy, then return that value.
+
+    Real-VLC HTTP reads settle asynchronously: a command's effect on
+    status.xml can lag the command itself (badly so under load), and a
+    playlist reshape momentarily blinks ``<position>`` to 0 for the
+    still-playing item while VLC rebuilds its playlist model.  Polling rides
+    out that noise instead of gambling on a fixed sleep.  Returns the last
+    value read on timeout, so a caller's assertion still fires on the real
+    (unsettled) value rather than on a stale in-between read.
+    """
+    deadline = time.monotonic() + timeout
+    value = read()
+    while time.monotonic() < deadline:
+        if accept(value):
+            return value
+        time.sleep(interval)
+        value = read()
+    return value
+
+
 # vlc_nav_step already retries a stale-ID pl_play internally, but a pl_play
 # issued during VLC's transition window can still be silently dropped, leaving
 # the current item unchanged.  In a tight navigation loop (e.g.
@@ -211,7 +232,7 @@ def _wait_for_playlist_count(port: int, expected: int, timeout: float = 5.0) -> 
 _NAV_MAX_ATTEMPTS = 3
 
 
-def _nav(direction: str) -> str:
+def _nav(direction: str, port: int = TEST_PORT) -> str:
     """Navigate one step ("next"/"prev") and return the settled current path.
 
     Uses vlc_nav_step (ID-based pl_play&id=N) rather than raw pl_next/
@@ -222,15 +243,17 @@ def _nav(direction: str) -> str:
     directly by test_pl_next_advances_video / test_pl_previous_goes_back.
 
     Retries the step if VLC drops the pl_play mid-transition (the item never
-    changed) so a tight nav loop never silently lands one item short.
+    changed) so a tight nav loop never silently lands one item short.  Works
+    against either module VLC (defaults to the loop fixture's TEST_PORT; the
+    repeat-one timeline test passes REPEAT_PORT).
     """
-    after = _current()
+    after = _current(port)
     for _ in range(_NAV_MAX_ATTEMPTS):
-        _wait_for_stable_current()
-        before = _current()
-        vlc_nav_step(TEST_PORT, TEST_PASSWORD, direction)
-        vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
-        after = _wait_for_item_change(TEST_PORT, before)
+        _wait_for_stable_current(port)
+        before = _current(port)
+        vlc_nav_step(port, TEST_PASSWORD, direction)
+        vlc_http_cmd(port, "rate&val=0.01", TEST_PASSWORD)
+        after = _wait_for_item_change(port, before)
         if after != before:
             return after
     return after
@@ -431,14 +454,31 @@ def test_retarget_never_tears_down_the_current_clip(vlc_with_playlist):
     replace_playlist_from_file(TEST_PORT, TEST_PASSWORD, playlist_path, repeat_mode="all")
     _wait_for_stable_current()
 
-    # Seek to mid-clip so a restart (position -> ~0) would be unmistakable, then
-    # freeze the rate so the position is stable across the reshape.
-    vlc_http_cmd(TEST_PORT, "seek&val=50%25", TEST_PASSWORD)
-    time.sleep(0.4)
-    vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
+    # Pin a stable mid-clip position so a restart (position -> ~0) would be
+    # unmistakable.  This is fiddly on the heavy upscaled HEVC clips: a `seek`
+    # registers in status.xml instantly, but with the off-screen decoder running
+    # behind under load the reported position falls back toward 0 for a beat
+    # while it catches up to the target — and a seek issued while the rate is
+    # frozen near 0 (left by an earlier test) is ignored outright.  So each
+    # attempt seeks at NORMAL rate, dwells briefly to let the decoder reach the
+    # target, confirms the position held, freezes the rate, and confirms it
+    # survived the freeze — retrying the whole sequence until it sticks.  A fixed
+    # sleep here (the original approach) raced the decoder and flaked at 0.0.
+    def _establish_midclip():
+        vlc_http_cmd(TEST_PORT, "rate&val=1", TEST_PASSWORD)
+        vlc_http_cmd(TEST_PORT, "seek&val=50%25", TEST_PASSWORD)
+        time.sleep(0.4)
+        if (get_playback_fraction(TEST_PORT, TEST_PASSWORD) or 0.0) <= 0.4:
+            return None  # seek didn't hold at normal rate — retry the sequence
+        vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
+        time.sleep(0.2)
+        frac = get_playback_fraction(TEST_PORT, TEST_PASSWORD) or 0.0
+        return frac if frac > 0.4 else None  # confirm the freeze didn't reset it
+    pos_before = _poll_until(
+        _establish_midclip, lambda f: f is not None, timeout=20.0, interval=0.05
+    )
     entries_before, id_before = get_playlist_entries(TEST_PORT, TEST_PASSWORD)
     path_before = _current()
-    pos_before = get_playback_fraction(TEST_PORT, TEST_PASSWORD)
     assert id_before >= 0 and path_before, "setup: no current item"
     assert pos_before and pos_before > 0.2, f"setup: expected mid-clip, got {pos_before}"
 
@@ -453,7 +493,16 @@ def test_retarget_never_tears_down_the_current_clip(vlc_with_playlist):
     assert _current() == path_before, "loop-on switched the clip on screen"
     assert _wait_for_playing(TEST_PORT) == "playing", "current clip stopped"
     assert get_repeat_mode(TEST_PORT, TEST_PASSWORD) == "all", "loop must be repeat-all"
-    pos_loop = get_playback_fraction(TEST_PORT, TEST_PASSWORD)
+    # The reshape's pl_delete of the other browse items rebuilds VLC's playlist
+    # model, which can blink <position> to 0 for the still-playing clip even
+    # after the count/state/repeat gates above have settled.  The rate is frozen
+    # at 0.01, so a genuine restart could never climb back near pos_before within
+    # this window — polling for the settled value rides out the read blink
+    # without masking a real teardown.
+    pos_loop = _poll_until(
+        lambda: get_playback_fraction(TEST_PORT, TEST_PASSWORD),
+        lambda frac: frac is not None and abs(frac - pos_before) < 0.1,
+    )
     assert pos_loop and abs(pos_loop - pos_before) < 0.1, \
         f"loop-on restarted the clip: {pos_before} -> {pos_loop}"
 
@@ -463,7 +512,12 @@ def test_retarget_never_tears_down_the_current_clip(vlc_with_playlist):
     _ids_browse, id_browse = _wait_for_playlist_count(TEST_PORT, len(videos))
     assert id_browse == id_before, "no-loop tore down the current clip (id changed)"
     assert _current() == path_before, "no-loop switched the clip on screen"
-    pos_browse = get_playback_fraction(TEST_PORT, TEST_PASSWORD)
+    # Same reshape read-blink as the loop-on branch: poll for the frozen
+    # position to settle rather than trusting one immediate read.
+    pos_browse = _poll_until(
+        lambda: get_playback_fraction(TEST_PORT, TEST_PASSWORD),
+        lambda frac: frac is not None and abs(frac - pos_before) < 0.15,
+    )
     assert pos_browse and abs(pos_browse - pos_before) < 0.15, \
         f"no-loop restarted the clip: {pos_before} -> {pos_browse}"
     vlc_http_cmd(TEST_PORT, "rate&val=0.01", TEST_PASSWORD)
@@ -582,6 +636,8 @@ def test_repeat_one_prev_reverses_next(vlc_repeat_one):
 
     pos = start
     for direction in ("next", "next", "prev", "prev"):
-        vlc_nav_step(REPEAT_PORT, TEST_PASSWORD, direction)
-        pos = _wait_for_item_change(REPEAT_PORT, pos)
+        # _nav retries a dropped pl_play (VLC silently ignores pl_play&id mid-
+        # transition under load), so a single dropped step can't desync the
+        # next/next/prev/prev timeline into a spurious mismatch.
+        pos = _nav(direction, REPEAT_PORT)
     assert pos == start, f"two prevs should return to start: expected {start}, got {pos}"
