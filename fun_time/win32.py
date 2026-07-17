@@ -347,15 +347,6 @@ def activate_window(hwnd: int) -> None:
     _user32.SetForegroundWindow(hwnd)
 
 
-def get_foreground_window() -> int:
-    """The window the OS currently treats as active (owns keyboard focus).
-
-    Distinguishes a window that merely carries the topmost flag from one that
-    has actually stolen the foreground — the tell for a focus/activation cause.
-    """
-    return _user32.GetForegroundWindow()
-
-
 # argtypes matter on 64-bit: without them ctypes marshals the HWND as a 32-bit
 # c_int and truncates the handle, and the process-id out-param pointer must be a
 # real pointer (same reasoning as the SetWindowPos/OpenProcess declarations).

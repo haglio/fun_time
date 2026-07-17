@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, command_side, dispatch_command
-from .event_log import SOURCE_LANDSCAPE, SOURCE_PORTRAIT, SOURCE_PRIMARY, notice
+from .event_log import SOURCE_LANDSCAPE, SOURCE_PORTRAIT, notice
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
 from .video_timeline import VideoTimeline
@@ -36,24 +36,20 @@ from .windows_bridge_startup import restart_broker, stop_broker_processes
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
-    PRIMARY_SLOT_ROLES,
     role_topmost,
 )
 from .win32 import (
     activate_window,
     find_window_by_pid,
     find_window_by_title,
-    get_foreground_window,
     hide_window,
     is_window_topmost,
-    iter_zorder,
     minimize_window,
     restore_window,
     send_vk_to_window,
     send_key_to_window,
     set_always_on_top,
     show_open_file_dialog,
-    windows_obscuring,
     show_window,
 )
 
@@ -333,11 +329,6 @@ class DispatchLoopRunner:
         # funscript gap or an unscripted video).  None means "no decision applied
         # yet" — set outside hybrid so re-entry re-asserts the correct driver.
         self._hybrid_funscript_driving: bool | None = None
-        # Edge-trigger memory for the OmniPause topmost probe: the last topmost
-        # state seen for each primary-slot player during the current hold, so a
-        # player that reacquires topmost is logged once per episode rather than
-        # every tick.  Cleared whenever OmniPause is not holding (see tick()).
-        self._hold_topmost_seen: dict[str, bool] = {}
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
@@ -409,10 +400,8 @@ class DispatchLoopRunner:
             self._last_watch_sample = now
             if self.state.omni_paused:
                 self._enforce_satellites_paused()
-                self._observe_players_topmost()
             else:
                 self._omnipause_prev_clip = {2: "", 3: ""}
-                self._hold_topmost_seen = {}
                 self._sample_satellites(now=now)
                 self._sample_primary()
 
@@ -642,56 +631,6 @@ class DispatchLoopRunner:
             movement = f"advanced from {previous}"
         pos = "?" if fraction is None else f"{fraction:.2f}"
         return f"repeat={repeat}, pos={pos}, clip={clip or '?'}, {movement}"
-
-    def _observe_players_topmost(self) -> None:
-        """Observe-only probe: log the instant a primary-slot player reacquires
-        WS_EX_TOPMOST during an OmniPause hold — so the recurring "Nau pops on top
-        during OmniPause" is finally captured with its cause.
-
-        Entering OmniPause drops every window out of the topmost band, and nothing
-        in this app re-topmosts a player while the hold lasts: the loop only
-        enforces the satellite pause, voice is suspended, the HUD is read-only.
-        Yet Nau (and Genau) have been reported reacquiring topmost minutes into a
-        hold, from a layer we don't control (SDL/mpv/OS), and it has never been in
-        a log because nothing measured topmost mid-hold.  This does exactly that
-        and ONLY that: one cheap style-flag read per player per tick, and on the
-        rare False->True flip it walks the z-order once and logs the diagnosis.
-        It NEVER calls SetWindowPos — a probe, not a watchdog.  Once these logs
-        name the cause, it is fixed at the source and this is deleted.
-        """
-        for role in PRIMARY_SLOT_ROLES:
-            hwnd = self._resolve_role(role)
-            if not hwnd:
-                continue
-            now_topmost = is_window_topmost(hwnd)
-            was_topmost = self._hold_topmost_seen.get(role, False)
-            self._hold_topmost_seen[role] = now_topmost
-            if now_topmost and not was_topmost:
-                notice(
-                    logger,
-                    f"OmniPause probe: {role.capitalize()} reacquired WS_EX_TOPMOST"
-                    f" mid-hold ({self._topmost_diagnosis(hwnd)})",
-                    source=SOURCE_PRIMARY,
-                    level=logging.WARNING,
-                )
-
-    def _topmost_diagnosis(self, hwnd: int) -> str:
-        """Describe the z-order the instant a player was seen back on top, so the
-        log names WHAT reasserted it: whether the player also holds the foreground
-        (a focus/activation cause) vs a bare flag flip, what else is in the topmost
-        band (came back alone, or a batch), and whether it is actually visible on
-        top or still buried.  Runs only on the rare catch, never on a quiet tick.
-        """
-        foreground = get_foreground_window()
-        stack = iter_zorder()
-        titles = {w.hwnd: w.title for w in stack}
-        fg = "this window" if foreground == hwnd else (titles.get(foreground) or f"hwnd {foreground}")
-        topmost_band = [w.title for w in stack if w.topmost]
-        covered_by = [w.title for w in windows_obscuring(hwnd, stack)]
-        return (
-            f"foreground={fg!r}, topmost_band={topmost_band or 'none'}, "
-            f"covered_by={covered_by or 'nothing (frontmost)'}"
-        )
 
     def _back_dated_video(self, command: str, spoken_at: float | None) -> str:
         """The video *command* was aimed at, or "" for "whatever is playing now".
