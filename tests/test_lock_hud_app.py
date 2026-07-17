@@ -359,6 +359,16 @@ def test_friendly_action_label_keeps_a_single_word_whole():
     assert _friendly_action_label("delta") == "Delta"
 
 
+def test_action_label_blocks_separate_comma_joined_acts():
+    """Several acts on one clip ("Alpha, Theta Motion") become one block each
+    (drawn with a gap between), commas dropped; one act is a single block."""
+    from fun_time.lock_hud_app import _action_label_blocks
+
+    assert _action_label_blocks("alpha, theta motion") == [["Alpha"], ["Motion", "Bounce"]]
+    assert _action_label_blocks("pov gamma") == [["POV", "Gamma"]]
+    assert _action_label_blocks("") == [["(unknown)"]]
+
+
 def test_friendly_action_label_shows_unknown_for_missing_metadata():
     assert _friendly_action_label("") == "(unknown)"
     assert _friendly_action_label("   ") == "(unknown)"
