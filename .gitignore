@@ -15,3 +15,7 @@ __pycache__/
 .hypothesis/
 .tmp-pytest-*/
 pytest-cache-files-*/
+
+# Sanitization overlay — the real blocklist is a catalogue of excluded terms, so
+# it is never committed. Copy sanitize/blocklist.example.txt to fill it in.
+/sanitize/blocklist.local.txt
