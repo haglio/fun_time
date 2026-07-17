@@ -27,14 +27,14 @@ class TestReadSatelliteStatus:
     def test_parses_the_status_fields(self, tmp_path):
         status = tmp_path / "portrait_status.txt"
         status.write_text(
-            "video=C:\clips\a.mp4\nposition_ms=1500\nduration_ms=5000\npaused=0\nlocked=1\n",
+            "video=C:/clips/a.mp4\nposition_ms=1500\nduration_ms=5000\npaused=0\nlocked=1\n",
             encoding="utf-8",
         )
 
         s = read_satellite_status(status)
 
         assert s == SatelliteStatus(
-            video="C:\clips\a.mp4",
+            video="C:/clips/a.mp4",
             position_ms=1500,
             duration_ms=5000,
             paused=False,
