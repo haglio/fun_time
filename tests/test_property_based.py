@@ -9,7 +9,15 @@ from hypothesis import given, assume
 from hypothesis import strategies as st
 
 from fun_time.vlc_actions import decode_file_uri
+from fun_time.content import WebProvider
 from fun_time.media_actions import csv_escape, to_file_uri, make_web_url_from_path
+
+# Explicit providers keep these independent of the ambient content overlay
+# (the real content.local.json is absent on a public checkout).
+_PROVIDERS = (
+    WebProvider(marker="alpha", gallery_url="https://example.com/alpha/{id}"),
+    WebProvider(marker="beta", gallery_url="https://example.com/beta/{id}"),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -88,29 +96,30 @@ def test_to_file_uri_starts_with_file_prefix(path: str):
 
 @given(path=st.text(max_size=500))
 def test_make_web_url_from_path_never_crashes(path: str):
-    result = make_web_url_from_path(path)
+    result = make_web_url_from_path(path, _PROVIDERS)
     assert isinstance(result, str)
 
 
 @given(path=st.text(max_size=500))
 def test_make_web_url_from_path_returns_empty_for_unknown_sites(path: str):
-    assume("\\provider2\\" not in path.lower().replace("/", "\\"))
-    assume("\\provider\\" not in path.lower().replace("/", "\\"))
-    assert make_web_url_from_path(path) == ""
-
-
-@given(image_id=st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789", min_size=1, max_size=30))
-def test_make_web_url_from_path_builds_provider2_url(image_id: str):
-    path = f"C:\\images\\provider2\\{image_id}.png"
-    result = make_web_url_from_path(path)
-    assert result == f"https://example.net/image/{image_id}"
+    normalized = path.lower().replace("/", "\\")
+    assume("\\alpha\\" not in normalized)
+    assume("\\beta\\" not in normalized)
+    assert make_web_url_from_path(path, _PROVIDERS) == ""
 
 
 @given(image_id=st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789", min_size=1, max_size=30))
 def test_make_web_url_from_path_builds_provider_url(image_id: str):
-    path = f"C:\\images\\provider\\{image_id}.png"
-    result = make_web_url_from_path(path)
-    assert result == f"https://example.com/image/{image_id}"
+    path = f"C:\\images\\alpha\\{image_id}.png"
+    result = make_web_url_from_path(path, _PROVIDERS)
+    assert result == f"https://example.com/alpha/{image_id}"
+
+
+@given(image_id=st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789", min_size=1, max_size=30))
+def test_make_web_url_from_path_builds_second_provider_url(image_id: str):
+    path = f"C:\\images\\beta\\{image_id}.png"
+    result = make_web_url_from_path(path, _PROVIDERS)
+    assert result == f"https://example.com/beta/{image_id}"
 
 
 # ---------------------------------------------------------------------------
