@@ -343,6 +343,15 @@ def activate_window(hwnd: int) -> None:
     _user32.SetForegroundWindow(hwnd)
 
 
+def get_foreground_window() -> int:
+    """The window the OS currently treats as active (owns keyboard focus).
+
+    Distinguishes a window that merely carries the topmost flag from one that
+    has actually stolen the foreground — the tell for a focus/activation cause.
+    """
+    return _user32.GetForegroundWindow()
+
+
 def find_window_by_title(title: str, *, exact: bool = False, include_hidden: bool = False) -> int:
     """Find a visible window whose title contains (or, with *exact*, equals)
     *title*. Returns 0 if not found.
