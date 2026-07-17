@@ -73,6 +73,17 @@ def test_every_ahk_hotkey_command_is_represented_with_a_hotkey():
         )
 
 
+def test_voice_toggle_is_not_key_bound():
+    """Voice is muted by voice ("voice off" / "mic off") or the dashboard mic
+    button — never a hotkey.  Backspace used to toggle it, which nobody could
+    remember, so the key binding was removed from both the AHK script and here."""
+    assert "voice_toggle" not in _ahk_hotkey_commands()
+    owning = [row for row in _all_rows() if "voice_toggle" in row.commands]
+    assert owning, "voice_toggle must still be documented"
+    for row in owning:
+        assert row.hotkeys == (), f"{row.description!r} must show no hotkey"
+
+
 def test_cycle_action_and_seed_rows_have_keys_and_voice():
     """Del/End cycle the portrait's action/seed; E/Q do the same for landscape."""
     expected = {

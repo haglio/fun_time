@@ -68,7 +68,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             # video in nau/hybrid, Genau's clip audio in genau.
             _Row("Mute / unmute the primary display", (), ("audio_mute", "audio_unmute")),
             _Row("Volume down / up, in tenths", (), ("audio_volume_down", "audio_volume_up")),
-            _Row("Disable voice control", ("Backspace",), ("voice_toggle", "voice_off")),
+            _Row("Disable voice control", (), ("voice_toggle", "voice_off")),
             _Row("Start / stop broker", ("B",), ("broker_panel", "broker_start", "broker_stop")),
             _Row(
                 "Open / close this hotkeys & voice reference",

@@ -71,7 +71,6 @@ h::QueueCommand("hybrid_activate")
 n::QueueCommand("nau_activate")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
-Backspace::QueueCommand("voice_toggle")
 
 \::QueueCommand("backslash_key")
 -::QueueCommand("primary_nudge_prev")
