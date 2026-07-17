@@ -181,7 +181,7 @@ def apply_reorder_satellites(
     honouring the current F-mode and metadata filters — so newly-arrived files
     are picked up, and restarts each player from the top
     (``replace_playlist_from_file`` empties then re-plays from item 0).  Clips
-    still collapse to one entry per group when the provider roots are supplied.  The
+    still collapse to one entry per group when the regen roots are supplied.  The
     primary/Nau player is left alone.  Pushing a fresh playlist with repeat-all
     clears any per-window lock, so the caller's lock flags reset to match.
     """

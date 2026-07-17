@@ -1,11 +1,11 @@
-"""Build Provider regenerate URLs from a video's metadata sidecar.
+"""Build provider regenerate URLs from a video's metadata sidecar.
 
 The gallery page an AI video came from is usually gone, so Fun Time points at
-the Provider generate page instead, with the original prompts/settings packed into
-the URL fragment (``#ft=<json>``). A userscript on example.com reads the fragment,
-fills the form, and raises a floating note with the settings it could not set.
-Videos made from a source image target the image page (``/create``);
-text-to-video targets the video page (``/video``).
+the provider's generate page instead, with the original prompts/settings packed
+into the URL fragment (``#ft=<json>``). A userscript on the provider site reads
+the fragment, fills the form, and raises a floating note with the settings it
+could not set. Videos made from a source image target the image page
+(``/create``); text-to-video targets the video page (``/video``).
 
 Both the lock hotkey and the Random Favs Browser open their tabs this way.
 """
@@ -80,7 +80,7 @@ def regen_url_for_video(
     video_url: str,
     image_url: str,
 ) -> str:
-    """Return the Provider regenerate URL for a Provider video, or "" if it has none."""
+    """Return the regenerate URL for a provider video, or "" if it has none."""
     if "provider" not in str(video_path).lower():
         return ""
     meta_path = metadata_path_for(video_path, metadata_root)

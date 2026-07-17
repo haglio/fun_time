@@ -190,8 +190,8 @@ def run_startup_sequence(
     progress.advance("Preparing services...")
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m["commands"].get("broker_tray_launcher", "").strip()
-    provider_media_raw = m.get("regen", "media_root", fallback="").strip()
-    provider_metadata_raw = m.get("regen", "metadata_root", fallback="").strip()
+    regen_media_raw = m.get("regen", "media_root", fallback="").strip()
+    regen_metadata_raw = m.get("regen", "metadata_root", fallback="").strip()
     start_core_session(
         project_dir=m["runtime"]["project_dir"],
         config_path=m["runtime"]["config_path"],
@@ -213,8 +213,8 @@ def run_startup_sequence(
         password=m["vlc"]["vlc_pass"],
         result_file=str(core_result_file),
         hide_windows=hide_windows,
-        regen_media_root=Path(provider_media_raw) if provider_media_raw else None,
-        regen_metadata_root=Path(provider_metadata_raw) if provider_metadata_raw else None,
+        regen_media_root=Path(regen_media_raw) if regen_media_raw else None,
+        regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
     )
     core_pids = _read_result_pids(core_result_file)
     portrait_pid = core_pids["portrait_pid"]
@@ -253,7 +253,7 @@ def run_startup_sequence(
         nau_y=primary_media_rect.y,
         nau_width=primary_media_rect.width,
         nau_height=primary_media_rect.height,
-        metadata_dir=provider_metadata_raw or None,
+        metadata_dir=regen_metadata_raw or None,
     )
 
     # --- Phase 2: Compute window layout ---

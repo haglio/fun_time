@@ -1,6 +1,6 @@
 """Generation-metadata sidecar access for AI videos.
 
-Every AI video under the provider media root may have a JSON sidecar in a
+Every AI video under the regen media root may have a JSON sidecar in a
 mirrored tree under the metadata root, recording the prompts and settings it
 was generated from (a ``video`` block, plus a ``source_image`` block when the
 video was animated from a generated image).  This module owns the mapping

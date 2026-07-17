@@ -147,7 +147,7 @@ class BridgeConfig:
 
     @property
     def regen(self) -> RegenConfig:
-        """The four Provider settings, in the shape the regenerate code expects."""
+        """The four regen settings, in the shape the regenerate code expects."""
         return RegenConfig(
             generate_video_url=self.regen_generate_video_url,
             generate_image_url=self.regen_generate_image_url,
