@@ -132,6 +132,7 @@ COLOR_APP_TITLE = QColor("#e94560")
 
 ICON_LOCK = "\U0001F512"
 ICON_TRASH = "\U0001F5D1"
+ICON_MIC = "\U0001F3A4"
 
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
@@ -723,7 +724,7 @@ def build_dashboard_scene(
         DashboardTextItem(">", layout.landscape_next, font=_font_ui_sm),
         DashboardTextItem(ICON_LOCK, layout.landscape_lock, font=_font_emoji),
         DashboardTextItem(ICON_TRASH, layout.landscape_trash, font=_font_emoji),
-        DashboardTextItem("v", layout.voice_panel, font=_font_ui_tiny),
+        DashboardTextItem(ICON_MIC, layout.voice_panel, font=_font_emoji),
         *(
             (DashboardTextItem("Nau", layout.genau_mode_toggle, font=_font_ui_tiny),)
             if _is_genau else ()

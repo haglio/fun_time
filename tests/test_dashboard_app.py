@@ -18,6 +18,7 @@ from fun_time.dashboard_app import (
     COLOR_PANEL,
     COLOR_YELLOW,
     ICON_LOCK,
+    ICON_MIC,
     ICON_TRASH,
     DashboardArcItem,
     DashboardLaunchGeometry,
@@ -1831,14 +1832,14 @@ def test_broker_panel_blue_when_running(cfg_path: Path):
     assert fills[layout.broker_panel] == COLOR_BLUE
 
 
-def test_voice_panel_shows_v_label(cfg_path: Path):
+def test_voice_panel_shows_mic_icon(cfg_path: Path):
     layout = _make_layout(cfg_path)
 
     scene = build_dashboard_scene(layout)
 
     voice_texts = [item for item in scene.texts if item.rect == layout.voice_panel]
     assert len(voice_texts) == 1
-    assert voice_texts[0].text == "v"
+    assert voice_texts[0].text == ICON_MIC
 
 
 def test_voice_panel_has_hover_text(cfg_path: Path):
