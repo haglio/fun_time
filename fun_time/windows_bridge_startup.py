@@ -464,3 +464,48 @@ def _build_vlc_launch_command(vlc_exe: str, port: int, password: str, *, repeat_
     if playlist_path is not None:
         command.append(str(playlist_path))
     return command
+
+
+def _build_satellite_launch_command(
+    python_exe: str | Path,
+    satellite_module: str,
+    *,
+    playlist_file: str | Path,
+    command_file: str | Path,
+    paused_file: str | Path,
+    status_file: str | Path,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+) -> list[str]:
+    """The argv for a native satellite player (``python -m satellite ...``).
+
+    The native replacement for :func:`_build_vlc_launch_command`: same silent,
+    file-driven contract, but the satellite is our own mpv-backed process, so it
+    is driven through the command/paused/status file quartet (like Nau) rather
+    than a VLC HTTP port.  It takes no ``--config`` — the quartet plus geometry
+    fully specify it — and stays silent with ``--no-audio``.
+    """
+    return [
+        str(python_exe),
+        "-m",
+        str(satellite_module),
+        "--playlist",
+        str(playlist_file),
+        "--command-file",
+        str(command_file),
+        "--paused-file",
+        str(paused_file),
+        "--status-file",
+        str(status_file),
+        "--x",
+        str(x),
+        "--y",
+        str(y),
+        "--width",
+        str(width),
+        "--height",
+        str(height),
+        "--no-audio",
+    ]
