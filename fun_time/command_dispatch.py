@@ -21,10 +21,10 @@ from .media_metadata import (
     action_label,
     cached_group_index,
     load_metadata,
+    loose_seed_family_members,
     metadata_path_for,
     normalize_path_key,
     seed_family_members,
-    widened_seed_members,
 )
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
@@ -106,9 +106,9 @@ class BridgeState:
     portrait_loop: str = ""
     landscape_loop: str = ""
     # The clip each satellite's seed row has been widened around ("more seeds").
-    # While it equals the clip on screen the HUD shows the wider net (same act,
-    # any config); navigating to another clip leaves it behind, so the widen
-    # auto-resets without any explicit clear.
+    # While it equals the clip on screen the HUD shows the loose family (the same
+    # scene, render knobs freed); navigating to another clip leaves it behind, so
+    # the widen auto-resets without any explicit clear.
     portrait_widen_clip: str = ""
     landscape_widen_clip: str = ""
     # The primary display's sound level, 0-100, and whether it is silenced.  A
@@ -574,9 +574,9 @@ def _dispatch_more_seeds(
     """Widen the seed row the HUD draws around the current clip — "more seeds".
 
     This does NOT change what is playing; it records that this clip's net is
-    widened, and the HUD redraws its seed row with the wider same-act pool.  If
-    there is nothing beyond the exact seed family to add, it says so rather than
-    silently doing nothing."""
+    widened, and the HUD redraws its seed row with the loose family (the same
+    scene, render knobs freed).  If there is nothing beyond the exact seed family
+    to add, it says so rather than silently doing nothing."""
     port = config.portrait_port if which == 2 else config.landscape_port
     source = _satellite_source(which)
     current = target_path or get_current_file_path(port, config.vlc_password)
@@ -585,7 +585,7 @@ def _dispatch_more_seeds(
     index = _satellite_group_index(which, config, current)
     current_key = normalize_path_key(current)
     exact = {normalize_path_key(m) for m in seed_family_members(index, current)} - {current_key}
-    wide = {normalize_path_key(m) for m in widened_seed_members(index, current)} - {current_key}
+    wide = {normalize_path_key(m) for m in loose_seed_family_members(index, current)} - {current_key}
     if wide <= exact:
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
     return _set_side_widen(state, which, current), [WindowOp(op="notice", key="More seeds", source=source)]
@@ -606,7 +606,7 @@ def _dispatch_group_loop(
     # very clip ("more seeds"), loop that wider pool, not just the exact family.
     widen_clip = state.portrait_widen_clip if which == 2 else state.landscape_widen_clip
     seed_gather = (
-        widened_seed_members
+        loose_seed_family_members
         if axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
         else seed_family_members
     )

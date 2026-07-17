@@ -18,9 +18,9 @@ from fun_time.media_metadata import (
     GroupIndex,
     action_group_members,
     cached_group_index,
+    loose_seed_family_members,
     normalize_path_key,
     seed_family_members,
-    widened_seed_members,
 )
 from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
@@ -227,7 +227,8 @@ def build_hud_panel(
     Seeds come from the same helper the loop commands use, so the row is exactly
     what looping the seed axis would cycle through; the action column collapses
     to one clip per distinct other act.  When *widen* is set ("more seeds"), the
-    seed row grows to the wider same-act pool instead of just the exact family.
+    seed row grows to the loose family — the same scene re-rendered with a knob or
+    seed freed — instead of just the exact parameter set.
 
     When *loop_axis* names a running loop, the map anchors on the looped group's
     fixed representative instead of the live clip, so it does not re-orient as the
@@ -244,7 +245,7 @@ def build_hud_panel(
             # member is playing — so the map holds still while the loop advances.
             anchor = min(group, key=normalize_path_key)
             active_loop = loop_axis
-    seed_pool = widened_seed_members if widen else seed_family_members
+    seed_pool = loose_seed_family_members if widen else seed_family_members
     seed = _others(seed_pool(index, anchor), anchor) if have_siblings else []
     action = _distinct_action_siblings(index, anchor) if have_siblings else []
     current_action = ""

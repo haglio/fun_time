@@ -1288,9 +1288,11 @@ def test_more_seeds_widens_the_display_without_changing_the_clip(tmp_path: Path)
     index = GroupIndex(
         action_key_by_path={kc: "g1", ko: "g2"},   # different subjects
         action_members={"g1": [c], "g2": [o]},
-        action_by_path={kc: "Gamma", ko: "Gamma"},   # same act, so widening finds o
+        action_by_path={kc: "Gamma", ko: "Gamma"},   # same act
         seed_key_by_path={}, seed_members={},
-        loose_seed_key_by_path={}, loose_seed_members={},
+        # o shares c's loose family (same scene, a render knob freed), so widening finds it.
+        loose_seed_key_by_path={kc: ("L", "0"), ko: ("L", "1")},
+        loose_seed_members={"L": [c, o]},
         indexed_paths=frozenset({kc, ko}),
     )
 
