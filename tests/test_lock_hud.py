@@ -10,6 +10,8 @@ from fun_time.lock_hud import (
     build_hud_panel,
     build_panels,
     hud_overlays_visible,
+    hud_should_be_topmost,
+    load_fun_time_pids,
     load_hud_app_config,
     overlay_rect,
     panel_thumbnails,
@@ -54,9 +56,44 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
 
 def test_hud_overlays_visible_only_hides_during_loading():
     """Shown whenever the loading overlay is down — OmniPause included, so the
-    map stays up (and topmost) while paused."""
+    map stays up while paused."""
     assert hud_overlays_visible(loading_active=True) is False
     assert hud_overlays_visible(loading_active=False) is True
+
+
+def test_hud_should_be_topmost_only_when_a_fun_time_window_is_foreground():
+    """The overlay holds the topmost band only while the focused window belongs
+    to Fun Time; a stranger in front (the user switched away, e.g. during
+    OmniPause) means drop, so the HUD never floats over their other apps."""
+    ours = {1000, 2000, 3000}
+    assert hud_should_be_topmost(2000, ours) is True    # a Fun Time window is focused
+    assert hud_should_be_topmost(9999, ours) is False   # another app is focused
+    assert hud_should_be_topmost(0, ours) is False      # no foreground window at all
+
+
+def test_load_fun_time_pids_reads_recorded_children_and_unions_own_pid(tmp_path):
+    """The session's window-owning PIDs (satellites, players, dashboard) come from
+    the orchestrator's bridge_pids.ini; our own PID is added too.  A never-launched
+    child (pid 0) can own no window, so it is dropped."""
+    pids_file = tmp_path / "bridge_pids.ini"
+    pids_file.write_text(textwrap.dedent("""\
+        [pids]
+        nau_pid = 200
+        portrait_pid = 300
+        landscape_pid = 400
+        genau_pid = 0
+        [created_at]
+        nau_pid = 2000
+    """), encoding="utf-8")
+
+    assert load_fun_time_pids(pids_file, own_pid=42) == {42, 200, 300, 400}
+
+
+def test_load_fun_time_pids_without_a_file_is_just_our_own_pid(tmp_path):
+    """Before startup writes bridge_pids.ini (or if it is unreadable) the only PID
+    we can vouch for is our own — so every other window reads as foreign and the
+    overlay drops, rather than staying stuck on top."""
+    assert load_fun_time_pids(tmp_path / "missing.ini", own_pid=42) == {42}
 
 
 def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():

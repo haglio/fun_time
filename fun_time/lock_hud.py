@@ -37,6 +37,10 @@ SHARED_STATE_FILENAME = "shared_bridge_state.ini"
 # windows_bridge_sequencer), so the maps are ready the instant Fun Time appears.
 HUD_READY_FILENAME = "lock_hud_ready.txt"
 
+# The orchestrator records this session's child PIDs here at startup (beside the
+# manifest); the HUD reads it to tell whether the foreground window is Fun Time's.
+BRIDGE_PIDS_FILENAME = "bridge_pids.ini"
+
 # Inset (px) of the HUD from its satellite's exact top-left corner.
 HUD_MARGIN = 12
 
@@ -55,11 +59,50 @@ def hud_overlays_visible(loading_active: bool) -> bool:
     """Whether the overlays should be shown right now.
 
     Hidden only while the loading overlay is up, so they never flash
-    mid-startup.  Whenever shown they stay topmost — OmniPause included:
-    OmniPause pauses playback, but the map stays up so you can still see (and
-    click) what each satellite is holding.
+    mid-startup.  Shown whenever it is down — OmniPause included: OmniPause
+    pauses playback, but the map stays up so you can still see (and click) what
+    each satellite is holding.  Whether a *shown* overlay also holds the topmost
+    band is a separate question — see :func:`hud_should_be_topmost`.
     """
     return not loading_active
+
+
+def hud_should_be_topmost(foreground_pid: int, fun_time_pids: set[int]) -> bool:
+    """Whether the HUD should hold the topmost band on this refresh.
+
+    True only while the foreground window belongs to Fun Time (its owning process
+    is one of *fun_time_pids*): then the overlay floats above its satellite as
+    intended.  When the user has switched to another app the foreground PID is a
+    stranger, so this is False and the overlay drops out of the band instead of
+    sitting over that app — the OmniPause "HUD covers everything" regression.
+    A null/absent foreground (pid 0, never in the set) also reads as "not ours".
+    """
+    return foreground_pid in fun_time_pids
+
+
+def load_fun_time_pids(pids_file: Path, own_pid: int) -> set[int]:
+    """The PIDs of this Fun Time session's windows — the two satellite VLCs, the
+    primary-slot players, the dashboard — as the orchestrator recorded them in
+    ``bridge_pids.ini``, plus this HUD's own *own_pid*.
+
+    Used to decide whether the foreground window is Fun Time's (see
+    :func:`hud_should_be_topmost`).  A missing or half-written file yields just
+    ``{own_pid}``: the safe default is to treat nothing else as ours and let the
+    overlay drop, never to stay stuck on top.  A never-launched child (pid 0)
+    owns no window, so it is dropped.
+    """
+    pids = {own_pid}
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(str(pids_file), encoding="utf-8")
+    for value in parser["pids"].values() if parser.has_section("pids") else ():
+        try:
+            pid = int(value)
+        except ValueError:
+            continue
+        if pid > 0:
+            pids.add(pid)
+    return pids
 
 
 @dataclass(frozen=True)
