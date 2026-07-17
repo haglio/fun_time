@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import QApplication
 from fun_time.command_dispatch import BridgeState
 from fun_time.config import LayoutConfig
 from fun_time.lock_hud import HudAppConfig, HudPanel
+from fun_time.satellite_control import SatelliteStatus
 from fun_time.lock_hud_app import (
     _COL_LABEL_H,
     _LOCK_BAND_H,
@@ -520,7 +521,8 @@ def _hud_config(tmp_path) -> HudAppConfig:
             main_monitor=1, secondary_monitor=2,
             primary_top_ratio=0.7, landscape_width_ratio=0.66,
         ),
-        portrait_port=8091, landscape_port=8092, vlc_password="",
+        portrait_status_file=tmp_path / "portrait_status.txt",
+        landscape_status_file=tmp_path / "landscape_status.txt",
         portrait_sources="C:/vids/p", landscape_sources="C:/vids/l",
         provider_media_root=None, provider_metadata_root=None,
         shared_state_file=tmp_path / "shared_bridge_state.ini",
@@ -623,7 +625,7 @@ def test_refresh_stacks_each_overlay_above_its_own_satellite(qt_app, tmp_path):
     try:
         with patch("fun_time.lock_hud_app.read_shared_state", return_value=BridgeState()), \
              patch("fun_time.lock_hud_app.loading_screen_active", return_value=False), \
-             patch("fun_time.lock_hud_app.get_current_file_path", return_value=""), \
+             patch("fun_time.lock_hud_app.read_satellite_status", return_value=SatelliteStatus()), \
              patch("fun_time.lock_hud_app.build_panels", return_value=(panel, panel)), \
              patch("fun_time.lock_hud_app.cached_thumbnail", return_value=None), \
              patch("fun_time.lock_hud_app.panel_thumbnails", return_value=[]), \

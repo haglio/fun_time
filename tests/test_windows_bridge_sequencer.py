@@ -39,7 +39,7 @@ PRIMARY_MEDIA_RECT = {"x": 2560, "y": 2500, "width": 1440, "height": 940}
 def _make_manifest(cfg_factory, tmp_path):
     cfg = load_config(cfg_factory())
     manifest_path = write_windows_bridge_manifest(
-        cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
     )
     return cfg, manifest_path
 
@@ -71,7 +71,7 @@ class TestRunStartupSequence:
             }
         }))
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
         core_called = {}
@@ -112,7 +112,18 @@ class TestRunStartupSequence:
         assert ui_called["lock_hud_module"] == "fun_time.lock_hud_app"
         assert ui_called["hud_enabled"] is True
 
-        assert core_called["password"] == "testpw"
+        # The native satellites are wired from the manifest: the genau python,
+        # the shared satellite module, and each side's command/paused/status files.
+        assert core_called["genau_python_exe"] == str(cfg.paths.genau_python_exe or cfg.paths.python_exe)
+        assert core_called["satellite_module"] == "satellite"
+        state = cfg.paths.state_dir
+        for side in ("portrait", "landscape"):
+            assert core_called[f"{side}_cmd_file"] == str(state / f"{side}_cmd.txt")
+            assert core_called[f"{side}_paused_file"] == str(state / f"{side}_paused.txt")
+            assert core_called[f"{side}_status_file"] == str(state / f"{side}_status.txt")
+        # VLC is gone: no exe, port, or password plumbing survives.
+        for gone in ("password", "vlc_exe", "portrait_port", "landscape_port"):
+            assert gone not in core_called
         assert core_called["favs_file"] == str(cfg.paths.favs_file)
         assert core_called["state_dir"] == tmp_path
         assert core_called["nau_paused_file"] == str(cfg.nau_paused_file)
@@ -194,7 +205,7 @@ class TestRunStartupSequence:
             "metadata_dir": None,
         }
 
-    def test_positions_vlc_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
+    def test_positions_satellite_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         pid_to_hwnd = {30: 3030, 40: 4040, NAU_PID: 2525}
@@ -219,7 +230,7 @@ class TestRunStartupSequence:
 
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        # The two satellite VLC windows are positioned immediately in normal mode.
+        # The two satellite windows are positioned immediately in normal mode.
         moved_hwnds = {c[0] for c in move_calls}
         assert {3030, 4040} <= moved_hwnds
 
@@ -350,7 +361,6 @@ class TestRunStartupSequenceCancellation:
              patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -451,7 +461,6 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd"), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -571,7 +580,6 @@ class TestLoadingScreenStartup:
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=track_move), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -582,7 +590,7 @@ class TestLoadingScreenStartup:
                 hide_windows=True,
             )
 
-        # The two satellite VLC windows are positioned at final locations during Phase 4
+        # The two satellite windows are positioned at final locations during Phase 4
         positioned_hwnds = {hwnd for hwnd, x, y, w, h in move_calls}
         assert {3030, 4040} <= positioned_hwnds
 
@@ -590,47 +598,14 @@ class TestLoadingScreenStartup:
         assert all(activate is False for activate in move_activates), \
             f"move_window must not activate in loading screen mode: {move_activates}"
 
-        # core_hwnds contains the two satellite VLC windows plus Nau
+        # core_hwnds contains the two satellite windows plus Nau
         assert set(result.core_hwnds) == {3030, 4040, 2525}
-
-    def test_passes_hide_windows_to_start_core_session(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        core_kwargs = {}
-
-        def capture_core(**kwargs):
-            core_kwargs.update(kwargs)
-            _write_result(kwargs["result_file"], CORE_PIDS)
-
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=capture_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", return_value=True), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
-            run_startup_sequence(
-                manifest_path=manifest_path,
-                state_dir=tmp_path,
-                hide_windows=True,
-            )
-
-        assert core_kwargs["hide_windows"] is True
 
 
 class TestPhase4Reveal:
     """Phase 4 (hide_windows only): play satellites, unpause Nau."""
 
-    def _run_hidden(self, manifest_path, tmp_path, *, vlc_http_cmd, pid_to_hwnd=None, title_to_hwnd=None, topmost_calls=None):
+    def _run_hidden(self, manifest_path, tmp_path, *, pid_to_hwnd=None, title_to_hwnd=None, topmost_calls=None):
         pid_map = pid_to_hwnd or {30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
         title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060}
         topmost_tracker = (lambda h, v: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v: None)
@@ -648,7 +623,6 @@ class TestPhase4Reveal:
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=topmost_tracker), \
              patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **kw: hide_calls.append(h)), \
              patch("fun_time.windows_bridge_sequencer.disable_window_transitions"), \
-             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd", side_effect=vlc_http_cmd), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
@@ -658,31 +632,6 @@ class TestPhase4Reveal:
                 state_dir=tmp_path,
                 hide_windows=True,
             )
-
-    def test_plays_both_satellites_without_touching_volume(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        m = configparser.ConfigParser()
-        m.optionxform = str
-        m.read(str(manifest_path), encoding="utf-8")
-
-        vlc_cmds: list[tuple] = []
-
-        def track_vlc(port, cmd, password):
-            vlc_cmds.append((port, cmd))
-            return True
-
-        self._run_hidden(manifest_path, tmp_path, vlc_http_cmd=track_vlc)
-
-        portrait_port = int(m["vlc"]["vlc2_port"])
-        landscape_port = int(m["vlc"]["vlc3_port"])
-
-        # Playback starts on both satellites at whatever volume the user left
-        # VLC on: setting it here would outlive Fun Time, because VLC's volume
-        # is a Windows per-application mixer level shared by every vlc.exe.
-        assert (portrait_port, "pl_play") in vlc_cmds
-        assert (landscape_port, "pl_play") in vlc_cmds
-        volume_cmds = [(port, cmd) for port, cmd in vlc_cmds if cmd.startswith("volume")]
-        assert volume_cmds == [], f"Fun Time must never set VLC's volume: {volume_cmds}"
 
     def test_unpauses_nau_and_keeps_genau_parked(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -695,7 +644,7 @@ class TestPhase4Reveal:
             flag.parent.mkdir(parents=True, exist_ok=True)
             flag.write_text("1", encoding="utf-8")
 
-        self._run_hidden(manifest_path, tmp_path, vlc_http_cmd=lambda *a: True)
+        self._run_hidden(manifest_path, tmp_path)
 
         # The reveal: Nau is unpaused so it starts playing when the loading
         # screen comes down; Genau and audio stay parked.
@@ -714,7 +663,7 @@ class TestPhase4Reveal:
 
         topmost_calls: list[tuple] = []
         self._run_hidden(
-            manifest_path, tmp_path, vlc_http_cmd=lambda *a: True, topmost_calls=topmost_calls,
+            manifest_path, tmp_path, topmost_calls=topmost_calls,
         )
 
         assert topmost_calls == []
@@ -724,7 +673,7 @@ class TestPhase4Reveal:
         minimizing Genau moves no window into the topmost band, so it cannot flash."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        self._run_hidden(manifest_path, tmp_path, vlc_http_cmd=lambda *a: True)
+        self._run_hidden(manifest_path, tmp_path)
 
         NAU_HWND, GENAU_HWND = 2525, 6060
         assert set(self._hide_calls) == {GENAU_HWND}
@@ -743,7 +692,7 @@ class TestPhase4Reveal:
         title_to_hwnd = {"Fun Time": DASH_HWND, "Genau": 6060}
 
         result = self._run_hidden(
-            manifest_path, tmp_path, vlc_http_cmd=lambda *a: True,
+            manifest_path, tmp_path,
             pid_to_hwnd=pid_to_hwnd, title_to_hwnd=title_to_hwnd,
         )
 

@@ -16,10 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import LayoutConfig
-from .dashboard_layout import Size
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .startup_progress import NullProgress, ProgressReporter, StartupCancelled
-from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
 from .runtime_flow import write_flag_file
 from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
@@ -27,6 +25,7 @@ from .window_roles import role_topmost
 from .win32 import (
     disable_window_transitions,
     find_window_by_pid,
+    iter_zorder,
     minimize_window,
     move_window,
     set_always_on_top,
@@ -186,10 +185,9 @@ def run_startup_sequence(
 ) -> StartupResult:
     """Run the full startup sequence, returning all PIDs and the layout plan.
 
-    When *hide_windows* is True, VLC windows are moved offscreen during
-    launch (preserving D3D11 init) and all positioning is deferred to the
-    end so everything appears at once.  The window handles are returned
-    in ``StartupResult.core_hwnds``.
+    When *hide_windows* is True, the satellite windows launch behind the loading
+    overlay and all positioning is deferred to the end so everything appears at
+    once.  The window handles are returned in ``StartupResult.core_hwnds``.
 
     Each ``progress.advance`` is a cancellation checkpoint: if the loading
     screen has dropped the cancel flag, the reporter raises ``StartupCancelled``
@@ -243,17 +241,20 @@ def _run_startup_phases(
         audio_paused_file=m["commands"]["audio_paused_file"],
         nau_paused_file=m["commands"]["nau_paused_file"],
         audio_volume_file=m["commands"]["audio_volume_file"],
-        vlc_exe=m["executables"]["vlc_exe"],
+        genau_python_exe=m["executables"]["genau_python_exe"],
+        satellite_module=m["modules"]["satellite_module"],
+        portrait_cmd_file=m["commands"]["portrait_cmd_file"],
+        portrait_paused_file=m["commands"]["portrait_paused_file"],
+        portrait_status_file=m["commands"]["portrait_status_file"],
+        landscape_cmd_file=m["commands"]["landscape_cmd_file"],
+        landscape_paused_file=m["commands"]["landscape_paused_file"],
+        landscape_status_file=m["commands"]["landscape_status_file"],
         primary_sources=m["media"]["nau_library_sources"],
         portrait_sources=m["media"]["portrait_dirs"],
         landscape_sources=m["media"]["landscape_dirs"],
         favs_file=m["media"]["favs_file"],
         state_dir=state_dir,
-        portrait_port=int(m["vlc"]["vlc2_port"]),
-        landscape_port=int(m["vlc"]["vlc3_port"]),
-        password=m["vlc"]["vlc_pass"],
         result_file=str(core_result_file),
-        hide_windows=hide_windows,
         provider_media_root=Path(provider_media_raw) if provider_media_raw else None,
         provider_metadata_root=Path(provider_metadata_raw) if provider_metadata_raw else None,
     )
@@ -319,14 +320,15 @@ def _run_startup_phases(
     if not hide_windows:
         # --- Normal mode: position immediately ---
         progress.advance("Positioning windows...")
-        _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=not skip_activate)
-        _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=not skip_activate)
+        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds(portrait_pid, landscape_pid)
+        _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=not skip_activate)
+        _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=not skip_activate)
         logger.info("Core windows positioned")
 
         progress.advance("Finalizing window layout...")
         role_hwnds = _apply_startup_window_state(
-            portrait_hwnd=find_window_by_pid(portrait_pid),
-            landscape_hwnd=find_window_by_pid(landscape_pid),
+            portrait_hwnd=portrait_hwnd,
+            landscape_hwnd=landscape_hwnd,
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
             nau_hwnd=wait_for_window(nau_pid, timeout_s=3.0)
             or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
@@ -377,22 +379,16 @@ def _run_startup_phases(
     if hide_windows:
         progress.advance("Positioning windows...")
 
-        # Start the two satellites playing.  Their playlists were enqueued but
-        # never played during loading.  They launch with --no-audio, so nothing
-        # here can be heard and VLC's volume is never touched.
-        portrait_port = int(m["vlc"]["vlc2_port"])
-        landscape_port = int(m["vlc"]["vlc3_port"])
-        password = m["vlc"]["vlc_pass"]
-        for port in [portrait_port, landscape_port]:
-            vlc_http_cmd(port, "pl_play", password)
-
-        _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=False)
-        _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=False)
+        # The satellites launched playing (their paused flag is unset) and own
+        # their playlists, so there is nothing to start here — just resolve and
+        # position each behind the loading overlay.
+        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds(portrait_pid, landscape_pid)
+        _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
+        _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
         logger.info("Core windows positioned (deferred reveal)")
 
         # Collect core window handles for StartupResult
-        for pid in [portrait_pid, landscape_pid, nau_pid]:
-            hwnd = find_window_by_pid(pid)
+        for hwnd in (portrait_hwnd, landscape_hwnd, find_window_by_pid(nau_pid)):
             if hwnd:
                 collected_hwnds.append(hwnd)
 
@@ -418,8 +414,8 @@ def _run_startup_phases(
 
         role_hwnds = _startup_role_hwnds(
             rfb_hwnd=rfb_hwnd,
-            portrait_hwnd=find_window_by_pid(portrait_pid),
-            landscape_hwnd=find_window_by_pid(landscape_pid),
+            portrait_hwnd=portrait_hwnd,
+            landscape_hwnd=landscape_hwnd,
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=5.0),
             nau_hwnd=wait_for_window(nau_pid, timeout_s=5.0)
             or wait_for_window_by_title("Nau", timeout_s=5.0, exact=True),
@@ -475,15 +471,43 @@ def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
     )
 
 
-def _position_pid_window(pid: int, rect: WindowRect, label: str, *, activate: bool = True) -> None:
-    """Wait for a visible window belonging to *pid* and move it."""
-    hwnd = wait_for_window(pid, timeout_s=10.0)
+def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool = True) -> None:
+    """Move an already-resolved window to *rect* (a no-op warning if unresolved)."""
     if hwnd:
         move_window(hwnd, rect.x, rect.y, rect.width, rect.height, activate=activate)
-        logger.info("Positioned %s (pid=%d hwnd=%d) at %d,%d %dx%d",
-                     label, pid, hwnd, rect.x, rect.y, rect.width, rect.height)
+        logger.info("Positioned %s (hwnd=%d) at %d,%d %dx%d",
+                     label, hwnd, rect.x, rect.y, rect.width, rect.height)
     else:
-        logger.warning("Could not find window for %s (pid=%d)", label, pid)
+        logger.warning("Could not find window for %s", label)
+
+
+def _wait_for_titled_window(title: str, *, exclude: int = 0, timeout_s: float = 3.0) -> int:
+    """A window whose exact title is *title* and whose hwnd is not *exclude*, or 0."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        for info in iter_zorder():
+            if info.hwnd != exclude and info.title == title:
+                return info.hwnd
+        time.sleep(0.1)
+    return 0
+
+
+def _resolve_satellite_hwnds(portrait_pid: int, landscape_pid: int) -> tuple[int, int]:
+    """The portrait and landscape native-satellite windows, as (portrait, landscape).
+
+    The pid is the reliable disambiguator: both native satellites carry the same
+    window title ("Satellite"), so a title lookup alone cannot tell them apart.
+    When a pid lookup fails (the genau venv's pythonw launcher can own a pid other
+    than the window's), fall back to a "Satellite"-titled window, excluding the one
+    already taken so the two can never collapse onto a single handle.
+    """
+    portrait = wait_for_window(portrait_pid, timeout_s=10.0)
+    landscape = wait_for_window(landscape_pid, timeout_s=10.0)
+    if not portrait:
+        portrait = _wait_for_titled_window("Satellite", exclude=landscape)
+    if not landscape:
+        landscape = _wait_for_titled_window("Satellite", exclude=portrait)
+    return portrait, landscape
 
 
 def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:

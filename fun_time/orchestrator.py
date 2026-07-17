@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import secrets
 import subprocess
 import sys
 import time
@@ -124,36 +123,11 @@ def ensure_broker_running(config, logger, *, attempts: int = 20, delay_seconds: 
     return False
 
 
-def vlc_http_password_from_vlcrc() -> str | None:
-    appdata = os.environ.get("APPDATA")
-    if not appdata:
-        return None
-    vlcrc = Path(appdata) / "vlc" / "vlcrc"
-    try:
-        with vlcrc.open("r", encoding="utf-8", errors="ignore") as fh:
-            for line in fh:
-                stripped = line.strip()
-                if not stripped or stripped.startswith("#"):
-                    continue
-                if stripped.startswith("http-password="):
-                    value = stripped.split("=", 1)[1].strip()
-                    return value or None
-    except OSError:
-        return None
-    return None
-
-
-def resolve_vlc_http_password() -> str:
-    return vlc_http_password_from_vlcrc() or f"fun_time_{secrets.token_hex(6)}"
-
-
 def run_windows_bridge(config, logger) -> int:
-    vlc_http_pass = resolve_vlc_http_password()
-    manifest_path = write_windows_bridge_manifest(config, vlc_http_pass)
+    manifest_path = write_windows_bridge_manifest(config)
     hotkey_script = config.project_dir / "windows_bridge_hotkeys.ahk"
 
     logger.info("Launching Python-orchestrated Windows bridge using config %s", config.config_path)
-    logger.info("VLC HTTP ports: portrait=%s landscape=%s", config.vlc.vlc2_http_port, config.vlc.vlc3_http_port)
 
     exit_code = run_python_orchestrated_bridge(
         manifest_path=manifest_path,

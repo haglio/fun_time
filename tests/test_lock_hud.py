@@ -485,10 +485,6 @@ def test_load_hud_app_config_reads_the_bridge_manifest(tmp_path: Path):
         secondary_monitor = 2
         primary_top_ratio = 0.7273
         landscape_width_ratio = 0.6667
-        [vlc]
-        vlc2_port = 8091
-        vlc3_port = 8092
-        vlc_pass = s3cret
         [media]
         portrait_dirs = C:/vids/portrait|C:/vids/portrait2
         landscape_dirs = C:/vids/landscape
@@ -497,12 +493,14 @@ def test_load_hud_app_config_reads_the_bridge_manifest(tmp_path: Path):
         metadata_root = C:/vids/metadata
         [commands]
         dashboard_state_file = C:/state/dashboard_state.ini
+        portrait_status_file = C:/state/portrait_status.txt
+        landscape_status_file = C:/state/landscape_status.txt
     """), encoding="utf-8")
 
     cfg = load_hud_app_config(manifest)
 
-    assert (cfg.portrait_port, cfg.landscape_port) == (8091, 8092)
-    assert cfg.vlc_password == "s3cret"
+    assert cfg.portrait_status_file == Path("C:/state/portrait_status.txt")
+    assert cfg.landscape_status_file == Path("C:/state/landscape_status.txt")
     assert cfg.portrait_sources == "C:/vids/portrait|C:/vids/portrait2"
     assert cfg.landscape_sources == "C:/vids/landscape"
     assert cfg.provider_media_root == Path("C:/vids/AI")
@@ -522,15 +520,13 @@ def test_load_hud_app_config_tolerates_absent_provider_roots(tmp_path: Path):
         secondary_monitor = 2
         primary_top_ratio = 0.7
         landscape_width_ratio = 0.66
-        [vlc]
-        vlc2_port = 8091
-        vlc3_port = 8092
-        vlc_pass =
         [media]
         portrait_dirs = C:/vids/portrait
         landscape_dirs = C:/vids/landscape
         [commands]
         dashboard_state_file = C:/state/dashboard_state.ini
+        portrait_status_file = C:/state/portrait_status.txt
+        landscape_status_file = C:/state/landscape_status.txt
     """), encoding="utf-8")
 
     cfg = load_hud_app_config(manifest)
@@ -591,7 +587,8 @@ def _clip(media_root: Path, metadata_root: Path, name: str, meta: dict) -> str:
 def _hud_config(**overrides) -> HudAppConfig:
     base = dict(
         layout=LayoutConfig(1, 2, 0.7, 0.66),
-        portrait_port=8091, landscape_port=8092, vlc_password="",
+        portrait_status_file=Path("portrait_status.txt"),
+        landscape_status_file=Path("landscape_status.txt"),
         portrait_sources="", landscape_sources="",
         provider_media_root=None, provider_metadata_root=None,
         shared_state_file=Path("shared_bridge_state.ini"),

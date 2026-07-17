@@ -222,7 +222,7 @@ class TestHotkeySuspendDuringIntegration:
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         state_dir = tmp_path / "state"
 
@@ -251,7 +251,7 @@ class TestHotkeySuspendDuringIntegration:
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         state_dir = tmp_path / "state"
 
@@ -282,7 +282,7 @@ class TestRunPythonOrchestratedBridge:
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
         # Track call order
@@ -339,7 +339,7 @@ class TestRunPythonOrchestratedBridge:
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         state_dir = tmp_path / "state"
 
@@ -367,7 +367,7 @@ class TestRunPythonOrchestratedBridge:
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
         fake_proc = MagicMock()
@@ -388,7 +388,7 @@ class TestRunPythonOrchestratedBridge:
     def test_passes_manifest_and_pids_file_to_ahk(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
         popen_cmds: list[list] = []
@@ -434,7 +434,7 @@ class TestLoadingScreenLifecycle:
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
         result_with_hwnds = StartupResult(
@@ -476,7 +476,7 @@ class TestLoadingScreenLifecycle:
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
         popen_calls: list[list] = []
@@ -512,7 +512,7 @@ class TestStartupCancellation:
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         state_dir = tmp_path / "state"
 
@@ -561,7 +561,7 @@ class TestStartupCancellation:
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         state_dir = tmp_path / "state"
 
@@ -609,7 +609,7 @@ class TestStartupCancellation:
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
@@ -658,7 +658,7 @@ class TestPostLoadingWindowState:
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
         result_with_hwnds = StartupResult(
@@ -757,7 +757,7 @@ class TestVoiceControlIntegration:
         path = cfg_factory({"voice_control": {"enabled": True, "model_path": "test-model"}})
         cfg = load_config(path)
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
         fake_ahk_proc = MagicMock()
@@ -793,7 +793,7 @@ class TestVoiceControlIntegration:
         path = cfg_factory({"voice_control": {"enabled": True, "model_path": "test-model"}})
         cfg = load_config(path)
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
         fake_ahk_proc = MagicMock()
@@ -827,7 +827,7 @@ class TestVoiceControlIntegration:
         # voice_control section absent → defaults to disabled
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
-            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
         fake_ahk_proc = MagicMock()

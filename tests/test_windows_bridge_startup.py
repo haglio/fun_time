@@ -3,20 +3,19 @@ from __future__ import annotations
 import configparser
 import json
 from pathlib import Path
-from unittest.mock import ANY, patch
+from unittest.mock import patch
 from urllib.parse import urlparse
 from urllib.request import url2pathname
-
-import pytest
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.modes import FModePlaylistPlan
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.windows_bridge_startup import (
-    _VLC_HTTP_BIND_TIMEOUT_MS,
-    _await_vlc_http,
+    _SATELLITE_LAUNCH_H,
+    _SATELLITE_LAUNCH_W,
+    _SATELLITE_LAUNCH_X,
+    _SATELLITE_LAUNCH_Y,
     _build_satellite_launch_command,
-    _build_vlc_launch_command,
     launch_satellite,
     ensure_broker,
     launch_core_apps,
@@ -178,8 +177,8 @@ def _fake_playlist_plan(state_dir: Path) -> FModePlaylistPlan:
         primary_count=2,
         portrait_count=1,
         landscape_count=1,
-        portrait_playlist_path=state_dir / "portrait_vlc_playlist.m3u",
-        landscape_playlist_path=state_dir / "landscape_vlc_playlist.m3u",
+        portrait_playlist_path=state_dir / "portrait_playlist.tsv",
+        landscape_playlist_path=state_dir / "landscape_playlist.tsv",
         nau_playlist_path=state_dir / "nau_playlist.tsv",
     )
 
@@ -205,15 +204,19 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
             audio_paused_file=tmp_path / "audio_paused.txt",
             nau_paused_file=tmp_path / "nau_paused.txt",
             audio_volume_file=tmp_path / "audio_volume.txt",
-            vlc_exe="vlc.exe",
+            genau_python_exe="genau_python.exe",
+            satellite_module="satellite",
+            portrait_cmd_file=state_dir / "portrait_cmd.txt",
+            portrait_paused_file=state_dir / "portrait_paused.txt",
+            portrait_status_file=state_dir / "portrait_status.txt",
+            landscape_cmd_file=state_dir / "landscape_cmd.txt",
+            landscape_paused_file=state_dir / "landscape_paused.txt",
+            landscape_status_file=state_dir / "landscape_status.txt",
             primary_sources="primary_a|primary_b",
             portrait_sources="portrait_a",
             landscape_sources="landscape_a",
             favs_file=tmp_path / "favs.csv",
             state_dir=state_dir,
-            portrait_port=8091,
-            landscape_port=8092,
-            password="pw",
             result_file=result_file,
             provider_media_root=tmp_path / "media",
             provider_metadata_root=tmp_path / "metadata",
@@ -241,53 +244,21 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
             watch_stats_file=state_dir / "watch_stats.json",
         ),
     )
+    # The two native satellites are launched with the genau python, the shared
+    # satellite module, the builder's playlists, and each side's file quartet.
     launch.assert_called_once_with(
-        project_dir=tmp_path,
-        vlc_exe="vlc.exe",
+        python_exe="genau_python.exe",
+        satellite_module="satellite",
         portrait_playlist=plan.portrait_playlist_path,
         landscape_playlist=plan.landscape_playlist_path,
-        portrait_port=8091,
-        landscape_port=8092,
-        password="pw",
+        portrait_cmd_file=state_dir / "portrait_cmd.txt",
+        portrait_paused_file=state_dir / "portrait_paused.txt",
+        portrait_status_file=state_dir / "portrait_status.txt",
+        landscape_cmd_file=state_dir / "landscape_cmd.txt",
+        landscape_paused_file=state_dir / "landscape_paused.txt",
+        landscape_status_file=state_dir / "landscape_status.txt",
         result_file=result_file,
-        hide_windows=False,
     )
-
-
-def test_start_core_session_passes_hide_windows_through(tmp_path: Path):
-    """start_core_session forwards hide_windows to launch_core_apps."""
-    result_file = tmp_path / "core_session.ini"
-
-    with patch("fun_time.windows_bridge_startup.ensure_broker"), patch(
-        "fun_time.windows_bridge_startup.seed_startup_states"
-    ), patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
-    ), patch(
-        "fun_time.windows_bridge_startup.build_fmode_playlists",
-        return_value=_fake_playlist_plan(tmp_path / "state"),
-    ), patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
-        start_core_session(
-            project_dir=tmp_path,
-            config_path="cfg.json",
-            random_favs_browser_manifest_file=tmp_path / "m.txt",
-            genau_paused_file=tmp_path / "p.txt",
-            audio_paused_file=tmp_path / "a.txt",
-            nau_paused_file=tmp_path / "n.txt",
-            audio_volume_file=tmp_path / "v.txt",
-            vlc_exe="vlc.exe",
-            primary_sources="a",
-            portrait_sources="b",
-            landscape_sources="c",
-            favs_file=tmp_path / "favs.csv",
-            state_dir=tmp_path / "state",
-            portrait_port=8091,
-            landscape_port=8092,
-            password="pw",
-            result_file=result_file,
-            hide_windows=True,
-        )
-
-    assert launch.call_args.kwargs["hide_windows"] is True
 
 
 def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
@@ -562,94 +533,62 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
     assert result["audio_pid"] == "33"
 
 
-class _FakeVlcProc:
-    """Stand-in for a VLC Popen handle with a controllable liveness signal."""
-
-    def __init__(self, *, alive: bool = True, returncode: int = 0):
-        self._alive = alive
-        self.returncode = returncode
-
-    def poll(self):
-        return None if self._alive else self.returncode
-
-
-def test_await_vlc_http_raises_with_exit_code_when_process_dies_before_binding():
-    """A VLC that exits before its HTTP interface binds must fail immediately
-    with its exit code, not wait out the full bind timeout."""
-    proc = _FakeVlcProc(alive=False, returncode=3)
-    with patch("fun_time.windows_bridge_startup.wait_for_http", return_value=False):
-        with pytest.raises(RuntimeError, match="exited.*3"):
-            _await_vlc_http(8091, "pw", proc, "Portrait")
-
-
-def test_await_vlc_http_raises_timeout_when_process_alive_but_unresponsive():
-    """A VLC that stays alive but never binds HTTP must raise a timeout error,
-    distinct from the exit-code path so the failure is diagnosable."""
-    proc = _FakeVlcProc(alive=True)
-    with patch("fun_time.windows_bridge_startup.wait_for_http", return_value=False):
-        with pytest.raises(RuntimeError, match="did not come up"):
-            _await_vlc_http(8091, "pw", proc, "Landscape")
-
-
-def test_await_vlc_http_returns_when_http_binds():
-    """When wait_for_http succeeds, the helper returns without raising and does
-    not consult the exit code."""
-    proc = _FakeVlcProc(alive=True)
-    with patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True) as wait_http:
-        _await_vlc_http(8091, "pw", proc, "Portrait")
-    wait_http.assert_called_once_with(8091, "pw", _VLC_HTTP_BIND_TIMEOUT_MS, is_alive=ANY)
-
-
-def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: Path, monkeypatch):
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_path: Path):
+    """launch_core_apps spawns exactly two native satellites — portrait then
+    landscape — each with its own playlist and command/paused/status quartet, and
+    records both pids in the result INI.  The primary VLC is gone and there is no
+    HTTP interface to wait on: the native player owns its playlist and plays at
+    once, so nothing is enqueued, repeat-set, or waited for here."""
     result_file = tmp_path / "core_apps.ini"
-    portrait_playlist = tmp_path / "state" / "portrait_vlc_playlist.m3u"
-    landscape_playlist = tmp_path / "state" / "landscape_vlc_playlist.m3u"
+    state_dir = tmp_path / "state"
+    portrait_playlist = state_dir / "portrait_playlist.tsv"
+    landscape_playlist = state_dir / "landscape_playlist.tsv"
 
-    class FakeProc:
-        def __init__(self, pid: int):
-            self.pid = pid
-
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=[FakeProc(202), FakeProc(303)]) as popen, patch(
-        "fun_time.windows_bridge_startup.wait_for_http", return_value=True
-    ) as wait_http, patch(
-        "fun_time.windows_bridge_startup.set_repeat_mode", return_value=True
-    ) as set_repeat, patch(
-        "fun_time.windows_bridge_startup.vlc_http_cmd", return_value=True
-    ) as vlc_cmd, patch(
-        "fun_time.windows_bridge_startup.replace_playlist_from_file", return_value=True
-    ), patch(
-        "fun_time.windows_bridge_startup.time.sleep"
-    ):
+    with patch(
+        "fun_time.windows_bridge_startup.launch_satellite", side_effect=[202, 303]
+    ) as launch_satellite_mock:
         launch_core_apps(
-            project_dir=tmp_path,
-            vlc_exe="vlc.exe",
+            python_exe="genau_python.exe",
+            satellite_module="satellite",
             portrait_playlist=portrait_playlist,
             landscape_playlist=landscape_playlist,
-            portrait_port=8091,
-            landscape_port=8092,
-            password="pw",
+            portrait_cmd_file=state_dir / "portrait_cmd.txt",
+            portrait_paused_file=state_dir / "portrait_paused.txt",
+            portrait_status_file=state_dir / "portrait_status.txt",
+            landscape_cmd_file=state_dir / "landscape_cmd.txt",
+            landscape_paused_file=state_dir / "landscape_paused.txt",
+            landscape_status_file=state_dir / "landscape_status.txt",
             result_file=result_file,
         )
 
-    # Exactly two VLC processes now: portrait and landscape (the primary VLC is gone).
-    assert popen.call_count == 2
-    portrait_command = popen.call_args_list[0].args[0]
-    landscape_command = popen.call_args_list[1].args[0]
-    assert portrait_command[:2] == ["vlc.exe", "--no-one-instance"]
-    # Satellites get their playlist on the command line in the unmuted path.
-    assert str(portrait_playlist) in portrait_command
-    assert str(landscape_playlist) in landscape_command
-    assert "--loop" in portrait_command
-    assert "--loop" in landscape_command
+    # Exactly two native satellites: portrait first, then landscape.
+    assert launch_satellite_mock.call_count == 2
+    portrait_kwargs = launch_satellite_mock.call_args_list[0].kwargs
+    landscape_kwargs = launch_satellite_mock.call_args_list[1].kwargs
 
-    wait_http.assert_any_call(8091, "pw", _VLC_HTTP_BIND_TIMEOUT_MS, is_alive=ANY)
-    wait_http.assert_any_call(8092, "pw", _VLC_HTTP_BIND_TIMEOUT_MS, is_alive=ANY)
-    set_repeat.assert_any_call(8091, "pw", "all")
-    set_repeat.assert_any_call(8092, "pw", "all")
-    vlc_cmd.assert_any_call(8091, "pl_next", "pw")
-    vlc_cmd.assert_any_call(8092, "pl_next", "pw")
+    # Each satellite gets the genau python, the shared module, its own playlist,
+    # and its own command/paused/status quartet.
+    assert portrait_kwargs["python_exe"] == "genau_python.exe"
+    assert portrait_kwargs["satellite_module"] == "satellite"
+    assert portrait_kwargs["playlist_file"] == portrait_playlist
+    assert portrait_kwargs["command_file"] == state_dir / "portrait_cmd.txt"
+    assert portrait_kwargs["paused_file"] == state_dir / "portrait_paused.txt"
+    assert portrait_kwargs["status_file"] == state_dir / "portrait_status.txt"
+
+    assert landscape_kwargs["python_exe"] == "genau_python.exe"
+    assert landscape_kwargs["satellite_module"] == "satellite"
+    assert landscape_kwargs["playlist_file"] == landscape_playlist
+    assert landscape_kwargs["command_file"] == state_dir / "landscape_cmd.txt"
+    assert landscape_kwargs["paused_file"] == state_dir / "landscape_paused.txt"
+    assert landscape_kwargs["status_file"] == state_dir / "landscape_status.txt"
+
+    # Both launch at the shared placeholder geometry; the sequencer repositions
+    # each to its real portrait/landscape rect by HWND afterward.
+    for side_kwargs in (portrait_kwargs, landscape_kwargs):
+        assert side_kwargs["x"] == _SATELLITE_LAUNCH_X
+        assert side_kwargs["y"] == _SATELLITE_LAUNCH_Y
+        assert side_kwargs["width"] == _SATELLITE_LAUNCH_W
+        assert side_kwargs["height"] == _SATELLITE_LAUNCH_H
 
     parser = configparser.ConfigParser()
     parser.optionxform = str
@@ -657,151 +596,6 @@ def test_launch_core_apps_starts_media_stack_waits_and_writes_result(tmp_path: P
     assert parser.get("result", "portrait_pid") == "202"
     assert parser.get("result", "landscape_pid") == "303"
     assert set(parser["result"].keys()) == {"portrait_pid", "landscape_pid"}
-
-
-def test_launch_core_apps_defers_playlists_and_keeps_audio_when_hide_windows_true(tmp_path: Path, monkeypatch):
-    """When hide_windows=True, VLC instances must:
-    1. Launch with no media on the command line so there is nothing to hear
-    2. Get muted via HTTP
-    3. Have their playlist enqueued (not played) via replace_playlist_from_file
-    4. NOT receive pl_next, pl_pause, or pl_play — VLC must be completely idle
-    """
-    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-    result_file = tmp_path / "core_apps.ini"
-    playlists = {
-        8091: tmp_path / "state" / "portrait_vlc_playlist.m3u",
-        8092: tmp_path / "state" / "landscape_vlc_playlist.m3u",
-    }
-
-    class FakeProc:
-        _counter = 0
-
-        def __init__(self, *_args, **_kwargs):
-            FakeProc._counter += 1
-            self.pid = FakeProc._counter * 100
-
-    FakeProc._counter = 0
-    http_commands: list[tuple[int, str]] = []
-    replace_calls: list[tuple[int, str, dict]] = []
-
-    def tracking_vlc_http_cmd(port, cmd, pw):
-        http_commands.append((port, cmd))
-        return True
-
-    def tracking_replace_playlist(port, pw, playlist_path, **kwargs):
-        replace_calls.append((port, str(playlist_path), kwargs))
-        return True
-
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=lambda *a, **kw: FakeProc()) as popen, \
-         patch("fun_time.windows_bridge_startup.wait_for_http", return_value=True), \
-         patch("fun_time.windows_bridge_startup.set_repeat_mode", return_value=True), \
-         patch("fun_time.windows_bridge_startup.vlc_http_cmd", side_effect=tracking_vlc_http_cmd), \
-         patch("fun_time.windows_bridge_startup.replace_playlist_from_file", side_effect=tracking_replace_playlist), \
-         patch("fun_time.windows_bridge_startup.time.sleep"):
-        launch_core_apps(
-            project_dir=tmp_path,
-            vlc_exe="vlc.exe",
-            portrait_playlist=playlists[8091],
-            landscape_playlist=playlists[8092],
-            portrait_port=8091,
-            landscape_port=8092,
-            password="pw",
-            result_file=result_file,
-            hide_windows=True,
-        )
-
-    # VLC commands must NOT contain .m3u playlist paths (deferred)
-    vlc_cmdlines = []
-    for call in popen.call_args_list:
-        cmd = call.args[0] if call.args else call.kwargs.get("args", [])
-        if isinstance(cmd, list) and cmd and cmd[0] == "vlc.exe":
-            vlc_cmdlines.append(cmd)
-            assert not any(arg.endswith(".m3u") for arg in cmd), \
-                f"Playlist must not be on VLC command line when hide_windows=True: {cmd}"
-
-    # Nothing plays yet, and the satellites can never make a sound anyway.
-    assert http_commands == [], f"No HTTP commands allowed during loading: {http_commands}"
-    for cmd in vlc_cmdlines:
-        assert "--no-audio" in cmd, f"A satellite must never be heard: {cmd}"
-
-    # Playlists must be enqueued (not played) via replace_playlist_from_file
-    assert len(replace_calls) == 2, f"Expected 2 playlist loads, got {replace_calls}"
-    for port, path, kwargs in replace_calls:
-        assert path == str(playlists[port])
-        assert kwargs.get("enqueue_only") is True, \
-            f"enqueue_only must be True to prevent playback during loading: {kwargs}"
-
-
-def test_build_vlc_launch_command_never_passes_volume():
-    """VLC's volume is a Windows per-application mixer level shared by every
-    vlc.exe: whatever we set it to survives our process and greets the user
-    the next time they open VLC themselves.  Fun Time must never set it.
-    (``--volume`` is also dead in VLC 3: "option --volume no longer exists".)
-    """
-    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat")
-    assert "--volume" not in cmd
-
-
-def test_build_vlc_launch_command_always_disables_audio():
-    """A satellite must never be heard: a handful of clips carry an audio
-    track, and one surfacing mid-session is exactly the surprise the old
-    volume-0 mute existed to prevent.  --no-audio skips the audio output
-    module entirely, so there is no sound and no audio session — where a
-    volume of 0 would have persisted into the user's own VLC."""
-    for repeat_mode in ("repeat", "loop"):
-        cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode)
-        assert "--no-audio" in cmd, f"satellites must never make a sound ({repeat_mode})"
-
-
-def test_build_vlc_launch_command_never_includes_no_video():
-    """--no-video changes VLC's playback behavior (e.g. repeat-one mode
-    enters 'stopped' instead of 'playing' after navigation). Integration
-    tests must run with real video output to match production behavior."""
-    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="repeat")
-    assert "--no-video" not in cmd
-
-
-def test_build_vlc_launch_command_never_includes_start_paused():
-    """--start-paused must NEVER be used: VLC re-applies it on every item
-    transition, not just startup.  This causes a black screen every time
-    the user navigates.  Deferring the playlist keeps loading quiet."""
-    for repeat_mode in ("repeat", "loop"):
-        cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode)
-        assert "--start-paused" not in cmd, \
-            f"--start-paused must never appear (repeat_mode={repeat_mode})"
-
-
-def test_build_vlc_launch_command_never_includes_random():
-    """--random must never appear: it causes VLC to re-pick a random item on every
-    navigation, making pl_play&id=N index arithmetic wrong. The playlist builder
-    shuffles the sources instead."""
-    for repeat_mode in ("repeat", "loop"):
-        cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode)
-        assert "--random" not in cmd, f"--random must not appear (repeat_mode={repeat_mode})"
-
-
-def test_build_vlc_launch_command_includes_no_random():
-    """--no-random must always appear to override VLC's saved config (vlcrc).
-    Without it, if the user ever manually enabled shuffle in VLC, the setting
-    persists and VLC advances randomly instead of sequentially, breaking
-    prev/next navigation which relies on sequential playlist order."""
-    for repeat_mode in ("repeat", "loop"):
-        cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode=repeat_mode)
-        assert "--no-random" in cmd, f"--no-random must appear to override saved vlcrc (repeat_mode={repeat_mode})"
-
-
-def test_build_vlc_launch_command_appends_playlist_path_when_given(tmp_path):
-    playlist_path = tmp_path / "test.m3u"
-    cmd = _build_vlc_launch_command(
-        "vlc.exe", 8090, "pw", repeat_mode="loop", playlist_path=playlist_path,
-    )
-    assert cmd[-1] == str(playlist_path)
-
-
-def test_build_vlc_launch_command_omits_playlist_when_not_given():
-    cmd = _build_vlc_launch_command("vlc.exe", 8090, "pw", repeat_mode="loop")
-    assert not any(arg.endswith(".m3u") for arg in cmd)
 
 
 def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry():

@@ -15,16 +15,11 @@ from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, command_side, dispatch_command
-from .event_log import SOURCE_LANDSCAPE, SOURCE_PORTRAIT, notice
+from .event_log import notice
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
+from .satellite_control import read_satellite_status
 from .video_timeline import VideoTimeline
-from .vlc_actions import (
-    get_current_file_path,
-    get_playback_fraction,
-    get_repeat_mode,
-    pause_if_playing,
-)
 from .voice_commands import parse_command_line
 from .watch_stats import WatchTracker, record_watch_event, watch_stats_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
@@ -304,26 +299,23 @@ class DispatchLoopRunner:
         self.voice_controller: VoiceController | None = None
         # Each player's current video is sampled periodically and fed to watch
         # tracking ("breeding"), which classifies playback into completions/skips
-        # for the stats file.  The satellites (2, 3) are polled over VLC's HTTP
-        # interface and additionally feed a timeline, which lets a spoken command
-        # be back-dated to the video on screen when the user started talking (see
-        # _back_dated_video); the primary Nau player (1) is read from its status
-        # file and needs no such timeline.
+        # for the stats file.  The satellites (2, 3) are read from the status file
+        # each native player publishes and additionally feed a timeline, which lets
+        # a spoken command be back-dated to the video on screen when the user
+        # started talking (see _back_dated_video); the primary Nau player (1) is
+        # read from its own status file and needs no such timeline.
         self._watch_trackers: dict[int, WatchTracker] = {
             1: WatchTracker(),
             2: WatchTracker(),
             3: WatchTracker(),
         }
         self._timelines: dict[int, VideoTimeline] = {2: VideoTimeline(), 3: VideoTimeline()}
-        self._satellite_ports = {2: config.portrait_port, 3: config.landscape_port}
+        self._satellite_status_files = {
+            2: config.portrait_status_file,
+            3: config.landscape_status_file,
+        }
         self._watch_stats_file = watch_stats_path(config.state_dir)
         self._last_watch_sample = 0.0
-        # The clip each satellite was on the last time the OmniPause watchdog
-        # caught it playing.  A catch compares against this to say whether the
-        # satellite restarted the *same* clip (VLC's own repeat loop) or moved to
-        # a different one (a playlist advance) — the field that tells the resume's
-        # cause apart.  Cleared whenever OmniPause is not holding.
-        self._omnipause_prev_clip: dict[int, str] = {2: "", 3: ""}
         # Hybrid funscript handoff: whether the funscript is driving the OSR2
         # right now (so Genau is paused and Nau's T-Code is on) or Genau is (a
         # funscript gap or an unscripted video).  None means "no decision applied
@@ -332,15 +324,12 @@ class DispatchLoopRunner:
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
-    # Twice a second: the shared cadence for looking at every player over VLC.
-    # Unpaused, that look SAMPLES playback (both satellites and the primary Nau
-    # feed) for watch tracking; under OmniPause it instead ENFORCES the pause,
-    # re-pausing any satellite that has resumed on its own (see
-    # _enforce_satellites_paused).  The two never run in the same tick, so one
-    # clock gates both.  A satellite video switch is only ever bracketed by two
-    # samples, so this also bounds how far a back-dated command can misplace a
-    # switch (the timeline halves it again by dating the switch to the bracket's
-    # midpoint).
+    # Twice a second: the cadence for sampling every player's current clip for
+    # watch tracking (both satellites and the primary Nau feed).  A satellite
+    # video switch is only ever bracketed by two samples, so this also bounds how
+    # far a back-dated command can misplace a switch (the timeline halves it again
+    # by dating the switch to the bracket's midpoint).  Skipped under OmniPause,
+    # where playback is frozen.
     _WATCH_SAMPLE_INTERVAL_S = 0.5
 
     # Commands that count as the user navigating away from a video — the signal
@@ -398,10 +387,7 @@ class DispatchLoopRunner:
                 self._update_dashboard()
         if now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
             self._last_watch_sample = now
-            if self.state.omni_paused:
-                self._enforce_satellites_paused()
-            else:
-                self._omnipause_prev_clip = {2: "", 3: ""}
+            if not self.state.omni_paused:
                 self._sample_satellites(now=now)
                 self._sample_primary()
 
@@ -546,14 +532,14 @@ class DispatchLoopRunner:
             self._dispatch(cmd, spoken_at)
 
     def _sample_satellites(self, *, now: float) -> None:
-        """Sample each satellite's current video for the trackers and timelines."""
-        for which, port in self._satellite_ports.items():
-            fraction = get_playback_fraction(port, self.config.vlc_password)
-            if fraction is None:
+        """Sample each satellite's current video for the trackers and timelines,
+        from the status file its native player publishes."""
+        for which, status_file in self._satellite_status_files.items():
+            status = read_satellite_status(status_file)
+            if status.fraction is None:
                 continue
-            path = get_current_file_path(port, self.config.vlc_password)
-            self._timelines[which].observe(path, now=now)
-            for event, video in self._watch_trackers[which].observe(path, fraction):
+            self._timelines[which].observe(status.video, now=now)
+            for event, video in self._watch_trackers[which].observe(status.video, status.fraction):
                 record_watch_event(self._watch_stats_file, video, event)
 
     def _sample_primary(self) -> None:
@@ -570,67 +556,6 @@ class DispatchLoopRunner:
         fraction = status.position_ms / status.duration_ms
         for event, video in self._watch_trackers[1].observe(status.video, fraction):
             record_watch_event(self._watch_stats_file, video, event)
-
-    def _enforce_satellites_paused(self) -> None:
-        """Re-pause any satellite that has slipped back into playing while
-        OmniPause holds — the watchdog half of OmniPause.
-
-        Entering OmniPause pauses the satellites once, but that is a one-shot
-        best effort: a satellite can end up playing again afterward — most
-        concretely a slow load (the favs are HEVC) that only finished, and began
-        playing, after the enter settle window closed.  With no re-check the
-        video just plays on under the pause, which is the bug that kept coming
-        back.  Running here on the shared twice-a-second cadence catches it
-        within one tick instead.
-
-        ``pause_if_playing`` is safe to call every tick: it pauses only a
-        satellite it observes actually playing, so a correctly-paused one costs
-        a single state read and a stopped/mid-load one is left alone (its
-        ``pl_pause`` would phantom-load item 1).  A catch is logged with a
-        diagnosis of what the satellite resumed into (see
-        :meth:`_resume_diagnosis`); a satellite resuming under OmniPause is an
-        anomaly worth seeing in the event log, and the diagnosis is what turns a
-        storm of identical lines into an actionable cause.
-        """
-        for which, port in self._satellite_ports.items():
-            if pause_if_playing(port, self.config.vlc_password):
-                source = SOURCE_PORTRAIT if which == 2 else SOURCE_LANDSCAPE
-                notice(
-                    logger,
-                    f"OmniPause watchdog re-paused the {source.capitalize()} satellite"
-                    f" — it had resumed on its own ({self._resume_diagnosis(which, port)})",
-                    source=source,
-                    level=logging.WARNING,
-                )
-
-    def _resume_diagnosis(self, which: int, port: int) -> str:
-        """Describe what a just-caught satellite resumed *into*, so the event log
-        records the cause of the resume and not merely the fact of it.
-
-        Nothing in this app plays a satellite while OmniPause holds — the
-        dispatch loop only enforces the pause, voice is suspended, and the lock
-        HUD is read-only — so a resume originates in VLC's own playlist.  Which
-        force it is shows in what the satellite lands on: repeat restarting the
-        same clip from the top (``repeat=one``/``all``, ``pos``≈0, an unchanged
-        clip) is VLC looping a short clip under the pause; a *different* clip is a
-        playlist advance; a mid-clip ``pos`` is an outside play or seek.  These
-        reads run only on the rare catch, never on the common already-paused
-        tick.
-        """
-        password = self.config.vlc_password
-        repeat = get_repeat_mode(port, password)
-        clip = Path(get_current_file_path(port, password) or "").name
-        fraction = get_playback_fraction(port, password)
-        previous = self._omnipause_prev_clip.get(which, "")
-        self._omnipause_prev_clip[which] = clip
-        if not previous:
-            movement = "first catch"
-        elif clip == previous:
-            movement = "same clip"
-        else:
-            movement = f"advanced from {previous}"
-        pos = "?" if fraction is None else f"{fraction:.2f}"
-        return f"repeat={repeat}, pos={pos}, clip={clip or '?'}, {movement}"
 
     def _back_dated_video(self, command: str, spoken_at: float | None) -> str:
         """The video *command* was aimed at, or "" for "whatever is playing now".
@@ -1041,10 +966,16 @@ def build_bridge_config_from_manifest(
     manifest: configparser.ConfigParser,
 ) -> BridgeConfig:
     """Build a BridgeConfig from the windows bridge manifest INI."""
+    commands = manifest["commands"]
     return BridgeConfig(
-        portrait_port=int(manifest["vlc"]["vlc2_port"]),
-        landscape_port=int(manifest["vlc"]["vlc3_port"]),
-        vlc_password=manifest["vlc"]["vlc_pass"],
+        portrait_cmd_file=Path(commands["portrait_cmd_file"]),
+        portrait_paused_file=Path(commands["portrait_paused_file"]),
+        portrait_status_file=Path(commands["portrait_status_file"]),
+        portrait_playlist_file=Path(commands["portrait_playlist_file"]),
+        landscape_cmd_file=Path(commands["landscape_cmd_file"]),
+        landscape_paused_file=Path(commands["landscape_paused_file"]),
+        landscape_status_file=Path(commands["landscape_status_file"]),
+        landscape_playlist_file=Path(commands["landscape_playlist_file"]),
         favs_file=Path(manifest["media"]["favs_file"]),
         weird_dir=Path(manifest["media"]["weird_dir"]),
         state_dir=Path(manifest["commands"]["dashboard_state_file"]).parent,

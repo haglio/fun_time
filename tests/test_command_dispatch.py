@@ -28,9 +28,14 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
     weird_dir = tmp_path / "weird"
     weird_dir.mkdir(exist_ok=True)
     return BridgeConfig(
-        portrait_port=8091,
-        landscape_port=8092,
-        vlc_password="pw",
+        portrait_cmd_file=state_dir / "portrait_cmd.txt",
+        portrait_paused_file=state_dir / "portrait_paused.txt",
+        portrait_status_file=state_dir / "portrait_status.txt",
+        portrait_playlist_file=state_dir / "portrait_playlist.tsv",
+        landscape_cmd_file=state_dir / "landscape_cmd.txt",
+        landscape_paused_file=state_dir / "landscape_paused.txt",
+        landscape_status_file=state_dir / "landscape_status.txt",
+        landscape_playlist_file=state_dir / "landscape_playlist.tsv",
         favs_file=favs_file,
         weird_dir=weird_dir,
         state_dir=state_dir,
@@ -47,6 +52,38 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         nau_status_file=state_dir / "nau_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
     )
+
+
+def _set_current(config: BridgeConfig, which: int, video: str, *, locked: bool = False) -> None:
+    """Make read_satellite_status report *video* as satellite *which*'s current
+    clip — the file-based stand-in for the old get_current_file_path mock."""
+    status = config.satellite_status_file(which)
+    status.parent.mkdir(parents=True, exist_ok=True)
+    status.write_text(
+        f"video={video}\nposition_ms=100\nduration_ms=1000\n"
+        f"paused=0\nlocked={'1' if locked else '0'}\n",
+        encoding="utf-8",
+    )
+
+
+def _cmds(config: BridgeConfig, which: int) -> list[str]:
+    """The verbs queued on satellite *which*'s command file, in order."""
+    cmd_file = config.satellite_cmd_file(which)
+    if not cmd_file.exists():
+        return []
+    return [line.strip() for line in cmd_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _playlist(config: BridgeConfig, which: int) -> list[str]:
+    """The video paths written to satellite *which*'s playlist file, in order."""
+    playlist = config.satellite_playlist_file(which)
+    if not playlist.exists():
+        return []
+    return [
+        line.split("\t")[0]
+        for line in playlist.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def _make_state(**overrides) -> BridgeState:
@@ -76,14 +113,12 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider2\abc_123.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_in_favs"),
-    ):
+    _set_current(config, 2, r"C:\videos\provider2\abc_123.mp4")
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.locked2 is True
+    assert _cmds(config, 2) == ["LOCK"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
     assert '"https://example.net/image/abc"' in _tab_page(rfb_ops[0].key)
@@ -96,11 +131,8 @@ def test_lock_landing_page_plays_the_locked_video(tmp_path: Path):
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"")
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=str(video)),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_in_favs"),
-    ):
+    _set_current(config, 2, str(video))
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
         _, ops = dispatch_command("portrait_lock", state, config)
 
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
@@ -112,12 +144,8 @@ def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path: Path):
 
     keys = []
     for _ in range(2):
-        with (
-            patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider2\abc_123.mp4"),
-            patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-            patch("fun_time.command_dispatch.ensure_in_favs"),
-            patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
-        ):
+        _set_current(config, 2, r"C:\videos\provider2\abc_123.mp4")
+        with patch("fun_time.command_dispatch.ensure_in_favs"):
             _, ops = dispatch_command("portrait_lock", _make_state(locked2=False), config)
         keys += [op.key for op in ops if op.op == "open_rfb_tab"]
 
@@ -136,11 +164,8 @@ def test_portrait_lock_records_a_lock_watch_event(tmp_path: Path):
     video = tmp_path / "clip.mp4"
     video.write_text("x", encoding="utf-8")
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=str(video)),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_in_favs"),
-    ):
+    _set_current(config, 2, str(video))
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
         dispatch_command("portrait_lock", state, config)
 
     stats = load_watch_stats(config.state_dir / "watch_stats.json")
@@ -151,13 +176,10 @@ def test_portrait_unlock_records_no_watch_event(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=True)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=str(tmp_path / "clip.mp4")),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
-    ):
-        dispatch_command("portrait_lock", state, config)
+    _set_current(config, 2, str(tmp_path / "clip.mp4"))
+    dispatch_command("portrait_lock", state, config)
 
+    assert _cmds(config, 2) == ["UNLOCK", "NEXT"]
     assert not (config.state_dir / "watch_stats.json").exists()
 
 
@@ -165,11 +187,8 @@ def test_portrait_lock_no_open_rfb_tab_op_for_unknown_video(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\other\xyz.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_in_favs"),
-    ):
+    _set_current(config, 2, r"C:\videos\other\xyz.mp4")
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.locked2 is True
@@ -180,12 +199,8 @@ def test_portrait_lock_no_open_rfb_tab_op_when_unlocking(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=True)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider2\abc_123.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
-    ):
-        new_state, ops = dispatch_command("portrait_lock", state, config)
+    _set_current(config, 2, r"C:\videos\provider2\abc_123.mp4")
+    new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.locked2 is False
     assert not any(op.op == "open_rfb_tab" for op in ops)
@@ -195,14 +210,12 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked3=False)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider\def_456.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_in_favs"),
-    ):
+    _set_current(config, 3, r"C:\videos\provider\def_456.mp4")
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.locked3 is True
+    assert _cmds(config, 3) == ["LOCK"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
     assert '"https://example.com/image/def"' in _tab_page(rfb_ops[0].key)
@@ -226,11 +239,8 @@ def test_landscape_lock_emits_provider_regen_url_when_metadata_present(tmp_path:
     config.provider_metadata_root = metadata_root
     state = _make_state(locked3=False)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=str(video)),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_in_favs"),
-    ):
+    _set_current(config, 3, str(video))
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
@@ -245,30 +255,24 @@ def test_portrait_lock_toggles_lock_on(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_in_favs"),
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
-    ):
+    _set_current(config, 2, "C:\\clips\\portrait.mp4")
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.locked2 is True
     assert new_state.locked3 is False
+    assert _cmds(config, 2) == ["LOCK"]
 
 
 def test_portrait_lock_toggles_lock_off(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=True)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
-    ):
-        new_state, ops = dispatch_command("portrait_lock", state, config)
+    _set_current(config, 2, "C:\\clips\\portrait.mp4")
+    new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.locked2 is False
+    assert _cmds(config, 2) == ["UNLOCK", "NEXT"]
 
 
 # --- landscape_lock ---
@@ -278,15 +282,12 @@ def test_landscape_lock_toggles_lock_on(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked3=False)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\landscape.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_in_favs"),
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
-    ):
+    _set_current(config, 3, "C:\\clips\\landscape.mp4")
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.locked3 is True
+    assert _cmds(config, 3) == ["LOCK"]
 
 
 # --- back-dating a spoken command to the video it was meant for ---
@@ -301,17 +302,12 @@ def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_pat
     meant = "C:\\clips\\meant.mp4"
     now_playing = "C:\\clips\\advanced_to.mp4"
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=now_playing),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, meant), (4, now_playing)], 4)),
-        patch("fun_time.command_dispatch.vlc_play_playlist_item", return_value=True) as play,
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_in_favs") as favs,
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
-    ):
+    _set_current(config, 2, now_playing)
+    with patch("fun_time.command_dispatch.ensure_in_favs") as favs:
         new_state, _ops = dispatch_command("portrait_lock", state, config, target_path=meant)
 
-    play.assert_called_once_with(config.portrait_port, "pw", 3)
+    # Back-dated: bring the spoken video back (PLAY_FILE) then LOCK it.
+    assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "LOCK"]
     assert favs.call_args[0][1] == meant
     assert new_state.locked2 is True
 
@@ -324,22 +320,16 @@ def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path
     state = _make_state(locked2=False)
     meant = "C:\\clips\\meant.mp4"
     now_playing = "C:\\clips\\advanced_to.mp4"
-    http_cmds: list[str] = []
-
+    _set_current(config, 2, now_playing)
     with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=now_playing),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, meant), (4, now_playing)], 4)),
         patch("fun_time.command_dispatch.remove_from_favs") as favs,
         patch("fun_time.command_dispatch.move_to_weird") as weird,
-        patch("fun_time.command_dispatch.vlc_advance_and_remove") as advance,
-        patch("fun_time.command_dispatch.vlc_http_cmd",
-              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
     ):
         dispatch_command("portrait_trash", state, config, target_path=meant)
 
-    advance.assert_not_called()
-    assert http_cmds == ["pl_delete&id=3"]
+    # Back-dated: jump back to the condemned clip (PLAY_FILE) then TRASH it where
+    # it sits; the innocent clip now playing is left alone.
+    assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "TRASH"]
     assert favs.call_args[0][1] == meant
     assert weird.call_args[0][1] == Path(meant)
 
@@ -351,127 +341,56 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=True)
 
+    _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
         patch("fun_time.command_dispatch.remove_from_favs"),
         patch("fun_time.command_dispatch.move_to_weird"),
-        patch("fun_time.command_dispatch.vlc_advance_and_remove", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
     ):
         new_state, ops = dispatch_command("portrait_trash", state, config)
 
     assert new_state.locked2 is False
+    assert _cmds(config, 2) == ["UNLOCK", "TRASH"]
 
 
-def test_portrait_trash_ensures_playback_after_discard(tmp_path: Path):
-    """After discarding, VLC must be confirmed playing to prevent black screen."""
+def test_portrait_trash_queues_a_trash_verb_and_condemns_the_clip(tmp_path: Path):
+    """An unlocked discard queues a bare TRASH (the native player drops the
+    current clip and plays the next) and condemns the clip — favs removal + weird."""
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
-    playback_calls: list[tuple[int, str, bool]] = []
 
+    _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.remove_from_favs"),
-        patch("fun_time.command_dispatch.move_to_weird"),
-        patch("fun_time.command_dispatch.vlc_advance_and_remove", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state",
-              side_effect=lambda p, pw, should_play: playback_calls.append((p, pw, should_play)) or True),
+        patch("fun_time.command_dispatch.remove_from_favs") as favs,
+        patch("fun_time.command_dispatch.move_to_weird") as weird,
     ):
         dispatch_command("portrait_trash", state, config)
 
-    assert (config.portrait_port, config.vlc_password, True) in playback_calls
-
-
-def test_portrait_trash_uses_advance_and_remove_not_pl_next(tmp_path: Path):
-    """Discard must use vlc_advance_and_remove (ID-based advance + playlist
-    cleanup) instead of pl_next, which is unreliable after manual navigation."""
-    config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
-    advance_calls: list[tuple] = []
-    http_cmds: list[str] = []
-
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\portrait.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.remove_from_favs"),
-        patch("fun_time.command_dispatch.move_to_weird"),
-        patch("fun_time.command_dispatch.vlc_advance_and_remove",
-              side_effect=lambda p, pw: advance_calls.append((p, pw)) or True),
-        patch("fun_time.command_dispatch.vlc_http_cmd",
-              side_effect=lambda p, cmd, pw: http_cmds.append(cmd) or True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        dispatch_command("portrait_trash", state, config)
-
-    assert advance_calls == [(8091, "pw")], "discard must call vlc_advance_and_remove"
-    assert "pl_next" not in http_cmds, "discard must not use pl_next"
+    assert _cmds(config, 2) == ["TRASH"]
+    assert favs.call_args[0][1] == "C:\\clips\\portrait.mp4"
+    assert weird.call_args[0][1] == Path("C:\\clips\\portrait.mp4")
 
 
 # --- portrait_prev / portrait_next ---
 
 
-def test_portrait_prev_cancels_lock_and_calls_nav_step_prev(tmp_path: Path):
+def test_portrait_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=True)
-    nav_calls: list[tuple] = []
 
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, ops = dispatch_command("portrait_prev", state, config)
+    new_state, ops = dispatch_command("portrait_prev", state, config)
 
     assert new_state.locked2 is False
-    assert nav_calls == [(8091, "prev")]
+    # A locked side unlocks first (repeat-one off), then steps back.
+    assert _cmds(config, 2) == ["UNLOCK", "PREV"]
 
 
-def test_portrait_next_calls_nav_step_next(tmp_path: Path):
+def test_portrait_next_queues_next(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
-    nav_calls: list[tuple] = []
 
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        dispatch_command("portrait_next", state, config)
+    dispatch_command("portrait_next", state, config)
 
-    assert nav_calls == [(8091, "next")]
-
-
-def test_portrait_prev_ensures_playback_after_nav(tmp_path: Path):
-    """Navigation must ensure VLC is actually playing after pl_play, to prevent
-    black screen / stopped state on item transitions."""
-    config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
-    playback_calls: list[tuple[int, str, bool]] = []
-
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state",
-              side_effect=lambda p, pw, should_play: playback_calls.append((p, pw, should_play)) or True),
-    ):
-        dispatch_command("portrait_prev", state, config)
-
-    assert (config.portrait_port, config.vlc_password, True) in playback_calls
-
-
-def test_landscape_next_ensures_playback_after_nav(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(locked3=False)
-    playback_calls: list[tuple[int, str, bool]] = []
-
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state",
-              side_effect=lambda p, pw, should_play: playback_calls.append((p, pw, should_play)) or True),
-    ):
-        dispatch_command("landscape_next", state, config)
-
-    assert (config.landscape_port, config.vlc_password, True) in playback_calls
+    assert _cmds(config, 2) == ["NEXT"]
 
 
 # --- primary_prev / primary_next ---
@@ -499,13 +418,9 @@ def test_primary_next_in_hybrid_writes_nau_cmd(tmp_path: Path):
 def test_primary_next_in_nau_mode_writes_nau_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="nau")
-    nav_calls: list[tuple] = []
 
-    with patch("fun_time.command_dispatch.vlc_nav_step",
-               side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True):
-        dispatch_command("primary_next", state, config)
+    dispatch_command("primary_next", state, config)
 
-    assert nav_calls == []
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
@@ -582,20 +497,14 @@ def test_nau_length_mode_not_written_in_genau_mode(tmp_path: Path):
 # --- landscape_prev / landscape_next ---
 
 
-def test_landscape_prev_cancels_lock_and_calls_nav_step_prev(tmp_path: Path):
+def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked3=True)
-    nav_calls: list[tuple] = []
 
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step", side_effect=lambda p, pw, d: nav_calls.append((p, d)) or True),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, ops = dispatch_command("landscape_prev", state, config)
+    new_state, ops = dispatch_command("landscape_prev", state, config)
 
     assert new_state.locked3 is False
-    assert nav_calls == [(8092, "prev")]
+    assert _cmds(config, 3) == ["UNLOCK", "PREV"]
 
 
 # --- active side tracking ---
@@ -607,11 +516,7 @@ def test_portrait_command_sets_active_side_to_portrait(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(active_side=3)  # currently on landscape
 
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, _ops = dispatch_command("portrait_next", state, config)
+    new_state, _ops = dispatch_command("portrait_next", state, config)
 
     assert new_state.active_side == 2
 
@@ -620,12 +525,8 @@ def test_landscape_command_sets_active_side_to_landscape(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(active_side=2, locked3=False)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value="C:\\clips\\l.mp4"),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
-        patch("fun_time.command_dispatch.ensure_in_favs"),
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
-    ):
+    _set_current(config, 3, "C:\\clips\\l.mp4")
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, _ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.active_side == 3
@@ -669,39 +570,27 @@ def test_quarter_button_writes_genau_offset_command(tmp_path: Path):
 def test_omnipause_toggle_enters_pause_from_unpaused(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
-    playback_calls: list[tuple[int, str, bool]] = []
 
-    def track_playback(port, password, should_play):
-        playback_calls.append((port, password, should_play))
-        return True
-
-    with patch("fun_time.runtime_flow.ensure_playback_state", side_effect=track_playback):
-        new_state, ops = dispatch_command("omnipause_toggle", state, config)
+    new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert new_state.omni_paused is True
     assert any(op.op == "suspend_hotkeys" for op in ops)
-    paused_ports = [c[0] for c in playback_calls if not c[2]]
-    assert config.portrait_port in paused_ports
-    assert config.landscape_port in paused_ports
+    # OmniPause freezes the native satellites by writing their paused flag files.
+    assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
+    assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
 
 
 def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
-    playback_calls: list[tuple[int, str, bool]] = []
 
-    def track_playback(port, password, should_play):
-        playback_calls.append((port, password, should_play))
-        return True
-
-    with patch("fun_time.runtime_flow.ensure_playback_state", side_effect=track_playback):
-        new_state, ops = dispatch_command("omnipause_toggle", state, config)
+    new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert new_state.omni_paused is False
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
-    resumed_ports = [c[0] for c in playback_calls if c[2]]
-    assert config.portrait_port in resumed_ports
-    assert config.landscape_port in resumed_ports
+    # Leaving OmniPause clears both satellites' paused flags and resumes Nau.
+    assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
+    assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
     assert config.nau_paused_file.read_text(encoding="utf-8") == "0"
 
 
@@ -812,7 +701,7 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["which"] == 2
     assert kwargs["query"] == "alpha"
-    assert kwargs["port"] == config.portrait_port
+    assert kwargs["cmd_file"] == config.satellite_cmd_file(2)
     assert kwargs["sources"] == config.portrait_sources
     assert kwargs["provider_media_root"] == tmp_path / "media"
     assert any(op.op == "notice" for op in ops)
@@ -824,14 +713,13 @@ def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait_filter="alpha")
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]) as mock_browse, \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True), \
-         patch("fun_time.command_dispatch.ensure_playback_state"):
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]) as mock_browse:
         new_state, ops = dispatch_command("portrait_no_loop", state, config)
 
     # The browse is built with the CURRENT filter (kept), not cleared to "".
     assert mock_browse.call_args.kwargs["query"] == "alpha"
     assert new_state.portrait_filter == "alpha"
+    assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
@@ -843,14 +731,9 @@ def test_play_video_command_switches_the_satellite_to_the_path(tmp_path: Path):
     state = _make_state()
     path = "C:/vids/portrait/pick_me.mp4"
 
-    with (
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, path)], 3)),
-        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, ops = dispatch_command(f"portrait_play_video|{path}", state, config)
+    new_state, ops = dispatch_command(f"portrait_play_video|{path}", state, config)
 
-    play.assert_called_once_with(config.portrait_port, "pw", path, [(3, path)])
+    assert _cmds(config, 2) == [f"PLAY_FILE {path}"]
     assert new_state.active_side == 2
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
 
@@ -862,14 +745,10 @@ def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_pa
     state = _make_state(locked2=True)
     path = "C:/vids/portrait/lock_me.mp4"
 
-    with (
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, path)], 3)),
-        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, _ops = dispatch_command(f"portrait_lock_video|{path}", state, config)
+    new_state, _ops = dispatch_command(f"portrait_lock_video|{path}", state, config)
 
-    play.assert_called_once_with(config.portrait_port, "pw", path, [(3, path)])
+    # Already repeat-one: the double-click just moves the lock onto the picked clip.
+    assert _cmds(config, 2) == [f"PLAY_FILE {path}"]
     assert new_state.locked2 is True
 
 
@@ -892,15 +771,10 @@ def test_nav_right_switches_to_the_first_seed_and_freezes_the_anchor(tmp_path: P
     config, paths = _nav_config(tmp_path)
     state = _make_state()
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_a"])], 3)),
-        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, ops = dispatch_command("portrait_nav_right", state, config)
+    _set_current(config, 2, paths["subject_a"])
+    new_state, ops = dispatch_command("portrait_nav_right", state, config)
 
-    play.assert_called_once_with(config.portrait_port, "pw", paths["subject_b"], [(3, paths["subject_a"])])
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
     assert new_state.portrait_nav_anchor == paths["subject_a"]
     assert new_state.active_side == 2
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
@@ -910,15 +784,10 @@ def test_nav_down_switches_to_the_first_action(tmp_path: Path):
     config, paths = _nav_config(tmp_path)
     state = _make_state()
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_a"])], 3)),
-        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        dispatch_command("portrait_nav_down", state, config)
+    _set_current(config, 2, paths["subject_a"])
+    dispatch_command("portrait_nav_down", state, config)
 
-    play.assert_called_once_with(config.portrait_port, "pw", paths["subject_a_zeta"], [(3, paths["subject_a"])])
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
 
 
 def test_nav_continues_across_the_seed_row_from_the_frozen_anchor(tmp_path: Path):
@@ -932,15 +801,10 @@ def test_nav_continues_across_the_seed_row_from_the_frozen_anchor(tmp_path: Path
     })
     state = _make_state(portrait_nav_anchor=paths["subject_a"])
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_b"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_b"])], 3)),
-        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, _ops = dispatch_command("portrait_nav_right", state, config)
+    _set_current(config, 2, paths["subject_b"])
+    new_state, _ops = dispatch_command("portrait_nav_right", state, config)
 
-    play.assert_called_once_with(config.portrait_port, "pw", paths["subject_c"], [(3, paths["subject_b"])])
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_c']}"]
     assert new_state.portrait_nav_anchor == paths["subject_a"]  # the anchor held
 
 
@@ -953,15 +817,10 @@ def test_nav_at_the_edge_of_the_map_is_a_dead_end(tmp_path: Path):
     })
     state = _make_state(portrait_nav_anchor=paths["subject_a"])
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_b"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_b"])], 3)),
-        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        _new_state, ops = dispatch_command("portrait_nav_right", state, config)
+    _set_current(config, 2, paths["subject_b"])
+    _new_state, ops = dispatch_command("portrait_nav_right", state, config)
 
-    play.assert_not_called()
+    assert _cmds(config, 2) == []  # at the edge: nothing switched
     dead_end = [op for op in ops if op.op == "notice"]
     assert dead_end and dead_end[0].level == FAILED_NOTICE_LEVEL
 
@@ -975,15 +834,10 @@ def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
     # subject_a is not on subject_a_zeta's seed/action map, so it re-anchors on subject_a.
     state = _make_state(portrait_nav_anchor="C:/vids/portrait/gone.mp4")
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_a"])], 3)),
-        patch("fun_time.command_dispatch._play_video", return_value=True) as play,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, _ops = dispatch_command("portrait_nav_right", state, config)
+    _set_current(config, 2, paths["subject_a"])
+    new_state, _ops = dispatch_command("portrait_nav_right", state, config)
 
-    play.assert_called_once_with(config.portrait_port, "pw", paths["subject_b"], [(3, paths["subject_a"])])
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
     assert new_state.portrait_nav_anchor == paths["subject_a"]  # re-anchored on the live clip
 
 
@@ -993,13 +847,10 @@ def test_nav_lock_locks_the_current_clip_and_clears_the_anchor(tmp_path: Path):
     config, paths = _nav_config(tmp_path)
     state = _make_state(portrait_nav_anchor=paths["subject_a"], locked2=False)
 
+    _set_current(config, 2, paths["subject_b"])
     with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_b"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_b"])], 3)),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True),
         patch("fun_time.command_dispatch.ensure_in_favs"),
         patch("fun_time.command_dispatch.record_watch_event"),
-        patch("fun_time.command_dispatch.vlc_http_cmd", return_value=True),
     ):
         new_state, _ops = dispatch_command("portrait_nav_lock", state, config)
 
@@ -1013,11 +864,7 @@ def test_a_non_nav_side_command_clears_the_nav_anchor(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait_nav_anchor="C:/vids/portrait/anchor.mp4")
 
-    with (
-        patch("fun_time.command_dispatch.vlc_nav_step"),
-        patch("fun_time.command_dispatch.ensure_playback_state"),
-    ):
-        new_state, _ops = dispatch_command("portrait_next", state, config)
+    new_state, _ops = dispatch_command("portrait_next", state, config)
 
     assert new_state.portrait_nav_anchor == ""
 
@@ -1028,8 +875,7 @@ def test_landscape_nav_sets_the_active_side(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=""):
-        new_state, _ops = dispatch_command("landscape_nav_right", state, config)
+    new_state, _ops = dispatch_command("landscape_nav_right", state, config)
 
     assert new_state.active_side == 3
 
@@ -1203,38 +1049,12 @@ def test_portrait_cycle_action_swaps_to_next_action_of_the_group(tmp_path: Path)
     })
     state = _make_state()
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_zeta"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_zeta"])], 3)),
-        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
+    _set_current(config, 2, paths["subject_zeta"])
+    _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
 
-    swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_alpha"])
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_alpha']}"]
     notices = [(op.key, op.source) for op in ops if op.op == "notice"]
     assert notices == [("Action: Alpha", "portrait")]
-
-
-def test_portrait_cycle_action_jumps_when_sibling_already_in_playlist(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
-        "subject_zeta": _cycle_meta("111", "Zeta Massage"),
-        "subject_alpha": _cycle_meta("111", "Alpha"),
-    })
-    state = _make_state()
-    entries = [(3, paths["subject_zeta"]), (4, paths["subject_alpha"])]
-
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_zeta"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=(entries, 3)),
-        patch("fun_time.command_dispatch.vlc_play_playlist_item", return_value=True) as play,
-        patch("fun_time.command_dispatch.vlc_swap_current_with") as swap,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        dispatch_command("portrait_cycle_action", state, config)
-
-    play.assert_called_once_with(config.portrait_port, "pw", 4)
-    swap.assert_not_called()
 
 
 def test_portrait_cycle_action_cycles_the_video_that_was_playing_when_spoken(tmp_path: Path):
@@ -1247,15 +1067,11 @@ def test_portrait_cycle_action_cycles_the_video_that_was_playing_when_spoken(tmp
     })
     state = _make_state()
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["other_subject"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(7, paths["other_subject"])], 7)),
-        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        dispatch_command("portrait_cycle_action", state, config, target_path=paths["subject_zeta"])
+    _set_current(config, 2, paths["other_subject"])
+    dispatch_command("portrait_cycle_action", state, config, target_path=paths["subject_zeta"])
 
-    swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_alpha"])
+    # The siblings are the back-dated (spoken) video's, not the newcomer's.
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_alpha']}"]
 
 
 def test_portrait_cycle_action_notices_when_video_has_no_siblings(tmp_path: Path):
@@ -1264,14 +1080,10 @@ def test_portrait_cycle_action_notices_when_video_has_no_siblings(tmp_path: Path
     })
     state = _make_state()
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["loner"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["loner"])], 3)),
-        patch("fun_time.command_dispatch.vlc_swap_current_with") as swap,
-    ):
-        _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
+    _set_current(config, 2, paths["loner"])
+    _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
 
-    swap.assert_not_called()
+    assert _cmds(config, 2) == []
     dead_end = [op for op in ops if op.op == "notice"]
     assert [op.key for op in dead_end] == ["No other actions"]
     # A command that hit a dead end reads red, not green.
@@ -1285,13 +1097,8 @@ def test_a_successful_cycle_action_notice_is_an_ordinary_green_notice(tmp_path: 
     })
     state = _make_state()
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_zeta"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_zeta"])], 3)),
-        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
+    _set_current(config, 2, paths["subject_zeta"])
+    _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
 
     notices = [op for op in ops if op.op == "notice"]
     assert notices and all(op.level == NOTICE for op in notices)
@@ -1306,17 +1113,13 @@ def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
     })
     state = _make_state(locked2=True)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_zeta"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_zeta"])], 3)),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True) as repeat,
-        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, _ops = dispatch_command("portrait_cycle_action", state, config)
+    _set_current(config, 2, paths["subject_zeta"])
+    new_state, _ops = dispatch_command("portrait_cycle_action", state, config)
 
     assert new_state.locked2 is True
-    repeat.assert_not_called()
+    # Cycling is "show this differently", not "move on": it switches the clip but
+    # never releases the lock, so no UNLOCK is queued.
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_alpha']}"]
 
 
 def test_portrait_cycle_seed_keeps_an_active_lock(tmp_path: Path):
@@ -1325,19 +1128,12 @@ def test_portrait_cycle_seed_keeps_an_active_lock(tmp_path: Path):
         "subject_b": _cycle_meta("222", "Alpha"),
     })
     state = _make_state(locked2=True)
-    entries = [(3, paths["subject_a"]), (5, paths["subject_b"])]
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=(entries, 3)),
-        patch("fun_time.command_dispatch.set_repeat_mode", return_value=True) as repeat,
-        patch("fun_time.command_dispatch.vlc_play_playlist_item", return_value=True),
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, _ops = dispatch_command("portrait_cycle_seed", state, config)
+    _set_current(config, 2, paths["subject_a"])
+    new_state, _ops = dispatch_command("portrait_cycle_seed", state, config)
 
     assert new_state.locked2 is True
-    repeat.assert_not_called()
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
 
 
 def test_portrait_cycle_seed_jumps_to_sister_seed_in_playlist(tmp_path: Path):
@@ -1347,21 +1143,12 @@ def test_portrait_cycle_seed_jumps_to_sister_seed_in_playlist(tmp_path: Path):
         "subject_a_other_action": _cycle_meta("111", "Zeta Massage"),
     })
     state = _make_state()
-    entries = [
-        (3, paths["subject_a"]),
-        (4, paths["subject_a_other_action"]),  # same seed as current: not a target
-        (5, paths["subject_b"]),
-    ]
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=(entries, 3)),
-        patch("fun_time.command_dispatch.vlc_play_playlist_item", return_value=True) as play,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        dispatch_command("portrait_cycle_seed", state, config)
+    _set_current(config, 2, paths["subject_a"])
+    dispatch_command("portrait_cycle_seed", state, config)
 
-    play.assert_called_once_with(config.portrait_port, "pw", 5)
+    # subject_a_other_action shares the current seed (skipped); the sister is subject_b.
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
 
 
 def test_portrait_cycle_seed_swaps_in_library_sister_when_none_in_playlist(tmp_path: Path):
@@ -1371,15 +1158,10 @@ def test_portrait_cycle_seed_swaps_in_library_sister_when_none_in_playlist(tmp_p
     })
     state = _make_state()
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_a"])], 3)),
-        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
+    _set_current(config, 2, paths["subject_a"])
+    _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
-    swap.assert_called_once_with(config.portrait_port, "pw", paths["subject_b"])
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
     # Every seed hit narrates itself so the log/flash shows what happened; an exact
     # sister reads "Next seed", which is the contrast that makes a widen legible.
     assert [op.key for op in ops if op.op == "notice"] == ["Next seed"]
@@ -1392,14 +1174,10 @@ def test_portrait_cycle_seed_notices_without_seed_siblings(tmp_path: Path):
     })
     state = _make_state()
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_a"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_a"])], 3)),
-        patch("fun_time.command_dispatch.vlc_swap_current_with") as swap,
-    ):
-        _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
+    _set_current(config, 2, paths["subject_a"])
+    _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
-    swap.assert_not_called()
+    assert _cmds(config, 2) == []
     dead_end = [op for op in ops if op.op == "notice"]
     assert [op.key for op in dead_end] == ["No other seeds"]
     assert dead_end[0].level == FAILED_NOTICE_LEVEL
@@ -1423,14 +1201,10 @@ def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
     })
     state = _make_state()
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["subject_best"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, paths["subject_best"])], 3)),
-        patch("fun_time.command_dispatch.vlc_swap_current_with") as swap,
-    ):
-        _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
+    _set_current(config, 2, paths["subject_best"])
+    _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
-    swap.assert_not_called()
+    assert _cmds(config, 2) == []
     dead = [op for op in ops if op.op == "notice"]
     assert [op.key for op in dead] == ["No other seeds"]
     assert dead[0].level == FAILED_NOTICE_LEVEL
@@ -1456,14 +1230,11 @@ def test_more_seeds_widens_the_display_without_changing_the_clip(tmp_path: Path)
         indexed_paths=frozenset({kc, ko}),
     )
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=c), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch._play_video") as play, \
-         patch("fun_time.command_dispatch.vlc_swap_current_with") as swap:
+    _set_current(config, 2, c)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    play.assert_not_called()   # nothing switched
-    swap.assert_not_called()
+    assert _cmds(config, 2) == []   # nothing switched
     assert state.portrait_widen_clip == c
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
@@ -1483,8 +1254,8 @@ def test_more_seeds_reports_widening_failed_when_the_act_is_unique(tmp_path: Pat
         indexed_paths=frozenset({key}),
     )
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=str(only)), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+    _set_current(config, 2, str(only))
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
     assert state.portrait_widen_clip == ""  # nothing widened
@@ -1500,14 +1271,12 @@ def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
     index, a, a2, b = _widened_loop_index(tmp_path)
     state = _make_state(portrait_loop="seed")  # a seed loop is already running
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         new_state, ops = dispatch_command("portrait_more_seeds", state, config)
 
-    _port, _pw, members = mock_retarget.call_args.args
-    assert sorted(members) == sorted([a, a2, b])  # re-looped wide
+    assert sorted(_playlist(config, 2)) == sorted([a, a2, b])  # re-looped wide
+    assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert new_state.portrait_widen_clip == a
     assert new_state.portrait_loop == "seed"
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]  # keeps its own notice
@@ -1527,17 +1296,13 @@ def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
     state = _make_state()
     # c sorts first above the current seed (200 < 250 < 300): without the action
     # gate the walk would land on it; with the gate it must reach b instead.
-    entries = [(3, paths["a_alpha"]), (4, paths["c_gamma"]), (5, paths["b_alpha"])]
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=paths["a_alpha"]),
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=(entries, 3)),
-        patch("fun_time.command_dispatch.vlc_play_playlist_item", return_value=True) as play,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
+    _set_current(config, 2, paths["a_alpha"])
+    _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
-    play.assert_called_once_with(config.portrait_port, "pw", 5)  # b_alpha, not c_gamma
+    # b_alpha, not the sister-seed c_gamma (a different action, reached via the
+    # action axis instead).
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['b_alpha']}"]
     assert [op.key for op in ops if op.op == "notice"] == ["Next seed"]
 
 
@@ -1564,18 +1329,13 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
     config = replace(config, landscape_sources=str(landscape_dir))
     state = _make_state(locked3=True)
 
-    with (
-        patch("fun_time.command_dispatch.get_current_file_path", return_value=videos["subject_zeta"]) as current,
-        patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, videos["subject_zeta"])], 3)) as entries,
-        patch("fun_time.command_dispatch.vlc_swap_current_with", return_value=True) as swap,
-        patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-    ):
-        new_state, _ops = dispatch_command("landscape_cycle_action", state, config)
+    _set_current(config, 3, videos["subject_zeta"])
+    new_state, _ops = dispatch_command("landscape_cycle_action", state, config)
 
     assert new_state.locked3 is True, "cycling must not release the landscape lock"
-    current.assert_called_with(config.landscape_port, "pw")
-    entries.assert_called_once_with(config.landscape_port, "pw")
-    swap.assert_called_once_with(config.landscape_port, "pw", videos["subject_alpha"])
+    # Targets the landscape command file, keeping the lock (no UNLOCK queued)...
+    assert _cmds(config, 3) == [f"PLAY_FILE {videos['subject_alpha']}"]
+    assert _cmds(config, 2) == []  # ...and never touches the portrait side.
 
 
 # --- recency_order_refresh ---
@@ -1604,8 +1364,8 @@ def test_recency_order_refresh_keeps_recent_and_resets_locks(tmp_path: Path):
     # The refresh always targets newest-first, so it takes no prior-order input.
     assert "recency_order" not in kwargs
     assert kwargs["f_mode_enabled"] is False
-    assert kwargs["portrait_port"] == config.portrait_port
-    assert kwargs["landscape_port"] == config.landscape_port
+    assert kwargs["portrait_cmd_file"] == config.portrait_cmd_file
+    assert kwargs["landscape_cmd_file"] == config.landscape_cmd_file
     # Premiere must collapse action groups too, so the provider roots flow through.
     assert kwargs["provider_media_root"] == config.provider_media_root
     assert kwargs["provider_metadata_root"] == config.provider_metadata_root
@@ -1618,8 +1378,7 @@ def test_nau_activate_deactivates_genau_and_raises_nau(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="genau")
 
-    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("nau_activate", state, config)
+    new_state, ops = dispatch_command("nau_activate", state, config)
 
     assert new_state.primary_mode == "nau"
     slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
@@ -1638,8 +1397,7 @@ def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="nau")
 
-    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("genau_activate", state, config)
+    new_state, ops = dispatch_command("genau_activate", state, config)
 
     assert new_state.primary_mode == "genau"
     slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
@@ -1656,8 +1414,7 @@ def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="nau")
 
-    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("hybrid_activate", state, config)
+    new_state, ops = dispatch_command("hybrid_activate", state, config)
 
     assert new_state.primary_mode == "hybrid"
     slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
@@ -2021,20 +1778,13 @@ def test_genau_numeric_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
 def test_enter_omnipause_pauses_satellites_and_suspends(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
-    playback_calls: list[tuple[int, str, bool]] = []
 
-    def track_playback(port, password, should_play):
-        playback_calls.append((port, password, should_play))
-        return True
-
-    with patch("fun_time.runtime_flow.ensure_playback_state", side_effect=track_playback):
-        new_state, ops = dispatch_command("enter_omnipause", state, config)
+    new_state, ops = dispatch_command("enter_omnipause", state, config)
 
     assert new_state.omni_paused is True
     assert any(op.op == "suspend_hotkeys" for op in ops)
-    paused_ports = [c[0] for c in playback_calls if not c[2]]
-    assert config.portrait_port in paused_ports
-    assert config.landscape_port in paused_ports
+    assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
+    assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
 
 
 def test_enter_omnipause_emits_disable_all_topmost(tmp_path: Path):
@@ -2043,8 +1793,7 @@ def test_enter_omnipause_emits_disable_all_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
 
-    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("enter_omnipause", state, config)
+    new_state, ops = dispatch_command("enter_omnipause", state, config)
 
     assert any(op.op == "disable_all_topmost" for op in ops)
 
@@ -2054,8 +1803,7 @@ def test_omnipause_toggle_enter_emits_disable_all_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
 
-    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("omnipause_toggle", state, config)
+    new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert any(op.op == "disable_all_topmost" for op in ops)
 
@@ -2066,8 +1814,7 @@ def test_omnipause_toggle_leave_emits_restore_all_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
-    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("omnipause_toggle", state, config)
+    new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert any(op.op == "restore_all_topmost" for op in ops)
 
@@ -2076,8 +1823,7 @@ def test_leave_omnipause_emits_restore_all_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
-    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("leave_omnipause", state, config)
+    new_state, ops = dispatch_command("leave_omnipause", state, config)
 
     assert any(op.op == "restore_all_topmost" for op in ops)
 
@@ -2087,8 +1833,7 @@ def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False, primary_mode="genau")
 
-    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("enter_omnipause", state, config)
+    new_state, ops = dispatch_command("enter_omnipause", state, config)
 
     assert not any(op.op == "hide_role" and op.key == "genau" for op in ops)
 
@@ -2098,8 +1843,7 @@ def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False, primary_mode="genau")
 
-    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("omnipause_toggle", state, config)
+    new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert not any(op.op == "hide_role" and op.key == "genau" for op in ops)
 
@@ -2107,28 +1851,20 @@ def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
 def test_leave_omnipause_resumes_satellites_only(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
-    playback_calls: list[tuple[int, str, bool]] = []
 
-    def track_playback(port, password, should_play):
-        playback_calls.append((port, password, should_play))
-        return True
-
-    with patch("fun_time.runtime_flow.ensure_playback_state", side_effect=track_playback):
-        new_state, ops = dispatch_command("leave_omnipause", state, config)
+    new_state, ops = dispatch_command("leave_omnipause", state, config)
 
     assert new_state.omni_paused is False
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
-    resumed_ports = [c[0] for c in playback_calls if c[2]]
-    assert config.portrait_port in resumed_ports
-    assert config.landscape_port in resumed_ports
+    assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
+    assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
 
 
 def test_leave_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True, primary_mode="genau")
 
-    with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
-        new_state, ops = dispatch_command("leave_omnipause", state, config)
+    new_state, ops = dispatch_command("leave_omnipause", state, config)
 
     assert any(op.op == "activate_role" and op.key == "genau" for op in ops)
 
@@ -2269,11 +2005,9 @@ def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="genau")
 
-    with patch("fun_time.command_dispatch.get_current_file_path") as mock_vlc, \
-         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+    with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
         new_state, ops = dispatch_command("clipper_save", state, config)
 
-    mock_vlc.assert_not_called()
     mock_subprocess.run.assert_not_called()
 
 
@@ -2301,15 +2035,13 @@ def test_clipper_save_in_nau_mode_uses_nau_status(tmp_path: Path):
         encoding="utf-8",
     )
 
-    with patch("fun_time.command_dispatch.get_current_file_path") as mock_vlc, \
-         patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
+    with patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
          patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
         mock_subprocess.run.return_value.returncode = 0
         mock_subprocess.run.return_value.stdout = "C:\\clipper\\sessions\\naustuff.json"
         mock_subprocess.run.return_value.stderr = ""
         new_state, ops = dispatch_command("clipper_save", state, config)
 
-    mock_vlc.assert_not_called()
     cmd = mock_subprocess.run.call_args[0][0]
     assert "C:\\videos\\naustuff.mp4" in cmd
     assert "42.5" in cmd
@@ -2383,16 +2115,14 @@ def test_action_loop_reshapes_the_queue_to_the_subjects_action_group(tmp_path: P
     config = _make_config(tmp_path)
     index, a, b = _loop_index(tmp_path, axis="action")
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
-    port, _pw, members = mock_retarget.call_args.args
-    assert port == config.portrait_port
-    assert sorted(members) == sorted([a, b])
-    assert mock_retarget.call_args.kwargs["repeat_mode"] == "all"  # loop the group
+    # The group is written as the side's playlist (current-first) and reloaded; the
+    # native player then loops it by auto-advance.
+    assert sorted(_playlist(config, 2)) == sorted([a, b])
+    assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert any(op.op == "notice" and op.source == "portrait" for op in ops)
 
 
@@ -2400,15 +2130,12 @@ def test_seed_loop_reshapes_the_queue_to_the_current_acts_seed_family(tmp_path: 
     config = _make_config(tmp_path)
     index, a, b = _loop_index(tmp_path, axis="seed")
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
+    _set_current(config, 3, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         dispatch_command("landscape_seed_loop", _make_state(), config)
 
-    port, _pw, members = mock_retarget.call_args.args
-    assert port == config.landscape_port
-    assert sorted(members) == sorted([a, b])
+    assert sorted(_playlist(config, 3)) == sorted([a, b])
+    assert "RELOAD_PLAYLIST" in _cmds(config, 3)
 
 
 def test_a_widened_seed_loop_loops_the_loose_family_and_keeps_the_widen_anchor(tmp_path: Path):
@@ -2419,14 +2146,11 @@ def test_a_widened_seed_loop_loops_the_loose_family_and_keeps_the_widen_anchor(t
     index, a, a2, b = _widened_loop_index(tmp_path)
     state = _make_state(portrait_widen_clip=a)  # widened around the clip on screen
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
 
-    _port, _pw, members = mock_retarget.call_args.args
-    assert sorted(members) == sorted([a, a2, b])
+    assert sorted(_playlist(config, 2)) == sorted([a, a2, b])
     assert new_state.portrait_loop == "seed"
     assert new_state.portrait_widen_clip == a  # anchor kept so the HUD stays wide
 
@@ -2439,14 +2163,11 @@ def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
     index, a, b = _loop_index(tmp_path, axis="seed")
     state = _make_state(portrait_widen_clip="C:/somewhere/else.mp4")  # stale, not on screen
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
 
-    _port, _pw, members = mock_retarget.call_args.args
-    assert sorted(members) == sorted([a, b])  # exact family only
+    assert sorted(_playlist(config, 2)) == sorted([a, b])  # exact family only
     assert new_state.portrait_loop == "seed"
     assert new_state.portrait_widen_clip == ""  # stale anchor dropped
 
@@ -2466,14 +2187,12 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
         indexed_paths=frozenset({key}),
     )
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=str(only)), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current") as mock_retarget, \
-         patch("fun_time.command_dispatch.set_repeat_mode") as mock_repeat:
+    _set_current(config, 2, str(only))
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         new_state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
-    mock_retarget.assert_not_called()  # no queue reshape for a group of one
-    mock_repeat.assert_called_once_with(config.portrait_port, "pw", "one")
+    assert _playlist(config, 2) == []  # no queue reshape for a group of one
+    assert _cmds(config, 2) == ["LOCK"]  # a group of one is really a single-video lock
     assert new_state.locked2 is True
     assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
 
@@ -2484,10 +2203,8 @@ def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
     config = _make_config(tmp_path)
     index, a, _b = _loop_index(tmp_path, axis="action")
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True):
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
     assert state.portrait_loop == "action"
@@ -2498,28 +2215,11 @@ def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
     config = _make_config(tmp_path)
     index, a, _b = _loop_index(tmp_path, axis="seed")
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True):
+    _set_current(config, 3, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         state, _ops = dispatch_command("landscape_seed_loop", _make_state(), config)
 
     assert state.landscape_loop == "seed"
-    assert state.portrait_loop == ""
-
-
-def test_a_loop_that_fails_to_apply_records_no_loop(tmp_path: Path):
-    """If the queue reshape never lands (retarget returns False) nothing is
-    looping, so the flag stays clear rather than lying to the HUD."""
-    config = _make_config(tmp_path)
-    index, a, _b = _loop_index(tmp_path, axis="action")
-
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=False):
-        state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
-
     assert state.portrait_loop == ""
 
 
@@ -2538,9 +2238,8 @@ def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
         indexed_paths=frozenset({key}),
     )
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=str(only)), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.set_repeat_mode"):
+    _set_current(config, 2, str(only))
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         state, _ops = dispatch_command(
             "portrait_action_loop",
             _make_state(portrait_loop="seed", portrait_widen_clip=str(only)), config,
@@ -2555,9 +2254,8 @@ def test_toggling_the_lock_ends_a_loop(tmp_path: Path):
     so locking clears the loop flag and the widened row that rode on it."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value=r"C:\videos\provider2\abc_123.mp4"), \
-         patch("fun_time.command_dispatch.set_repeat_mode"), \
-         patch("fun_time.command_dispatch.ensure_in_favs"):
+    _set_current(config, 2, r"C:\videos\provider2\abc_123.mp4")
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
         state, _ops = dispatch_command(
             "portrait_lock",
             _make_state(locked2=False, portrait_loop="action", portrait_widen_clip=r"C:\videos\provider2\abc_123.mp4"),
@@ -2603,9 +2301,7 @@ def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
 def test_no_loop_clears_the_loop_flag(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True), \
-         patch("fun_time.command_dispatch.ensure_playback_state"):
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]):
         state, _ops = dispatch_command(
             "portrait_no_loop",
             _make_state(portrait_loop="action", portrait_widen_clip="C:/v/anchor.mp4"), config,
@@ -2622,15 +2318,12 @@ def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
     config = _make_config(tmp_path)
     browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget, \
-         patch("fun_time.command_dispatch.ensure_playback_state"):
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(), config)
 
-    port, _pw, paths = mock_retarget.call_args.args
-    assert port == config.portrait_port
-    assert paths == browse
-    assert mock_retarget.call_args.kwargs["repeat_mode"] == "all"
+    # The browse is written as the side's playlist and reloaded in place.
+    assert _playlist(config, 2) == browse
+    assert "RELOAD_PLAYLIST" in _cmds(config, 2)
 
 
 def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path):
@@ -2638,11 +2331,11 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
     paths, no_loop only clears the flag and never reshapes the live queue."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[]), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current") as mock_retarget:
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[]):
         state, ops = dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
 
-    mock_retarget.assert_not_called()
+    assert _playlist(config, 2) == []  # empty browse never blanks the live queue
+    assert "RELOAD_PLAYLIST" not in _cmds(config, 2)
     assert state.portrait_loop == ""
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
@@ -2688,8 +2381,8 @@ def test_fmode_toggle_clears_both_loops(tmp_path: Path):
 def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/clip.mp4"), \
-         patch("fun_time.command_dispatch._video_action_label", return_value="Beta Gamma"), \
+    _set_current(config, 2, "C:/v/clip.mp4")
+    with patch("fun_time.command_dispatch._video_action_label", return_value="Beta Gamma"), \
          patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
         new_state, _ops = dispatch_command("portrait_lock_action", _make_state(), config)
@@ -2705,14 +2398,12 @@ def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Pat
     config = _make_config(tmp_path)
     index, meant, sibling = _loop_index(tmp_path, axis="action")
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/advanced_to.mp4"), \
-         patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
+    _set_current(config, 2, "C:/v/advanced_to.mp4")
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         dispatch_command("portrait_action_loop", _make_state(), config, target_path=meant)
 
-    _port, _pw, members = mock_retarget.call_args.args
-    assert sorted(members) == sorted([meant, sibling])
+    # The group is the back-dated (spoken) clip's, not the newcomer's.
+    assert sorted(_playlist(config, 2)) == sorted([meant, sibling])
 
 
 def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_path: Path):
@@ -2720,8 +2411,8 @@ def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_
     meant = "C:/v/meant.mp4"
     labelled: list[str] = []
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/advanced_to.mp4"), \
-         patch("fun_time.command_dispatch._video_action_label",
+    _set_current(config, 2, "C:/v/advanced_to.mp4")
+    with patch("fun_time.command_dispatch._video_action_label",
                side_effect=lambda path, _config: labelled.append(path) or "Beta Gamma"), \
          patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
@@ -2734,8 +2425,8 @@ def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_
 def test_lock_action_without_metadata_says_so(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/clip.mp4"), \
-         patch("fun_time.command_dispatch._video_action_label", return_value=""), \
+    _set_current(config, 3, "C:/v/clip.mp4")
+    with patch("fun_time.command_dispatch._video_action_label", return_value=""), \
          patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         new_state, ops = dispatch_command("landscape_lock_action", _make_state(), config)
 

@@ -102,9 +102,8 @@ class HudAppConfig:
     """
 
     layout: LayoutConfig
-    portrait_port: int
-    landscape_port: int
-    vlc_password: str
+    portrait_status_file: Path
+    landscape_status_file: Path
     portrait_sources: str
     landscape_sources: str
     provider_media_root: Path | None
@@ -139,9 +138,8 @@ def load_hud_app_config(manifest_path: str | Path) -> HudAppConfig:
     )
     return HudAppConfig(
         layout=layout,
-        portrait_port=parser.getint("vlc", "vlc2_port", fallback=8091),
-        landscape_port=parser.getint("vlc", "vlc3_port", fallback=8092),
-        vlc_password=parser.get("vlc", "vlc_pass", fallback=""),
+        portrait_status_file=Path(parser.get("commands", "portrait_status_file")),
+        landscape_status_file=Path(parser.get("commands", "landscape_status_file")),
         portrait_sources=parser.get("media", "portrait_dirs", fallback=""),
         landscape_sources=parser.get("media", "landscape_dirs", fallback=""),
         provider_media_root=_root("media_root"),

@@ -231,7 +231,7 @@ def _add_dispatch_file_handler(log_path: Path) -> None:
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     handler = _AppendOnWriteHandler(log_path)
-    for name in ("fun_time.command_dispatch", "fun_time.vlc_actions",
+    for name in ("fun_time.command_dispatch",
                   "fun_time.windows_bridge_dispatch_loop", "fun_time.voice_control",
                   "fun_time.windows_bridge_orchestrator"):
         lg = logging.getLogger(name)

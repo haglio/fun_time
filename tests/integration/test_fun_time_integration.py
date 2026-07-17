@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.orchestrator import vlc_http_password_from_vlcrc
-from fun_time.vlc_actions import get_playback_state, vlc_http_cmd
+from fun_time.satellite_control import read_satellite_status
+from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
 from fun_time.win32 import (
     find_window_by_pid,
     find_window_by_title,
@@ -65,10 +65,10 @@ def test_fun_time_startup_runtime_smoke(shared_integration_session: FunTimeInteg
 
 def test_fun_time_portrait_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Locked portrait VLC", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked portrait satellite", timeout=12)
 
     shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Unlocked portrait VLC", timeout=12)
+    shared_integration_session.wait_for_new_log("Unlocked portrait satellite", timeout=12)
 
 
 def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
@@ -209,38 +209,38 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
 
 def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Locked landscape VLC", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked landscape satellite", timeout=12)
 
     shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Unlocked landscape VLC", timeout=12)
+    shared_integration_session.wait_for_new_log("Unlocked landscape satellite", timeout=12)
 
 
 def test_fun_time_portrait_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Locked portrait VLC", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked portrait satellite", timeout=12)
 
     shared_integration_session.write_dashboard_command("portrait_next")
     time.sleep(1.5)
 
     shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Locked portrait VLC", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked portrait satellite", timeout=12)
 
     shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Unlocked portrait VLC", timeout=12)
+    shared_integration_session.wait_for_new_log("Unlocked portrait satellite", timeout=12)
 
 
 def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Locked landscape VLC", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked landscape satellite", timeout=12)
 
     shared_integration_session.write_dashboard_command("landscape_next")
     time.sleep(1.5)
 
     shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Locked landscape VLC", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked landscape satellite", timeout=12)
 
     shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Unlocked landscape VLC", timeout=12)
+    shared_integration_session.wait_for_new_log("Unlocked landscape satellite", timeout=12)
 
 
 def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTimeIntegrationSession):
@@ -307,9 +307,9 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     s.wait_for_new_log("Switched to nau mode", timeout=12)
 
 
-def test_fun_time_omnipause_drops_satellite_vlcs_from_topmost(shared_integration_session: FunTimeIntegrationSession):
+def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_session: FunTimeIntegrationSession):
     """Entering OmniPause must free the desktop — the Portrait and Landscape
-    satellite VLCs must leave the topmost band, not stay pinned on top of the
+    satellites must leave the topmost band, not stay pinned on top of the
     windows the user reaches for while paused."""
     s = shared_integration_session
     # Known starting point: nau mode, not omnipaused ("play" is an idempotent
@@ -318,16 +318,21 @@ def test_fun_time_omnipause_drops_satellite_vlcs_from_topmost(shared_integration
     s.write_dashboard_command("play")
 
     pids = s.read_child_pids()
-    portrait_hwnd = find_window_by_pid(pids["portrait_pid"])
-    landscape_hwnd = find_window_by_pid(pids["landscape_pid"])
-    assert portrait_hwnd, "Portrait VLC window must be resolvable by pid"
-    assert landscape_hwnd, "Landscape VLC window must be resolvable by pid"
+    # Resolve exactly as startup does (pid first, then a distinct "Satellite"
+    # window) — both native satellites share the title, so a bare title lookup
+    # cannot tell them apart, and the genau pythonw launcher can own a pid other
+    # than the window's.
+    portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds(
+        pids["portrait_pid"], pids["landscape_pid"]
+    )
+    assert portrait_hwnd, "Portrait satellite window must be resolvable"
+    assert landscape_hwnd, "Landscape satellite window must be resolvable"
 
     # Satellites float topmost while the desktop is live.
     s.wait_until(
         lambda: is_window_topmost(portrait_hwnd) and is_window_topmost(landscape_hwnd),
         timeout=8,
-        description="Portrait + Landscape VLC to be topmost before OmniPause",
+        description="Portrait + Landscape satellites to be topmost before OmniPause",
     )
 
     # Enter OmniPause — every managed window must drop out of the topmost band.
@@ -336,12 +341,12 @@ def test_fun_time_omnipause_drops_satellite_vlcs_from_topmost(shared_integration
     s.wait_until(
         lambda: not is_window_topmost(portrait_hwnd),
         timeout=8,
-        description="Portrait VLC to leave the topmost band on OmniPause enter",
+        description="Portrait satellite to leave the topmost band on OmniPause enter",
     )
     s.wait_until(
         lambda: not is_window_topmost(landscape_hwnd),
         timeout=8,
-        description="Landscape VLC to leave the topmost band on OmniPause enter",
+        description="Landscape satellite to leave the topmost band on OmniPause enter",
     )
 
     # Restore the shared session.
@@ -349,46 +354,45 @@ def test_fun_time_omnipause_drops_satellite_vlcs_from_topmost(shared_integration
     s.wait_for_new_log("OmniPause: leaving", timeout=12)
 
 
-def test_fun_time_omnipause_watchdog_re_pauses_a_resumed_satellite(
+def test_fun_time_omnipause_freezes_the_satellites(
     shared_integration_session: FunTimeIntegrationSession,
 ):
-    """The deep OmniPause fix: pausing the satellites once on entry is not
-    enough — a satellite can resume on its own afterward (most concretely a slow
-    load that only begins playing after the enter settle window closes), and with
-    no re-check it plays on under the pause.  While OmniPause holds, a watchdog
-    re-pauses any satellite it finds playing.  Standing in for the spontaneous
-    resume, we drive the Portrait satellite playing over its own HTTP interface —
-    behind the dispatch loop's back — and assert the watchdog pauses it back."""
-    s = shared_integration_session
-    password = vlc_http_password_from_vlcrc() or "vlcpassword"
-    port = s.config.vlc.vlc2_http_port  # Portrait satellite
+    """OmniPause freezes the native satellites through their paused flag file.
 
-    # Known starting point (nau mode, live), then enter OmniPause and let the
-    # satellite settle into paused.
+    The old VLC satellites needed a re-pause watchdog because a stopped VLC could
+    resume on its own; the native player instead obeys a paused flag every tick and
+    simply cannot auto-advance while it is set, so entering OmniPause is a settled
+    state.  We assert each satellite reports paused and its playhead stops moving."""
+    s = shared_integration_session
+    portrait_status = s.config.paths.state_dir / "portrait_status.txt"
+    landscape_status = s.config.paths.state_dir / "landscape_status.txt"
+
+    # Known starting point (nau mode, live): the satellites are playing.
     s.write_dashboard_command("nau_activate")
     s.write_dashboard_command("play")  # idempotent leave-omnipause; a no-op if live
+    s.wait_until(
+        lambda: not read_satellite_status(portrait_status).paused,
+        timeout=10,
+        description="Portrait satellite to be playing before OmniPause",
+    )
+
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: entering", timeout=12)
     s.wait_until(
-        lambda: get_playback_state(port, password) == "paused",
+        lambda: read_satellite_status(portrait_status).paused,
         timeout=10,
-        description="Portrait satellite to be paused on OmniPause enter",
+        description="Portrait satellite to report paused under OmniPause",
     )
-
-    # Stand in for a spontaneous resume: start the satellite playing straight
-    # over its HTTP interface, bypassing the dispatch loop entirely.
-    vlc_http_cmd(port, "pl_play", password)
-
-    # The watchdog must catch it and re-pause it.  The log line is emitted only
-    # when pause_if_playing actually observed a playing satellite, so it proves
-    # both that the resume took AND that the watchdog caught it; the settled
-    # state confirms the re-pause landed.
-    s.wait_for_new_log("watchdog re-paused the Portrait satellite", timeout=10)
     s.wait_until(
-        lambda: get_playback_state(port, password) == "paused",
+        lambda: read_satellite_status(landscape_status).paused,
         timeout=10,
-        description="Portrait satellite to be re-paused by the OmniPause watchdog",
+        description="Landscape satellite to report paused under OmniPause",
     )
+    # The playhead must not advance while paused.
+    pos_a = read_satellite_status(portrait_status).position_ms
+    time.sleep(1.2)
+    pos_b = read_satellite_status(portrait_status).position_ms
+    assert pos_b == pos_a, f"paused satellite kept playing ({pos_a} -> {pos_b})"
 
     # Restore the shared session.
     s.write_dashboard_command("omnipause_toggle")
