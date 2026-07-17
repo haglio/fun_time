@@ -50,7 +50,7 @@ Local runtime data:
 
 Recommended:
 
-- `C:\path\to\suite-root\projects\fun_time\favs.csv`
+- `C:\path\to\fun_time\favs.csv`
 
 It should be ignored by Git.
 
@@ -190,7 +190,7 @@ python -m fun_time.orchestrator
 Alternative compatibility launch:
 
 ```bash
-cd "/c/path/to/suite-root/projects/fun_time" && bash ./main.sh
+cd /path/to/fun_time && bash ./main.sh
 ```
 
 The `--check` mode is the fastest way to validate config and path wiring before a full launch.
@@ -242,10 +242,10 @@ The same builder (`build_fmode_playlists`) writes all four playlist files at sta
 
 ### Cycle action & cycle seed (satellites)
 
-AI videos under the provider media root carry metadata sidecars (see `provider_regen.media_root` / `metadata_root` in the config) recording the prompts, settings, and seeds they were generated from. Fun Time groups the satellite libraries by that metadata (`fun_time/media_metadata.py`):
+AI videos under the regen media root carry metadata sidecars (see `regen.media_root` / `metadata_root` in the config) recording the prompts, settings, and seeds they were generated from. Fun Time groups the satellite libraries by that metadata (`fun_time/media_metadata.py`):
 
-- an **action group** is every video generated from the *same source image* — the same subject(s) and situation doing different things (for text-to-video, the same prompt+seed with a different action)
-- a **seed family** is every video whose generation config differs *only by seed* — the same scenario cast with a different subject
+- an **action group** is every video generated from the *same source image* — the same subject(s) and setting across different actions (for text-to-video, the same prompt+seed with a different action)
+- a **seed family** is every video whose generation config differs *only by seed* — the same scenario rendered from a different seed
 - a **loose seed family** is the same scene held only by its prompts and cast/action, with the render knobs (model, resolution, aspect ratio, quality, creativity) freed as well as the seed — a wider net for "the same scene, however it was rendered"
 
 Two command pairs ride on those groups (keys: `Del`/`End` portrait, `E`/`Q` landscape; voice: "portrait action", "portrait seed", "landscape action", "landscape seed"):
@@ -416,7 +416,7 @@ python -m fun_time.orchestrator
 Alternative compatibility run via `main.sh`:
 
 ```bash
-cd "/c/path/to/suite-root/projects/fun_time" && bash ./main.sh
+cd /path/to/fun_time && bash ./main.sh
 ```
 
 Also verify the shortcut’s **Start in** points to the project folder.
