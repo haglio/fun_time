@@ -61,3 +61,27 @@ class TestScanFiles:
     def test_skips_undecodable_binary_files(self, tmp_path: Path):
         (tmp_path / "img.bin").write_bytes(b"\x00\xff\xfe badterm \x00")
         assert scan_files([tmp_path / "img.bin"], ["badterm"], root=tmp_path) == []
+
+
+def test_no_blocklisted_terms_in_the_tracked_tree():
+    """Enforcement: with the real (git-ignored) blocklist present, no tracked
+    file may contain a banned term — reintroducing one fails the suite. A public
+    checkout has no blocklist, so there is nothing to enforce and the check is a
+    no-op (deliberately not a skip, so the run stays clean either way).
+    """
+    import subprocess
+
+    repo = Path(__file__).resolve().parent.parent
+    blocklist = repo / "sanitize" / "blocklist.local.txt"
+    terms = load_blocklist(blocklist) if blocklist.exists() else []
+    if not terms:
+        return
+    tracked = subprocess.run(
+        ["git", "-C", str(repo), "ls-files"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()
+    violations = scan_files((repo / rel for rel in tracked), terms, root=repo)
+    # Print only the redacted excerpt, never the matched term itself.
+    assert not violations, "blocklisted terms in tracked files:\n" + "\n".join(
+        f"  {v.path}:{v.line}  {v.excerpt}" for v in violations[:20]
+    )
