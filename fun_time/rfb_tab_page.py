@@ -6,7 +6,7 @@ or click.  The RFB opens ten favourites at once and the lock hotkey opens one
 mid-session; both go through here rather than loading a heavy generate page
 straight away.
 
-The destination cannot ride on Chrome's command line.  A Provider regenerate URL
+The destination cannot ride on Chrome's command line.  A provider regenerate URL
 carries a whole prompt set in its ``#ft=`` fragment — up to ~4 KB — and ten of
 those overflow the 32,767-character ceiling ``CreateProcess`` puts on a command
 line, which fails the launch outright (``WinError 206``).  So the destination is

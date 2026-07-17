@@ -102,8 +102,8 @@ def load_favs_entries(favs_file: Path) -> list[FavEntry]:
 def target_for_fav(entry: FavEntry, regen: RegenConfig) -> TabTarget:
     """Resolve the page a favourite should open, and the clip it shows meanwhile.
 
-    A Provider video with a metadata sidecar targets the generate page carrying its
-    original prompts (``#ft=``), which the example.com userscript reads to fill the
+    A provider video with a metadata sidecar targets the generate page carrying its
+    original prompts (``#ft=``), which the autofill userscript reads to fill the
     form and raise its floating note.  Everything else falls back to the stored
     gallery link.  The label stays short (a regenerate URL runs to kilobytes of
     encoded payload).  Both the RFB's startup tabs and the lock hotkey resolve

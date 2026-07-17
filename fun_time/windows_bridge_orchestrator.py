@@ -408,7 +408,7 @@ def run_python_orchestrated_bridge(
     dispatch_thread.start()
     logger.info("Background dispatch loop started")
 
-    # Serve the Provider autofill userscript so Tampermonkey can auto-update it
+    # Serve the autofill userscript so Tampermonkey can auto-update it
     # instead of needing a hand-paste after every edit. A busy port (a second
     # Fun Time, a leftover server) is not worth failing startup over.
     try:
