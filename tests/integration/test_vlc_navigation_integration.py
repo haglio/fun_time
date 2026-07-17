@@ -46,13 +46,12 @@ TEST_PORT = 18091
 # Read the actual saved password so auth works.
 TEST_PASSWORD = vlc_http_password_from_vlcrc() or "vlcpassword"
 VLC_EXE = r"C:\Program Files\VideoLAN\VLC\vlc.exe"
-VIDEO_DIR = Path(r"C:\path\to\suite-root\videos\videos\2D\AI\2_outbox\upscaled_by_orientation\portrait")
+# The real library path is private; point the test at it via env var.
+VIDEO_DIR = Path(os.environ.get("FUN_TIME_TEST_VIDEO_DIR", r"C:\path\to\video\library"))
 
 
 def _find_test_videos(n: int = 4) -> list[str]:
-    videos = glob.glob(str(VIDEO_DIR / "candy" / "*.mp4"))
-    if len(videos) < n:
-        videos = glob.glob(str(VIDEO_DIR / "**" / "*.mp4"), recursive=True)
+    videos = glob.glob(str(VIDEO_DIR / "**" / "*.mp4"), recursive=True)
     return random.sample(videos, min(n, len(videos)))
 
 
