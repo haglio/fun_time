@@ -483,7 +483,7 @@ def _hud_config(tmp_path) -> HudAppConfig:
         ),
         portrait_port=8091, landscape_port=8092, vlc_password="",
         portrait_sources="C:/vids/p", landscape_sources="C:/vids/l",
-        provider_media_root=None, provider_metadata_root=None,
+        regen_media_root=None, regen_metadata_root=None,
         shared_state_file=tmp_path / "shared_bridge_state.ini",
         thumbnail_cache_dir=tmp_path / "thumbs",
         dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",

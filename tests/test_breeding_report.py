@@ -119,7 +119,7 @@ def test_main_prints_the_leaderboard_for_the_configured_state(cfg_factory, tmp_p
         "loved": _meta("Alpha", "111"),
     })
     config_path = cfg_factory({
-        "provider_regen": {"media_root": str(media_root), "metadata_root": str(metadata_root)},
+        "regen": {"media_root": str(media_root), "metadata_root": str(metadata_root)},
     })
     record_watch_event(tmp_path / "state" / "watch_stats.json", paths["loved"], "lock")
 

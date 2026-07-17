@@ -214,7 +214,7 @@ def test_load_hud_app_config_reads_the_bridge_manifest(tmp_path: Path):
         [media]
         portrait_dirs = C:/vids/portrait|C:/vids/portrait2
         landscape_dirs = C:/vids/landscape
-        [provider_regen]
+        [regen]
         media_root = C:/vids/AI
         metadata_root = C:/vids/metadata
         [commands]
@@ -227,8 +227,8 @@ def test_load_hud_app_config_reads_the_bridge_manifest(tmp_path: Path):
     assert cfg.vlc_password == "s3cret"
     assert cfg.portrait_sources == "C:/vids/portrait|C:/vids/portrait2"
     assert cfg.landscape_sources == "C:/vids/landscape"
-    assert cfg.provider_media_root == Path("C:/vids/AI")
-    assert cfg.provider_metadata_root == Path("C:/vids/metadata")
+    assert cfg.regen_media_root == Path("C:/vids/AI")
+    assert cfg.regen_metadata_root == Path("C:/vids/metadata")
     assert cfg.shared_state_file == manifest.parent / "shared_bridge_state.ini"
     assert cfg.layout.main_monitor == 1
     assert cfg.layout.secondary_monitor == 2
@@ -257,8 +257,8 @@ def test_load_hud_app_config_tolerates_absent_provider_roots(tmp_path: Path):
 
     cfg = load_hud_app_config(manifest)
 
-    assert cfg.provider_media_root is None
-    assert cfg.provider_metadata_root is None
+    assert cfg.regen_media_root is None
+    assert cfg.regen_metadata_root is None
 
 
 # --- overlay_rect ---
@@ -315,7 +315,7 @@ def _hud_config(**overrides) -> HudAppConfig:
         layout=LayoutConfig(1, 2, 0.7, 0.66),
         portrait_port=8091, landscape_port=8092, vlc_password="",
         portrait_sources="", landscape_sources="",
-        provider_media_root=None, provider_metadata_root=None,
+        regen_media_root=None, regen_metadata_root=None,
         shared_state_file=Path("shared_bridge_state.ini"),
         thumbnail_cache_dir=Path("thumbs"),
         dashboard_cmd_file=Path("dashboard_cmd.txt"),
@@ -334,7 +334,7 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
-    config = _hud_config(portrait_sources=sources, landscape_sources=sources, provider_metadata_root=metadata_root)
+    config = _hud_config(portrait_sources=sources, landscape_sources=sources, regen_metadata_root=metadata_root)
 
     prime_group_indexes(config)
 
@@ -412,8 +412,8 @@ def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
     sibling = _clip(media_root, metadata_root, "b", _i2v("redacted", "2"))
     config = _hud_config(
         portrait_sources=str(media_root / "portrait"),
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
+        regen_media_root=media_root,
+        regen_metadata_root=metadata_root,
     )
 
     portrait, landscape = build_panels(
@@ -440,7 +440,7 @@ def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):
     b = _clip(media_root, metadata_root, "b", _i2v("Alpha", "2"))
     config = _hud_config(
         portrait_sources=str(media_root / "portrait"),
-        provider_media_root=media_root, provider_metadata_root=metadata_root,
+        regen_media_root=media_root, regen_metadata_root=metadata_root,
     )
 
     portrait, _landscape = build_panels(

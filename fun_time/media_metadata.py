@@ -5,7 +5,7 @@ mirrored tree under the metadata root, recording the prompts and settings it
 was generated from (a ``video`` block, plus a ``source_image`` block when the
 video was animated from a generated image).  This module owns the mapping
 from a video file to its sidecar and the sidecar loading; consumers layer
-their own interpretation on top (e.g. :mod:`fun_time.provider_regen` builds
+their own interpretation on top (e.g. :mod:`fun_time.regen` builds
 regenerate URLs from it).
 """
 from __future__ import annotations

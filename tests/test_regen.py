@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 from fun_time.media_metadata import metadata_path_for
-from fun_time.provider_regen import (
+from fun_time.regen import (
     build_payload,
     build_regen_url,
     regen_url_for_video,

@@ -77,8 +77,8 @@ class HudAppConfig:
     vlc_password: str
     portrait_sources: str
     landscape_sources: str
-    provider_media_root: Path | None
-    provider_metadata_root: Path | None
+    regen_media_root: Path | None
+    regen_metadata_root: Path | None
     shared_state_file: Path
     thumbnail_cache_dir: Path
     # Where the HUD posts commands (thumbnail clicks) for the dispatch loop to
@@ -98,7 +98,7 @@ def load_hud_app_config(manifest_path: str | Path) -> HudAppConfig:
     parser.read(manifest_path, encoding="utf-8")
 
     def _root(key: str) -> Path | None:
-        raw = parser.get("provider_regen", key, fallback="").strip()
+        raw = parser.get("regen", key, fallback="").strip()
         return Path(raw) if raw else None
 
     layout = LayoutConfig(
@@ -114,8 +114,8 @@ def load_hud_app_config(manifest_path: str | Path) -> HudAppConfig:
         vlc_password=parser.get("vlc", "vlc_pass", fallback=""),
         portrait_sources=parser.get("media", "portrait_dirs", fallback=""),
         landscape_sources=parser.get("media", "landscape_dirs", fallback=""),
-        provider_media_root=_root("media_root"),
-        provider_metadata_root=_root("metadata_root"),
+        regen_media_root=_root("media_root"),
+        regen_metadata_root=_root("metadata_root"),
         shared_state_file=manifest_path.parent / SHARED_STATE_FILENAME,
         thumbnail_cache_dir=manifest_path.parent / THUMBNAIL_CACHE_DIRNAME,
         dashboard_cmd_file=Path(
@@ -284,7 +284,7 @@ def _side_panel(
         index = cached_group_index(
             sources,
             paths_supplier=lambda: collect_video_files(sources),
-            metadata_root=config.provider_metadata_root,
+            metadata_root=config.regen_metadata_root,
             must_contain=None,
         )
     return build_hud_panel(
@@ -303,7 +303,7 @@ def prime_group_indexes(config: HudAppConfig) -> None:
             cached_group_index(
                 sources,
                 paths_supplier=lambda captured=sources: collect_video_files(captured),
-                metadata_root=config.provider_metadata_root,
+                metadata_root=config.regen_metadata_root,
                 must_contain=None,
             )
 

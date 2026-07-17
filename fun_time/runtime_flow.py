@@ -126,8 +126,8 @@ def apply_toggle_fmode(
     landscape_port: int,
     password: str,
     nau_cmd_file: str | Path,
-    provider_media_root: Path | None = None,
-    provider_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
+    regen_metadata_root: Path | None = None,
     portrait_filter: str = "",
     landscape_filter: str = "",
 ) -> FModeFlowResult:
@@ -142,7 +142,7 @@ def apply_toggle_fmode(
         recent=recent,
         portrait_filter=portrait_filter,
         landscape_filter=landscape_filter,
-        library=_satellite_library(state_dir, provider_metadata_root),
+        library=_satellite_library(state_dir, regen_metadata_root),
     )
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
         logger.warning("Portrait VLC failed to load F-mode playlist")
@@ -171,8 +171,8 @@ def apply_reorder_satellites(
     password: str,
     portrait_filter: str = "",
     landscape_filter: str = "",
-    provider_media_root: Path | None = None,
-    provider_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
+    regen_metadata_root: Path | None = None,
 ) -> RecencyOrderFlowResult:
     """Rebuild and reload the Portrait/Landscape playlists in a fresh order.
 
@@ -194,7 +194,7 @@ def apply_reorder_satellites(
         recent=recent,
         portrait_filter=portrait_filter,
         landscape_filter=landscape_filter,
-        library=_satellite_library(state_dir, provider_metadata_root),
+        library=_satellite_library(state_dir, regen_metadata_root),
     )
     order = "newest-first" if recent else "reshuffled"
     if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
@@ -262,8 +262,8 @@ def apply_satellite_filter(
     state_dir: str | Path,
     port: int,
     password: str,
-    provider_media_root: Path | None = None,
-    provider_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
+    regen_metadata_root: Path | None = None,
 ) -> SatelliteFilterFlowResult:
     """Rebuild and reload one satellite (2=portrait, 3=landscape) under *query*.
 
@@ -274,7 +274,7 @@ def apply_satellite_filter(
     """
     label = "portrait" if which == 2 else "landscape"
     name = PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE
-    library = _satellite_library(state_dir, provider_metadata_root)
+    library = _satellite_library(state_dir, regen_metadata_root)
     paths = build_satellite_playlist_paths(
         sources, f_mode_enabled, Path(favs_file),
         filter_query=query, recent=recent, library=library,

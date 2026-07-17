@@ -249,8 +249,8 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(monkeypatch, t
         landscape_port=9003,
         password="pw",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
+        regen_media_root=media_root,
+        regen_metadata_root=metadata_root,
     )
 
     portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
@@ -420,8 +420,8 @@ def test_refresh_recency_order_collapses_action_groups_with_provider_roots(monke
         portrait_port=9002,
         landscape_port=9003,
         password="pw",
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
+        regen_media_root=media_root,
+        regen_metadata_root=metadata_root,
     )
 
     portrait_lines = (tmp_path / "state" / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").splitlines()
@@ -450,8 +450,8 @@ def test_toggle_fmode_applies_per_vlc_metadata_filters(monkeypatch, tmp_path: Pa
         landscape_port=9003,
         password="pw",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
+        regen_media_root=media_root,
+        regen_metadata_root=metadata_root,
         portrait_filter="alpha",
         landscape_filter="kissing",
     )
@@ -484,8 +484,8 @@ def test_refresh_recency_order_honours_filters_and_orders_newest_first(monkeypat
         portrait_port=9002,
         landscape_port=9003,
         password="pw",
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
+        regen_media_root=media_root,
+        regen_metadata_root=metadata_root,
         portrait_filter="alpha",
     )
 
@@ -514,8 +514,8 @@ def test_apply_satellite_filter_reloads_only_its_port(monkeypatch, tmp_path: Pat
         state_dir=tmp_path / "state",
         port=9002,
         password="pw",
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
+        regen_media_root=media_root,
+        regen_metadata_root=metadata_root,
     )
 
     assert result.applied is True
@@ -549,8 +549,8 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(monkeypat
         state_dir=state_dir,
         port=9002,
         password="pw",
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
+        regen_media_root=media_root,
+        regen_metadata_root=metadata_root,
     )
 
     assert result.applied is False
@@ -576,8 +576,8 @@ def test_apply_satellite_filter_clear_restores_everything(monkeypatch, tmp_path:
         state_dir=tmp_path / "state",
         port=9002,
         password="pw",
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
+        regen_media_root=media_root,
+        regen_metadata_root=metadata_root,
     )
 
     assert result.applied is True

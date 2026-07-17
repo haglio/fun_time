@@ -165,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
 
     config = load_config(args.config)
     stats = load_watch_stats(watch_stats_path(config.paths.state_dir))
-    rows = build_breeding_rows(stats, config.provider_regen.metadata_root)
+    rows = build_breeding_rows(stats, config.regen.metadata_root)
     print(render_breeding_report(rows, top=len(rows) if args.all else args.top))
     return 0
 

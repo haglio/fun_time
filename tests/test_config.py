@@ -157,22 +157,22 @@ class TestLoadConfig:
         assert cfg.random_favs_browser.enabled is False
 
 
-class TestProviderRegenConfig:
+class TestRegenConfig:
     def test_defaults_when_section_absent(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.provider_regen.generate_video_url == "https://example.com/video"
-        assert cfg.provider_regen.generate_image_url == "https://example.com/create"
-        assert cfg.provider_regen.media_root is None
-        assert cfg.provider_regen.metadata_root is None
+        assert cfg.regen.generate_video_url == "https://example.com/video"
+        assert cfg.regen.generate_image_url == "https://example.com/create"
+        assert cfg.regen.media_root is None
+        assert cfg.regen.metadata_root is None
 
     def test_reads_values_when_present(self, cfg_factory, tmp_path: Path):
-        path = cfg_factory({"provider_regen": {
+        path = cfg_factory({"regen": {
             "media_root": str(tmp_path / "media"),
             "metadata_root": str(tmp_path / "meta"),
         }})
         cfg = load_config(path)
-        assert cfg.provider_regen.media_root == tmp_path / "media"
-        assert cfg.provider_regen.metadata_root == tmp_path / "meta"
+        assert cfg.regen.media_root == tmp_path / "media"
+        assert cfg.regen.metadata_root == tmp_path / "meta"
         assert cfg.random_favs_browser.profile_name == "Blair"
 
     def test_loads_random_favs_browser_settings(self, cfg_factory):

@@ -121,7 +121,7 @@ def _regen_cfg(cfg_factory, tmp_path: Path, favs_rows: str) -> Path:
                 "user_data_dir": str(user_data_dir),
                 "open_count": 10,
             },
-            "provider_regen": {
+            "regen": {
                 "media_root": str(tmp_path / "videos" / "videos" / "2D" / "AI"),
                 "metadata_root": str(tmp_path / "videos" / "metadata"),
             },
