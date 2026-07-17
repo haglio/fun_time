@@ -16,7 +16,9 @@ from fun_time.window_layout import (
     WindowLayoutPlan,
 )
 from fun_time.config import LayoutConfig
-from fun_time.startup_progress import NullProgress
+from fun_time.startup_progress import NullProgress, StartupCancelled
+
+import pytest
 
 
 FAKE_MONITORS = [
@@ -281,6 +283,87 @@ class TestRunStartupSequence:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
 
         assert nau_paused.read_text(encoding="utf-8").strip() == "0"
+
+
+class _CancelOnAdvance:
+    """A ProgressReporter that cancels on its Nth ``advance`` call.
+
+    Stands in for the real StartupProgress once the loading screen has dropped
+    the cancel flag: the Nth checkpoint raises instead of writing progress.
+    """
+
+    def __init__(self, cancel_on: int) -> None:
+        self._cancel_on = cancel_on
+        self.calls = 0
+
+    @property
+    def cancelled(self) -> bool:
+        return self.calls >= self._cancel_on
+
+    def advance(self, message: str) -> None:
+        self.calls += 1
+        if self.calls >= self._cancel_on:
+            raise StartupCancelled()
+
+    def finish(self) -> None:
+        pass
+
+
+class TestRunStartupSequenceCancellation:
+    def test_cancel_before_companions_reports_only_the_core_children(self, cfg_factory, tmp_path):
+        """Cancelling at the layout checkpoint (2nd advance) has launched the
+        core stack — the satellites, Genau and Nau — but not the companions."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        ui = MagicMock()
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            with pytest.raises(StartupCancelled) as excinfo:
+                run_startup_sequence(
+                    manifest_path=manifest_path, state_dir=tmp_path,
+                    progress=_CancelOnAdvance(cancel_on=2), hide_windows=True,
+                )
+
+        exc = excinfo.value
+        assert set(exc.launched_pids) == {30, 40, GENAU_PID, NAU_PID}
+        assert exc.rfb_hwnd == 0
+        ui.assert_not_called()
+
+    def test_cancel_after_companions_reports_every_child_and_the_browser(self, cfg_factory, tmp_path):
+        """Cancelling once companions are up reports the whole tree — satellites,
+        Genau, Nau, dashboard, audio, HUD — plus the Random Favs Browser hwnd."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer._maybe_launch_random_favs_browser", return_value=7777), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.vlc_http_cmd"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            with pytest.raises(StartupCancelled) as excinfo:
+                run_startup_sequence(
+                    manifest_path=manifest_path, state_dir=tmp_path,
+                    progress=_CancelOnAdvance(cancel_on=5), hide_windows=True,
+                )
+
+        exc = excinfo.value
+        assert set(exc.launched_pids) == {30, 40, GENAU_PID, NAU_PID, 50, 55, 70}
+        assert exc.rfb_hwnd == 7777
 
 
 class TestNoActivateWindowDuringIntegration:

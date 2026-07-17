@@ -23,6 +23,11 @@ from fun_time.windows_bridge_orchestrator import (
 from fun_time.win32 import StackedWindow
 from fun_time.windows_bridge_sequencer import StartupResult
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
+from fun_time.startup_progress import (
+    PROGRESS_FILENAME,
+    StartupCancelled,
+    cancel_file_for,
+)
 
 
 def _fake_plan() -> WindowLayoutPlan:
@@ -497,6 +502,148 @@ class TestLoadingScreenLifecycle:
         # No loading screen subprocess should have been launched
         loading_cmds = [c for c in popen_calls if "loading_screen" in str(c)]
         assert len(loading_cmds) == 0, "Loading screen launched in integration mode"
+
+
+class TestStartupCancellation:
+    """Pressing Esc on the loading screen aborts startup: the half-built session
+    is torn down, and AHK / the dispatch loop never start."""
+
+    def test_cancel_mid_startup_kills_launched_children_and_skips_ahk(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+
+        popen_cmds: list[list] = []
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.return_value = 0
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            popen_cmds.append(list(cmd))
+            if "loading_screen" in str(cmd):
+                return fake_loading_proc
+            return fake_ahk_proc
+
+        def cancel_sequence(**kwargs):
+            raise StartupCancelled(launched_pids=[300, 400, 600], rfb_hwnd=1234)
+
+        killed: list[int] = []
+        closed: list[int] = []
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=cancel_sequence), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=killed.append), \
+             patch("fun_time.windows_bridge_orchestrator.close_window", side_effect=closed.append), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
+
+            code = run_python_orchestrated_bridge(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=state_dir, project_dir=tmp_path,
+            )
+
+        assert code == 0
+        assert {300, 400, 600} <= set(killed)
+        assert 1234 in closed
+        # AHK is never launched, and the dispatch loop never starts.
+        assert not [c for c in popen_cmds if "ahk.exe" in str(c)]
+        mock_runner.assert_not_called()
+        # The overlay is brought down after teardown.
+        fake_loading_proc.wait.assert_called()
+
+    def test_cancel_flag_after_a_finished_sequence_tears_down_the_full_result(self, cfg_factory, tmp_path, monkeypatch):
+        """The user can hit Esc in the sliver between the last checkpoint and the
+        reveal: the sequence returns a full result but the flag is set, so the
+        whole result is torn down and the reveal never happens."""
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+
+        def sequence_then_flag(**kwargs):
+            state_dir.mkdir(parents=True, exist_ok=True)
+            cancel_file_for(state_dir / PROGRESS_FILENAME).write_text("", encoding="utf-8")
+            return _fake_startup_result()
+
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.return_value = 0
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        popen_cmds: list[list] = []
+
+        def fake_popen(cmd, **kwargs):
+            popen_cmds.append(list(cmd))
+            if "loading_screen" in str(cmd):
+                return fake_loading_proc
+            return fake_ahk_proc
+
+        killed: list[int] = []
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=sequence_then_flag), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=killed.append), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator.wait_for_hud_ready") as mock_wait, \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
+
+            code = run_python_orchestrated_bridge(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=state_dir, project_dir=tmp_path,
+            )
+
+        assert code == 0
+        assert {200, 300, 400, 500, 600, 700} <= set(killed)
+        assert not [c for c in popen_cmds if "ahk.exe" in str(c)]
+        mock_runner.assert_not_called()
+        mock_wait.assert_not_called()  # bailed before the reveal / HUD wait
+
+    def test_stale_cancel_flag_is_cleared_before_startup(self, cfg_factory, tmp_path, monkeypatch):
+        """A cancel flag left over from a previous session must not abort this
+        one — it is cleared before the loading screen launches."""
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, "testpw", tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        stale = cancel_file_for(state_dir / PROGRESS_FILENAME)
+        stale.write_text("", encoding="utf-8")
+
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.return_value = 0
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        popen_cmds: list[list] = []
+
+        def fake_popen(cmd, **kwargs):
+            popen_cmds.append(list(cmd))
+            if "loading_screen" in str(cmd):
+                return fake_loading_proc
+            return fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.wait_for_hud_ready", return_value=True), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
+
+            code = run_python_orchestrated_bridge(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=state_dir, project_dir=tmp_path,
+            )
+
+        assert code == 0
+        assert not stale.exists()  # cleared before startup
+        # Startup ran to completion: the stale flag was not honored as a cancel.
+        assert [c for c in popen_cmds if "ahk.exe" in str(c)]
 
 
 class TestPostLoadingWindowState:

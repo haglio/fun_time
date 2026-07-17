@@ -18,7 +18,7 @@ from pathlib import Path
 from .config import LayoutConfig
 from .dashboard_layout import Size
 from .monitors import enumerate_monitors, get_logical_monitor_rects
-from .startup_progress import NullProgress, ProgressReporter
+from .startup_progress import NullProgress, ProgressReporter, StartupCancelled
 from .vlc_actions import vlc_http_cmd
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
 from .runtime_flow import write_flag_file
@@ -164,6 +164,19 @@ def _apply_startup_window_state(
     return role_hwnds
 
 
+@dataclass
+class _LaunchedChildren:
+    """What the startup sequence has spawned so far.
+
+    Accumulated as each child launches so that if a checkpoint cancels
+    (``StartupCancelled``), the orchestrator can be handed exactly what to
+    tear down — no more, no less.
+    """
+
+    pids: list[int] = field(default_factory=list)
+    rfb_hwnd: int = 0
+
+
 def run_startup_sequence(
     *,
     manifest_path: str | Path,
@@ -177,10 +190,38 @@ def run_startup_sequence(
     launch (preserving D3D11 init) and all positioning is deferred to the
     end so everything appears at once.  The window handles are returned
     in ``StartupResult.core_hwnds``.
+
+    Each ``progress.advance`` is a cancellation checkpoint: if the loading
+    screen has dropped the cancel flag, the reporter raises ``StartupCancelled``
+    and this re-raises it tagged with everything launched so far, so the caller
+    can tear the half-built session down.
     """
     if progress is None:
         progress = NullProgress()
 
+    launched = _LaunchedChildren()
+    try:
+        return _run_startup_phases(
+            manifest_path=manifest_path,
+            state_dir=state_dir,
+            progress=progress,
+            hide_windows=hide_windows,
+            launched=launched,
+        )
+    except StartupCancelled as cancelled:
+        cancelled.launched_pids = launched.pids
+        cancelled.rfb_hwnd = launched.rfb_hwnd
+        raise
+
+
+def _run_startup_phases(
+    *,
+    manifest_path: str | Path,
+    state_dir: str | Path,
+    progress: ProgressReporter,
+    hide_windows: bool,
+    launched: _LaunchedChildren,
+) -> StartupResult:
     manifest_path = Path(manifest_path)
     state_dir = Path(state_dir)
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -219,6 +260,7 @@ def run_startup_sequence(
     core_pids = _read_result_pids(core_result_file)
     portrait_pid = core_pids["portrait_pid"]
     landscape_pid = core_pids["landscape_pid"]
+    launched.pids.extend([portrait_pid, landscape_pid])
     logger.info(
         "Core session launched: portrait=%d landscape=%d",
         portrait_pid, landscape_pid,
@@ -255,6 +297,7 @@ def run_startup_sequence(
         nau_height=primary_media_rect.height,
         metadata_dir=provider_metadata_raw or None,
     )
+    launched.pids.extend([genau_pid, nau_pid])
 
     # --- Phase 2: Compute window layout ---
     progress.advance("Computing window layout...")
@@ -293,6 +336,7 @@ def run_startup_sequence(
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("Launching browser...")
     rfb_hwnd = _maybe_launch_random_favs_browser(m, plan)
+    launched.rfb_hwnd = rfb_hwnd
 
     # --- Phase 3: Launch UI companions ---
     progress.advance("Launching companions...")
@@ -324,6 +368,9 @@ def run_startup_sequence(
         result_file=str(ui_result_file),
     )
     ui_pids = _read_result_pids(ui_result_file)
+    launched.pids.extend([
+        ui_pids["dashboard_pid"], ui_pids["audio_pid"], ui_pids.get("lock_hud_pid", 0),
+    ])
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
     collected_hwnds: list[int] = []
