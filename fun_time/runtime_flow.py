@@ -209,39 +209,30 @@ def apply_reorder_satellites(
     )
 
 
-@dataclass(frozen=True)
-class SatelliteLoopFlowResult:
-    count: int
-    applied: bool
-    log_message: str
-
-
-def apply_satellite_loop(
+def satellite_browse_paths(
     *,
     which: int,
-    axis: str,
-    members: list[str],
+    query: str,
+    f_mode_enabled: bool,
+    recent: bool,
+    sources: str,
+    favs_file: str | Path,
     state_dir: str | Path,
-    port: int,
-    password: str,
-) -> SatelliteLoopFlowResult:
-    """Load *members* as a repeat-all sub-playlist so the VLC cycles just them.
+    provider_metadata_root: Path | None = None,
+) -> list[str]:
+    """The paths a satellite's default browse holds under *query* and the current
+    ordering — one clip per group, filter-honouring, premiere/shuffle-aware.
 
-    A lock is repeat-*one* over a single clip; a loop is repeat-*all* over a
-    group — the same playlist-replace call the filter uses, so VLC advances and
-    wraps natively.  Fewer than two members means there is nothing to cycle, so
-    the current playlist is left alone.  Any later rebuild (a filter, a clear,
-    premiere or an F-mode toggle) restores the full playlist.
+    This is the list a filter rebuild loads into the VLC, and equally the target
+    "no loop" reshapes the live queue back to when a group loop ends.  ``which``
+    selects nothing here (both satellites browse the same way); it is kept for a
+    symmetric call site.
     """
-    label = "portrait" if which == 2 else "landscape"
-    if len(members) < 2:
-        return SatelliteLoopFlowResult(len(members), False, f"Loop {label}: no other {axis}s")
-    name = f"{PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE}_loop"
-    playlist_path = build_playlist_file_path(Path(state_dir), name)
-    write_playlist_file(playlist_path, members)
-    if not replace_playlist_from_file(port, password, playlist_path, repeat_mode="all"):
-        logger.warning("%s VLC failed to load the %s loop", label, axis)
-    return SatelliteLoopFlowResult(len(members), True, f"Loop {label}: {len(members)} {axis}s")
+    library = _satellite_library(state_dir, provider_metadata_root)
+    return build_satellite_playlist_paths(
+        sources, f_mode_enabled, Path(favs_file),
+        filter_query=query, recent=recent, library=library,
+    )
 
 
 @dataclass(frozen=True)
@@ -274,10 +265,10 @@ def apply_satellite_filter(
     """
     label = "portrait" if which == 2 else "landscape"
     name = PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE
-    library = _satellite_library(state_dir, provider_metadata_root)
-    paths = build_satellite_playlist_paths(
-        sources, f_mode_enabled, Path(favs_file),
-        filter_query=query, recent=recent, library=library,
+    paths = satellite_browse_paths(
+        which=which, query=query, f_mode_enabled=f_mode_enabled, recent=recent,
+        sources=sources, favs_file=favs_file, state_dir=state_dir,
+        provider_metadata_root=provider_metadata_root,
     )
     if query and not paths:
         return SatelliteFilterFlowResult(0, False, f"Filter {label}: no matches for '{query}'")

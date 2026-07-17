@@ -13,9 +13,9 @@ from fun_time.runtime_flow import (
     apply_mode_switch,
     apply_reorder_satellites,
     apply_satellite_filter,
-    apply_satellite_loop,
     apply_toggle_fmode,
     build_omnipause_toggle,
+    satellite_browse_paths,
 )
 
 
@@ -584,43 +584,27 @@ def test_apply_satellite_filter_clear_restores_everything(monkeypatch, tmp_path:
     assert result.count == 2
 
 
-def test_apply_satellite_loop_loads_the_group_as_a_repeat_all_sub_playlist(monkeypatch, tmp_path: Path):
-    calls: list[tuple[int, str, str]] = []
-    monkeypatch.setattr(
-        "fun_time.runtime_flow.replace_playlist_from_file",
-        lambda port, _pw, path, repeat_mode="": calls.append((port, str(path), repeat_mode)) or True,
-    )
-    members = [str(tmp_path / "a.mp4"), str(tmp_path / "b.mp4")]
+def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
+    """The pure browse builder "no loop" reshapes the queue back to: it honours
+    the satellite's filter and returns the paths, with no port to touch VLC."""
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+    portrait_root = media_root / "portrait"
+    redacted = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
+    _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
 
-    result = apply_satellite_loop(
-        which=2, axis="action", members=members,
-        state_dir=tmp_path / "state", port=9002, password="pw",
-    )
-
-    assert result.applied is True
-    assert result.count == 2
-    port, playlist, repeat_mode = calls[0]
-    assert port == 9002
-    assert repeat_mode == "all"  # loop the group, not repeat-one
-    written = Path(playlist).read_text(encoding="utf-8")
-    assert all(member in written for member in members)
-
-
-def test_apply_satellite_loop_does_nothing_for_a_lone_member(monkeypatch, tmp_path: Path):
-    calls: list[int] = []
-    monkeypatch.setattr(
-        "fun_time.runtime_flow.replace_playlist_from_file",
-        lambda port, *a, **k: calls.append(port) or True,
+    paths = satellite_browse_paths(
+        which=2,
+        query="alpha",
+        f_mode_enabled=False,
+        recent=True,
+        sources=str(portrait_root),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state",
+        provider_metadata_root=metadata_root,
     )
 
-    result = apply_satellite_loop(
-        which=3, axis="seed", members=[str(tmp_path / "only.mp4")],
-        state_dir=tmp_path / "state", port=9003, password="pw",
-    )
-
-    assert result.applied is False
-    assert calls == []  # current playlist left alone
-    assert "no other seeds" in result.log_message
+    assert redacted in paths
+    assert not any("pk.mp4" in p for p in paths)
 
 
 def test_build_omnipause_toggle_returns_enter_or_leave():

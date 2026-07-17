@@ -285,29 +285,69 @@ def test_get_playback_fraction_none_when_unreachable_or_absent(monkeypatch):
     assert vlc_actions.get_playback_fraction(8090, "pw") is None
 
 
-def test_vlc_seek_fraction_sends_a_percentage_seek(monkeypatch):
-    seen: dict[str, str] = {}
-
-    def fake(port, path, password, user=""):
-        seen["path"] = path
-        return (200, "")
-
-    monkeypatch.setattr(vlc_actions, "vlc_http_req", fake)
-
-    assert vlc_actions.vlc_seek_fraction(8091, "pw", 0.5) is True
-    # "%25" is an encoded "%", so VLC receives val=50% (a percentage seek).
-    assert "command=seek&val=50%25" in seen["path"]
-
-
-def test_vlc_seek_fraction_clamps_out_of_range_fractions(monkeypatch):
-    seen: dict[str, str] = {}
+def test_retarget_playlist_enqueues_missing_deletes_extraneous_keeps_current(monkeypatch):
+    """Reshape [cur, X, Y] -> {cur, B, C}: enqueue B and C, delete X and Y, never
+    touch the playing item, set repeat-all last."""
+    calls: list[str] = []
     monkeypatch.setattr(
-        vlc_actions, "vlc_http_req",
-        lambda port, path, password, user="": (seen.__setitem__("path", path), (200, ""))[1],
+        vlc_actions, "get_playlist_entries",
+        lambda port, pw: ([(3, r"C:\cur.mp4"), (4, r"C:\x.mp4"), (5, r"C:\y.mp4")], 3),
+    )
+    monkeypatch.setattr(
+        vlc_actions, "send_vlc_input_command",
+        lambda port, command, full_path, password: calls.append(f"enqueue:{full_path}") or True,
+    )
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+    monkeypatch.setattr(
+        vlc_actions, "set_repeat_mode",
+        lambda port, pw, target, sleep_fn=None: calls.append(f"repeat:{target}") or True,
     )
 
-    vlc_actions.vlc_seek_fraction(8091, "pw", 1.9)
-    assert "val=100%25" in seen["path"]
+    ok = vlc_actions.retarget_playlist_keeping_current(
+        8091, "pw", [r"C:\cur.mp4", r"C:\b.mp4", r"C:\c.mp4"], sleep_fn=lambda _s: None,
+    )
+
+    assert ok is True
+    # Enqueue precedes delete (current always has somewhere to advance), the
+    # playing item (id 3) is never deleted, and repeat-all is set last.
+    assert calls == [
+        r"enqueue:C:\b.mp4",
+        r"enqueue:C:\c.mp4",
+        "pl_delete&id=4",
+        "pl_delete&id=5",
+        "repeat:all",
+    ]
+
+
+def test_retarget_playlist_never_deletes_or_requeues_the_playing_clip(monkeypatch):
+    """Even when the current clip is not among the desired paths it keeps playing
+    (never deleted); a desired path already queued is not enqueued again."""
+    calls: list[str] = []
+    monkeypatch.setattr(vlc_actions, "get_playlist_entries", lambda port, pw: ([(3, r"C:\cur.mp4")], 3))
+    monkeypatch.setattr(
+        vlc_actions, "send_vlc_input_command",
+        lambda port, command, full_path, password: calls.append(f"enqueue:{full_path}") or True,
+    )
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda port, cmd, pw: calls.append(cmd) or True)
+    monkeypatch.setattr(vlc_actions, "set_repeat_mode", lambda *a, **k: calls.append("repeat") or True)
+
+    vlc_actions.retarget_playlist_keeping_current(8091, "pw", [r"C:\b.mp4"], sleep_fn=lambda _s: None)
+
+    # cur is the playing item: not deleted though undesired; only b is enqueued.
+    assert calls == [r"enqueue:C:\b.mp4", "repeat"]
+
+
+def test_retarget_playlist_returns_false_and_changes_nothing_when_unreadable(monkeypatch):
+    """An unreadable/empty playlist (current_id < 0) means VLC is not ready — the
+    queue is left completely alone rather than blanked."""
+    calls: list[str] = []
+    monkeypatch.setattr(vlc_actions, "get_playlist_entries", lambda port, pw: ([], -1))
+    monkeypatch.setattr(vlc_actions, "send_vlc_input_command", lambda *a, **k: calls.append("enqueue") or True)
+    monkeypatch.setattr(vlc_actions, "vlc_http_cmd", lambda *a, **k: calls.append("cmd") or True)
+    monkeypatch.setattr(vlc_actions, "set_repeat_mode", lambda *a, **k: calls.append("repeat") or True)
+
+    assert vlc_actions.retarget_playlist_keeping_current(8091, "pw", [r"C:\b.mp4"]) is False
+    assert calls == []
 
 
 # --- vlc_swap_current_with ---

@@ -819,19 +819,18 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
 
 
 def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
-    """"no loop" ends a group loop by rebuilding the browse, but re-applies the
+    """"no loop" reshapes the queue back to the browse but re-uses the
     satellite's own filter so it survives — unlike reset, which clears it."""
     config = _make_config(tmp_path)
     state = _make_state(portrait_filter="alpha")
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter, \
-         patch("fun_time.command_dispatch.get_current_file_path", return_value=""), \
-         patch("fun_time.command_dispatch.get_playback_fraction", return_value=None):
-        mock_filter.return_value = _filter_result()
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]) as mock_browse, \
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True), \
+         patch("fun_time.command_dispatch.ensure_playback_state"):
         new_state, ops = dispatch_command("portrait_no_loop", state, config)
 
-    # Rebuilt with the CURRENT filter (kept), not cleared to "".
-    assert mock_filter.call_args.kwargs["query"] == "alpha"
+    # The browse is built with the CURRENT filter (kept), not cleared to "".
+    assert mock_browse.call_args.kwargs["query"] == "alpha"
     assert new_state.portrait_filter == "alpha"
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
@@ -2177,48 +2176,36 @@ def _loop_index(tmp_path: Path, *, axis: str) -> tuple[GroupIndex, str, str]:
     ), a, b
 
 
-def _loop_result(count=2, applied=True, message="Loop portrait: 2 actions"):
-    return type("R", (), {"count": count, "applied": applied, "log_message": message})()
-
-
-def test_action_loop_loads_the_subjects_action_group(tmp_path: Path):
+def test_action_loop_reshapes_the_queue_to_the_subjects_action_group(tmp_path: Path):
     config = _make_config(tmp_path)
     index, a, b = _loop_index(tmp_path, axis="action")
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch._rebuild_keeping_current",
-               side_effect=lambda port, pw, current, rebuild: rebuild()), \
-         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
-        mock_loop.return_value = _loop_result()
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
         _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
-    kwargs = mock_loop.call_args.kwargs
-    assert kwargs["axis"] == "action"
-    assert kwargs["which"] == 2
-    assert kwargs["port"] == config.portrait_port
-    assert sorted(kwargs["members"]) == sorted([a, b])
+    port, _pw, members = mock_retarget.call_args.args
+    assert port == config.portrait_port
+    assert sorted(members) == sorted([a, b])
+    assert mock_retarget.call_args.kwargs["repeat_mode"] == "all"  # loop the group
     assert any(op.op == "notice" and op.source == "portrait" for op in ops)
 
 
-def test_seed_loop_loads_the_current_acts_seed_family(tmp_path: Path):
+def test_seed_loop_reshapes_the_queue_to_the_current_acts_seed_family(tmp_path: Path):
     config = _make_config(tmp_path)
     index, a, b = _loop_index(tmp_path, axis="seed")
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch._rebuild_keeping_current",
-               side_effect=lambda port, pw, current, rebuild: rebuild()), \
-         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
-        mock_loop.return_value = _loop_result(message="Loop landscape: 2 seeds")
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
         dispatch_command("landscape_seed_loop", _make_state(), config)
 
-    kwargs = mock_loop.call_args.kwargs
-    assert kwargs["axis"] == "seed"
-    assert kwargs["which"] == 3
-    assert sorted(kwargs["members"]) == sorted([a, b])
+    port, _pw, members = mock_retarget.call_args.args
+    assert port == config.landscape_port
+    assert sorted(members) == sorted([a, b])
 
 
 def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
@@ -2238,11 +2225,11 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=str(only)), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop, \
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current") as mock_retarget, \
          patch("fun_time.command_dispatch.set_repeat_mode") as mock_repeat:
         new_state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
-    mock_loop.assert_not_called()  # no sub-playlist for a group of one
+    mock_retarget.assert_not_called()  # no queue reshape for a group of one
     mock_repeat.assert_called_once_with(config.portrait_port, "pw", "one")
     assert new_state.locked2 is True
     assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
@@ -2257,10 +2244,7 @@ def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch._rebuild_keeping_current",
-               side_effect=lambda port, pw, current, rebuild: rebuild()), \
-         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
-        mock_loop.return_value = _loop_result()
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True):
         state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
     assert state.portrait_loop == "action"
@@ -2274,10 +2258,7 @@ def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch._rebuild_keeping_current",
-               side_effect=lambda port, pw, current, rebuild: rebuild()), \
-         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
-        mock_loop.return_value = _loop_result(message="Loop landscape: 2 seeds")
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True):
         state, _ops = dispatch_command("landscape_seed_loop", _make_state(), config)
 
     assert state.landscape_loop == "seed"
@@ -2285,18 +2266,15 @@ def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
 
 
 def test_a_loop_that_fails_to_apply_records_no_loop(tmp_path: Path):
-    """If the sub-playlist never loads (apply not applied) nothing is looping, so
-    the flag stays clear rather than lying to the HUD."""
+    """If the queue reshape never lands (retarget returns False) nothing is
+    looping, so the flag stays clear rather than lying to the HUD."""
     config = _make_config(tmp_path)
     index, a, _b = _loop_index(tmp_path, axis="action")
 
     with patch("fun_time.command_dispatch.get_current_file_path", return_value=a), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch._rebuild_keeping_current",
-               side_effect=lambda port, pw, current, rebuild: rebuild()), \
-         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
-        mock_loop.return_value = _loop_result(applied=False)
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=False):
         state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
     assert state.portrait_loop == ""
@@ -2365,61 +2343,44 @@ def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
 def test_no_loop_clears_the_loop_flag(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter, \
-         patch("fun_time.command_dispatch.get_current_file_path", return_value=""), \
-         patch("fun_time.command_dispatch.get_playback_fraction", return_value=None):
-        mock_filter.return_value = _filter_result()
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]), \
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True), \
+         patch("fun_time.command_dispatch.ensure_playback_state"):
         state, _ops = dispatch_command("portrait_no_loop", _make_state(portrait_loop="action"), config)
 
     assert state.portrait_loop == ""
 
 
-def test_rebuild_keeping_current_restores_the_clip_and_its_position():
-    """A playlist replace restarts on item 0; keeping the current clip means
-    replaying it and seeking back to where it was."""
-    from fun_time.command_dispatch import _rebuild_keeping_current
-    ran = []
-
-    with patch("fun_time.command_dispatch.get_playback_fraction", return_value=0.42), \
-         patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(7, "C:/v/cur.mp4")], 7)), \
-         patch("fun_time.command_dispatch._play_video", return_value=True) as play, \
-         patch("fun_time.command_dispatch.vlc_seek_fraction") as seek:
-        _rebuild_keeping_current(8091, "pw", "C:/v/cur.mp4", lambda: ran.append("rebuilt"))
-
-    assert ran == ["rebuilt"]
-    play.assert_called_once_with(8091, "pw", "C:/v/cur.mp4", [(7, "C:/v/cur.mp4")])
-    seek.assert_called_once_with(8091, "pw", 0.42)
-
-
-def test_rebuild_keeping_current_does_not_seek_from_the_very_start():
-    """At fraction 0 there is nothing to restore, so no needless seek fires."""
-    from fun_time.command_dispatch import _rebuild_keeping_current
-
-    with patch("fun_time.command_dispatch.get_playback_fraction", return_value=0.0), \
-         patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(7, "x")], 7)), \
-         patch("fun_time.command_dispatch._play_video", return_value=True), \
-         patch("fun_time.command_dispatch.vlc_seek_fraction") as seek:
-        _rebuild_keeping_current(8091, "pw", "x", lambda: None)
-
-    seek.assert_not_called()
-
-
-def test_no_loop_keeps_the_current_clip_playing_where_it_was(tmp_path: Path):
-    """Cancelling a loop must not yank you to a different clip — the video on
-    screen keeps playing at its position across the browse rebuild."""
+def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
+    """Cancelling a loop must not yank you to a different clip: the queue is
+    reshaped to the browse in place (retarget keeps the current clip playing),
+    never replaced — so no restart, no seek-back papering over one."""
     config = _make_config(tmp_path)
+    browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter, \
-         patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/watching.mp4"), \
-         patch("fun_time.command_dispatch.get_playback_fraction", return_value=0.6), \
-         patch("fun_time.command_dispatch.get_playlist_entries", return_value=([(3, "C:/v/watching.mp4")], 3)), \
-         patch("fun_time.command_dispatch._play_video", return_value=True) as play, \
-         patch("fun_time.command_dispatch.vlc_seek_fraction") as seek:
-        mock_filter.return_value = _filter_result()
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse), \
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget, \
+         patch("fun_time.command_dispatch.ensure_playback_state"):
         dispatch_command("portrait_no_loop", _make_state(), config)
 
-    play.assert_called_once_with(config.portrait_port, "pw", "C:/v/watching.mp4", [(3, "C:/v/watching.mp4")])
-    seek.assert_called_once_with(config.portrait_port, "pw", 0.6)
+    port, _pw, paths = mock_retarget.call_args.args
+    assert port == config.portrait_port
+    assert paths == browse
+    assert mock_retarget.call_args.kwargs["repeat_mode"] == "all"
+
+
+def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path):
+    """A filter that now matches nothing must not blank the queue: with no browse
+    paths, no_loop only clears the flag and never reshapes the live queue."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[]), \
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current") as mock_retarget:
+        state, ops = dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
+
+    mock_retarget.assert_not_called()
+    assert state.portrait_loop == ""
+    assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
 def test_premiere_clears_both_loops(tmp_path: Path):
@@ -2475,13 +2436,11 @@ def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Pat
     with patch("fun_time.command_dispatch.get_current_file_path", return_value="C:/v/advanced_to.mp4"), \
          patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
          patch("fun_time.command_dispatch.ensure_playback_state"), \
-         patch("fun_time.command_dispatch._rebuild_keeping_current",
-               side_effect=lambda port, pw, current, rebuild: rebuild()), \
-         patch("fun_time.command_dispatch.apply_satellite_loop") as mock_loop:
-        mock_loop.return_value = _loop_result()
+         patch("fun_time.command_dispatch.retarget_playlist_keeping_current", return_value=True) as mock_retarget:
         dispatch_command("portrait_action_loop", _make_state(), config, target_path=meant)
 
-    assert sorted(mock_loop.call_args.kwargs["members"]) == sorted([meant, sibling])
+    _port, _pw, members = mock_retarget.call_args.args
+    assert sorted(members) == sorted([meant, sibling])
 
 
 def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_path: Path):
