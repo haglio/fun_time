@@ -101,6 +101,13 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("nau_toggle_length", "nau_length_shorts", "nau_length_full"),
             ),
             _Row(
+                "Clip navigation: \"compilation\" plays the clip's compilation "
+                "in order; \"full video\" jumps to its source scene; \"money "
+                "shot\"/\"redacted\" jumps back to the clip",
+                (),
+                ("nau_compilation", "nau_full_vid", "nau_money_shot"),
+            ),
+            _Row(
                 "Loop control: hold and release to set a loop, press to end loop",
                 ("R",),
                 ("nau_record_down", "nau_record_up", "nau_record_tap", "nau_loop_cancel"),
