@@ -36,7 +36,7 @@ Four changes were made to the existing file-polling design:
 - The dispatch loop's `sync_genau` calls `ensure_playback_state`
   every 200ms, which immediately undid the startup pause.
 - The Genau window show/hide was tied to transitions
-  (`is_transition=True`), but starting in robot hand mode isn't a
+  (`is_transition=True`), but starting in Genau mode isn't a
   transition — the window was never shown.
 - Added retry logic for the window show, but `find_window_by_title`
   requires `IsWindowVisible`, and the Genau app starts its window
