@@ -11,6 +11,7 @@ from fun_time.media_metadata import (
     seed_family_members,
     cached_group_index,
     load_metadata,
+    loose_seed_family_members,
     loose_seed_group_key,
     matches_query,
     metadata_path_for,
@@ -463,23 +464,30 @@ def test_seed_family_members_pin_the_action_for_image_to_video(tmp_path: Path):
     assert paths["kiss_b"] not in members  # same family, wrong act
 
 
-def test_widened_seed_members_add_same_act_clips_from_other_subjects(tmp_path: Path):
-    """The widened seed row ("more seeds") is the exact family plus every other
-    same-act clip, whatever its config — but never a different act."""
-    from fun_time.media_metadata import widened_seed_members
+def test_loose_seed_family_members_widen_to_the_scene_not_the_whole_act(tmp_path: Path):
+    """"more seeds" widens to the loose family — the same scene re-rendered with a
+    render knob or seed freed, "a few more really similar" — but never the whole
+    act: a different scene that merely shares the action label stays out (that is
+    the 1-to-500 explosion), and so does the same scene doing a different act."""
+    def scene(prompt: str, action: str, quality: str, seed: str) -> dict:
+        return {"video": {"prompt": prompt, "action": action, "quality": quality, "seed": seed}}
 
     media_root, metadata_root, paths = _write_library(tmp_path, {
-        "cum_a": _t2v("Alpha", "1"),                 # current
-        "cum_b": _t2v("Alpha", "2"),                 # exact family (same prompt)
-        "cum_other": _t2v("Alpha", "9", prompt="a different scene"),  # same act, other config
-        "kiss": _t2v("Kissing", "1"),                  # different act — excluded
+        "beach_best": scene("beach", "Alpha", "1080p", "1"),   # current
+        "beach_draft": scene("beach", "Alpha", "720p", "2"),   # same scene, a render knob freed
+        "forest": scene("forest", "Alpha", "1080p", "3"),      # different scene, same act — excluded
+        "beach_kiss": scene("beach", "Kissing", "1080p", "4"),   # same scene, different act — excluded
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    members = widened_seed_members(index, paths["cum_a"])
+    best, draft = normalize_path_key(paths["beach_best"]), normalize_path_key(paths["beach_draft"])
+    assert index.seed_key_by_path[best][0] != index.seed_key_by_path[draft][0]  # split strict families
 
-    assert set(members) >= {paths["cum_a"], paths["cum_b"], paths["cum_other"]}
-    assert paths["kiss"] not in members
+    members = loose_seed_family_members(index, paths["beach_best"])
+
+    assert sorted(members) == sorted([paths["beach_best"], paths["beach_draft"]])
+    assert paths["forest"] not in members
+    assert paths["beach_kiss"] not in members
 
 
 def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):

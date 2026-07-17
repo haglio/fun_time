@@ -162,9 +162,10 @@ def test_an_action_loop_freezes_the_map_and_marks_the_playing_action():
     assert panel.action_siblings == [CUR]
 
 
-def test_widen_grows_the_seed_row_to_the_same_act_pool():
-    """"more seeds" widens the display: the seed row grows from the exact family
-    to include another subject's same-act clip, without the current clip changing."""
+def test_widen_grows_the_seed_row_to_the_loose_family():
+    """"more seeds" widens the display: the seed row grows from the exact family to
+    the loose family — the same scene re-rendered with a render knob freed — without
+    the current clip changing."""
     other = "C:/vids/other.mp4"
     index = GroupIndex(
         action_key_by_path={K(CUR): "g1", K(S1): "g1", K(other): "g2"},
@@ -172,7 +173,9 @@ def test_widen_grows_the_seed_row_to_the_same_act_pool():
         action_by_path={K(CUR): "Alpha", K(S1): "Alpha", K(other): "Alpha"},
         seed_key_by_path={K(CUR): ("S", "0"), K(S1): ("S", "1")},
         seed_members={"S": sorted([CUR, S1])},
-        loose_seed_key_by_path={}, loose_seed_members={},
+        # The loose family is the strict one plus `other` — same scene, a knob freed.
+        loose_seed_key_by_path={K(CUR): ("L", "0"), K(S1): ("L", "1"), K(other): ("L", "2")},
+        loose_seed_members={"L": sorted([CUR, S1, other])},
         indexed_paths=frozenset({K(CUR), K(S1), K(other)}),
     )
 
@@ -180,7 +183,7 @@ def test_widen_grows_the_seed_row_to_the_same_act_pool():
     wide = build_hud_panel("portrait", locked=False, current=CUR, index=index, widen=True)
 
     assert narrow.seed_siblings == [S1]                 # exact family only
-    assert set(wide.seed_siblings) == {S1, other}       # widened to the same-act pool
+    assert set(wide.seed_siblings) == {S1, other}       # widened to the loose family
     assert wide.current == CUR                          # the clip on screen is unchanged
 
 

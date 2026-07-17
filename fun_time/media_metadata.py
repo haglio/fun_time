@@ -236,40 +236,46 @@ def action_group_members(index: GroupIndex, path: str) -> list[str]:
     return list(index.action_members[key])
 
 
-def seed_family_members(index: GroupIndex, path: str) -> list[str]:
-    """Every clip of *path*'s parameter set doing *path*'s action, each seed.
-
-    A text-to-video family already pins the action, but an image-to-video family
-    is keyed on the source image alone, so its members are narrowed here to the
-    current clip's action — "the same act, another subject".
+def _seed_family_members(
+    key_by_path: dict[str, tuple[str, str]],
+    members_by_family: dict[str, list[str]],
+    action_by_path: dict[str, str],
+    path: str,
+) -> list[str]:
+    """The seed family *path* belongs to under *key_by_path*, narrowed to *path*'s
+    action.  A text-to-video family already pins the action, but an image-to-video
+    family is keyed on the source image alone, so its members span actions and are
+    narrowed here to the current clip's action — "the same act, another subject".
     """
-    entry = index.seed_key_by_path.get(normalize_path_key(path))
+    entry = key_by_path.get(normalize_path_key(path))
     if entry is None:
         return []
     family, _seed = entry
-    action = index.action_by_path.get(normalize_path_key(path), "")
+    action = action_by_path.get(normalize_path_key(path), "")
     return [
         member
-        for member in index.seed_members[family]
-        if index.action_by_path.get(normalize_path_key(member), "") == action
+        for member in members_by_family[family]
+        if action_by_path.get(normalize_path_key(member), "") == action
     ]
 
 
-def widened_seed_members(index: GroupIndex, path: str) -> list[str]:
-    """The widened seed row for *path* — "more seeds": its exact seed family, plus
-    every other clip of the same act whatever its config ("another subject doing the
-    same act").  Used when the HUD's net has been widened, so the row shows more
-    than just the identical parameter set."""
-    action = index.action_by_path.get(normalize_path_key(path), "")
-    members = list(seed_family_members(index, path))
-    seen = {normalize_path_key(member) for member in members}
-    for group in index.action_members.values():
-        for member in group:
-            key = normalize_path_key(member)
-            if key not in seen and index.action_by_path.get(key, "") == action:
-                seen.add(key)
-                members.append(member)
-    return members
+def seed_family_members(index: GroupIndex, path: str) -> list[str]:
+    """Every clip of *path*'s exact parameter set doing *path*'s action, each seed."""
+    return _seed_family_members(
+        index.seed_key_by_path, index.seed_members, index.action_by_path, path
+    )
+
+
+def loose_seed_family_members(index: GroupIndex, path: str) -> list[str]:
+    """The widened seed row for *path* — "more seeds": its loose family, the same
+    scene doing the same act re-rendered with the render knobs and seed freed ("a
+    few more really similar").  Wider than :func:`seed_family_members` — a clip
+    differing only in a render setting is still very-nearly it — but never the
+    whole act: a different scene that merely shares the action label stays out, so
+    "more seeds" finds the near-siblings, not every clip of the act."""
+    return _seed_family_members(
+        index.loose_seed_key_by_path, index.loose_seed_members, index.action_by_path, path
+    )
 
 
 def action_label(index: GroupIndex, path: str) -> str:
