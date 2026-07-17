@@ -12,6 +12,9 @@ neither may import the other.
 """
 from __future__ import annotations
 
+import time
+from pathlib import Path
+
 from fun_time.filter_vocab import filter_voice_commands
 
 # A spoken command carries when the *utterance began*, appended after " @".  A
@@ -29,6 +32,32 @@ _SPOKEN_AT_SEP = " @"
 def format_spoken_command(command: str, *, spoken_at: float) -> str:
     """The command-file line for *command*, stamped with its utterance start."""
     return f"{command}{_SPOKEN_AT_SEP}{spoken_at:.3f}"
+
+
+def append_command_line(path: Path, line: str, *, attempts: int = 5, delay_s: float = 0.005) -> bool:
+    """Append *line* as its own command to the dashboard command file.
+
+    Every mouse- and voice-driven writer shares one file that the dispatch loop
+    drains ~20x/s by renaming it (see ``poll_dashboard_commands``).  A write that
+    overlaps a drain hits a transient Windows sharing violation (WinError 32) —
+    the same race AHK's ``QueueCommand`` retries past.  Retry briefly so a
+    collision delays the command by milliseconds instead of raising: unhandled,
+    the error propagates out of a Qt click slot and PyQt6 aborts the whole
+    window (the "power button closed the Dash instead of quitting Fun Time" bug).
+    Append, newline-terminated, so a second click within one drain window queues
+    behind the first rather than clobbering it.  Returns whether it was written;
+    a persistently locked file drops the line (the next click lands) over raising.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    for attempt in range(attempts):
+        try:
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+            return True
+        except OSError:
+            if attempt < attempts - 1:
+                time.sleep(delay_s)
+    return False
 
 
 def parse_command_line(line: str) -> tuple[str, float | None]:
