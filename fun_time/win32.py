@@ -258,6 +258,29 @@ def set_always_on_top(hwnd: int, on_top: bool) -> None:
     _user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
 
 
+def place_window_above(hwnd: int, insert_after_hwnd: int) -> None:
+    """Stack *hwnd* immediately above *insert_after_hwnd* in the z-order.
+
+    Passing a real window (not a HWND_TOP/HWND_TOPMOST sentinel) as
+    ``hWndInsertAfter`` positions *hwnd* directly on top of it, and Windows ties
+    the topmost bit to that neighbour: placed above a topmost window *hwnd*
+    becomes topmost, above a non-topmost window it becomes non-topmost.  So an
+    overlay staked above its satellite follows the satellite into and out of the
+    topmost band (e.g. when OmniPause drops the satellite to free the desktop)
+    without having to track OmniPause itself.  NOMOVE|NOSIZE|NOACTIVATE keeps it
+    pure z-order — no geometry change, no focus steal — and it is a no-op when
+    *hwnd* already sits directly above the target, so re-applying it every
+    refresh never flickers.
+    """
+    _user32.SetWindowPos(
+        hwnd, insert_after_hwnd, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+    )
+
+
+def is_window(hwnd: int) -> bool:
+    """Whether *hwnd* still identifies a live window (survives its process)."""
+    return bool(hwnd) and bool(_user32.IsWindow(hwnd))
+
 
 def is_window_topmost(hwnd: int) -> bool:
     """Check whether a window has the WS_EX_TOPMOST extended style."""
@@ -360,21 +383,6 @@ _user32.GetWindowThreadProcessId.argtypes = [
     ctypes.POINTER(ctypes.wintypes.DWORD),  # lpdwProcessId (out)
 ]
 _user32.GetWindowThreadProcessId.restype = ctypes.wintypes.DWORD
-
-
-def get_window_pid(hwnd: int) -> int:
-    """The process ID that owns *hwnd*, or 0 for a null/invalid handle.
-
-    ``GetWindowThreadProcessId`` returns the owning *thread* ID and writes the
-    *process* ID into its out-param; window ownership is a process fact, so the
-    process ID is what we return.  Used to test whether the foreground window
-    belongs to one of Fun Time's processes.
-    """
-    if not hwnd:
-        return 0
-    pid = ctypes.wintypes.DWORD()
-    _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-    return pid.value
 
 
 def find_window_by_title(title: str, *, exact: bool = False, include_hidden: bool = False) -> int:

@@ -14,11 +14,12 @@ from fun_time.win32 import (
     close_window,
     get_process_creation_time,
     get_process_image_name,
-    get_window_pid,
     is_process_alive,
     wait_for_window,
     move_window,
     set_always_on_top,
+    place_window_above,
+    is_window,
     is_window_topmost,
     activate_window,
     find_window_by_pid,
@@ -131,32 +132,39 @@ class TestSetAlwaysOnTop:
         assert args[1] == HWND_NOTOPMOST
 
 
+class TestPlaceWindowAbove:
+    """Stacks a window directly above a specific other window, inheriting its
+    band — how the lock HUD follows its satellite VLC into and out of topmost."""
+
+    def test_inserts_directly_above_the_target(self):
+        with patch("fun_time.win32._user32") as mock:
+            place_window_above(111, 222)
+
+        args = mock.SetWindowPos.call_args[0]
+        assert args[0] == 111
+        assert args[1] == 222, "hWndInsertAfter is the target window, so 111 lands right on top"
+        assert args[6] == SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+
+
+class TestIsWindow:
+    def test_true_for_a_live_handle(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.IsWindow.return_value = 1
+            assert is_window(111) is True
+        mock.IsWindow.assert_called_once_with(111)
+
+    def test_false_for_a_null_handle_without_touching_win32(self):
+        with patch("fun_time.win32._user32") as mock:
+            assert is_window(0) is False
+        mock.IsWindow.assert_not_called()
+
+
 class TestActivateWindow:
     def test_calls_set_foreground(self):
         with patch("fun_time.win32._user32") as mock:
             activate_window(111)
 
         mock.SetForegroundWindow.assert_called_once_with(111)
-
-
-class TestGetWindowPid:
-    """Maps a window handle to the process that owns it — how the HUD tells
-    whether the foreground window belongs to Fun Time."""
-
-    def test_returns_the_owning_process_id(self):
-        def fake_gwtpi(hwnd, pid_ptr):
-            pid_ptr._obj.value = 4242  # GetWindowThreadProcessId writes the PID out-param
-            return 999                 # ...and returns the thread id, which we ignore
-
-        with patch("fun_time.win32._user32") as mock:
-            mock.GetWindowThreadProcessId.side_effect = fake_gwtpi
-            assert get_window_pid(111) == 4242
-        assert mock.GetWindowThreadProcessId.call_args[0][0] == 111
-
-    def test_null_handle_is_zero_without_touching_win32(self):
-        with patch("fun_time.win32._user32") as mock:
-            assert get_window_pid(0) == 0
-        mock.GetWindowThreadProcessId.assert_not_called()
 
 
 class TestSendVkToWindow:
