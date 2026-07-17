@@ -24,3 +24,5 @@ pytest-cache-files-*/
 /content.local.json
 #   the real blocklist is itself a catalogue of excluded terms
 /sanitize/blocklist.local.txt
+#   real userscript — provider-specific autofill: use regen_autofill.example.user.js
+/fun_time/static/regen_autofill.user.js

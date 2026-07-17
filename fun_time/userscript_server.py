@@ -1,9 +1,9 @@
-"""Serve the Provider autofill userscript over localhost for Tampermonkey auto-update.
+"""Serve the autofill userscript over localhost for Tampermonkey auto-update.
 
 The userscript is hand-installed once, but Chrome blocks updating it from a
 ``file://`` path, so every later edit used to mean copy-all-paste-save into the
 Tampermonkey dashboard by hand.  Instead the script now carries ``@updateURL`` /
-``@downloadURL`` pointing at ``http://127.0.0.1:<port>/provider_autofill.user.js``,
+``@downloadURL`` pointing at ``http://127.0.0.1:<port>/regen_autofill.user.js``,
 and this tiny loopback server hands out the current file straight from the
 package's ``static`` dir.  Install once, and every merge lands via Tampermonkey's
 update check.
@@ -23,12 +23,21 @@ from pathlib import Path
 # stay in lockstep (a regression test pins them). 127.0.0.1-only; clear of the
 # VLC HTTP ports (8091/8092).
 USERSCRIPT_PORT = 8770
-USERSCRIPT_NAME = "provider_autofill.user.js"
+USERSCRIPT_NAME = "regen_autofill.user.js"
+# The real script is provider-specific and git-ignored; a public checkout has
+# only this committed template, which the server falls back to serving.
+EXAMPLE_USERSCRIPT_NAME = "regen_autofill.example.user.js"
 
 
 def userscript_path() -> Path:
-    """Absolute path to the served userscript inside the package's static dir."""
-    return Path(__file__).resolve().parent / "static" / USERSCRIPT_NAME
+    """Absolute path to the served userscript inside the package's static dir.
+
+    Prefer the real (git-ignored) script; fall back to the committed example so a
+    fresh checkout still serves a valid userscript.
+    """
+    static = Path(__file__).resolve().parent / "static"
+    real = static / USERSCRIPT_NAME
+    return real if real.exists() else static / EXAMPLE_USERSCRIPT_NAME
 
 
 def _make_handler(script_path: Path):
