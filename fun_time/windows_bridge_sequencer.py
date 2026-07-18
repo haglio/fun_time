@@ -33,10 +33,8 @@ from .win32 import (
     wait_for_window_by_title,
 )
 from .window_layout import (
-    MonitorRect,
     WindowLayoutPlan,
     WindowRect,
-    clamp01,
     compute_primary_media_rect,
     compute_window_layout,
 )
@@ -225,6 +223,21 @@ def _run_startup_phases(
     state_dir.mkdir(parents=True, exist_ok=True)
     m = _read_manifest(manifest_path)
 
+    # Compute the window layout up front so the satellites can launch straight
+    # into their real portrait/landscape rects (mpv sizes its output to the launch
+    # geometry and will NOT rescale when a later Win32 move resizes the window),
+    # exactly as Nau launches straight into its primary rect below.
+    layout_cfg = _layout_config_from_manifest(m)
+    monitors = enumerate_monitors()
+    main_rect, secondary_rect = get_logical_monitor_rects(
+        monitors, main_index=layout_cfg.main_monitor, secondary_index=layout_cfg.secondary_monitor,
+    )
+    plan = compute_window_layout(
+        main_monitor=main_rect,
+        secondary_monitor=secondary_rect,
+        layout_config=layout_cfg,
+    )
+
     # --- Phase 1: Launch core media stack ---
     progress.advance("Preparing services...")
     core_result_file = _build_unique_result_path(state_dir, "core_session")
@@ -249,6 +262,8 @@ def _run_startup_phases(
         landscape_cmd_file=m["commands"]["landscape_cmd_file"],
         landscape_paused_file=m["commands"]["landscape_paused_file"],
         landscape_status_file=m["commands"]["landscape_status_file"],
+        portrait_rect=plan.portrait,
+        landscape_rect=plan.landscape,
         primary_sources=m["media"]["nau_library_sources"],
         portrait_sources=m["media"]["portrait_dirs"],
         landscape_sources=m["media"]["landscape_dirs"],
@@ -270,8 +285,10 @@ def _run_startup_phases(
     # Launch Genau and Nau as early as possible so they can initialise
     # pygame, scan media, and decode first frames while the rest of startup
     # continues.  Both share the Primary slot's rect, which depends only on
-    # the secondary monitor + primary_top_ratio.
-    primary_media_rect = _compute_primary_media_rect(m)
+    # the secondary monitor + primary_top_ratio (already computed above).
+    primary_media_rect = compute_primary_media_rect(
+        secondary_monitor=secondary_rect, layout_config=layout_cfg,
+    )
     genau_pid = launch_genau(
         python_exe=m["executables"]["genau_python_exe"],
         genau_module=m["modules"]["genau_module"],
@@ -300,19 +317,8 @@ def _run_startup_phases(
     )
     launched.pids.extend([genau_pid, nau_pid])
 
-    # --- Phase 2: Compute window layout ---
+    # --- Phase 2: Position windows (layout computed up front) ---
     progress.advance("Computing window layout...")
-    layout_cfg = _layout_config_from_manifest(m)
-    monitors = enumerate_monitors()
-    main_rect, secondary_rect = get_logical_monitor_rects(
-        monitors, main_index=layout_cfg.main_monitor, secondary_index=layout_cfg.secondary_monitor,
-    )
-
-    plan = compute_window_layout(
-        main_monitor=main_rect,
-        secondary_monitor=secondary_rect,
-        layout_config=layout_cfg,
-    )
 
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     role_hwnds: dict[str, int] = {}
@@ -445,21 +451,6 @@ def _run_startup_phases(
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,
     )
-
-
-def _compute_primary_media_rect(m: configparser.ConfigParser) -> WindowRect:
-    """The Primary display slot shared by Genau and Nau.
-
-    Depends only on the secondary monitor dimensions and primary_top_ratio,
-    so both apps can launch before the full layout is computed.
-    """
-    layout_cfg = _layout_config_from_manifest(m)
-    monitors = enumerate_monitors()
-    _, secondary_rect = get_logical_monitor_rects(
-        monitors, main_index=layout_cfg.main_monitor,
-        secondary_index=layout_cfg.secondary_monitor,
-    )
-    return compute_primary_media_rect(secondary_monitor=secondary_rect, layout_config=layout_cfg)
 
 
 def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:

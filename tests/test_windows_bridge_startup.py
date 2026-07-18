@@ -10,11 +10,8 @@ from urllib.request import url2pathname
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.modes import FModePlaylistPlan
 from fun_time.modes import SatelliteLibraryContext
+from fun_time.window_layout import WindowRect
 from fun_time.windows_bridge_startup import (
-    _SATELLITE_LAUNCH_H,
-    _SATELLITE_LAUNCH_W,
-    _SATELLITE_LAUNCH_X,
-    _SATELLITE_LAUNCH_Y,
     _build_satellite_launch_command,
     launch_satellite,
     ensure_broker,
@@ -23,6 +20,7 @@ from fun_time.windows_bridge_startup import (
     launch_nau,
     launch_ui_companions,
     prepare_random_favs_browser_manifest,
+    reap_orphaned_satellites,
     restart_broker,
     seed_startup_states,
     start_core_session,
@@ -84,6 +82,27 @@ def test_ensure_broker_restarts_a_dead_broker(tmp_path: Path):
         ensure_broker(tmp_path, heartbeat, launcher)
 
     restart.assert_called_once_with(tmp_path, launcher)
+
+
+def test_reap_orphaned_satellites_is_scoped_to_the_satellite_module():
+    """A crash or unclean close can strand the two satellite players; a second
+    session then has four players racing two command/status file sets.  The
+    startup reap clears them — scoped by command line to ``-m <satellite_module>``
+    so it can never reach Nau (``-m nau``), the orchestrator, or a path that merely
+    contains the word — and it never throws."""
+    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        reap_orphaned_satellites("satellite")
+
+    run.assert_called_once()
+    argv = run.call_args.args[0]
+    assert argv[0] == "powershell.exe"
+    ps_command = argv[-1]
+    assert "-m\\s+satellite" in ps_command
+    assert "Get-CimInstance Win32_Process" in ps_command
+    assert "Stop-Process" in ps_command
+    assert run.call_args.kwargs.get("check") is False
 
 
 def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
@@ -187,8 +206,12 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     result_file = tmp_path / "core_session.ini"
     state_dir = tmp_path / "state"
     plan = _fake_playlist_plan(state_dir)
+    portrait_rect = WindowRect(x=2560, y=0, width=1440, height=2500)
+    landscape_rect = WindowRect(x=1664, y=0, width=896, height=1392)
 
-    with patch("fun_time.windows_bridge_startup.ensure_broker") as ensure, patch(
+    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites") as reap, patch(
+        "fun_time.windows_bridge_startup.ensure_broker"
+    ) as ensure, patch(
         "fun_time.windows_bridge_startup.seed_startup_states"
     ) as seed, patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
@@ -212,6 +235,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
             landscape_cmd_file=state_dir / "landscape_cmd.txt",
             landscape_paused_file=state_dir / "landscape_paused.txt",
             landscape_status_file=state_dir / "landscape_status.txt",
+            portrait_rect=portrait_rect,
+            landscape_rect=landscape_rect,
             primary_sources="primary_a|primary_b",
             portrait_sources="portrait_a",
             landscape_sources="landscape_a",
@@ -222,6 +247,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
             provider_metadata_root=tmp_path / "metadata",
         )
 
+    # A satellite pair stranded by a prior crash is reaped before the new one launches.
+    reap.assert_called_once_with("satellite")
     # Startup leaves a live broker alone, only (re)starting a dead one.
     ensure.assert_called_once_with(tmp_path, state_dir / "broker_heartbeat.txt", None)
     seed.assert_called_once_with(
@@ -257,6 +284,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         landscape_cmd_file=state_dir / "landscape_cmd.txt",
         landscape_paused_file=state_dir / "landscape_paused.txt",
         landscape_status_file=state_dir / "landscape_status.txt",
+        portrait_rect=portrait_rect,
+        landscape_rect=landscape_rect,
         result_file=result_file,
     )
 
@@ -543,6 +572,8 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     state_dir = tmp_path / "state"
     portrait_playlist = state_dir / "portrait_playlist.tsv"
     landscape_playlist = state_dir / "landscape_playlist.tsv"
+    portrait_rect = WindowRect(x=2560, y=0, width=1440, height=2500)
+    landscape_rect = WindowRect(x=1664, y=0, width=896, height=1392)
 
     with patch(
         "fun_time.windows_bridge_startup.launch_satellite", side_effect=[202, 303]
@@ -558,6 +589,8 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
             landscape_cmd_file=state_dir / "landscape_cmd.txt",
             landscape_paused_file=state_dir / "landscape_paused.txt",
             landscape_status_file=state_dir / "landscape_status.txt",
+            portrait_rect=portrait_rect,
+            landscape_rect=landscape_rect,
             result_file=result_file,
         )
 
@@ -582,13 +615,17 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     assert landscape_kwargs["paused_file"] == state_dir / "landscape_paused.txt"
     assert landscape_kwargs["status_file"] == state_dir / "landscape_status.txt"
 
-    # Both launch at the shared placeholder geometry; the sequencer repositions
-    # each to its real portrait/landscape rect by HWND afterward.
-    for side_kwargs in (portrait_kwargs, landscape_kwargs):
-        assert side_kwargs["x"] == _SATELLITE_LAUNCH_X
-        assert side_kwargs["y"] == _SATELLITE_LAUNCH_Y
-        assert side_kwargs["width"] == _SATELLITE_LAUNCH_W
-        assert side_kwargs["height"] == _SATELLITE_LAUNCH_H
+    # Each satellite launches straight into its own real rect (mpv won't rescale
+    # on a later Win32 resize), so the portrait rect must land on the portrait
+    # satellite and the landscape rect on the landscape one — never swapped.
+    assert (
+        portrait_kwargs["x"], portrait_kwargs["y"],
+        portrait_kwargs["width"], portrait_kwargs["height"],
+    ) == (portrait_rect.x, portrait_rect.y, portrait_rect.width, portrait_rect.height)
+    assert (
+        landscape_kwargs["x"], landscape_kwargs["y"],
+        landscape_kwargs["width"], landscape_kwargs["height"],
+    ) == (landscape_rect.x, landscape_rect.y, landscape_rect.width, landscape_rect.height)
 
     parser = configparser.ConfigParser()
     parser.optionxform = str

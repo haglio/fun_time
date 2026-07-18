@@ -121,6 +121,12 @@ class TestRunStartupSequence:
             assert core_called[f"{side}_cmd_file"] == str(state / f"{side}_cmd.txt")
             assert core_called[f"{side}_paused_file"] == str(state / f"{side}_paused.txt")
             assert core_called[f"{side}_status_file"] == str(state / f"{side}_status.txt")
+        # The satellites launch straight into their real layout rects (mpv won't
+        # rescale on a later Win32 resize), so the sequencer threads the computed
+        # portrait/landscape rects into the core launch — this is what makes the
+        # native video fill its window.
+        assert core_called["portrait_rect"] == result.layout_plan.portrait
+        assert core_called["landscape_rect"] == result.layout_plan.landscape
         # VLC is gone: no exe, port, or password plumbing survives.
         for gone in ("password", "vlc_exe", "portrait_port", "landscape_port"):
             assert gone not in core_called
