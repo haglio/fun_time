@@ -174,6 +174,11 @@ class FunTimeIntegrationSession:
         self._stderr_file = self.config.paths.state_dir / "orchestrator_stderr.log"
         self._stderr_file.parent.mkdir(parents=True, exist_ok=True)
         self._stderr_fh = self._stderr_file.open("w", encoding="utf-8")
+        # The windows-bridge log outlives the session that wrote it, so a
+        # whole-file search would answer with a PREVIOUS session's "Hotkey script
+        # started" and hand back a session that has not launched anything yet.
+        # Only what is appended from here on can satisfy the wait.
+        already_logged = len(self._read_windows_bridge_log())
         self._proc = subprocess.Popen(
             [sys.executable, "-m", "fun_time.orchestrator", "--config", str(self.config.config_path)],
             cwd=self.config.project_dir,
@@ -182,9 +187,20 @@ class FunTimeIntegrationSession:
             stderr=self._stderr_fh,
             text=True,
         )
-        self.wait_for_log("Hotkey script started", timeout=wait_seconds)
+        self._wait_for_own_log("Hotkey script started", after=already_logged, timeout=wait_seconds)
         time.sleep(1.0)
         self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
+
+    def _wait_for_own_log(self, needle: str, *, after: int, timeout: float) -> None:
+        """Wait for *needle* among the log characters written past *after*."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if needle in self._read_windows_bridge_log()[after:]:
+                return
+            time.sleep(0.2)
+        raise AssertionError(
+            f"Did not find log line containing {needle!r} from this session\n{self._log_tail()}"
+        )
 
     def stop(self) -> None:
         if self._proc and self._proc.poll() is None:
