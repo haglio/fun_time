@@ -20,8 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 # Baked into the userscript's @updateURL/@downloadURL header, so the two must
-# stay in lockstep (a regression test pins them). 127.0.0.1-only; clear of the
-# VLC HTTP ports (8091/8092).
+# stay in lockstep (a regression test pins them). 127.0.0.1-only.
 USERSCRIPT_PORT = 8770
 USERSCRIPT_NAME = "provider_autofill.user.js"
 

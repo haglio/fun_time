@@ -125,7 +125,7 @@ def ensure_broker(
     """Start the broker only if one is not already running.
 
     A healthy broker outlives the session that launched it: harem and the user's
-    direct VLC+MFP use keep talking to it over the shared UDP inlet, and
+    own tools keep talking to it over the shared UDP inlet, and
     osr2_broker installs a self-healing scheduled task that keeps one alive.
     Killing a live broker to relaunch our own would drop every client
     mid-stream, so a session (re)starts it only when the heartbeat is stale —

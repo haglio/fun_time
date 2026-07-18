@@ -105,7 +105,7 @@ q::QueueCommand("landscape_cycle_seed")
 +s::QueueCommand("landscape_nav_down")
 Enter::QueueCommand("active_nav_lock")
 '::QueueCommand("clipper_save")
-; Premiere: (re)load Portrait/Landscape VLC newest-first, restarting from the
+; Premiere: (re)load Portrait/Landscape newest-first, restarting from the
 ; top; press again to pick up newly-arrived files.
 p::QueueCommand("recency_order_refresh")
 

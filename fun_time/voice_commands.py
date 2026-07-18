@@ -93,7 +93,7 @@ VOICE_COMMANDS: dict[str, str] = {
     "f mode": "fmode_toggle",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
-    # "Premiere": (re)load the Portrait/Landscape VLC playlists newest-first,
+    # "Premiere": (re)load the Portrait/Landscape satellite playlists newest-first,
     # picking up any new files and restarting each from the top.
     "premiere": "recency_order_refresh",
     # Recognizer listens for "go now" (reliably recognized); the reference

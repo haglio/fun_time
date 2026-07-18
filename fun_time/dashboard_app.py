@@ -616,7 +616,7 @@ def build_dashboard_scene(
     _is_hybrid = snapshot is not None and snapshot.primary_mode == "hybrid"
 
     # Genau takeover allow/suppress toggle — owns the bottom-left of the primary
-    # panel in VLC/Hybrid mode (where Genau hasn't claimed the primary, so the
+    # panel in Nau/Hybrid mode (where Genau hasn't claimed the primary, so the
     # takeover is a live choice): green when allowed, red when suppressed.
     takeover_fill = COLOR_GREEN if genau_takeover_allowed else COLOR_RED
     takeover_hover = "Genau takeover: allowed" if genau_takeover_allowed else "Genau takeover: suppressed"

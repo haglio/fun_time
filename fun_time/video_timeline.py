@@ -34,8 +34,8 @@ class VideoTimeline:
         interval in either direction rather than a full interval in one.
         """
         if not path:
-            # VLC answers "" when its HTTP interface hiccups or nothing is
-            # loaded — a gap in the record, not a switch to a new video.
+            # A player's status file carries no path before it has loaded
+            # anything — a gap in the record, not a switch to a new video.
             return
         if self._entries and self._entries[-1].path == path:
             self._last_seen_at = now

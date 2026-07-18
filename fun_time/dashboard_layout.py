@@ -302,7 +302,7 @@ def _preview_layout_with_log_box(
     nudge_next_x = nudge_prev_x + 24
 
     # Bottom row of the primary panel. The bottom-left corner holds the cruise
-    # (cc) button in Genau mode, but the Genau takeover toggle in VLC/Hybrid mode
+    # (cc) button in Genau mode, but the Genau takeover toggle in Nau/Hybrid mode
     # (same coords, mutually exclusive by mode). In Hybrid, cruise shifts right to
     # hybrid_cruise so it can sit beside the takeover toggle.
     genau_bottom_y = primary_y + primary_h - 20
