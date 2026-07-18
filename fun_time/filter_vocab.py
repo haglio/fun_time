@@ -1,7 +1,7 @@
-"""Spoken filter vocabulary and command decoding for the satellite VLCs.
+"""Spoken filter vocabulary and command decoding for the satellites.
 
 A metadata filter is issued by voice: an optional orientation scope
-("portrait"/"landscape", or none for both VLCs) plus an act drawn from the
+("portrait"/"landscape", or none for both) plus an act drawn from the
 library's real ``video.action`` values.  This module is the single source of
 truth mapping those to dispatch commands.  It is kept free of the vosk runtime
 so the command reference and tests can import it cheaply — the same reason
@@ -36,7 +36,7 @@ FILTER_ACTS: dict[str, tuple[str, ...]] = {
 }
 
 # Spoken scope word -> command scope token.  "" means no orientation was said,
-# so the filter applies to both VLCs.
+# so the filter applies to both satellites.
 _SCOPES: dict[str, str] = {"": "both", "portrait": "portrait", "landscape": "landscape"}
 
 _SCOPE_TOKENS: tuple[str, ...] = ("both", "portrait", "landscape")

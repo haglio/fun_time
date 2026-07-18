@@ -81,14 +81,14 @@ class BridgeState:
     # updates it; the side-agnostic "active_*" commands resolve against it —
     # nav (next/prev) reaches all three, the satellite-only actions only 2/3.
     active_side: int = 2
-    # Per-VLC metadata filter queries ("" = no filter). Persisted in the shared
+    # Per-satellite metadata filter queries ("" = no filter). Persisted in the shared
     # state file so they survive the dispatch loop's per-tick state resync and
     # are honoured by later F-mode / premiere rebuilds.
     portrait_filter: str = ""
     landscape_filter: str = ""
     # Which group loop each satellite is running: "" none, "action" (looping the
     # action column) or "seed" (looping the seed row).  A loop is repeat-all over
-    # a sub-playlist; VLC's own auto-advance keeps it alive, but any dispatch
+    # a sub-playlist; the satellite's own auto-advance keeps it alive, but any dispatch
     # command that rebuilds or re-navigates the side drops it.  Persisted so the
     # HUD can freeze its map on the looped group and keep the loop button lit
     # while the clip auto-advances.
@@ -558,7 +558,7 @@ def _dispatch_more_seeds(
     This does NOT change what is playing; it records that this clip's net is
     widened, and the HUD redraws its seed row with the loose family (the same
     scene, render knobs freed).  If a seed loop is already running it is re-looped
-    over that wider pool so VLC cycles exactly what the HUD now shows.  If there is
+    over that wider pool so the satellite cycles exactly what the HUD now shows.  If there is
     nothing beyond the exact seed family to add, it says so rather than silently
     doing nothing."""
     source = _satellite_source(which)
@@ -573,7 +573,7 @@ def _dispatch_more_seeds(
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
     state = _set_side_widen(state, which, current)
     # If the row is already being looped, widen the loop too: rebuild its
-    # sub-playlist to the wider pool so VLC cycles what the HUD now draws (the
+    # sub-playlist to the wider pool so the satellite cycles what the HUD now draws (the
     # widen anchor now matches the clip on screen, so the loop picks it up).
     if (state.portrait_loop if which == 2 else state.landscape_loop) == "seed":
         state, _loop_ops = _dispatch_group_loop(which, "seed", state, config, target_path=current)
@@ -1338,7 +1338,7 @@ def _dispatch_set_filter(
         )
         # Only remember a filter that actually selected videos: a zero-match
         # filter left the current playlist alone, so recording it would let the
-        # next F-mode/premiere rebuild blank the VLC.  A filter that *did* rebuild
+        # next F-mode/premiere rebuild blank the satellite.  A filter that *did* rebuild
         # also replaced any loop's sub-playlist, so the loop (and its widened row)
         # is gone; a zero-match one touched nothing, so a running loop survives it.
         if result.applied:

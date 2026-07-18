@@ -176,8 +176,8 @@ def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 
     on resume the wall clock has jumped forward by the sleep duration.  A gap
     far above the ~50 ms tick interval means we just woke — the moment AHK's
     hotkeys are prone to not firing until the bridge is restarted.  Returns
-    None for ordinary iterations (and for merely slow ticks, e.g. a stuck VLC
-    HTTP call, which the threshold clears).
+    None for ordinary iterations (and for merely slow ticks, e.g. a blocking
+    file read against a stalled disk, which the threshold clears).
     """
     gap = now_wall - prev_wall
     return gap if gap >= threshold_s else None
@@ -850,7 +850,7 @@ class DispatchLoopRunner:
         Entering omnipause should leave EVERY window non-topmost; a window still
         topmost at "post-enter" is one the drop didn't reach (an unresolved or
         re-asserting window).  Leaving restores the per-mode bands.  This is the
-        diagnostic that pins which window (e.g. a satellite VLC) misbehaves.
+        diagnostic that pins which window (e.g. a satellite) misbehaves.
         """
         parts = []
         for role in MANAGED_ROLES:
@@ -880,7 +880,12 @@ class DispatchLoopRunner:
         self._log_topmost_state("post-enter")
 
     def _handle_open_file_dialog(self) -> None:
-        """Open VLC's file dialog with managed omnipause."""
+        """Open the Windows file dialog and play the pick in Nau, once at a time.
+
+        Serialized on a lock: the dialog is modal to the user but not to the
+        dispatch loop, so a second request while one is open would stack a
+        second dialog and a second topmost drop/restore pair.
+        """
         if not self._file_dialog_lock.acquire(blocking=False):
             return
         try:

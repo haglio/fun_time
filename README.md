@@ -3,7 +3,7 @@
 Fun Time is a Windows desktop setup that launches and coordinates:
 
 - Nau, a funscript video player for the primary video library (lives in the separate `../genau` project, launched as `python -m nau`)
-- two satellite VLC instances (portrait and landscape)
+- two satellite players (portrait and landscape), launched as `python -m satellite` from the same `../genau` project
 - Genau, a clip-based visualizer for OSR2 auto mode (the separate `../genau` project)
 - a Genau audio companion
 - a minimal AutoHotkey hotkey shell (window placement and command dispatch run in Python)
@@ -41,7 +41,7 @@ Runtime state:
 
 Local runtime data:
 
-- `favs.csv` — favorites CSV written when a satellite VLC is locked
+- `favs.csv` — favorites CSV written when a satellite is locked
 - `Fun Time.lnk` — convenience shortcut
 
 ## Recommended project-local paths
@@ -80,7 +80,7 @@ For the satellite AI libraries, Fun Time can now read either a single folder or 
 - `paths.portrait_dir` or `paths.portrait_dirs`
 - `paths.landscape_dir` or `paths.landscape_dirs`
 
-If the list form is used, the portrait or landscape VLC gets all listed folders joined into one rotating source set.
+If the list form is used, the portrait or landscape satellite gets all listed folders joined into one rotating source set.
 
 Nau's video library folders are configured with `paths.nau_library_dirs` (a list of one or more folders):
 
@@ -113,8 +113,8 @@ The layout values that used to be hard-coded in AutoHotkey now live under `layou
 
 Monitor naming under `layout` now uses:
 
-- `main_monitor` — the monitor that shows the landscape VLC, the dashboard, and the Random Favs Browser
-- `secondary_monitor` — the monitor that shows the portrait VLC and the shared primary display slot (Nau and Genau use the same rect)
+- `main_monitor` — the monitor that shows the landscape satellite, the dashboard, and the Random Favs Browser
+- `secondary_monitor` — the monitor that shows the portrait satellite and the shared primary display slot (Nau and Genau use the same rect)
 
 ## High-level architecture
 
@@ -231,12 +231,12 @@ Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recor
 
 ### F-Mode
 
-Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the next advance — the three VLC `.m3u` playlists plus Nau's `nau_playlist.tsv` (Nau is sent `RELOAD_PLAYLIST`) — and restricts playback to funscript-backed media:
+Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the next advance — the two satellite `.tsv` playlists plus Nau's `nau_playlist.tsv` (Nau is sent `RELOAD_PLAYLIST`) — and restricts playback to funscript-backed media:
 
 - the primary playlist (Nau) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
-- each satellite VLC plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
+- each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
-The same builder (`build_fmode_playlists`) writes all four playlist files at startup, so startup and the F-mode toggle share one playlist authority.
+The same builder (`build_fmode_playlists`) writes all three playlist files at startup, so startup and the F-mode toggle share one playlist authority.
 
 ### Cycle action & cycle seed (satellites)
 
@@ -275,12 +275,12 @@ It ranks every tracked clip by weight — "Rising" then "Fading" — with its ac
 
 ## Favorites CSV behavior
 
-When a satellite VLC is locked, the current media item is added to `favs.csv`.
+When a satellite is locked, the current media item is added to `favs.csv`.
 
 Specifically:
 
-- locking the portrait VLC writes its current item to `favs.csv`
-- locking the landscape VLC writes its current item to `favs.csv`
+- locking the portrait satellite writes its current item to `favs.csv`
+- locking the landscape satellite writes its current item to `favs.csv`
 
 The CSV contains two columns:
 
