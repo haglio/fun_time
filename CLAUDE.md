@@ -33,7 +33,7 @@ Before modifying any Win32 API call (ctypes, keyboard/mouse input, window manage
 
 1. **State the mechanism.** Explain WHY the approach works, citing the specific Win32 behavior it depends on.
 2. **Verify the claim.** If not certain, say so explicitly rather than guessing.
-3. **Check interactions.** Identify what other components touch the same subsystem (AHK hooks, VLC's Qt event loop, thread input queues) and explain why the change won't break them.
+3. **Check interactions.** Identify what other components touch the same subsystem (AHK hooks, the Qt event loop behind the dashboard and overlays, the players' own windows, thread input queues) and explain why the change won't break them.
 4. **Map from symptoms.** Trace the execution path that produces the bug and confirm the fix addresses that specific path.
 
 If you cannot complete these steps, stop and say so. Do not submit a speculative fix.
@@ -44,7 +44,7 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 ## Integration test fidelity
 
-- **Test configuration must derive from production code.** Integration tests may test individual components (not only end-to-end), but their configuration (launch commands, flags, init sequences) must come from the same production functions that real sessions use. Never hand-craft config that duplicates production logic — if the test builds its own VLC command line instead of calling `_build_vlc_launch_command`, it can pass while production is broken.
+- **Test configuration must derive from production code.** Integration tests may test individual components (not only end-to-end), but their configuration (launch commands, flags, init sequences) must come from the same production functions that real sessions use. Never hand-craft config that duplicates production logic — if the test builds its own satellite command line instead of calling `_build_satellite_launch_command`, it can pass while production is broken.
 - **Integration tests must randomize video selection.** Use `random.sample()` or `random.choice()` — never `sorted()[:n]` or other deterministic selection. The same videos playing every run masks bugs that only surface with different media files.
 
 ## Repo-specific gotchas
