@@ -807,7 +807,14 @@ class DispatchLoopRunner:
         if genau and role_topmost("genau", mode):
             set_always_on_top(genau, True)
 
-    def _is_broker_alive(self) -> bool:
+    def _broker_heartbeat_is_fresh(self) -> bool:
+        """Whether the broker is currently talking to the OSR2 — not whether it exists.
+
+        osr2_broker writes the heartbeat only while it holds the serial port, so
+        a stale one means "no broker reaching the device", which a live broker
+        with the OSR2 switched off satisfies.  Reading this as "is the broker
+        alive" is what had the start paths killing healthy brokers.
+        """
         hb = self.config.broker_heartbeat_file
         return hb is not None and is_broker_heartbeat_fresh(hb)
 
@@ -831,7 +838,7 @@ class DispatchLoopRunner:
         there, because the heartbeat this reads goes stale on a live broker
         whenever the OSR2 is off.
         """
-        if self._is_broker_alive():
+        if self._broker_heartbeat_is_fresh():
             stop_broker_processes()
         else:
             launch_broker_tray(self.config.broker_tray_launcher)
@@ -845,7 +852,7 @@ class DispatchLoopRunner:
         and it used to be killed here, then not relaunched at all, because no
         tray launcher was passed.
         """
-        if not self._is_broker_alive():
+        if not self._broker_heartbeat_is_fresh():
             threading.Thread(
                 target=lambda: launch_broker_tray(self.config.broker_tray_launcher),
                 daemon=True,
@@ -854,7 +861,7 @@ class DispatchLoopRunner:
 
     def _handle_broker_stop(self) -> None:
         """Stop broker only if currently running."""
-        if self._is_broker_alive():
+        if self._broker_heartbeat_is_fresh():
             threading.Thread(
                 target=stop_broker_processes,
                 daemon=True,
