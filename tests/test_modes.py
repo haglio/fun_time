@@ -598,7 +598,7 @@ def test_satellite_filter_is_ignored_without_a_library(tmp_path: Path):
     assert len(got) == 1
 
 
-def test_build_satellite_playlists_applies_independent_per_vlc_filters(tmp_path: Path):
+def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp_path: Path):
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     portrait_dir = media_root / "portrait"

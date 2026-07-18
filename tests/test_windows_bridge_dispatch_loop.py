@@ -166,10 +166,9 @@ class TestDetectSleepGap:
     def test_no_gap_for_normal_iteration(self):
         assert detect_sleep_gap(1000.0, 1000.05) is None
 
-    def test_default_threshold_ignores_a_slow_vlc_tick(self):
-        # A wholly unresponsive VLC can stall one tick ~40s (8 HTTP calls at a
-        # 5s timeout). The default threshold must clear that, not misread it as
-        # a wake.
+    def test_default_threshold_ignores_a_merely_slow_tick(self):
+        # A tick blocked on a stalled disk can run tens of seconds.  The default
+        # threshold must clear that, not misread it as a wake.
         assert detect_sleep_gap(1000.0, 1000.0 + 40) is None
 
 
@@ -339,7 +338,7 @@ class TestSharedState:
         assert loaded.volume == 30
         assert loaded.muted is True
 
-    def test_roundtrip_preserves_per_vlc_filters(self, tmp_path):
+    def test_roundtrip_preserves_per_satellite_filters(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(
             primary_mode="nau",
@@ -353,7 +352,7 @@ class TestSharedState:
         assert loaded.portrait_filter == "beta gamma"
         assert loaded.landscape_filter == "alpha"
 
-    def test_roundtrip_preserves_per_vlc_loops(self, tmp_path):
+    def test_roundtrip_preserves_per_satellite_loops(self, tmp_path):
         """The HUD runs in its own process and reads its loop state from this
         file, so a loop set by a command has to survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
@@ -1057,7 +1056,7 @@ class TestDispatchLoopRunner:
     def test_help_reference_commands_send_press_but_do_not_dispatch(self, tmp_path):
         """The reference popup is a dashboard-UI concern: the loop echoes each
         command (toggle and close) as a press (the dashboard acts on it) and
-        dispatches nothing — no VLC calls, no shared-state churn."""
+        dispatches nothing — no player commands, no shared-state churn."""
         for command in ("help_reference", "help_reference_close"):
             recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             recv_sock.bind(("127.0.0.1", 0))

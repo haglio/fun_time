@@ -334,7 +334,7 @@ def test_genau_takeover_bottom_left_and_hybrid_cruise_to_its_right():
     hybrid_cruise = layout.hybrid_cruise
     assert _inside(takeover, layout.primary_panel)
     assert _inside(hybrid_cruise, layout.primary_panel)
-    # In Genau mode the bottom-left holds cruise; in VLC/Hybrid the takeover toggle
+    # In Genau mode the bottom-left holds cruise; in Nau/Hybrid the takeover toggle
     # takes that exact spot, so the two share coordinates.
     assert takeover.x == cruise.x and takeover.y == cruise.y
     # In Hybrid, cruise shifts right of the takeover toggle, no overlap.

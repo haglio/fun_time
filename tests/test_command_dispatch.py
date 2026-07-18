@@ -397,7 +397,7 @@ def test_portrait_next_queues_next(tmp_path: Path):
 
 
 def test_primary_prev_in_hybrid_writes_nau_cmd(tmp_path: Path):
-    """Hybrid displays Nau, so navigation goes to Nau's command file, not VLC."""
+    """Hybrid displays Nau, so navigation goes to Nau's command file, not a satellite's."""
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="hybrid")
 
@@ -732,7 +732,7 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
         new_state, ops = dispatch_command("filter_portrait_alpha", state, config)
 
     assert new_state.portrait_filter == "alpha"
-    assert new_state.landscape_filter == ""  # the other VLC is untouched
+    assert new_state.landscape_filter == ""  # the other satellite is untouched
     assert mock_filter.call_count == 1
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["which"] == 2
@@ -945,7 +945,7 @@ def test_filter_command_both_scope_notices_each_satellite_under_its_own_source(t
 
 def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
     # A filter that matched nothing kept the current playlist, so it must not be
-    # recorded — otherwise a later premiere/F-mode rebuild would blank the VLC.
+    # recorded — otherwise a later premiere/F-mode rebuild would blank the satellite.
     config = _make_config(tmp_path)
     state = _make_state()
 
@@ -1301,7 +1301,7 @@ def test_more_seeds_reports_widening_failed_when_the_act_is_unique(tmp_path: Pat
 
 
 def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
-    """Widening the row while a seed loop runs must widen the loop too, so VLC
+    """Widening the row while a seed loop runs must widen the loop too, so the satellite
     cycles the wider pool the HUD now shows instead of only the exact family."""
     config = _make_config(tmp_path)
     index, a, a2, b = _widened_loop_index(tmp_path)
@@ -1407,7 +1407,7 @@ def test_recency_order_refresh_keeps_recent_and_resets_locks(tmp_path: Path):
     assert kwargs["provider_metadata_root"] == config.provider_metadata_root
 
 
-# --- mode switch (genau_activate / vlc_activate / hybrid_activate) ---
+# --- mode switch (genau_activate / nau_activate / hybrid_activate) ---
 
 
 def test_nau_activate_deactivates_genau_and_raises_nau(tmp_path: Path):

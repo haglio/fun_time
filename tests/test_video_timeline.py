@@ -30,7 +30,8 @@ class TestPathAt:
         assert timeline.path_at(5.2) == "b.mp4"  # 'b' still covers the window
 
     def test_a_failed_sample_is_not_a_transition(self):
-        """VLC answers "" when its HTTP interface hiccups — not a video change."""
+        """A status file carries no path before its player has loaded anything —
+        a gap in the record, not a video change."""
         timeline = VideoTimeline()
         timeline.observe("a.mp4", now=10.0)
         timeline.observe("", now=11.0)

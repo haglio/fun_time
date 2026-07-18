@@ -61,7 +61,7 @@ def test_restart_broker_skips_launch_when_no_launcher(tmp_path: Path):
 def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):
     """A fresh heartbeat means a healthy broker is already running — a previous
     session's, or the one osr2_broker's self-healing task keeps up.  Startup must
-    not kill it: harem and the user's direct VLC+MFP use keep talking to it, and
+    not kill it: harem and the user's own tools keep talking to it, and
     tearing it down would drop every client mid-stream."""
     heartbeat = tmp_path / "broker_heartbeat.txt"
     with patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True) as fresh, \

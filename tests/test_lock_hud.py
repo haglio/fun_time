@@ -214,7 +214,7 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_loose_family():
         indexed_paths=frozenset(K(p) for p in (x, x2, y, z)),
     )
 
-    # The loop was widened around x; VLC has auto-advanced to y, a loose-family
+    # The loop was widened around x; the satellite has auto-advanced to y, a loose-family
     # re-render that is NOT in x's exact seed family {x, x2}.
     panel = build_hud_panel(
         "portrait", locked=False, current=y, index=index, loop_axis="seed", widen_clip=x,
