@@ -117,7 +117,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         ),
     ),
     (
-        "Portrait VLC",
+        "Portrait",
         (
             _Row("Previous portrait clip", ("Left",), ("portrait_prev",)),
             _Row("Next portrait clip", ("Right",), ("portrait_next",)),
@@ -139,7 +139,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         ),
     ),
     (
-        "Landscape VLC",
+        "Landscape",
         (
             _Row("Previous landscape clip", ("A",), ("landscape_prev",)),
             _Row("Next landscape clip", ("D",), ("landscape_next",)),
@@ -161,7 +161,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         ),
     ),
     (
-        "Both VLC",
+        "Both",
         (
             _Row("Previous both clips", (), ("both_prev",)),
             _Row("Next both clips", (), ("both_next",)),
@@ -215,16 +215,16 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         ),
     ),
     (
-        "Filters (satellite VLCs)",
+        "Filters (satellites)",
         (
             _Row(
-                "Filter both VLCs by act — say the act alone",
+                "Filter both satellites by act — say the act alone",
                 (),
                 set_commands_for_scope("both"),
                 voice_display=spoken_forms_for_both(),
             ),
             _Row(
-                "Filter one VLC — prefix “portrait” or “landscape”",
+                "Filter one satellite — prefix “portrait” or “landscape”",
                 (),
                 set_commands_for_scope("portrait") + set_commands_for_scope("landscape"),
                 voice_display=("portrait <act>", "landscape <act>"),

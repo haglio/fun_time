@@ -102,10 +102,10 @@ def test_cycle_action_and_seed_rows_have_keys_and_voice():
 
 
 def test_both_section_lists_combined_satellite_commands():
-    """A "Both VLC" section drives Portrait + Landscape together, by voice only."""
+    """A "Both" section drives Portrait + Landscape together, by voice only."""
     sections = {s.title: s for s in build_reference_sections()}
-    assert "Both VLC" in sections
-    both = sections["Both VLC"]
+    assert "Both" in sections
+    both = sections["Both"]
     cmds = {c for row in both.rows for c in row.commands}
     assert cmds == {
         "both_prev", "both_next", "both_trash",
@@ -267,10 +267,9 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
 def test_section_titles_and_backslash_split():
     sections = build_reference_sections()
     titles = [s.title for s in sections]
-    for expected in ("Global", "Nau", "Portrait VLC", "Landscape VLC", "Modes", "Genau"):
+    for expected in ("Global", "Nau", "Portrait", "Landscape", "Modes", "Genau"):
         assert expected in titles, f"missing section {expected!r}"
     assert "Genau control" not in titles  # renamed to "Genau"
-    assert "Primary VLC" not in titles  # replaced by "Nau"
 
     by_title = {s.title: s for s in sections}
     primary_backslash = [r for r in by_title["Nau"].rows if "\\" in r.hotkeys]
@@ -409,8 +408,8 @@ def test_render_reference_html_has_no_heading_or_subtitle():
 
 def test_filters_section_documents_the_spoken_filters():
     sections = {s.title: s for s in build_reference_sections()}
-    assert "Filters (satellite VLCs)" in sections
-    blob = " ".join(v for row in sections["Filters (satellite VLCs)"].rows for v in row.voice)
+    assert "Filters (satellites)" in sections
+    blob = " ".join(v for row in sections["Filters (satellites)"].rows for v in row.voice)
     assert "beta gamma" in blob  # example act
     assert "clear portrait" in blob  # a clear phrase
 
