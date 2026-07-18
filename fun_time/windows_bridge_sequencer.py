@@ -265,6 +265,7 @@ def _run_startup_phases(
         landscape_cmd_file=m["commands"]["landscape_cmd_file"],
         landscape_paused_file=m["commands"]["landscape_paused_file"],
         landscape_status_file=m["commands"]["landscape_status_file"],
+        nau_status_file=m["commands"]["nau_status_file"],
         portrait_log_file=state_dir / "portrait_satellite.log",
         landscape_log_file=state_dir / "landscape_satellite.log",
         portrait_rect=plan.portrait,

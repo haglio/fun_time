@@ -9,7 +9,6 @@ from urllib.request import url2pathname
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
-from fun_time.modes import FModePlaylistPlan
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.window_layout import WindowRect
 from fun_time.windows_bridge_startup import (
@@ -247,18 +246,6 @@ def test_seed_startup_states_restores_full_volume(tmp_path: Path):
     assert read_volume(volume_file) == MAX_VOLUME
 
 
-def _fake_playlist_plan(state_dir: Path) -> FModePlaylistPlan:
-    return FModePlaylistPlan(
-        success=True,
-        primary_count=2,
-        portrait_count=1,
-        landscape_count=1,
-        portrait_playlist_path=state_dir / "portrait_playlist.tsv",
-        landscape_playlist_path=state_dir / "landscape_playlist.tsv",
-        nau_playlist_path=state_dir / "nau_playlist.tsv",
-    )
-
-
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
     """The full keyword argument set for a start_core_session call.
 
@@ -283,6 +270,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         landscape_cmd_file=state_dir / "landscape_cmd.txt",
         landscape_paused_file=state_dir / "landscape_paused.txt",
         landscape_status_file=state_dir / "landscape_status.txt",
+        nau_status_file=state_dir / "nau_status.txt",
         portrait_log_file=state_dir / "portrait_satellite.log",
         landscape_log_file=state_dir / "landscape_satellite.log",
         portrait_rect=WindowRect(x=2560, y=0, width=1440, height=2500),
@@ -299,12 +287,13 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
 
 
 def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path: Path):
+    """The first-run path: the state dir holds no playlists to resume, so the
+    session is built from scratch and launched."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     result_file = kwargs["result_file"]
     portrait_rect = kwargs["portrait_rect"]
     landscape_rect = kwargs["landscape_rect"]
-    plan = _fake_playlist_plan(state_dir)
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites") as reap, patch(
         "fun_time.windows_bridge_startup.ensure_broker"
@@ -313,7 +302,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     ) as seed, patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ) as prepare, patch(
-        "fun_time.windows_bridge_startup.build_fmode_playlists", return_value=plan
+        "fun_time.windows_bridge_startup.build_fmode_playlists"
     ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
         start_core_session(**kwargs)
 
@@ -352,8 +341,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     launch.assert_called_once_with(
         python_exe="fun_time_python.exe",
         satellite_module="satellite",
-        portrait_playlist=plan.portrait_playlist_path,
-        landscape_playlist=plan.landscape_playlist_path,
+        portrait_playlist=state_dir / "portrait_playlist.tsv",
+        landscape_playlist=state_dir / "landscape_playlist.tsv",
         portrait_cmd_file=state_dir / "portrait_cmd.txt",
         portrait_paused_file=state_dir / "portrait_paused.txt",
         portrait_status_file=state_dir / "portrait_status.txt",
@@ -375,6 +364,43 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     )
 
 
+def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_path: Path, caplog):
+    """Reopening Fun Time lands on the clips it was closed on: with last
+    session's playlist files still on disk, each is rotated onto the video that
+    player published and no fresh shuffle is built over them."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    state_dir = kwargs["state_dir"]
+    state_dir.mkdir(parents=True, exist_ok=True)
+    left_on = {}
+    for name in ("portrait", "landscape", "nau"):
+        clips = []
+        for index in (1, 2):
+            clip = tmp_path / f"{name}{index}.mp4"
+            clip.write_bytes(b"")
+            clips.append(str(clip))
+        left_on[name] = clips
+        (state_dir / f"{name}_playlist.tsv").write_text("".join(f"{c}\n" for c in clips), encoding="utf-8")
+        (state_dir / f"{name}_status.txt").write_text(f"video={clips[1]}\n", encoding="utf-8")
+
+    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+        "fun_time.windows_bridge_startup.ensure_broker"
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch(
+        "fun_time.windows_bridge_startup.build_fmode_playlists"
+    ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps"):
+        with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
+            start_core_session(**kwargs)
+
+    build.assert_not_called()
+    for name, (first, second) in left_on.items():
+        playlist = state_dir / f"{name}_playlist.tsv"
+        assert playlist.read_text(encoding="utf-8").splitlines() == [second, first]
+    # Which clips you get is the whole difference between the two paths, so the
+    # session says which one it took.
+    assert "Resumed last session's playlists" in caplog.text
+
+
 def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     """A prior session's OmniPause can strand "1" in the satellite paused files;
     seed_startup_states does not touch them and nothing else clears them, so a
@@ -392,8 +418,7 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch(
-        "fun_time.windows_bridge_startup.build_fmode_playlists",
-        return_value=_fake_playlist_plan(kwargs["state_dir"]),
+        "fun_time.windows_bridge_startup.build_fmode_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         start_core_session(**kwargs)
 
@@ -420,8 +445,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch(
-        "fun_time.windows_bridge_startup.build_fmode_playlists",
-        return_value=_fake_playlist_plan(kwargs["state_dir"]),
+        "fun_time.windows_bridge_startup.build_fmode_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         start_core_session(**kwargs)
 

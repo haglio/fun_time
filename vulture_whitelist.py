@@ -36,11 +36,8 @@ notify_host  # noqa
 notify_port  # noqa
 status_hide_ms  # noqa
 resize_debounce_ms  # noqa
-# FModePlaylistPlan / FModeFlowResult
+# FModeFlowResult
 success  # noqa
-primary_count  # noqa
-portrait_count  # noqa
-landscape_count  # noqa
 # StartupResult
 layout_plan  # noqa
 core_hwnds  # noqa
