@@ -24,7 +24,24 @@ from fun_time.windows_bridge_startup import (
     reap_orphaned_satellites,
     seed_startup_states,
     start_core_session,
+    stop_broker_processes,
 )
+
+
+def test_stop_broker_processes_is_a_machine_wide_sweep_with_nothing_to_scope():
+    """The kill matches broker and tray processes by command line, across the
+    whole machine — there is no directory it is relative to.  Handing it a
+    working directory implied a scoping that does not exist and cost every
+    caller a path to compute for it."""
+    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        stop_broker_processes()
+
+    argv = run.call_args.args[0]
+    assert argv[0] == "powershell.exe"
+    assert "Stop-Process" in argv[-1]
+    assert "cwd" not in run.call_args.kwargs
 
 
 def test_launch_broker_tray_uses_the_brokers_own_launch_kwargs(tmp_path: Path):

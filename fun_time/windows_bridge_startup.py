@@ -43,10 +43,12 @@ def _write_result_file(result_file: str | Path, values: dict[str, int | str]) ->
         parser.write(fp)
 
 
+def stop_broker_processes() -> None:
+    """Kill every broker and broker-tray process on the machine.
 
-def stop_broker_processes(project_dir: str | Path) -> None:
-    """Kill all broker and broker-tray processes without restarting."""
-    project_path = Path(project_dir)
+    Matched by command line, so there is nothing for a working directory to
+    scope: the sweep reaches the same processes wherever it runs from.
+    """
     ps_command = (
         "$targets = Get-CimInstance Win32_Process | Where-Object { "
         "(($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $_.CommandLine -match '"
@@ -60,7 +62,6 @@ def stop_broker_processes(project_dir: str | Path) -> None:
     )
     subprocess.run(
         ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
-        cwd=project_path,
         check=False,
         **subprocess_window_kwargs(),
     )
