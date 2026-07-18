@@ -16,7 +16,20 @@ import pytest
 
 from fun_time import windows_bridge_orchestrator
 from fun_time.windows_bridge_orchestrator import ChildProcess
-from tests.integration.integration_support import FunTimeIntegrationSession
+from tests.integration import integration_support
+from tests.integration.integration_support import (
+    INTEGRATION_CONFIG_NAME,
+    FunTimeIntegrationSession,
+)
+
+
+def _completed(stdout: str):
+    class _Result:
+        pass
+
+    result = _Result()
+    result.stdout = stdout
+    return result
 
 
 @pytest.fixture
@@ -90,3 +103,26 @@ def test_stop_survives_missing_bridge_pids(session):
         session.stop()  # no bridge_pids.ini on disk
 
     assert killed == []
+
+
+def test_the_orchestrator_wait_only_ever_waits_on_integration_orchestrators(session):
+    """Between a session's teardown and the next one's start, the harness waits
+    for the *previous run's* orchestrator to finish its shutdown storm — that
+    orchestrator taskkills the PIDs it recorded, and Windows recycles PIDs fast
+    enough for it to shoot a new session's freshly-spawned ones.
+
+    Matching every ``fun_time.orchestrator`` on the machine makes that wait
+    include the user's live session, which will not exit — so the harness burns
+    its whole 15s timeout on both ends of every session, and its own teardown
+    becomes hostage to a session it has nothing to do with.  Only orchestrators
+    started from an integration config can be the one we are waiting on.
+    """
+    with patch.object(integration_support.subprocess, "run") as run:
+        run.return_value = _completed("0")
+        session._wait_for_orchestrators_to_exit()
+
+    ps_command = run.call_args.args[0][-1]
+    assert "fun_time\\.orchestrator" in ps_command
+    # The name appears regex-escaped, so match on its distinguishing stem.  What
+    # matters is that the user's `--config fun_time_config.json` cannot match.
+    assert INTEGRATION_CONFIG_NAME.removesuffix(".json") in ps_command

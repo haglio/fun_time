@@ -31,6 +31,11 @@ from .live_session_guard import read_recorded_children
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
 
+# Every integration config is written under this name, in a temp tree of its own.
+# It is also what tells an integration orchestrator apart from the user's on a
+# command line, so the two uses share the constant rather than the spelling.
+INTEGRATION_CONFIG_NAME = "fun_time_integration_config.json"
+
 
 # The images the apps a session leaves behind actually run as: the two
 # satellites, Nau/Genau/the audio companion/the dashboard (all pythonw), and the
@@ -335,7 +340,7 @@ class FunTimeIntegrationSession:
         self._wait_for_orchestrators_to_exit()
 
     def _wait_for_orchestrators_to_exit(self, timeout: float = 15.0) -> None:
-        """Block until no fun_time.orchestrator processes remain.
+        """Block until no *integration* fun_time.orchestrator processes remain.
 
         Killing a session's AHK wakes its orchestrator, whose shutdown then
         taskkills the PIDs it recorded at startup.  Windows recycles PIDs
@@ -343,11 +348,19 @@ class FunTimeIntegrationSession:
         dying orchestrator can kill the new session's freshly-spawned
         processes.  Serialize the handoff: let the old orchestrator finish
         its shutdown storm before anything new starts.
+
+        Bounded to orchestrators started from an integration config.  Matching
+        every orchestrator on the machine swept in the user's live session, which
+        is never going to exit for us — so both ends of every session burned the
+        whole timeout, and a run's own teardown waited on a session it has
+        nothing to do with.
         """
+        config_pattern = INTEGRATION_CONFIG_NAME.replace(".", "\\.")
         ps = (
             "@(Get-CimInstance Win32_Process | Where-Object { "
             "$_.Name -match '^pythonw?\\.exe$' -and "
-            "$_.CommandLine -match 'fun_time\\.orchestrator' }).Count"
+            "$_.CommandLine -match 'fun_time\\.orchestrator' -and "
+            f"$_.CommandLine -match '{config_pattern}' }}).Count"
         )
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -406,7 +419,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     test_genau_config.write_text(json.dumps(genau_config), encoding="utf-8")
     config["paths"]["genau_config_path"] = str(test_genau_config)
 
-    config_path = integration_root / "fun_time_integration_config.json"
+    config_path = integration_root / INTEGRATION_CONFIG_NAME
     config_path.write_text(json.dumps(config), encoding="utf-8")
     return config_path
 
