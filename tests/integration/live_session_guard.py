@@ -1,17 +1,21 @@
 """Never let an integration run reach the user's live Fun Time session.
 
-``build_integration_config`` copies the real config and rewrites only its
-*paths*, so a run is isolated by its state dir and nothing more.  Some of what a
-session does on its way up is machine-wide regardless: it restarts the OSR2
-broker (a singleton service, shared by whatever session is running), and its
-players compete for the same GPU as the user's.  The hidden desktop does not
-help with any of that — none of it is per-desktop.
+``build_integration_config`` copies the real config and rewrites its *paths*, and
+the shared UDP port the audio companion binds, so a run is isolated by its state
+dir and little more.  What a session does beyond that is machine-wide regardless:
+its players compete for the same GPU as the user's, and both sessions stream
+T-Code to the one OSR2 broker, and so to the one device.  The hidden desktop does
+not help with any of that — none of it is per-desktop.
 
-(It used to be far worse: the startup reap matched every ``-m satellite`` on the
-machine, so a run coming up killed both players in the user's live session.  That
-is fixed at the source — ``reap_orphaned_satellites`` is now bounded to the state
-files the reaping session itself claims — and this guard is no longer what stands
-between a test run and the user's satellites.)
+(It used to be far worse, and neither fix was this guard's.  The startup reap
+matched every ``-m satellite`` on the machine, so a run coming up killed both
+players in the user's live session; it is now bounded to the state files the
+reaping session itself claims.  And startup restarted the broker whenever the
+heartbeat under its own state dir looked stale — which outside the primary
+checkout it always does, because that is not where the broker writes one — so a
+run swept the user's broker and its tray watchdog away; startup now launches the
+tray over a stale reading instead of killing on it, which the broker's
+single-instance mutexes absorb.)
 
 A session is found through the claim it publishes, not by looking in the state
 dir of whoever is asking.  That distinction is the whole guard: agents work in
@@ -66,8 +70,8 @@ _PROMPT_TITLE = "Fun Time is open"
 _PROMPT_TEXT = (
     "The Fun Time integration test suite wants to run, but Fun Time is open "
     "(currently in OmniPause).\n\n"
-    "The suite brings up a whole second session: it restarts the OSR2 broker you "
-    "share with it, and its players compete with yours for the GPU.\n\n"
+    "The suite brings up a whole second session: its players compete with yours "
+    "for the GPU, and both stream to the OSR2 you share with it.\n\n"
     "Close Fun Time and run the suite?\n\n"
     "Yes — close Fun Time, then run the tests.\n"
     "No — leave Fun Time alone and deny the test run."
@@ -253,9 +257,9 @@ def allow_integration_run(
     if not session.omni_paused:
         announce(
             "[integration] Fun Time is open and playing — integration run DENIED. "
-            "The suite brings up a second session that would restart your broker "
-            "and compete for the GPU.  Close Fun Time (or put it in OmniPause) "
-            "and re-run."
+            "The suite brings up a second session that would compete for the GPU "
+            "and stream to the OSR2 alongside yours.  Close Fun Time (or put it "
+            "in OmniPause) and re-run."
         )
         return False
     if not ask(session):
