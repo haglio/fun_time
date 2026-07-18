@@ -428,7 +428,7 @@ def build_hud_panel(
 
 
 def _side_panel(
-    config: HudAppConfig, side: str, sources: str, current: str, locked: bool,
+    side: str, sources: str, metadata_root: Path | None, current: str, locked: bool,
     filter_query: str, loop_axis: str, widen_clip: str, nav_anchor: str,
 ) -> HudPanel:
     index: GroupIndex | None = None
@@ -439,7 +439,7 @@ def _side_panel(
         index = cached_group_index(
             sources,
             paths_supplier=lambda: collect_video_files(sources),
-            metadata_root=config.provider_metadata_root,
+            metadata_root=metadata_root,
             must_contain=None,
         )
     return build_hud_panel(
@@ -448,23 +448,24 @@ def _side_panel(
     )
 
 
-def prime_group_indexes(config: HudAppConfig) -> None:
+def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) -> None:
     """Build both satellites' group indexes up front — behind the loading screen,
     before the first clip is drawn — so the map is instant on the first refresh
     and no later refresh pays for a rebuild.  The library is fixed for the run,
     so one build is enough (premiere is what would extend it)."""
-    for sources in (config.portrait_sources, config.landscape_sources):
-        if sources:
+    for source in sources:
+        if source:
             cached_group_index(
-                sources,
-                paths_supplier=lambda captured=sources: collect_video_files(captured),
-                metadata_root=config.provider_metadata_root,
+                source,
+                paths_supplier=lambda captured=source: collect_video_files(captured),
+                metadata_root=metadata_root,
                 must_contain=None,
             )
 
 
 def prewarm_thumbnails(
-    config: HudAppConfig,
+    sources: tuple[str, ...],
+    cache_dir: str | Path,
     thumbnailer: Callable[[str, str | Path], object] = thumbnail_for,
     sleep_fn: Callable[[float], None] = time.sleep,
     pause_s: float = 0.05,
@@ -472,49 +473,28 @@ def prewarm_thumbnails(
     """Extract and cache every library clip's thumbnail in the background, so the
     map paints from cache instead of blocking on a first-use frame grab.
     Idempotent — an already cached thumbnail is skipped.  Sleeps briefly between
-    clips so decoding a big HEVC library never starves the HUD's own paint (that
-    starvation was showing up as multi-second blinks); run it off the UI thread."""
-    for sources in (config.portrait_sources, config.landscape_sources):
-        if not sources:
+    clips so decoding a big HEVC library never starves the session's own work
+    (that starvation was showing up as multi-second blinks); run it off the main
+    thread."""
+    for source in sources:
+        if not source:
             continue
-        for path in collect_video_files(sources):
-            thumbnailer(path, config.thumbnail_cache_dir)
+        for path in collect_video_files(source):
+            thumbnailer(path, cache_dir)
             sleep_fn(pause_s)
 
 
 def signal_hud_ready(ready_file: str | Path) -> None:
     """Mark the HUD ready to be shown — its indexes are primed, so its first
-    paint is instant.  Startup waits on this before dropping the loading screen
-    (see :func:`wait_for_hud_ready`), so Fun Time never appears with blank maps."""
+    paint is instant."""
     Path(ready_file).write_text("ready", encoding="utf-8")
 
 
-def wait_for_hud_ready(
-    ready_file: str | Path,
-    *,
-    timeout_s: float,
-    poll_s: float = 0.1,
-    sleep_fn: Callable[[float], None] = time.sleep,
-    clock: Callable[[], float] = time.monotonic,
-) -> bool:
-    """Block until the HUD has signalled ready, or *timeout_s* elapses.
-
-    Returns whether the flag appeared.  The timeout is a hard cap: a HUD that
-    never primes (or was never launched) must not wedge startup — the caller
-    reveals Fun Time anyway once it lapses.
-    """
-    ready = Path(ready_file)
-    deadline = clock() + timeout_s
-    while clock() < deadline:
-        if ready.exists():
-            return True
-        sleep_fn(poll_s)
-    return ready.exists()
-
-
 def build_panels(
-    config: HudAppConfig,
     *,
+    portrait_sources: str,
+    landscape_sources: str,
+    metadata_root: Path | None,
     portrait_current: str,
     landscape_current: str,
     portrait_locked: bool,
@@ -539,12 +519,12 @@ def build_panels(
     """
     return (
         _side_panel(
-            config, "portrait", config.portrait_sources,
+            "portrait", portrait_sources, metadata_root,
             portrait_current, portrait_locked, portrait_filter, portrait_loop,
             portrait_widen_clip, portrait_nav_anchor,
         ),
         _side_panel(
-            config, "landscape", config.landscape_sources,
+            "landscape", landscape_sources, metadata_root,
             landscape_current, landscape_locked, landscape_filter, landscape_loop,
             landscape_widen_clip, landscape_nav_anchor,
         ),

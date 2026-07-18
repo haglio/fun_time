@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import socket
 import threading
@@ -11,6 +12,7 @@ from unittest.mock import patch
 import pytest
 
 from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
+from fun_time.hud_transport import HudPublisher
 from fun_time.media_metadata import normalize_path_key
 from fun_time.voice_commands import parse_command_line
 from fun_time.watch_stats import load_watch_stats
@@ -2573,3 +2575,50 @@ class TestBothSatelliteCommands:
 
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert commands == ["portrait_lock", "landscape_lock"]
+
+
+class TestHudPublishing:
+    """The dispatch loop owns the lock HUD's model: it holds the bridge state and
+    already ticks, so it builds each satellite's panel and publishes it to the
+    file that satellite's player renders from."""
+
+    def _runner_with_hud(self, tmp_path):
+        publisher = HudPublisher(
+            {"portrait": tmp_path / "portrait_hud.json",
+             "landscape": tmp_path / "landscape_hud.json"},
+            tmp_path / "thumbs",
+        )
+        return make_runner(tmp_path, hud_publisher=publisher)
+
+    def test_tick_publishes_each_satellites_panel(self, tmp_path):
+        runner = self._runner_with_hud(tmp_path)
+        _write_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4", fraction=0.1)
+        _write_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4", fraction=0.1)
+        runner.state = replace(runner.state, locked2=True, portrait_filter="alpha")
+
+        runner.tick()
+
+        portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        landscape = json.loads((tmp_path / "landscape_hud.json").read_text(encoding="utf-8"))
+        assert portrait["side"] == "portrait"
+        assert portrait["locked"] is True
+        assert portrait["lock_label"] == "Locked"
+        assert portrait["filter_query"] == "alpha"
+        assert portrait["corner"]["path"] == "C:/v/p.mp4"
+        assert landscape["locked"] is False
+        assert landscape["corner"]["path"] == "C:/v/l.mp4"
+
+    def test_publishing_is_throttled_below_the_tick_rate(self, tmp_path):
+        """The loop ticks 20x/s; rebuilding and rewriting both panels that often
+        is waste the map never shows, so publishing runs on its own cadence."""
+        runner = self._runner_with_hud(tmp_path)
+        _write_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4", fraction=0.1)
+
+        with patch.object(runner._hud_publisher, "publish", return_value=True) as publish:
+            runner.tick()
+            runner.tick()
+
+        assert publish.call_count == 2, "one publish per side on the first tick only"
+
+    def test_a_runner_without_a_hud_publisher_just_ticks(self, tmp_path):
+        make_runner(tmp_path).tick()

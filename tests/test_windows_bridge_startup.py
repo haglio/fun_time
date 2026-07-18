@@ -298,6 +298,11 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         portrait_rect=portrait_rect,
         landscape_rect=landscape_rect,
         result_file=result_file,
+        # Each satellite also draws its own lock HUD, so it is told which panel
+        # file to render and where to post the clicks on it.
+        portrait_hud_file=None,
+        landscape_hud_file=None,
+        dashboard_cmd_file=None,
     )
 
 
@@ -764,3 +769,33 @@ def test_launch_satellite_starts_process_and_returns_pid():
     assert popen.call_args.args[0][-1] == "--no-audio"
     argv = popen.call_args.args[0]
     assert argv[argv.index("--title") + 1] == "Satellite Portrait"
+
+
+def test_build_satellite_launch_command_forwards_the_hud_files():
+    """The HUD is drawn inside the player now, so each satellite is told which
+    panel file to render and where to post the clicks on it."""
+    cmd = _build_satellite_launch_command(
+        "python.exe", "satellite",
+        title="Satellite Portrait",
+        playlist_file="p", command_file="c", paused_file="pa", status_file="s",
+        hud_file="state/portrait_hud.json", dashboard_cmd_file="state/dashboard_cmd.txt",
+        x=0, y=0, width=1, height=1,
+    )
+
+    assert cmd[cmd.index("--hud-file") + 1] == "state/portrait_hud.json"
+    assert cmd[cmd.index("--dashboard-cmd-file") + 1] == "state/dashboard_cmd.txt"
+
+
+def test_build_satellite_launch_command_omits_an_absent_hud():
+    """No HUD file means no HUD: the flags are dropped rather than passed empty,
+    so a satellite launched without one simply draws no map."""
+    cmd = _build_satellite_launch_command(
+        "python.exe", "satellite",
+        title="Satellite Portrait",
+        playlist_file="p", command_file="c", paused_file="pa", status_file="s",
+        hud_file=None, dashboard_cmd_file=None,
+        x=0, y=0, width=1, height=1,
+    )
+
+    assert "--hud-file" not in cmd
+    assert "--dashboard-cmd-file" not in cmd
