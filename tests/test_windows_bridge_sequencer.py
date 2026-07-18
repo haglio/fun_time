@@ -9,6 +9,7 @@ from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANI
 from fun_time.windows_bridge_sequencer import (
     run_startup_sequence,
     _maybe_launch_random_favs_browser,
+    _resolve_satellite_hwnds,
 )
 from fun_time.monitors import MonitorInfo
 from fun_time.window_layout import (
@@ -794,3 +795,44 @@ class TestMaybeLaunchRandomFavsBrowser:
             _maybe_launch_random_favs_browser(m, plan)
 
         assert set(launch_kwargs) == {"shortcut_target", "shortcut_work_dir", "shortcut_args"}
+
+
+class TestResolveSatelliteHwnds:
+    """The pid->hwnd lookup fails in production (the genau venv's pythonw launcher
+    owns a pid other than the window's), so the sequencer must fall back to each
+    satellite's DISTINCT title.  Distinct captions are what make that fallback
+    unable to swap the two — the portrait/landscape visual-swap bug."""
+
+    def test_falls_back_to_distinct_titles_without_swapping(self):
+        # pid lookup dead; only the title fallback can resolve either window.
+        title_to_hwnd = {"Satellite Portrait": 1111, "Satellite Landscape": 2222}
+
+        with patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=0), \
+             patch(
+                 "fun_time.windows_bridge_sequencer.wait_for_window_by_title",
+                 side_effect=lambda title, **kw: title_to_hwnd.get(title, 0),
+             ) as by_title:
+            portrait, landscape = _resolve_satellite_hwnds(portrait_pid=30, landscape_pid=40)
+
+        # The portrait window lands in the portrait slot, the landscape in the
+        # landscape slot — never crossed.
+        assert (portrait, landscape) == (1111, 2222)
+        # Resolved by the two DISTINCT captions, never the shared "Satellite" that
+        # made the fallback ambiguous, and each lookup is exact.
+        resolved = {call.args[0] for call in by_title.call_args_list}
+        assert resolved == {"Satellite Portrait", "Satellite Landscape"}
+        assert "Satellite" not in resolved
+        assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)
+
+    def test_prefers_pid_when_the_lookup_resolves(self):
+        # When the pid lookup works there is no need for — and no risk from — the
+        # title fallback, so it must not be consulted.
+        pid_to_hwnd = {30: 3030, 40: 4040}
+
+        with patch("fun_time.windows_bridge_sequencer.wait_for_window",
+                   side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title") as by_title:
+            portrait, landscape = _resolve_satellite_hwnds(portrait_pid=30, landscape_pid=40)
+
+        assert (portrait, landscape) == (3030, 4040)
+        by_title.assert_not_called()

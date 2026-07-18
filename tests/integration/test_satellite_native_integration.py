@@ -49,6 +49,7 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
     pid = launch_satellite(
         python_exe=str(cfg.paths.genau_python_exe),
         satellite_module="satellite",
+        title="Satellite Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
         x=0, y=0, width=800, height=600,
     )
