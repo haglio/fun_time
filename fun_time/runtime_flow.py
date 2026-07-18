@@ -16,6 +16,7 @@ from .modes import (
     build_satellite_playlists,
     write_playlist_file,
 )
+from .broker_control import PARK_CMD, RESUME_CMD, write_broker_command
 from .omnipause import build_omnipause_plan
 from .mode_plan import build_mode_switch_plan, genau_active
 from .satellite_control import write_satellite_command
@@ -105,7 +106,7 @@ def apply_mode_switch(
         if plan.reenable_nau_tcode:
             Path(nau_cmd_file).write_text("SET_TCODE_ENABLED 1", encoding="utf-8")
         if not will_genau and broker_cmd_file is not None:
-            Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
+            write_broker_command(broker_cmd_file, RESUME_CMD)
     return ModeSwitchFlowResult(
         next_mode=plan.target_mode,
         is_transition=plan.is_transition,
@@ -327,7 +328,7 @@ def apply_enter_omnipause(
     write_flag_file(landscape_paused_file, True)
     Path(genau_cmd_file).write_text("PAUSE", encoding="utf-8")
     if broker_cmd_file is not None:
-        Path(broker_cmd_file).write_text("PARK", encoding="utf-8")
+        write_broker_command(broker_cmd_file, PARK_CMD)
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
@@ -360,7 +361,7 @@ def apply_leave_omnipause(
     if plan.resume_nau_playback:
         write_flag_file(nau_paused_file, False)
     if broker_cmd_file is not None:
-        Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
+        write_broker_command(broker_cmd_file, RESUME_CMD)
     # Unfreeze both satellites; a locked one holds its clip (its lock is
     # independent of the pause flag), an unlocked one resumes auto-advancing.
     write_flag_file(portrait_paused_file, False)

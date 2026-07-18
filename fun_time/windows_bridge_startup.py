@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME, write_volume
+from .broker_control import PARK_CMD, write_broker_command
 from .config import load_config
 from .dashboard_runtime import is_broker_heartbeat_fresh
 from .modes import SatelliteLibraryContext, build_fmode_playlists
@@ -205,6 +206,7 @@ def reset_satellite_paused_states(
 def start_core_session(
     *,
     config_path: str | Path,
+    broker_cmd_file: str | Path,
     broker_tray_launcher: Path | None = None,
     broker_heartbeat_file: str | Path | None = None,
     random_favs_browser_manifest_file: str | Path,
@@ -243,6 +245,12 @@ def start_core_session(
     reap_orphaned_satellites(
         satellite_module, [portrait_status_file, landscape_status_file],
     )
+    # Send the OSR2 home first, so it waits out startup parked rather than
+    # wherever the last session left it — the two native players decode their
+    # first frames while Nau and Genau scan their libraries, and that wait is
+    # long.  The verb keeps in the file until the broker's next tick, so it does
+    # not matter that ensure_broker may only now be starting one.
+    write_broker_command(broker_cmd_file, PARK_CMD)
     ensure_broker(broker_heartbeat_file, broker_tray_launcher)
     seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
     # seed_startup_states does not touch the satellite paused files; clear any "1"

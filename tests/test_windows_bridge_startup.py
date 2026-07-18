@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
+from fun_time.broker_control import PARK_CMD
 from fun_time.modes import FModePlaylistPlan
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.window_layout import WindowRect
@@ -267,6 +268,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
     state_dir = tmp_path / "state"
     return dict(
         config_path="fun_time_config.json",
+        broker_cmd_file=state_dir / "broker_cmd.txt",
         broker_heartbeat_file=state_dir / "broker_heartbeat.txt",
         random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
         genau_paused_file=tmp_path / "genau_paused.txt",
@@ -397,6 +399,33 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
 
     assert portrait_paused.read_text(encoding="utf-8") == "0"
     assert landscape_paused.read_text(encoding="utf-8") == "0"
+
+
+def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):
+    """Opening Fun Time sends the OSR2 home before anything slow begins.
+
+    Startup runs long — two native players decode their first frames while Nau
+    and Genau scan their libraries — and wherever the last session left the
+    device is where it would sit for all of it.  So the park is queued at the
+    very top, ahead of the launches that make the wait.  The broker reads its
+    command file on a tick and nothing clears it at broker startup, so the verb
+    keeps whether the broker is already up or is still coming up behind
+    ``ensure_broker``.
+    """
+    kwargs = _start_core_session_kwargs(tmp_path)
+    broker_cmd_file = kwargs["broker_cmd_file"]
+
+    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+        "fun_time.windows_bridge_startup.ensure_broker"
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch(
+        "fun_time.windows_bridge_startup.build_fmode_playlists",
+        return_value=_fake_playlist_plan(kwargs["state_dir"]),
+    ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
+        start_core_session(**kwargs)
+
+    assert broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
 
 
 def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
