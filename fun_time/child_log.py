@@ -1,28 +1,17 @@
-"""Odds and ends the orchestrator and the apps it launches share.
+"""Where a launched child's stdout and stderr go.
 
-Reading a player's command file is NOT here: a player drains its own channel
-with :mod:`player_core.file_channel`, and the dispatch loop drains the
-dashboard's by renaming it. This module had a third copy of that reader with no
-caller at all.
+All that is left of what was ``runtime_support``: the CLI, logging, threading and
+subprocess scaffolding it held alongside this is now ``app_support``, and the
+command-file reader it carried had no caller at all. This is the one piece that
+is genuinely ours — it exists because *we* launch windowed children and have to
+be able to diagnose one that dies.
 """
 from __future__ import annotations
 
-import argparse
-import os
-import subprocess
-import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import IO, Any
-
-
-def preparse_config_path(argv: list[str] | None) -> str | None:
-    ap = argparse.ArgumentParser(add_help=False)
-    ap.add_argument("--config")
-    known, _ = ap.parse_known_args(argv)
-    return known.config
-
+from typing import IO
 
 # A child's crash log is near-empty in normal use (a line per clip), so a
 # megabyte spans days of sessions — matching the cap the app's own logs use.
@@ -68,17 +57,3 @@ def _roll_oversize_log(path: Path, max_bytes: int) -> None:
         path.replace(path.with_name(path.name + ".1"))
     except OSError:
         pass
-
-
-def hidden_subprocess_kwargs() -> dict[str, Any]:
-    if os.name != "nt" and sys.platform != "win32":
-        return {}
-
-    kwargs: dict[str, Any] = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
-    startupinfo = subprocess.STARTUPINFO()
-    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    kwargs["startupinfo"] = startupinfo
-    show_window = getattr(subprocess, "SW_HIDE", None)
-    if show_window is not None:
-        startupinfo.wShowWindow = show_window
-    return kwargs

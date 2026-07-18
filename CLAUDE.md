@@ -49,10 +49,10 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 - **Test configuration must derive from production code.** Integration tests may test individual components (not only end-to-end), but their configuration (launch commands, flags, init sequences) must come from the same production functions that real sessions use. Never hand-craft config that duplicates production logic — if the test builds its own satellite command line instead of calling `_build_satellite_launch_command`, it can pass while production is broken.
 - **Integration tests must randomize video selection.** Use `random.sample()` or `random.choice()` — never `sorted()[:n]` or other deterministic selection. The same videos playing every run masks bugs that only surface with different media files.
 
-## The shared player core
+## The shared repos
 
-- The satellite players' playback engine, the playlist format, the command/paused file channel and the status writer live in `../player_core`, installed editable into this venv — `../genau`'s apps use them too, and no app may reach into another's repo. Fix those there, not here.
-- Install it with `--config-settings editable_mode=compat`; `player_core`'s README says why, and its `tests/test_install.py` goes red without it.
+- No app may reach into another's repo. What we share lives in siblings installed editable into this venv, and a change to any of it belongs there: `../player_core` (the satellite players' engine, playlist format, command/paused file channel, status writer), `../app_support` (logging setup and exception hooks, `start_daemon_thread`, `preparse_config_path`, `hidden_subprocess_kwargs`), `../shared_ui` (Qt widgets).
+- Install each with `--config-settings editable_mode=compat`; their READMEs say why, and each carries a `tests/test_install.py` that goes red without it.
 - `satellite/` is a second top-level package in this repo, launched as `python -m satellite` with **our** python (`paths.python_exe`), not genau's. It resolves through the working directory `launch.vbs` sets, the same way `-m fun_time.dashboard_app` does.
 
 ## Repo-specific gotchas

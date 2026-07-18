@@ -12,7 +12,7 @@ from .config import load_config
 from .live_session import publish_live_session
 from .manifest import write_windows_bridge_manifest
 from .windows_bridge_orchestrator import run_python_orchestrated_bridge
-from .logging_utils import configure_logging, install_exception_logging
+from app_support.logging_utils import configure_logging, install_exception_logging
 from . import orchestrator_broker
 
 
