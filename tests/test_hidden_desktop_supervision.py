@@ -57,6 +57,41 @@ def test_a_run_that_stops_itself_within_the_grace_period_is_not_killed():
     assert terminated == []
 
 
+def test_the_runner_is_what_says_why_the_run_stopped():
+    """pytest captures at the file-descriptor level, so a notice written from
+    inside the run goes into its capture buffer and is dropped on the way out —
+    the run ends on a bare KeyboardInterrupt with nothing to explain it.  The
+    runner is outside that capture, so it is the one that has to say it, and it
+    says it when the session appears rather than when the grace runs out.
+    """
+    announced = []
+
+    supervise_run(
+        wait=_Wait(4),
+        live_session_found=lambda: True,
+        terminate=lambda: None,
+        announce=announced.append,
+        grace_seconds=30.0,
+        poll_seconds=1.0,
+    )
+
+    assert len(announced) == 1
+    assert "ABORTING" in announced[0]
+
+
+def test_a_quiet_run_is_never_announced():
+    announced = []
+
+    supervise_run(
+        wait=_Wait(3),
+        live_session_found=lambda: False,
+        terminate=lambda: None,
+        announce=announced.append,
+    )
+
+    assert announced == []
+
+
 def test_a_run_that_ignores_the_abort_is_killed_once_the_grace_runs_out():
     terminated = []
 

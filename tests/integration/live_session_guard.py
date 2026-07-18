@@ -206,7 +206,6 @@ def watch_for_live_session(
     abort: Callable[[], None],
     stop: threading.Event,
     find: Callable[[], LiveSession | None] = find_live_session,
-    announce: Callable[[str], None] = announce,
     sleep: Callable[[float], None] = time.sleep,
     poll_seconds: float = 1.0,
 ) -> None:
@@ -218,16 +217,16 @@ def watch_for_live_session(
     that is a second session on the machine, which is the thing none of this is
     allowed to become.
 
+    Aborts silently: this runs inside pytest, whose capture is at the
+    file-descriptor level, so anything written here goes into the capture buffer
+    and is dropped on the way out.  The runner's ``supervise_run`` is watching
+    from outside that capture and is what tells the user why the run stopped.
+
     Returns as soon as it has aborted, so *abort* fires once however long the
     session stays open; otherwise polls until *stop* is set.
     """
     while not stop.is_set():
-        session = find()
-        if session is not None:
-            announce(
-                "[integration] Fun Time was opened while this run was in flight — "
-                "ABORTING the run.  The user's session wins; re-run once it is closed."
-            )
+        if find() is not None:
             abort()
             return
         sleep(poll_seconds)
