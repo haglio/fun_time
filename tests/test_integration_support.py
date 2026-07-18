@@ -20,6 +20,7 @@ from tests.integration import integration_support
 from tests.integration.integration_support import (
     INTEGRATION_CONFIG_NAME,
     FunTimeIntegrationSession,
+    isolate_audio_companion_port,
 )
 
 
@@ -126,3 +127,24 @@ def test_the_orchestrator_wait_only_ever_waits_on_integration_orchestrators(sess
     # The name appears regex-escaped, so match on its distinguishing stem.  What
     # matters is that the user's `--config fun_time_config.json` cannot match.
     assert INTEGRATION_CONFIG_NAME.removesuffix(".json") in ps_command
+
+
+def test_the_integration_config_never_shares_the_live_sessions_audio_port():
+    """The audio companion binds a fixed UDP port, and ``build_integration_config``
+    rewrote only *paths* — so a run and a live session raced for one socket.
+
+    Whichever bound second died with WSAEADDRINUSE.  Started in the order the
+    user would notice, that is theirs: a run holding the port means opening Fun
+    Time loses its companion audio, with nothing on screen to explain it.  And
+    while both were up, Genau's notifications went to whichever companion won,
+    which need not be its own session's.
+    """
+    config = {"audio_companion": {"host": "127.0.0.1", "port": 50556}}
+    genau_config = {"genau": {"notify_host": "127.0.0.1", "notify_port": 50556}}
+
+    isolate_audio_companion_port(config, genau_config)
+
+    assert config["audio_companion"]["port"] != 50556
+    # Sender and receiver have to move together: Genau notifies the port the
+    # companion is listening on, so rewriting one alone just breaks the run.
+    assert genau_config["genau"]["notify_port"] == config["audio_companion"]["port"]

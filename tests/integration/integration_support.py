@@ -4,6 +4,7 @@ import json
 import os
 import random
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -374,6 +375,25 @@ class FunTimeIntegrationSession:
 
 
 
+def isolate_audio_companion_port(config: dict, genau_config: dict) -> None:
+    """Move this run's audio companion off the port the user's session uses.
+
+    The companion ``bind``s a fixed UDP port from config, and Genau notifies it
+    on the matching ``notify_port``.  Both sides of that pair are rewritten here,
+    to a port the OS says is free: rewriting one alone would only leave the run's
+    own Genau shouting at nobody.
+
+    Two sessions on the production port cannot both have it.  The loser dies with
+    WSAEADDRINUSE, and if the run got there first the loser is the user's — they
+    open Fun Time and it comes up with no companion audio and nothing to say why.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    config["audio_companion"]["port"] = port
+    genau_config["genau"]["notify_port"] = port
+
+
 def build_integration_config(tmp_path: Path) -> Path:
     real = load_config()
     integration_root = tmp_path.resolve() / "integration_runtime"
@@ -415,6 +435,9 @@ def build_integration_config(tmp_path: Path) -> Path:
     genau_config["nau"]["videos_dir"] = str(primary_dir)
     genau_config["nau"]["scripts_dir"] = str(scripts_root)
     genau_config["nau"]["clips_dir"] = str(nau_clips_dir)
+    # Paths are not the whole of what a session claims: the audio companion binds
+    # a fixed UDP port, so a run and a live session would race for one socket.
+    isolate_audio_companion_port(config, genau_config)
     test_genau_config = integration_root / "genau_integration_config.json"
     test_genau_config.write_text(json.dumps(genau_config), encoding="utf-8")
     config["paths"]["genau_config_path"] = str(test_genau_config)
