@@ -832,7 +832,7 @@ class DispatchLoopRunner:
         whenever the OSR2 is off.
         """
         if self._is_broker_alive():
-            stop_broker_processes(self.config.state_dir.parent)
+            stop_broker_processes()
         else:
             launch_broker_tray(self.config.broker_tray_launcher)
 
@@ -856,7 +856,7 @@ class DispatchLoopRunner:
         """Stop broker only if currently running."""
         if self._is_broker_alive():
             threading.Thread(
-                target=lambda: stop_broker_processes(self.config.state_dir.parent),
+                target=stop_broker_processes,
                 daemon=True,
                 name="broker-stop",
             ).start()
