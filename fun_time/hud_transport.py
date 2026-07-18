@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, HudPanel, locate_cell, panel_thumbnails
@@ -72,6 +73,28 @@ def hud_payload(panel: HudPanel, cache_dir: Path) -> dict:
     }
 
 
+def _replace_past_the_players_poll(
+    tmp: Path, path: Path, *, attempts: int = 5, delay_s: float = 0.005,
+) -> bool:
+    """Rename *tmp* over *path*, retrying past the player's read of it.
+
+    The satellite polls its HUD file every frame, and Windows refuses to replace
+    a file another process holds open — so a publish landing inside one of those
+    reads fails with a sharing violation.  Retrying turns that into a
+    sub-millisecond wait; a file locked for longer than that gives up and reports
+    it, so the caller republishes rather than believing a lost panel was
+    delivered.  (The player's own click-command writes use the same idiom.)
+    """
+    for attempt in range(attempts):
+        try:
+            os.replace(tmp, path)
+            return True
+        except OSError:
+            if attempt < attempts - 1:
+                time.sleep(delay_s)
+    return False
+
+
 class HudPublisher:
     """Writes both satellites' HUD files, skipping unchanged panels."""
 
@@ -88,12 +111,15 @@ class HudPublisher:
         text = json.dumps(hud_payload(panel, self._cache_dir))
         if text == self._last.get(side):
             return False
-        self._last[side] = text
         path.parent.mkdir(parents=True, exist_ok=True)
         # Written aside and renamed over: the player polls this file, and an
         # atomic replace means it always reads a whole panel, never a half-written
         # one.
         tmp = path.with_suffix(".tmp")
         tmp.write_text(text, encoding="utf-8")
-        os.replace(tmp, path)
+        if not _replace_past_the_players_poll(tmp, path):
+            return False
+        # Remembered only once the panel is actually on disk: a write that never
+        # landed must be retried on the next tick, not treated as published.
+        self._last[side] = text
         return True

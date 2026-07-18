@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -92,6 +93,46 @@ def test_publish_writes_the_file_only_when_the_panel_changes(tmp_path: Path):
         assert publisher.publish("portrait", _panel(locked=False, lock_label="Unlocked")) is True
 
     assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is False
+
+
+def test_publish_survives_the_player_holding_the_file_open(tmp_path: Path):
+    """The player polls this file ~60x/s, and Windows refuses to replace a file
+    another process has open — so a publish that lands mid-poll raises
+    PermissionError.  Retrying rides out that microsecond instead of losing the
+    panel (and, before this, throwing out of the dispatch loop's tick)."""
+    hud_file = tmp_path / "portrait_hud.json"
+    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
+    real_replace = os.replace
+    calls = []
+
+    def flaky_replace(src, dst):
+        calls.append(src)
+        if len(calls) == 1:
+            raise PermissionError(5, "Access is denied")
+        real_replace(src, dst)
+
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)), \
+         patch("fun_time.hud_transport.os.replace", side_effect=flaky_replace):
+        assert publisher.publish("portrait", _panel()) is True
+
+    assert len(calls) == 2
+    assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is True
+
+
+def test_publish_republishes_a_panel_whose_write_never_landed(tmp_path: Path):
+    """A dropped write must not be remembered as published: the panel the player
+    is reading would then stay stale until something else changed it, which for a
+    locked satellite can be a very long time."""
+    hud_file = tmp_path / "portrait_hud.json"
+    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
+
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+        with patch("fun_time.hud_transport.os.replace", side_effect=PermissionError(5, "denied")):
+            assert publisher.publish("portrait", _panel()) is False
+        # The very same panel, now that the file is free again.
+        assert publisher.publish("portrait", _panel()) is True
+
+    assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is True
 
 
 def test_publish_ignores_a_side_with_no_file(tmp_path: Path):
