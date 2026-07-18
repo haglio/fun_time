@@ -33,9 +33,15 @@ import ctypes.wintypes as wt
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
-from .live_session_guard import DENIED_EXIT_CODE, allow_integration_run
+from .live_session_guard import (
+    ABORTED_EXIT_CODE,
+    DENIED_EXIT_CODE,
+    allow_integration_run,
+    find_live_session,
+)
 
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
 INTEGRATION_DIR = "tests/integration/"
@@ -61,8 +67,8 @@ STARTF_USESTDHANDLES = 0x00000100
 STD_INPUT_HANDLE = -10
 STD_OUTPUT_HANDLE = -11
 STD_ERROR_HANDLE = -12
-INFINITE = 0xFFFFFFFF
 CREATE_SUSPENDED = 0x00000004
+WAIT_TIMEOUT = 0x00000102
 
 # Destroying the job terminates every process still in it.  The run's whole
 # process tree — pytest, the orchestrator, the satellites, Nau, Genau, AHK — is in it,
@@ -269,10 +275,50 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int) ->
     return pi
 
 
+def supervise_run(
+    *,
+    wait: Callable[[float], bool],
+    live_session_found: Callable[[], bool],
+    terminate: Callable[[], None],
+    grace_seconds: float = 30.0,
+    poll_seconds: float = 1.0,
+) -> bool:
+    """Wait out the run, ending it if Fun Time opens.  True if it was aborted.
+
+    The watchdog running inside pytest is the clean way out and gets first go:
+    it asks pytest to stop, so fixtures tear down, the session's children are
+    killed by recorded identity, and the temp tree goes with them.  It cannot be
+    the only way out.  The main thread spends whole seconds at a time inside
+    blocking subprocess calls where a pending ``KeyboardInterrupt`` just waits its
+    turn, and a wedged pytest would never act on one at all — while the user sits
+    there with a second session on their machine.  So once a session is seen, the
+    run gets *grace_seconds* to stop itself and is then terminated outright.
+
+    ``wait(timeout)`` reports whether the run has ended; ``terminate`` closes the
+    job, which takes down everything the run still had running.
+    """
+    grace_polls = max(1, round(grace_seconds / poll_seconds))
+    remaining: int | None = None
+    while not wait(poll_seconds):
+        if remaining is None:
+            if live_session_found():
+                remaining = grace_polls
+            continue
+        remaining -= 1
+        if remaining <= 0:
+            terminate()
+            return True
+    return remaining is not None
+
+
 def run_on_hidden_desktop(extra_args: list[str]) -> int:
     """Create the hidden desktop, run the integration pytest bound to it, and
     return pytest's exit code.  The desktop handle is closed on the way out, and
-    the run's job object with it — so nothing the run spawned can survive it."""
+    the run's job object with it — so nothing the run spawned can survive it.
+
+    Returns ``ABORTED_EXIT_CODE`` instead if Fun Time was opened mid-run: pytest's
+    own code for that is a bare "interrupted", which says nothing about why.
+    """
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
     hdesk = _user32.CreateDesktopW(HIDDEN_DESKTOP_NAME, None, None, 0, GENERIC_ALL, None)
     if not hdesk:
@@ -285,7 +331,15 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
         try:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job)
             try:
-                _kernel32.WaitForSingleObject(pi.hProcess, INFINITE)
+                aborted = supervise_run(
+                    wait=lambda seconds: _kernel32.WaitForSingleObject(
+                        pi.hProcess, int(seconds * 1000)
+                    ) != WAIT_TIMEOUT,
+                    live_session_found=lambda: find_live_session() is not None,
+                    terminate=lambda: close_run_job(job),
+                )
+                if aborted:
+                    return ABORTED_EXIT_CODE
                 code = wt.DWORD()
                 _kernel32.GetExitCodeProcess(pi.hProcess, ctypes.byref(code))
                 return int(code.value)

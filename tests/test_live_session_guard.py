@@ -8,6 +8,7 @@ is even created, whether the run may proceed.
 from __future__ import annotations
 
 import configparser
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -20,6 +21,7 @@ from tests.integration.live_session_guard import (
     close_live_session,
     find_live_session,
     read_recorded_children,
+    watch_for_live_session,
 )
 
 
@@ -216,6 +218,58 @@ class TestAllowIntegrationRun:
         assert asked == [True]
         assert closed == []
         assert any("declined" in line.lower() for line in announced)
+
+
+class TestWatchForLiveSession:
+    """The guard has to keep asking, not ask once.
+
+    ``allow_integration_run`` runs before the hidden desktop exists, so it can
+    only see a session that was already open.  A run lasts minutes, which is
+    ample time for the user to open Fun Time — and that is exactly how a run came
+    to be up alongside a live session in the first place.
+    """
+
+    def _watch(self, sessions, *, stop=None):
+        aborted: list[str] = []
+        announced: list[str] = []
+        watch_for_live_session(
+            find=lambda: sessions.pop(0),
+            abort=lambda: aborted.append("abort"),
+            announce=announced.append,
+            sleep=lambda _s: None,
+            stop=stop or threading.Event(),
+        )
+        return aborted, announced
+
+    def test_aborts_the_run_when_fun_time_opens_mid_run(self):
+        aborted, announced = self._watch([None, None, _session(omni_paused=False)])
+
+        assert aborted == ["abort"]
+        assert any("opened" in line.lower() for line in announced)
+
+    def test_keeps_polling_and_lets_a_finished_run_stop_it(self):
+        """The run ending is the normal way this ends — it must not abort a run
+        that got all the way through on an idle machine."""
+        stop = threading.Event()
+        polls: list[int] = []
+        aborted: list[str] = []
+
+        def find():
+            polls.append(1)
+            if len(polls) == 3:
+                stop.set()
+            return None
+
+        watch_for_live_session(
+            find=find,
+            abort=lambda: aborted.append("abort"),
+            announce=lambda _m: None,
+            sleep=lambda _s: None,
+            stop=stop,
+        )
+
+        assert aborted == []
+        assert len(polls) == 3
 
 
 class TestCloseLiveSession:
