@@ -41,6 +41,7 @@ from __future__ import annotations
 import configparser
 import ctypes
 import sys
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -55,6 +56,11 @@ from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_chi
 # pytest's, but the suite never reaches pytest when we deny) so a caller can tell
 # "the run was refused" from "the run failed".
 DENIED_EXIT_CODE = 4
+# Distinct from DENIED: the run had already started and was cut short because Fun
+# Time opened underneath it.  pytest's own code for that is a bare "interrupted",
+# which says nothing about why, and a caller must be able to tell "the user's
+# session took priority" from "the tests failed".
+ABORTED_EXIT_CODE = 5
 
 _PROMPT_TITLE = "Fun Time is open"
 _PROMPT_TEXT = (
@@ -193,6 +199,38 @@ def announce(message: str) -> None:
     if stream is not None:
         stream.write(f"{message}\n")
         stream.flush()
+
+
+def watch_for_live_session(
+    *,
+    abort: Callable[[], None],
+    stop: threading.Event,
+    find: Callable[[], LiveSession | None] = find_live_session,
+    announce: Callable[[str], None] = announce,
+    sleep: Callable[[float], None] = time.sleep,
+    poll_seconds: float = 1.0,
+) -> None:
+    """Keep asking whether Fun Time has opened, and abort the run the moment it has.
+
+    ``allow_integration_run`` answers once, before the hidden desktop exists, so
+    it can only ever see a session that was already up.  A run lasts minutes —
+    ample time for the user to open Fun Time — and a run that carries on through
+    that is a second session on the machine, which is the thing none of this is
+    allowed to become.
+
+    Returns as soon as it has aborted, so *abort* fires once however long the
+    session stays open; otherwise polls until *stop* is set.
+    """
+    while not stop.is_set():
+        session = find()
+        if session is not None:
+            announce(
+                "[integration] Fun Time was opened while this run was in flight — "
+                "ABORTING the run.  The user's session wins; re-run once it is closed."
+            )
+            abort()
+            return
+        sleep(poll_seconds)
 
 
 def allow_integration_run(

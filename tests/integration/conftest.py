@@ -14,13 +14,16 @@ would render offscreen and the Win32 inspection helpers would find nothing.
 """
 from __future__ import annotations
 
+import _thread
 import os
 import sys
+import threading
 
 import pytest
 
 from fun_time.live_session import CLAIM_PATH_ENV_VAR
 
+from .live_session_guard import watch_for_live_session
 from .session_lock import INTEGRATION_LOCK_NAME, hold_integration_lock
 
 os.environ.pop("QT_QPA_PLATFORM", None)
@@ -57,6 +60,36 @@ def _never_mutate_a_real_window():
     refuses to start a run while Fun Time is open.
     """
     yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _abort_if_fun_time_opens():
+    """Stop the run the moment the user opens Fun Time underneath it.
+
+    ``allow_integration_run`` answers once, before this process even exists, so
+    it can only ever see a session that was already up.  A run lasts minutes;
+    nothing stopped the user opening Fun Time during one, and then two sessions
+    shared the machine — which is how a run came to be running alongside a live
+    session in the first place.
+
+    ``interrupt_main`` is what makes the abort a clean one: it raises
+    KeyboardInterrupt in pytest's main thread, and pytest answers that by tearing
+    down every fixture still on the stack.  So the session's children die by
+    recorded identity, the temp tree goes, and the machine-wide lock is released
+    — the same unwinding a finished run does, just early.  A kill from outside
+    would leave all of that behind.
+    """
+    stop = threading.Event()
+    threading.Thread(
+        target=watch_for_live_session,
+        kwargs={"abort": _thread.interrupt_main, "stop": stop},
+        name="live-session-watch",
+        daemon=True,
+    ).start()
+    try:
+        yield
+    finally:
+        stop.set()
 
 
 @pytest.fixture(scope="session", autouse=True)
