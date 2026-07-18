@@ -575,6 +575,79 @@ def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session
     )
 
 
+def _videos(playlist: Path) -> list[str]:
+    """The video column of each playlist line, dropping any funscript."""
+    return [
+        line.partition("\t")[0]
+        for line in playlist.read_text(encoding="utf-8").splitlines()
+    ]
+
+
+def test_fun_time_reopens_on_the_video_it_was_closed_on():
+    """Close Fun Time on one video and it comes back on that one.
+
+    Nothing is written at shutdown: each player publishes what it is showing to
+    its status file every tick, and the next start rotates that player's playlist
+    onto the video named there rather than building a fresh shuffle.  Only a real
+    session proves it — the record has to survive the force-kill that ends one.
+
+    Nau carries the assertion because its library is the several-entry one, so
+    the resumed playlist has to be an exact rotation of the last one — an order
+    a rebuild would reproduce only by chance.
+    """
+    temp_root = build_integration_temp_root()
+    config_path = build_integration_config(temp_root)
+
+    first = FunTimeIntegrationSession(config_path)
+    playlist = first.config.nau_playlist_file
+    try:
+        first.start()
+        opened_with = _videos(playlist)
+        # Navigate off the top of the playlist, so resuming onto entry 0 — which
+        # every session does anyway — cannot pass this by accident.
+        first.write_dashboard_command("primary_next")
+        first.wait_until(
+            lambda: first.read_nau_status().video not in ("", opened_with[0]),
+            timeout=20,
+            description="Nau to navigate off the first video",
+        )
+        # Then freeze the session before closing it. Some of the primary library
+        # is seconds long, and a Nau that auto-advanced while the shutdown ran
+        # would leave behind a different video than the one read here.
+        first.write_dashboard_command("omnipause_toggle")
+        first.wait_until(
+            lambda: first.read_nau_status().paused,
+            timeout=20,
+            description="Nau to freeze under OmniPause",
+        )
+        left_on = first.read_nau_status().video
+        assert left_on != opened_with[0], "the session must close off the top of its playlist"
+        first.quit_gracefully(timeout=15.0)
+    finally:
+        first.stop()
+
+    second = FunTimeIntegrationSession(config_path)
+    try:
+        second.start()
+        resumed = _videos(playlist)
+        position = opened_with.index(left_on)
+        assert resumed == opened_with[position:] + opened_with[:position], (
+            "the reopened playlist must be last session's rotated onto the video it "
+            f"was closed on (entry {position}), not a fresh shuffle\n"
+            f"left on: {left_on}\n"
+            "opened with:\n" + "\n".join(opened_with)
+            + "\nreopened with:\n" + "\n".join(resumed)
+        )
+        second.wait_until(
+            lambda: second.read_nau_status().video == left_on,
+            timeout=20,
+            description="Nau to come back up on the video the last session ended on",
+        )
+    finally:
+        second.stop()
+        shutil.rmtree(temp_root, ignore_errors=True)
+
+
 def test_fun_time_quit_cleans_up_processes():
     """The real quit path (AHK exit → orchestrator cleanup) must kill all child processes."""
     temp_root = build_integration_temp_root()

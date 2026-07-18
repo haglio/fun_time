@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import logging
 import re
 import subprocess
 from collections.abc import Sequence
@@ -9,8 +10,17 @@ from pathlib import Path
 from .audio_volume import MAX_VOLUME, write_volume
 from .broker_control import PARK_CMD, write_broker_command
 from .config import load_config
-from .dashboard_runtime import is_broker_heartbeat_fresh
-from .modes import SatelliteLibraryContext, build_fmode_playlists
+from .dashboard_runtime import is_broker_heartbeat_fresh, read_nau_status
+from .modes import (
+    PLAYLIST_LANDSCAPE,
+    PLAYLIST_NAU,
+    PLAYLIST_PORTRAIT,
+    SatelliteLibraryContext,
+    build_fmode_playlists,
+    build_playlist_file_path,
+)
+from .satellite_control import read_satellite_status
+from .session_resume import resume_playlists
 from .watch_stats import watch_stats_path
 from .orchestrator_broker import (
     BROKER_PROCESS_PATTERN,
@@ -22,6 +32,8 @@ from .random_favs_browser import build_manifest, write_manifest
 from .child_log import open_child_log
 from .rfb_tab_page import tabs_dir, write_tab_pages
 from .window_layout import WindowRect
+
+logger = logging.getLogger(__name__)
 
 
 # The two native satellites carry DISTINCT window captions so the sequencer can
@@ -222,6 +234,7 @@ def start_core_session(
     landscape_cmd_file: str | Path,
     landscape_paused_file: str | Path,
     landscape_status_file: str | Path,
+    nau_status_file: str | Path,
     portrait_log_file: str | Path,
     landscape_log_file: str | Path,
     portrait_rect: WindowRect,
@@ -257,25 +270,47 @@ def start_core_session(
     # a prior OmniPause stranded so the satellites launch playing, not frozen.
     reset_satellite_paused_states(portrait_paused_file, landscape_paused_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
-    # One playlist authority: the same builder the F-mode toggle uses writes the
-    # two satellite playlists and Nau's video/funscript pair list.
-    playlist_plan = build_fmode_playlists(
-        primary_sources=primary_sources,
-        portrait_sources=portrait_sources,
-        landscape_sources=landscape_sources,
-        favs_file=Path(favs_file),
-        state_dir=Path(state_dir),
-        enabled=False,
-        library=SatelliteLibraryContext(
-            metadata_root=provider_metadata_root,
-            watch_stats_file=watch_stats_path(state_dir),
-        ),
+    state_path = Path(state_dir)
+    portrait_playlist = build_playlist_file_path(state_path, PLAYLIST_PORTRAIT)
+    landscape_playlist = build_playlist_file_path(state_path, PLAYLIST_LANDSCAPE)
+    # Come back to the clips this session was closed on, rather than three the
+    # user never chose: last session's playlists are still on disk and each
+    # player's status file names the video it had on screen, so a reopen rotates
+    # them instead of reshuffling.  Only a session with nothing to resume — a
+    # first run, a wiped state dir — is built, by the same builder the F-mode
+    # toggle uses.  Shuffle and Premiere still rebuild on demand, and that is
+    # where videos added since come in.
+    resumed = resume_playlists([
+        (portrait_playlist, read_satellite_status(Path(portrait_status_file)).video),
+        (landscape_playlist, read_satellite_status(Path(landscape_status_file)).video),
+        (build_playlist_file_path(state_path, PLAYLIST_NAU),
+         read_nau_status(Path(nau_status_file)).video),
+    ])
+    if not resumed:
+        build_fmode_playlists(
+            primary_sources=primary_sources,
+            portrait_sources=portrait_sources,
+            landscape_sources=landscape_sources,
+            favs_file=Path(favs_file),
+            state_dir=state_path,
+            enabled=False,
+            library=SatelliteLibraryContext(
+                metadata_root=provider_metadata_root,
+                watch_stats_file=watch_stats_path(state_path),
+            ),
+        )
+    # Which of the two ran is the difference between the clips of the last
+    # session and three new ones, so the log says outright which you are getting.
+    logger.info(
+        "Resumed last session's playlists"
+        if resumed
+        else "Nothing to resume; built fresh playlists"
     )
     launch_core_apps(
         python_exe=satellite_python_exe,
         satellite_module=satellite_module,
-        portrait_playlist=playlist_plan.portrait_playlist_path,
-        landscape_playlist=playlist_plan.landscape_playlist_path,
+        portrait_playlist=portrait_playlist,
+        landscape_playlist=landscape_playlist,
         portrait_cmd_file=portrait_cmd_file,
         portrait_paused_file=portrait_paused_file,
         portrait_status_file=portrait_status_file,

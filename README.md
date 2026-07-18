@@ -236,6 +236,16 @@ Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recor
 - `Esc` toggles OmniPause; `Space` enters it.
 - While OmniPaused, the global hotkeys are suspended — only `Esc` (toggle OmniPause) and `Ctrl+Alt+Q` (quit) stay active.
 
+### Reopening where you left off
+
+Fun Time comes back on the clips it was closed on. Each player publishes what it is showing to its status file every tick, so the last tick before a session ends records where all three were; startup reads those, and instead of building three fresh playlists it keeps last session's and **rotates** each onto the video named there. That video becomes the player's first entry — where you left off — and because a playlist wraps, the clips that were coming up still come up, in the same order.
+
+Nothing is written at shutdown, so this survives a crash or a power cut as well as a normal quit. Clips deleted since are dropped as each playlist is rewritten. It is all-or-nothing across the three: only when there is no session to come back to — a first run, or a wiped `state/` — does startup build fresh.
+
+Rebuilding is therefore a deliberate gesture: **Shuffle** (reshuffle), **Premiere** (`P`, newest-first), a filter, a reset, or an F-Mode toggle. Those are also where videos added since the last session first appear.
+
+The queue is what comes back, not the session's switches: mode, F-Mode, filters, locks and group loops all still start from their defaults. So a satellite closed inside a group loop reopens inside it with nothing on the dashboard saying so — **Reset** or **Shuffle** returns it to the full browse.
+
 ### F-Mode
 
 Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the next advance — the two satellite `.tsv` playlists plus Nau's `nau_playlist.tsv` (Nau is sent `RELOAD_PLAYLIST`) — and restricts playback to funscript-backed media:
@@ -243,7 +253,7 @@ Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the
 - the primary playlist (Nau) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
 - each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
-The same builder (`build_fmode_playlists`) writes all three playlist files at startup, so startup and the F-mode toggle share one playlist authority.
+The same builder (`build_fmode_playlists`) writes all three playlist files, so every rebuild — the F-mode toggle, and the first start of a state dir with no session to resume — shares one playlist authority.
 
 ### Cycle action & cycle seed (satellites)
 
@@ -353,7 +363,7 @@ Per-video watch counts (`completions` / `skips` / `locks`) keyed by normalized p
 
 ### `nau_playlist.tsv`
 
-One video per line, with a TAB plus the funscript path when one exists. Written by `build_fmode_playlists` at startup and on every F-mode toggle (which also sends Nau `RELOAD_PLAYLIST`).
+One video per line, with a TAB plus the funscript path when one exists. Written by `build_fmode_playlists` on every F-mode toggle (which also sends Nau `RELOAD_PLAYLIST`), and by the same builder at startup when there is no session to resume. A startup that *does* resume rewrites this file in place instead, rotated onto the video `nau_status.txt` names — see "Reopening where you left off". The two satellite `.tsv` playlists work the same way.
 
 ### `event_log.jsonl`
 

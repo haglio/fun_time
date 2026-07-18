@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
 from .watch_stats import load_watch_stats, passes_inclusion, weight_for, weighted_shuffle
@@ -11,25 +11,6 @@ from .watch_stats import load_watch_stats, passes_inclusion, weight_for, weighte
 PLAYLIST_PORTRAIT = "portrait_playlist"
 PLAYLIST_LANDSCAPE = "landscape_playlist"
 PLAYLIST_NAU = "nau_playlist"
-
-
-@dataclass(frozen=True)
-class FModePlaylistPlan:
-    success: bool
-    primary_count: int
-    portrait_count: int
-    landscape_count: int
-    portrait_playlist_path: Path
-    landscape_playlist_path: Path
-    nau_playlist_path: Path
-
-
-@dataclass(frozen=True)
-class SatellitePlaylistPlan:
-    portrait_count: int
-    landscape_count: int
-    portrait_playlist_path: Path
-    landscape_playlist_path: Path
 
 
 @dataclass(frozen=True)
@@ -81,9 +62,14 @@ def build_mirrored_funscript_path(video_path: str) -> str:
     return str(Path(mirrored).with_suffix(".funscript"))
 
 
-def has_matching_funscript(video_path: str) -> bool:
+def matching_funscript(video_path: str) -> str | None:
+    """The funscript mirrored beside *video_path*, or None when there is none."""
     mirrored = build_mirrored_funscript_path(video_path)
-    return bool(mirrored) and Path(mirrored).exists()
+    return mirrored if mirrored and Path(mirrored).exists() else None
+
+
+def has_matching_funscript(video_path: str) -> bool:
+    return matching_funscript(video_path) is not None
 
 
 def read_favs_content(favs_file: Path) -> str:
@@ -281,30 +267,34 @@ def build_playlist_file_path(state_dir: Path, name: str) -> Path:
     return state_dir / f"{name}.tsv"
 
 
-def write_playlist_file(path: Path, paths: list[str]) -> None:
-    """Write a satellite playlist: one video path per line.
+def write_playlist_entries(
+    path: Path, entries: Sequence[tuple[str | Path, str | Path | None]]
+) -> None:
+    """Write a playlist file: one video per line, TAB + funscript where there is one.
 
-    The native satellite player (:mod:`satellite`) reads this with
-    ``nau.playlist.read_playlist`` — one path per line, an optional TAB-separated
-    funscript column it ignores for a silent satellite — so the file is plain
-    lines, with no header of any kind.
+    The single shape both players read back with ``player_core.playlist.read_playlist``
+    — Nau drives the OSR2 from the funscript column, a silent satellite drops it —
+    so every playlist fun_time writes is emitted here and can never drift apart.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    content = "".join(f"{full_path}\n" for full_path in paths)
-    path.write_text(content, encoding="utf-8")
+    lines = (f"{video}\t{funscript}" if funscript else f"{video}" for video, funscript in entries)
+    path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
+
+
+def write_playlist_file(path: Path, paths: list[str]) -> None:
+    """Write a satellite playlist: one video path per line, no funscript column.
+
+    A satellite is silent and unscripted, so it drops that column anyway and
+    there is nothing to look up.
+    """
+    write_playlist_entries(path, [(video_path, None) for video_path in paths])
 
 
 def write_nau_playlist_file(path: Path, video_paths: list[str]) -> None:
-    """Write Nau's playlist: one video per line, TAB + funscript when it exists."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lines = []
-    for video_path in video_paths:
-        mirrored = build_mirrored_funscript_path(video_path)
-        if mirrored and Path(mirrored).exists():
-            lines.append(f"{video_path}\t{mirrored}")
-        else:
-            lines.append(video_path)
-    path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
+    """Write Nau's playlist, pairing each video with its funscript when it has one."""
+    write_playlist_entries(
+        path, [(video_path, matching_funscript(video_path)) for video_path in video_paths]
+    )
 
 
 def build_one_satellite_playlist(
@@ -318,14 +308,12 @@ def build_one_satellite_playlist(
     filter_query: str = "",
     rng: random.Random | None = None,
     library: SatelliteLibraryContext | None = None,
-) -> tuple[Path, int]:
-    """Build, write, and return the playlist file for a single satellite."""
+) -> None:
+    """Build and write the playlist file a single satellite plays from."""
     paths = build_satellite_playlist_paths(
         sources, f_mode, favs_file, filter_query=filter_query, recent=recent, rng=rng, library=library
     )
-    playlist_path = build_playlist_file_path(state_dir, name)
-    write_playlist_file(playlist_path, paths)
-    return playlist_path, len(paths)
+    write_playlist_file(build_playlist_file_path(state_dir, name), paths)
 
 
 def build_satellite_playlists(
@@ -340,28 +328,22 @@ def build_satellite_playlists(
     landscape_filter: str = "",
     rng: random.Random | None = None,
     library: SatelliteLibraryContext | None = None,
-) -> SatellitePlaylistPlan:
+) -> None:
     """Build and write the Portrait/Landscape satellite playlists (the two satellites).
 
     Ordering follows ``recent``: newest-first when set, otherwise shuffled
     (with action-group collapse and watch weighting when *library* is given).
     Each satellite honours its own ``*_filter`` independently.
     """
-    portrait_playlist_path, portrait_count = build_one_satellite_playlist(
+    build_one_satellite_playlist(
         sources=portrait_sources, name=PLAYLIST_PORTRAIT, favs_file=favs_file,
         state_dir=state_dir, f_mode=f_mode, recent=recent,
         filter_query=portrait_filter, rng=rng, library=library,
     )
-    landscape_playlist_path, landscape_count = build_one_satellite_playlist(
+    build_one_satellite_playlist(
         sources=landscape_sources, name=PLAYLIST_LANDSCAPE, favs_file=favs_file,
         state_dir=state_dir, f_mode=f_mode, recent=recent,
         filter_query=landscape_filter, rng=rng, library=library,
-    )
-    return SatellitePlaylistPlan(
-        portrait_count=portrait_count,
-        landscape_count=landscape_count,
-        portrait_playlist_path=portrait_playlist_path,
-        landscape_playlist_path=landscape_playlist_path,
     )
 
 
@@ -378,9 +360,9 @@ def build_fmode_playlists(
     landscape_filter: str = "",
     rng: random.Random | None = None,
     library: SatelliteLibraryContext | None = None,
-) -> FModePlaylistPlan:
-    primary_paths = build_primary_playlist_paths(primary_sources, enabled, rng=rng)
-    satellites = build_satellite_playlists(
+) -> None:
+    """Build and write all three playlists — both satellites' and Nau's."""
+    build_satellite_playlists(
         portrait_sources=portrait_sources,
         landscape_sources=landscape_sources,
         favs_file=favs_file,
@@ -392,15 +374,7 @@ def build_fmode_playlists(
         rng=rng,
         library=library,
     )
-
-    nau_playlist_path = state_dir / f"{PLAYLIST_NAU}.tsv"
-    write_nau_playlist_file(nau_playlist_path, primary_paths)
-    return FModePlaylistPlan(
-        success=True,
-        primary_count=len(primary_paths),
-        portrait_count=satellites.portrait_count,
-        landscape_count=satellites.landscape_count,
-        portrait_playlist_path=satellites.portrait_playlist_path,
-        landscape_playlist_path=satellites.landscape_playlist_path,
-        nau_playlist_path=nau_playlist_path,
+    write_nau_playlist_file(
+        build_playlist_file_path(state_dir, PLAYLIST_NAU),
+        build_primary_playlist_paths(primary_sources, enabled, rng=rng),
     )
