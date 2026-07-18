@@ -140,6 +140,8 @@ class TestRunStartupSequence:
         # The broker heartbeat path flows through so startup can leave a live
         # broker running instead of killing and relaunching it.
         assert core_called["broker_heartbeat_file"] == str(cfg.paths.state_dir / "broker_heartbeat.txt")
+        # And its command path, so startup can park the OSR2 for the long wait.
+        assert core_called["broker_cmd_file"] == str(cfg.paths.state_dir / "broker_cmd.txt")
         # MFP is gone: no mfp_exe/mfp_pid plumbing anywhere.
         assert not any("mfp" in key for key in core_called)
         assert not any("mfp" in key for key in ui_called)
