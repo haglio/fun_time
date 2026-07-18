@@ -380,20 +380,8 @@ def find_window_by_title(title: str, *, exact: bool = False, include_hidden: boo
     return best
 
 
-SW_SHOW = 5
-SW_HIDE = 0
 SW_MINIMIZE = 6
 SW_SHOWMINNOACTIVE = 7
-
-
-def show_window(hwnd: int) -> None:
-    """Show a window (WinShow equivalent)."""
-    _user32.ShowWindow(hwnd, SW_SHOW)
-
-
-def hide_window(hwnd: int) -> None:
-    """Hide a window (WinHide equivalent)."""
-    _user32.ShowWindow(hwnd, SW_HIDE)
 
 
 def minimize_window(hwnd: int, *, activate: bool = True) -> None:
@@ -433,28 +421,6 @@ def disable_window_transitions(hwnd: int) -> None:
 def is_window_minimized(hwnd: int) -> bool:
     """True if the window is currently minimized (iconic)."""
     return bool(_user32.IsIconic(hwnd))
-
-
-def send_key_to_window(hwnd: int, key: str) -> None:
-    """Send a single keystroke to a window via PostMessage (WM_KEYDOWN/UP).
-
-    Uses WM_KEYDOWN + WM_KEYUP rather than WM_CHAR so that applications
-    which only process key-down events (e.g. VLC media shortcuts) respond.
-    """
-    WM_KEYDOWN = 0x0100
-    WM_KEYUP = 0x0101
-    for ch in key:
-        vk = ord(ch.upper())
-        _user32.PostMessageW(hwnd, WM_KEYDOWN, vk, 0)
-        _user32.PostMessageW(hwnd, WM_KEYUP, vk, 0)
-
-
-def send_vk_to_window(hwnd: int, vk: int) -> None:
-    """Send a virtual-key code to a window via PostMessage (WM_KEYDOWN/UP)."""
-    WM_KEYDOWN = 0x0100
-    WM_KEYUP = 0x0101
-    _user32.PostMessageW(hwnd, WM_KEYDOWN, vk, 0)
-    _user32.PostMessageW(hwnd, WM_KEYUP, vk, 0)
 
 
 # --- File Open Dialog (COM IFileOpenDialog) ---

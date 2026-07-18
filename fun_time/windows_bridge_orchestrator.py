@@ -82,8 +82,8 @@ def identify_children(result: StartupResult) -> dict[str, ChildProcess]:
     """Pin each freshly-launched child PID to the process now holding it.
 
     Called seconds after launch, with startup having just driven the children
-    (VLC's HTTP interface answered, Nau's and Genau's windows appeared), so the
-    creation time read here is the one our child was born with.  Everything that
+    (the satellites' status files appeared, as did Nau's and Genau's windows), so
+    the creation time read here is the one our child was born with.  Everything that
     kills a child later compares against it, and a PID Windows has since handed
     to someone else no longer matches.
 
@@ -513,7 +513,8 @@ def run_python_orchestrated_bridge(
     # Genau startup detection is handled by the dispatch loop's first
     # sync tick: if the broker has already written genau_mode.txt = "1"
     # (it detects auto mode within ~4s via BPM/stroke inference), the sync
-    # will detect the entering transition and pause Primary VLC naturally.
+    # will detect the entering transition and hand the primary display over
+    # to Genau naturally.
 
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()

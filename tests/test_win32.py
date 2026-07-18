@@ -22,7 +22,6 @@ from fun_time.win32 import (
     activate_window,
     find_window_by_pid,
     minimize_window,
-    send_vk_to_window,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
     GWL_EXSTYLE,
@@ -134,23 +133,6 @@ class TestActivateWindow:
             activate_window(111)
 
         mock.SetForegroundWindow.assert_called_once_with(111)
-
-
-class TestSendVkToWindow:
-    def test_posts_keydown_and_keyup(self):
-        with patch("fun_time.win32._user32") as mock:
-            send_vk_to_window(12345, 0x25)  # VK_LEFT
-
-        calls = mock.PostMessageW.call_args_list
-        assert len(calls) == 2
-        # First call: WM_KEYDOWN (0x0100)
-        assert calls[0][0][0] == 12345
-        assert calls[0][0][1] == 0x0100
-        assert calls[0][0][2] == 0x25
-        # Second call: WM_KEYUP (0x0101)
-        assert calls[1][0][0] == 12345
-        assert calls[1][0][1] == 0x0101
-        assert calls[1][0][2] == 0x25
 
 
 class TestMinimizeWindow:

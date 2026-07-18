@@ -4,7 +4,7 @@ The level is a percentage of each source's own volume: 100 leaves the media as
 it was mastered, 0 is silence.  The dispatch loop holds the authoritative value
 and writes it here; the Genau audio companion polls the file, and Nau is told
 the same number over its own command channel.  Neither audio process may import
-the dispatcher (it drags in VLC and the media library), so the one-integer wire
+the dispatcher (it drags in the whole media library), so the one-integer wire
 format lives in this leaf module that all three share.
 """
 from __future__ import annotations

@@ -1249,7 +1249,7 @@ class DashboardWindow(QMainWindow):
         port_file.write_text(str(press_port), encoding="utf-8")
         threading.Thread(target=self._press_listener, daemon=True, name="press-listener").start()
 
-        # VLC poller thread
+        # Player status poller thread
         threading.Thread(target=self._player_poller, daemon=True, name="player-poller").start()
 
         # Notice overlays: flash each new event-log notice over the player it is

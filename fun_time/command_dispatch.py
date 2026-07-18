@@ -173,12 +173,8 @@ class BridgeConfig:
 @dataclass(frozen=True)
 class WindowOp:
     op: str
-    pid: int = 0
-    title: str = ""
+    # The op's one payload: a role name, an RFB URL, or a notice's message.
     key: str = ""
-    value: bool = True
-    vk: int = 0
-    exact: bool = False
     # Which window a ``notice`` op is about, so the log panel can filter it.
     source: str = SOURCE_SYSTEM
     # The log level a ``notice`` op is logged at — NOTICE (green) for a normal

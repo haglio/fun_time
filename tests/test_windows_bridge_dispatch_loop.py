@@ -18,7 +18,6 @@ from fun_time.voice_commands import parse_command_line
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
-    execute_window_ops,
     expand_both_command,
     write_shared_state,
     read_shared_state,
@@ -284,125 +283,6 @@ class TestPollDashboardCommands:
         assert result == ["primary_prev"]
 
 
-class TestExecuteWindowOps:
-    def test_set_topmost_calls_win32(self):
-        ops = [WindowOp(op="set_topmost", title="Genau", value=True)]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost:
-            remaining = execute_window_ops(ops, nau_pid=1)
-
-        mock_topmost.assert_called_once_with(12345, True)
-        assert remaining == []
-
-    def test_activate_calls_win32(self, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        ops = [WindowOp(op="activate", title="Genau")]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
-            remaining = execute_window_ops(ops, nau_pid=1)
-
-        mock_activate.assert_called_once_with(12345)
-        assert remaining == []
-
-    def test_show_calls_win32(self, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        ops = [WindowOp(op="show", title="Genau")]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show:
-            remaining = execute_window_ops(ops, nau_pid=1)
-
-        mock_show.assert_called_once_with(12345)
-        assert remaining == []
-
-    def test_hide_calls_win32(self):
-        ops = [WindowOp(op="hide", title="Genau")]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
-             patch("fun_time.windows_bridge_dispatch_loop.hide_window") as mock_hide:
-            remaining = execute_window_ops(ops, nau_pid=1)
-
-        mock_hide.assert_called_once_with(12345)
-        assert remaining == []
-
-    def test_suspend_returned_as_remaining(self):
-        """suspend_hotkeys can only be done by AHK — returned for forwarding."""
-        ops = [WindowOp(op="suspend_hotkeys")]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert len(remaining) == 1
-        assert remaining[0].op == "suspend_hotkeys"
-
-    def test_unsuspend_returned_as_remaining(self):
-        ops = [WindowOp(op="unsuspend_hotkeys")]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert len(remaining) == 1
-        assert remaining[0].op == "unsuspend_hotkeys"
-
-    def test_send_key_uses_pid(self):
-        ops = [WindowOp(op="send_key", key="p")]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=99), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_key_to_window") as mock_send:
-            remaining = execute_window_ops(ops, nau_pid=42)
-
-        mock_send.assert_called_once_with(99, "p")
-        assert remaining == []
-
-    def test_send_vk_uses_pid(self):
-        ops = [WindowOp(op="send_vk", vk=0x25)]  # VK_LEFT
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=99), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vk_to_window") as mock_send:
-            remaining = execute_window_ops(ops, nau_pid=42)
-
-        mock_send.assert_called_once_with(99, 0x25)
-        assert remaining == []
-
-    def test_skips_op_when_window_not_found(self):
-        ops = [WindowOp(op="set_topmost", title="Nonexistent", value=True)]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost:
-            remaining = execute_window_ops(ops, nau_pid=1)
-
-        mock_topmost.assert_not_called()
-        assert remaining == []
-
-    def test_disable_all_topmost_returned_as_remaining(self):
-        ops = [WindowOp(op="disable_all_topmost")]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert len(remaining) == 1
-        assert remaining[0].op == "disable_all_topmost"
-
-    def test_restore_all_topmost_returned_as_remaining(self):
-        ops = [WindowOp(op="restore_all_topmost")]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert len(remaining) == 1
-        assert remaining[0].op == "restore_all_topmost"
-
-    def test_role_ops_returned_as_remaining(self):
-        """show_role/hide_role/activate_role/restack_primary are handled against
-        the runner's role cache, not window titles — execute_window_ops must hand
-        them back untouched.  Dropping them here silently broke mode switches
-        once (the title-less ops fell through the title branch)."""
-        ops = [
-            WindowOp(op="show_role", key="nau"),
-            WindowOp(op="restack_primary"),
-            WindowOp(op="activate_role", key="nau"),
-            WindowOp(op="hide_role", key="genau"),
-        ]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert remaining == ops
-
-    def test_open_rfb_tab_returned_as_remaining(self):
-        ops = [WindowOp(op="open_rfb_tab", key="https://example.com")]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert len(remaining) == 1
-        assert remaining[0].op == "open_rfb_tab"
-        assert remaining[0].key == "https://example.com"
-
-
 class TestSharedState:
     def test_write_then_read_roundtrip(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
@@ -588,8 +468,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_next", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -605,8 +484,7 @@ class TestDispatchLoopRunner:
         runner.state = BridgeState(active_side=3, locked3=False)
         (tmp_path / "dashboard_cmd.txt").write_text("active_lock_on", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -621,8 +499,7 @@ class TestDispatchLoopRunner:
         runner.state = BridgeState(active_side=2)
         (tmp_path / "dashboard_cmd.txt").write_text("active_next", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -641,8 +518,7 @@ class TestDispatchLoopRunner:
         runner._timelines[2].observe("C:\\clips\\advanced_to.mp4", now=101.0)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock_on @100.200", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -660,8 +536,7 @@ class TestDispatchLoopRunner:
         runner._timelines[3].observe("C:\\clips\\landscape.mp4", now=100.0)
         (tmp_path / "dashboard_cmd.txt").write_text("landscape_trash @100.200", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -675,8 +550,7 @@ class TestDispatchLoopRunner:
         runner._timelines[2].observe("C:\\clips\\meant.mp4", now=100.0)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_trash", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -795,8 +669,7 @@ class TestDispatchLoopRunner:
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("primary_nudge_next", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -872,8 +745,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -894,8 +766,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -963,8 +834,7 @@ class TestDispatchLoopRunner:
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         suspend_op = WindowOp(op="suspend_hotkeys")
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[suspend_op]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [suspend_op])
             runner._dispatch("some_command")
 
@@ -977,8 +847,7 @@ class TestDispatchLoopRunner:
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[unsuspend_op]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [unsuspend_op])
             runner._dispatch("some_command")
 
@@ -991,8 +860,7 @@ class TestDispatchLoopRunner:
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[unsuspend_op]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [unsuspend_op])
             runner._dispatch("some_command")
 
@@ -1008,7 +876,6 @@ class TestDispatchLoopRunner:
 
         notice_op = WindowOp(op="notice", key="Clipper: MyVideo", source="primary")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[notice_op]), \
              patch("fun_time.windows_bridge_dispatch_loop.notice") as mock_notice:
             mock_dispatch.return_value = (runner.state, [notice_op])
             runner._dispatch("some_command")
@@ -1028,7 +895,6 @@ class TestDispatchLoopRunner:
 
         notice_op = WindowOp(op="notice", key="No other seeds", source="portrait", level=logging.ERROR)
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[notice_op]), \
              patch("fun_time.windows_bridge_dispatch_loop.notice") as mock_notice:
             mock_dispatch.return_value = (runner.state, [notice_op])
             runner._dispatch("portrait_cycle_seed")
@@ -1062,8 +928,7 @@ class TestDispatchLoopRunner:
         state_file = tmp_path / "shared_state.ini"
 
         new_state = BridgeState(locked3=True)
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", return_value=(new_state, [])), \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", return_value=(new_state, [])):
             runner.tick()
 
         loaded = read_shared_state(state_file)
@@ -1181,8 +1046,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_lock", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -1219,8 +1083,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_lock", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()  # should not raise
 
@@ -1321,7 +1184,6 @@ class TestOpenRfbTab:
 
         rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[rfb_op]), \
              patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
             mock_dispatch.return_value = (runner.state, [rfb_op])
             runner._dispatch("portrait_lock")
@@ -1346,7 +1208,6 @@ class TestOpenRfbTab:
 
         rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[rfb_op]), \
              patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
             mock_dispatch.return_value = (runner.state, [rfb_op])
             runner._dispatch("portrait_lock")
@@ -1363,7 +1224,6 @@ class TestOpenRfbTab:
 
         rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[rfb_op]), \
              patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
             mock_dispatch.return_value = (runner.state, [rfb_op])
             runner._dispatch("portrait_lock")
@@ -1393,7 +1253,6 @@ class TestOpenRfbTab:
             return state, []
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", side_effect=fake_dispatch), \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=lambda ops, nau_pid: ops), \
              patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
             runner.tick()
 
@@ -1411,11 +1270,9 @@ class TestModeSwitchVisibility:
     activated BEFORE the outgoing one hides, so focus never falls through to
     another application.
 
-    These tests run the real dispatch_command and the real
-    execute_window_ops, pinning the whole path from command string to
-    win32 call — including execute_window_ops' pass-through of the
-    show_role/activate_role/hide_role ops, whose silent dropping broke
-    mode switches once.
+    These tests run the real dispatch_command, pinning the whole path from
+    command string to win32 call — including the show_role/activate_role/
+    hide_role ops, whose silent dropping broke mode switches once.
     """
 
     def _run_mode_switch(self, tmp_path, monkeypatch, *, from_mode, command,
@@ -1926,8 +1783,7 @@ class TestOmnipauseVoiceFreeze:
     def test_freezes_a_spoken_command_under_omnipause(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner._handle_command("landscape_next", spoken_at=123.0)
         mock_dispatch.assert_not_called()
@@ -1946,8 +1802,7 @@ class TestOmnipauseVoiceFreeze:
         paused — the user cannot fat-finger it the way a phrase mis-fires."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner._handle_command("portrait_lock_video|C:/clip.mp4")
         assert mock_dispatch.call_args[0][0] == "portrait_lock_video|C:/clip.mp4"
@@ -1969,8 +1824,7 @@ class TestOmnipauseVoiceFreeze:
         """The freeze is OmniPause-only: live, the same phrase dispatches."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner._handle_command("landscape_next", spoken_at=123.0)
         assert mock_dispatch.call_args[0][0] == "landscape_next"
@@ -2538,8 +2392,7 @@ class TestBothSatelliteCommands:
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("both_next", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner.tick()
 
@@ -2554,8 +2407,7 @@ class TestBothSatelliteCommands:
         runner.state = BridgeState(locked2=True, locked3=False)
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner.tick()
 
@@ -2568,8 +2420,7 @@ class TestBothSatelliteCommands:
         runner.state = BridgeState(locked2=True, locked3=True)
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_off", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner.tick()
 
