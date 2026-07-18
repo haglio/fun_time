@@ -144,7 +144,7 @@ Every recognized voice command flashes a **green confirmation** — the phrase i
 
 ### Python / tools
 
-- Python (currently launched via Miniconda `pythonw.exe`)
+- Python — the whole suite runs on the project venv, `.venv/Scripts/python.exe`. Both launchers use it by path and neither takes one from PATH: a PATH python has none of the editable sibling installs below, and finds their *repo* directories as namespace packages instead, so the orchestrator dies while importing — before it has any logging to say so.
 - Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), vosk + sounddevice (voice control), and Pillow / numpy / opencv-python.
 - `../player_core` — the shared playback core (libmpv wrapper, playlist format, the command/paused file channel, the status writer) that this project's satellite players and the `../genau` apps all build on. Install it editable into this venv, and read its README first — the install mode matters:
 
@@ -168,7 +168,7 @@ The broker runs as its own background service from the `../osr2_broker` project 
 Use the `Fun Time` shortcut / taskbar launcher, which calls:
 
 - `launch.vbs`
-- which runs `python -m fun_time.orchestrator`
+- which runs `.venv\Scripts\python.exe -m fun_time.orchestrator`, with its console captured to `state/launcher.log` — the launcher's window is hidden, so that file is where a launch that fails before logging starts leaves its traceback
 
 `fun_time.orchestrator` now starts the broker tray launcher if the broker is missing, so the tray status icon and broker recovery flow stay aligned with Windows logon startup.
 
@@ -181,7 +181,7 @@ Clipper has been extracted to its own project at `../clipper`. See that project 
 Validation only:
 
 ```powershell
-python -m fun_time.orchestrator --check
+.\.venv\Scripts\python.exe -m fun_time.orchestrator --check
 ```
 
 ### Direct full launch
@@ -189,7 +189,7 @@ python -m fun_time.orchestrator --check
 From PowerShell:
 
 ```powershell
-python -m fun_time.orchestrator
+.\.venv\Scripts\python.exe -m fun_time.orchestrator
 ```
 
 Alternative compatibility launch:
@@ -381,6 +381,7 @@ The file is truncated when a session starts, so it always holds exactly the curr
 
 The Python entry points also write rotating logs in `state/`:
 
+- `state/launcher.log` — not a rotating log but the launcher's console capture, overwritten each launch. It is where a failure that happens *before* the logs below exist — an import error, a missing dependency — leaves its traceback, which would otherwise go to a hidden window and vanish.
 - `state/orchestrator.log`
 - `state/windows_bridge.log`
 - `state/genau_audio.log`
@@ -419,13 +420,13 @@ coordinate mode, playback, and clip-switch commands without depending on focused
 First run a config check:
 
 ```powershell
-python -m fun_time.orchestrator --check
+.\.venv\Scripts\python.exe -m fun_time.orchestrator --check
 ```
 
 If that passes, run manually from PowerShell:
 
 ```powershell
-python -m fun_time.orchestrator
+.\.venv\Scripts\python.exe -m fun_time.orchestrator
 ```
 
 Alternative compatibility run via `main.sh`:
@@ -438,6 +439,7 @@ Also verify the shortcut’s **Start in** points to the project folder.
 
 If startup still fails, inspect:
 
+- `state/launcher.log` — the launcher's own console capture, and the only place a failure *before* the logs below get configured (a missing dependency, a bad import) leaves anything
 - `state/orchestrator.log`
 - `state/windows_bridge.log`
 
