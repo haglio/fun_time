@@ -90,6 +90,7 @@ def satellite(tmp_path):
         satellite_module="satellite",
         title="Satellite Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
+        log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,
     )
     sat = _Satellite(pid, cmd, paused, status, playlist)

@@ -226,6 +226,8 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         landscape_cmd_file=state_dir / "landscape_cmd.txt",
         landscape_paused_file=state_dir / "landscape_paused.txt",
         landscape_status_file=state_dir / "landscape_status.txt",
+        portrait_log_file=state_dir / "portrait_satellite.log",
+        landscape_log_file=state_dir / "landscape_satellite.log",
         portrait_rect=WindowRect(x=2560, y=0, width=1440, height=2500),
         landscape_rect=WindowRect(x=1664, y=0, width=896, height=1392),
         primary_sources="primary_a|primary_b",
@@ -295,6 +297,10 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         landscape_cmd_file=state_dir / "landscape_cmd.txt",
         landscape_paused_file=state_dir / "landscape_paused.txt",
         landscape_status_file=state_dir / "landscape_status.txt",
+        # Each side's stdout+stderr go to its own log, so a satellite that dies of
+        # an unhandled exception leaves the traceback on disk.
+        portrait_log_file=state_dir / "portrait_satellite.log",
+        landscape_log_file=state_dir / "landscape_satellite.log",
         portrait_rect=portrait_rect,
         landscape_rect=landscape_rect,
         result_file=result_file,
@@ -400,7 +406,8 @@ def test_launch_nau_forwards_metadata_dir_when_given(tmp_path: Path):
         launch_nau(
             python_exe="python.exe", nau_module="nau", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", nau_x=0, nau_y=0, nau_width=100, nau_height=100,
+            status_file="status", log_file=tmp_path / "nau.log",
+            nau_x=0, nau_y=0, nau_width=100, nau_height=100,
             metadata_dir="C:/videos/metadata",
         )
 
@@ -420,7 +427,8 @@ def test_launch_nau_omits_metadata_dir_when_absent(tmp_path: Path):
         launch_nau(
             python_exe="python.exe", nau_module="nau", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", nau_x=0, nau_y=0, nau_width=100, nau_height=100,
+            status_file="status", log_file=tmp_path / "nau.log",
+            nau_x=0, nau_y=0, nau_width=100, nau_height=100,
         )
 
     assert "--metadata-dir" not in popen.call_args.args[0]
@@ -449,6 +457,35 @@ def test_launch_genau_passes_fun_time_flag(tmp_path: Path):
     assert "--fun-time" in command
 
 
+def test_launch_nau_sends_child_output_to_its_own_log(tmp_path: Path):
+    """Nau is the satellites' twin — the same mpv player under the same windowed
+    ``pythonw`` — so it needs the same place to leave a traceback when it dies."""
+    class FakeProc:
+        pid = 43
+
+    log_file = tmp_path / "nau.log"
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        launch_nau(
+            python_exe="pythonw.exe",
+            nau_module="nau",
+            config_path="cfg.json",
+            playlist_file="state/nau_playlist.tsv",
+            command_file="state/nau_cmd.txt",
+            paused_file="state/nau_paused.txt",
+            status_file="state/nau_status.txt",
+            log_file=log_file,
+            nau_x=100, nau_y=200, nau_width=300, nau_height=400,
+        )
+
+    stream = popen.call_args.kwargs["stdout"]
+    assert popen.call_args.kwargs["stderr"] is stream
+    assert Path(stream.name) == log_file
+    assert stream.closed
+    assert "-m nau" in log_file.read_text(encoding="utf-8")
+
+
 def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
@@ -465,6 +502,7 @@ def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
             command_file="state/nau_cmd.txt",
             paused_file="state/nau_paused.txt",
             status_file="state/nau_status.txt",
+            log_file=tmp_path / "nau.log",
             nau_x=100,
             nau_y=200,
             nau_width=300,
@@ -472,7 +510,7 @@ def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
         )
 
     assert pid == 43
-    assert popen.call_args.kwargs == {"creationflags": 1}
+    assert popen.call_args.kwargs["creationflags"] == 1
     assert popen.call_args.args[0] == [
         "python.exe",
         "-m",
@@ -601,6 +639,8 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
             landscape_cmd_file=state_dir / "landscape_cmd.txt",
             landscape_paused_file=state_dir / "landscape_paused.txt",
             landscape_status_file=state_dir / "landscape_status.txt",
+            portrait_log_file=state_dir / "portrait_satellite.log",
+            landscape_log_file=state_dir / "landscape_satellite.log",
             portrait_rect=portrait_rect,
             landscape_rect=landscape_rect,
             result_file=result_file,
@@ -630,6 +670,11 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     assert landscape_kwargs["command_file"] == state_dir / "landscape_cmd.txt"
     assert landscape_kwargs["paused_file"] == state_dir / "landscape_paused.txt"
     assert landscape_kwargs["status_file"] == state_dir / "landscape_status.txt"
+
+    # Each side's crash log is its own file, so a death on one side is legible
+    # without untangling it from the other's output.
+    assert portrait_kwargs["log_file"] == state_dir / "portrait_satellite.log"
+    assert landscape_kwargs["log_file"] == state_dir / "landscape_satellite.log"
 
     # Each satellite launches straight into its own real rect (mpv won't rescale
     # on a later Win32 resize), so the portrait rect must land on the portrait
@@ -711,7 +756,7 @@ def test_build_satellite_launch_command_passes_no_config_flag():
     assert "--config" not in cmd
 
 
-def test_launch_satellite_starts_process_and_returns_pid():
+def test_launch_satellite_starts_process_and_returns_pid(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -727,6 +772,7 @@ def test_launch_satellite_starts_process_and_returns_pid():
             command_file="state/portrait_cmd.txt",
             paused_file="state/portrait_paused.txt",
             status_file="state/portrait_status.txt",
+            log_file=tmp_path / "portrait_satellite.log",
             x=2560,
             y=0,
             width=1440,
@@ -734,11 +780,44 @@ def test_launch_satellite_starts_process_and_returns_pid():
         )
 
     assert pid == 51
-    assert popen.call_args.kwargs == {"creationflags": 1}
+    assert popen.call_args.kwargs["creationflags"] == 1
     assert popen.call_args.args[0][:3] == ["python.exe", "-m", "satellite"]
     assert popen.call_args.args[0][-1] == "--no-audio"
     argv = popen.call_args.args[0]
     assert argv[argv.index("--title") + 1] == "Satellite Portrait"
+
+
+def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
+    """A satellite runs under ``pythonw``, which has no console: with nothing
+    attached to its stdout/stderr an unhandled exception kills it leaving no
+    trace at all.  Both streams go to one per-side log so a death leaves the
+    Python traceback and libmpv's own diagnostics on disk."""
+    class FakeProc:
+        pid = 51
+
+    log_file = tmp_path / "portrait_satellite.log"
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        launch_satellite(
+            python_exe="pythonw.exe",
+            satellite_module="satellite",
+            title="Satellite Portrait",
+            playlist_file="state/portrait_playlist.tsv",
+            command_file="state/portrait_cmd.txt",
+            paused_file="state/portrait_paused.txt",
+            status_file="state/portrait_status.txt",
+            log_file=log_file,
+            x=0, y=0, width=1, height=1,
+        )
+
+    stream = popen.call_args.kwargs["stdout"]
+    assert popen.call_args.kwargs["stderr"] is stream
+    assert Path(stream.name) == log_file
+    # The launcher keeps no handle of its own: a long-lived orchestrator would
+    # otherwise leak one per launch and block the log ever being rolled aside.
+    assert stream.closed
+    assert "-m satellite" in log_file.read_text(encoding="utf-8")
 
 
 def test_build_satellite_launch_command_forwards_the_hud_files():
