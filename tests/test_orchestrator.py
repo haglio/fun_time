@@ -272,23 +272,22 @@ class TestControllerManifest:
 # ---------------------------------------------------------------------------
 
 class TestValidateConfig:
-    def _make_config_with_stubs(self, cfg_path: Path, tmp_path: Path):
-        """Load config and create all stub files validate_config needs."""
+    def _make_config_with_stubs(self, cfg_path: Path):
+        """Load config and stub the executables validate_config looks for.
+
+        Only the exe paths need stubbing — they point inside the test's
+        tmp_path.  The rest of what validate_config checks is addressed off
+        ``config.project_dir``, which is always the real package directory
+        (``config.PROJECT_DIR``), so those files are genuinely on disk.  A
+        test must never create them: writing under project_dir drops files
+        into the repo itself.
+        """
         cfg = load_config(cfg_path)
-        # Create stub executable files
         for p in (cfg.paths.ahk_exe, cfg.paths.python_exe):
             p.touch()
-        # Create AHK scripts
-        (cfg.project_dir / "windows_bridge_hotkeys.ahk").touch()
-        # Create Python entry points
-        rh_py = cfg.project_dir / "fun_time" / "genau" / "app.py"
-        rh_py.parent.mkdir(parents=True, exist_ok=True)
-        rh_py.touch()
-        ac_py = cfg.project_dir / "fun_time" / "audio_companion_app.py"
-        ac_py.touch()
         return cfg
 
-    def test_validates_on_a_machine_without_vlc(self, cfg_path: Path, tmp_path: Path):
+    def test_validates_on_a_machine_without_vlc(self, cfg_path: Path):
         """VLC is not a dependency any more.
 
         The native satellites replaced the VLC ones, so nothing launches VLC and
@@ -296,7 +295,7 @@ class TestValidateConfig:
         The shared config fixture carries no ``paths.vlc_exe`` and stubs no
         vlc.exe, so a clean validate proves neither is still demanded.
         """
-        cfg = self._make_config_with_stubs(cfg_path, tmp_path)
+        cfg = self._make_config_with_stubs(cfg_path)
 
         validate_config(cfg)
 
