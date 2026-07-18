@@ -22,7 +22,8 @@ from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import THUMBNAIL_CACHE_DIRNAME, build_hud_panel
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
 from fun_time.thumbnail_cache import thumbnail_for
-from fun_time.windows_bridge_startup import launch_satellite
+from fun_time.win32 import get_process_creation_time
+from fun_time.windows_bridge_startup import launch_satellite, reap_orphaned_satellites
 
 _CONFIG = Path(r"C:/path/to/suite-root/projects/fun_time/fun_time_config.json")
 
@@ -87,6 +88,55 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
     finally:
         write_satellite_command(cmd, "QUIT")
         time.sleep(1.0)
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+
+
+def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
+    """The startup reap must not be able to leave its own session.
+
+    Every satellite on the machine runs ``-m satellite``, so a reap matched on the
+    module alone swept the whole machine: an integration run coming up killed both
+    players in the user's live session, with no traceback anywhere because nothing
+    had crashed — they were terminated.  Only a real process can prove the
+    PowerShell filter actually holds, so this launches one and fires both halves of
+    the contract at it: a stranger's reap must spare it, its own must still take it.
+    """
+    cfg = load_config(_CONFIG)
+    videos = _sample_videos(2)
+
+    playlist = tmp_path / "portrait_playlist.tsv"
+    playlist.write_text("\n".join(videos) + "\n", encoding="utf-8")
+    cmd = tmp_path / "portrait_cmd.txt"
+    status = tmp_path / "portrait_status.txt"
+
+    pid = launch_satellite(
+        python_exe=str(cfg.paths.genau_python_exe),
+        satellite_module="satellite",
+        title="Satellite Portrait",
+        playlist_file=playlist, command_file=cmd,
+        paused_file=tmp_path / "portrait_paused.txt", status_file=status,
+        log_file=tmp_path / "portrait_satellite.log",
+        x=0, y=0, width=800, height=600,
+    )
+    try:
+        _wait(lambda: read_satellite_status(status).position_ms > 0,
+              timeout=30, desc="the satellite to start playing")
+
+        # A session whose state dir is somewhere else entirely comes up.
+        elsewhere = tmp_path / "some_other_session"
+        reap_orphaned_satellites(
+            "satellite",
+            [elsewhere / "portrait_status.txt", elsewhere / "landscape_status.txt"],
+        )
+        time.sleep(2.0)
+        assert get_process_creation_time(pid) is not None, (
+            "another session's startup reap killed this satellite")
+
+        # ...and the reap still does its own job, on its own files.
+        reap_orphaned_satellites("satellite", [status])
+        _wait(lambda: get_process_creation_time(pid) is None,
+              timeout=10, desc="our own reap to clear a satellite stranded on our files")
+    finally:
         subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
 
 

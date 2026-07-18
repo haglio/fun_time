@@ -93,7 +93,7 @@ def test_reap_orphaned_satellites_is_scoped_to_the_satellite_module():
     with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        reap_orphaned_satellites("satellite")
+        reap_orphaned_satellites("satellite", ["C:/state/portrait_status.txt"])
 
     run.assert_called_once()
     argv = run.call_args.args[0]
@@ -103,6 +103,43 @@ def test_reap_orphaned_satellites_is_scoped_to_the_satellite_module():
     assert "Get-CimInstance Win32_Process" in ps_command
     assert "Stop-Process" in ps_command
     assert run.call_args.kwargs.get("check") is False
+
+
+def test_reap_orphaned_satellites_only_reaches_players_holding_our_own_state_files():
+    """The reap must not be able to leave its own session.
+
+    Every satellite on the machine runs ``-m satellite``, so a module-only sweep
+    killed *every* satellite alive — including the two in the user's live session,
+    from an integration run whose state dir is somewhere else entirely.  That is
+    what took both of the user's players down mid-session, leaving no traceback
+    because nothing crashed: they were terminated.
+
+    Scoping to the status files this session is about to take over is exactly the
+    reason the reap exists ("a stranded pair keeps reading the same files"), and a
+    session that does not own those files cannot match."""
+    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        reap_orphaned_satellites(
+            "satellite",
+            [Path(r"C:\state\portrait_status.txt"), Path(r"C:\state\landscape_status.txt")],
+        )
+
+    ps_command = run.call_args.args[0][-1]
+    assert r"C:\state\portrait_status.txt" in ps_command
+    assert r"C:\state\landscape_status.txt" in ps_command
+    # The command line has to actually be tested against them, not merely mention
+    # them — a bare `-m satellite` match is the machine-wide sweep again.
+    assert "CommandLine.Contains" in ps_command
+
+
+def test_reap_orphaned_satellites_does_nothing_without_state_files_to_claim():
+    """No files to take over means no satellite can be stranded on them, so there
+    is nothing to reap — and certainly no licence to sweep the machine."""
+    with patch("fun_time.windows_bridge_startup.subprocess.run") as run:
+        reap_orphaned_satellites("satellite", [])
+
+    run.assert_not_called()
 
 
 def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
@@ -260,8 +297,13 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
         start_core_session(**kwargs)
 
-    # A satellite pair stranded by a prior crash is reaped before the new one launches.
-    reap.assert_called_once_with("satellite")
+    # A satellite pair stranded by a prior crash on THIS session's own status
+    # files is reaped before the new one launches — and nothing beyond them, so a
+    # session running elsewhere on the machine survives our startup.
+    reap.assert_called_once_with(
+        "satellite",
+        [state_dir / "portrait_status.txt", state_dir / "landscape_status.txt"],
+    )
     # Startup leaves a live broker alone, only (re)starting a dead one.
     ensure.assert_called_once_with(tmp_path, state_dir / "broker_heartbeat.txt", None)
     seed.assert_called_once_with(
