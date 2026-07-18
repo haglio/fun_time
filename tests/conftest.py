@@ -16,6 +16,18 @@ from pathlib import Path
 # inspect real windows and need real HWNDs, which the offscreen platform cannot give.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+# Send the live-session claim somewhere disposable for the whole unit suite. A
+# running Fun Time publishes one to a fixed machine-global path so an integration
+# run can see it from any checkout and refuse to start; a unit test that runs the
+# orchestrator would publish one too, naming the live pytest process, and a
+# concurrent integration run would read that and abort against a session nobody
+# opened. Set before any test imports the orchestrator. tests/integration/conftest.py
+# pops it — the guard there has to read the real one.
+os.environ.setdefault(
+    "FUN_TIME_LIVE_SESSION_FILE",
+    str(Path(__file__).resolve().parent.parent / ".tmp-pytest-local" / "unit_suite_live_session.ini"),
+)
+
 import pytest
 from PyQt6.QtWidgets import QApplication
 

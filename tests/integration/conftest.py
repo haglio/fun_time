@@ -19,9 +19,17 @@ import sys
 
 import pytest
 
+from fun_time.live_session import CLAIM_PATH_ENV_VAR
+
 from .session_lock import INTEGRATION_LOCK_NAME, hold_integration_lock
 
 os.environ.pop("QT_QPA_PLATFORM", None)
+
+# Likewise restore the real live-session claim path. The root conftest redirects it
+# so unit tests cannot announce themselves as the machine's Fun Time; here the
+# opposite is needed — the guard below has to read the very file the user's session
+# publishes, which is the only thing that can tell this run to stop.
+os.environ.pop(CLAIM_PATH_ENV_VAR, None)
 
 
 def _announce_waiting(seconds: float) -> None:

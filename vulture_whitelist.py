@@ -75,6 +75,10 @@ is_process_alive  # noqa
 # The integration reap uses this to tell a leftover app process from the pytest
 # that must survive; production kills children by recorded creation time instead.
 get_process_image_name  # noqa
+# The live-session claim's reader.  Production only ever writes the claim; the
+# thing that has to read it is the integration guard, which lives under tests/.
+# Both halves stay in fun_time.live_session so the file format has one home.
+read_live_session  # noqa
 is_window_minimized  # noqa
 _read_shortcut_app_user_model_id  # noqa
 # reset_group_index_cache is test isolation support for the module-level
