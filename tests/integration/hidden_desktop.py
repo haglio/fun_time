@@ -200,6 +200,30 @@ def pids_with_window_on_current_desktop() -> set[int]:
     return pids
 
 
+def require_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_name) -> None:
+    """Refuse to run the suite anywhere but the hidden desktop.
+
+    Bare ``pytest tests/integration/`` runs on the user's own desktop, where the
+    suite's real windows, AHK bridge and players land on their monitors, steal
+    focus, and are resolved by title alongside their session's.  That invocation
+    has always been forbidden and never enforced — and the harness grew a
+    machine-wide by-name process sweep to serve it, which is precisely the shape
+    of kill that took the user's players down.
+
+    Enforcing it here is what lets the reap have no second mode.
+    """
+    current = desktop_name()
+    if current != HIDDEN_DESKTOP_NAME:
+        raise RuntimeError(
+            f"The integration suite must run on the '{HIDDEN_DESKTOP_NAME}' desktop, "
+            f"not '{current}'.  Run it with:\n\n"
+            f"    .venv/Scripts/python.exe -m tests.integration.hidden_desktop\n\n"
+            "Running pytest against tests/integration/ directly puts real windows, a "
+            "real AHK bridge and real players on your screen, on top of whatever Fun "
+            "Time session you have open."
+        )
+
+
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 

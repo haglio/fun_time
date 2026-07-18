@@ -23,7 +23,8 @@ import pytest
 
 from fun_time.live_session import CLAIM_PATH_ENV_VAR
 
-from .live_session_guard import watch_for_live_session
+from .hidden_desktop import require_hidden_desktop
+from .live_session_guard import DENIED_EXIT_CODE, watch_for_live_session
 from .session_lock import INTEGRATION_LOCK_NAME, hold_integration_lock
 
 os.environ.pop("QT_QPA_PLATFORM", None)
@@ -33,6 +34,25 @@ os.environ.pop("QT_QPA_PLATFORM", None)
 # opposite is needed — the guard below has to read the very file the user's session
 # publishes, which is the only thing that can tell this run to stop.
 os.environ.pop(CLAIM_PATH_ENV_VAR, None)
+
+
+def pytest_sessionstart(session):
+    """Refuse a run that is not on the hidden desktop, before anything launches.
+
+    Earlier than any fixture, so the refusal lands before the run lock is taken,
+    before a session is started, and above all before the first reap — which is
+    now desktop-scoped with no fallback, and would silently skip its cleanup here
+    rather than sweep the machine.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        require_hidden_desktop()
+    except RuntimeError as wrong_desktop:
+        # pytest.exit rather than letting it propagate: an exception out of a
+        # sessionstart hook is reported as an INTERNALERROR traceback, which reads
+        # as a broken harness instead of what it is — the run being invoked wrongly.
+        pytest.exit(str(wrong_desktop), returncode=DENIED_EXIT_CODE)
 
 
 def _announce_waiting(seconds: float) -> None:

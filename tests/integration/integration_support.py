@@ -52,31 +52,25 @@ def _kill_leftover_app_processes() -> None:
     """Kill leftover players / AHK / pythonw from a prior session so the next
     one starts clean.
 
-    On the hidden integration desktop, scope the kill to that desktop's windows:
-    none of them belong to the user's real (input-desktop) session, so a run is
-    safe to fire unattended.  They are not all *ours*, though — the desktop is
-    shared with any leftover session and with the pytest of a run queued behind
-    this one — so kill only the app images.  On a visible manual run, fall back
-    to the by-name + 5-minute-recency sweep (the user accepts the screen
-    takeover in that mode).  Both branches target the same images, so neither
-    can reach a pytest.
+    Bounded to the hidden integration desktop's own windows.  Nothing on that
+    desktop belongs to the user's real (input-desktop) session, which is what
+    makes a run safe to fire unattended.  They are not all *ours*, though — the
+    desktop is shared with any leftover session and with the pytest of a run
+    queued behind this one — so kill only the app images, never a python.exe.
+
+    Anywhere else there is nothing of ours to find and nothing safe to kill, so
+    this does nothing at all.  It used to fall back to
+    ``Get-Process pythonw,autohotkey64 | where StartTime > -5min | Stop-Process``
+    — every player, companion and AHK bridge of any session started in the last
+    five minutes, the user's included.  That existed to serve bare
+    ``pytest tests/integration/``, the one invocation the suite forbids and now
+    refuses outright.
     """
-    if current_desktop_name() == HIDDEN_DESKTOP_NAME:
-        for pid in pids_with_window_on_current_desktop():
-            if _is_leftover_app(pid):
-                kill_process_tree(pid)
+    if current_desktop_name() != HIDDEN_DESKTOP_NAME:
         return
-    # StartTime is wrapped in try/catch: reading it throws if a process exited
-    # between the Get-Process snapshot and this evaluation, or if it is owned by
-    # another user.  An unguarded throw drops that item; catching it per-process
-    # (treat as "not recent") keeps the pipeline going to the rest.
-    names = ",".join(sorted(name.removesuffix(".exe") for name in _APP_IMAGE_NAMES))
-    ps = (
-        f"Get-Process {names} -ErrorAction SilentlyContinue | "
-        "Where-Object { try { $_.StartTime -gt (Get-Date).AddMinutes(-5) } catch { $false } } | "
-        "Stop-Process -Force -ErrorAction SilentlyContinue"
-    )
-    subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], check=False)
+    for pid in pids_with_window_on_current_desktop():
+        if _is_leftover_app(pid):
+            kill_process_tree(pid)
 
 
 

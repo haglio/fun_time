@@ -1,9 +1,9 @@
-"""Unit tests: integration teardown scopes its leftover-process kill by desktop.
+"""Unit tests: integration teardown only ever kills its own desktop's processes.
 
-On the hidden integration desktop the reap must hit only that desktop's own
-windows — never the user's real (input-desktop) session — which is what makes an
-unattended run safe.  On a visible manual run it falls back to the by-name +
-5-minute-recency PowerShell sweep.
+The reap hits only windows on the hidden integration desktop — never the user's
+real (input-desktop) session — which is what makes an unattended run safe.  It
+has no other mode: the suite refuses to run anywhere but the hidden desktop, so
+there is nowhere a by-name sweep of the machine could be the right answer.
 """
 import os
 import sys
@@ -40,28 +40,23 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
     run.assert_not_called()      # never the global by-name sweep on the hidden desktop
 
 
-def test_reap_on_real_desktop_uses_the_byname_sweep():
+def test_reap_off_the_hidden_desktop_kills_nothing_at_all():
+    """The last machine-wide kill in the suite, and the same shape as the reap
+    that took down the user's players.
+
+    Off the hidden desktop this used to run `Get-Process pythonw,autohotkey64 |
+    where StartTime > -5min | Stop-Process -Force`, which is every satellite,
+    Nau, Genau, the dashboard, the audio companion and the AHK bridge of any
+    session started in the last five minutes — the user's included.  It existed
+    to support bare `pytest tests/integration/`, which is exactly the invocation
+    that is forbidden; the suite now refuses that run instead of sweeping.
+    """
     with patch.object(integration_support, "current_desktop_name", return_value="Default"), \
          patch.object(integration_support, "pids_with_window_on_current_desktop") as pids, \
          patch.object(integration_support, "kill_process_tree") as kill, \
          patch.object(integration_support.subprocess, "run") as run:
         integration_support._kill_leftover_app_processes()
+
     kill.assert_not_called()
     pids.assert_not_called()
-    assert run.call_count == 1
-    cmd = run.call_args.args[0]
-    assert "powershell.exe" in cmd[0]
-    assert "Stop-Process" in cmd[-1]
-
-
-def test_both_reaps_target_the_same_app_images():
-    """The by-name sweep and the desktop sweep must agree on what an app is —
-    python.exe (pytest, the orchestrator) is in neither."""
-    with patch.object(integration_support, "current_desktop_name", return_value="Default"), \
-         patch.object(integration_support.subprocess, "run") as run:
-        integration_support._kill_leftover_app_processes()
-
-    command = run.call_args.args[0][-1]
-    names = set(command.split("Get-Process ", 1)[1].split(" ", 1)[0].split(","))
-    assert names == {"autohotkey64", "pythonw"}
-    assert "python" not in names
+    run.assert_not_called()
