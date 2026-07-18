@@ -110,9 +110,11 @@ class TestRunStartupSequence:
         assert result.genau_pid == GENAU_PID
         assert result.audio_pid == 70
 
-        # The native satellites are wired from the manifest: the genau python,
-        # the shared satellite module, and each side's command/paused/status files.
-        assert core_called["genau_python_exe"] == str(cfg.paths.genau_python_exe or cfg.paths.python_exe)
+        # The native satellites are wired from the manifest: OUR python (the
+        # satellite player ships from this repo, so it must not depend on
+        # genau's venv), the satellite module, and each side's files.
+        assert core_called["satellite_python_exe"] == str(cfg.paths.python_exe)
+        assert core_called["satellite_python_exe"] != str(cfg.paths.genau_python_exe)
         assert core_called["satellite_module"] == "satellite"
         state = cfg.paths.state_dir
         for side in ("portrait", "landscape"):

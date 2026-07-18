@@ -20,6 +20,9 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             "genau_config_path": str(config.paths.genau_config_path or config.config_path),
         },
         "executables": {
+            # Two interpreters: ours runs everything this repo ships (the
+            # dashboard, the audio companion, the satellite players), and
+            # genau's runs the apps that live in ../genau (Genau and Nau).
             "python_exe": str(config.paths.python_exe),
             "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
         },

@@ -86,7 +86,7 @@ def satellite(tmp_path):
     status = tmp_path / "portrait_status.txt"
 
     pid = launch_satellite(
-        python_exe=str(cfg.paths.genau_python_exe),
+        python_exe=str(cfg.paths.python_exe),
         satellite_module="satellite",
         title="Satellite Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,

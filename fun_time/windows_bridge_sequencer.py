@@ -256,7 +256,7 @@ def _run_startup_phases(
         audio_paused_file=m["commands"]["audio_paused_file"],
         nau_paused_file=m["commands"]["nau_paused_file"],
         audio_volume_file=m["commands"]["audio_volume_file"],
-        genau_python_exe=m["executables"]["genau_python_exe"],
+        satellite_python_exe=m["executables"]["python_exe"],
         satellite_module=m["modules"]["satellite_module"],
         portrait_cmd_file=m["commands"]["portrait_cmd_file"],
         portrait_paused_file=m["commands"]["portrait_paused_file"],

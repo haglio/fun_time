@@ -146,7 +146,14 @@ Every recognized voice command flashes a **green confirmation** — the phrase i
 
 - Python (currently launched via Miniconda `pythonw.exe`)
 - Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), vosk + sounddevice (voice control), and Pillow / numpy / opencv-python.
-- Genau and Nau run out of the `../genau` project's venv (`paths.genau_python_exe`), launched as `python -m genau` and `python -m nau`.
+- `../player_core` — the shared playback core (libmpv wrapper, playlist format, the command/paused file channel, the status writer) that this project's satellite players and the `../genau` apps all build on. Install it editable into this venv, and read its README first — the install mode matters:
+
+  ```bash
+  ".venv/Scripts/python.exe" -m pip install -e ../player_core --config-settings editable_mode=compat
+  ```
+
+  It brings `python-mpv` and the vendored `libmpv-2.dll` with it, so neither is declared here.
+- Genau and Nau run out of the `../genau` project's venv (`paths.genau_python_exe`), launched as `python -m genau` and `python -m nau`. The two satellite players are ours and run out of *this* venv (`paths.python_exe`), launched as `python -m satellite`.
 
 Install the declared dependencies into the project venv before first use.
 

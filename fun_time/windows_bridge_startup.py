@@ -212,7 +212,7 @@ def start_core_session(
     audio_paused_file: str | Path,
     nau_paused_file: str | Path,
     audio_volume_file: str | Path,
-    genau_python_exe: str | Path,
+    satellite_python_exe: str | Path,
     satellite_module: str,
     portrait_cmd_file: str | Path,
     portrait_paused_file: str | Path,
@@ -264,7 +264,7 @@ def start_core_session(
         ),
     )
     launch_core_apps(
-        python_exe=genau_python_exe,
+        python_exe=satellite_python_exe,
         satellite_module=satellite_module,
         portrait_playlist=playlist_plan.portrait_playlist_path,
         landscape_playlist=playlist_plan.landscape_playlist_path,
@@ -477,8 +477,8 @@ def launch_core_apps(
 ) -> None:
     """Spawn the two native satellite players (portrait + landscape).
 
-    Each is our own mpv-backed process (genau's ``satellite`` package), driven
-    through its command/paused/status file quartet like Nau.  Each launches
+    Each is our own mpv-backed process (this repo's ``satellite`` package),
+    driven through its command/paused/status file quartet like Nau.  Each launches
     straight into its final portrait/landscape rect: mpv sizes its output to the
     launch geometry and does NOT rescale when a later Win32 move resizes the
     window, so launching at the real rect (exactly as Nau does) is what makes the
