@@ -142,6 +142,8 @@ class BridgeConfig:
     nau_paused_file: Path
     nau_status_file: Path
     dashboard_state_file: Path
+    # Where Nau publishes its one-shot notices (a clip jump with nowhere to go).
+    nau_notice_file: Path | None = None
     broker_cmd_file: Path | None = None
     broker_heartbeat_file: Path | None = None
     broker_tray_launcher: Path | None = None

@@ -158,6 +158,10 @@ class ProjectConfig:
         return self.paths.state_dir / "nau_status.txt"
 
     @property
+    def nau_notice_file(self) -> Path:
+        return self.paths.state_dir / "nau_notice.txt"
+
+    @property
     def nau_playlist_file(self) -> Path:
         return self.paths.state_dir / "nau_playlist.tsv"
 

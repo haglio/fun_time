@@ -14,8 +14,15 @@ import time
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
-from .command_dispatch import BridgeConfig, BridgeState, WindowOp, command_side, dispatch_command
-from .event_log import notice
+from .command_dispatch import (
+    FAILED_NOTICE_LEVEL,
+    BridgeConfig,
+    BridgeState,
+    WindowOp,
+    command_side,
+    dispatch_command,
+)
+from .event_log import NOTICE, notice
 from .hud_transport import HudPublisher
 from .lock_hud import build_panels
 from .mode_plan import genau_active
@@ -47,6 +54,24 @@ from .win32 import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def read_nau_notice(path) -> tuple[int, str, str]:
+    """Nau's latest one-shot notice as (sequence, level, message).
+
+    Nau bumps the sequence whenever it raises one; (0, "", "") means there is
+    nothing to read. Only Nau knows whether a clip jump had a target, so this is
+    how "full video not available" reaches the overlay.
+    """
+    try:
+        values = dict(
+            line.split("=", 1)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if "=" in line
+        )
+        return int(values.get("seq", "0")), values.get("level", "notice"), values.get("message", "")
+    except (OSError, ValueError):
+        return 0, "", ""
 
 
 def poll_dashboard_commands(cmd_file: Path) -> list[str]:
@@ -244,6 +269,7 @@ class DispatchLoopRunner:
         # rapid chrome.exe launches race Chrome's singleton and drop a tab.
         self._pending_rfb_urls: list[str] = []
         self._batching_rfb = False
+        self._last_nau_notice_seq = 0
         self.voice_controller: VoiceController | None = None
         # Each player's current video is sampled periodically and fed to watch
         # tracking ("breeding"), which classifies playback into completions/skips
@@ -299,6 +325,8 @@ class DispatchLoopRunner:
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
+        self._flash_nau_notice()
+
         # Sync state from shared file — AHK hotkey dispatches update it directly.
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
@@ -392,6 +420,21 @@ class DispatchLoopRunner:
             self.voice_controller.suspend()
         else:
             self.voice_controller.unsuspend()
+
+    def _flash_nau_notice(self) -> None:
+        """Surface anything Nau has raised since the last tick, once."""
+        path = getattr(self.config, "nau_notice_file", None)
+        if path is None:
+            return
+        seq, level, message = read_nau_notice(path)
+        if seq <= self._last_nau_notice_seq:
+            return
+        self._last_nau_notice_seq = seq
+        if message:
+            notice(
+                logger, message, source="primary",
+                level=FAILED_NOTICE_LEVEL if level == "error" else NOTICE,
+            )
 
     def _sync_hybrid_driver(self) -> None:
         """In hybrid, route the OSR2 to the funscript or Genau, moment to moment.
@@ -980,6 +1023,7 @@ def build_bridge_config_from_manifest(
         nau_cmd_file=Path(manifest["commands"]["nau_cmd_file"]),
         nau_paused_file=Path(manifest["commands"]["nau_paused_file"]),
         nau_status_file=Path(manifest["commands"]["nau_status_file"]),
+        nau_notice_file=Path(manifest["commands"]["nau_status_file"]).with_name("nau_notice.txt"),
         dashboard_state_file=Path(manifest["commands"]["dashboard_state_file"]),
         broker_cmd_file=Path(manifest["commands"]["broker_cmd_file"]),
         broker_heartbeat_file=Path(manifest["commands"]["broker_heartbeat_file"]),
