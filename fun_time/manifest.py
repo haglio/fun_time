@@ -4,6 +4,8 @@ import configparser
 import os
 from pathlib import Path
 
+from .hud_transport import HUD_FILENAME
+
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 
 
@@ -55,10 +57,12 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             "portrait_paused_file": str(config.paths.state_dir / "portrait_paused.txt"),
             "portrait_status_file": str(config.paths.state_dir / "portrait_status.txt"),
             "portrait_playlist_file": str(config.paths.state_dir / "portrait_playlist.tsv"),
+            "portrait_hud_file": str(config.paths.state_dir / HUD_FILENAME["portrait"]),
             "landscape_cmd_file": str(config.paths.state_dir / "landscape_cmd.txt"),
             "landscape_paused_file": str(config.paths.state_dir / "landscape_paused.txt"),
             "landscape_status_file": str(config.paths.state_dir / "landscape_status.txt"),
             "landscape_playlist_file": str(config.paths.state_dir / "landscape_playlist.tsv"),
+            "landscape_hud_file": str(config.paths.state_dir / HUD_FILENAME["landscape"]),
             "broker_cmd_file": str(config.paths.state_dir / "broker_cmd.txt"),
             "broker_heartbeat_file": str(config.paths.state_dir / "broker_heartbeat.txt"),
             "broker_tray_launcher": str(config.paths.broker_tray_launcher or ""),

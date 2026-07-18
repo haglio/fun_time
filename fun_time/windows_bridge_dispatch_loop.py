@@ -16,6 +16,8 @@ from pathlib import Path
 from .audio_volume import MAX_VOLUME
 from .command_dispatch import BridgeConfig, BridgeState, WindowOp, command_side, dispatch_command
 from .event_log import notice
+from .hud_transport import HudPublisher
+from .lock_hud import build_panels
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
 from .satellite_control import read_satellite_status
@@ -257,6 +259,7 @@ class DispatchLoopRunner:
         landscape_pid: int = 0,
         dashboard_pid: int = 0,
         dashboard_enabled: bool,
+        hud_publisher: HudPublisher | None = None,
         rfb_hwnd: int = 0,
         rfb_shortcut_target: str = "",
         rfb_shortcut_work_dir: str = "",
@@ -273,6 +276,12 @@ class DispatchLoopRunner:
         self.landscape_pid = landscape_pid
         self.dashboard_pid = dashboard_pid
         self.dashboard_enabled = dashboard_enabled
+        # The lock HUD's model: this loop holds the state the map is drawn from
+        # (locks, filters, loops) and already ticks, so it builds each satellite's
+        # panel and publishes it for that satellite's player to render into its
+        # own video.  None when the session runs without HUDs.
+        self._hud_publisher = hud_publisher
+        self._last_hud_publish = 0.0
         self.rfb_hwnd = rfb_hwnd
         self.rfb_shortcut_target = rfb_shortcut_target
         self.rfb_shortcut_work_dir = rfb_shortcut_work_dir
@@ -332,6 +341,12 @@ class DispatchLoopRunner:
     # where playback is frozen.
     _WATCH_SAMPLE_INTERVAL_S = 0.5
 
+    # The satellites play ~5 s clips, so the HUD map has to track the current clip
+    # almost the instant it changes — but not at the loop's own 20 Hz.  Building a
+    # panel is index lookups plus a stat per thumbnail, and the publisher skips the
+    # write entirely when the panel is unchanged, so an idle tick is nearly free.
+    _HUD_PUBLISH_INTERVAL_S = 0.15
+
     # Commands that count as the user navigating away from a video — the signal
     # that classifies an early departure as a skip rather than a neutral advance.
     # The primary (Nau) navigates with next/prev only; it has no lock/weird/cycle.
@@ -390,6 +405,38 @@ class DispatchLoopRunner:
             if not self.state.omni_paused:
                 self._sample_satellites(now=now)
                 self._sample_primary()
+        if now - self._last_hud_publish >= self._HUD_PUBLISH_INTERVAL_S:
+            self._last_hud_publish = now
+            self._publish_huds()
+
+    def _publish_huds(self) -> None:
+        """Rebuild both satellites' HUD panels and publish the ones that changed.
+
+        Runs under OmniPause too: playback is frozen, but the map stays up so the
+        user can still see — and click — what each satellite is holding.
+        """
+        if self._hud_publisher is None:
+            return
+        state = self.state
+        portrait, landscape = build_panels(
+            portrait_sources=self.config.portrait_sources,
+            landscape_sources=self.config.landscape_sources,
+            metadata_root=self.config.provider_metadata_root,
+            portrait_current=read_satellite_status(self.config.portrait_status_file).video,
+            landscape_current=read_satellite_status(self.config.landscape_status_file).video,
+            portrait_locked=state.locked2,
+            landscape_locked=state.locked3,
+            portrait_filter=state.portrait_filter,
+            landscape_filter=state.landscape_filter,
+            portrait_loop=state.portrait_loop,
+            landscape_loop=state.landscape_loop,
+            portrait_widen_clip=state.portrait_widen_clip,
+            landscape_widen_clip=state.landscape_widen_clip,
+            portrait_nav_anchor=state.portrait_nav_anchor,
+            landscape_nav_anchor=state.landscape_nav_anchor,
+        )
+        self._hud_publisher.publish("portrait", portrait)
+        self._hud_publisher.publish("landscape", landscape)
 
     def _sync_voice_suspension(self) -> None:
         """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.

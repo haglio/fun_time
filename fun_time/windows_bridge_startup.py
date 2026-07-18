@@ -202,6 +202,9 @@ def start_core_session(
     favs_file: str | Path,
     state_dir: str | Path,
     result_file: str | Path,
+    portrait_hud_file: str | Path | None = None,
+    landscape_hud_file: str | Path | None = None,
+    dashboard_cmd_file: str | Path | None = None,
     provider_media_root: Path | None = None,
     provider_metadata_root: Path | None = None,
 ) -> None:
@@ -242,6 +245,9 @@ def start_core_session(
         portrait_rect=portrait_rect,
         landscape_rect=landscape_rect,
         result_file=result_file,
+        portrait_hud_file=portrait_hud_file,
+        landscape_hud_file=landscape_hud_file,
+        dashboard_cmd_file=dashboard_cmd_file,
     )
 
 
@@ -436,6 +442,9 @@ def launch_core_apps(
     portrait_rect: WindowRect,
     landscape_rect: WindowRect,
     result_file: str | Path,
+    portrait_hud_file: str | Path | None = None,
+    landscape_hud_file: str | Path | None = None,
+    dashboard_cmd_file: str | Path | None = None,
 ) -> None:
     """Spawn the two native satellite players (portrait + landscape).
 
@@ -458,6 +467,7 @@ def launch_core_apps(
         status_file=portrait_status_file,
         x=portrait_rect.x, y=portrait_rect.y,
         width=portrait_rect.width, height=portrait_rect.height,
+        hud_file=portrait_hud_file, dashboard_cmd_file=dashboard_cmd_file,
     )
     landscape_pid = launch_satellite(
         python_exe=python_exe,
@@ -469,6 +479,7 @@ def launch_core_apps(
         status_file=landscape_status_file,
         x=landscape_rect.x, y=landscape_rect.y,
         width=landscape_rect.width, height=landscape_rect.height,
+        hud_file=landscape_hud_file, dashboard_cmd_file=dashboard_cmd_file,
     )
     _write_result_file(
         result_file,
@@ -492,6 +503,8 @@ def _build_satellite_launch_command(
     y: int,
     width: int,
     height: int,
+    hud_file: str | Path | None = None,
+    dashboard_cmd_file: str | Path | None = None,
 ) -> list[str]:
     """The argv for a native satellite player (``python -m satellite ...``).
 
@@ -500,8 +513,12 @@ def _build_satellite_launch_command(
     Nau) rather than a VLC HTTP port.  It takes no ``--config`` — the quartet plus
     geometry fully specify it — and stays silent with ``--no-audio``.  ``--title``
     gives it the distinct caption the sequencer resolves its slot by.
+
+    The lock HUD rides along as two more files: the panel this loop publishes for
+    the player to composite into its own video, and the command file a click on
+    that HUD posts back to.  Both absent means the satellite simply draws no map.
     """
-    return [
+    command = [
         str(python_exe),
         "-m",
         str(satellite_module),
@@ -525,6 +542,11 @@ def _build_satellite_launch_command(
         str(height),
         "--no-audio",
     ]
+    if hud_file:
+        command += ["--hud-file", str(hud_file)]
+    if dashboard_cmd_file:
+        command += ["--dashboard-cmd-file", str(dashboard_cmd_file)]
+    return command
 
 
 def launch_satellite(
@@ -540,13 +562,15 @@ def launch_satellite(
     y: int,
     width: int,
     height: int,
+    hud_file: str | Path | None = None,
+    dashboard_cmd_file: str | Path | None = None,
 ) -> int:
     """Launch a native satellite player subprocess, returning its PID.
 
     The native counterpart to the VLC satellite spawn (and a sibling of
     :func:`launch_nau`): our own mpv-backed process, launched at the given rect
     with the given distinct *title*, driven through the command/paused/status
-    file quartet.
+    file quartet, and drawing its own lock HUD from the published panel.
     """
     cmd = _build_satellite_launch_command(
         python_exe,
@@ -560,6 +584,8 @@ def launch_satellite(
         y=y,
         width=width,
         height=height,
+        hud_file=hud_file,
+        dashboard_cmd_file=dashboard_cmd_file,
     )
     proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
     return proc.pid

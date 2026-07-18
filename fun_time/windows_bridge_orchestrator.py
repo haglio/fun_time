@@ -26,7 +26,8 @@ from .startup_progress import (
     StartupCancelled,
     StartupProgress,
 )
-from .lock_hud import HUD_READY_FILENAME, wait_for_hud_ready
+from .hud_transport import HUD_FILENAME, HudPublisher
+from .lock_hud import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails, prime_group_indexes
 from .userscript_server import USERSCRIPT_PORT, serve_userscript_updates
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
@@ -311,6 +312,41 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
     _log_nau_obstruction(nau_hwnd)
 
 
+def _start_hud_priming(
+    bridge_config, manifest, *, enabled: bool
+) -> tuple[HudPublisher | None, threading.Event]:
+    """Build the HUD publisher and warm what it needs, off the startup thread.
+
+    Two costs sit behind the first map: indexing each library's seed families and
+    action groups, and extracting a still frame per clip.  Both used to run in the
+    separate HUD process; with the model here they run on this daemon thread, so
+    startup keeps going while they finish.  The returned event fires once the
+    indexes are ready — startup waits on it before revealing Fun Time, so the maps
+    are never blank on screen.  The far longer thumbnail warm continues behind it;
+    those fill in as they land.
+    """
+    primed = threading.Event()
+    if not enabled:
+        primed.set()
+        return None, primed
+    sources = (bridge_config.portrait_sources, bridge_config.landscape_sources)
+    cache_dir = bridge_config.state_dir / THUMBNAIL_CACHE_DIRNAME
+    publisher = HudPublisher(
+        {side: Path(manifest["commands"][f"{side}_hud_file"]) for side in HUD_FILENAME},
+        cache_dir,
+    )
+
+    def _warm() -> None:
+        try:
+            prime_group_indexes(sources, bridge_config.provider_metadata_root)
+        finally:
+            primed.set()
+        prewarm_thumbnails(sources, cache_dir)
+
+    threading.Thread(target=_warm, daemon=True, name="hud-warm").start()
+    return publisher, primed
+
+
 def run_python_orchestrated_bridge(
     *,
     manifest_path: str | Path,
@@ -357,11 +393,16 @@ def run_python_orchestrated_bridge(
     else:
         progress = NullProgress()
 
-    # Clear any stale ready flag from a prior session before the HUD (launched
-    # inside the sequence) writes a fresh one, so the wait below can't see an
-    # old file and reveal Fun Time before this run's maps are primed.
-    hud_ready_file = state_dir / HUD_READY_FILENAME
-    hud_ready_file.unlink(missing_ok=True)
+    manifest = configparser.ConfigParser()
+    manifest.optionxform = str
+    manifest.read(str(manifest_path), encoding="utf-8")
+    bridge_config = build_bridge_config_from_manifest(manifest)
+    dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
+    # The lock HUD's model is built here and published for each satellite player
+    # to draw into its own video.  It rides the dashboard's enable gate, so an
+    # integration run stays free of library scans and frame grabs.
+    hud_publisher, hud_primed = _start_hud_priming(
+        bridge_config, manifest, enabled=dashboard_enabled)
 
     logger.info("Running startup sequence")
     try:
@@ -409,14 +450,11 @@ def run_python_orchestrated_bridge(
     # --- Close loading screen (normal mode only) ---
     # The sequencer already positioned all windows in Phase 4 (the reveal).
     if show_loading:
-        # Hold the loading screen until the lock HUD has primed its indexes, so
-        # Fun Time isn't revealed with the maps still blank.  Capped so a HUD
-        # that never signals (or was never launched) can't wedge startup.
-        if result.lock_hud_pid:
-            if wait_for_hud_ready(hud_ready_file, timeout_s=20.0):
-                logger.info("Lock HUD ready; dropping loading screen")
-            else:
-                logger.warning("Lock HUD not ready after 20s; revealing anyway")
+        # Hold the loading screen until the HUD's group indexes are primed, so
+        # Fun Time isn't revealed with the maps still blank.  Capped so a slow
+        # library scan can't wedge startup — the maps just fill in late.
+        if hud_publisher is not None and not hud_primed.wait(timeout=20.0):
+            logger.warning("HUD indexes not primed after 20s; revealing anyway")
         progress.finish()
         if loading_proc:
             try:
@@ -438,10 +476,6 @@ def run_python_orchestrated_bridge(
     # Clean stale state files from previous sessions so the dispatch loop
     # starts fresh (e.g. omni_paused=True left over from a crash).
     # Start background dispatch loop (dashboard polling + genau sync)
-    manifest = configparser.ConfigParser()
-    manifest.optionxform = str
-    manifest.read(str(manifest_path), encoding="utf-8")
-    bridge_config = build_bridge_config_from_manifest(manifest)
     dashboard_cmd_file = Path(manifest["commands"]["dashboard_cmd_file"])
     for stale in (
         state_dir / "shared_bridge_state.ini",
@@ -450,7 +484,6 @@ def run_python_orchestrated_bridge(
         dashboard_cmd_file.with_suffix(".processing"),
     ):
         stale.unlink(missing_ok=True)
-    dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
 
     # Route dispatch log messages to the windows bridge log file so they
     # appear alongside AHK log entries (integration tests read this file).
@@ -473,6 +506,7 @@ def run_python_orchestrated_bridge(
         landscape_pid=result.landscape_pid,
         dashboard_pid=result.dashboard_pid,
         dashboard_enabled=dashboard_enabled,
+        hud_publisher=hud_publisher,
         rfb_hwnd=result.rfb_hwnd,
         rfb_shortcut_target=rfb_target,
         rfb_shortcut_work_dir=rfb_work_dir,

@@ -725,13 +725,15 @@ class LockHud:
         # so the very first map is instant instead of paying for a scan, then
         # signal ready so startup can drop the loading screen knowing the maps
         # will paint immediately rather than blank.
-        prime_group_indexes(config)
+        sources = (config.portrait_sources, config.landscape_sources)
+        prime_group_indexes(sources, config.provider_metadata_root)
         signal_hud_ready(config.ready_file)
         # Fill the thumbnail cache off the UI thread so a clip change paints from
         # cache instead of blocking on a first-use frame grab.  Daemon: it must
         # never hold the process open, and losing a half-done warm is harmless.
         threading.Thread(
-            target=prewarm_thumbnails, args=(config,), daemon=True, name="hud-thumb-prewarm",
+            target=prewarm_thumbnails, args=(sources, config.thumbnail_cache_dir),
+            daemon=True, name="hud-thumb-prewarm",
         ).start()
         self._overlays = {
             "portrait": HudOverlay("portrait", self._write_command),
@@ -781,7 +783,9 @@ class LockHud:
         portrait_current = read_satellite_status(self._config.portrait_status_file).video
         landscape_current = read_satellite_status(self._config.landscape_status_file).video
         portrait_panel, landscape_panel = build_panels(
-            self._config,
+            portrait_sources=self._config.portrait_sources,
+            landscape_sources=self._config.landscape_sources,
+            metadata_root=self._config.provider_metadata_root,
             portrait_current=portrait_current,
             landscape_current=landscape_current,
             portrait_locked=state.locked2,

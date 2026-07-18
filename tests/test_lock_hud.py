@@ -21,7 +21,6 @@ from fun_time.lock_hud import (
     prewarm_thumbnails,
     prime_group_indexes,
     signal_hud_ready,
-    wait_for_hud_ready,
 )
 from fun_time.media_metadata import (
     GroupIndex,
@@ -609,9 +608,7 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
-    config = _hud_config(portrait_sources=sources, landscape_sources=sources, provider_metadata_root=metadata_root)
-
-    prime_group_indexes(config)
+    prime_group_indexes((sources, sources), metadata_root)
 
     # Served from the primed cache: a lazy build here (empty supplier) would be
     # empty, so a non-empty index proves prime populated it from the real tree.
@@ -628,18 +625,16 @@ def test_prewarm_thumbnails_covers_every_clip_in_both_libraries(tmp_path: Path):
     (portrait / "a.mp4").write_text("x", encoding="utf-8")
     (portrait / "b.mp4").write_text("x", encoding="utf-8")
     (landscape / "c.mp4").write_text("x", encoding="utf-8")
-    config = _hud_config(
-        portrait_sources=str(portrait), landscape_sources=str(landscape),
-        thumbnail_cache_dir=tmp_path / "thumbs",
-    )
+    cache_dir = tmp_path / "thumbs"
     warmed: list[tuple[str, object]] = []
 
     prewarm_thumbnails(
-        config, thumbnailer=lambda path, cache: warmed.append((path, cache)), sleep_fn=lambda _s: None,
+        (str(portrait), str(landscape)), cache_dir,
+        thumbnailer=lambda path, cache: warmed.append((path, cache)), sleep_fn=lambda _s: None,
     )
 
     assert sorted(Path(p).name for p, _cache in warmed) == ["a.mp4", "b.mp4", "c.mp4"]
-    assert all(cache == config.thumbnail_cache_dir for _p, cache in warmed)
+    assert all(cache == cache_dir for _p, cache in warmed)
 
 
 def test_signal_hud_ready_writes_the_flag(tmp_path: Path):
@@ -650,49 +645,16 @@ def test_signal_hud_ready_writes_the_flag(tmp_path: Path):
     assert ready.exists()
 
 
-def test_wait_for_hud_ready_returns_true_once_the_flag_appears(tmp_path: Path):
-    """The flag is written a few polls in; the wait must catch it and report True
-    without running out the full timeout."""
-    ready = tmp_path / "lock_hud_ready.txt"
-    ticks = iter([0.0, 0.0, 0.1, 0.2, 0.3])
-
-    def fake_sleep(_s: float) -> None:
-        # The HUD finishes priming on the third poll.
-        if not ready.exists() and fake_sleep.calls == 1:
-            ready.write_text("ready", encoding="utf-8")
-        fake_sleep.calls += 1
-
-    fake_sleep.calls = 0
-
-    assert wait_for_hud_ready(
-        ready, timeout_s=5.0, poll_s=0.1, sleep_fn=fake_sleep, clock=lambda: next(ticks)
-    ) is True
-
-
-def test_wait_for_hud_ready_times_out_when_the_flag_never_appears(tmp_path: Path):
-    """A HUD that never primes must not wedge startup — the wait lapses and
-    reports False so the caller reveals anyway."""
-    ready = tmp_path / "never.txt"
-    ticks = iter([0.0, 0.5, 1.0, 1.5])
-
-    assert wait_for_hud_ready(
-        ready, timeout_s=1.0, poll_s=0.1, sleep_fn=lambda _s: None, clock=lambda: next(ticks)
-    ) is False
-
-
 def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
     reset_group_index_cache()
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sibling = _clip(media_root, metadata_root, "b", _i2v("redacted", "2"))
-    config = _hud_config(
-        portrait_sources=str(media_root / "portrait"),
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
-    )
+    sources = str(media_root / "portrait")
 
     portrait, landscape = build_panels(
-        config,
+        portrait_sources=sources, landscape_sources="",
+        metadata_root=metadata_root,
         portrait_current=current, landscape_current="",
         portrait_locked=True, landscape_locked=False,
         portrait_filter="beta gamma", landscape_filter="",
@@ -713,13 +675,11 @@ def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     _a = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     b = _clip(media_root, metadata_root, "b", _i2v("Alpha", "2"))
-    config = _hud_config(
-        portrait_sources=str(media_root / "portrait"),
-        provider_media_root=media_root, provider_metadata_root=metadata_root,
-    )
+    sources = str(media_root / "portrait")
 
     portrait, _landscape = build_panels(
-        config,
+        portrait_sources=sources, landscape_sources="",
+        metadata_root=metadata_root,
         portrait_current=b, landscape_current="",
         portrait_locked=False, landscape_locked=False,
         portrait_loop="seed",
@@ -737,14 +697,11 @@ def test_build_panels_threads_the_nav_anchor_onto_the_panel(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     a = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     b = _clip(media_root, metadata_root, "b", _i2v("Alpha", "2"))
-    config = _hud_config(
-        portrait_sources=str(media_root / "portrait"),
-        provider_media_root=media_root, provider_metadata_root=metadata_root,
-    )
+    sources = str(media_root / "portrait")
 
     # Navigation began from a; the satellite has since switched to its seed sibling b.
     portrait, _landscape = build_panels(
-        config,
+        portrait_sources=sources, landscape_sources="", metadata_root=metadata_root,
         portrait_current=b, landscape_current="",
         portrait_locked=False, landscape_locked=False,
         portrait_nav_anchor=a,
@@ -768,15 +725,12 @@ def test_build_panels_keeps_a_widened_seed_loop_wide_across_the_loose_family(tmp
     b_meta = _i2v("Alpha", "3", image_seed="200")
     b_meta["source_image"]["model"] = "Y Sweet"  # a render knob freed → a loose sibling
     b = _clip(media_root, metadata_root, "b", b_meta)
-    config = _hud_config(
-        portrait_sources=str(media_root / "portrait"),
-        provider_media_root=media_root, provider_metadata_root=metadata_root,
-    )
+    sources = str(media_root / "portrait")
 
     # Widened around `a`; the loop has auto-advanced to `b`, a loose-family re-render
     # that is not in a's exact seed family {a, a2}.
     portrait, _landscape = build_panels(
-        config,
+        portrait_sources=sources, landscape_sources="", metadata_root=metadata_root,
         portrait_current=b, landscape_current="",
         portrait_locked=False, landscape_locked=False,
         portrait_loop="seed", portrait_widen_clip=a,
