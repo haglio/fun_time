@@ -36,7 +36,7 @@ from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on, read_nau_status
 from .runtime_flow import read_flag_file
-from .windows_bridge_startup import restart_broker, stop_broker_processes
+from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
@@ -825,18 +825,29 @@ class DispatchLoopRunner:
             self._update_dashboard()
 
     def _handle_broker_toggle(self) -> None:
-        """Stop broker if running, start it if stopped."""
-        project_dir = self.config.state_dir.parent
+        """Stop the broker if it is running, start it if it is not.
+
+        Only the stopping half may kill.  Starting launches over whatever is
+        there, because the heartbeat this reads goes stale on a live broker
+        whenever the OSR2 is off.
+        """
         if self._is_broker_alive():
-            stop_broker_processes(project_dir)
+            stop_broker_processes(self.config.state_dir.parent)
         else:
-            restart_broker(project_dir, self.config.broker_tray_launcher)
+            launch_broker_tray(self.config.broker_tray_launcher)
 
     def _handle_broker_start(self) -> None:
-        """Start broker only if not already running."""
+        """Start the broker if the heartbeat says none is running.
+
+        A start, never a restart.  The heartbeat only ticks while the broker
+        holds the serial port, so a broker that cannot reach a powered-off OSR2
+        reads as dead while it is alive and still serving every other client --
+        and it used to be killed here, then not relaunched at all, because no
+        tray launcher was passed.
+        """
         if not self._is_broker_alive():
             threading.Thread(
-                target=lambda: restart_broker(self.config.state_dir.parent),
+                target=lambda: launch_broker_tray(self.config.broker_tray_launcher),
                 daemon=True,
                 name="broker-start",
             ).start()

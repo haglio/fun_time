@@ -248,7 +248,6 @@ def _run_startup_phases(
     provider_media_raw = m.get("provider_regen", "media_root", fallback="").strip()
     provider_metadata_raw = m.get("provider_regen", "metadata_root", fallback="").strip()
     start_core_session(
-        project_dir=m["runtime"]["project_dir"],
         config_path=m["runtime"]["config_path"],
         broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
         broker_heartbeat_file=m["commands"]["broker_heartbeat_file"],

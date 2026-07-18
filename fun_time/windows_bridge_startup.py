@@ -3,7 +3,6 @@ from __future__ import annotations
 import configparser
 import re
 import subprocess
-import time
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -106,9 +105,18 @@ def reap_orphaned_satellites(
     )
 
 
-def restart_broker(project_dir: str | Path, broker_tray_launcher: Path | None = None) -> None:
-    stop_broker_processes(project_dir)
-    time.sleep(0.4)
+def launch_broker_tray(broker_tray_launcher: Path | None) -> None:
+    """Start the broker's tray, or do nothing if one is already up.
+
+    The tray and the broker each hold a single-instance mutex, so launching
+    over a live pair costs one process that exits immediately.  That is what
+    makes this safe to run on a liveness reading we do not fully trust: the
+    worst case is a wasted launch, where killing first cannot be taken back.
+
+    The tray goes up with the broker's own kwargs, not the ordinary
+    hidden-window ones: it has to break away from an integration run's job
+    object and outlive the run that started it.
+    """
     if broker_tray_launcher and broker_tray_launcher.is_file():
         subprocess.Popen(
             ["wscript.exe", str(broker_tray_launcher)],
@@ -118,22 +126,25 @@ def restart_broker(project_dir: str | Path, broker_tray_launcher: Path | None = 
 
 
 def ensure_broker(
-    project_dir: str | Path,
     broker_heartbeat_file: str | Path | None,
     broker_tray_launcher: Path | None = None,
 ) -> None:
     """Start the broker only if one is not already running.
 
     A healthy broker outlives the session that launched it: harem and the user's
-    own tools keep talking to it over the shared UDP inlet, and
-    osr2_broker installs a self-healing scheduled task that keeps one alive.
-    Killing a live broker to relaunch our own would drop every client
-    mid-stream, so a session (re)starts it only when the heartbeat is stale —
-    the same liveness signal the dashboard and dispatch loop already read.
+    own tools keep talking to it over the shared UDP inlet, and osr2_broker
+    installs a self-healing scheduled task that keeps one alive.  Killing a live
+    broker to relaunch our own would drop every client mid-stream.
+
+    A stale heartbeat is not permission to kill, either.  osr2_broker only ticks
+    it while it holds the serial port, so a powered-off OSR2 makes a healthy
+    broker look gone — and a session start is exactly when the device tends to
+    be off.  So we never kill here: launching over a live pair is a no-op the
+    mutexes absorb, and that is the cheap half of the trade.
     """
     if broker_heartbeat_file is not None and is_broker_heartbeat_fresh(Path(broker_heartbeat_file)):
         return
-    restart_broker(project_dir, broker_tray_launcher)
+    launch_broker_tray(broker_tray_launcher)
 
 
 def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: str | Path) -> None:
@@ -192,7 +203,6 @@ def reset_satellite_paused_states(
 
 def start_core_session(
     *,
-    project_dir: str | Path,
     config_path: str | Path,
     broker_tray_launcher: Path | None = None,
     broker_heartbeat_file: str | Path | None = None,
@@ -232,7 +242,7 @@ def start_core_session(
     reap_orphaned_satellites(
         satellite_module, [portrait_status_file, landscape_status_file],
     )
-    ensure_broker(project_dir, broker_heartbeat_file, broker_tray_launcher)
+    ensure_broker(broker_heartbeat_file, broker_tray_launcher)
     seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
     # seed_startup_states does not touch the satellite paused files; clear any "1"
     # a prior OmniPause stranded so the satellites launch playing, not frozen.
