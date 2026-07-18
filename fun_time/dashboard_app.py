@@ -105,9 +105,9 @@ from fun_time.dashboard_layout import (
 )
 from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status, read_nau_status
 from fun_time.dashboard_state import (
-    LABEL_LANDSCAPE_VLC,
+    LABEL_LANDSCAPE,
     LABEL_OSR2,
-    LABEL_PORTRAIT_VLC,
+    LABEL_PORTRAIT,
     LABEL_PRIMARY_GENAU,
     LABEL_PRIMARY_HYBRID,
     LABEL_PRIMARY_NAU,
@@ -543,8 +543,8 @@ def build_dashboard_scene(
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
     primary_label = LABEL_PRIMARY_NAU
-    portrait_label = LABEL_PORTRAIT_VLC
-    landscape_label = LABEL_LANDSCAPE_VLC
+    portrait_label = LABEL_PORTRAIT
+    landscape_label = LABEL_LANDSCAPE
     osr2_label = LABEL_OSR2
     primary_fill = COLOR_PANEL
     portrait_fill = COLOR_PANEL
@@ -562,8 +562,6 @@ def build_dashboard_scene(
         _mode_labels = {"nau": LABEL_PRIMARY_NAU, "genau": LABEL_PRIMARY_GENAU, "hybrid": LABEL_PRIMARY_HYBRID}
         primary_label_name = _mode_labels.get(snapshot.primary_mode, LABEL_PRIMARY_NAU)
         primary_label = primary_label_name
-        portrait_label = LABEL_PORTRAIT_VLC
-        landscape_label = LABEL_LANDSCAPE_VLC
         primary_funscript_exists = has_matching_funscript(snapshot.primary.path)
         funscript_active = bool(snapshot.primary.path) and primary_funscript_exists
         if snapshot.osr2_mode == "off":
