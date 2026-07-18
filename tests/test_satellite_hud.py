@@ -1,0 +1,247 @@
+"""The satellite's in-video lock HUD: model, geometry and hit-testing."""
+from __future__ import annotations
+
+import json
+
+from satellite.hud import (
+    LOOP_BTN,
+    MAP_GAP,
+    ROW_GAP,
+    HudCell,
+    HudClicks,
+    HudTargets,
+    action_label_blocks,
+    build_click_targets,
+    build_label_targets,
+    button_tooltip,
+    expand_button_rect,
+    friendly_action_label,
+    hit_test_targets,
+    loop_button_rects,
+    parse_hud,
+    thumbnail_rects,
+)
+
+
+def test_parse_hud_reads_the_panel_fun_time_published():
+    text = json.dumps({
+        "side": "portrait",
+        "locked": True,
+        "lock_label": "Locked",
+        "filter_query": "alpha",
+        "active_loop": "seed",
+        "playing": ["seed", 1],
+        "current_action": "alpha",
+        "corner": {"path": "C:/v/cur.mp4", "thumb": "C:/t/cur.jpg"},
+        "seeds": [{"path": "C:/v/s1.mp4", "thumb": "C:/t/s1.jpg"}],
+        "actions": [{"path": "C:/v/a1.mp4", "thumb": "C:/t/a1.jpg", "label": "gamma"}],
+    })
+
+    model = parse_hud(text)
+
+    assert model is not None
+    assert model.side == "portrait"
+    assert model.locked is True
+    assert model.lock_label == "Locked"
+    assert model.filter_query == "alpha"
+    assert model.active_loop == "seed"
+    assert model.playing == ("seed", 1)
+    assert model.current_action == "alpha"
+    assert model.corner == HudCell(path="C:/v/cur.mp4", thumb="C:/t/cur.jpg")
+    assert model.seeds == (HudCell(path="C:/v/s1.mp4", thumb="C:/t/s1.jpg"),)
+    assert model.actions == (HudCell(path="C:/v/a1.mp4", thumb="C:/t/a1.jpg", label="gamma"),)
+
+
+def test_parse_hud_defaults_an_empty_panel():
+    """A satellite with nothing to map (no clip yet) still parses — it simply has
+    no corner, so nothing is drawn."""
+    model = parse_hud(json.dumps({"side": "landscape", "locked": False, "lock_label": "Unlocked"}))
+
+    assert model is not None
+    assert model.corner is None
+    assert model.seeds == ()
+    assert model.actions == ()
+    assert model.playing == ("corner", 0)
+
+
+def test_parse_hud_rejects_junk():
+    """A half-written file (fun_time writes it while the player reads) must not
+    crash the player — it just keeps the HUD it already had."""
+    assert parse_hud('{"side": "portrait"') is None
+    assert parse_hud("") is None
+
+
+def test_thumbnail_rects_positions_the_map_and_drops_overflow():
+    """The corner anchors the map; seeds walk right and actions walk down, each
+    dropped (not clipped) when it would cross the panel edge."""
+    corner, seeds, actions = thumbnail_rects(
+        map_x=100, map_y=50, right=300, bottom=280,
+        corner_size=(30, 54),
+        seed_sizes=[(30, 54), (30, 54), (200, 54)],   # the third would cross right=300
+        action_sizes=[(30, 54), (30, 200)],           # the second would cross bottom=280
+    )
+
+    assert corner == (100, 50, 30, 54)
+    s1 = 100 + 30 + MAP_GAP
+    s2 = s1 + 30 + MAP_GAP
+    assert seeds == [(s1, 50, 30, 54), (s2, 50, 30, 54)]   # third dropped
+    assert actions == [(100, 50 + 54 + ROW_GAP, 30, 54)]   # second dropped
+
+
+def test_loop_button_rects_places_below_the_column_and_right_of_the_row():
+    corner = (10, 10, 20, 20)
+    loop_action, loop_seed = loop_button_rects(
+        corner, [(35, 10, 20, 20)], [(10, 35, 20, 20)], right=200, bottom=200,
+    )
+
+    assert loop_action == (10, 35 + 20 + MAP_GAP, 20, LOOP_BTN)   # below the lowest action
+    assert loop_seed == (35 + 20 + MAP_GAP, 10, LOOP_BTN, 20)     # right of the rightmost seed
+
+    # A panel too small for either drops it rather than overflowing.
+    assert loop_button_rects(
+        corner, [(35, 10, 20, 20)], [(10, 35, 20, 20)], right=70, bottom=70,
+    ) == (None, None)
+    assert loop_button_rects(None, [], [], right=200, bottom=200) == (None, None)
+
+
+def test_expand_button_sits_in_the_row_right_of_the_seed_loop_button():
+    """The expand ("more seeds") button lives in the seed row, just right of the
+    seed-loop button, and hides rather than overflow the panel's right edge."""
+    loop_seed = (60, 10, 18, 30)
+
+    assert expand_button_rect(loop_seed, right=200) == (60 + 18 + MAP_GAP, 10, LOOP_BTN, 30)
+    assert expand_button_rect(None, right=200) is None
+    assert expand_button_rect(loop_seed, right=90) is None  # no room -> dropped
+
+
+def test_build_and_hit_test_click_targets():
+    """Targets zip the drawn rects to their paths — corner=current, then each
+    seed, then each action — and a point resolves to the clip it falls in."""
+    corner = (10, 10, 20, 20)
+    seeds = [(40, 10, 20, 20)]
+    actions = [(10, 40, 20, 20)]
+
+    targets = build_click_targets(
+        corner, seeds, actions,
+        HudCell(path="cur.mp4"), [HudCell(path="s1.mp4")], [HudCell(path="a1.mp4")],
+    )
+
+    assert targets == [
+        ((10, 10, 20, 20), "cur.mp4"),
+        ((40, 10, 20, 20), "s1.mp4"),
+        ((10, 40, 20, 20), "a1.mp4"),
+    ]
+    assert hit_test_targets(targets, 15, 15) == "cur.mp4"
+    assert hit_test_targets(targets, 45, 15) == "s1.mp4"
+    assert hit_test_targets(targets, 15, 45) == "a1.mp4"
+    assert hit_test_targets(targets, 100, 100) == ""  # empty area hits nothing
+
+
+def test_build_click_targets_skips_a_missing_corner():
+    assert build_click_targets(None, [], [], None, [], []) == []
+
+
+def test_build_label_targets_maps_the_gutter_rows_to_actions():
+    """Each row's action-name label is a gutter-wide target beside its thumbnail
+    row: the corner's is the current action, the rows below their siblings."""
+    corner = (60, 50, 30, 54)
+    actions = [(60, 110, 30, 54)]
+
+    targets = build_label_targets(
+        corner, actions, gutter_x=10, gutter_w=50,
+        current_action="Alpha", action_labels=["Gamma"],
+    )
+
+    assert targets == [((10, 50, 50, 54), "Alpha"), ((10, 110, 50, 54), "Gamma")]
+
+
+def test_button_tooltip_names_each_button():
+    loop_targets = [((0, 0, 20, 20), "action"), ((30, 0, 20, 20), "seed")]
+    expand = (30, 30, 18, 18)
+
+    assert button_tooltip(loop_targets, expand, 5, 5) == "Loop this action column"
+    assert button_tooltip(loop_targets, expand, 35, 5) == "Loop this seed row"
+    assert button_tooltip(loop_targets, expand, 35, 35) == "More seeds — widen the net"
+    assert button_tooltip(loop_targets, expand, 200, 200) == ""
+
+
+def test_action_label_blocks_separate_comma_joined_acts():
+    """Several acts on one clip ("Alpha, Theta Motion") become one block each
+    (drawn with a gap between), commas dropped; one act is a single block."""
+    assert action_label_blocks("alpha, theta motion") == [["Alpha"], ["Motion", "Bounce"]]
+    assert action_label_blocks("pov gamma") == [["POV", "Gamma"]]
+    assert action_label_blocks("") == [["(unknown)"]]
+
+
+def test_friendly_action_label_titlecases_and_keeps_acronyms_upper():
+    assert friendly_action_label("epsilon") == "Epsilon"
+    assert friendly_action_label("pov gamma") == "POV\nGamma"
+    # A long single word stays whole (the gutter is sized to fit it).
+    assert friendly_action_label("delta") == "Delta"
+    assert friendly_action_label("   ") == "(unknown)"
+
+
+def _targets(**overrides) -> HudTargets:
+    base = dict(click=[], loop=[], label=[], expand=None)
+    base.update(overrides)
+    return HudTargets(**base)
+
+
+def test_single_click_switches_and_double_click_locks():
+    """A single click posts play_video once its double-click window lapses; a
+    second click inside that window cancels it and posts lock_video instead."""
+    clicks = HudClicks("landscape")
+    targets = _targets(click=[((0, 0, 30, 30), "C:/v/pick.mp4")])
+
+    assert clicks.press(targets, 10, 10, now=0.0) == ""      # deferred
+    assert clicks.due(now=0.1) == ""                          # still inside the window
+    assert clicks.due(now=1.0) == "landscape_play_video|C:/v/pick.mp4"
+    assert clicks.due(now=2.0) == ""                          # fired once
+
+    assert clicks.press(targets, 10, 10, now=10.0) == ""
+    assert clicks.press(targets, 10, 10, now=10.2) == "landscape_lock_video|C:/v/pick.mp4"
+    assert clicks.due(now=11.0) == ""                         # the single was cancelled
+
+
+def test_clicking_empty_space_posts_nothing():
+    clicks = HudClicks("portrait")
+    assert clicks.press(_targets(), 200, 200, now=0.0) == ""
+    assert clicks.due(now=5.0) == ""
+
+
+def test_loop_buttons_toggle_and_are_mutually_exclusive():
+    """Clicking a loop button posts action_loop/seed_loop and marks it active; the
+    other going on turns it off (they cannot coexist); clicking the active one
+    again posts no_loop."""
+    clicks = HudClicks("portrait")
+    targets = _targets(loop=[((0, 0, 20, 20), "action"), ((30, 0, 20, 20), "seed")])
+
+    assert clicks.press(targets, 5, 5, now=0.0) == "portrait_action_loop"
+    assert clicks.active_loop == "action"
+    assert clicks.press(targets, 35, 5, now=1.0) == "portrait_seed_loop"
+    assert clicks.active_loop == "seed"
+    assert clicks.press(targets, 35, 5, now=2.0) == "portrait_no_loop"
+    assert clicks.active_loop == ""
+
+
+def test_clicking_the_expand_button_posts_more_seeds():
+    clicks = HudClicks("landscape")
+    assert clicks.press(_targets(expand=(0, 0, 18, 18)), 5, 5, now=0.0) == "landscape_more_seeds"
+
+
+def test_clicking_an_action_label_filters_to_that_action():
+    """A click on a row's action name posts filter_<side>_<action>, the same
+    command speaking "[side] gamma" would."""
+    clicks = HudClicks("portrait")
+    targets = _targets(label=[((0, 0, 50, 20), "Gamma")])
+
+    assert clicks.press(targets, 5, 5, now=0.0) == "filter_portrait_gamma"
+
+
+def test_clicking_a_two_word_action_label_slugs_it():
+    """Multi-word acts carry an underscore in the command, as filter_vocab slugs
+    them ("beta gamma" -> beta_gamma)."""
+    clicks = HudClicks("landscape")
+    targets = _targets(label=[((0, 0, 50, 20), "Beta Gamma")])
+
+    assert clicks.press(targets, 5, 5, now=0.0) == "filter_landscape_beta_gamma"

@@ -6,7 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "fun-time"
 version = "0.1.0"
 requires-python = ">=3.10"
+# player_core is NOT listed here: it is installed editable from ../player_core
+# (see its README) and is not published, so pip would go looking for it on PyPI.
+# It brings python-mpv and the libmpv DLL the satellite players need.
 dependencies = [
+    "numpy",
     "opencv-python",
     "pillow",
     "pygame-ce",
@@ -24,3 +28,9 @@ voice = [
     "vosk",
     "sounddevice",
 ]
+
+# Two top-level packages share this repo — the orchestrator and the satellite
+# player it launches as `python -m satellite`. Setuptools' automatic flat-layout
+# discovery refuses more than one, so declare them explicitly.
+[tool.setuptools.packages.find]
+include = ["fun_time*", "satellite*"]

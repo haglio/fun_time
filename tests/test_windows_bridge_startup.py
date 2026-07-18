@@ -273,7 +273,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         audio_paused_file=tmp_path / "audio_paused.txt",
         nau_paused_file=tmp_path / "nau_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
-        genau_python_exe="genau_python.exe",
+        satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
         portrait_cmd_file=state_dir / "portrait_cmd.txt",
         portrait_paused_file=state_dir / "portrait_paused.txt",
@@ -344,10 +344,11 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
             watch_stats_file=state_dir / "watch_stats.json",
         ),
     )
-    # The two native satellites are launched with the genau python, the shared
-    # satellite module, the builder's playlists, and each side's file quartet.
+    # The two native satellites are launched with OUR python (the player ships
+    # from this repo), the satellite module, the builder's playlists, and each
+    # side's file quartet.
     launch.assert_called_once_with(
-        python_exe="genau_python.exe",
+        python_exe="fun_time_python.exe",
         satellite_module="satellite",
         portrait_playlist=plan.portrait_playlist_path,
         landscape_playlist=plan.landscape_playlist_path,
@@ -688,7 +689,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
         "fun_time.windows_bridge_startup.launch_satellite", side_effect=[202, 303]
     ) as launch_satellite_mock:
         launch_core_apps(
-            python_exe="genau_python.exe",
+            python_exe="fun_time_python.exe",
             satellite_module="satellite",
             portrait_playlist=portrait_playlist,
             landscape_playlist=landscape_playlist,
@@ -710,11 +711,11 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     portrait_kwargs = launch_satellite_mock.call_args_list[0].kwargs
     landscape_kwargs = launch_satellite_mock.call_args_list[1].kwargs
 
-    # Each satellite gets the genau python, the shared module, its own playlist,
+    # Each satellite gets OUR python, the satellite module, its own playlist,
     # and its own command/paused/status quartet.  Each also gets a DISTINCT title
     # so the sequencer can resolve each window to its slot by caption when the pid
     # lookup fails — the portrait title on the portrait side, never swapped.
-    assert portrait_kwargs["python_exe"] == "genau_python.exe"
+    assert portrait_kwargs["python_exe"] == "fun_time_python.exe"
     assert portrait_kwargs["satellite_module"] == "satellite"
     assert portrait_kwargs["title"] == "Satellite Portrait"
     assert portrait_kwargs["playlist_file"] == portrait_playlist
@@ -722,7 +723,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     assert portrait_kwargs["paused_file"] == state_dir / "portrait_paused.txt"
     assert portrait_kwargs["status_file"] == state_dir / "portrait_status.txt"
 
-    assert landscape_kwargs["python_exe"] == "genau_python.exe"
+    assert landscape_kwargs["python_exe"] == "fun_time_python.exe"
     assert landscape_kwargs["satellite_module"] == "satellite"
     assert landscape_kwargs["title"] == "Satellite Landscape"
     assert landscape_kwargs["playlist_file"] == landscape_playlist

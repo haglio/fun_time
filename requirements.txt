@@ -1,10 +1,14 @@
 # Mirrors pyproject.toml — keep both in sync (tests/test_requirements_in_sync.py).
 
 # Runtime (pyproject [project.dependencies])
+numpy
 opencv-python
 pillow
 pygame-ce
 PyQt6
+
+# Not listed: player_core, installed editable from ../player_core (see its
+# README). It is never published, so pip would go looking for it on PyPI.
 
 # Voice control (pyproject [project.optional-dependencies].voice)
 vosk

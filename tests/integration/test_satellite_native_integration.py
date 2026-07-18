@@ -1,7 +1,7 @@
 """Integration: the native satellite player launches, plays, obeys commands, and
 composites its lock HUD.
 
-Proves the mpv-backed satellite player (genau's `satellite` package) works
+Proves the mpv-backed satellite player (this repo's `satellite` package) works
 end-to-end on the real platform — through the file quartet fun_time drives it
 with, plus the HUD panel fun_time publishes for it to draw.  Launched via the
 production `launch_satellite`; the playlist is a random real sample.
@@ -57,7 +57,7 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
     status = tmp_path / "portrait_status.txt"
 
     pid = launch_satellite(
-        python_exe=str(cfg.paths.genau_python_exe),
+        python_exe=str(cfg.paths.python_exe),
         satellite_module="satellite",
         title="Satellite Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
@@ -110,7 +110,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
     status = tmp_path / "portrait_status.txt"
 
     pid = launch_satellite(
-        python_exe=str(cfg.paths.genau_python_exe),
+        python_exe=str(cfg.paths.python_exe),
         satellite_module="satellite",
         title="Satellite Portrait",
         playlist_file=playlist, command_file=cmd,
@@ -175,7 +175,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     publish(locked=False)
 
     pid = launch_satellite(
-        python_exe=str(cfg.paths.genau_python_exe),
+        python_exe=str(cfg.paths.python_exe),
         satellite_module="satellite",
         title="Satellite Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
