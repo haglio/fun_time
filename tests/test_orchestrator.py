@@ -172,11 +172,6 @@ class TestControllerManifest:
         result = build_windows_bridge_manifest(cfg)
         assert result["modules"]["dashboard_module"] == "fun_time.dashboard_app"
 
-    def test_lock_hud_module_name_included(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg)
-        assert result["modules"]["lock_hud_module"] == "fun_time.lock_hud_app"
-
     def test_dashboard_enabled_defaults_true(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg)

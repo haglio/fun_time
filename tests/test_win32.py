@@ -18,7 +18,6 @@ from fun_time.win32 import (
     wait_for_window,
     move_window,
     set_always_on_top,
-    is_window,
     is_window_topmost,
     activate_window,
     find_window_by_pid,
@@ -127,19 +126,6 @@ class TestSetAlwaysOnTop:
 
         args = mock.SetWindowPos.call_args[0]
         assert args[1] == HWND_NOTOPMOST
-
-
-class TestIsWindow:
-    def test_true_for_a_live_handle(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.IsWindow.return_value = 1
-            assert is_window(111) is True
-        mock.IsWindow.assert_called_once_with(111)
-
-    def test_false_for_a_null_handle_without_touching_win32(self):
-        with patch("fun_time.win32._user32") as mock:
-            assert is_window(0) is False
-        mock.IsWindow.assert_not_called()
 
 
 class TestActivateWindow:

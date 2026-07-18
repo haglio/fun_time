@@ -39,7 +39,6 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             "satellite_module": "satellite",
             "audio_module": "fun_time.audio_companion_app",
             "dashboard_module": "fun_time.dashboard_app",
-            "lock_hud_module": "fun_time.lock_hud_app",
         },
         "genau": {
             "udp_host": config.genau.udp_host,

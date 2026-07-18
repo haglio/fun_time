@@ -512,16 +512,11 @@ _AUDIO_COMMAND = [
     "python.exe", "-m", "fun_time.audio_companion_app",
     "--config", "cfg.json", "--audio-folder", "audio",
 ]
-_LOCK_HUD_COMMAND = ["python.exe", "-m", "fun_time.lock_hud_app", "windows_bridge_launch.ini"]
-
-
-def _call_launch_ui_companions(result_file, *, dashboard_enabled, hud_enabled):
+def _call_launch_ui_companions(result_file, *, dashboard_enabled):
     launch_ui_companions(
         python_exe="python.exe",
         dashboard_module="fun_time.dashboard_app",
         dashboard_enabled=dashboard_enabled,
-        lock_hud_module="fun_time.lock_hud_app",
-        hud_enabled=hud_enabled,
         windows_bridge_manifest_path="windows_bridge_launch.ini",
         dashboard_x=10, dashboard_y=20, dashboard_width=30, dashboard_height=40,
         rfb_x=5, rfb_y=44, rfb_width=31, rfb_height=96,
@@ -539,30 +534,7 @@ def _ui_result(result_file):
     return parser["result"]
 
 
-def test_launch_ui_companions_launches_dashboard_hud_and_audio(tmp_path: Path):
-    result_file = tmp_path / "ui_companions.ini"
-
-    with patch(
-        "fun_time.windows_bridge_startup.subprocess.Popen",
-        side_effect=[_FakeProc(11), _FakeProc(22), _FakeProc(33)],
-    ) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
-    ):
-        _call_launch_ui_companions(result_file, dashboard_enabled=True, hud_enabled=True)
-
-    assert popen.call_count == 3
-    assert popen.call_args_list[0].args[0] == _DASHBOARD_COMMAND
-    assert popen.call_args_list[1].args[0] == _LOCK_HUD_COMMAND
-    assert popen.call_args_list[2].args[0] == _AUDIO_COMMAND
-
-    result = _ui_result(result_file)
-    assert result["dashboard_pid"] == "11"
-    assert result["lock_hud_pid"] == "22"
-    assert result["audio_pid"] == "33"
-    assert set(result.keys()) == {"dashboard_pid", "lock_hud_pid", "audio_pid"}
-
-
-def test_launch_ui_companions_skips_hud_when_disabled(tmp_path: Path):
+def test_launch_ui_companions_launches_dashboard_and_audio(tmp_path: Path):
     result_file = tmp_path / "ui_companions.ini"
 
     with patch(
@@ -571,7 +543,7 @@ def test_launch_ui_companions_skips_hud_when_disabled(tmp_path: Path):
     ) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
     ):
-        _call_launch_ui_companions(result_file, dashboard_enabled=True, hud_enabled=False)
+        _call_launch_ui_companions(result_file, dashboard_enabled=True)
 
     assert popen.call_count == 2
     assert popen.call_args_list[0].args[0] == _DASHBOARD_COMMAND
@@ -579,8 +551,8 @@ def test_launch_ui_companions_skips_hud_when_disabled(tmp_path: Path):
 
     result = _ui_result(result_file)
     assert result["dashboard_pid"] == "11"
-    assert result["lock_hud_pid"] == "0"
     assert result["audio_pid"] == "33"
+    assert set(result.keys()) == {"dashboard_pid", "audio_pid"}
 
 
 def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
@@ -588,19 +560,17 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
 
     with patch(
         "fun_time.windows_bridge_startup.subprocess.Popen",
-        side_effect=[_FakeProc(22), _FakeProc(33)],
+        side_effect=[_FakeProc(33)],
     ) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
     ):
-        _call_launch_ui_companions(result_file, dashboard_enabled=False, hud_enabled=True)
+        _call_launch_ui_companions(result_file, dashboard_enabled=False)
 
-    assert popen.call_count == 2
-    assert popen.call_args_list[0].args[0] == _LOCK_HUD_COMMAND
-    assert popen.call_args_list[1].args[0] == _AUDIO_COMMAND
+    assert popen.call_count == 1
+    assert popen.call_args_list[0].args[0] == _AUDIO_COMMAND
 
     result = _ui_result(result_file)
     assert result["dashboard_pid"] == "0"
-    assert result["lock_hud_pid"] == "22"
     assert result["audio_pid"] == "33"
 
 

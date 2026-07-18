@@ -1,19 +1,18 @@
-"""Framework-free logic for the per-VLC lock-status HUD.
+"""What each satellite's lock-status HUD shows.
 
-Assembles what each satellite's HUD overlay shows — its lock state and the
-other videos reachable in the current clip's action group and seed family — and
-the configuration and geometry the overlay process needs. Kept free of Qt so it
-is unit-testable; the Qt overlay in :mod:`fun_time.lock_hud_app` renders it.
+Assembles the panel behind the map drawn over each satellite: its lock state and
+the other videos reachable in the current clip's action group and seed family.
+Only fun_time has the library metadata this needs, so the model lives here —
+:mod:`fun_time.hud_transport` publishes it, and each satellite player draws it
+straight into its own video (``satellite.hud`` in genau).
 """
 from __future__ import annotations
 
-import configparser
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from fun_time.config import LayoutConfig
 from fun_time.media_metadata import (
     GroupIndex,
     action_group_members,
@@ -24,133 +23,8 @@ from fun_time.media_metadata import (
 )
 from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
-from fun_time.window_layout import WindowRect
 
 THUMBNAIL_CACHE_DIRNAME = "hud_thumbnails"
-
-# The dispatch loop rewrites this beside the manifest after every command; it
-# carries the locks, the per-satellite filters and the primary display's sound.
-SHARED_STATE_FILENAME = "shared_bridge_state.ini"
-
-# The HUD process touches this beside the manifest once its indexes are primed;
-# startup waits for it before dropping the loading screen (see
-# windows_bridge_sequencer), so the maps are ready the instant Fun Time appears.
-HUD_READY_FILENAME = "lock_hud_ready.txt"
-
-# The orchestrator records this session's child PIDs here at startup (beside the
-# manifest); the HUD reads each satellite VLC's PID to find its window and stack
-# itself directly above it.
-BRIDGE_PIDS_FILENAME = "bridge_pids.ini"
-
-# Inset (px) of the HUD from its satellite's exact top-left corner.
-HUD_MARGIN = 12
-
-
-def overlay_rect(vlc_rect: WindowRect, *, width: int, height: int, margin: int = HUD_MARGIN) -> WindowRect:
-    """The HUD overlay's screen rect, pinned to *vlc_rect*'s top-left corner."""
-    return WindowRect(
-        x=vlc_rect.x + margin,
-        y=vlc_rect.y + margin,
-        width=width,
-        height=height,
-    )
-
-
-def hud_overlays_visible(loading_active: bool) -> bool:
-    """Whether the overlays should be shown right now.
-
-    Hidden only while the loading overlay is up, so they never flash
-    mid-startup.  Shown whenever it is down — OmniPause included: OmniPause
-    pauses playback, but the map stays up so you can still see (and click) what
-    each satellite is holding.  A *shown* overlay stacks directly above its
-    satellite (see ``HudOverlay.stack_above``), so it follows the satellite's
-    band — topmost in play, non-topmost under OmniPause.
-    """
-    return not loading_active
-
-
-# bridge_pids.ini key for each satellite VLC's recorded PID.
-_SATELLITE_PID_KEY = {"portrait": "portrait_pid", "landscape": "landscape_pid"}
-
-
-def load_satellite_pid(pids_file: Path, side: str) -> int:
-    """The PID of the *side* ("portrait"/"landscape") satellite VLC, as the
-    orchestrator recorded it in ``bridge_pids.ini`` — the handle the HUD uses to
-    find that VLC's window and stack itself directly above it.
-
-    0 when the file is missing/half-written or the pid is absent or never
-    launched: with no satellite to anchor to, the overlay simply doesn't restake
-    this tick and tries again the next, rather than guessing.
-    """
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser.read(str(pids_file), encoding="utf-8")
-    try:
-        pid = int(parser["pids"][_SATELLITE_PID_KEY[side]])
-    except (KeyError, ValueError):
-        return 0
-    return pid if pid > 0 else 0
-
-
-@dataclass(frozen=True)
-class HudAppConfig:
-    """Everything the HUD overlay process needs, read from the bridge manifest.
-
-    Sourced from the same ``windows_bridge_launch.ini`` the dispatch loop reads,
-    so the HUD indexes the satellite libraries with the identical sources and
-    roots production uses — never a hand-crafted duplicate.
-    """
-
-    layout: LayoutConfig
-    portrait_status_file: Path
-    landscape_status_file: Path
-    portrait_sources: str
-    landscape_sources: str
-    provider_media_root: Path | None
-    provider_metadata_root: Path | None
-    shared_state_file: Path
-    thumbnail_cache_dir: Path
-    # Where the HUD posts commands (thumbnail clicks) for the dispatch loop to
-    # pick up — the same file the dashboard writes, read the same way.
-    dashboard_cmd_file: Path
-    # The HUD touches this once its indexes are primed; startup waits for it
-    # before tearing down the loading screen, so Fun Time isn't revealed with
-    # the maps not yet ready.
-    ready_file: Path
-
-
-def load_hud_app_config(manifest_path: str | Path) -> HudAppConfig:
-    """Parse the windows-bridge manifest into the HUD's configuration."""
-    manifest_path = Path(manifest_path)
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser.read(manifest_path, encoding="utf-8")
-
-    def _root(key: str) -> Path | None:
-        raw = parser.get("provider_regen", key, fallback="").strip()
-        return Path(raw) if raw else None
-
-    layout = LayoutConfig(
-        main_monitor=parser.getint("layout", "main_monitor"),
-        secondary_monitor=parser.getint("layout", "secondary_monitor"),
-        primary_top_ratio=parser.getfloat("layout", "primary_top_ratio"),
-        landscape_width_ratio=parser.getfloat("layout", "landscape_width_ratio"),
-    )
-    return HudAppConfig(
-        layout=layout,
-        portrait_status_file=Path(parser.get("commands", "portrait_status_file")),
-        landscape_status_file=Path(parser.get("commands", "landscape_status_file")),
-        portrait_sources=parser.get("media", "portrait_dirs", fallback=""),
-        landscape_sources=parser.get("media", "landscape_dirs", fallback=""),
-        provider_media_root=_root("media_root"),
-        provider_metadata_root=_root("metadata_root"),
-        shared_state_file=manifest_path.parent / SHARED_STATE_FILENAME,
-        thumbnail_cache_dir=manifest_path.parent / THUMBNAIL_CACHE_DIRNAME,
-        dashboard_cmd_file=Path(
-            parser.get("commands", "dashboard_cmd_file", fallback=str(manifest_path.parent / "dashboard_cmd.txt"))
-        ),
-        ready_file=manifest_path.parent / HUD_READY_FILENAME,
-    )
 
 
 def _lock_label(locked: bool, lock_type: str | None) -> str:
@@ -482,12 +356,6 @@ def prewarm_thumbnails(
         for path in collect_video_files(source):
             thumbnailer(path, cache_dir)
             sleep_fn(pause_s)
-
-
-def signal_hud_ready(ready_file: str | Path) -> None:
-    """Mark the HUD ready to be shown — its indexes are primed, so its first
-    paint is instant."""
-    Path(ready_file).write_text("ready", encoding="utf-8")
 
 
 def build_panels(

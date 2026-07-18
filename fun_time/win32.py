@@ -258,11 +258,6 @@ def set_always_on_top(hwnd: int, on_top: bool) -> None:
     _user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
 
 
-def is_window(hwnd: int) -> bool:
-    """Whether *hwnd* still identifies a live window (survives its process)."""
-    return bool(hwnd) and bool(_user32.IsWindow(hwnd))
-
-
 def is_window_topmost(hwnd: int) -> bool:
     """Check whether a window has the WS_EX_TOPMOST extended style."""
     ex_style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)

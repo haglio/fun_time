@@ -28,7 +28,7 @@ FAKE_MONITORS = [
 ]
 
 CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
-UI_PIDS = {"dashboard_pid": 50, "lock_hud_pid": 55, "audio_pid": 70}
+UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
 GENAU_PID = 60
 NAU_PID = 25
 
@@ -109,9 +109,6 @@ class TestRunStartupSequence:
         assert result.dashboard_pid == 50
         assert result.genau_pid == GENAU_PID
         assert result.audio_pid == 70
-        assert result.lock_hud_pid == 55
-        assert ui_called["lock_hud_module"] == "fun_time.lock_hud_app"
-        assert ui_called["hud_enabled"] is True
 
         # The native satellites are wired from the manifest: the genau python,
         # the shared satellite module, and each side's command/paused/status files.
@@ -356,7 +353,7 @@ class TestRunStartupSequenceCancellation:
 
     def test_cancel_after_companions_reports_every_child_and_the_browser(self, cfg_factory, tmp_path):
         """Cancelling once companions are up reports the whole tree — satellites,
-        Genau, Nau, dashboard, audio, HUD — plus the Random Favs Browser hwnd."""
+        Genau, Nau, dashboard, audio — plus the Random Favs Browser hwnd."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
@@ -379,7 +376,7 @@ class TestRunStartupSequenceCancellation:
                 )
 
         exc = excinfo.value
-        assert set(exc.launched_pids) == {30, 40, GENAU_PID, NAU_PID, 50, 55, 70}
+        assert set(exc.launched_pids) == {30, 40, GENAU_PID, NAU_PID, 50, 70}
         assert exc.rfb_hwnd == 7777
 
 

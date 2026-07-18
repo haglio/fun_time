@@ -1,26 +1,18 @@
 from __future__ import annotations
 
 import json
-import textwrap
 from pathlib import Path
 
-from fun_time.config import LayoutConfig
 from fun_time.lock_hud import (
-    HudAppConfig,
     build_hud_panel,
     build_panels,
     cell_path,
     hud_map_cells,
-    hud_overlays_visible,
-    load_hud_app_config,
-    load_satellite_pid,
     locate_cell,
     navigate_cell,
-    overlay_rect,
     panel_thumbnails,
     prewarm_thumbnails,
     prime_group_indexes,
-    signal_hud_ready,
 )
 from fun_time.media_metadata import (
     GroupIndex,
@@ -28,7 +20,6 @@ from fun_time.media_metadata import (
     normalize_path_key as K,
     reset_group_index_cache,
 )
-from fun_time.window_layout import WindowRect
 
 CUR = "C:/vids/current.mp4"
 A1 = "C:/vids/action1.mp4"
@@ -54,42 +45,6 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
         loose_seed_members={},
         indexed_paths=frozenset(K(p) for p in (current, *action_sibs, *seed_sibs)),
     )
-
-
-def test_hud_overlays_visible_only_hides_during_loading():
-    """Shown whenever the loading overlay is down — OmniPause included, so the
-    map stays up while paused."""
-    assert hud_overlays_visible(loading_active=True) is False
-    assert hud_overlays_visible(loading_active=False) is True
-
-
-def test_load_satellite_pid_reads_the_side_from_bridge_pids(tmp_path):
-    """Each satellite VLC's PID (the anchor the HUD stacks itself above) comes from
-    the orchestrator's bridge_pids.ini, keyed by side."""
-    pids_file = tmp_path / "bridge_pids.ini"
-    pids_file.write_text(textwrap.dedent("""\
-        [pids]
-        nau_pid = 200
-        portrait_pid = 300
-        landscape_pid = 400
-        [created_at]
-        nau_pid = 2000
-    """), encoding="utf-8")
-
-    assert load_satellite_pid(pids_file, "portrait") == 300
-    assert load_satellite_pid(pids_file, "landscape") == 400
-
-
-def test_load_satellite_pid_is_zero_when_absent_or_unlaunched(tmp_path):
-    """A missing file, a missing key, or a never-launched satellite (pid 0) all
-    yield 0 — no anchor this tick, so the overlay just skips restacking and retries
-    rather than stacking above a bogus window."""
-    pids_file = tmp_path / "bridge_pids.ini"
-    pids_file.write_text("[pids]\nportrait_pid = 0\n", encoding="utf-8")
-
-    assert load_satellite_pid(pids_file, "portrait") == 0     # never launched
-    assert load_satellite_pid(pids_file, "landscape") == 0    # key absent
-    assert load_satellite_pid(tmp_path / "missing.ini", "portrait") == 0  # no file
 
 
 def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
@@ -473,87 +428,6 @@ def test_hud_map_cells_caps_each_axis_at_the_draw_limit():
     assert len(seeds) == 6
 
 
-# --- load_hud_app_config ---
-
-
-def test_load_hud_app_config_reads_the_bridge_manifest(tmp_path: Path):
-    manifest = tmp_path / "windows_bridge_launch.ini"
-    manifest.write_text(textwrap.dedent("""
-        [layout]
-        main_monitor = 1
-        secondary_monitor = 2
-        primary_top_ratio = 0.7273
-        landscape_width_ratio = 0.6667
-        [media]
-        portrait_dirs = C:/vids/portrait|C:/vids/portrait2
-        landscape_dirs = C:/vids/landscape
-        [provider_regen]
-        media_root = C:/vids/AI
-        metadata_root = C:/vids/metadata
-        [commands]
-        dashboard_state_file = C:/state/dashboard_state.ini
-        portrait_status_file = C:/state/portrait_status.txt
-        landscape_status_file = C:/state/landscape_status.txt
-    """), encoding="utf-8")
-
-    cfg = load_hud_app_config(manifest)
-
-    assert cfg.portrait_status_file == Path("C:/state/portrait_status.txt")
-    assert cfg.landscape_status_file == Path("C:/state/landscape_status.txt")
-    assert cfg.portrait_sources == "C:/vids/portrait|C:/vids/portrait2"
-    assert cfg.landscape_sources == "C:/vids/landscape"
-    assert cfg.provider_media_root == Path("C:/vids/AI")
-    assert cfg.provider_metadata_root == Path("C:/vids/metadata")
-    assert cfg.shared_state_file == manifest.parent / "shared_bridge_state.ini"
-    assert cfg.layout.main_monitor == 1
-    assert cfg.layout.secondary_monitor == 2
-    assert cfg.thumbnail_cache_dir == manifest.parent / "hud_thumbnails"
-    assert cfg.ready_file == manifest.parent / "lock_hud_ready.txt"
-
-
-def test_load_hud_app_config_tolerates_absent_provider_roots(tmp_path: Path):
-    manifest = tmp_path / "windows_bridge_launch.ini"
-    manifest.write_text(textwrap.dedent("""
-        [layout]
-        main_monitor = 1
-        secondary_monitor = 2
-        primary_top_ratio = 0.7
-        landscape_width_ratio = 0.66
-        [media]
-        portrait_dirs = C:/vids/portrait
-        landscape_dirs = C:/vids/landscape
-        [commands]
-        dashboard_state_file = C:/state/dashboard_state.ini
-        portrait_status_file = C:/state/portrait_status.txt
-        landscape_status_file = C:/state/landscape_status.txt
-    """), encoding="utf-8")
-
-    cfg = load_hud_app_config(manifest)
-
-    assert cfg.provider_media_root is None
-    assert cfg.provider_metadata_root is None
-
-
-# --- overlay_rect ---
-
-
-def test_overlay_rect_anchors_to_the_top_left_corner_with_a_margin():
-    vlc = WindowRect(x=853, y=0, width=1707, height=1392)
-
-    rect = overlay_rect(vlc, width=260, height=180, margin=12)
-
-    assert rect == WindowRect(x=865, y=12, width=260, height=180)
-
-
-def test_overlay_rect_carries_a_negative_origin_monitor():
-    """The portrait monitor can sit at a negative x; the corner must track it."""
-    vlc = WindowRect(x=-1440, y=0, width=1440, height=2502)
-
-    rect = overlay_rect(vlc, width=200, height=150, margin=10)
-
-    assert (rect.x, rect.y) == (-1430, 10)
-
-
 # --- build_panels ---
 
 
@@ -581,22 +455,6 @@ def _clip(media_root: Path, metadata_root: Path, name: str, meta: dict) -> str:
     sidecar.parent.mkdir(parents=True, exist_ok=True)
     sidecar.write_text(json.dumps(meta), encoding="utf-8")
     return str(video)
-
-
-def _hud_config(**overrides) -> HudAppConfig:
-    base = dict(
-        layout=LayoutConfig(1, 2, 0.7, 0.66),
-        portrait_status_file=Path("portrait_status.txt"),
-        landscape_status_file=Path("landscape_status.txt"),
-        portrait_sources="", landscape_sources="",
-        provider_media_root=None, provider_metadata_root=None,
-        shared_state_file=Path("shared_bridge_state.ini"),
-        thumbnail_cache_dir=Path("thumbs"),
-        dashboard_cmd_file=Path("dashboard_cmd.txt"),
-        ready_file=Path("lock_hud_ready.txt"),
-    )
-    base.update(overrides)
-    return HudAppConfig(**base)
 
 
 def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
@@ -635,14 +493,6 @@ def test_prewarm_thumbnails_covers_every_clip_in_both_libraries(tmp_path: Path):
 
     assert sorted(Path(p).name for p, _cache in warmed) == ["a.mp4", "b.mp4", "c.mp4"]
     assert all(cache == cache_dir for _p, cache in warmed)
-
-
-def test_signal_hud_ready_writes_the_flag(tmp_path: Path):
-    ready = tmp_path / "lock_hud_ready.txt"
-
-    signal_hud_ready(ready)
-
-    assert ready.exists()
 
 
 def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
