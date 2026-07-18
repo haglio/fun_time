@@ -1,12 +1,10 @@
 """fun_time's side of the native satellite protocol: write commands, read status.
 
-The native satellite players (genau's ``satellite`` package) replace VLC's HTTP
-interface with a file quartet; this module is fun_time's end of it, the
-counterpart to the player's own runtime/status.  Commands are appended one verb
-per line to the player's command file (it drains them with
-``consume_command_file``), and status is parsed from the file the player
-publishes — the file-based stand-in for VLC's ``get_playback_fraction`` and
-current-file polls.
+The native satellite players (genau's ``satellite`` package) are driven through a
+file quartet; this module is fun_time's end of it, the counterpart to the
+player's own runtime/status.  Commands are appended one verb per line to the
+player's command file (it drains them with ``consume_command_file``), and where
+the clip has got to is read back from the status file the player publishes.
 """
 from __future__ import annotations
 
@@ -35,8 +33,7 @@ class SatelliteStatus:
 
     @property
     def fraction(self) -> float | None:
-        """How far through the clip, 0..1 — None when the duration is not yet
-        known (the file-based replacement for VLC's ``get_playback_fraction``)."""
+        """How far through the clip, 0..1 — None when the duration is not yet known."""
         if self.duration_ms <= 0:
             return None
         return self.position_ms / self.duration_ms

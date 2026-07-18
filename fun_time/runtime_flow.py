@@ -322,7 +322,7 @@ def apply_enter_omnipause(
     # The satellites obey their paused flag file each tick, so freezing playback
     # is a single flag write per side.  A paused native satellite simply cannot
     # auto-advance (its advance() returns early while paused), so OmniPause is a
-    # settled state — no re-pause watchdog, which the old VLC toggle-pause needed.
+    # settled state: one write holds it, with nothing to police afterwards.
     write_flag_file(portrait_paused_file, True)
     write_flag_file(landscape_paused_file, True)
     Path(genau_cmd_file).write_text("PAUSE", encoding="utf-8")

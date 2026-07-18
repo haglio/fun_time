@@ -310,8 +310,7 @@ def _same_video(left: str, right: str) -> bool:
 
 
 def _satellite_current(config: BridgeConfig, which: int) -> str:
-    """The video a satellite is showing now, read from its published status file —
-    the file-based replacement for VLC's current-file HTTP poll."""
+    """The video a satellite is showing now, read from its published status file."""
     return read_satellite_status(config.satellite_status_file(which)).video
 
 
@@ -324,8 +323,7 @@ def _play_video(config: BridgeConfig, which: int, path: str) -> None:
     """Make *path* the satellite's current clip.
 
     ``PLAY_FILE`` is the native player's jump-or-splice: it jumps to the clip if
-    it is already queued, else splices it in after the current clip and plays it —
-    the replacement for the VLC play-by-id / swap-current dance.
+    it is already queued, else splices it in after the current clip and plays it.
     """
     _send_satellite(config, which, f"PLAY_FILE {path}")
 
@@ -1041,9 +1039,9 @@ _MUTE_COMMANDS = {"audio_mute": True, "audio_unmute": False}
 def _step_volume(state: BridgeState, step: int) -> BridgeState:
     """Move the sound level by *step*, staying within the silent/full bounds.
 
-    Asking for a loudness lifts a mute, as reaching for the volume does in VLC
-    and in the Windows mixer: a "louder" that left the room silent would read as
-    the command having been missed.
+    Asking for a loudness lifts a mute, as reaching for the volume does in the
+    Windows mixer: a "louder" that left the room silent would read as the
+    command having been missed.
     """
     volume = max(MIN_VOLUME, min(MAX_VOLUME, state.volume + step))
     return replace(state, volume=volume, muted=False)

@@ -195,7 +195,7 @@ def reset_satellite_paused_states(
     ``seed_startup_states``' scope and nothing else clears them.  A ``"1"`` left
     stranded by a prior session's OmniPause would make this session's satellites
     read paused and never play (frozen at position 0), so reset both to ``"0"``
-    before they launch — satellites always come up playing, as the VLCs did.
+    before they launch — a satellite always comes up playing.
     """
     for path in (Path(portrait_paused_file), Path(landscape_paused_file)):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -539,11 +539,11 @@ def _build_satellite_launch_command(
 ) -> list[str]:
     """The argv for a native satellite player (``python -m satellite ...``).
 
-    The satellite is our own mpv-backed process, so — unlike the VLC satellites it
-    replaces — it is driven through the command/paused/status file quartet (like
-    Nau) rather than a VLC HTTP port.  It takes no ``--config`` — the quartet plus
-    geometry fully specify it — and stays silent with ``--no-audio``.  ``--title``
-    gives it the distinct caption the sequencer resolves its slot by.
+    The satellite is our own mpv-backed process, driven through the
+    command/paused/status file quartet exactly as Nau is.  It takes no
+    ``--config`` — the quartet plus geometry fully specify it — and stays silent
+    with ``--no-audio``.  ``--title`` gives it the distinct caption the sequencer
+    resolves its slot by.
 
     The lock HUD rides along as two more files: the panel this loop publishes for
     the player to composite into its own video, and the command file a click on
@@ -599,10 +599,10 @@ def launch_satellite(
 ) -> int:
     """Launch a native satellite player subprocess, returning its PID.
 
-    The native counterpart to the VLC satellite spawn (and a sibling of
-    :func:`launch_nau`): our own mpv-backed process, launched at the given rect
-    with the given distinct *title*, driven through the command/paused/status
-    file quartet, and drawing its own lock HUD from the published panel.
+    A sibling of :func:`launch_nau`: our own mpv-backed process, launched at the
+    given rect with the given distinct *title*, driven through the
+    command/paused/status file quartet, and drawing its own lock HUD from the
+    published panel.
 
     Its stdout and stderr go to *log_file*: a satellite runs windowed under
     ``pythonw`` and would otherwise die from an unhandled exception with the

@@ -287,7 +287,7 @@ def write_playlist_file(path: Path, paths: list[str]) -> None:
     The native satellite player (:mod:`satellite`) reads this with
     ``nau.playlist.read_playlist`` — one path per line, an optional TAB-separated
     funscript column it ignores for a silent satellite — so the file is plain
-    lines, no VLC ``#EXTM3U`` header.
+    lines, with no header of any kind.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     content = "".join(f"{full_path}\n" for full_path in paths)
