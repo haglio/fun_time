@@ -18,16 +18,16 @@ from fun_time.windows_bridge_startup import (
     launch_core_apps,
     launch_genau,
     launch_nau,
+    launch_broker_tray,
     launch_ui_companions,
     prepare_random_favs_browser_manifest,
     reap_orphaned_satellites,
-    restart_broker,
     seed_startup_states,
     start_core_session,
 )
 
 
-def test_restart_broker_stops_and_launches_tray(tmp_path: Path):
+def test_launch_broker_tray_uses_the_brokers_own_launch_kwargs(tmp_path: Path):
     """The tray launches with the broker's own kwargs, not the ordinary
     hidden-window ones: it has to break away from an integration run's job
     object and outlive the run."""
@@ -35,27 +35,41 @@ def test_restart_broker_stops_and_launches_tray(tmp_path: Path):
     launcher.parent.mkdir()
     launcher.touch()
 
-    with patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop, \
-         patch("fun_time.windows_bridge_startup.time.sleep") as sleep, \
-         patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen, \
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen, \
          patch("fun_time.windows_bridge_startup.broker_launch_kwargs", return_value={"creationflags": 1}):
-        restart_broker(tmp_path, launcher)
+        launch_broker_tray(launcher)
 
-    stop.assert_called_once_with(tmp_path)
-    sleep.assert_called_once_with(0.4)
     popen.assert_called_once_with(
         ["wscript.exe", str(launcher)], cwd=launcher.parent, creationflags=1,
     )
 
 
-def test_restart_broker_skips_launch_when_no_launcher(tmp_path: Path):
-    with patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop, \
-         patch("fun_time.windows_bridge_startup.time.sleep"), \
-         patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen:
-        restart_broker(tmp_path)
+def test_launch_broker_tray_skips_launch_when_no_launcher(tmp_path: Path):
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen:
+        launch_broker_tray(None)
 
-    stop.assert_called_once_with(tmp_path)
     popen.assert_not_called()
+
+
+def test_ensure_broker_does_not_kill_on_a_merely_stale_heartbeat(tmp_path: Path):
+    """A stale heartbeat is not proof of a dead broker.  osr2_broker stops
+    ticking it whenever it cannot hold the serial port, so a powered-off OSR2
+    makes a healthy broker look gone — and that is exactly when a session starts.
+    Launch over it and let the single-instance mutexes make it a no-op, rather
+    than killing what we cannot see."""
+    launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
+    launcher.parent.mkdir()
+    launcher.touch()
+    heartbeat = tmp_path / "broker_heartbeat.txt"
+
+    with patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=False), \
+         patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop, \
+         patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen, \
+         patch("fun_time.windows_bridge_startup.broker_launch_kwargs", return_value={}):
+        ensure_broker(heartbeat, launcher)
+
+    stop.assert_not_called()
+    popen.assert_called_once_with(["wscript.exe", str(launcher)], cwd=launcher.parent)
 
 
 def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):
@@ -65,23 +79,11 @@ def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):
     tearing it down would drop every client mid-stream."""
     heartbeat = tmp_path / "broker_heartbeat.txt"
     with patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True) as fresh, \
-         patch("fun_time.windows_bridge_startup.restart_broker") as restart:
-        ensure_broker(tmp_path, heartbeat, tmp_path / "launch_broker_tray.vbs")
+         patch("fun_time.windows_bridge_startup.launch_broker_tray") as launch:
+        ensure_broker(heartbeat, tmp_path / "launch_broker_tray.vbs")
 
     fresh.assert_called_once_with(heartbeat)
-    restart.assert_not_called()
-
-
-def test_ensure_broker_restarts_a_dead_broker(tmp_path: Path):
-    """A stale or missing heartbeat means no broker is up, so start one —
-    restart_broker clears any zombie first, then relaunches the tray."""
-    heartbeat = tmp_path / "broker_heartbeat.txt"
-    launcher = tmp_path / "launch_broker_tray.vbs"
-    with patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=False), \
-         patch("fun_time.windows_bridge_startup.restart_broker") as restart:
-        ensure_broker(tmp_path, heartbeat, launcher)
-
-    restart.assert_called_once_with(tmp_path, launcher)
+    launch.assert_not_called()
 
 
 def test_reap_orphaned_satellites_is_scoped_to_the_satellite_module():
@@ -247,7 +249,6 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
     """
     state_dir = tmp_path / "state"
     return dict(
-        project_dir=tmp_path,
         config_path="fun_time_config.json",
         broker_heartbeat_file=state_dir / "broker_heartbeat.txt",
         random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
@@ -304,8 +305,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         "satellite",
         [state_dir / "portrait_status.txt", state_dir / "landscape_status.txt"],
     )
-    # Startup leaves a live broker alone, only (re)starting a dead one.
-    ensure.assert_called_once_with(tmp_path, state_dir / "broker_heartbeat.txt", None)
+    # Startup leaves a live broker alone, only starting one when none answers.
+    ensure.assert_called_once_with(state_dir / "broker_heartbeat.txt", None)
     seed.assert_called_once_with(
         tmp_path / "genau_paused.txt",
         tmp_path / "audio_paused.txt",

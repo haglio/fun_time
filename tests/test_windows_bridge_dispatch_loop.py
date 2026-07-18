@@ -2096,24 +2096,54 @@ class TestIdempotentVoiceCommands:
     def test_broker_start_starts_when_not_running(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         # No heartbeat file → broker not running
-        with patch("fun_time.windows_bridge_dispatch_loop.restart_broker") as mock_restart:
+        with patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_start", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
             time.sleep(0.2)  # daemon thread
-        mock_restart.assert_called_once()
+        mock_launch.assert_called_once_with(runner.config.broker_tray_launcher)
 
     def test_broker_start_noop_when_already_running(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         # Fresh heartbeat → broker running
         (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
-        with patch("fun_time.windows_bridge_dispatch_loop.restart_broker") as mock_restart:
+        with patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_start", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_restart.assert_not_called()
+        mock_launch.assert_not_called()
+
+    def test_broker_start_never_kills_the_broker(self, tmp_path):
+        """A stale heartbeat does not mean no broker. osr2_broker only ticks the
+        heartbeat while it holds the serial port, so a broker that cannot reach a
+        powered-off OSR2 reads as dead while it is very much alive -- and killing
+        it drops harem and the user's own MFP session with it. Starting is a
+        start; only an explicit stop may kill."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        # No heartbeat file at all: the broker reads as dead.
+        with patch("fun_time.windows_bridge_startup.stop_broker_processes") as mock_stop:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("broker_start", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+            time.sleep(0.2)  # daemon thread
+        mock_stop.assert_not_called()
+
+    def test_broker_panel_toggle_starts_without_killing(self, tmp_path):
+        """The B panel toggles the broker.  Toggling one that reads as dead has
+        to start it, not restart it — the same stale-heartbeat trap as
+        broker_start, and the same live broker on the other side of it."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        # No heartbeat file: the toggle takes its "not running, so start" arm.
+        with patch("fun_time.windows_bridge_startup.stop_broker_processes") as mock_stop:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("broker_panel", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+            time.sleep(0.2)  # daemon thread
+        mock_stop.assert_not_called()
 
     def test_broker_stop_stops_when_running(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
