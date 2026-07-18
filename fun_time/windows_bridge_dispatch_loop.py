@@ -201,19 +201,10 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
     if "state" not in parser:
         return None
     s = parser["state"]
-    raw_mode = s.get("primary_mode", s.get("genau_mode", "nau"))
-    # Backward compat: old INI files used "1"/"0" for genau_mode, and Nau
-    # replaced the retired vlc mode as the primary player.
-    if raw_mode == "1":
-        primary_mode = "genau"
-    elif raw_mode in ("0", "vlc"):
-        primary_mode = "nau"
-    else:
-        primary_mode = raw_mode
     return BridgeState(
         locked2=s.get("locked2", "0") == "1",
         locked3=s.get("locked3", "0") == "1",
-        primary_mode=primary_mode,
+        primary_mode=s.get("primary_mode", "nau"),
         f_mode_enabled=s.get("f_mode_enabled", "0") == "1",
         omni_paused=s.get("omni_paused", "0") == "1",
         active_side=_int_or(s, "active_side", 2),
