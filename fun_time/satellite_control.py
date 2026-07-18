@@ -1,10 +1,13 @@
 """fun_time's side of the native satellite protocol: write commands, read status.
 
-The native satellite players (genau's ``satellite`` package) are driven through a
-file quartet; this module is fun_time's end of it, the counterpart to the
-player's own runtime/status.  Commands are appended one verb per line to the
-player's command file (it drains them with ``player_core.file_channel``), and where
-the clip has got to is read back from the status file the player publishes.
+The native satellite players (this repo's ``satellite`` package) are driven
+through a file quartet; this module is fun_time's end of it, the counterpart to
+the player's own runtime/status.  Commands are appended one verb per line to the
+player's command file (it drains them with ``player_core.file_channel``), and
+where the clip has got to is read back from the status file the player publishes.
+
+Its sibling ``broker_control`` is the same idea for the OSR2 broker, with the
+one difference spelled out there: that channel holds a single verb, not a queue.
 """
 from __future__ import annotations
 
