@@ -39,15 +39,11 @@ from .win32 import (
     activate_window,
     find_window_by_pid,
     find_window_by_title,
-    hide_window,
     is_window_topmost,
     minimize_window,
     restore_window,
-    send_vk_to_window,
-    send_key_to_window,
     set_always_on_top,
     show_open_file_dialog,
-    show_window,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,56 +102,8 @@ def expand_both_command(command: str) -> list[str]:
     return [command]
 
 
-def execute_window_ops(ops: list[WindowOp], nau_pid: int) -> list[WindowOp]:
-    """Execute window operations via Python win32, returning any that need AHK.
-
-    ``send_key``/``send_vk`` target Nau, which owns the primary display.
-    """
-    remaining: list[WindowOp] = []
-    for op in ops:
-        if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "notice",
-                      "disable_all_topmost", "restore_all_topmost",
-                      "open_rfb_tab",
-                      "show_role", "hide_role", "activate_role",
-                      "restack_primary"):
-            remaining.append(op)
-            continue
-
-        if op.op == "send_key":
-            hwnd = find_window_by_pid(nau_pid)
-            if hwnd:
-                send_key_to_window(hwnd, op.key)
-            continue
-
-        if op.op == "send_vk":
-            hwnd = find_window_by_pid(nau_pid)
-            if hwnd:
-                send_vk_to_window(hwnd, op.vk)
-            continue
-
-        if op.title:
-            hwnd = find_window_by_title(op.title, exact=op.exact)
-            if not hwnd:
-                continue
-        else:
-            continue
-
-        if op.op == "set_topmost":
-            set_always_on_top(hwnd, op.value)
-        elif op.op == "activate":
-            if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-                activate_window(hwnd)
-        elif op.op == "show":
-            if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-                show_window(hwnd)
-        elif op.op == "hide":
-            hide_window(hwnd)
-
-    return remaining
-
-
 def write_shared_state(state_file: Path, state: BridgeState) -> None:
-    """Write bridge state to a shared INI file for AHK to read."""
+    """Write bridge state to the shared INI file the HUD and the guard read."""
     parser = configparser.ConfigParser()
     parser.optionxform = str
     parser["state"] = {
@@ -624,9 +572,8 @@ class DispatchLoopRunner:
             target_path=self._back_dated_video(command, spoken_at),
         )
         self.state = new_state
-        remaining = execute_window_ops(ops, self.nau_pid)
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-        for op in remaining:
+        for op in ops:
             if op.op == "show_role":
                 # Restore (un-minimize) rather than SW_SHOW: the idle primary
                 # player is parked by minimizing it (keeps its taskbar button),
