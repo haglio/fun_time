@@ -18,6 +18,7 @@ from .orchestrator_broker import (
     subprocess_window_kwargs,
 )
 from .random_favs_browser import build_manifest, write_manifest
+from .runtime_support import open_child_log
 from .rfb_tab_page import tabs_dir, write_tab_pages
 from .window_layout import WindowRect
 
@@ -194,6 +195,8 @@ def start_core_session(
     landscape_cmd_file: str | Path,
     landscape_paused_file: str | Path,
     landscape_status_file: str | Path,
+    portrait_log_file: str | Path,
+    landscape_log_file: str | Path,
     portrait_rect: WindowRect,
     landscape_rect: WindowRect,
     primary_sources: str,
@@ -242,6 +245,8 @@ def start_core_session(
         landscape_cmd_file=landscape_cmd_file,
         landscape_paused_file=landscape_paused_file,
         landscape_status_file=landscape_status_file,
+        portrait_log_file=portrait_log_file,
+        landscape_log_file=landscape_log_file,
         portrait_rect=portrait_rect,
         landscape_rect=landscape_rect,
         result_file=result_file,
@@ -300,13 +305,19 @@ def launch_nau(
     command_file: str | Path,
     paused_file: str | Path,
     status_file: str | Path,
+    log_file: str | Path,
     nau_x: int,
     nau_y: int,
     nau_width: int,
     nau_height: int,
     metadata_dir: str | Path | None = None,
 ) -> int:
-    """Launch Nau subprocess, returning its PID."""
+    """Launch Nau subprocess, returning its PID.
+
+    Its stdout and stderr go to *log_file* for the same reason a satellite's do:
+    Nau is the same mpv-backed player under the same windowed ``pythonw``, which
+    gives an unhandled exception nowhere to print its traceback.
+    """
     cmd = [
         str(python_exe),
         "-m",
@@ -334,7 +345,8 @@ def launch_nau(
     # than guessing from clip names.
     if metadata_dir:
         cmd += ["--metadata-dir", str(metadata_dir)]
-    proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
+    with open_child_log(log_file, cmd) as log:
+        proc = subprocess.Popen(cmd, stdout=log, stderr=log, **subprocess_window_kwargs())
     return proc.pid
 
 
@@ -425,6 +437,8 @@ def launch_core_apps(
     landscape_cmd_file: str | Path,
     landscape_paused_file: str | Path,
     landscape_status_file: str | Path,
+    portrait_log_file: str | Path,
+    landscape_log_file: str | Path,
     portrait_rect: WindowRect,
     landscape_rect: WindowRect,
     result_file: str | Path,
@@ -451,6 +465,7 @@ def launch_core_apps(
         command_file=portrait_cmd_file,
         paused_file=portrait_paused_file,
         status_file=portrait_status_file,
+        log_file=portrait_log_file,
         x=portrait_rect.x, y=portrait_rect.y,
         width=portrait_rect.width, height=portrait_rect.height,
         hud_file=portrait_hud_file, dashboard_cmd_file=dashboard_cmd_file,
@@ -463,6 +478,7 @@ def launch_core_apps(
         command_file=landscape_cmd_file,
         paused_file=landscape_paused_file,
         status_file=landscape_status_file,
+        log_file=landscape_log_file,
         x=landscape_rect.x, y=landscape_rect.y,
         width=landscape_rect.width, height=landscape_rect.height,
         hud_file=landscape_hud_file, dashboard_cmd_file=dashboard_cmd_file,
@@ -544,6 +560,7 @@ def launch_satellite(
     command_file: str | Path,
     paused_file: str | Path,
     status_file: str | Path,
+    log_file: str | Path,
     x: int,
     y: int,
     width: int,
@@ -557,6 +574,10 @@ def launch_satellite(
     :func:`launch_nau`): our own mpv-backed process, launched at the given rect
     with the given distinct *title*, driven through the command/paused/status
     file quartet, and drawing its own lock HUD from the published panel.
+
+    Its stdout and stderr go to *log_file*: a satellite runs windowed under
+    ``pythonw`` and would otherwise die from an unhandled exception with the
+    traceback written to a handle that goes nowhere.
     """
     cmd = _build_satellite_launch_command(
         python_exe,
@@ -573,5 +594,6 @@ def launch_satellite(
         hud_file=hud_file,
         dashboard_cmd_file=dashboard_cmd_file,
     )
-    proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
+    with open_child_log(log_file, cmd) as log:
+        proc = subprocess.Popen(cmd, stdout=log, stderr=log, **subprocess_window_kwargs())
     return proc.pid

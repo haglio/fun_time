@@ -119,6 +119,10 @@ class TestRunStartupSequence:
             assert core_called[f"{side}_cmd_file"] == str(state / f"{side}_cmd.txt")
             assert core_called[f"{side}_paused_file"] == str(state / f"{side}_paused.txt")
             assert core_called[f"{side}_status_file"] == str(state / f"{side}_status.txt")
+            # Each windowed player also gets a log to write its stdout+stderr to:
+            # under pythonw there is no console, so without one an unhandled
+            # exception kills it leaving no traceback anywhere.
+            assert core_called[f"{side}_log_file"] == tmp_path / f"{side}_satellite.log"
         # The satellites launch straight into their real layout rects (mpv won't
         # rescale on a later Win32 resize), so the sequencer threads the computed
         # portrait/landscape rects into the core launch — this is what makes the
@@ -199,6 +203,8 @@ class TestRunStartupSequence:
             "command_file": str(cfg.nau_cmd_file),
             "paused_file": str(cfg.nau_paused_file),
             "status_file": str(cfg.nau_status_file),
+            # Nau is the satellites' twin and gets the same crash log.
+            "log_file": tmp_path / "nau.log",
             "nau_x": PRIMARY_MEDIA_RECT["x"],
             "nau_y": PRIMARY_MEDIA_RECT["y"],
             "nau_width": PRIMARY_MEDIA_RECT["width"],

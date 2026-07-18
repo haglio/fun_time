@@ -60,6 +60,7 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
         satellite_module="satellite",
         title="Satellite Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
+        log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,
     )
     try:
@@ -129,6 +130,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
         title="Satellite Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
         hud_file=hud_file, dashboard_cmd_file=dashboard_cmd,
+        log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,
     )
     try:
