@@ -3,10 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from fun_time.runtime_support import (
-    consume_command_file,
     hidden_subprocess_kwargs,
     open_child_log,
     preparse_config_path,
@@ -19,28 +16,6 @@ class TestPreparseConfigPath:
 
     def test_extracts_config_arg_without_consuming_others(self):
         assert preparse_config_path(["--foo", "bar", "--config", "demo.json"]) == "demo.json"
-
-
-class TestConsumeCommandFile:
-    def test_returns_none_when_file_missing(self, tmp_path: Path):
-        assert consume_command_file(tmp_path / "missing.txt") is None
-
-    def test_returns_uppercased_text_and_clears_file(self, tmp_path: Path):
-        command_file = tmp_path / "cmd.txt"
-        command_file.write_text("  resume  ", encoding="utf-8")
-
-        assert consume_command_file(command_file) == "RESUME"
-        assert command_file.read_text(encoding="utf-8") == ""
-
-    def test_logs_and_returns_none_on_read_failure(self, tmp_path: Path):
-        logger = MagicMock()
-        command_file = tmp_path / "cmd.txt"
-
-        with patch.object(Path, "exists", return_value=True), \
-             patch.object(Path, "read_text", side_effect=OSError("boom")):
-            assert consume_command_file(command_file, logger=logger) is None
-
-        logger.exception.assert_called_once()
 
 
 class TestOpenChildLog:

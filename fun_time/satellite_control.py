@@ -3,7 +3,7 @@
 The native satellite players (genau's ``satellite`` package) are driven through a
 file quartet; this module is fun_time's end of it, the counterpart to the
 player's own runtime/status.  Commands are appended one verb per line to the
-player's command file (it drains them with ``consume_command_file``), and where
+player's command file (it drains them with ``player_core.file_channel``), and where
 the clip has got to is read back from the status file the player publishes.
 """
 from __future__ import annotations

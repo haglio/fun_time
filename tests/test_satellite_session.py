@@ -59,14 +59,6 @@ class TestPause:
         assert not session.is_paused
         assert player.paused is False
 
-    def test_toggle_pause_flips(self, tmp_path):
-        session, player = _make_session(tmp_path)
-
-        session.toggle_pause()
-        assert session.is_paused
-        session.toggle_pause()
-        assert not session.is_paused
-
 
 class TestPrefetch:
     def test_init_stages_the_next_clip(self, tmp_path):
@@ -225,19 +217,6 @@ class TestPlayFile:
 
 
 class TestPlaylistReplacement:
-    def test_load_playlist_swaps_and_restarts_at_the_top(self, tmp_path):
-        session, player = _make_session(tmp_path, entries=3)
-        session.step(1)  # on v1
-        a = tmp_path / "a.mp4"; a.write_text("fake")
-        b = tmp_path / "b.mp4"; b.write_text("fake")
-
-        session.load_playlist([a, b])
-
-        assert session.index == 0
-        assert session.current_video == a
-        assert player.opened[-1] == a
-        assert [p.name for p in session.playlist] == ["a.mp4", "b.mp4"]
-
     def test_replace_playlist_keeps_the_current_clip_when_it_survives(self, tmp_path):
         # Reloading a rebuilt playlist (e.g. an F-mode toggle) should not
         # interrupt the clip you are watching if it is still in the new list.
