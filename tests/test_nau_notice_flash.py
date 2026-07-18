@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+from fun_time.command_dispatch import FAILED_NOTICE_LEVEL
+from fun_time.windows_bridge_dispatch_loop import read_nau_notice
+
+
+def _write(path: Path, seq: int, level: str, message: str) -> None:
+    path.write_text(f"seq={seq}\nlevel={level}\nmessage={message}\n", encoding="utf-8")
+
+
+class TestReadNauNotice:
+    def test_reads_a_published_notice(self, tmp_path):
+        path = tmp_path / "nau_notice.txt"
+        _write(path, 3, "error", "full video not available")
+
+        assert read_nau_notice(path) == (3, "error", "full video not available")
+
+    def test_missing_file_is_empty(self, tmp_path):
+        assert read_nau_notice(tmp_path / "nope.txt") == (0, "", "")
+
+    def test_malformed_sequence_is_empty(self, tmp_path):
+        path = tmp_path / "nau_notice.txt"
+        path.write_text("seq=nonsense\nmessage=hi\n", encoding="utf-8")
+
+        assert read_nau_notice(path) == (0, "", "")
+
+
+class TestFlashNauNotice:
+    """The loop flashes each notice exactly once, red for an error level."""
+
+    def _loop(self, tmp_path):
+        class _Loop:
+            config = type("C", (), {"nau_notice_file": tmp_path / "nau_notice.txt"})()
+            _last_nau_notice_seq = 0
+        from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner
+        loop = _Loop()
+        loop._flash_nau_notice = DispatchLoopRunner._flash_nau_notice.__get__(loop, _Loop)
+        return loop
+
+    def test_flashes_once_then_stays_quiet(self, tmp_path, caplog):
+        loop = self._loop(tmp_path)
+        _write(tmp_path / "nau_notice.txt", 1, "error", "full video not available")
+
+        with caplog.at_level(logging.DEBUG):
+            loop._flash_nau_notice()
+            first = [r for r in caplog.records if "full video not available" in r.message]
+            loop._flash_nau_notice()
+            again = [r for r in caplog.records if "full video not available" in r.message]
+
+        assert len(first) == 1
+        assert len(again) == 1  # the repeat tick adds nothing
+        assert first[0].levelno == FAILED_NOTICE_LEVEL
+
+    def test_a_new_sequence_flashes_again(self, tmp_path, caplog):
+        loop = self._loop(tmp_path)
+        _write(tmp_path / "nau_notice.txt", 1, "error", "full video not available")
+        with caplog.at_level(logging.DEBUG):
+            loop._flash_nau_notice()
+            _write(tmp_path / "nau_notice.txt", 2, "error", "money shot not available")
+            loop._flash_nau_notice()
+
+        assert any("money shot not available" in r.message for r in caplog.records)
