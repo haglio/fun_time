@@ -107,7 +107,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
 
     cfg: dict = {
         "paths": {
-            "vlc_exe": str(tmp_path / "vlc.exe"),
             "ahk_exe": str(tmp_path / "ahk.exe"),
             "python_exe": str(tmp_path / "python.exe"),
             "nau_library_dirs": [str(tmp_path / "videos" / "videos" / "nau_library")],

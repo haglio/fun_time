@@ -113,7 +113,7 @@ class TestLoadConfig:
 
     def test_loads_paths_correctly(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.paths.vlc_exe == tmp_path / "vlc.exe"
+        assert cfg.paths.ahk_exe == tmp_path / "ahk.exe"
         assert cfg.paths.state_dir == (tmp_path / "state").resolve()
 
     def test_loads_layout(self, cfg_path: Path):

@@ -71,7 +71,6 @@ This file now controls:
 Useful sections:
 
 - `paths`
-- `vlc`
 - `layout`
 - `genau`
 - `audio_companion`
@@ -141,7 +140,6 @@ Every recognized voice command flashes a **green confirmation** — the phrase i
 
 ### Windows apps
 
-- VLC
 - AutoHotkey v2
 
 ### Python / tools

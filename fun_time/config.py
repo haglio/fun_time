@@ -37,7 +37,6 @@ def _require_value(parent: dict[str, Any], key: str, source_path: Path, context:
 
 @dataclass(frozen=True)
 class PathsConfig:
-    vlc_exe: Path
     ahk_exe: Path
     python_exe: Path
     nau_library_dirs: tuple[Path, ...]
@@ -220,7 +219,6 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path) -> PathsCon
         raise ValueError("paths.nau_library_dirs must include at least one folder path")
 
     return PathsConfig(
-        vlc_exe=_require_path_value(paths_raw, "vlc_exe", source_path, "config.paths"),
         ahk_exe=_require_path_value(paths_raw, "ahk_exe", source_path, "config.paths"),
         python_exe=_require_path_value(paths_raw, "python_exe", source_path, "config.paths"),
         nau_library_dirs=tuple(_resolve_path(PROJECT_DIR, str(value)) for value in nau_library_dirs_raw),

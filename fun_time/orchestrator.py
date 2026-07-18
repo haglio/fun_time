@@ -41,7 +41,6 @@ def ensure_runtime_files(config) -> None:
 
 
 def validate_config(config) -> None:
-    require_file(config.paths.vlc_exe)
     require_file(config.paths.ahk_exe)
     require_file(config.paths.python_exe)
     if config.random_favs_browser.enabled:

@@ -129,8 +129,8 @@ class TestRunStartupSequence:
         # native video fill its window.
         assert core_called["portrait_rect"] == result.layout_plan.portrait
         assert core_called["landscape_rect"] == result.layout_plan.landscape
-        # VLC is gone: no exe, port, or password plumbing survives.
-        for gone in ("password", "vlc_exe", "portrait_port", "landscape_port"):
+        # VLC is gone: no port or password plumbing survives.
+        for gone in ("password", "portrait_port", "landscape_port"):
             assert gone not in core_called
         assert core_called["favs_file"] == str(cfg.paths.favs_file)
         assert core_called["state_dir"] == tmp_path
