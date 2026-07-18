@@ -20,7 +20,6 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             "genau_config_path": str(config.paths.genau_config_path or config.config_path),
         },
         "executables": {
-            "vlc_exe": str(config.paths.vlc_exe),
             "python_exe": str(config.paths.python_exe),
             "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
         },

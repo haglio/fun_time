@@ -276,7 +276,7 @@ class TestValidateConfig:
         """Load config and create all stub files validate_config needs."""
         cfg = load_config(cfg_path)
         # Create stub executable files
-        for p in (cfg.paths.vlc_exe, cfg.paths.ahk_exe, cfg.paths.python_exe):
+        for p in (cfg.paths.ahk_exe, cfg.paths.python_exe):
             p.touch()
         # Create AHK scripts
         (cfg.project_dir / "windows_bridge_hotkeys.ahk").touch()
@@ -288,11 +288,17 @@ class TestValidateConfig:
         ac_py.touch()
         return cfg
 
-    def test_raises_when_vlc_exe_missing(self, cfg_path: Path, tmp_path: Path):
-        cfg = load_config(cfg_path)
-        # Do NOT create vlc_exe stub
-        with pytest.raises(FileNotFoundError):
-            validate_config(cfg)
+    def test_validates_on_a_machine_without_vlc(self, cfg_path: Path, tmp_path: Path):
+        """VLC is not a dependency any more.
+
+        The native satellites replaced the VLC ones, so nothing launches VLC and
+        startup must not refuse to run on a machine that has never installed it.
+        The shared config fixture carries no ``paths.vlc_exe`` and stubs no
+        vlc.exe, so a clean validate proves neither is still demanded.
+        """
+        cfg = self._make_config_with_stubs(cfg_path, tmp_path)
+
+        validate_config(cfg)
 
     def test_raises_when_random_favs_browser_shortcut_missing_if_enabled(self, cfg_factory: Path):
         cfg = load_config(
