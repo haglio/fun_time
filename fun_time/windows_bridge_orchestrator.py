@@ -57,7 +57,6 @@ _CHILD_PID_KEYS = (
     "portrait_pid",
     "landscape_pid",
     "dashboard_pid",
-    "lock_hud_pid",
     "genau_pid",
     "audio_pid",
 )
@@ -432,7 +431,6 @@ def run_python_orchestrated_bridge(
             pids=[
                 result.nau_pid, result.portrait_pid, result.landscape_pid,
                 result.dashboard_pid, result.genau_pid, result.audio_pid,
-                result.lock_hud_pid,
             ],
             rfb_hwnd=result.rfb_hwnd,
             loading_proc=loading_proc,
