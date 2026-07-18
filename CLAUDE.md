@@ -20,7 +20,9 @@ Integration tests — run on a hidden Win32 desktop so the real windows never to
 
 The runner creates the hidden desktop, sets `FUN_TIME_RUN_INTEGRATION=1`, and runs the whole suite invisibly (real HWNDs, off-screen, never foreground). The machine-wide lock in the integration conftest auto-serializes concurrent agent runs — a second run queues instead of clobbering, so you don't hunt for a quiet window. Extra pytest args pass through (`... hidden_desktop -k nau`).
 
-A run restarts the shared OSR2 broker and competes for the GPU, so it can never share the machine with a live Fun Time. `live_session_guard` decides before the desktop exists: no session → run; session playing → **denied** (exit `4`); session in OmniPause → the user gets a prompt to close it or refuse the run. Exit `4` is a refusal, not a failure — do not retry it.
+A run brings up a second session, competing for the GPU and driving the shared OSR2 broker, so it can never share the machine with a live Fun Time. A running session publishes a claim to a fixed machine-global path (`%LOCALAPPDATA%\FunTime\live_session.ini`) — *not* to its state dir, which every worktree resolves to itself — and `live_session_guard` reads that. Before the desktop exists: no session → run; session playing or still starting → **denied** (exit `4`); session in OmniPause → the user gets a prompt to close it or refuse the run. It keeps watching for the whole run too, and aborts (exit `5`) if Fun Time opens mid-run. Exits `4` and `5` are refusals, not failures — do not retry them.
+
+Run the suite only through `hidden_desktop`: `pytest tests/integration/` refuses at session start, because that form puts real windows, a real AHK bridge and real players on your own desktop.
 
 **Green means every collected test passes — zero failures, skips, or deselects.**
 
