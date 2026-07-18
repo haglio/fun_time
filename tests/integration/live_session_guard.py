@@ -51,7 +51,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from fun_time.live_session import read_live_session
+from fun_time.live_session import live_session_state_dir
 from fun_time.win32 import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import read_shared_state
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
@@ -144,17 +144,17 @@ def find_live_session() -> LiveSession | None:
     is OmniPaused; both those files outlive their session too, so the children are
     liveness-checked in turn.
     """
-    claim = read_live_session()
-    if claim is None:
+    state_dir = live_session_state_dir()
+    if state_dir is None:
         return None
     live = {
         role: child
-        for role, child in read_recorded_children(claim.state_dir).items()
+        for role, child in read_recorded_children(state_dir).items()
         if _is_alive(child)
     }
-    state = read_shared_state(claim.state_dir / "shared_bridge_state.ini")
+    state = read_shared_state(state_dir / "shared_bridge_state.ini")
     return LiveSession(
-        state_dir=claim.state_dir,
+        state_dir=state_dir,
         children=live,
         omni_paused=bool(state and state.omni_paused),
     )
@@ -198,7 +198,14 @@ def ask_close_fun_time(_session: LiveSession) -> bool:
 
 
 def announce(message: str) -> None:
-    """Write to the real stderr so an agent sees it even under pytest capture."""
+    """Write to the real stderr, for a caller running outside pytest.
+
+    ``sys.__stderr__`` survives pytest replacing ``sys.stderr``, but not pytest's
+    default capture, which redirects file descriptor 2 itself — so a message sent
+    from *inside* a run lands in the capture buffer and is dropped on an
+    interrupt.  Callers here (the pre-run guard, the runner's supervisor) are
+    outside that, which is why the abort notice moved out to join them.
+    """
     stream = sys.__stderr__ or sys.stderr
     if stream is not None:
         stream.write(f"{message}\n")

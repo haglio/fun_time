@@ -16,7 +16,7 @@ from fun_time.live_session import (
     CLAIM_PATH_ENV_VAR,
     default_claim_path,
     publish_live_session,
-    read_live_session,
+    live_session_state_dir,
 )
 
 
@@ -37,14 +37,12 @@ class TestPublishLiveSession:
 
         publish_live_session(tmp_path / "state", claim_file=claim_file)
 
-        claim = read_live_session(claim_file=claim_file)
-        assert claim is not None
-        assert claim.state_dir == Path(tmp_path / "state")
+        assert live_session_state_dir(claim_file=claim_file) == Path(tmp_path / "state")
 
 
 class TestReadLiveSession:
     def test_no_claim_when_nothing_ever_published_one(self, tmp_path):
-        assert read_live_session(claim_file=tmp_path / "live_session.ini") is None
+        assert live_session_state_dir(claim_file=tmp_path / "live_session.ini") is None
 
     def test_a_claim_whose_process_has_exited_is_no_claim(self, tmp_path):
         """The file outlives the session that wrote it, so liveness comes from
@@ -53,4 +51,4 @@ class TestReadLiveSession:
         publish_live_session(tmp_path / "state", claim_file=claim_file)
 
         with patch.object(live_session, "get_process_creation_time", return_value=None):
-            assert read_live_session(claim_file=claim_file) is None
+            assert live_session_state_dir(claim_file=claim_file) is None
