@@ -158,6 +158,23 @@ def seed_startup_states(
     write_volume(Path(audio_volume_file), MAX_VOLUME)
 
 
+def reset_satellite_paused_states(
+    portrait_paused_file: str | Path,
+    landscape_paused_file: str | Path,
+) -> None:
+    """Clear both satellite paused flags so this session's players start playing.
+
+    Unlike the genau/audio/nau flags, the satellite paused files are outside
+    ``seed_startup_states``' scope and nothing else clears them.  A ``"1"`` left
+    stranded by a prior session's OmniPause would make this session's satellites
+    read paused and never play (frozen at position 0), so reset both to ``"0"``
+    before they launch — satellites always come up playing, as the VLCs did.
+    """
+    for path in (Path(portrait_paused_file), Path(landscape_paused_file)):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("0", encoding="utf-8")
+
+
 def start_core_session(
     *,
     project_dir: str | Path,
@@ -193,6 +210,9 @@ def start_core_session(
     reap_orphaned_satellites(satellite_module)
     ensure_broker(project_dir, broker_heartbeat_file, broker_tray_launcher)
     seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
+    # seed_startup_states does not touch the satellite paused files; clear any "1"
+    # a prior OmniPause stranded so the satellites launch playing, not frozen.
+    reset_satellite_paused_states(portrait_paused_file, landscape_paused_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     # One playlist authority: the same builder the F-mode toggle uses writes the
     # two satellite playlists and Nau's video/funscript pair list.

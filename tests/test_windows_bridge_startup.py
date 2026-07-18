@@ -202,12 +202,50 @@ def _fake_playlist_plan(state_dir: Path) -> FModePlaylistPlan:
     )
 
 
-def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path: Path):
-    result_file = tmp_path / "core_session.ini"
+def _start_core_session_kwargs(tmp_path: Path) -> dict:
+    """The full keyword argument set for a start_core_session call.
+
+    Shared so the several start_core_session tests do not each re-spell the ~26
+    orchestration paths; each test binds what it needs from the returned dict.
+    """
     state_dir = tmp_path / "state"
+    return dict(
+        project_dir=tmp_path,
+        config_path="fun_time_config.json",
+        broker_heartbeat_file=state_dir / "broker_heartbeat.txt",
+        random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
+        genau_paused_file=tmp_path / "genau_paused.txt",
+        audio_paused_file=tmp_path / "audio_paused.txt",
+        nau_paused_file=tmp_path / "nau_paused.txt",
+        audio_volume_file=tmp_path / "audio_volume.txt",
+        genau_python_exe="genau_python.exe",
+        satellite_module="satellite",
+        portrait_cmd_file=state_dir / "portrait_cmd.txt",
+        portrait_paused_file=state_dir / "portrait_paused.txt",
+        portrait_status_file=state_dir / "portrait_status.txt",
+        landscape_cmd_file=state_dir / "landscape_cmd.txt",
+        landscape_paused_file=state_dir / "landscape_paused.txt",
+        landscape_status_file=state_dir / "landscape_status.txt",
+        portrait_rect=WindowRect(x=2560, y=0, width=1440, height=2500),
+        landscape_rect=WindowRect(x=1664, y=0, width=896, height=1392),
+        primary_sources="primary_a|primary_b",
+        portrait_sources="portrait_a",
+        landscape_sources="landscape_a",
+        favs_file=tmp_path / "favs.csv",
+        state_dir=state_dir,
+        result_file=tmp_path / "core_session.ini",
+        provider_media_root=tmp_path / "media",
+        provider_metadata_root=tmp_path / "metadata",
+    )
+
+
+def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path: Path):
+    kwargs = _start_core_session_kwargs(tmp_path)
+    state_dir = kwargs["state_dir"]
+    result_file = kwargs["result_file"]
+    portrait_rect = kwargs["portrait_rect"]
+    landscape_rect = kwargs["landscape_rect"]
     plan = _fake_playlist_plan(state_dir)
-    portrait_rect = WindowRect(x=2560, y=0, width=1440, height=2500)
-    landscape_rect = WindowRect(x=1664, y=0, width=896, height=1392)
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites") as reap, patch(
         "fun_time.windows_bridge_startup.ensure_broker"
@@ -218,34 +256,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     ) as prepare, patch(
         "fun_time.windows_bridge_startup.build_fmode_playlists", return_value=plan
     ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
-        start_core_session(
-            project_dir=tmp_path,
-            config_path="fun_time_config.json",
-            broker_heartbeat_file=state_dir / "broker_heartbeat.txt",
-            random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
-            genau_paused_file=tmp_path / "genau_paused.txt",
-            audio_paused_file=tmp_path / "audio_paused.txt",
-            nau_paused_file=tmp_path / "nau_paused.txt",
-            audio_volume_file=tmp_path / "audio_volume.txt",
-            genau_python_exe="genau_python.exe",
-            satellite_module="satellite",
-            portrait_cmd_file=state_dir / "portrait_cmd.txt",
-            portrait_paused_file=state_dir / "portrait_paused.txt",
-            portrait_status_file=state_dir / "portrait_status.txt",
-            landscape_cmd_file=state_dir / "landscape_cmd.txt",
-            landscape_paused_file=state_dir / "landscape_paused.txt",
-            landscape_status_file=state_dir / "landscape_status.txt",
-            portrait_rect=portrait_rect,
-            landscape_rect=landscape_rect,
-            primary_sources="primary_a|primary_b",
-            portrait_sources="portrait_a",
-            landscape_sources="landscape_a",
-            favs_file=tmp_path / "favs.csv",
-            state_dir=state_dir,
-            result_file=result_file,
-            provider_media_root=tmp_path / "media",
-            provider_metadata_root=tmp_path / "metadata",
-        )
+        start_core_session(**kwargs)
 
     # A satellite pair stranded by a prior crash is reaped before the new one launches.
     reap.assert_called_once_with("satellite")
@@ -288,6 +299,32 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         landscape_rect=landscape_rect,
         result_file=result_file,
     )
+
+
+def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
+    """A prior session's OmniPause can strand "1" in the satellite paused files;
+    seed_startup_states does not touch them and nothing else clears them, so a
+    fresh session's satellites would read paused and never play (frozen at 0).
+    start_core_session must reset both to "0" before the satellites launch."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    portrait_paused = kwargs["portrait_paused_file"]
+    landscape_paused = kwargs["landscape_paused_file"]
+    portrait_paused.parent.mkdir(parents=True, exist_ok=True)
+    portrait_paused.write_text("1", encoding="utf-8")  # stranded by a prior OmniPause
+    landscape_paused.write_text("1", encoding="utf-8")
+
+    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+        "fun_time.windows_bridge_startup.ensure_broker"
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch(
+        "fun_time.windows_bridge_startup.build_fmode_playlists",
+        return_value=_fake_playlist_plan(kwargs["state_dir"]),
+    ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
+        start_core_session(**kwargs)
+
+    assert portrait_paused.read_text(encoding="utf-8") == "0"
+    assert landscape_paused.read_text(encoding="utf-8") == "0"
 
 
 def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
