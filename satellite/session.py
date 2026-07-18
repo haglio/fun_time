@@ -81,9 +81,6 @@ class SatelliteSession:
         self._paused = paused
         self._player.set_paused(paused)
 
-    def toggle_pause(self) -> None:
-        self.set_paused(not self._paused)
-
     def set_locked(self, locked: bool) -> None:
         """Lock the satellite onto its current clip (repeat-one) or release it.
 
@@ -145,17 +142,6 @@ class SatelliteSession:
                 return
         self._playlist.insert(self._index + 1, video)
         self.load(self._index + 1)
-
-    def load_playlist(self, playlist: list[Path]) -> None:
-        """Swap in a whole new playlist and restart at the top.
-
-        A fresh browse — a filter or a group loop — that should begin from the
-        start of the new set.
-        """
-        if not playlist:
-            raise ValueError("playlist must not be empty")
-        self._playlist = list(playlist)
-        self.load(0)
 
     def replace_playlist(self, playlist: list[Path]) -> None:
         """Swap in a rebuilt playlist but keep playing the current clip if it

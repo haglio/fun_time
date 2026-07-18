@@ -1,7 +1,13 @@
+"""Odds and ends the orchestrator and the apps it launches share.
+
+Reading a player's command file is NOT here: a player drains its own channel
+with :mod:`player_core.file_channel`, and the dispatch loop drains the
+dashboard's by renaming it. This module had a third copy of that reader with no
+caller at all.
+"""
 from __future__ import annotations
 
 import argparse
-import logging
 import os
 import subprocess
 import sys
@@ -16,21 +22,6 @@ def preparse_config_path(argv: list[str] | None) -> str | None:
     ap.add_argument("--config")
     known, _ = ap.parse_known_args(argv)
     return known.config
-
-
-def consume_command_file(path: Path, *, logger: logging.Logger | None = None) -> str | None:
-    try:
-        if not path.exists():
-            return None
-        text = path.read_text(encoding="utf-8").replace("\ufeff", "").strip().upper()
-        if not text:
-            return None
-        path.write_text("", encoding="utf-8")
-        return text
-    except Exception:
-        if logger is not None:
-            logger.exception("Failed to consume command file %s", path)
-        return None
 
 
 # A child's crash log is near-empty in normal use (a line per clip), so a

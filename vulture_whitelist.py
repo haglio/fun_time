@@ -69,7 +69,6 @@ hybrid_genau_spd_down  # noqa
 # (vulture scans production code only; test imports are invisible to it)
 COLOR_YELLOW  # noqa
 MUTEX_BROKER  # noqa
-consume_command_file  # noqa
 start_daemon_thread  # noqa
 is_process_alive  # noqa
 # The integration reap uses this to tell a leftover app process from the pytest
@@ -82,5 +81,5 @@ live_session_state_dir  # noqa
 is_window_minimized  # noqa
 _read_shortcut_app_user_model_id  # noqa
 # reset_group_index_cache is test isolation support for the module-level
-# group-index cache (same reason as consume_command_file above).
+# group-index cache.
 reset_group_index_cache  # noqa
