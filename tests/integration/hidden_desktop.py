@@ -67,7 +67,7 @@ INFINITE = 0xFFFFFFFF
 CREATE_SUSPENDED = 0x00000004
 
 # Destroying the job terminates every process still in it.  The run's whole
-# process tree — pytest, the orchestrator, VLC, Nau, Genau, AHK — is in it,
+# process tree — pytest, the orchestrator, the satellites, Nau, Genau, AHK — is in it,
 # because a process created by a job member joins that member's job.
 JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000

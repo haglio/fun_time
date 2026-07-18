@@ -50,7 +50,7 @@ def _is_leftover_app(pid: int) -> bool:
 
 
 def _kill_leftover_app_processes() -> None:
-    """Kill leftover VLC / Nau / AHK / pythonw from a prior session so the next
+    """Kill leftover players / AHK / pythonw from a prior session so the next
     one starts clean.
 
     On the hidden integration desktop, scope the kill to that desktop's windows:

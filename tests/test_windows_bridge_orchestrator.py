@@ -159,7 +159,7 @@ class TestShutdownChildren:
     def test_the_broker_is_never_a_recorded_child_so_teardown_leaves_it_running(self):
         """A session's teardown taskkills only the children it recorded at
         startup.  The broker is deliberately not one of them — it is a service
-        that outlives the session (harem and the user's direct VLC+MFP use keep
+        that outlives the session (harem and the user's own tools keep
         talking to it), launched detached with its handle discarded — so a normal
         exit must leave it running."""
         with patch(
