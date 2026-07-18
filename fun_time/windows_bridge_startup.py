@@ -4,6 +4,7 @@ import configparser
 import re
 import subprocess
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME, write_volume
@@ -66,8 +67,10 @@ def stop_broker_processes(project_dir: str | Path) -> None:
     )
 
 
-def reap_orphaned_satellites(satellite_module: str) -> None:
-    """Kill any native satellite players left over from a prior session.
+def reap_orphaned_satellites(
+    satellite_module: str, status_files: Sequence[str | Path],
+) -> None:
+    """Kill satellite players stranded on the state files this session is claiming.
 
     Normal shutdown kills the two satellites the orchestrator tracked, but a hard
     crash or an unclean close can strand them alive.  A stranded pair keeps reading
@@ -75,14 +78,25 @@ def reap_orphaned_satellites(satellite_module: str) -> None:
     use, so on reopen four players race two files — stalled video and crossed
     controls.  Reaped once at startup, before the new pair launches.
 
-    Scoped to ``python -m <satellite_module>`` command lines, so it can never reach
-    Nau (``-m nau``), the orchestrator, or anything else — only satellites die.
+    *status_files* is what bounds the reap, and it must: every satellite on the
+    machine runs ``-m <satellite_module>``, so matching the module alone made this
+    a machine-wide sweep — an integration run, whose state dir is somewhere else
+    entirely, killed both players in the user's live session on its way up.  Only a
+    player already bound to one of *our* files can be stranded on it, and nothing
+    else can be.  No files means nothing to claim and so nothing to reap.
     """
+    if not status_files:
+        return
     module_pattern = re.escape(satellite_module)
+    # PowerShell single-quoted literals: only ' needs doubling, so a Windows path's
+    # backslashes and brackets stay literal (no regex or -like wildcard surprises).
+    claimed = ",".join("'" + str(path).replace("'", "''") + "'" for path in status_files)
     ps_command = (
-        "Get-CimInstance Win32_Process | Where-Object { "
-        "($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and "
-        f"$_.CommandLine -match '-m\\s+{module_pattern}(\\s|$)' "
+        f"$claimed = @({claimed}); "
+        "Get-CimInstance Win32_Process | Where-Object { $p = $_; "
+        "($p.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $p.CommandLine -and "
+        f"($p.CommandLine -match '-m\\s+{module_pattern}(\\s|$)') -and "
+        "($claimed | Where-Object { $p.CommandLine.Contains($_) }) "
         "} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
     )
     subprocess.run(
@@ -211,9 +225,13 @@ def start_core_session(
     provider_media_root: Path | None = None,
     provider_metadata_root: Path | None = None,
 ) -> None:
-    # Clear any satellites stranded by a prior crash before this session's pair
-    # launches, so four players never race the two command/status file sets.
-    reap_orphaned_satellites(satellite_module)
+    # Clear any satellites stranded by a prior crash on the very files this
+    # session is about to claim, so four players never race the two command/status
+    # file sets.  Bounded to those files: a session elsewhere on the machine (an
+    # integration run) owns different ones and must be left alone.
+    reap_orphaned_satellites(
+        satellite_module, [portrait_status_file, landscape_status_file],
+    )
     ensure_broker(project_dir, broker_heartbeat_file, broker_tray_launcher)
     seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
     # seed_startup_states does not touch the satellite paused files; clear any "1"
