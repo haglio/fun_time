@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import configparser
 import os
-from dataclasses import dataclass
 from pathlib import Path
 
 from .win32 import get_process_creation_time
@@ -47,15 +46,6 @@ def default_claim_path() -> Path:
     return Path(local_app_data) / "FunTime" / "live_session.ini"
 
 
-@dataclass(frozen=True)
-class LiveSessionClaim:
-    """A Fun Time orchestrator that was running when it wrote this."""
-
-    pid: int
-    created_at: int
-    state_dir: Path
-
-
 def publish_live_session(state_dir: Path, *, claim_file: Path | None = None) -> None:
     """Record that this process is running a Fun Time session out of *state_dir*."""
     path = claim_file or default_claim_path()
@@ -71,8 +61,14 @@ def publish_live_session(state_dir: Path, *, claim_file: Path | None = None) -> 
         parser.write(fh)
 
 
-def read_live_session(*, claim_file: Path | None = None) -> LiveSessionClaim | None:
-    """The Fun Time session running on this machine, or None if there is none."""
+def live_session_state_dir(*, claim_file: Path | None = None) -> Path | None:
+    """The state dir of the Fun Time running on this machine, or None if none is.
+
+    The claimed ``(pid, created_at)`` pair is what decides whether there *is* a
+    session, and then has nothing left to say — where the session keeps its files
+    is the only thing a caller can act on.  So it is spent here rather than
+    handed back.
+    """
     path = claim_file or default_claim_path()
     parser = configparser.ConfigParser()
     parser.read(str(path), encoding="utf-8")
@@ -87,4 +83,4 @@ def read_live_session(*, claim_file: Path | None = None) -> LiveSessionClaim | N
         return None
     if not pid or get_process_creation_time(pid) != created_at:
         return None
-    return LiveSessionClaim(pid=pid, created_at=created_at, state_dir=state_dir)
+    return state_dir

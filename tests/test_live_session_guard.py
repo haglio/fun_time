@@ -1,9 +1,10 @@
 """Unit tests: an integration run never reaches the user's live Fun Time session.
 
-A run isolates itself by state dir and nothing more, so what a session does on
-its way up — restarting the shared OSR2 broker, competing for the GPU — still
-lands on the user's live session.  The guard decides, before the hidden desktop
-is even created, whether the run may proceed.
+A run isolates itself by state dir and one UDP port, so what is left over —
+competing for the GPU, streaming T-Code to the one OSR2 both sessions share —
+still lands on the user's.  The guard decides whether the run may proceed before
+the hidden desktop is created, and goes on watching for the whole run, because
+the user can open Fun Time at any point during one.
 """
 from __future__ import annotations
 
@@ -12,7 +13,6 @@ import threading
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.live_session import LiveSessionClaim
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from tests.integration import live_session_guard
 from tests.integration.live_session_guard import (
@@ -63,9 +63,7 @@ class TestFindLiveSessionAcrossCheckouts:
         """
         users_state_dir = tmp_path / "primary_checkout" / "state"
         _write_state(users_state_dir, children={"nau_pid": LIVE}, omni_paused=True)
-        claim = LiveSessionClaim(pid=1, created_at=2, state_dir=users_state_dir)
-
-        with patch.object(live_session_guard, "read_live_session", return_value=claim), \
+        with patch.object(live_session_guard, "live_session_state_dir", return_value=users_state_dir), \
              patch.object(live_session_guard, "get_process_creation_time", return_value=LIVE.created_at):
             session = find_live_session()
 
@@ -79,14 +77,14 @@ def _claiming(state_dir: Path):
     """Patch in a live session claiming *state_dir*, as its orchestrator would."""
     return patch.object(
         live_session_guard,
-        "read_live_session",
-        return_value=LiveSessionClaim(pid=1, created_at=2, state_dir=state_dir),
+        "live_session_state_dir",
+        return_value=state_dir,
     )
 
 
 class TestFindLiveSession:
     def test_no_session_when_nothing_claimed_the_machine(self, tmp_path):
-        with patch.object(live_session_guard, "read_live_session", return_value=None):
+        with patch.object(live_session_guard, "live_session_state_dir", return_value=None):
             assert find_live_session() is None
 
     def test_a_session_still_starting_up_has_recorded_no_children(self, tmp_path):
