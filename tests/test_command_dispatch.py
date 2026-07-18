@@ -1666,8 +1666,8 @@ def test_mute_and_unmute_are_idempotent_not_a_toggle(tmp_path: Path):
 
 
 def test_stepping_the_volume_lifts_a_mute(tmp_path: Path):
-    """As reaching for the volume does in VLC and the Windows mixer — a "louder"
-    that left the room silent would read as the command having been missed."""
+    """As reaching for the volume does in the Windows mixer — a "louder" that
+    left the room silent would read as the command having been missed."""
     config = _make_config(tmp_path)
 
     new_state, _ops = dispatch_command(

@@ -38,9 +38,8 @@ VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
 # orchestrator both run as python.exe, and a reap that kills a pytest takes down
 # a whole integration run (this one, or one queued behind it) with no output at
 # all.  The orchestrator needs no killing here: it exits once its AHK is gone.
-# vlc.exe is absent for the opposite reason: no run has launched a VLC since the
-# native satellites replaced them, so the only vlc.exe the sweep could ever find
-# is the user's own.
+# The set is an allow-list on purpose: an image a run never launches is never
+# swept, so a third-party app of the user's is never at risk.
 _APP_IMAGE_NAMES = frozenset({"pythonw.exe", "autohotkey64.exe"})
 
 

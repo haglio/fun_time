@@ -1,11 +1,11 @@
 """Integration: navigate the native satellite player through its file protocol.
 
-Replaces the old VLC-HTTP navigation suite.  Drives a real, launched native
-satellite (genau's ``satellite`` package) purely through the command/paused/status
-file quartet — ``write_satellite_command`` in, ``read_satellite_status`` out — the
-exact channel fun_time's dispatch loop uses.  No VLC, no HTTP.  Complements
-``test_satellite_native_integration`` (which proves basic play/lock/pause) by
-covering navigation inverses, wrap-around, discard, playlist reload and PLAY_FILE.
+Drives a real, launched native satellite (genau's ``satellite`` package) purely
+through the command/paused/status file quartet — ``write_satellite_command`` in,
+``read_satellite_status`` out — the exact channel fun_time's dispatch loop uses.
+Complements ``test_satellite_native_integration`` (which proves basic
+play/lock/pause) by covering navigation inverses, wrap-around, discard, playlist
+reload and PLAY_FILE.
 
 Requires: FUN_TIME_RUN_INTEGRATION=1 and a real display (the hidden-desktop runner).
 """

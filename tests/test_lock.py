@@ -1,10 +1,8 @@
 """Unit tests for the native satellite lock model.
 
-The satellites are native mpv players now, not VLC, so the lock model no longer
-plans VLC ``pl_repeat``/``pl_loop`` toggles (the old ``repeat_mode`` field, gone
-with VLC).  Instead each action appends a verb to the satellite's command file —
-``LOCK`` to hold the current clip, ``UNLOCK`` to release it, ``NEXT`` to advance,
-``TRASH`` to drop and move on — and the clip an action is about is read from the
+Each lock action appends a verb to the satellite's command file — ``LOCK`` to
+hold the current clip, ``UNLOCK`` to release it, ``NEXT`` to advance, ``TRASH``
+to drop and move on — and the clip an action is about is read from the
 satellite's published status file (``read_satellite_status``).
 
 These exercise the three lock helpers in ``command_dispatch`` directly;

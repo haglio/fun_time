@@ -17,13 +17,9 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
     """pytest runs as python.exe and owns real Qt windows on this desktop — both
     this run's and any run queued behind it.  Killing one leaves a suite dead
     with no output, so the reap only ever targets the images the apps run as.
-
-    VLC is not one of them: no run has launched one since the native satellites
-    replaced them, so any vlc.exe on the machine is the user's own.
     """
     own = os.getpid()
     images = {
-        111: r"C:\Program Files\VideoLAN\VLC\vlc.exe",      # the user's own VLC
         222: r"C:\blah\genau\.venv\Scripts\pythonw.exe",
         333: r"C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe",
         444: r"C:\blah\fun_time\.venv\Scripts\python.exe",  # a queued run's pytest
@@ -39,7 +35,6 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
 
     killed = {call.args[0] for call in kill.call_args_list}
     assert killed == {222, 333}  # the leftover satellite/Nau/dashboard + AHK
-    assert 111 not in killed     # never the user's VLC — no run launches one
     assert 444 not in killed     # never another run's pytest
     assert own not in killed     # never the running pytest process itself
     run.assert_not_called()      # never the global by-name sweep on the hidden desktop
@@ -70,4 +65,3 @@ def test_both_reaps_target_the_same_app_images():
     names = set(command.split("Get-Process ", 1)[1].split(" ", 1)[0].split(","))
     assert names == {"autohotkey64", "pythonw"}
     assert "python" not in names
-    assert "vlc" not in names
