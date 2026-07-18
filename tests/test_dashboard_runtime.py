@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from fun_time.dashboard_bridge import write_dashboard_snapshot
 from fun_time.dashboard_runtime import (
     GenauStatus,
     NauStatus,
@@ -17,20 +20,42 @@ def test_load_dashboard_snapshot_returns_none_when_missing(tmp_path: Path):
     assert load_dashboard_snapshot(tmp_path / "missing.ini") is None
 
 
-def test_load_dashboard_snapshot_parses_controller_export(tmp_path: Path):
+@pytest.mark.parametrize("mode", ["nau", "genau", "hybrid"])
+def test_load_dashboard_snapshot_reads_back_every_mode_the_bridge_writes(tmp_path: Path, mode: str):
+    """The dashboard runs in its own process and learns the primary mode only
+    from this file, so every mode the bridge can write must survive the trip.
+
+    The fixture is built by the production writer rather than hand-rolled, so
+    the two halves of the contract cannot drift apart.
+    """
+    snapshot_file = tmp_path / "dashboard_state.ini"
+    write_dashboard_snapshot(
+        snapshot_file,
+        f_mode_enabled=False,
+        osr2_mode="controlled",
+        primary_mode=mode,
+        portrait_locked=False,
+        landscape_locked=False,
+    )
+
+    snapshot = load_dashboard_snapshot(snapshot_file)
+
+    assert snapshot is not None
+    assert snapshot.primary_mode == mode
+
+
+def test_load_dashboard_snapshot_parses_bridge_export(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
     snapshot_file.write_text(
         "\n".join(
             [
                 "[fmode]",
                 "enabled=0",
-                "[genau_link]",
-                "enabled=1",
                 "[osr2]",
                 "mode=auto",
                 "[primary]",
                 "responsive=1",
-                "uses_genau=0",
+                "mode=nau",
                 "path=demo-primary.mp4",
                 "locked=0",
                 "[portrait]",
@@ -63,20 +88,19 @@ def test_load_dashboard_snapshot_parses_controller_export(tmp_path: Path):
     assert snapshot.window.height == 400
 
 
-def test_load_dashboard_snapshot_supports_utf16_ahk_ini_exports(tmp_path: Path):
+def test_load_dashboard_snapshot_supports_utf16_ini_exports(tmp_path: Path):
+    """The bridge writes the snapshot as utf-16, so the reader must decode it."""
     snapshot_file = tmp_path / "dashboard_state_utf16.ini"
     snapshot_file.write_text(
         "\n".join(
             [
                 "[fmode]",
                 "enabled=1",
-                "[genau_link]",
-                "enabled=0",
                 "[osr2]",
                 "mode=auto",
                 "[primary]",
                 "responsive=1",
-                "uses_genau=1",
+                "mode=genau",
                 "path=primary.mp4",
                 "locked=0",
                 "[portrait]",
@@ -111,12 +135,10 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
             [
                 "[fmode]",
                 "enabled=1",
-                "[genau_link]",
-                "enabled=1",
                 "[osr2]",
                 "mode=controlled",
                 "[primary]",
-                "uses_genau=0",
+                "mode=nau",
                 "locked=0",
                 "[portrait]",
                 "locked=1",
@@ -131,7 +153,6 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
 
     assert snapshot is not None
     assert snapshot.f_mode_enabled is True
-    assert snapshot.f_mode_enabled is True
     assert snapshot.primary.path == ""
     assert snapshot.primary_responsive is False
     assert snapshot.portrait.locked is True
@@ -145,14 +166,12 @@ def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
             [
                 "[fmode]",
                 "enabled=0",
-                "[genau_link]",
-                "enabled=1",
                 "[osr2]",
                 "mode=auto",
                 "[omnipause]",
                 "active=1",
                 "[primary]",
-                "uses_genau=0",
+                "mode=nau",
                 "locked=0",
                 "[portrait]",
                 "locked=0",
@@ -176,12 +195,10 @@ def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
             [
                 "[fmode]",
                 "enabled=0",
-                "[genau_link]",
-                "enabled=1",
                 "[osr2]",
                 "mode=auto",
                 "[primary]",
-                "uses_genau=0",
+                "mode=nau",
                 "locked=0",
                 "[portrait]",
                 "locked=0",
@@ -212,7 +229,7 @@ def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
                 "[voice]",
                 "active=0",
                 "[primary]",
-                "uses_genau=0",
+                "mode=nau",
                 "locked=0",
                 "[portrait]",
                 "locked=0",
@@ -239,7 +256,7 @@ def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
                 "[osr2]",
                 "mode=controlled",
                 "[primary]",
-                "uses_genau=0",
+                "mode=nau",
                 "locked=0",
                 "[portrait]",
                 "locked=0",
