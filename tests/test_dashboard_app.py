@@ -215,7 +215,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     fills = {item.rect: item.fill for item in scene.rects}
     assert len(_cable_lines(scene)) == 1, "Cable should be one straight line"
     assert "Nau" in texts
-    assert "Portrait\nAI VLC" in texts
+    assert "Portrait\nAI" in texts
     assert not any(".mp4" in item.text for item in scene.texts)
     assert fills[preview_layout.primary_panel] == COLOR_PINK, "Auto mode makes primary pink"
     assert fills[preview_layout.portrait_panel] == COLOR_GREEN
@@ -1044,7 +1044,7 @@ def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_p
     assert omnipause_rects[0].fill == COLOR_PANEL
 
 
-def test_dashboard_scene_vlc_panel_labels_are_top_justified(cfg_path: Path):
+def test_dashboard_scene_panel_labels_are_top_justified(cfg_path: Path):
     config = load_config(cfg_path)
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
@@ -1466,8 +1466,8 @@ def test_portrait_label_is_split_across_two_lines(cfg_path: Path):
     scene = build_dashboard_scene(layout)
 
     texts = {item.text for item in scene.texts}
-    assert "Portrait\nAI VLC" in texts
-    assert "Portrait AI VLC" not in texts
+    assert "Portrait\nAI" in texts
+    assert "Portrait AI" not in texts
 
 
 def test_omnipause_resume_button_is_not_green_when_paused(cfg_path: Path):
