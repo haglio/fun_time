@@ -1,12 +1,17 @@
 """Never let an integration run reach the user's live Fun Time session.
 
 ``build_integration_config`` copies the real config and rewrites only its
-*paths*, so a run keeps the production VLC HTTP ports (8091/8092).  When the
-user's session is up, its two satellite VLCs already own those ports: the
-suite's own VLCs cannot bind them, and every ``pl_play`` / ``pl_pause`` the
-suite issues lands on the user's VLCs instead.  That is how a background test
-run makes the user's satellites start playing in the middle of OmniPause.  The
-hidden desktop does not help — a port is machine-wide, not per-desktop.
+*paths*, so a run is isolated by its state dir and nothing more.  Some of what a
+session does on its way up is machine-wide regardless: it restarts the OSR2
+broker (a singleton service, shared by whatever session is running), and its
+players compete for the same GPU as the user's.  The hidden desktop does not
+help with any of that — none of it is per-desktop.
+
+(It used to be far worse: the startup reap matched every ``-m satellite`` on the
+machine, so a run coming up killed both players in the user's live session.  That
+is fixed at the source — ``reap_orphaned_satellites`` is now bounded to the state
+files the reaping session itself claims — and this guard is no longer what stands
+between a test run and the user's satellites.)
 
 So a run asks before it creates the hidden desktop:
 
@@ -44,8 +49,8 @@ _PROMPT_TITLE = "Fun Time is open"
 _PROMPT_TEXT = (
     "The Fun Time integration test suite wants to run, but Fun Time is open "
     "(currently in OmniPause).\n\n"
-    "The suite drives VLC over the same HTTP ports as your session, so it would "
-    "take over your satellite VLCs.\n\n"
+    "The suite brings up a whole second session: it restarts the OSR2 broker you "
+    "share with it, and its players compete with yours for the GPU.\n\n"
     "Close Fun Time and run the suite?\n\n"
     "Yes — close Fun Time, then run the tests.\n"
     "No — leave Fun Time alone and deny the test run."
@@ -168,8 +173,9 @@ def allow_integration_run(
     if not session.omni_paused:
         announce(
             "[integration] Fun Time is open and playing — integration run DENIED. "
-            "The suite would take over your satellite VLCs.  Close Fun Time (or "
-            "put it in OmniPause) and re-run."
+            "The suite brings up a second session that would restart your broker "
+            "and compete for the GPU.  Close Fun Time (or put it in OmniPause) "
+            "and re-run."
         )
         return False
     if not ask(session):
