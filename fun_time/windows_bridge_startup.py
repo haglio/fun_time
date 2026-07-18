@@ -19,7 +19,7 @@ from .orchestrator_broker import (
     subprocess_window_kwargs,
 )
 from .random_favs_browser import build_manifest, write_manifest
-from .runtime_support import open_child_log
+from .child_log import open_child_log
 from .rfb_tab_page import tabs_dir, write_tab_pages
 from .window_layout import WindowRect
 

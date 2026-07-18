@@ -16,7 +16,6 @@ _.closeEvent  # noqa
 # --- Win32 struct fields (must be set for API calls to work) ---
 _.cbSize  # noqa
 _.dwFlags  # noqa
-_.wShowWindow  # noqa
 
 # --- ConfigParser case-sensitivity (optionxform = str) ---
 _.optionxform  # noqa
@@ -69,7 +68,6 @@ hybrid_genau_spd_down  # noqa
 # (vulture scans production code only; test imports are invisible to it)
 COLOR_YELLOW  # noqa
 MUTEX_BROKER  # noqa
-start_daemon_thread  # noqa
 is_process_alive  # noqa
 # The integration reap uses this to tell a leftover app process from the pytest
 # that must survive; production kills children by recorded creation time instead.

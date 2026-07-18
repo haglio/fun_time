@@ -85,9 +85,12 @@ def _collect_third_party_imports() -> dict[str, set[str]]:
     """
     third_party: dict[str, set[str]] = {}
     stdlib = _stdlib_modules()
-    # player_core is a sibling repo installed editable from a local path, so it
-    # is deliberately absent from [project.dependencies] — see pyproject.toml.
-    local_packages = {"fun_time", "satellite", "shared_ui", "player_core"}
+    # The shared siblings are installed editable from local paths, so they are
+    # deliberately absent from [project.dependencies] — see pyproject.toml.
+    local_packages = {
+        "fun_time", "satellite",           # this repo
+        "app_support", "player_core", "shared_ui",  # sibling repos
+    }
 
     for package_dir in PACKAGE_DIRS:
         for py_file in package_dir.rglob("*.py"):
