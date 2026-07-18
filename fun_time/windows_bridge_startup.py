@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -18,6 +19,7 @@ from .orchestrator_broker import (
 )
 from .random_favs_browser import build_manifest, write_manifest
 from .rfb_tab_page import tabs_dir, write_tab_pages
+from .window_layout import WindowRect
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
@@ -48,6 +50,32 @@ def stop_broker_processes(project_dir: str | Path) -> None:
     subprocess.run(
         ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
         cwd=project_path,
+        check=False,
+        **subprocess_window_kwargs(),
+    )
+
+
+def reap_orphaned_satellites(satellite_module: str) -> None:
+    """Kill any native satellite players left over from a prior session.
+
+    Normal shutdown kills the two satellites the orchestrator tracked, but a hard
+    crash or an unclean close can strand them alive.  A stranded pair keeps reading
+    the same ``state/*_cmd.txt`` / ``*_status.txt`` files this session's pair will
+    use, so on reopen four players race two files — stalled video and crossed
+    controls.  Reaped once at startup, before the new pair launches.
+
+    Scoped to ``python -m <satellite_module>`` command lines, so it can never reach
+    Nau (``-m nau``), the orchestrator, or anything else — only satellites die.
+    """
+    module_pattern = re.escape(satellite_module)
+    ps_command = (
+        "Get-CimInstance Win32_Process | Where-Object { "
+        "($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and "
+        f"$_.CommandLine -match '-m\\s+{module_pattern}(\\s|$)' "
+        "} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+    )
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
         check=False,
         **subprocess_window_kwargs(),
     )
@@ -139,6 +167,8 @@ def start_core_session(
     landscape_cmd_file: str | Path,
     landscape_paused_file: str | Path,
     landscape_status_file: str | Path,
+    portrait_rect: WindowRect,
+    landscape_rect: WindowRect,
     primary_sources: str,
     portrait_sources: str,
     landscape_sources: str,
@@ -148,6 +178,9 @@ def start_core_session(
     provider_media_root: Path | None = None,
     provider_metadata_root: Path | None = None,
 ) -> None:
+    # Clear any satellites stranded by a prior crash before this session's pair
+    # launches, so four players never race the two command/status file sets.
+    reap_orphaned_satellites(satellite_module)
     ensure_broker(project_dir, broker_heartbeat_file, broker_tray_launcher)
     seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
@@ -176,6 +209,8 @@ def start_core_session(
         landscape_cmd_file=landscape_cmd_file,
         landscape_paused_file=landscape_paused_file,
         landscape_status_file=landscape_status_file,
+        portrait_rect=portrait_rect,
+        landscape_rect=landscape_rect,
         result_file=result_file,
     )
 
@@ -368,16 +403,20 @@ def launch_core_apps(
     landscape_cmd_file: str | Path,
     landscape_paused_file: str | Path,
     landscape_status_file: str | Path,
+    portrait_rect: WindowRect,
+    landscape_rect: WindowRect,
     result_file: str | Path,
 ) -> None:
     """Spawn the two native satellite players (portrait + landscape).
 
     Each is our own mpv-backed process (genau's ``satellite`` package), driven
-    through its command/paused/status file quartet like Nau.  They launch at a
-    placeholder geometry and play immediately; the sequencer resolves each window
-    by HWND and moves it to its portrait/landscape rect once it appears, so there
-    is no HTTP interface to wait on and nothing to enqueue or repeat-mode here —
-    the native player owns its playlist and auto-advances (its wrap is repeat-all).
+    through its command/paused/status file quartet like Nau.  Each launches
+    straight into its final portrait/landscape rect: mpv sizes its output to the
+    launch geometry and does NOT rescale when a later Win32 move resizes the
+    window, so launching at the real rect (exactly as Nau does) is what makes the
+    video fill it.  There is no HTTP interface to wait on and nothing to enqueue or
+    repeat-mode here — the native player owns its playlist and auto-advances (its
+    wrap is repeat-all).
     """
     portrait_pid = launch_satellite(
         python_exe=python_exe,
@@ -386,8 +425,8 @@ def launch_core_apps(
         command_file=portrait_cmd_file,
         paused_file=portrait_paused_file,
         status_file=portrait_status_file,
-        x=_SATELLITE_LAUNCH_X, y=_SATELLITE_LAUNCH_Y,
-        width=_SATELLITE_LAUNCH_W, height=_SATELLITE_LAUNCH_H,
+        x=portrait_rect.x, y=portrait_rect.y,
+        width=portrait_rect.width, height=portrait_rect.height,
     )
     landscape_pid = launch_satellite(
         python_exe=python_exe,
@@ -396,8 +435,8 @@ def launch_core_apps(
         command_file=landscape_cmd_file,
         paused_file=landscape_paused_file,
         status_file=landscape_status_file,
-        x=_SATELLITE_LAUNCH_X, y=_SATELLITE_LAUNCH_Y,
-        width=_SATELLITE_LAUNCH_W, height=_SATELLITE_LAUNCH_H,
+        x=landscape_rect.x, y=landscape_rect.y,
+        width=landscape_rect.width, height=landscape_rect.height,
     )
     _write_result_file(
         result_file,
@@ -406,16 +445,6 @@ def launch_core_apps(
             "landscape_pid": landscape_pid,
         },
     )
-
-
-# The satellites launch at this placeholder geometry; the sequencer immediately
-# repositions and resizes each to its real portrait/landscape rect by HWND, so
-# the launch size only has to be a sane non-zero window (mpv resizes its output to
-# the window's client area when the sequencer's move_window resizes it).
-_SATELLITE_LAUNCH_X = 0
-_SATELLITE_LAUNCH_Y = 0
-_SATELLITE_LAUNCH_W = 1200
-_SATELLITE_LAUNCH_H = 900
 
 
 def _build_satellite_launch_command(
@@ -478,8 +507,8 @@ def launch_satellite(
     """Launch a native satellite player subprocess, returning its PID.
 
     The native counterpart to the VLC satellite spawn (and a sibling of
-    :func:`launch_nau`): our own mpv-backed process, hidden until fun_time
-    positions it by HWND, driven through the command/paused/status file quartet.
+    :func:`launch_nau`): our own mpv-backed process, launched at the given rect
+    and driven through the command/paused/status file quartet.
     """
     cmd = _build_satellite_launch_command(
         python_exe,
