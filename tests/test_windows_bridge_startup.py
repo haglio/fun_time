@@ -600,9 +600,12 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     landscape_kwargs = launch_satellite_mock.call_args_list[1].kwargs
 
     # Each satellite gets the genau python, the shared module, its own playlist,
-    # and its own command/paused/status quartet.
+    # and its own command/paused/status quartet.  Each also gets a DISTINCT title
+    # so the sequencer can resolve each window to its slot by caption when the pid
+    # lookup fails — the portrait title on the portrait side, never swapped.
     assert portrait_kwargs["python_exe"] == "genau_python.exe"
     assert portrait_kwargs["satellite_module"] == "satellite"
+    assert portrait_kwargs["title"] == "Satellite Portrait"
     assert portrait_kwargs["playlist_file"] == portrait_playlist
     assert portrait_kwargs["command_file"] == state_dir / "portrait_cmd.txt"
     assert portrait_kwargs["paused_file"] == state_dir / "portrait_paused.txt"
@@ -610,6 +613,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
 
     assert landscape_kwargs["python_exe"] == "genau_python.exe"
     assert landscape_kwargs["satellite_module"] == "satellite"
+    assert landscape_kwargs["title"] == "Satellite Landscape"
     assert landscape_kwargs["playlist_file"] == landscape_playlist
     assert landscape_kwargs["command_file"] == state_dir / "landscape_cmd.txt"
     assert landscape_kwargs["paused_file"] == state_dir / "landscape_paused.txt"
@@ -638,6 +642,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
 def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry():
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
+        title="Satellite Portrait",
         playlist_file="state/portrait_playlist.tsv",
         command_file="state/portrait_cmd.txt",
         paused_file="state/portrait_paused.txt",
@@ -649,6 +654,7 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
     def _val(flag):
         return cmd[cmd.index(flag) + 1]
 
+    assert _val("--title") == "Satellite Portrait"
     assert _val("--playlist") == "state/portrait_playlist.tsv"
     assert _val("--command-file") == "state/portrait_cmd.txt"
     assert _val("--paused-file") == "state/portrait_paused.txt"
@@ -656,11 +662,25 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
     assert (_val("--x"), _val("--y"), _val("--width"), _val("--height")) == ("2560", "0", "1440", "2500")
 
 
+def test_build_satellite_launch_command_forwards_the_distinct_title():
+    # The two satellites carry distinct captions; the sequencer resolves each
+    # window to its slot by title when the pid lookup fails, so a shared caption
+    # (or a dropped --title) would let the portrait/landscape windows cross.
+    cmd = _build_satellite_launch_command(
+        "python.exe", "satellite",
+        title="Satellite Landscape",
+        playlist_file="p", command_file="c", paused_file="pa", status_file="s",
+        x=0, y=0, width=1, height=1,
+    )
+    assert cmd[cmd.index("--title") + 1] == "Satellite Landscape"
+
+
 def test_build_satellite_launch_command_always_disables_audio():
     # A satellite must never be heard; unlike VLC there is no shared Windows
     # mixer to worry about, but the clip's own audio track must still be dropped.
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
+        title="Satellite Portrait",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
         x=0, y=0, width=1, height=1,
     )
@@ -672,6 +692,7 @@ def test_build_satellite_launch_command_passes_no_config_flag():
     # the file quartet and geometry, so none must be forwarded.
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
+        title="Satellite Portrait",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
         x=0, y=0, width=1, height=1,
     )
@@ -689,6 +710,7 @@ def test_launch_satellite_starts_process_and_returns_pid():
         pid = launch_satellite(
             python_exe="python.exe",
             satellite_module="satellite",
+            title="Satellite Portrait",
             playlist_file="state/portrait_playlist.tsv",
             command_file="state/portrait_cmd.txt",
             paused_file="state/portrait_paused.txt",
@@ -703,3 +725,5 @@ def test_launch_satellite_starts_process_and_returns_pid():
     assert popen.call_args.kwargs == {"creationflags": 1}
     assert popen.call_args.args[0][:3] == ["python.exe", "-m", "satellite"]
     assert popen.call_args.args[0][-1] == "--no-audio"
+    argv = popen.call_args.args[0]
+    assert argv[argv.index("--title") + 1] == "Satellite Portrait"

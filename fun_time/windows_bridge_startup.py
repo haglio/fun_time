@@ -22,6 +22,16 @@ from .rfb_tab_page import tabs_dir, write_tab_pages
 from .window_layout import WindowRect
 
 
+# The two native satellites carry DISTINCT window captions so the sequencer can
+# resolve each to its slot by title when the pid lookup fails (the genau venv's
+# pythonw launcher can own a pid other than the window's — the same reason
+# launch_nau needs a title fallback).  A shared caption lets the fallback assign
+# one side's window to the other, which is the portrait/landscape visual swap.
+# The sequencer imports these to resolve by, so the strings live in one place.
+SATELLITE_PORTRAIT_TITLE = "Satellite Portrait"
+SATELLITE_LANDSCAPE_TITLE = "Satellite Landscape"
+
+
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
     parser = configparser.ConfigParser()
     parser.optionxform = str
@@ -421,6 +431,7 @@ def launch_core_apps(
     portrait_pid = launch_satellite(
         python_exe=python_exe,
         satellite_module=satellite_module,
+        title=SATELLITE_PORTRAIT_TITLE,
         playlist_file=portrait_playlist,
         command_file=portrait_cmd_file,
         paused_file=portrait_paused_file,
@@ -431,6 +442,7 @@ def launch_core_apps(
     landscape_pid = launch_satellite(
         python_exe=python_exe,
         satellite_module=satellite_module,
+        title=SATELLITE_LANDSCAPE_TITLE,
         playlist_file=landscape_playlist,
         command_file=landscape_cmd_file,
         paused_file=landscape_paused_file,
@@ -451,6 +463,7 @@ def _build_satellite_launch_command(
     python_exe: str | Path,
     satellite_module: str,
     *,
+    title: str,
     playlist_file: str | Path,
     command_file: str | Path,
     paused_file: str | Path,
@@ -465,12 +478,15 @@ def _build_satellite_launch_command(
     The satellite is our own mpv-backed process, so — unlike the VLC satellites it
     replaces — it is driven through the command/paused/status file quartet (like
     Nau) rather than a VLC HTTP port.  It takes no ``--config`` — the quartet plus
-    geometry fully specify it — and stays silent with ``--no-audio``.
+    geometry fully specify it — and stays silent with ``--no-audio``.  ``--title``
+    gives it the distinct caption the sequencer resolves its slot by.
     """
     return [
         str(python_exe),
         "-m",
         str(satellite_module),
+        "--title",
+        str(title),
         "--playlist",
         str(playlist_file),
         "--command-file",
@@ -495,6 +511,7 @@ def launch_satellite(
     *,
     python_exe: str | Path,
     satellite_module: str,
+    title: str,
     playlist_file: str | Path,
     command_file: str | Path,
     paused_file: str | Path,
@@ -508,11 +525,13 @@ def launch_satellite(
 
     The native counterpart to the VLC satellite spawn (and a sibling of
     :func:`launch_nau`): our own mpv-backed process, launched at the given rect
-    and driven through the command/paused/status file quartet.
+    with the given distinct *title*, driven through the command/paused/status
+    file quartet.
     """
     cmd = _build_satellite_launch_command(
         python_exe,
         satellite_module,
+        title=title,
         playlist_file=playlist_file,
         command_file=command_file,
         paused_file=paused_file,

@@ -20,12 +20,18 @@ from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .startup_progress import NullProgress, ProgressReporter, StartupCancelled
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
 from .runtime_flow import write_flag_file
-from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
+from .windows_bridge_startup import (
+    SATELLITE_LANDSCAPE_TITLE,
+    SATELLITE_PORTRAIT_TITLE,
+    launch_genau,
+    launch_nau,
+    launch_ui_companions,
+    start_core_session,
+)
 from .window_roles import role_topmost
 from .win32 import (
     disable_window_transitions,
     find_window_by_pid,
-    iter_zorder,
     minimize_window,
     move_window,
     set_always_on_top,
@@ -472,32 +478,23 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
         logger.warning("Could not find window for %s", label)
 
 
-def _wait_for_titled_window(title: str, *, exclude: int = 0, timeout_s: float = 3.0) -> int:
-    """A window whose exact title is *title* and whose hwnd is not *exclude*, or 0."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        for info in iter_zorder():
-            if info.hwnd != exclude and info.title == title:
-                return info.hwnd
-        time.sleep(0.1)
-    return 0
-
-
 def _resolve_satellite_hwnds(portrait_pid: int, landscape_pid: int) -> tuple[int, int]:
     """The portrait and landscape native-satellite windows, as (portrait, landscape).
 
-    The pid is the reliable disambiguator: both native satellites carry the same
-    window title ("Satellite"), so a title lookup alone cannot tell them apart.
-    When a pid lookup fails (the genau venv's pythonw launcher can own a pid other
-    than the window's), fall back to a "Satellite"-titled window, excluding the one
-    already taken so the two can never collapse onto a single handle.
+    Each side is resolved by its pid first; when that fails (the genau venv's
+    pythonw launcher can own a pid other than the window's — the same reason
+    :func:`launch_nau` needs a title fallback), fall back to the side's DISTINCT
+    window caption.  The two satellites are launched with different titles
+    ("Satellite Portrait" vs "Satellite Landscape"), so the fallback can never
+    assign one side's window to the other — a shared caption could, and that was
+    the portrait/landscape visual swap this resolves.
     """
     portrait = wait_for_window(portrait_pid, timeout_s=10.0)
     landscape = wait_for_window(landscape_pid, timeout_s=10.0)
     if not portrait:
-        portrait = _wait_for_titled_window("Satellite", exclude=landscape)
+        portrait = wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=10.0, exact=True)
     if not landscape:
-        landscape = _wait_for_titled_window("Satellite", exclude=portrait)
+        landscape = wait_for_window_by_title(SATELLITE_LANDSCAPE_TITLE, timeout_s=10.0, exact=True)
     return portrait, landscape
 
 

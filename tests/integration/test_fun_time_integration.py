@@ -318,10 +318,10 @@ def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_ses
     s.write_dashboard_command("play")
 
     pids = s.read_child_pids()
-    # Resolve exactly as startup does (pid first, then a distinct "Satellite"
-    # window) — both native satellites share the title, so a bare title lookup
-    # cannot tell them apart, and the genau pythonw launcher can own a pid other
-    # than the window's.
+    # Resolve exactly as startup does: pid first, then each satellite's DISTINCT
+    # caption ("Satellite Portrait" / "Satellite Landscape") — the genau pythonw
+    # launcher can own a pid other than the window's, and the distinct titles are
+    # what let the fallback tell portrait from landscape without swapping them.
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds(
         pids["portrait_pid"], pids["landscape_pid"]
     )
