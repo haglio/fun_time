@@ -40,6 +40,7 @@ from .live_session_guard import (
     ABORTED_EXIT_CODE,
     DENIED_EXIT_CODE,
     allow_integration_run,
+    announce,
     find_live_session,
 )
 
@@ -304,6 +305,7 @@ def supervise_run(
     wait: Callable[[float], bool],
     live_session_found: Callable[[], bool],
     terminate: Callable[[], None],
+    announce: Callable[[str], None] = announce,
     grace_seconds: float = 30.0,
     poll_seconds: float = 1.0,
 ) -> bool:
@@ -320,12 +322,22 @@ def supervise_run(
 
     ``wait(timeout)`` reports whether the run has ended; ``terminate`` closes the
     job, which takes down everything the run still had running.
+
+    Saying why is this side's job too.  pytest captures at the file-descriptor
+    level, so a notice written from inside the run lands in its capture buffer and
+    is dropped on the way out — leaving the run to end on a bare KeyboardInterrupt
+    with nothing to explain it.  Out here there is no capture.
     """
     grace_polls = max(1, round(grace_seconds / poll_seconds))
     remaining: int | None = None
     while not wait(poll_seconds):
         if remaining is None:
             if live_session_found():
+                announce(
+                    "[integration] Fun Time was opened while this run was in flight — "
+                    "ABORTING the run.  The user's session wins; re-run once it is "
+                    "closed."
+                )
                 remaining = grace_polls
             continue
         remaining -= 1

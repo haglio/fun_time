@@ -231,21 +231,16 @@ class TestWatchForLiveSession:
 
     def _watch(self, sessions, *, stop=None):
         aborted: list[str] = []
-        announced: list[str] = []
         watch_for_live_session(
             find=lambda: sessions.pop(0),
             abort=lambda: aborted.append("abort"),
-            announce=announced.append,
             sleep=lambda _s: None,
             stop=stop or threading.Event(),
         )
-        return aborted, announced
+        return aborted
 
     def test_aborts_the_run_when_fun_time_opens_mid_run(self):
-        aborted, announced = self._watch([None, None, _session(omni_paused=False)])
-
-        assert aborted == ["abort"]
-        assert any("opened" in line.lower() for line in announced)
+        assert self._watch([None, None, _session(omni_paused=False)]) == ["abort"]
 
     def test_keeps_polling_and_lets_a_finished_run_stop_it(self):
         """The run ending is the normal way this ends — it must not abort a run
@@ -263,7 +258,6 @@ class TestWatchForLiveSession:
         watch_for_live_session(
             find=find,
             abort=lambda: aborted.append("abort"),
-            announce=lambda _m: None,
             sleep=lambda _s: None,
             stop=stop,
         )
