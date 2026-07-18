@@ -14,6 +14,12 @@ desktop, so they see the app because pytest shares the hidden desktop.  There is
 silent fall-back: if the desktop can't be opened, ``CreateProcessW`` fails, so a run
 can never leak onto the real screen.
 
+The desktop is also this module's authority over where the suite may run at all:
+``require_hidden_desktop`` refuses a run that is not on it, which is what keeps
+bare ``pytest tests/integration/`` off the user's screen.  And once the run is
+going, ``supervise_run`` stands over it from out here — outside the run's own
+pytest capture — to end it if Fun Time opens underneath it.
+
 pytest is also placed in a *job object* that this runner alone holds a handle to.
 Windows destroys a job when its last handle closes, and a job with
 ``KILL_ON_JOB_CLOSE`` takes its members down with it — so however the run ends, it
