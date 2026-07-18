@@ -32,13 +32,16 @@ from .live_session_guard import read_recorded_children
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
 
 
-# The images the apps a session leaves behind actually run as: the two satellite
-# VLCs, Nau/Genau/the audio companion/the dashboard (all pythonw), and the AHK
-# hotkey shell.  python.exe is deliberately absent — pytest and the orchestrator
-# both run as python.exe, and a reap that kills a pytest takes down a whole
-# integration run (this one, or one queued behind it) with no output at all.
-# The orchestrator needs no killing here: it exits once its AHK is gone.
-_APP_IMAGE_NAMES = frozenset({"vlc.exe", "pythonw.exe", "autohotkey64.exe"})
+# The images the apps a session leaves behind actually run as: the two
+# satellites, Nau/Genau/the audio companion/the dashboard (all pythonw), and the
+# AHK hotkey shell.  python.exe is deliberately absent — pytest and the
+# orchestrator both run as python.exe, and a reap that kills a pytest takes down
+# a whole integration run (this one, or one queued behind it) with no output at
+# all.  The orchestrator needs no killing here: it exits once its AHK is gone.
+# vlc.exe is absent for the opposite reason: no run has launched a VLC since the
+# native satellites replaced them, so the only vlc.exe the sweep could ever find
+# is the user's own.
+_APP_IMAGE_NAMES = frozenset({"pythonw.exe", "autohotkey64.exe"})
 
 
 def _is_leftover_app(pid: int) -> bool:
@@ -195,7 +198,7 @@ class FunTimeIntegrationSession:
             self._stderr_fh.close()
         # Deterministically kill the children by their recorded PIDs first —
         # hard-terminating the orchestrator above skips its graceful
-        # _shutdown_children(), so the satellite VLCs would otherwise survive
+        # _shutdown_children(), so the satellites would otherwise survive
         # until the racy name+StartTime sweep happens to catch them.
         self._kill_recorded_children()
         self._reap_leftover_runtime_processes()
@@ -305,7 +308,7 @@ class FunTimeIntegrationSession:
 
         stop() hard-terminates the orchestrator with TerminateProcess, so the
         orchestrator's own graceful _shutdown_children() never runs and the
-        processes it launched (the two satellite VLCs, plus Nau/Genau/dashboard/
+        processes it launched (the two satellites, plus Nau/Genau/dashboard/
         audio) are orphaned.  Kill them via the production kill_recorded_child,
         which taskkills a recorded PID only while its creation time still names
         the process the orchestrator launched — a child that has already died

@@ -3,7 +3,7 @@
 These guard the deterministic child-process cleanup that
 ``FunTimeIntegrationSession.stop()`` must perform.  ``stop()`` hard-terminates
 the orchestrator, so the orchestrator's own graceful ``_shutdown_children()``
-never runs and its children (the two satellite VLCs, plus Nau/Genau/dashboard/
+never runs and its children (the two satellites, plus Nau/Genau/dashboard/
 audio) are orphaned.  The teardown must therefore kill them itself, by the
 exact processes recorded in ``bridge_pids.ini`` — PID *and* creation time, so a
 PID Windows has since recycled is recognised rather than shot.
@@ -53,8 +53,8 @@ def test_stop_taskkills_every_recorded_child(session):
         session,
         {
             "nau_pid": ChildProcess(201, 2010),
-            "portrait_pid": ChildProcess(202, 2020),   # satellite VLC
-            "landscape_pid": ChildProcess(203, 2030),  # satellite VLC
+            "portrait_pid": ChildProcess(202, 2020),   # satellite
+            "landscape_pid": ChildProcess(203, 2030),  # satellite
             "dashboard_pid": ChildProcess(0, 0),       # disabled in integration — absent
             "genau_pid": ChildProcess(205, 2050),
             "audio_pid": ChildProcess(206, 2060),

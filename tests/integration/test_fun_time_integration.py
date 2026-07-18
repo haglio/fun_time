@@ -513,7 +513,7 @@ def test_fun_time_hybrid_keeps_nau_as_the_display(shared_integration_session: Fu
     which exercises the identical dispatch path.)
 
     Must run before isolated-session tests (trash), whose teardown kills all
-    recent VLC processes and would leave the shared session's VLC dead.
+    recent player processes and would leave the shared session's players dead.
     """
     s = shared_integration_session
 

@@ -55,8 +55,8 @@ def _fake_config(state_dir: Path):
 
 
 def test_main_never_creates_the_desktop_when_the_run_is_denied(tmp_path):
-    """A live Fun Time owns the VLC HTTP ports the suite drives, so a denied run
-    must not reach pytest at all."""
+    """A run restarts the shared broker and competes for the user's GPU, so a
+    denied run must not reach pytest at all."""
     with patch.object(hidden_desktop, "load_config", return_value=_fake_config(tmp_path)), \
          patch.object(hidden_desktop, "allow_integration_run", return_value=False), \
          patch.object(hidden_desktop, "run_on_hidden_desktop") as run:
@@ -93,7 +93,7 @@ def _wait_until_dead(pid: int, timeout: float = 5.0) -> bool:
 def test_a_process_launched_into_the_run_job_dies_when_the_job_closes(tmp_path):
     """The runner holds the job's only handle, so however the runner ends — a
     clean exit, a crash, a kill — Windows terminates whatever the run left
-    running.  No integration run can strand a VLC for the next one to trip on."""
+    running.  No integration run can strand a player for the next one to trip on."""
     job = create_run_job()
     cmdline = subprocess.list2cmdline([sys.executable, "-c", "import time; time.sleep(60)"])
     pi = _launch_on_desktop(cmdline, None, str(tmp_path), job)

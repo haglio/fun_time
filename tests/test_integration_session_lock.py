@@ -1,13 +1,13 @@
 """Unit tests for the machine-wide integration-run lock.
 
 Multiple worktree agents share this repo and may launch the integration suite
-concurrently.  Each run launches VLC/Nau/AHK and runs a global name+age process
+concurrently.  Each run launches the players/AHK and runs a global name+age process
 reap (``_reap_leftover_runtime_processes``) that would murder a sibling run's
 freshly-spawned processes; the AHK bridge's ``#SingleInstance Force`` evicts a
 sibling bridge.  ``SingleInstanceLock`` serializes runs machine-wide so only one
 integration session's processes are ever live at a time.
 
-These tests exercise the lock primitive itself — no VLC/AHK/orchestrator is
+These tests exercise the lock primitive itself — no player/AHK/orchestrator is
 launched.  Cross-process behavior (a real second holder, and crash recovery) is
 driven with a tiny Python subprocess that only acquires the lock and sleeps.
 """
@@ -85,7 +85,7 @@ def test_release_lets_the_next_caller_acquire():
 
 
 # Code for a throwaway subprocess that only takes the lock and waits to be
-# killed — it never launches VLC/AHK, so this stays a pure unit test of the
+# killed — it never launches a player/AHK, so this stays a pure unit test of the
 # lock's crash-recovery, not an integration run.
 _HOLD_UNTIL_KILLED = """
 import pathlib, sys, time

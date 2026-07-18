@@ -1,8 +1,9 @@
 """Unit tests: an integration run never reaches the user's live Fun Time session.
 
-The integration config keeps the production VLC HTTP ports, so a run that starts
-while Fun Time is open drives the user's own satellite VLCs.  The guard decides,
-before the hidden desktop is even created, whether the run may proceed.
+A run isolates itself by state dir and nothing more, so what a session does on
+its way up — restarting the shared OSR2 broker, competing for the GPU — still
+lands on the user's live session.  The guard decides, before the hidden desktop
+is even created, whether the run may proceed.
 """
 from __future__ import annotations
 
