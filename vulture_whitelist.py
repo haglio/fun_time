@@ -10,7 +10,6 @@ _.do_GET  # noqa
 # --- Qt event overrides (called by the framework, not by our code) ---
 _.paintEvent  # noqa
 _.mousePressEvent  # noqa
-_.mouseDoubleClickEvent  # noqa
 _.mouseMoveEvent  # noqa
 _.closeEvent  # noqa
 
