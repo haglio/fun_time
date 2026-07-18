@@ -38,8 +38,8 @@ def _make_action_video(
 def _satellite_lines(state_dir: Path, side: str) -> list[str]:
     """The plain video-path lines a satellite's playlist file holds.
 
-    The native player reads a plain one-path-per-line file (no VLC ``#EXTM3U``
-    header), written to ``state_dir/{side}_playlist.tsv``."""
+    The native player reads a plain one-path-per-line file, with no header,
+    written to ``state_dir/{side}_playlist.tsv``."""
     return (state_dir / f"{side}_playlist.tsv").read_text(encoding="utf-8").splitlines()
 
 

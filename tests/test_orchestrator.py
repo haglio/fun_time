@@ -92,13 +92,6 @@ class TestControllerManifest:
         result = build_windows_bridge_manifest(cfg)
         assert isinstance(result, dict)
 
-    def test_no_vlc_section(self, cfg_path: Path):
-        """The native satellites replaced the VLC ones: there is no VLC HTTP
-        port or password to publish, so the manifest carries no [vlc] section."""
-        cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg)
-        assert "vlc" not in result
-
     def test_layout_monitors_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg)
@@ -197,7 +190,6 @@ class TestControllerManifest:
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg)
         assert "windows_bridge_runtime_flow_module" not in result["modules"]
-        assert "windows_bridge_vlc_actions_module" not in result["modules"]
 
     def test_dead_app_modules_absent_from_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -245,9 +237,8 @@ class TestControllerManifest:
 
         assert manifest_path.name == WINDOWS_BRIDGE_MANIFEST_FILENAME
         assert parser["runtime"]["project_dir"] == str(cfg.project_dir)
-        assert "vlc" not in parser
         # The native satellites are wired through their command/paused/status/playlist
-        # files, so the written INI carries the quartet instead of a VLC port/pass.
+        # files, so the written INI carries the quartet.
         assert parser["modules"]["satellite_module"] == "satellite"
         assert parser["commands"]["portrait_playlist_file"] == str(cfg.paths.state_dir / "portrait_playlist.tsv")
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
@@ -255,7 +246,6 @@ class TestControllerManifest:
         assert "windows_bridge_lock_module" not in parser["modules"]
         assert "windows_bridge_runtime_flow_module" not in parser["modules"]
         assert "windows_bridge_window_layout_module" not in parser["modules"]
-        assert "windows_bridge_vlc_actions_module" not in parser["modules"]
         assert "windows_bridge_random_favs_browser_module" not in parser["modules"]
         assert "windows_bridge_startup_module" not in parser["modules"]
         assert "windows_bridge_dashboard_bridge_module" not in parser["modules"]
@@ -287,14 +277,10 @@ class TestValidateConfig:
             p.touch()
         return cfg
 
-    def test_validates_on_a_machine_without_vlc(self, cfg_path: Path):
-        """VLC is not a dependency any more.
-
-        The native satellites replaced the VLC ones, so nothing launches VLC and
-        startup must not refuse to run on a machine that has never installed it.
-        The shared config fixture carries no ``paths.vlc_exe`` and stubs no
-        vlc.exe, so a clean validate proves neither is still demanded.
-        """
+    def test_validates_a_well_formed_config(self, cfg_path: Path):
+        """A config naming the executables startup actually needs — AHK and
+        Python — passes validation, so nothing beyond those two is demanded of
+        the machine."""
         cfg = self._make_config_with_stubs(cfg_path)
 
         validate_config(cfg)
@@ -422,8 +408,7 @@ class TestRunController:
             result = run_windows_bridge(cfg, logger)
 
         assert result == 0
-        # The native satellites need no VLC HTTP password, so the manifest is
-        # written from the config alone.
+        # The manifest is written from the config alone.
         writer.assert_called_once_with(cfg)
         bridge.assert_called_once()
         call_kwargs = bridge.call_args.kwargs

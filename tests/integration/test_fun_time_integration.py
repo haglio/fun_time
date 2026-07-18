@@ -359,10 +359,9 @@ def test_fun_time_omnipause_freezes_the_satellites(
 ):
     """OmniPause freezes the native satellites through their paused flag file.
 
-    The old VLC satellites needed a re-pause watchdog because a stopped VLC could
-    resume on its own; the native player instead obeys a paused flag every tick and
-    simply cannot auto-advance while it is set, so entering OmniPause is a settled
-    state.  We assert each satellite reports paused and its playhead stops moving."""
+    The player obeys that flag every tick and simply cannot auto-advance while it
+    is set, so entering OmniPause is a settled state that needs no policing.  We
+    assert each satellite reports paused and its playhead stops moving."""
     s = shared_integration_session
     portrait_status = s.config.paths.state_dir / "portrait_status.txt"
     landscape_status = s.config.paths.state_dir / "landscape_status.txt"
@@ -506,8 +505,8 @@ def test_fun_time_nau_record_loop_cancel_cycle(shared_integration_session: FunTi
 
 def test_fun_time_hybrid_keeps_nau_as_the_display(shared_integration_session: FunTimeIntegrationSession):
     """Hybrid keeps Nau as the on-screen player while Genau drives the OSR2, so
-    the video Nau was playing simply continues — there is no separate primary-VLC
-    handoff — and prev/next/nudge dispatch to Nau just as they do in nau mode.
+    the video Nau was playing simply continues — nothing is handed to another
+    player — and prev/next/nudge dispatch to Nau just as they do in nau mode.
 
     (The precise +10s Nau seek is covered by the nau-mode nudge test above,
     which exercises the identical dispatch path.)
@@ -523,16 +522,14 @@ def test_fun_time_hybrid_keeps_nau_as_the_display(shared_integration_session: Fu
     s.write_dashboard_command("hybrid_activate")
     s.wait_for_new_log("Switched to hybrid mode", timeout=12)
 
-    # Nau stays the display and keeps playing its current video — no handoff to
-    # a separate primary VLC.
+    # Nau stays the display and keeps playing its current video — no handoff.
     s.wait_until(
         lambda: s.read_nau_status().video == nau_video_before,
         timeout=12,
         description="Nau to keep playing its current video in hybrid mode",
     )
 
-    # A nudge in hybrid now reaches the normal dispatch path (previously it was
-    # intercepted and stacked into a primary-VLC seek).
+    # A nudge in hybrid reaches the normal dispatch path.
     s.write_dashboard_command("primary_nudge_next")
     s.wait_for_new_log("Dispatching command: primary_nudge_next", timeout=10)
 

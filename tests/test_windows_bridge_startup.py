@@ -675,9 +675,8 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
 def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_path: Path):
     """launch_core_apps spawns exactly two native satellites — portrait then
     landscape — each with its own playlist and command/paused/status quartet, and
-    records both pids in the result INI.  The primary VLC is gone and there is no
-    HTTP interface to wait on: the native player owns its playlist and plays at
-    once, so nothing is enqueued, repeat-set, or waited for here."""
+    records both pids in the result INI.  The native player owns its playlist and
+    plays at once, so nothing is enqueued, repeat-set, or waited for here."""
     result_file = tmp_path / "core_apps.ini"
     state_dir = tmp_path / "state"
     portrait_playlist = state_dir / "portrait_playlist.tsv"
@@ -793,8 +792,8 @@ def test_build_satellite_launch_command_forwards_the_distinct_title():
 
 
 def test_build_satellite_launch_command_always_disables_audio():
-    # A satellite must never be heard; unlike VLC there is no shared Windows
-    # mixer to worry about, but the clip's own audio track must still be dropped.
+    # A satellite must never be heard, so the clip's own audio track is dropped
+    # at launch rather than mixed down afterwards.
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
         title="Satellite Portrait",
