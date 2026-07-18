@@ -20,7 +20,7 @@ Integration tests — run on a hidden Win32 desktop so the real windows never to
 
 The runner creates the hidden desktop, sets `FUN_TIME_RUN_INTEGRATION=1`, and runs the whole suite invisibly (real HWNDs, off-screen, never foreground). The machine-wide lock in the integration conftest auto-serializes concurrent agent runs — a second run queues instead of clobbering, so you don't hunt for a quiet window. Extra pytest args pass through (`... hidden_desktop -k nau`).
 
-The suite keeps the production VLC HTTP ports, so it can never share the machine with a live Fun Time. `live_session_guard` decides before the desktop exists: no session → run; session playing → **denied** (exit `4`); session in OmniPause → the user gets a prompt to close it or refuse the run. Exit `4` is a refusal, not a failure — do not retry it.
+A run restarts the shared OSR2 broker and competes for the GPU, so it can never share the machine with a live Fun Time. `live_session_guard` decides before the desktop exists: no session → run; session playing → **denied** (exit `4`); session in OmniPause → the user gets a prompt to close it or refuse the run. Exit `4` is a refusal, not a failure — do not retry it.
 
 **Green means every collected test passes — zero failures, skips, or deselects.**
 

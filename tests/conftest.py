@@ -29,19 +29,12 @@ def _qapp():
     yield app
 
 
-# The old "never open a socket to a live VLC" guard is gone with VLC itself: the
-# satellites are native mpv players driven through per-test tmp command/status
-# files (satellite_control), so a unit test can no longer reach the user's live
-# session the way an unmocked vlc_actions HTTP call once could.
-
-
 # The window wrappers in fun_time.win32 all funnel through a few user32 calls, and
 # the same machine runs the user's live Fun Time.  So an unmocked window call in a
 # unit test lands on THEIR windows: a test that reaches the real ``set_always_on_top``
 # resolves the live "Nau"/"Genau" window by title and forces it on top — the test
 # bleed behind "Nau pops on top during OmniPause" (it looked like a runtime/OmniPause
 # bug for months because it WAS our code, run by a concurrent agent's test process).
-# This is the window analog of _never_open_a_socket_to_vlc.
 _MUTATING_USER32_CALLS = ("SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW")
 
 

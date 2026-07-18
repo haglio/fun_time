@@ -1,7 +1,7 @@
 """Force the real Windows platform for the integration suite, and serialize runs.
 
 Integration tests launch the real bridge and inspect real native windows (the
-dashboard, Nau, VLC), so they must run on the native Qt platform — never the
+dashboard, Nau, the satellites), so they must run on the native Qt platform — never the
 offscreen platform the unit suite defaults to. The root ``tests/conftest.py`` sets
 ``QT_QPA_PLATFORM=offscreen`` so routine unit runs don't flash windows; because it is
 an ancestor conftest it is imported first, so by the time this module runs the variable
@@ -40,17 +40,6 @@ def _announce_waiting(seconds: float) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _never_open_a_socket_to_vlc():
-    """Override the unit suite's socket guard.
-
-    These tests launch their own VLC on the hidden desktop and must speak to it
-    over HTTP for real.  They cannot reach the user's VLC because
-    ``live_session_guard`` refuses to start a run while Fun Time is open.
-    """
-    yield
-
-
-@pytest.fixture(autouse=True)
 def _never_mutate_a_real_window():
     """Override the unit suite's window-mutation guard.
 
@@ -67,9 +56,9 @@ def _serialize_integration_runs():
     """Hold one machine-wide lock for the entire integration run.
 
     Multiple worktree agents share this repo and may launch the integration
-    suite at the same time.  Each run launches VLC/Nau/AHK and reaps leftover
-    app processes (``FunTimeIntegrationSession._reap_leftover_runtime_
-    processes``) that force-kills *any* AutoHotkey64/pythonw/vlc it finds —
+    suite at the same time.  Each run launches the players/AHK and reaps
+    leftover app processes (``FunTimeIntegrationSession._reap_leftover_runtime_
+    processes``) that force-kills *any* AutoHotkey64/pythonw it finds —
     including a concurrent run's freshly-spawned processes — and the AHK bridge
     runs under ``#SingleInstance Force`` so a second bridge evicts the first.
     Overlapping runs therefore fail flakily on different tests each time.
@@ -80,8 +69,8 @@ def _serialize_integration_runs():
 
     Session-scoped + autouse so the lock is acquired before the first test's
     setup — hence before any module-scoped fixture calls ``start()`` (which runs
-    the process sweep) or launches a VLC directly — and released only after the
-    last session/VLC has been torn down.
+    the process sweep) — and released only after the last session has been torn
+    down.
     """
     if sys.platform != "win32":
         yield

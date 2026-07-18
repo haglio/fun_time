@@ -1,6 +1,6 @@
 """Run the integration suite on a hidden Win32 desktop — invisibly, focus-safe.
 
-The suite launches real windows (VLC, Nau/mpv, the dashboard, AHK) and asserts on
+The suite launches real windows (Nau/the satellites — all mpv, the dashboard, AHK) and asserts on
 real window state, so it must run on the native Qt platform — but that throws those
 windows onto the monitors and can grab focus.  A Win32 *desktop* other than the
 input desktop fixes this: its windows are real HWNDs (winId != 0, real styles, real
@@ -8,8 +8,8 @@ Direct3D11 video output) yet render to nothing and can never hold the input desk
 foreground.
 
 ``CreateDesktopW`` makes the desktop; ``CreateProcessW`` with ``STARTUPINFO.lpDesktop``
-binds pytest to it, and every subprocess pytest spawns (orchestrator -> VLC / Nau /
-AHK / dashboard) inherits it.  The win32 lookup helpers enumerate the caller's own
+binds pytest to it, and every subprocess pytest spawns (orchestrator -> the
+satellites / Nau / AHK / dashboard) inherits it.  The win32 lookup helpers enumerate the caller's own
 desktop, so they see the app because pytest shares the hidden desktop.  There is no
 silent fall-back: if the desktop can't be opened, ``CreateProcessW`` fails, so a run
 can never leak onto the real screen.
@@ -17,7 +17,7 @@ can never leak onto the real screen.
 pytest is also placed in a *job object* that this runner alone holds a handle to.
 Windows destroys a job when its last handle closes, and a job with
 ``KILL_ON_JOB_CLOSE`` takes its members down with it — so however the run ends, it
-cannot leave a VLC or an AHK behind to poison the next one.  The broker is the sole
+cannot leave a player or an AHK behind to poison the next one.  The broker is the sole
 exception: it is a service that outlives the session, and it breaks away (see
 ``fun_time.orchestrator_broker.broker_launch_kwargs``).
 
@@ -206,8 +206,8 @@ def create_run_job() -> int:
     The runner holds the job's only handle, so whichever way the runner ends —
     a clean exit, a crash, a TerminateProcess — Windows closes that handle,
     destroys the job, and terminates every process the run still had running.
-    A run therefore cannot strand a VLC (or an AHK, or an orchestrator) for the
-    next run to trip over.
+    A run therefore cannot strand a player (or an AHK, or an orchestrator) for
+    the next run to trip over.
 
     ``BREAKAWAY_OK`` is what lets the broker opt out with
     CREATE_BREAKAWAY_FROM_JOB: it is a service that outlives the session that
