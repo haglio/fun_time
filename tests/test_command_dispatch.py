@@ -2418,6 +2418,41 @@ def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
 
 
+def test_no_loop_keeps_the_clip_on_screen_by_heading_the_restored_browse(tmp_path: Path):
+    """Turning a loop OFF must not interrupt the clip playing.
+
+    The player keeps its clip across a reload only when that clip is still in the
+    new list, and a loop member usually is NOT in the browse — the browse holds one
+    representative per group, and the loop was cycling the others.  Without this the
+    reload fell through to "restart at the top" and yanked the user onto another
+    video, which is exactly the interruption the loop-off toggle must not cause.
+    """
+    config = _make_config(tmp_path)
+    playing = "C:/v/seed_4.mp4"  # a loop member, not one of the browse's picks
+    browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
+    _set_current(config, 2, playing)
+
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+        dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
+
+    # It heads the restored list, so the reload keeps it playing and the browse is
+    # simply what comes up next.
+    assert _playlist(config, 2) == [playing, *browse]
+
+
+def test_no_loop_leaves_a_browse_that_already_holds_the_clip_untouched(tmp_path: Path):
+    """When the clip on screen IS one of the browse's picks the reload already keeps
+    it, so the browse keeps its own order — no needless reshuffle of what comes next."""
+    config = _make_config(tmp_path)
+    browse = ["C:/v/one.mp4", "C:/v/two.mp4", "C:/v/three.mp4"]
+    _set_current(config, 2, "C:/v/two.mp4")
+
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+        dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
+
+    assert _playlist(config, 2) == browse
+
+
 def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path):
     """A filter that now matches nothing must not blank the queue: with no browse
     paths, no_loop only clears the flag and never reshapes the live queue."""

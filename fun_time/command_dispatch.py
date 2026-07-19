@@ -1278,6 +1278,21 @@ def _dispatch_reset(
     return _dispatch_set_filter(scope, "", state, config)
 
 
+def _browse_behind(browse: list[str], current: str) -> list[str]:
+    """*browse*, guaranteed to still hold *current* — the clip on screen.
+
+    The player keeps its clip across a playlist reload only while the new list
+    still holds it, and a loop member usually is not in the browse: the browse
+    picks one clip per group and the loop was cycling that group's others.  So the
+    clip on screen heads the restored list — it plays to its own end and the browse
+    is simply what comes up next.  A browse that already holds it keeps its own
+    order, which the reload resumes from wherever the clip sits.
+    """
+    if not current or any(_same_video(path, current) for path in browse):
+        return browse
+    return [current, *browse]
+
+
 def _dispatch_no_loop(
     scope: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -1285,11 +1300,12 @@ def _dispatch_no_loop(
 
     A loop shrank the queue to the group; ending it reshapes the queue back to
     the satellite's default browse *in place*, so the clip on screen keeps
-    playing and only what comes up next returns to browsing.  The satellite's own
-    filter is kept (reset, by contrast, also clears it), so the restored browse
-    still honours it.
+    playing to its end and only what comes up next returns to browsing.  The
+    satellite's own filter is kept (reset, by contrast, also clears it), so the
+    restored browse still honours it.
     """
     which = 2 if scope == "portrait" else 3
+    current = _satellite_current(config, which)
     current_filter = state.portrait_filter if which == 2 else state.landscape_filter
     browse = satellite_browse_paths(
         which=which,
@@ -1303,10 +1319,9 @@ def _dispatch_no_loop(
     )
     # A non-empty filter that now matches nothing would blank the queue, so the
     # browse is only reshaped when it actually has clips; otherwise the loop's
-    # queue keeps playing and just the flag clears.  Writing the playlist and
-    # RELOAD_PLAYLIST keeps the clip on screen playing when it survives the browse.
+    # queue keeps playing and just the flag clears.
     if browse:
-        write_playlist_file(config.satellite_playlist_file(which), browse)
+        write_playlist_file(config.satellite_playlist_file(which), _browse_behind(browse, current))
         _send_satellite(config, which, "RELOAD_PLAYLIST")
     state = _clear_side_grouping(state, which)
     return state, [WindowOp(op="notice", key="Loop off", source=_satellite_source(which))]
