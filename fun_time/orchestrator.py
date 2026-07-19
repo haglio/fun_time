@@ -8,7 +8,7 @@ import time
 import os
 from pathlib import Path
 
-from .config import load_config
+from .config import DEFAULT_CONFIG_PATH, load_config
 from .live_session import publish_live_session
 from .manifest import write_windows_bridge_manifest
 from .windows_bridge_orchestrator import run_python_orchestrated_bridge
@@ -192,7 +192,13 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Loaded config from %s", config.config_path)
     ensure_runtime_files(config)
     validate_config(config)
-    stamp_shortcut_aumid()
+    # The taskbar pin belongs to the installed app, and lives in %APPDATA% —
+    # outside every checkout.  Only the session the pin actually launches has
+    # any business relabelling it; a session on some other config (an
+    # integration run's temp one, a developer's alternate) would be reaching
+    # into the user's shell to stamp a shortcut that points at neither of them.
+    if config.config_path == DEFAULT_CONFIG_PATH:
+        stamp_shortcut_aumid()
 
     if args.check:
         logger.info("Config validation succeeded")
