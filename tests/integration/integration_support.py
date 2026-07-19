@@ -563,6 +563,13 @@ def isolate_shared_resources(config: dict, genau_config: dict) -> None:
     # session.
     config["voice_control"]["enabled"] = False
 
+    # fun_time stopped parsing this section when Genau moved to its own repo, so
+    # it does nothing — but it is still sitting in every config file written
+    # before then, naming the machine's ports, and a run copies the file whole.
+    # Dead config that names a live endpoint is how the next consumer of that key
+    # gets pointed at the user's session, so it goes rather than rides along.
+    config.pop("genau", None)
+
 
 def build_integration_config(tmp_path: Path) -> Path:
     real = load_config(real_config_path())
