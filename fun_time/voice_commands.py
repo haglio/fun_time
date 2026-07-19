@@ -111,8 +111,10 @@ VOICE_COMMANDS: dict[str, str] = {
     "record": "nau_record_down",
     "loop": "nau_record_up",
     "end loop": "nau_loop_cancel",
-    "cycle version": "nau_cycle_version",
-    "next version": "nau_cycle_version",
+    # Nau's other encodes of the same video.  The bare axis word cycles it, the
+    # way "action"/"seed" do on a satellite; the "cycle / next / change version"
+    # verb forms come from the cycle-axis grid below.
+    "version": "nau_cycle_version",
     "shorts": "nau_length_shorts",
     "full length": "nau_length_full",
     # The unfiltered library Nau opens in, and so the way back out of either
@@ -258,23 +260,24 @@ for _side in ("portrait", "landscape", "both"):
     VOICE_COMMANDS[f"{_side} end loop"] = f"{_side}_no_loop"
     VOICE_COMMANDS[f"end loop {_side}"] = f"{_side}_no_loop"
 
-# The cycle axes also take an explicit verb up front — "cycle / next / change
-# <axis>" — and "scene" reads as "action".  These are extra spoken forms for the
-# active-side cycle command (a side word already reaches a specific satellite via
-# the bare "portrait action" / "portrait seed" forms above).
-_SATELLITE_CYCLE_PHRASES: dict[str, tuple[str, ...]] = {
-    "active_cycle_action": (
-        "cycle action", "next action", "change action",
-        "cycle scene", "next scene", "change scene",
-    ),
-    "active_cycle_seed": ("cycle seed", "next seed", "change seed"),
+# Every cycle axis is sayable by its bare word — the satellite ones from the grid
+# above, Nau's "version" from the literal map — and each also takes an explicit
+# verb up front: "cycle / next / change <axis>".  "scene" reads as "action".  The
+# satellite axes cycle the active side here; a side word already reaches a
+# specific satellite via the bare "portrait action" / "portrait seed" forms.
+_CYCLE_AXES: dict[str, str] = {
+    "action": "active_cycle_action",
+    "scene": "active_cycle_action",
+    "seed": "active_cycle_seed",
+    "version": "nau_cycle_version",
 }
-for _cycle_cmd, _cycle_phrases in _SATELLITE_CYCLE_PHRASES.items():
-    for _cycle_phrase in _cycle_phrases:
-        VOICE_COMMANDS[_cycle_phrase] = _cycle_cmd
+for _axis_word, _axis_cmd in _CYCLE_AXES.items():
+    for _cycle_verb in ("cycle", "next", "change"):
+        VOICE_COMMANDS[f"{_cycle_verb} {_axis_word}"] = _axis_cmd
 
 # The primary (Nau) player joins the grid for navigation and reset — "primary
-# next" / "next primary" (either order) — since it has no lock/weird/cycle.
+# next" / "next primary" (either order) — since it has no lock or weird, and its
+# one cycle axis is "version" above rather than the satellites' action/seed.
 # "main" is a synonym for "primary".  Bare "next"/"previous" also reach it
 # whenever it was the last player navigated (the active side resolves to the
 # primary then).  "reset" means here what it means for a satellite — drop
