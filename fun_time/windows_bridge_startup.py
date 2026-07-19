@@ -183,12 +183,21 @@ def seed_startup_states(
     audio_paused_file: str | Path,
     nau_paused_file: str | Path,
     audio_volume_file: str | Path,
+    genau_cmd_file: str | Path | None = None,
 ) -> None:
     """Seed the cross-process flags for the startup mode (nau): Genau parked, Nau
     paused until the sequencer's reveal unpauses it, and the sound level back at
     full — Nau and the audio companion each launch unattenuated, so a level left
     muted by the last session would silence this one with nothing on screen to
-    explain it."""
+    explain it.
+
+    Genau's *display* is seeded too, on its command channel.  Blanking keys off
+    DISPLAY_ON/DISPLAY_OFF and Genau defaults to owning its display (so a
+    standalone run paints its clips), while the DISPLAY_OFF that would blank it
+    under an orchestrator only rides a mode *switch* — and a session that starts
+    in nau mode never switches.  Left unsaid, Genau comes up painting its clips
+    in the primary slot it shares with Nau.
+    """
     for path, value in (
         (Path(genau_paused_file), "1"),
         (Path(audio_paused_file), "1"),
@@ -197,6 +206,10 @@ def seed_startup_states(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(value, encoding="utf-8")
     write_volume(Path(audio_volume_file), MAX_VOLUME)
+    if genau_cmd_file is not None:
+        path = Path(genau_cmd_file)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("PAUSE\nDISPLAY_OFF", encoding="utf-8")
 
 
 def reset_satellite_paused_states(
@@ -224,6 +237,7 @@ def start_core_session(
     broker_heartbeat_file: str | Path | None = None,
     random_favs_browser_manifest_file: str | Path,
     genau_paused_file: str | Path,
+    genau_cmd_file: str | Path | None = None,
     audio_paused_file: str | Path,
     nau_paused_file: str | Path,
     audio_volume_file: str | Path,
@@ -266,7 +280,10 @@ def start_core_session(
     # not matter that ensure_broker may only now be starting one.
     write_broker_command(broker_cmd_file, PARK_CMD)
     ensure_broker(broker_heartbeat_file, broker_tray_launcher)
-    seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
+    seed_startup_states(
+        genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file,
+        genau_cmd_file,
+    )
     # seed_startup_states does not touch the satellite paused files; clear any "1"
     # a prior OmniPause stranded so the satellites launch playing, not frozen.
     reset_satellite_paused_states(portrait_paused_file, landscape_paused_file)
