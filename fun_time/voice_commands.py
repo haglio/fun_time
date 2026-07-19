@@ -88,8 +88,13 @@ VOICE_COMMANDS: dict[str, str] = {
     # The sensation emergency: enter omnipause and send the OSR2 away instead of
     # home.  vosk has no "omnipause" token but has both halves of it, so the
     # recognizer listens for the split "omni pause"; the reference shows the
-    # single word via the row's friendly_voice override.
+    # single word via the row's friendly_voice override.  Three words is a lot to
+    # get out in the moment this is for, so the two obvious single words answer
+    # to it as well — no other phrase is either of them, and "stop broker" stays
+    # distinct because the grammar matches whole phrases, not prefixes.
     "relief omni pause": "relief_omnipause",
+    "stop": "relief_omnipause",
+    "retract": "relief_omnipause",
     # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
     # generated as an order-agnostic grid below the literal.
     "f mode": "fmode_toggle",
