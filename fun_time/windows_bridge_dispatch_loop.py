@@ -56,7 +56,7 @@ from .win32 import (
 logger = logging.getLogger(__name__)
 
 
-def read_nau_notice(path) -> tuple[int, str, str]:
+def read_nau_notice(path) -> tuple[float, str, str]:
     """Nau's latest one-shot notice as (sequence, level, message).
 
     Nau bumps the sequence whenever it raises one; (0, "", "") means there is
@@ -69,7 +69,7 @@ def read_nau_notice(path) -> tuple[int, str, str]:
             for line in path.read_text(encoding="utf-8").splitlines()
             if "=" in line
         )
-        return int(values.get("seq", "0")), values.get("level", "notice"), values.get("message", "")
+        return float(values.get("seq", "0")), values.get("level", "notice"), values.get("message", "")
     except (OSError, ValueError):
         return 0, "", ""
 
@@ -269,7 +269,11 @@ class DispatchLoopRunner:
         # rapid chrome.exe launches race Chrome's singleton and drop a tab.
         self._pending_rfb_urls: list[str] = []
         self._batching_rfb = False
-        self._last_nau_notice_seq = 0
+        # Latch whatever is already on disk, so a notice left over from a
+        # previous session does not flash the moment this one opens.
+        self._last_nau_notice_seq = read_nau_notice(
+            getattr(config, "nau_notice_file", None) or Path("nau_notice.txt")
+        )[0]
         self.voice_controller: VoiceController | None = None
         # Each player's current video is sampled periodically and fed to watch
         # tracking ("breeding"), which classifies playback into completions/skips
