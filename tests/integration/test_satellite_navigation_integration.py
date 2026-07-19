@@ -17,6 +17,7 @@ import random
 import subprocess
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -183,7 +184,10 @@ def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
     Only the portrait quartet has to be real — the loop commands touch just the
     satellite they address — so every other file points somewhere under tmp_path.
     """
-    state_dir = tmp_path / "bridge_state"
+    # The state dir is where a rebuild writes the side's playlist, and the satellite
+    # is already reading tmp_path/portrait_playlist.tsv — the same name — so they have
+    # to be the same directory or the rebuild would land beside the running player.
+    state_dir = tmp_path
     state_dir.mkdir(parents=True, exist_ok=True)
     favs = tmp_path / "favs.csv"
     favs.write_text("local_file,web_url\n", encoding="utf-8")
@@ -220,6 +224,39 @@ def _drained(satellite: _Satellite) -> None:
         lambda: not satellite.cmd.read_text(encoding="utf-8").strip(),
         timeout=10, desc="the player to drain its command file",
     )
+
+
+def test_latest_puts_the_newest_clip_on_screen(satellite, tmp_path):
+    """The user-visible contract of "portrait latest": the newest arrival is what
+    comes up.
+
+    Reordering the queue is not enough — the reload keeps the clip on screen playing
+    while it survives the new list, so the newest-first order applied only *behind*
+    it and the top of the list was never reached.  This drives the production
+    dispatch over a small real source tree with mtimes we set, so "newest" is a fact
+    of the filesystem rather than of a stub.
+    """
+    source = tmp_path / "sources"
+    source.mkdir()
+    linked: list[str] = []
+    for i, video in enumerate(_playlist_videos(satellite)):
+        dest = source / f"clip{i}.mp4"
+        os.link(video, dest)  # the same bytes under a path whose mtime is ours
+        os.utime(dest, (1000 + i * 1000, 1000 + i * 1000))
+        linked.append(str(dest))
+    oldest, newest = linked[0], linked[-1]
+
+    # Start on the oldest, which the rebuilt list still holds: without the jump to
+    # the head, the reload would simply keep playing it.
+    satellite.send(f"PLAY_FILE {oldest}")
+    _wait(lambda: Path(satellite.video()) == Path(oldest), timeout=15, desc="the oldest clip")
+
+    config = replace(_bridge_config(satellite, tmp_path), portrait_sources=str(source))
+    dispatch_command("portrait_latest", BridgeState(), config)
+
+    _drained(satellite)
+    _wait(lambda: Path(satellite.video()) == Path(newest),
+          timeout=15, desc="the newest clip to come up")
 
 
 def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):

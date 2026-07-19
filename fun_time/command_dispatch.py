@@ -540,6 +540,13 @@ _NO_LOOP_SIDES: dict[str, str] = {
     "landscape_no_loop": "landscape",
 }
 
+# "no filter" drops just the filter — the narrow counterpart of reset, which puts
+# the whole side back to its defaults.
+_NO_FILTER_SIDES: dict[str, str] = {
+    "portrait_no_filter": "portrait",
+    "landscape_no_filter": "landscape",
+}
+
 # The two browse orderings, per side: Latest reloads newest-first, Shuffle
 # reshuffles.  "both …" reaches each of these in turn (the dispatch loop expands
 # it), which is what the P key sends.
@@ -1017,6 +1024,10 @@ def dispatch_command(
     if reset_scope is not None:
         return _dispatch_reset(reset_scope, state, config)
 
+    no_filter_scope = _NO_FILTER_SIDES.get(command)
+    if no_filter_scope is not None:
+        return _dispatch_set_filter(no_filter_scope, "", state, config)
+
     filter_target = decode_filter_command(command)
     if filter_target is not None:
         scope, query = filter_target
@@ -1278,7 +1289,10 @@ def _dispatch_reorder(
     group loop (with the widened row that rode on it).
     """
     state = _set_side_latest(state, which, recent)
-    result = _rebuild_side(which, _side_filter(state, which), state, config)
+    # From the top of the new order: asking for the latest is asking to see what has
+    # just arrived, and the reload alone would leave the clip on screen playing with
+    # the new order applying only behind it.
+    result = _rebuild_side(which, _side_filter(state, which), state, config, start_at_top=True)
     state = replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
     state = _clear_side_grouping(state, which)
     label = "portrait" if which == 2 else "landscape"
@@ -1290,12 +1304,24 @@ def _dispatch_reorder(
 def _dispatch_reset(
     scope: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Return a satellite (or both) to the default browse: no filter, no Latest
-    order, no loop — reshuffled, one clip per subject.  Clearing the filter rebuilds
-    the full playlist, which also drops any group loop."""
+    """Put a satellite (or both) back to every default, not just its filter.
+
+    The lock is released, the filter cleared, the order returned to shuffled, any
+    group loop and widened row and frozen map dropped, and the side starts from the
+    top of a freshly-built browse — one clip per subject.  "no filter" is the narrow
+    gesture; this one is "put it back how it started".
+    """
+    ops: list[WindowOp] = []
     for which in _FILTER_TARGETS[scope]:
+        state = _cancel_lock(which, state, config)
         state = _set_side_latest(state, which, False)
-    return _dispatch_set_filter(scope, "", state, config)
+        state = _set_side_filter(state, which, "")
+        state = _clear_side_grouping(state, which)
+        state = _clear_nav_anchor(state, which)
+        result = _rebuild_side(which, "", state, config, start_at_top=True)
+        logger.info("Reset %s: %s", _satellite_source(which), result.log_message)
+        ops.append(WindowOp(op="notice", key="Reset", source=_satellite_source(which)))
+    return state, ops
 
 
 def _browse_behind(browse: list[str], current: str) -> list[str]:
@@ -1357,13 +1383,23 @@ def _side_filter(state: BridgeState, which: int) -> str:
     return state.portrait_filter if which == 2 else state.landscape_filter
 
 
+def _set_side_filter(state: BridgeState, which: int, query: str) -> BridgeState:
+    if which == 2:
+        return replace(state, portrait_filter=query)
+    return replace(state, landscape_filter=query)
+
+
 def _rebuild_side(
-    which: int, query: str, state: BridgeState, config: BridgeConfig
+    which: int, query: str, state: BridgeState, config: BridgeConfig,
+    *, start_at_top: bool = False,
 ) -> SatelliteFilterFlowResult:
     """Rebuild one satellite's browse under *query* and its own current ordering.
 
     The single place a satellite's playlist is rebuilt from its sources, so a
     filter and a reorder cannot drift apart in how they read the side's state.
+    ``start_at_top`` is for the callers that mean "start over" — a reorder or a
+    reset — since the reload otherwise keeps the clip on screen and carries on from
+    where it sat, leaving the new order to apply only behind it.
     """
     return apply_satellite_filter(
         which=which,
@@ -1374,6 +1410,7 @@ def _rebuild_side(
         favs_file=config.favs_file,
         state_dir=config.state_dir,
         cmd_file=config.satellite_cmd_file(which),
+        start_at_top=start_at_top,
         provider_media_root=config.provider_media_root,
         provider_metadata_root=config.provider_metadata_root,
     )
@@ -1397,10 +1434,7 @@ def _dispatch_set_filter(
         # also replaced any loop's sub-playlist, so the loop (and its widened row)
         # is gone; a zero-match one touched nothing, so a running loop survives it.
         if result.applied:
-            if which == 2:
-                state = replace(state, portrait_filter=query)
-            else:
-                state = replace(state, landscape_filter=query)
+            state = _set_side_filter(state, which, query)
             state = _clear_side_grouping(state, which)
         logger.info(result.log_message)
         # A filter that selected nothing left the playlist untouched — a dead end,

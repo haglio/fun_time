@@ -24,6 +24,7 @@ from .watch_stats import watch_stats_path
 
 # Both Nau and the native satellites re-read their playlist file on this verb.
 RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
+PLAY_FILE_CMD = "PLAY_FILE"
 
 
 def _satellite_library(
@@ -205,6 +206,7 @@ def apply_satellite_filter(
     favs_file: str | Path,
     state_dir: str | Path,
     cmd_file: str | Path,
+    start_at_top: bool = False,
     provider_media_root: Path | None = None,
     provider_metadata_root: Path | None = None,
 ) -> SatelliteFilterFlowResult:
@@ -216,6 +218,13 @@ def apply_satellite_filter(
     rather than blanking the satellite; ``query == ""`` clears the filter.  The
     playlist file it writes is the one the satellite plays, so a RELOAD_PLAYLIST
     verb makes the player pick it up.
+
+    That reload keeps the clip on screen playing while it survives the new list, and
+    carries on from where it sits — which is right for a filter, and wrong for a
+    caller whose whole point is a fresh start.  Reordering newest-first is exactly
+    that: the new order would otherwise only apply *behind* the clip playing, and the
+    newest arrivals never come up.  ``start_at_top`` follows the reload with a jump
+    to the head of the list it just wrote.
     """
     label = "portrait" if which == 2 else "landscape"
     name = PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE
@@ -229,6 +238,8 @@ def apply_satellite_filter(
     playlist_path = build_playlist_file_path(Path(state_dir), name)
     write_playlist_file(playlist_path, paths)
     write_satellite_command(Path(cmd_file), RELOAD_PLAYLIST_CMD)
+    if start_at_top and paths:
+        write_satellite_command(Path(cmd_file), f"{PLAY_FILE_CMD} {paths[0]}")
     summary = "cleared" if not query else f"'{query}'"
     return SatelliteFilterFlowResult(len(paths), True, f"Filter {label}: {summary} ({len(paths)})")
 

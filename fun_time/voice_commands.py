@@ -231,6 +231,9 @@ _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
     # "no loop" / "loop off" ends any group loop, back to the browse.  ("end loop"
     # joins them, but only sided — bare it belongs to Nau; see below.)
     "no_loop": ("no loop", "loop off"),
+    # "no filter" drops just the filter, where "reset" puts the whole side back to
+    # its defaults (lock, order, loop and all).
+    "no_filter": ("no filter", "filter off"),
     "lock_action": ("lock action", "action lock"),
     "lock_on": ("lock all",),
     "reset": ("loop all",),
