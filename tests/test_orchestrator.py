@@ -443,64 +443,6 @@ class TestMainCheckFlag:
         run_bridge.assert_not_called()
 
 
-class TestMainPublishesLiveSessionClaim:
-    """A live session must be findable from any checkout on the machine.
-
-    An agent worktree resolves ``state_dir`` to its own tree, so nothing that
-    looks in its own state dir can see the user's session.  The claim is what
-    an integration run reads to know it must not run.
-    """
-
-    def _main(self, cfg_path: Path, publish):
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.publish_live_session", publish), \
-             patch("fun_time.orchestrator.stamp_shortcut_aumid"), \
-             patch("fun_time.orchestrator.ensure_broker_running"), \
-             patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
-            return main(["--config", str(cfg_path)])
-
-    def test_publishes_the_state_dir_this_session_runs_out_of(self, cfg_path: Path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        publish = MagicMock()
-
-        self._main(cfg_path, publish)
-
-        publish.assert_called_once_with(load_config(cfg_path).paths.state_dir)
-
-    def test_validating_the_config_is_not_a_live_session(self, cfg_path: Path, monkeypatch):
-        """``--check`` loads the config and exits without starting anything, so a
-        claim from it would report a session nobody is running — and would block
-        an integration run for as long as the checking process lived."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        publish = MagicMock()
-
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.publish_live_session", publish), \
-             patch("fun_time.orchestrator.stamp_shortcut_aumid"):
-            assert main(["--config", str(cfg_path), "--check"]) == 0
-
-        publish.assert_not_called()
-
-    def test_an_integration_run_claims_nothing(self, cfg_path: Path, monkeypatch):
-        """The claim means "leave this machine alone", and an integration run is
-        the thing being told.  Were its own orchestrator to publish one, the run
-        would read it, conclude the user had opened Fun Time, and abort itself."""
-        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-        publish = MagicMock()
-
-        self._main(cfg_path, publish)
-
-        publish.assert_not_called()
-
-
 class TestMainStampsOnlyTheMachinesOwnShortcut:
     """The taskbar pin belongs to the installed app, not to whoever is running.
 
@@ -516,7 +458,6 @@ class TestMainStampsOnlyTheMachinesOwnShortcut:
              patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.publish_live_session"), \
              patch("fun_time.orchestrator.stamp_shortcut_aumid", stamp), \
              patch("fun_time.orchestrator.ensure_broker_running"), \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
