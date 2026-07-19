@@ -5,8 +5,10 @@ window.  Drawing it into the frame instead is the whole point: an mpv overlay ha
 no z-order, so it can neither fall behind the video nor float above the desktop —
 the two failure modes the separate window kept oscillating between.
 
-Pillow does the drawing (the same library Nau's overlays use) and the result is
-handed to mpv as a BGRA array.  The layout and hit-test rects come from
+The slab it is drawn on — the rounded translucent panel, the palette, the Segoe
+face sized the way Qt sized it, the BGRA hand-off — comes from
+:mod:`player_core.hud_panel`, which Nau's own HUD is drawn on too, so the two
+players go on looking like one another.  The layout and hit-test rects come from
 :mod:`satellite.hud`, so what is drawn and what is clickable cannot drift apart.
 """
 from __future__ import annotations
@@ -15,6 +17,17 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+from player_core.hud_panel import (
+    BG_PRIMARY,
+    BORDER_PANEL,
+    GREEN,
+    TEXT_MUTED,
+    TEXT_PRIMARY,
+    WHITE,
+    HudPanel,
+    load_font,
+    text_width,
+)
 
 from .hud import (
     ACT_GAP,
@@ -49,25 +62,14 @@ from .hud import (
     thumbnail_rects,
 )
 
-# Palette, matching the shared_ui tokens the Qt HUD drew with (RGB).
-_BG_PRIMARY = (24, 24, 24)
-_BORDER_PANEL = (112, 119, 128)
-_GREEN = (48, 160, 48)
-_TEXT_MUTED = (120, 120, 120)
-_TEXT_PRIMARY = (240, 240, 240)
-_WHITE = (255, 255, 255)
-_PLACEHOLDER = (48, 48, 60)
+_PLACEHOLDER = (48, 48, 60)  # a thumbnail fun_time has not produced yet
 
-_PANEL_ALPHA = 224
 _TOOLTIP_ALPHA = 240
 _DIM = 0.5      # non-playing thumbnails; the one on screen stays full
 _BORDER_W = 2   # the lock ring around the corner
 _DOT = 1        # radius of one dot in a "…" mark — small, so three read as three
 _DOT_GAP = 4    # centre-to-centre spacing of those dots along the axis
 
-# Qt sized these fonts in points; Pillow sizes in pixels, so convert at the
-# standard 96 dpi (points * 96/72) to keep the panel looking as it did.
-_UI_FONT = "segoeuib.ttf"  # Segoe UI Bold — every label in the HUD is bold
 # The loop (U+21BB) and expand (U+2194) glyphs on the buttons: Segoe UI has no
 # U+21BB, and Pillow — unlike Qt, which fell back silently — would draw a tofu
 # box.  Segoe UI Symbol covers both, so the buttons keep their icons.
@@ -77,21 +79,6 @@ _SIZE_TINY = 8
 _ROW_LABEL_PT = 7
 _LOOP_GLYPH = "↻"
 _EXPAND_GLYPH = "↔"
-
-
-def _px(points: int) -> int:
-    return round(points * 4 / 3)
-
-
-def _font(points: int, family: str = _UI_FONT) -> ImageFont.FreeTypeFont:
-    try:
-        return ImageFont.truetype(family, _px(points))
-    except OSError:  # pragma: no cover — the Segoe faces ship with Windows
-        return ImageFont.load_default(_px(points))
-
-
-def _text_width(font: ImageFont.FreeTypeFont, text: str) -> int:
-    return int(font.getlength(text))
 
 
 def gutter_width_for(font: ImageFont.FreeTypeFont, current_action: str,
@@ -104,7 +91,7 @@ def gutter_width_for(font: ImageFont.FreeTypeFont, current_action: str,
         for label in (current_action, *action_labels)
         for word in friendly_action_label(label).split("\n")
     ]
-    widest = max((_text_width(font, word) for word in words), default=0)
+    widest = max((text_width(font, word) for word in words), default=0)
     return min(max(widest + 2 * MAP_GAP, MIN_GUTTER), MAX_GUTTER)
 
 
@@ -114,11 +101,6 @@ class RenderedHud:
 
     bgra: np.ndarray
     targets: HudTargets
-
-
-def _rgba_to_bgra(image: Image.Image) -> np.ndarray:
-    rgba = np.asarray(image, dtype=np.uint8)
-    return np.ascontiguousarray(rgba[:, :, [2, 1, 0, 3]], dtype=np.uint8)
 
 
 def _dashed_rect(draw: ImageDraw.ImageDraw, box: Rect, color, dash: int = 4) -> None:
@@ -146,10 +128,10 @@ class HudRenderer:
 
     def __init__(self, side: str) -> None:
         self._side = side
-        self._body = _font(_SIZE_BODY)
-        self._tiny = _font(_SIZE_TINY)
-        self._row = _font(_ROW_LABEL_PT)
-        self._glyph = _font(_SIZE_BODY, _SYMBOL_FONT)
+        self._body = load_font(_SIZE_BODY)
+        self._tiny = load_font(_SIZE_TINY)
+        self._row = load_font(_ROW_LABEL_PT)
+        self._glyph = load_font(_SIZE_BODY, _SYMBOL_FONT)
         self._thumbs: dict[str, Image.Image] = {}
 
     def _thumbnail(self, cell: HudCell) -> Image.Image:
@@ -187,27 +169,23 @@ class HudRenderer:
         action's seeds.
         """
         width, height = PANEL_SIZE.get(model.side, PANEL_SIZE["portrait"])
-        image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(image)
-        draw.rounded_rectangle(
-            [0, 0, width - 1, height - 1], radius=8,
-            fill=(*_BG_PRIMARY, _PANEL_ALPHA), outline=(*_BORDER_PANEL, 255), width=1,
-        )
+        panel = HudPanel(width, height)
+        image, draw = panel.image, panel.draw
 
         x, y = PAD, PAD
-        lock_color = _GREEN if model.locked else _TEXT_MUTED
+        lock_color = GREEN if model.locked else TEXT_MUTED
         draw.ellipse([x, y + 2, x + 10, y + 12], fill=(*lock_color, 255))
         draw.text((x + 18, y + 11), model.lock_label, font=self._body, anchor="ls",
-                  fill=(*(_TEXT_PRIMARY if model.locked else _TEXT_MUTED), 255))
+                  fill=(*(TEXT_PRIMARY if model.locked else TEXT_MUTED), 255))
         y += LOCK_BAND_H
 
         if model.filter_query:
             draw.text((x, y + 10), f"FILTER · {model.filter_query}", font=self._tiny,
-                      anchor="ls", fill=(*_TEXT_PRIMARY, 255))
+                      anchor="ls", fill=(*TEXT_PRIMARY, 255))
             y += STATUS_LINE_H
 
         if model.corner is None:
-            return RenderedHud(_rgba_to_bgra(image),
+            return RenderedHud(panel.to_bgra(),
                                HudTargets(click=[], loop=[], label=[], expand=None))
 
         # Sized from the whole model, before any windowing, so the gutter does not
@@ -245,7 +223,7 @@ class HudRenderer:
         if model.locked:
             cx, cy, cw, ch = corner_rect
             draw.rectangle([cx, cy, cx + cw - 1, cy + ch - 1],
-                           outline=(*_WHITE, 255), width=_BORDER_W)
+                           outline=(*WHITE, 255), width=_BORDER_W)
         self._draw_labels(image, draw, model, x, y, gutter_w,
                           corner_rect, seed_rects, action_rects,
                           seed_offset=seed_win.start if seed_win else 0)
@@ -262,10 +240,10 @@ class HudRenderer:
         if expand_rect is not None:
             ex, ey, ew, eh = expand_rect
             draw.rounded_rectangle([ex, ey, ex + ew - 1, ey + eh - 1], radius=3,
-                                   outline=(*_TEXT_MUTED, 255), width=1)
+                                   outline=(*TEXT_MUTED, 255), width=1)
             # "↔" reads as expanding — the seed row widening.
             draw.text((ex + ew / 2, ey + eh / 2), _EXPAND_GLYPH, font=self._glyph,
-                      anchor="mm", fill=(*_TEXT_MUTED, 255))
+                      anchor="mm", fill=(*TEXT_MUTED, 255))
         if hover_tip:
             self._draw_tooltip(draw, width, height, hover_tip, hover_pos)
 
@@ -280,7 +258,7 @@ class HudRenderer:
                                       [cell.label for cell in model.actions]),
             expand=expand_rect,
         )
-        return RenderedHud(_rgba_to_bgra(image), targets)
+        return RenderedHud(panel.to_bgra(), targets)
 
     def _window(
         self, model: HudModel, *, room_x: int, room_y: int
@@ -347,7 +325,7 @@ class HudRenderer:
             for step in (-1, 0, 1):
                 dx, dy = (step * _DOT_GAP, 0) if axis == "seed" else (0, step * _DOT_GAP)
                 draw.ellipse([mx + dx - _DOT, my + dy - _DOT, mx + dx + _DOT, my + dy + _DOT],
-                             fill=(*_TEXT_PRIMARY, 255))
+                             fill=(*TEXT_PRIMARY, 255))
 
     def _draw_thumbnails(self, image, model, corner_rect, seed_rects, action_rects,
                          corner_thumb, seed_thumbs, action_thumbs) -> None:
@@ -379,7 +357,7 @@ class HudRenderer:
             # illegible.  Drawn into a column-sized scratch, so the overflow is cut.
             strip = Image.new("RGBA", (cw, COL_LABEL_H), (0, 0, 0, 0))
             ImageDraw.Draw(strip).text((cw / 2, COL_LABEL_H / 2), text, font=self._tiny,
-                                       anchor="mm", fill=(*_TEXT_MUTED, 255))
+                                       anchor="mm", fill=(*TEXT_MUTED, 255))
             image.alpha_composite(strip, (cx, y))
 
         def row(row_y: int, row_h: int, text: str) -> None:
@@ -394,7 +372,7 @@ class HudRenderer:
             for block in blocks:
                 for line in block:
                     draw.text((x + gutter_w - MAP_GAP, ty + line_h / 2), line,
-                              font=self._row, anchor="rm", fill=(*_TEXT_MUTED, 255))
+                              font=self._row, anchor="rm", fill=(*TEXT_MUTED, 255))
                     ty += line_h
                 ty += ACT_GAP
 
@@ -429,29 +407,29 @@ class HudRenderer:
             bx, by, bw, bh = button
             draw.rounded_rectangle(
                 [bx, by, bx + bw - 1, by + bh - 1], radius=3,
-                fill=(*_GREEN, 255) if on else None,
-                outline=(*(_GREEN if on else _TEXT_MUTED), 255), width=1,
+                fill=(*GREEN, 255) if on else None,
+                outline=(*(GREEN if on else TEXT_MUTED), 255), width=1,
             )
             draw.text((bx + bw / 2, by + bh / 2), _LOOP_GLYPH, font=self._glyph,
-                      anchor="mm", fill=(*(_BG_PRIMARY if on else _TEXT_MUTED), 255))
+                      anchor="mm", fill=(*(BG_PRIMARY if on else TEXT_MUTED), 255))
             if on:
                 gx, gy, gw, gh = group_box
                 draw.rectangle([gx, gy, gx + gw - 1, gy + gh - 1],
-                               outline=(*_WHITE, 255), width=2)
+                               outline=(*WHITE, 255), width=2)
             elif hover_loop == kind:
-                _dashed_rect(draw, group_box, (*_WHITE, 255))
+                _dashed_rect(draw, group_box, (*WHITE, 255))
 
     def _draw_tooltip(self, draw, width, height, text, pos) -> None:
         """A tooltip box drawn inside the panel near the cursor — the HUD lives in
         the video, so there is no native tooltip to fall back on."""
         pad = 5
         ascent, descent = self._tiny.getmetrics()
-        w = _text_width(self._tiny, text) + 2 * pad
+        w = text_width(self._tiny, text) + 2 * pad
         h = ascent + descent + 2 * pad
         x = max(2, min(pos[0] + 14, width - w - 2))
         y = max(2, min(pos[1] + 16, height - h - 2))
         draw.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=4,
-                               fill=(*_BG_PRIMARY, _TOOLTIP_ALPHA),
-                               outline=(*_BORDER_PANEL, 255), width=1)
+                               fill=(*BG_PRIMARY, _TOOLTIP_ALPHA),
+                               outline=(*BORDER_PANEL, 255), width=1)
         draw.text((x + w / 2, y + h / 2), text, font=self._tiny, anchor="mm",
-                  fill=(*_TEXT_PRIMARY, 255))
+                  fill=(*TEXT_PRIMARY, 255))

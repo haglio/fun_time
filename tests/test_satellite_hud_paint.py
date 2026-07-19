@@ -257,10 +257,11 @@ def test_a_sliding_loop_window_never_shifts_the_map(thumb):
 def test_gutter_width_fits_the_acts_present():
     """The gutter is sized to the acts actually shown — narrow for short ones, no
     wider than the cap for a long one — so it isn't a big empty margin."""
-    from satellite.hud import MAX_GUTTER
-    from satellite.hud_paint import _font
+    from player_core.hud_panel import load_font
 
-    font = _font(7)
+    from satellite.hud import MAX_GUTTER
+
+    font = load_font(7)
     short = gutter_width_for(font, "Iota", ("Iota",))
     long = gutter_width_for(font, "Delta", ("Delta",))
 
@@ -294,9 +295,11 @@ def test_the_button_glyphs_are_not_tofu():
     """Segoe UI has no U+21BB, so drawing the loop button with the UI face gives a
     ".notdef" box.  Qt fell back to Segoe UI Symbol silently; Pillow does not, so
     the glyph font must cover both button icons itself."""
-    from satellite.hud_paint import _EXPAND_GLYPH, _LOOP_GLYPH, _SYMBOL_FONT, _font
+    from player_core.hud_panel import load_font
 
-    glyph_font = _font(11, _SYMBOL_FONT)
+    from satellite.hud_paint import _EXPAND_GLYPH, _LOOP_GLYPH, _SYMBOL_FONT
+
+    glyph_font = load_font(11, _SYMBOL_FONT)
     notdef = glyph_font.getmask("").getbbox()
 
     assert glyph_font.getmask(_LOOP_GLYPH).getbbox() != notdef
