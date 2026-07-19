@@ -75,15 +75,18 @@ class HudModel:
 
 # --- map geometry ------------------------------------------------------------
 
-# Room kept at each end of a looped axis for the "…" that says the loop runs on
-# past what is drawn.  Held for as long as the loop runs, whether or not there is
-# anything past the ends right now, so the map never shifts as the window slides.
-ELLIPSIS = 14
+# The slot at each end of an axis for the "…" that says the map runs on past what
+# is drawn, and the room it takes with a gap either side of it.  That room is kept
+# unconditionally — loop or no loop, more to show or not — so nothing on the map
+# ever shifts: not when a window slides, not when a mark appears, and not when a
+# loop is switched on or off.
+ELLIPSIS = 12
+ELLIPSIS_ROOM = ELLIPSIS + 2 * MAP_GAP
 
 
 @dataclass(frozen=True)
-class LoopWindow:
-    """Which run of a looped axis is drawn, and whether the loop runs on past it."""
+class MapWindow:
+    """Which run of an axis is drawn, and whether it runs on past either end."""
 
     start: int
     count: int
@@ -91,19 +94,21 @@ class LoopWindow:
     more_after: bool
 
 
-def loop_window(sizes: list[int], playing: int, available: int, *, gap: int = MAP_GAP) -> LoopWindow:
-    """The run of cells to draw from a looped axis, keeping *playing* near its middle.
+def map_window(sizes: list[int], playing: int, available: int, *, gap: int = MAP_GAP) -> MapWindow:
+    """The run of cells to draw from one axis of the map, keeping *playing* near its
+    middle.
 
     *sizes* are the cells' extents along the axis (widths across the seed row,
     heights down the action column) and *available* is the room they share.  The run
     always holds *playing* and grows outward from it, alternating sides and taking
-    the right first: a loop whose head is still on screen therefore fills away from
-    the corner, while one partway through keeps the clip on screen in the middle —
-    which is what stops the lit cell walking off the end of the map and leaving
-    nothing highlighted at all.  A single cell too big for the room is still drawn.
+    the right first: an axis whose head is on screen therefore fills away from the
+    corner, while one whose playing cell has moved along keeps that cell in the
+    middle — which is what stops the lit cell walking off the end of the map and
+    leaving nothing highlighted at all.  A single cell too big for the room is still
+    drawn.
     """
     if not sizes:
-        return LoopWindow(0, 0, False, False)
+        return MapWindow(0, 0, False, False)
     playing = max(0, min(playing, len(sizes) - 1))
     start, end = playing, playing + 1
     used = sizes[playing]
@@ -131,7 +136,7 @@ def loop_window(sizes: list[int], playing: int, available: int, *, gap: int = MA
             break
         else:
             break
-    return LoopWindow(start, end - start, start > 0, end < len(sizes))
+    return MapWindow(start, end - start, start > 0, end < len(sizes))
 
 
 def thumbnail_rects(
@@ -195,8 +200,8 @@ def loop_button_rects(
     and one right of the seed row — or None for either that would overflow the
     panel.  The action button loops the column, the seed button the row.
 
-    *reserve_row* / *reserve_col* are the room a running loop keeps past the end of
-    the axis it cycles for its "…" mark, so the button clears it.
+    *reserve_row* / *reserve_col* are the room each axis keeps past its end for the
+    "…" mark, so the buttons clear it.
     """
     if corner_rect is None:
         return None, None
@@ -226,9 +231,10 @@ def looped_group_box(
 def ellipsis_rects(
     corner_rect: Rect, seed_rects: list[Rect], action_rects: list[Rect], axis: str,
 ) -> tuple[Rect, Rect]:
-    """The two slots a looped axis keeps for the "…" marks that say it runs on past
-    what is drawn: flanking the seed row left and right, or the action column above
-    and below."""
+    """The two slots an axis keeps for the "…" marks that say it runs on past what is
+    drawn: flanking the seed row left and right, or the action column above and
+    below.  Each sits a gap in from the loop rectangle, so a mark never reads as part
+    of that border."""
     cx, cy, cw, ch = corner_rect
     if axis == "seed":
         return ((cx - MAP_GAP - ELLIPSIS, cy, ELLIPSIS, ch),
@@ -240,9 +246,9 @@ def ellipsis_rects(
 def seed_column_label(index: int) -> str:
     """The header over a seed column: its place in the family, counting from one.
 
-    A windowed loop draws a run from the middle of the family, so the headers carry
-    the real ordinals — "Seed 7" over the seventh seed — rather than restarting at
-    one and hiding how far through the loop the map has got.
+    A window can open partway along the family, so the headers carry the real
+    ordinals — "Seed 7" over the seventh seed — rather than restarting at one and
+    hiding how far along the row has got.
     """
     return f"Seed {index + 1}"
 

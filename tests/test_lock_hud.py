@@ -130,7 +130,7 @@ def test_a_seed_loop_freezes_the_map_on_the_clip_the_loop_started_on():
 
     # The loop started on S1, so S1 is the corner even though CUR sorts first.
     panel = build_hud_panel(
-        "portrait", locked=False, current=S1, index=index, loop_axis="seed", loop_anchor=S1,
+        "portrait", locked=False, current=S1, index=index, loop_axis="seed", map_anchor=S1,
     )
 
     assert panel.active_loop == "seed"
@@ -146,7 +146,7 @@ def test_a_seed_loop_keeps_its_anchor_as_the_loop_advances():
 
     # Started on S1; the loop has since advanced to CUR.
     panel = build_hud_panel(
-        "portrait", locked=False, current=CUR, index=index, loop_axis="seed", loop_anchor=S1,
+        "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=S1,
     )
 
     assert panel.current == S1        # frozen on the loop's head
@@ -161,13 +161,70 @@ def test_an_action_loop_anchors_on_its_start_clip_and_marks_the_playing_action()
     index = _index(current=CUR, action_sibs=[A1])
 
     panel = build_hud_panel(
-        "portrait", locked=False, current=CUR, index=index, loop_axis="action", loop_anchor=CUR,
+        "portrait", locked=False, current=CUR, index=index, loop_axis="action", map_anchor=CUR,
     )
 
     assert panel.active_loop == "action"
     assert panel.current == CUR       # the corner is where the loop started
     assert panel.playing == CUR
     assert panel.action_siblings == [A1]   # the other act runs down from it
+
+
+def test_ending_a_loop_leaves_the_map_hanging_where_it_was():
+    """Switching a loop off must change only the loop's own chrome — the lit button
+    and the rectangle round the group.  The map itself goes on hanging where it was,
+    so the thumbnails do not re-home onto whichever member the loop had reached."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=S1, index=index, loop_axis="", map_anchor=CUR,
+    )
+
+    assert panel.active_loop == ""      # the loop is off, so no chrome
+    assert panel.current == CUR         # …but the map has not moved
+    assert panel.playing == S1          # and still lights the clip on screen
+    assert panel.seed_siblings == [S1]
+
+
+def test_a_map_anchor_is_let_go_once_the_clip_leaves_the_map():
+    """The freeze is only worth holding while there is a cell to light: once the
+    browse moves on past the group, the map re-homes on the live clip."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current="C:/vids/unrelated.mp4", index=index, map_anchor=CUR,
+    )
+
+    assert panel.current == "C:/vids/unrelated.mp4"
+
+
+def test_ending_a_widened_loop_keeps_the_row_wide():
+    """The widened row is part of what must not change when the loop ends: narrowing
+    it back to the exact family would redraw the map, which is exactly the jump the
+    freeze exists to prevent."""
+    near = "C:/vids/near.mp4"  # not in CUR's exact family, but near its scene
+    index = GroupIndex(
+        action_key_by_path={K(CUR): "g1", K(near): "g2"},
+        action_members={"g1": [CUR], "g2": [near]},
+        action_by_path={K(CUR): "Alpha", K(near): "Alpha"},
+        seed_key_by_path={K(CUR): ("S", "0")},
+        seed_members={"S": [CUR]},
+        path_by_key={K(p): p for p in (CUR, near)},
+        scene_tags_by_path={
+            K(CUR): frozenset({"a", "b", "c"}),
+            K(near): frozenset({"a", "b", "d"}),
+        },
+    )
+
+    # The loop was widened around CUR and had advanced onto the near-match when it
+    # was switched off.
+    panel = build_hud_panel(
+        "portrait", locked=False, current=near, index=index,
+        loop_axis="", map_anchor=CUR, widen_clip=CUR,
+    )
+
+    assert panel.current == CUR
+    assert panel.seed_siblings == [near]  # still the widened row, not CUR's exact family
 
 
 def test_a_running_loop_says_how_many_clips_it_is_cycling():
@@ -177,7 +234,7 @@ def test_a_running_loop_says_how_many_clips_it_is_cycling():
     index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"])
 
     panel = build_hud_panel(
-        "portrait", locked=False, current=CUR, index=index, loop_axis="seed", loop_anchor=CUR,
+        "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
     assert panel.lock_label == "Looping 3 seeds"
@@ -187,7 +244,7 @@ def test_an_action_loop_counts_the_clips_it_cycles():
     index = _index(current=CUR, action_sibs=[A1])
 
     panel = build_hud_panel(
-        "portrait", locked=False, current=CUR, index=index, loop_axis="action", loop_anchor=CUR,
+        "portrait", locked=False, current=CUR, index=index, loop_axis="action", map_anchor=CUR,
     )
 
     assert panel.lock_label == "Looping 2 actions"
@@ -208,7 +265,7 @@ def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():
     index = _index(current=CUR, seed_sibs=[S1])
 
     panel = build_hud_panel(
-        "portrait", locked=False, current=S1, index=index, loop_axis="seed", loop_anchor="",
+        "portrait", locked=False, current=S1, index=index, loop_axis="seed", map_anchor="",
     )
 
     assert panel.active_loop == "seed"

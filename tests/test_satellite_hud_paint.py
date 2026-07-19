@@ -7,7 +7,17 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from satellite.hud import LOCK_BAND_H, PAD, PANEL_SIZE, HudCell, HudModel, ellipsis_rects
+from satellite.hud import (
+    ELLIPSIS_ROOM,
+    LOCK_BAND_H,
+    MAP_GAP,
+    PAD,
+    PANEL_SIZE,
+    HudCell,
+    HudModel,
+    ellipsis_rects,
+    looped_group_box,
+)
 from satellite.hud_paint import HudRenderer, gutter_width_for
 
 
@@ -110,14 +120,78 @@ def test_the_playing_cell_is_brighter_than_the_others(tmp_path: Path):
     assert seed_lit > seed_dim
 
 
-def _loop_model(thumb: str, playing, *, count: int = 12) -> HudModel:
-    """A seed loop far longer than the map can draw, at *playing*."""
+def _loop_model(thumb: str, playing, *, count: int = 12, loop: str = "seed") -> HudModel:
+    """A seed row far longer than the map can draw, at *playing*."""
     return _model(
-        locked=False, lock_label=f"Looping {count + 1} seeds",
+        locked=False, lock_label=f"Looping {count + 1} seeds" if loop else "Unlocked",
         corner=HudCell(path="c.mp4", thumb=thumb),
         seeds=tuple(HudCell(path=f"s{i}.mp4", thumb=thumb) for i in range(count)),
-        active_loop="seed", playing=playing,
+        active_loop=loop, playing=playing,
     )
+
+
+def _tail_ink(rendered) -> int:
+    """Ink in the slot kept past the right-hand end of the drawn row, inset from its
+    edges so the loop rectangle's own border is never counted as a mark."""
+    corner_rect = rendered.targets.click[0][0]
+    seed_rects = [rect for rect, _p in rendered.targets.click[1:]]
+    _before, after = ellipsis_rects(corner_rect, seed_rects, [], "seed")
+    x, y, w, h = after
+    return int((_rgb(rendered.bgra)[y + 2:y + h - 2, x + 2:x + w - 2] > 100).sum())
+
+
+def test_a_map_with_more_clips_than_fit_says_so_even_off_a_loop(thumb):
+    """The mark is about the map, not about looping: a browse row longer than the
+    panel draws what fits and says there is more, rather than dropping the rest
+    silently."""
+    long_row = HudRenderer("portrait").render(_loop_model(thumb, ("corner", 0), loop=""))
+    short_row = HudRenderer("portrait").render(_loop_model(thumb, ("corner", 0), count=1, loop=""))
+
+    assert _tail_ink(long_row) > 0
+    assert _tail_ink(short_row) == 0
+
+
+def test_switching_a_loop_off_leaves_the_map_exactly_where_it_was(thumb):
+    """The whole of what a loop toggle may change is the loop's own chrome.  Given the
+    same cells, the drawn map — which clips, in which rects — is identical looping and
+    not, so turning the loop off takes away the lit button and the rectangle and
+    nothing else."""
+    renderer = HudRenderer("portrait")
+    looping = renderer.render(_loop_model(thumb, ("seed", 5)))
+    ended = renderer.render(_loop_model(thumb, ("seed", 5), loop=""))
+
+    assert looping.targets.click == ended.targets.click
+    assert looping.targets.expand == ended.targets.expand
+    assert [rect for rect, _kind in looping.targets.loop] == [rect for rect, _kind in ended.targets.loop]
+
+
+def test_the_more_mark_reads_as_three_dots(thumb):
+    """Fat dots at a tight spacing merged into one pill.  The mark has to read as
+    three dots, so there are gaps between them."""
+    rendered = HudRenderer("portrait").render(_loop_model(thumb, ("corner", 0)))
+    corner_rect = rendered.targets.click[0][0]
+    seed_rects = [rect for rect, _p in rendered.targets.click[1:]]
+    _before, after = ellipsis_rects(corner_rect, seed_rects, [], "seed")
+    x, y, w, h = after
+    row = (_rgb(rendered.bgra)[y + h // 2, x:x + w] > 100).any(axis=1)
+
+    runs = sum(1 for i, on in enumerate(row) if on and not (i and row[i - 1]))
+    assert runs == 3
+
+
+def test_the_more_mark_does_not_touch_the_loop_rectangle(thumb):
+    """Dots drawn hard against the rectangle read as part of its border rather than
+    as a mark inside it."""
+    rendered = HudRenderer("portrait").render(_loop_model(thumb, ("seed", 5)))
+    corner_rect = rendered.targets.click[0][0]
+    seed_rects = [rect for rect, _p in rendered.targets.click[1:]]
+    box = looped_group_box(corner_rect, seed_rects, [], "seed", reserve=ELLIPSIS_ROOM)
+    before, _after = ellipsis_rects(corner_rect, seed_rects, [], "seed")
+
+    assert before[0] - box[0] >= MAP_GAP
+    bx, by, bw, bh = box
+    # The strip just inside the rectangle's left border carries no ink at all.
+    assert int((_rgb(rendered.bgra)[by + 2:by + bh - 2, bx + 2:bx + MAP_GAP] > 100).sum()) == 0
 
 
 def test_a_long_loop_draws_a_window_that_holds_the_clip_on_screen(thumb):
@@ -164,18 +238,8 @@ def test_a_long_loop_marks_that_it_runs_on_past_the_map(thumb):
     long_loop = renderer.render(_loop_model(thumb, ("corner", 0)))
     short_loop = renderer.render(_loop_model(thumb, ("corner", 0), count=1))
 
-    # The mark goes in the slot the loop reserves past the end of the drawn row; a
-    # loop with nothing past its end leaves that slot blank.  Sampled inset from the
-    # slot's edges so the loop rectangle's own border is not counted as a mark.
-    def tail_ink(rendered) -> int:
-        corner_rect = rendered.targets.click[0][0]
-        seed_rects = [rect for rect, _p in rendered.targets.click[1:]]
-        _before, after = ellipsis_rects(corner_rect, seed_rects, [], "seed")
-        x, y, w, h = after
-        return int((_rgb(rendered.bgra)[y + 2:y + h - 2, x + 2:x + w - 2] > 100).sum())
-
-    assert tail_ink(long_loop) > 0
-    assert tail_ink(short_loop) == 0
+    assert _tail_ink(long_loop) > 0
+    assert _tail_ink(short_loop) == 0
 
 
 def test_a_sliding_loop_window_never_shifts_the_map(thumb):

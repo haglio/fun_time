@@ -209,7 +209,7 @@ def _playing_member(
     return anchor
 
 
-def _loop_anchor_in(group: list[str], anchor: str) -> str:
+def _map_anchor_in(group: list[str], anchor: str) -> str:
     """The clip a running loop's map hangs on: *anchor* — the clip the loop started
     on, which heads the queue it wrote — whenever it is still one of *group*.
 
@@ -224,6 +224,27 @@ def _loop_anchor_in(group: list[str], anchor: str) -> str:
     return min(group, key=normalize_path_key)
 
 
+def _axis_holding(index: GroupIndex, anchor: str, current: str, widened_pool: list[str]) -> str:
+    """Which axis of *anchor*'s map the live clip sits on — "seed", "action", or ""
+    once it is on none of them.
+
+    This is what decides that a map hung on *anchor* goes on hanging there: while the
+    clip on screen is somewhere on that map there is a cell to light, so nothing has
+    to move.  It is how ending a loop leaves the map alone — the clip the loop was
+    playing is still one of its cells — and how the map re-homes anyway once the
+    browse moves on past the whole group.
+    """
+    key = normalize_path_key(current)
+    if key == normalize_path_key(anchor):
+        return "seed"  # the corner: on both axes at once, and lit either way
+    row = widened_pool or seed_family_members(index, anchor)
+    if any(normalize_path_key(member) == key for member in row):
+        return "seed"
+    if any(normalize_path_key(member) == key for member in action_group_members(index, anchor)):
+        return "action"
+    return ""
+
+
 def build_hud_panel(
     side: str,
     *,
@@ -233,7 +254,7 @@ def build_hud_panel(
     lock_type: str | None = None,
     filter_query: str = "",
     loop_axis: str = "",
-    loop_anchor: str = "",
+    map_anchor: str = "",
     widen_clip: str = "",
     nav_anchor: str = "",
 ) -> HudPanel:
@@ -243,65 +264,60 @@ def build_hud_panel(
     was widened around ("more seeds"); while widening is in force the row grows
     past the exact parameter set to the clips nearest that one's scene.
 
-    When *loop_axis* names a running loop, the map anchors on *loop_anchor* — the
-    clip the loop started on, which heads the queue it wrote — instead of the live
-    clip, so the map holds still as the loop auto-advances and its cells run in the
-    order the player plays them; ``playing`` then marks the cell actually on screen.
-    A *widened* seed loop cycles the widened pool, whose members span several exact
-    seed families, so its row is taken from that pool — ranked once around
-    *widen_clip* and reused — and so holds still across the whole loop.
+    *map_anchor* is the clip the map hangs on — the clip a loop started on, which
+    heads the queue that loop wrote.  While it holds, the map reads in the order the
+    player plays it (that clip in the corner, the group running away from it) and
+    does not re-orient as the loop advances; ``playing`` marks the cell actually on
+    screen.  It goes on holding after the loop is switched off, for as long as the
+    clip on screen is still one of the map's cells, so ending a loop takes away the
+    loop's chrome and nothing else; once the browse moves on past the group there is
+    no cell left to light and the map re-homes on the live clip.  *loop_axis* names
+    only whether a loop is actually *running* — the lit button and the rectangle.
 
-    ``nav_anchor`` does the same for keyboard navigation: while it names a clip and
-    the live clip is still one of that clip's map cells, the map freezes on it and
-    ``playing`` lights the cell on screen, so an arrow-driven selection moves across
-    a stable map.  Once the satellite drifts off the frozen map (an auto-advance),
-    the anchor is abandoned and the map re-homes on the live clip.  A running loop
-    wins over a nav anchor.
+    ``nav_anchor`` hangs the map the same way for keyboard navigation, so an
+    arrow-driven selection moves across a stable map.  A loop wins over it.
     """
     have_siblings = bool(current) and index is not None
-    # Is the seed row widened around the clip on screen, and over what pool?  The
-    # pool is ranked around *widen_clip* and computed once: ranking it again from
-    # another member would score a different set and shuffle the row underneath a
-    # running loop.  Off a loop the widen holds only while its exact anchor clip is
-    # on screen, so a plain auto-advance drops it.  While a seed loop cycles the
-    # pool it holds for every member, so the row stays wide and the map stays
-    # frozen as the loop advances across the near-matches.
-    widen = False
-    widened_pool: list[str] = []
-    if have_siblings and widen_clip:
-        widened_pool = widened_seed_members(index, widen_clip)
-        if loop_axis == "seed":
-            pool_keys = {normalize_path_key(member) for member in widened_pool}
-            widen = normalize_path_key(current) in pool_keys
-        else:
-            widen = normalize_path_key(current) == normalize_path_key(widen_clip)
+    # The widened pool, ranked once around *widen_clip* and reused: ranking it again
+    # from another member would score a different set and shuffle the row underneath
+    # a map that is supposed to be holding still.
+    widened_pool = widened_seed_members(index, widen_clip) if have_siblings and widen_clip else []
+    pool_keys = {normalize_path_key(member) for member in widened_pool}
     anchor = current
     active_loop = ""
     loop_size = 0
+    map_held = False
     nav_frozen = False
     if have_siblings and loop_axis in ("seed", "action"):
         if loop_axis == "action":
             group = action_group_members(index, current)
-        elif widen:
+        elif normalize_path_key(current) in pool_keys:
             group = widened_pool
         else:
             group = seed_family_members(index, current)
         if len(group) >= 2:
             loop_size = len(group)
-            # Anchor on the clip the loop started on, which heads the queue the loop
-            # wrote: the map then reads in the order the player plays it — that clip
-            # in the corner, the group running away from it — and holds still as the
-            # loop advances.
-            anchor = _loop_anchor_in(group, loop_anchor)
+            anchor = _map_anchor_in(group, map_anchor)
             active_loop = loop_axis
+            map_held = True
+    elif have_siblings and map_anchor and _axis_holding(index, map_anchor, current, widened_pool):
+        anchor = map_anchor
+        map_held = True
     elif have_siblings and nav_anchor and normalize_path_key(nav_anchor) != normalize_path_key(current):
         nav_seed, nav_action = hud_map_cells(index, nav_anchor)
         if locate_cell(current, nav_anchor, nav_seed, nav_action) is not None:
             anchor = nav_anchor
             nav_frozen = True
-    # Navigation walks the exact family (never widened), so a frozen map matches
-    # what the keys can reach.  The widened row is the pool as already ranked, not
-    # a re-ranking around whatever the anchor turned out to be.
+    # Is the row the widened pool?  While the map is held, that is settled by the
+    # clip on screen being somewhere in the pool the row already drew — so the row
+    # keeps its width across a loop's advances and across the loop ending.  Off any
+    # hold, the widen applies only while its own clip is on screen, so a plain
+    # auto-advance drops it.  Navigation walks the exact family (never widened), so
+    # a nav-frozen map matches what the keys can reach.
+    widen = bool(widened_pool) and (
+        normalize_path_key(current) in pool_keys if map_held
+        else normalize_path_key(current) == normalize_path_key(widen_clip)
+    )
     if not have_siblings:
         seed = []
     elif widen and not nav_frozen:
@@ -317,8 +333,9 @@ def build_hud_panel(
         action_labels = tuple(
             index.action_by_path.get(normalize_path_key(member), "") for member in action
         )
-        if active_loop:
-            playing = _playing_member(index, anchor, current, seed, action, active_loop)
+        if map_held:
+            axis = active_loop or _axis_holding(index, anchor, current, widened_pool)
+            playing = _playing_member(index, anchor, current, seed, action, axis)
         elif nav_frozen:
             playing = current  # the live clip is exactly the cell to light
     return HudPanel(
@@ -340,7 +357,7 @@ def build_hud_panel(
 
 def _side_panel(
     side: str, sources: str, metadata_root: Path | None, current: str, locked: bool,
-    filter_query: str, loop_axis: str, loop_anchor: str, widen_clip: str, nav_anchor: str,
+    filter_query: str, loop_axis: str, map_anchor: str, widen_clip: str, nav_anchor: str,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if current:
@@ -355,7 +372,7 @@ def _side_panel(
         )
     return build_hud_panel(
         side, locked=locked, current=current, index=index,
-        filter_query=filter_query, loop_axis=loop_axis, loop_anchor=loop_anchor,
+        filter_query=filter_query, loop_axis=loop_axis, map_anchor=map_anchor,
         widen_clip=widen_clip, nav_anchor=nav_anchor,
     )
 
@@ -409,8 +426,8 @@ def build_panels(
     landscape_filter: str = "",
     portrait_loop: str = "",
     landscape_loop: str = "",
-    portrait_loop_anchor: str = "",
-    landscape_loop_anchor: str = "",
+    portrait_map_anchor: str = "",
+    landscape_map_anchor: str = "",
     portrait_widen_clip: str = "",
     landscape_widen_clip: str = "",
     portrait_nav_anchor: str = "",
@@ -429,12 +446,12 @@ def build_panels(
         _side_panel(
             "portrait", portrait_sources, metadata_root,
             portrait_current, portrait_locked, portrait_filter, portrait_loop,
-            portrait_loop_anchor, portrait_widen_clip, portrait_nav_anchor,
+            portrait_map_anchor, portrait_widen_clip, portrait_nav_anchor,
         ),
         _side_panel(
             "landscape", landscape_sources, metadata_root,
             landscape_current, landscape_locked, landscape_filter, landscape_loop,
-            landscape_loop_anchor, landscape_widen_clip, landscape_nav_anchor,
+            landscape_map_anchor, landscape_widen_clip, landscape_nav_anchor,
         ),
     )
 
