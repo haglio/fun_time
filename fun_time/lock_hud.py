@@ -39,6 +39,17 @@ def _lock_label(locked: bool, lock_type: str | None) -> str:
     return f"Locked · {lock_type}" if lock_type else "Locked"
 
 
+def _loop_label(axis: str, count: int) -> str:
+    """The status word for a satellite cycling a group — "Looping 7 seeds".
+
+    A loop displaces the lock state on that line, which would otherwise just read
+    "Unlocked" throughout.  The size has to be said here because the map draws only
+    the cells that fit: three thumbnails look the same whether the loop holds three
+    clips or thirty.
+    """
+    return f"Looping {count} {axis}s"
+
+
 @dataclass(frozen=True)
 class HudPanel:
     """One satellite's HUD contents (portrait or landscape).
@@ -198,6 +209,21 @@ def _playing_member(
     return anchor
 
 
+def _loop_anchor_in(group: list[str], anchor: str) -> str:
+    """The clip a running loop's map hangs on: *anchor* — the clip the loop started
+    on, which heads the queue it wrote — whenever it is still one of *group*.
+
+    Falls back to the group's lowest-keyed member when there is no usable anchor (a
+    loop still running from before the anchor was recorded, or one whose anchor clip
+    has since been trashed).  That is at least the same clip whichever member is
+    playing, so the map goes on holding still as the loop advances.
+    """
+    key = normalize_path_key(anchor)
+    if anchor and any(normalize_path_key(member) == key for member in group):
+        return anchor
+    return min(group, key=normalize_path_key)
+
+
 def build_hud_panel(
     side: str,
     *,
@@ -207,6 +233,7 @@ def build_hud_panel(
     lock_type: str | None = None,
     filter_query: str = "",
     loop_axis: str = "",
+    loop_anchor: str = "",
     widen_clip: str = "",
     nav_anchor: str = "",
 ) -> HudPanel:
@@ -216,12 +243,13 @@ def build_hud_panel(
     was widened around ("more seeds"); while widening is in force the row grows
     past the exact parameter set to the clips nearest that one's scene.
 
-    When *loop_axis* names a running loop, the map anchors on the looped group's
-    fixed representative instead of the live clip, so it does not re-orient as the
-    loop auto-advances; ``playing`` then marks the cell that is actually on screen.
+    When *loop_axis* names a running loop, the map anchors on *loop_anchor* — the
+    clip the loop started on, which heads the queue it wrote — instead of the live
+    clip, so the map holds still as the loop auto-advances and its cells run in the
+    order the player plays them; ``playing`` then marks the cell actually on screen.
     A *widened* seed loop cycles the widened pool, whose members span several exact
-    seed families, so its anchor and row are taken from that pool — ranked once
-    around *widen_clip* and reused — and so hold still across the whole loop.
+    seed families, so its row is taken from that pool — ranked once around
+    *widen_clip* and reused — and so holds still across the whole loop.
 
     ``nav_anchor`` does the same for keyboard navigation: while it names a clip and
     the live clip is still one of that clip's map cells, the map freezes on it and
@@ -249,6 +277,7 @@ def build_hud_panel(
             widen = normalize_path_key(current) == normalize_path_key(widen_clip)
     anchor = current
     active_loop = ""
+    loop_size = 0
     nav_frozen = False
     if have_siblings and loop_axis in ("seed", "action"):
         if loop_axis == "action":
@@ -258,9 +287,12 @@ def build_hud_panel(
         else:
             group = seed_family_members(index, current)
         if len(group) >= 2:
-            # Anchor on the group's lowest-keyed member — the same clip whichever
-            # member is playing — so the map holds still while the loop advances.
-            anchor = min(group, key=normalize_path_key)
+            loop_size = len(group)
+            # Anchor on the clip the loop started on, which heads the queue the loop
+            # wrote: the map then reads in the order the player plays it — that clip
+            # in the corner, the group running away from it — and holds still as the
+            # loop advances.
+            anchor = _loop_anchor_in(group, loop_anchor)
             active_loop = loop_axis
     elif have_siblings and nav_anchor and normalize_path_key(nav_anchor) != normalize_path_key(current):
         nav_seed, nav_action = hud_map_cells(index, nav_anchor)
@@ -292,7 +324,9 @@ def build_hud_panel(
     return HudPanel(
         side=side,
         locked=locked,
-        lock_label=_lock_label(locked, lock_type),
+        # A running loop owns this line — it displaces a state that would read only
+        # "Unlocked" with the one fact the map cannot show: how big the loop is.
+        lock_label=_loop_label(active_loop, loop_size) if active_loop else _lock_label(locked, lock_type),
         current=anchor,
         seed_siblings=seed,
         action_siblings=action,
@@ -306,7 +340,7 @@ def build_hud_panel(
 
 def _side_panel(
     side: str, sources: str, metadata_root: Path | None, current: str, locked: bool,
-    filter_query: str, loop_axis: str, widen_clip: str, nav_anchor: str,
+    filter_query: str, loop_axis: str, loop_anchor: str, widen_clip: str, nav_anchor: str,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if current:
@@ -321,7 +355,8 @@ def _side_panel(
         )
     return build_hud_panel(
         side, locked=locked, current=current, index=index,
-        filter_query=filter_query, loop_axis=loop_axis, widen_clip=widen_clip, nav_anchor=nav_anchor,
+        filter_query=filter_query, loop_axis=loop_axis, loop_anchor=loop_anchor,
+        widen_clip=widen_clip, nav_anchor=nav_anchor,
     )
 
 
@@ -374,6 +409,8 @@ def build_panels(
     landscape_filter: str = "",
     portrait_loop: str = "",
     landscape_loop: str = "",
+    portrait_loop_anchor: str = "",
+    landscape_loop_anchor: str = "",
     portrait_widen_clip: str = "",
     landscape_widen_clip: str = "",
     portrait_nav_anchor: str = "",
@@ -392,12 +429,12 @@ def build_panels(
         _side_panel(
             "portrait", portrait_sources, metadata_root,
             portrait_current, portrait_locked, portrait_filter, portrait_loop,
-            portrait_widen_clip, portrait_nav_anchor,
+            portrait_loop_anchor, portrait_widen_clip, portrait_nav_anchor,
         ),
         _side_panel(
             "landscape", landscape_sources, metadata_root,
             landscape_current, landscape_locked, landscape_filter, landscape_loop,
-            landscape_widen_clip, landscape_nav_anchor,
+            landscape_loop_anchor, landscape_widen_clip, landscape_nav_anchor,
         ),
     )
 
