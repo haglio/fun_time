@@ -1239,7 +1239,7 @@ def test_portrait_cycle_seed_notices_without_seed_siblings(tmp_path: Path):
 
 def _scene_meta(*, image_seed: str, quality: str) -> dict:
     """Same beach scene as its kin, but a render knob (image quality) set — so
-    two such metas share a loose family yet split into separate strict ones."""
+    two such metas are near-matches yet split into separate seed families."""
     return {
         "video": {"prompt": "beach", "action": "Alpha", "seed": "5"},
         "source_image": {"positive_prompt": "subject at the beach", "seed": image_seed, "quality": quality},
@@ -1278,10 +1278,8 @@ def test_more_seeds_widens_the_display_without_changing_the_clip(tmp_path: Path)
         action_members={"g1": [c], "g2": [o]},
         action_by_path={kc: "Gamma", ko: "Gamma"},   # same act
         seed_key_by_path={}, seed_members={},
-        # o shares c's loose family (same scene, a render knob freed), so widening finds it.
-        loose_seed_key_by_path={kc: ("L", "0"), ko: ("L", "1")},
-        loose_seed_members={"L": [c, o]},
-        indexed_paths=frozenset({kc, ko}),
+        path_by_key={kc: c, ko: o},
+        scene_tags_by_path={kc: frozenset({"a", "b"}), ko: frozenset({"a", "c"})},
     )
 
     _set_current(config, 2, c)
@@ -1293,9 +1291,35 @@ def test_more_seeds_widens_the_display_without_changing_the_clip(tmp_path: Path)
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
-def test_more_seeds_reports_widening_failed_when_the_act_is_unique(tmp_path: Path):
-    """If there is nothing beyond the exact seed family to add, the notice says
-    the widen failed rather than silently widening the display to the same set."""
+def test_more_seeds_still_widens_when_nothing_shares_the_act_or_a_tag(tmp_path: Path):
+    """Widening must always turn up another video.  Even a clip that shares no
+    action and no prompt tag with anything still widens — to the nearest thing
+    there is — instead of dead-ending on "Widening net failed"."""
+    cur, other = tmp_path / "cur.mp4", tmp_path / "other.mp4"
+    cur.write_text("x", encoding="utf-8")
+    other.write_text("x", encoding="utf-8")
+    c, o = str(cur), str(other)
+    kc, ko = normalize_path_key(c), normalize_path_key(o)
+    config = _make_config(tmp_path)
+    index = GroupIndex(
+        action_key_by_path={kc: "g1", ko: "g2"},
+        action_members={"g1": [c], "g2": [o]},
+        action_by_path={kc: "Zeta", ko: "Alpha"},   # nothing else does Zeta
+        seed_key_by_path={}, seed_members={},
+        path_by_key={kc: c, ko: o},
+        scene_tags_by_path={kc: frozenset({"a"}), ko: frozenset({"z"})},   # no shared tag
+    )
+
+    _set_current(config, 2, c)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+        state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
+
+    assert state.portrait_widen_clip == c
+    assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
+
+
+def test_more_seeds_reports_widening_failed_only_when_the_library_holds_one_clip(tmp_path: Path):
+    """The one real dead end: there is no other video to widen to."""
     config = _make_config(tmp_path)
     only = tmp_path / "only.mp4"
     only.write_text("x", encoding="utf-8")
@@ -1304,8 +1328,7 @@ def test_more_seeds_reports_widening_failed_when_the_act_is_unique(tmp_path: Pat
         action_key_by_path={key: "g"}, action_members={"g": [str(only)]},
         action_by_path={key: "Alpha"},
         seed_key_by_path={}, seed_members={},
-        loose_seed_key_by_path={}, loose_seed_members={},
-        indexed_paths=frozenset({key}),
+        path_by_key={key: str(only)},
     )
 
     _set_current(config, 2, str(only))
@@ -2129,8 +2152,7 @@ def _loop_index(tmp_path: Path, *, axis: str) -> tuple[GroupIndex, str, str]:
             action_members={"subject": [a, b]},
             action_by_path={ka: "Alpha", kb: "Kissing"},
             seed_key_by_path={}, seed_members={},
-            loose_seed_key_by_path={}, loose_seed_members={},
-            indexed_paths=frozenset({ka, kb}),
+            path_by_key={ka: a, kb: b},
         ), a, b
     # Same act + params, different seeds.
     return GroupIndex(
@@ -2138,16 +2160,15 @@ def _loop_index(tmp_path: Path, *, axis: str) -> tuple[GroupIndex, str, str]:
         action_by_path={ka: "Alpha", kb: "Alpha"},
         seed_key_by_path={ka: ("family", "1"), kb: ("family", "2")},
         seed_members={"family": [a, b]},
-        loose_seed_key_by_path={}, loose_seed_members={},
-        indexed_paths=frozenset({ka, kb}),
+        path_by_key={ka: a, kb: b},
     ), a, b
 
 
 def _widened_loop_index(tmp_path: Path) -> tuple[GroupIndex, str, str, str]:
-    """A loose family {a, a2, b} on real files — the same scene re-rendered — whose
-    exact seed families split: a and a2 share the exact family F1, while b is its own
-    render F2. So `seed_family_members(a)` is {a, a2} but `loose_seed_family_members(a)`
-    (the widened pool) is all three."""
+    """Three same-scene clips {a, a2, b} on real files whose exact seed families
+    split: a and a2 share the exact family F1, while b is its own render F2.  So
+    `seed_family_members(a)` is {a, a2} but `widened_seed_members(a)` — b ranks in
+    on its identical scene tags — is all three."""
     files = {name: tmp_path / f"{name}.mp4" for name in ("a", "a2", "b")}
     for f in files.values():
         f.write_text("x", encoding="utf-8")
@@ -2159,9 +2180,8 @@ def _widened_loop_index(tmp_path: Path) -> tuple[GroupIndex, str, str, str]:
         action_by_path={ka: "Alpha", ka2: "Alpha", kb: "Alpha"},
         seed_key_by_path={ka: ("F1", "0"), ka2: ("F1", "1"), kb: ("F2", "0")},
         seed_members={"F1": sorted([a, a2]), "F2": [b]},
-        loose_seed_key_by_path={ka: ("L", "0"), ka2: ("L", "1"), kb: ("L", "2")},
-        loose_seed_members={"L": sorted([a, a2, b])},
-        indexed_paths=frozenset({ka, ka2, kb}),
+        path_by_key={ka: a, ka2: a2, kb: b},
+        scene_tags_by_path={k: frozenset({"x", "y", "z"}) for k in (ka, ka2, kb)},
     ), a, a2, b
 
 
@@ -2237,8 +2257,7 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
         action_key_by_path={key: "subject"}, action_members={"subject": [str(only)]},
         action_by_path={key: "Alpha"},
         seed_key_by_path={}, seed_members={},
-        loose_seed_key_by_path={}, loose_seed_members={},
-        indexed_paths=frozenset({key}),
+        path_by_key={key: str(only)},
     )
 
     _set_current(config, 2, str(only))
@@ -2288,8 +2307,7 @@ def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
         action_key_by_path={key: "subject"}, action_members={"subject": [str(only)]},
         action_by_path={key: "Alpha"},
         seed_key_by_path={}, seed_members={},
-        loose_seed_key_by_path={}, loose_seed_members={},
-        indexed_paths=frozenset({key}),
+        path_by_key={key: str(only)},
     )
 
     _set_current(config, 2, str(only))

@@ -11,8 +11,6 @@ from fun_time.media_metadata import (
     seed_family_members,
     cached_group_index,
     load_metadata,
-    loose_seed_family_members,
-    loose_seed_group_key,
     matches_query,
     metadata_path_for,
     normalize_path_key,
@@ -20,6 +18,7 @@ from fun_time.media_metadata import (
     reset_group_index_cache,
     search_haystack,
     seed_group_key,
+    widened_seed_members,
 )
 
 SOURCE_IMAGE = {
@@ -185,33 +184,6 @@ def test_seed_group_key_for_text_to_video_keeps_action_in_the_family():
     assert seed_group_key({"video": {"prompt": "x"}}) is None
 
 
-# --- loose_seed_group_key ---
-
-
-def test_loose_seed_group_key_frees_the_image_render_settings():
-    """The loose family keeps the scene (prompts + style) but frees the render
-    knobs, so a config differing only by an image quality setting is still kin."""
-    subject_a = _i2v_meta(action="Alpha", video_seed="1")
-    subject_b = _i2v_meta(
-        action="Alpha", video_seed="2", image_overrides={"quality": "Draft", "seed": "999"}
-    )
-
-    assert seed_group_key(subject_a)[0] != seed_group_key(subject_b)[0]  # a render knob splits the strict family
-    assert loose_seed_group_key(subject_a)[0] == loose_seed_group_key(subject_b)[0]  # loose reunites them
-    assert loose_seed_group_key(subject_a)[1] != loose_seed_group_key(subject_b)[1]  # ...still different seeds
-
-
-def test_loose_seed_group_key_keeps_the_text_to_video_action():
-    """Freeing render knobs must not merge across actions — that is cycle-action's
-    job. A quality-only difference is kin; a different action is not."""
-    dancing = _t2v_meta(action="Dancing", seed="42")
-    dancing_hi = {"video": {**dancing["video"], "quality": "1080p", "seed": "43"}}
-    kissing = _t2v_meta(action="Kissing", seed="44")
-
-    assert loose_seed_group_key(dancing)[0] == loose_seed_group_key(dancing_hi)[0]  # render knob freed
-    assert loose_seed_group_key(dancing)[0] != loose_seed_group_key(kissing)[0]  # action still held
-
-
 # --- build_group_index ---
 
 
@@ -256,23 +228,20 @@ def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_p
     assert not index.contains(str(tmp_path / "media" / "new_arrival.mp4"))
 
 
-def test_build_group_index_also_families_loosely_across_render_settings(tmp_path: Path):
-    """Two clips of the same scene that differ only by a render knob split into
-    separate strict families but share one loose family."""
+def test_build_group_index_reads_each_clips_scene_tags(tmp_path: Path):
+    """The widen ranks by prompt-tag overlap, so the index carries each clip's tag
+    set — the image prompt's comma-separated phrases, normalized."""
     media_root, metadata_root, paths = _library(tmp_path, {
-        "subject_best": _i2v_meta(action="Alpha", video_seed="1"),
-        "subject_draft": _i2v_meta(
-            action="Alpha", video_seed="2", image_overrides={"quality": "Draft", "seed": "999"}
-        ),
+        "subject": _i2v_meta(action="Alpha", video_seed="1"),
+        "no_metadata": None,
     })
 
     index = build_group_index(paths.values(), metadata_root)
 
-    best, draft = normalize_path_key(paths["subject_best"]), normalize_path_key(paths["subject_draft"])
-    assert index.seed_key_by_path[best][0] != index.seed_key_by_path[draft][0]
-    loose_family = index.loose_seed_key_by_path[best][0]
-    assert index.loose_seed_key_by_path[draft][0] == loose_family
-    assert set(index.loose_seed_members[loose_family]) == {paths["subject_best"], paths["subject_draft"]}
+    assert index.scene_tags_by_path[normalize_path_key(paths["subject"])] == frozenset(
+        {"two cute dolls", "rainbow bedroom"}   # SOURCE_IMAGE's positive_prompt, split on commas
+    )
+    assert normalize_path_key(paths["no_metadata"]) not in index.scene_tags_by_path
 
 
 # --- cached_group_index ---
@@ -464,30 +433,55 @@ def test_seed_family_members_pin_the_action_for_image_to_video(tmp_path: Path):
     assert paths["kiss_b"] not in members  # same family, wrong act
 
 
-def test_loose_seed_family_members_widen_to_the_scene_not_the_whole_act(tmp_path: Path):
-    """"more seeds" widens to the loose family — the same scene re-rendered with a
-    render knob or seed freed, "a few more really similar" — but never the whole
-    act: a different scene that merely shares the action label stays out (that is
-    the 1-to-500 explosion), and so does the same scene doing a different act."""
-    def scene(prompt: str, action: str, quality: str, seed: str) -> dict:
-        return {"video": {"prompt": prompt, "action": action, "quality": quality, "seed": seed}}
-
+def test_widened_seed_members_add_the_most_similar_clips_capped(tmp_path: Path):
+    """"more seeds" adds the clips whose prompt is closest to this one — nearest
+    first, and only a handful.  Exact-config sisters come along as always; a
+    same-act clip sharing no prompt tags is not "more seeds", it is the rest of
+    the library, so the cap keeps it out."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
-        "beach_best": scene("beach", "Alpha", "1080p", "1"),   # current
-        "beach_draft": scene("beach", "Alpha", "720p", "2"),   # same scene, a render knob freed
-        "forest": scene("forest", "Alpha", "1080p", "3"),      # different scene, same act — excluded
-        "beach_kiss": scene("beach", "Kissing", "1080p", "4"),   # same scene, different act — excluded
+        "cur": _t2v("Alpha", "1", prompt="a, b, c, d"),
+        "sister": _t2v("Alpha", "2", prompt="a, b, c, d"),   # exact family (same prompt)
+        "near": _t2v("Alpha", "3", prompt="a, b, c, e"),     # 3 of 5 tags shared
+        "far": _t2v("Alpha", "4", prompt="x, y, z"),         # nothing in common
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    best, draft = normalize_path_key(paths["beach_best"]), normalize_path_key(paths["beach_draft"])
-    assert index.seed_key_by_path[best][0] != index.seed_key_by_path[draft][0]  # split strict families
+    members = widened_seed_members(index, paths["cur"], additions=1)
 
-    members = loose_seed_family_members(index, paths["beach_best"])
+    assert sorted(members) == sorted([paths["cur"], paths["sister"], paths["near"]])
+    assert paths["far"] not in members  # the cap stops at the nearest, not the whole act
 
-    assert sorted(members) == sorted([paths["beach_best"], paths["beach_draft"]])
-    assert paths["forest"] not in members
-    assert paths["beach_kiss"] not in members
+
+def test_widened_seed_members_never_dead_end_on_a_one_of_a_kind_clip(tmp_path: Path):
+    """Widening the net must always turn up another video.  A clip that is the
+    only one of its action has no same-act pool at all, so the nearest clips of
+    other actions are what it widens to — never nothing."""
+    media_root, metadata_root, paths = _write_library(tmp_path, {
+        "solo": _t2v("Zeta", "1", prompt="a, b, c"),   # the only Zeta
+        "near": _t2v("Alpha", "2", prompt="a, b, c"),   # another act, same scene
+        "far": _t2v("Alpha", "3", prompt="x, y, z"),
+    })
+    index = build_group_index(list(paths.values()), metadata_root)
+
+    members = widened_seed_members(index, paths["solo"], additions=1)
+
+    assert members == [paths["solo"], paths["near"]]
+
+
+def test_widened_seed_members_prefer_the_same_action_over_a_closer_scene(tmp_path: Path):
+    """The seed axis is "the same act, another subject", so a same-act clip outranks
+    a nearer-scened one doing something else — that other act is what the HUD's
+    action column is for, and duplicating it in the seed row wastes the widen."""
+    media_root, metadata_root, paths = _write_library(tmp_path, {
+        "cur": _t2v("Alpha", "1", prompt="a, b, c"),
+        "same_act": _t2v("Alpha", "2", prompt="a, x, y"),    # 1 of 5 tags shared
+        "other_act": _t2v("Kissing", "3", prompt="a, b, c"),   # every tag shared
+    })
+    index = build_group_index(list(paths.values()), metadata_root)
+
+    members = widened_seed_members(index, paths["cur"], additions=1)
+
+    assert members == [paths["cur"], paths["same_act"]]
 
 
 def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
