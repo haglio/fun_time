@@ -42,10 +42,6 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             "audio_module": "fun_time.audio_companion_app",
             "dashboard_module": "fun_time.dashboard_app",
         },
-        "genau": {
-            "udp_host": config.genau.udp_host,
-            "udp_port": str(config.genau.udp_port),
-        },
         "commands": {
             "genau_mode_file": str(config.genau_mode_file),
             "genau_cmd_file": str(config.genau_cmd_file),

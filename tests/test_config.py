@@ -122,11 +122,6 @@ class TestLoadConfig:
         assert cfg.layout.main_monitor == 1
         assert cfg.layout.secondary_monitor == 2
 
-    def test_loads_genau_settings(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        assert cfg.genau.beats_per_loop == 1.0
-        assert cfg.genau.clip_cache_size == 2
-
     def test_loads_audio_companion(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.audio_companion.host == "127.0.0.1"
