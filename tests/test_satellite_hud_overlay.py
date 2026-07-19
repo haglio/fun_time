@@ -161,6 +161,33 @@ def test_hovering_a_button_redraws_with_its_tooltip(tmp_path: Path, panel: Path)
     assert player.overlays[overlay.overlay_id][2] is not plain
 
 
+def test_clicking_the_filtered_action_label_lifts_the_filter(tmp_path: Path, panel: Path):
+    """The published filter is what makes the label a toggle, so a filter set any
+    other way — spoken, or from the other side of the map — is lifted by pressing the
+    label it lit."""
+    player = FakeSatellitePlayer()
+    panel.write_text(panel.read_text(encoding="utf-8").replace(
+        '"side": "portrait"', '"side": "portrait", "filter_query": "alpha"'), encoding="utf-8")
+    overlay = _overlay(tmp_path, panel, player)
+    overlay.tick()
+
+    rect = dict((name, r) for r, name in overlay.targets.label)["alpha"]
+    overlay.press(rect[0] + MARGIN + 2, rect[1] + MARGIN + 2)
+
+    assert _commands(tmp_path) == ["portrait_no_filter"]
+
+
+def test_clicking_an_unlit_action_label_filters_to_it(tmp_path: Path, panel: Path):
+    player = FakeSatellitePlayer()
+    overlay = _overlay(tmp_path, panel, player)
+    overlay.tick()
+
+    rect = dict((name, r) for r, name in overlay.targets.label)["gamma"]
+    overlay.press(rect[0] + MARGIN + 2, rect[1] + MARGIN + 2)
+
+    assert _commands(tmp_path) == ["filter_portrait_gamma"]
+
+
 def test_the_published_loop_state_wins_over_the_optimistic_one(tmp_path: Path, panel: Path):
     """A click lights the button before fun_time answers, but the published panel
     is authoritative — a loop that ended must not stay lit."""

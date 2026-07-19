@@ -64,6 +64,9 @@ class HudModel:
     seeds: tuple[HudCell, ...] = ()
     actions: tuple[HudCell, ...] = ()
     current_action: str = ""
+    # The act this side is filtered to, if any: the map lights that row's
+    # label, and pressing the lit one lifts the filter.
+    filter_query: str = ""
     active_loop: str = ""
     # How many clips each axis stands for, the clip on screen included.  The map
     # draws only the cells that fit, so it prints these in its top-left corner —
@@ -320,6 +323,16 @@ def build_label_targets(
     return targets
 
 
+def label_is_filtered(label: str, filter_query: str) -> bool:
+    """Whether *label*'s act is the one its side is filtered to.
+
+    One rule, used by the map to light that label and by the click to make it a
+    toggle, so what looks on and what turns off cannot disagree.  fun_time records a
+    filter as the act lower-cased, which is how a label reaches it.
+    """
+    return bool(filter_query) and label.strip().lower() == filter_query.strip().lower()
+
+
 LOOP_TOOLTIPS = {"action": "Loop this action column", "seed": "Loop this seed row"}
 EXPAND_TOOLTIP = "More seeds — widen the net"
 
@@ -376,10 +389,11 @@ class HudClicks:
         self._double_click_s = double_click_s
         self._pending_path = ""
         self._pending_at = 0.0
-        # Which axis is looping.  Mirrored from the published panel on every
-        # refresh, and set optimistically on a click so the button lights up
-        # before fun_time's answer comes back.
+        # Which axis is looping, and which act the side is filtered to.  Both are
+        # mirrored from the published panel on every refresh, and set optimistically
+        # on a click so the control lights up before fun_time's answer comes back.
         self.active_loop = ""
+        self.active_filter = ""
 
     def press(self, targets: HudTargets, px: int, py: int, *, now: float) -> str:
         """The command for a press at ``(px, py)``, or "" when it posts nothing
@@ -393,6 +407,12 @@ class HudClicks:
                 return f"{self._side}_more_seeds"
         action = hit_test_targets(targets.label, px, py)
         if action:
+            # A lit label is the filter it set, so pressing it again lifts it: the way
+            # out of a filter is the control that put you in it.
+            if label_is_filtered(action, self.active_filter):
+                self.active_filter = ""
+                return f"{self._side}_no_filter"
+            self.active_filter = action.lower()
             return f"filter_{self._side}_{action.lower().replace(' ', '_')}"
         path = hit_test_targets(targets.click, px, py)
         if not path:
@@ -486,6 +506,7 @@ def parse_hud(text: str) -> HudModel | None:
         seeds=tuple(cell for cell in seeds if cell is not None),
         actions=tuple(cell for cell in actions if cell is not None),
         current_action=str(raw.get("current_action", "") or ""),
+        filter_query=str(raw.get("filter_query", "") or ""),
         active_loop=str(raw.get("active_loop", "") or ""),
         seed_count=int(raw.get("seed_count", 0) or 0),
         action_count=int(raw.get("action_count", 0) or 0),

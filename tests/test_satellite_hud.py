@@ -127,6 +127,37 @@ def test_an_empty_axis_has_no_window():
     assert (window.start, window.count) == (0, 0)
 
 
+def _label_targets(*labels: str) -> HudTargets:
+    """Click targets for a gutter of action labels, stacked 20px apart."""
+    return HudTargets(
+        click=[], loop=[],
+        label=[((0, i * 20, 40, 20), label) for i, label in enumerate(labels)],
+        expand=None,
+    )
+
+
+def test_clicking_an_action_label_filters_the_side_to_it():
+    clicks = HudClicks("portrait")
+
+    assert clicks.press(_label_targets("Theta Motion"), 5, 5, now=0.0) == "filter_portrait_motion_bounce"
+
+
+def test_clicking_the_lit_action_label_turns_the_filter_off():
+    """The label is a toggle: it filters to that act, and pressing the lit one drops
+    the filter — so the way out is the same control as the way in."""
+    clicks = HudClicks("portrait")
+    clicks.active_filter = "alpha"
+
+    assert clicks.press(_label_targets("Alpha"), 5, 5, now=0.0) == "portrait_no_filter"
+
+
+def test_clicking_another_label_while_filtered_moves_the_filter():
+    clicks = HudClicks("portrait")
+    clicks.active_filter = "alpha"
+
+    assert clicks.press(_label_targets("Gamma"), 5, 5, now=0.0) == "filter_portrait_gamma"
+
+
 def test_thumbnail_rects_positions_the_map_and_drops_overflow():
     """The corner anchors the map; seeds walk right and actions walk down, each
     dropped (not clipped) when it would cross the panel edge."""

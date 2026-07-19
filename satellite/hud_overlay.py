@@ -107,6 +107,7 @@ class HudOverlay:
                 # a clip auto-advancing inside a loop must not unlight it, and a
                 # loop fun_time ended must not stay lit.
                 self._clicks.active_loop = model.active_loop
+                self._clicks.active_filter = model.filter_query
             self._model = model
             self._draw()
         if self._clicks is not None:
