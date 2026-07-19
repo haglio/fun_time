@@ -31,7 +31,7 @@ os.environ.setdefault(
 import pytest
 from PyQt6.QtWidgets import QApplication
 
-from fun_time import win32
+from fun_time import win32, windows_bridge_orchestrator
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -67,6 +67,21 @@ def _never_mutate_a_real_window(monkeypatch):
 
     for name in _MUTATING_USER32_CALLS:
         monkeypatch.setattr(win32._user32, name, _inert)
+
+
+@pytest.fixture(autouse=True)
+def _never_hold_the_live_loopback_port(monkeypatch):
+    """Keep the orchestrator tests off ``LOOPBACK_PORT``, which is machine-wide.
+
+    Every test that runs ``run_python_orchestrated_bridge`` reaches the real
+    ``serve_loopback``, and a bound port is a bound port: for the length of the
+    run this pytest — not the user — owns 8770.  A Fun Time opened meanwhile
+    finds it busy, logs the warning, and comes up with no loopback server at
+    all, so Tampermonkey stops auto-updating and the RFB tab pages never hear
+    about OmniPause.  The integration suite overrides this: its session is
+    supposed to serve, and the live-session guard keeps it alone on the machine.
+    """
+    monkeypatch.setattr(windows_bridge_orchestrator, "serve_loopback", lambda **_kwargs: None)
 
 
 TMP_ROOT = Path(

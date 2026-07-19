@@ -82,6 +82,17 @@ def _never_mutate_a_real_window():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _never_hold_the_live_loopback_port():
+    """Override the unit suite's loopback-port guard.
+
+    These tests launch the real bridge, whose loopback server is part of what a
+    session is.  Holding the port is safe here because ``live_session_guard``
+    refuses to start a run while Fun Time is open, and aborts one if it opens.
+    """
+    yield
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _abort_if_fun_time_opens():
     """Stop the run the moment the user opens Fun Time underneath it.
