@@ -442,12 +442,11 @@ def close_udp_sinks() -> None:
         _udp_sinks.pop().close()
 
 
-def isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
+def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
     """Move every UDP endpoint this run would otherwise share with the machine.
 
-    Paths are not the whole of what a session claims.  Three fixed ports are
-    machine-global, and a socket is not per-desktop — so the hidden desktop does
-    nothing for any of them:
+    Three fixed ports are machine-global, and a socket is not per-desktop — so
+    the hidden desktop does nothing for any of them:
 
     * The **audio companion** ``bind``s its port, and Genau notifies it on the
       matching ``notify_port``.  Two sessions cannot both have it: the loser dies
@@ -498,6 +497,37 @@ def real_config_path() -> Path:
     return (PROJECT_DIR / common_dir).resolve().parent / DEFAULT_CONFIG_PATH.name
 
 
+def isolate_shared_resources(config: dict, genau_config: dict) -> None:
+    """Strip the pair of everything a run would otherwise share with the machine.
+
+    Rewriting *paths* gives a run its own state dir, media and logs; the hidden
+    desktop gives it its own windows, input queue and process sweep.  What is
+    left over is everything those two do not reach — sockets, devices and
+    machine singletons, none of which have a per-desktop or per-directory
+    version.  Each one is named here, so there is one place to look for what a
+    run is still allowed to touch, and one place to add the next.
+
+    Removing a resource is preferred to teaching production code a test mode:
+    an empty ``broker_tray_launcher`` makes every broker path inert on its own
+    terms, where a ``FUN_TIME_RUN_INTEGRATION`` branch would be a second
+    behaviour that only the tests exercise.
+    """
+    _isolate_shared_udp_ports(config, genau_config)
+
+    # The broker is a machine singleton holding the OSR2's serial port, and it
+    # outlives the sessions that use it.  Without a launcher a run cannot start
+    # one, and the kill path (a machine-wide sweep matched by command line)
+    # needs a *fresh* heartbeat — which a run's own state dir, where no broker
+    # writes, never has.
+    config["paths"]["broker_tray_launcher"] = ""
+
+    # There is one microphone.  Windows shares an input device between listeners
+    # rather than refusing the second, so a run that opened it would not fail —
+    # it would listen in on the user and act on what they said to their own
+    # session.
+    config["voice_control"]["enabled"] = False
+
+
 def build_integration_config(tmp_path: Path) -> Path:
     real = load_config(real_config_path())
     integration_root = tmp_path.resolve() / "integration_runtime"
@@ -539,7 +569,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     genau_config["nau"]["videos_dir"] = str(primary_dir)
     genau_config["nau"]["scripts_dir"] = str(scripts_root)
     genau_config["nau"]["clips_dir"] = str(nau_clips_dir)
-    isolate_shared_udp_ports(config, genau_config)
+    isolate_shared_resources(config, genau_config)
     test_genau_config = integration_root / "genau_integration_config.json"
     test_genau_config.write_text(json.dumps(genau_config), encoding="utf-8")
     config["paths"]["genau_config_path"] = str(test_genau_config)
