@@ -18,7 +18,7 @@ from satellite.hud import (
     friendly_action_label,
     hit_test_targets,
     loop_button_rects,
-    loop_window,
+    map_window,
     parse_hud,
     thumbnail_rects,
 )
@@ -80,7 +80,7 @@ _ROOM_FOR_THREE = 110
 
 
 def test_a_loop_short_enough_to_fit_is_drawn_whole():
-    window = loop_window([30, 30, 30], playing=0, available=_ROOM_FOR_THREE)
+    window = map_window([30, 30, 30], playing=0, available=_ROOM_FOR_THREE)
 
     assert (window.start, window.count) == (0, 3)
     assert window.more_before is False
@@ -90,7 +90,7 @@ def test_a_loop_short_enough_to_fit_is_drawn_whole():
 def test_a_loop_just_started_opens_on_the_clip_on_screen():
     """The loop's head is the clip it started on, so at that moment the window opens
     there — the clip you pressed loop on is drawn in the corner, never mid-row."""
-    window = loop_window(_CELLS, playing=0, available=_ROOM_FOR_THREE)
+    window = map_window(_CELLS, playing=0, available=_ROOM_FOR_THREE)
 
     assert (window.start, window.count) == (0, 3)
     assert window.more_after is True
@@ -101,7 +101,7 @@ def test_a_loop_partway_through_keeps_the_clip_on_screen_in_the_middle():
     """Once the loop has advanced past the first cells the window slides with it, so
     the lit thumbnail stays in the middle instead of walking off the end of the map
     and leaving nothing highlighted."""
-    window = loop_window(_CELLS, playing=5, available=_ROOM_FOR_THREE)
+    window = map_window(_CELLS, playing=5, available=_ROOM_FOR_THREE)
 
     assert (window.start, window.count) == (4, 3)  # 4, 5, 6 — the playing one centred
     assert window.more_before is True
@@ -109,7 +109,7 @@ def test_a_loop_partway_through_keeps_the_clip_on_screen_in_the_middle():
 
 
 def test_a_loop_near_its_end_clamps_rather_than_running_off():
-    window = loop_window(_CELLS, playing=11, available=_ROOM_FOR_THREE)
+    window = map_window(_CELLS, playing=11, available=_ROOM_FOR_THREE)
 
     assert (window.start, window.count) == (9, 3)
     assert window.more_before is True
@@ -118,13 +118,13 @@ def test_a_loop_near_its_end_clamps_rather_than_running_off():
 
 def test_a_cell_too_big_for_the_room_is_still_drawn():
     """A clipped thumbnail beats a map with nothing on it at all."""
-    window = loop_window([300], playing=0, available=100)
+    window = map_window([300], playing=0, available=100)
 
     assert (window.start, window.count) == (0, 1)
 
 
 def test_an_empty_axis_has_no_window():
-    window = loop_window([], playing=0, available=200)
+    window = map_window([], playing=0, available=200)
 
     assert (window.start, window.count) == (0, 0)
 

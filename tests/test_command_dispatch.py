@@ -2331,7 +2331,7 @@ def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
     with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
 
-    assert state.portrait_loop_anchor == b
+    assert state.portrait_map_anchor == b
     assert _playlist(config, 2) == [b, a]  # the map's order is the queue's order
 
 
@@ -2409,17 +2409,26 @@ def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
     assert state.portrait_widen_clip == "C:/v/anchor.mp4"
 
 
-def test_no_loop_clears_the_loop_flag(tmp_path: Path):
+def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Path):
+    """Ending a loop must take away the loop's own chrome — the lit button and the
+    rectangle — and nothing else.
+
+    The map keeps hanging on the same clip, over the same (possibly widened) row, so
+    the thumbnails do not re-home onto whichever member the loop had reached; it lets
+    go by itself once the browse moves on past the group.
+    """
     config = _make_config(tmp_path)
 
     with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]):
         state, _ops = dispatch_command(
             "portrait_no_loop",
-            _make_state(portrait_loop="action", portrait_widen_clip="C:/v/anchor.mp4"), config,
+            _make_state(portrait_loop="action", portrait_map_anchor="C:/v/anchor.mp4",
+                        portrait_widen_clip="C:/v/anchor.mp4"), config,
         )
 
-    assert state.portrait_loop == ""
-    assert state.portrait_widen_clip == ""  # ending the loop drops the widened row
+    assert state.portrait_loop == ""                            # the loop is off
+    assert state.portrait_map_anchor == "C:/v/anchor.mp4"       # the map stays put
+    assert state.portrait_widen_clip == "C:/v/anchor.mp4"       # …and stays widened
 
 
 def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):

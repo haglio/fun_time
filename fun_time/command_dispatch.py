@@ -94,12 +94,14 @@ class BridgeState:
     # while the clip auto-advances.
     portrait_loop: str = ""
     landscape_loop: str = ""
-    # The clip each satellite's loop started on — the head of the queue the loop
-    # wrote.  The HUD orders its map from it, so the group is drawn in the order
-    # the player actually plays it: the clip you pressed loop on in the corner,
-    # the rest walking away from it.  Persisted alongside the axis it belongs to.
-    portrait_loop_anchor: str = ""
-    landscape_loop_anchor: str = ""
+    # The clip each satellite's HUD map hangs on — the head of the queue a loop
+    # wrote.  The map is ordered from it, so the group is drawn in the order the
+    # player actually plays it: the clip you pressed loop on in the corner, the rest
+    # walking away from it.  It outlives the loop: switching a loop off leaves the
+    # map hanging here, so only the loop's own chrome goes, and the map re-homes on
+    # its own once the browse moves on past the group.
+    portrait_map_anchor: str = ""
+    landscape_map_anchor: str = ""
     # The clip each satellite's seed row has been widened around ("more seeds").
     # While it equals the clip on screen the HUD shows the near-matches ranked in
     # alongside the family; navigating to another clip leaves it behind, so the
@@ -538,8 +540,8 @@ def _set_side_loop(state: BridgeState, which: int, axis: str, anchor: str) -> Br
     """Record that *which* satellite is running *axis*'s group loop, started on
     *anchor* — the clip that heads the queue the loop just wrote."""
     if which == 2:
-        return replace(state, portrait_loop=axis, portrait_loop_anchor=anchor)
-    return replace(state, landscape_loop=axis, landscape_loop_anchor=anchor)
+        return replace(state, portrait_loop=axis, portrait_map_anchor=anchor)
+    return replace(state, landscape_loop=axis, landscape_map_anchor=anchor)
 
 
 def _clear_side_grouping(state: BridgeState, which: int) -> BridgeState:
@@ -548,8 +550,8 @@ def _clear_side_grouping(state: BridgeState, which: int) -> BridgeState:
     was set.  The widen only ever means something in the context of the clip/loop
     it was taken around, so a rebuild that drops the loop drops the widen with it."""
     if which == 2:
-        return replace(state, portrait_loop="", portrait_loop_anchor="", portrait_widen_clip="")
-    return replace(state, landscape_loop="", landscape_loop_anchor="", landscape_widen_clip="")
+        return replace(state, portrait_loop="", portrait_map_anchor="", portrait_widen_clip="")
+    return replace(state, landscape_loop="", landscape_map_anchor="", landscape_widen_clip="")
 
 
 def _set_side_widen(state: BridgeState, which: int, clip: str) -> BridgeState:
@@ -1332,7 +1334,11 @@ def _dispatch_no_loop(
     if browse:
         write_playlist_file(config.satellite_playlist_file(which), _browse_behind(browse, current))
         _send_satellite(config, which, "RELOAD_PLAYLIST")
-    state = _clear_side_grouping(state, which)
+    # Only the loop itself goes.  The map anchor and any widened row stay, so the HUD
+    # keeps hanging exactly where it was and switching a loop off takes away the lit
+    # button and the rectangle and nothing else; the map lets go by itself once the
+    # browse moves on past the group.
+    state = replace(state, portrait_loop="") if which == 2 else replace(state, landscape_loop="")
     return state, [WindowOp(op="notice", key="Loop off", source=_satellite_source(which))]
 
 
