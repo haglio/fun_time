@@ -140,7 +140,8 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Filter portrait to the current clip's action", (), ("portrait_lock_action",)),
             _Row("Latest portrait — reload it newest-first", (), ("portrait_latest",)),
             _Row("Shuffle portrait — reshuffle it (cancels Latest; keeps the filter)", (), ("portrait_shuffle",)),
-            _Row("Reset portrait — clear filter, reshuffle to default", (), ("portrait_reset",)),
+            _Row("Drop portrait's filter — keep its order and everything else", (), ("portrait_no_filter",)),
+            _Row("Reset portrait — back to every default: no filter, no lock, no loop, shuffled from the top", (), ("portrait_reset",)),
         ),
     ),
     (
@@ -164,7 +165,8 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Filter landscape to the current clip's action", (), ("landscape_lock_action",)),
             _Row("Latest landscape — reload it newest-first", (), ("landscape_latest",)),
             _Row("Shuffle landscape — reshuffle it (cancels Latest; keeps the filter)", (), ("landscape_shuffle",)),
-            _Row("Reset landscape — clear filter, reshuffle to default", (), ("landscape_reset",)),
+            _Row("Drop landscape's filter — keep its order and everything else", (), ("landscape_no_filter",)),
+            _Row("Reset landscape — back to every default: no filter, no lock, no loop, shuffled from the top", (), ("landscape_reset",)),
         ),
     ),
     (
@@ -182,7 +184,8 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Stop looping both — back to browse, keep the filters", (), ("both_no_loop",)),
             _Row("Filter both to their current clip's action", (), ("both_lock_action",)),
             _Row("Shuffle both — reshuffle each (cancels Latest; keeps filters)", (), ("both_shuffle",)),
-            _Row("Reset both — clear filters, reshuffle to default", (), ("both_reset",)),
+            _Row("Drop both filters — keep their orders and everything else", (), ("both_no_filter",)),
+            _Row("Reset both — back to every default: no filters, no locks, no loops, shuffled from the top", (), ("both_reset",)),
         ),
     ),
     (
@@ -221,7 +224,8 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Filter the active side to the current clip's action", (), ("active_lock_action",)),
             _Row("Latest on the active side — reload it newest-first", (), ("active_latest",)),
             _Row("Shuffle the active side (cancels Latest; keeps the filter)", (), ("active_shuffle",)),
-            _Row("Reset the active side — clear filter, reshuffle to default", (), ("active_reset",)),
+            _Row("Drop the active side's filter — keep its order and everything else", (), ("active_no_filter",)),
+            _Row("Reset the active side — back to every default: no filter, no lock, no loop, shuffled from the top", (), ("active_reset",)),
         ),
     ),
     (

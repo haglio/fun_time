@@ -1080,22 +1080,87 @@ def test_a_sided_reorder_drops_that_sides_lock_and_loop(tmp_path: Path):
     assert new_state.portrait_widen_clip == ""
 
 
-def test_reset_clears_the_filter_and_reshuffles(tmp_path: Path):
+def test_a_reorder_starts_the_side_at_the_top_of_the_new_order(tmp_path: Path):
+    """The bug this fixes: "portrait latest" did reorder the queue, but the player
+    kept playing the clip it was on and carried on from there — so the new order only
+    ever applied behind it and the newest arrivals, the whole point of asking, were
+    never reached."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_filter="alpha", landscape_filter="kissing",
-                        portrait_latest=True, landscape_latest=True)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(applied=True)
+        dispatch_command("portrait_latest", _make_state(), config)
+
+    assert mock_filter.call_args.kwargs["start_at_top"] is True
+
+
+def test_a_filter_leaves_the_clip_on_screen_where_it_is(tmp_path: Path):
+    """Filtering is not "start over": the reload keeps the clip playing while it
+    survives the new list."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(applied=True)
+        dispatch_command("filter_portrait_alpha", _make_state(), config)
+
+    assert mock_filter.call_args.kwargs["start_at_top"] is False
+
+
+def test_reset_returns_the_side_to_every_default(tmp_path: Path):
+    """"reset" puts the whole side back, not just its filter: the lock released, the
+    order shuffled, any loop / widened row / frozen map dropped, and playing from the
+    top of a fresh browse."""
+    config = _make_config(tmp_path)
+    state = _make_state(
+        locked2=True, portrait_filter="alpha", portrait_latest=True,
+        portrait_loop="seed", portrait_map_anchor="C:/v/a.mp4",
+        portrait_widen_clip="C:/v/a.mp4", portrait_nav_anchor="C:/v/a.mp4",
+    )
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_reset", state, config)
 
-    # Clears only its side's filter, drops that side's Latest order, and rebuilds.
+    assert new_state.locked2 is False
+    assert new_state.portrait_filter == ""
     assert new_state.portrait_latest is False
-    assert new_state.landscape_latest is True  # the other side is untouched
+    assert new_state.portrait_loop == ""
+    assert new_state.portrait_map_anchor == ""
+    assert new_state.portrait_widen_clip == ""
+    assert new_state.portrait_nav_anchor == ""
     assert mock_filter.call_args.kwargs["query"] == ""
     assert mock_filter.call_args.kwargs["recent"] is False
-    assert new_state.portrait_filter == ""
+    assert mock_filter.call_args.kwargs["start_at_top"] is True
+    assert "UNLOCK" in _cmds(config, 2)
+
+
+def test_reset_leaves_the_other_side_alone(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(locked3=True, landscape_filter="kissing", landscape_latest=True)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        new_state, _ops = dispatch_command("portrait_reset", state, config)
+
+    assert new_state.locked3 is True
     assert new_state.landscape_filter == "kissing"
+    assert new_state.landscape_latest is True
+
+
+def test_no_filter_drops_the_filter_and_nothing_else(tmp_path: Path):
+    """The narrow gesture: the filter goes and the side keeps the order it was
+    browsing in, so it is not a way to lose your place in a Latest browse."""
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_filter="alpha", portrait_latest=True)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        new_state, _ops = dispatch_command("portrait_no_filter", state, config)
+
+    assert new_state.portrait_filter == ""
+    assert new_state.portrait_latest is True          # still its Latest order
+    assert mock_filter.call_args.kwargs["query"] == ""
+    assert mock_filter.call_args.kwargs["recent"] is True
 
 
 # --- portrait/landscape cycle action & cycle seed ---

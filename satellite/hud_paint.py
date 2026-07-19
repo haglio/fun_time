@@ -182,8 +182,11 @@ class HudRenderer:
         # here beyond the lock dot beside it.
         lock_color = GREEN if model.locked else TEXT_MUTED
         draw.ellipse([x, y + 2, x + 10, y + 12], fill=(*lock_color, 255))
+        # Always full-strength: the line is the panel's headline whatever it says,
+        # and dimming it when the side happened to be unlocked made the state hard to
+        # read in exactly the case there is most of it to read.
         draw.text((x + 18, y + 11), model.lock_label, font=self._body, anchor="ls",
-                  fill=(*(TEXT_PRIMARY if model.locked else TEXT_MUTED), 255))
+                  fill=(*TEXT_PRIMARY, 255))
         y += LOCK_BAND_H
 
         if model.corner is None:

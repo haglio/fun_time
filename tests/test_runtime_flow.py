@@ -334,8 +334,49 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(p_new), str(p_old)]
 
 
+def test_a_rebuild_can_start_the_side_at_the_top_of_the_new_list(tmp_path: Path):
+    """"Latest" means "show me what has just arrived", and a plain reload keeps the
+    clip on screen and carries on from where it sat — so the new order only ever
+    applied *behind* it and the newest clips were never reached.  A caller that means
+    "start over" asks for the head, which the player takes as PLAY_FILE."""
+    portrait_root = tmp_path / "portrait"
+    portrait_root.mkdir(parents=True)
+    old, new = portrait_root / "old.mp4", portrait_root / "new.mp4"
+    for path, mtime in ((old, 1000), (new, 2000)):
+        path.write_text("x", encoding="utf-8")
+        os.utime(path, (mtime, mtime))
+    cmd_file = tmp_path / "portrait_cmd.txt"
+
+    apply_satellite_filter(
+        which=2, query="", f_mode_enabled=False, recent=True, start_at_top=True,
+        sources=str(portrait_root), favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state", cmd_file=cmd_file,
+    )
+
+    assert cmd_file.read_text(encoding="utf-8").splitlines() == [
+        "RELOAD_PLAYLIST", f"PLAY_FILE {new}",
+    ]
+
+
+def test_a_rebuild_leaves_the_clip_on_screen_alone_by_default(tmp_path: Path):
+    """A filter change is not a "start over": the reload keeps the clip playing while
+    it survives, so only a caller that asks gets moved to the head."""
+    portrait_root = tmp_path / "portrait"
+    portrait_root.mkdir(parents=True)
+    (portrait_root / "clip.mp4").write_text("x", encoding="utf-8")
+    cmd_file = tmp_path / "portrait_cmd.txt"
+
+    apply_satellite_filter(
+        which=2, query="", f_mode_enabled=False, recent=False,
+        sources=str(portrait_root), favs_file=tmp_path / "favs.csv",
+        state_dir=tmp_path / "state", cmd_file=cmd_file,
+    )
+
+    assert cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
+
+
 def _reorder(tmp_path: Path, sources: Path, *, recent: bool, query: str = "", **roots) -> None:
-    """Reload the portrait satellite in one order — what "recents"/"shuffle" run."""
+    """Reload the portrait satellite in one order — what "latest"/"shuffle" run."""
     apply_satellite_filter(
         which=2,
         query=query,
