@@ -24,6 +24,7 @@ import pytest
 from fun_time.live_session import CLAIM_PATH_ENV_VAR
 
 from .hidden_desktop import require_hidden_desktop
+from .integration_support import close_udp_sinks
 from .live_session_guard import DENIED_EXIT_CODE, watch_for_live_session
 from .session_lock import INTEGRATION_LOCK_NAME, hold_integration_lock
 
@@ -121,6 +122,17 @@ def _abort_if_fun_time_opens():
         yield
     finally:
         stop.set()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _release_the_runs_udp_sinks():
+    """Hand back the ports this run bound to catch its own T-Code.
+
+    Session-scoped because the sinks are: every config a run builds binds one,
+    and each has to stay bound while any session might still be sending at it.
+    """
+    yield
+    close_udp_sinks()
 
 
 @pytest.fixture(scope="session", autouse=True)

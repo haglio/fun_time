@@ -406,23 +406,73 @@ class FunTimeIntegrationSession:
 
 
 
-def isolate_audio_companion_port(config: dict, genau_config: dict) -> None:
-    """Move this run's audio companion off the port the user's session uses.
+# Ports this process binds on the run's behalf, so the run's own T-Code has
+# somewhere to land.  Held for as long as any session might still be sending.
+_udp_sinks: list[socket.socket] = []
 
-    The companion ``bind``s a fixed UDP port from config, and Genau notifies it
-    on the matching ``notify_port``.  Both sides of that pair are rewritten here,
-    to a port the OS says is free: rewriting one alone would only leave the run's
-    own Genau shouting at nobody.
 
-    Two sessions on the production port cannot both have it.  The loser dies with
-    WSAEADDRINUSE, and if the run got there first the loser is the user's — they
-    open Fun Time and it comes up with no companion audio and nothing to say why.
-    """
+def _free_udp_port() -> int:
+    """A loopback port the OS says is free, for something else to bind."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
         probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
-    config["audio_companion"]["port"] = port
-    genau_config["genau"]["notify_port"] = port
+        return probe.getsockname()[1]
+
+
+def _sink_udp_port() -> int:
+    """A loopback port bound here for the rest of the run, and never read.
+
+    Moving a stream off a shared port is only half of isolating it: it has to
+    arrive somewhere.  ``UdpTCodeSink.send`` is a bare ``sendto`` with no
+    handler, and a datagram sent at a port nothing has bound draws an ICMP
+    port-unreachable that Windows reports back to the sender as WSAECONNRESET on
+    a later call — so an unbound port would kill Genau's T-Code thread with an
+    error the isolation itself invented.  A bound socket absorbs the stream the
+    way the broker does; nothing reads it, so the datagrams fill the receive
+    buffer and are dropped.
+    """
+    sink = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sink.bind(("127.0.0.1", 0))
+    _udp_sinks.append(sink)
+    return sink.getsockname()[1]
+
+
+def close_udp_sinks() -> None:
+    """Release every sink port bound for this run."""
+    while _udp_sinks:
+        _udp_sinks.pop().close()
+
+
+def isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
+    """Move every UDP endpoint this run would otherwise share with the machine.
+
+    Paths are not the whole of what a session claims.  Three fixed ports are
+    machine-global, and a socket is not per-desktop — so the hidden desktop does
+    nothing for any of them:
+
+    * The **audio companion** ``bind``s its port, and Genau notifies it on the
+      matching ``notify_port``.  Two sessions cannot both have it: the loser dies
+      with WSAEADDRINUSE, and if the run got there first the loser is the user's
+      — they open Fun Time and it comes up with no companion audio and nothing to
+      say why.  Both sides of the pair move together, or the run's own Genau is
+      left shouting at nobody.
+    * **Genau's inbound port** is bound with SO_REUSEADDR, which on Windows lets
+      a second Genau bind it rather than refusing — so two Genaus split one
+      datagram stream between them at random, and a run's Genau swallows packets
+      meant for the user's.
+    * The **broker's T-Code inlet** is the one output that reaches hardware.  The
+      broker holds the OSR2's serial port, so a run that keeps the production
+      inlet drives the user's device while they are using it.  Nau and Genau move
+      to one sink together, so a run's stream stays watchable where it lands.
+    """
+    companion_port = _free_udp_port()
+    config["audio_companion"]["port"] = companion_port
+    genau_config["genau"]["notify_port"] = companion_port
+
+    genau_config["genau"]["udp_port"] = _free_udp_port()
+
+    tcode_port = _sink_udp_port()
+    genau_config["genau"]["tcode_udp_port"] = tcode_port
+    genau_config["nau"]["tcode_udp_port"] = tcode_port
 
 
 def real_config_path() -> Path:
@@ -489,9 +539,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     genau_config["nau"]["videos_dir"] = str(primary_dir)
     genau_config["nau"]["scripts_dir"] = str(scripts_root)
     genau_config["nau"]["clips_dir"] = str(nau_clips_dir)
-    # Paths are not the whole of what a session claims: the audio companion binds
-    # a fixed UDP port, so a run and a live session would race for one socket.
-    isolate_audio_companion_port(config, genau_config)
+    isolate_shared_udp_ports(config, genau_config)
     test_genau_config = integration_root / "genau_integration_config.json"
     test_genau_config.write_text(json.dumps(genau_config), encoding="utf-8")
     config["paths"]["genau_config_path"] = str(test_genau_config)
