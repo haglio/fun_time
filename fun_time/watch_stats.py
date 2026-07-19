@@ -92,8 +92,8 @@ def passes_inclusion(weight: float, rng: random.Random) -> bool:
 class WatchTracker:
     """Classify one player's playback into completions and skips.
 
-    Player-agnostic: the same tracker serves a satellite VLC and the primary
-    Nau player.  Fed with periodic (path, position-fraction) samples plus
+    Player-agnostic: the same tracker serves a satellite and the primary Nau
+    player.  Fed with periodic (path, position-fraction) samples plus
     notifications of user navigation and discards, it emits
     ("completion" | "skip", path) events: a video that reached ~the end counts
     as watched (each repeat-one wrap while locked counts again); a video the

@@ -23,6 +23,11 @@ from fun_time.modes import (
 from fun_time.media_metadata import metadata_path_for
 
 
+def _lines(playlist: Path) -> list[str]:
+    """The lines of a playlist file a build just wrote."""
+    return playlist.read_text(encoding="utf-8").splitlines()
+
+
 def _touch_with_mtime(path: Path, mtime: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("x", encoding="utf-8")
@@ -101,7 +106,7 @@ def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path:
     assert paths == [str(first)]
 
 
-def test_build_fmode_playlists_writes_satellite_m3u_files(tmp_path: Path):
+def test_build_fmode_playlists_writes_satellite_playlist_files(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
@@ -122,7 +127,7 @@ def test_build_fmode_playlists_writes_satellite_m3u_files(tmp_path: Path):
     )
     state_dir = tmp_path / "state"
 
-    plan = build_fmode_playlists(
+    build_fmode_playlists(
         primary_sources=str(primary_root),
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
@@ -132,16 +137,13 @@ def test_build_fmode_playlists_writes_satellite_m3u_files(tmp_path: Path):
         rng=random.Random(1),
     )
 
-    assert plan.success is True
-    assert plan.primary_count == 1
-    assert plan.portrait_count == 1
-    assert plan.landscape_count == 1
-    # Only the two satellites get m3u files now; the primary slot is Nau, which
-    # reads its own .tsv playlist.
-    assert (state_dir / "portrait_vlc_playlist.m3u").read_text(encoding="utf-8").startswith("#EXTM3U")
-    assert (state_dir / "landscape_vlc_playlist.m3u").read_text(encoding="utf-8").startswith("#EXTM3U")
-    assert not (state_dir / "primary_vlc_playlist.m3u").exists()
-    assert str(primary_video) in (state_dir / "nau_playlist.tsv").read_text(encoding="utf-8")
+    # Each satellite gets a plain one-path-per-line playlist the native player
+    # reads; the primary slot is Nau, which reads its own .tsv playlist.  One
+    # video from each source survives the favourites filter.
+    assert _lines(state_dir / "portrait_playlist.tsv") == [str(portrait_video)]
+    assert _lines(state_dir / "landscape_playlist.tsv") == [str(landscape_video)]
+    assert _lines(state_dir / "nau_playlist.tsv") == [f"{primary_video}\t{mirrored}"]
+    assert not (state_dir / "primary_playlist.tsv").exists()
 
 
 def test_build_fmode_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path: Path):
@@ -157,7 +159,7 @@ def test_build_fmode_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path
     favs_file = tmp_path / "favs.csv"
     state_dir = tmp_path / "state"
 
-    plan = build_fmode_playlists(
+    build_fmode_playlists(
         primary_sources=str(primary_root),
         portrait_sources="",
         landscape_sources="",
@@ -167,9 +169,7 @@ def test_build_fmode_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path
         rng=random.Random(1),
     )
 
-    assert plan.nau_playlist_path == state_dir / "nau_playlist.tsv"
-    lines = plan.nau_playlist_path.read_text(encoding="utf-8").strip().splitlines()
-    assert sorted(lines) == sorted([
+    assert sorted(_lines(state_dir / "nau_playlist.tsv")) == sorted([
         f"{scripted_video}\t{mirrored}",
         f"{plain_video}",
     ])
@@ -292,23 +292,18 @@ def test_build_satellite_playlists_writes_both_recency_ordered_files(tmp_path: P
     _touch_with_mtime(l_new, 2000)
     state_dir = tmp_path / "state"
 
-    plan = build_satellite_playlists(
+    build_satellite_playlists(
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         f_mode=False,
-        recent=True,
+        portrait_recent=True,
+        landscape_recent=True,
     )
 
-    assert plan.portrait_count == 2
-    assert plan.landscape_count == 2
-    assert plan.portrait_playlist_path == state_dir / "portrait_vlc_playlist.m3u"
-    assert plan.landscape_playlist_path == state_dir / "landscape_vlc_playlist.m3u"
-    portrait_lines = plan.portrait_playlist_path.read_text(encoding="utf-8").splitlines()
-    landscape_lines = plan.landscape_playlist_path.read_text(encoding="utf-8").splitlines()
-    assert portrait_lines[1:] == [str(p_new), str(p_old)]
-    assert landscape_lines[1:] == [str(l_new), str(l_old)]
+    assert _lines(state_dir / "portrait_playlist.tsv") == [str(p_new), str(p_old)]
+    assert _lines(state_dir / "landscape_playlist.tsv") == [str(l_new), str(l_old)]
 
 
 def test_build_fmode_playlists_recent_orders_satellites(tmp_path: Path):
@@ -322,20 +317,19 @@ def test_build_fmode_playlists_recent_orders_satellites(tmp_path: Path):
     _touch_with_mtime(l_new, 2000)
     state_dir = tmp_path / "state"
 
-    plan = build_fmode_playlists(
+    build_fmode_playlists(
         primary_sources="",
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         enabled=False,
-        recent=True,
+        portrait_recent=True,
+        landscape_recent=True,
     )
 
-    portrait_lines = plan.portrait_playlist_path.read_text(encoding="utf-8").splitlines()
-    landscape_lines = plan.landscape_playlist_path.read_text(encoding="utf-8").splitlines()
-    assert portrait_lines[1:] == [str(p_new), str(p_old)]
-    assert landscape_lines[1:] == [str(l_new), str(l_old)]
+    assert _lines(state_dir / "portrait_playlist.tsv") == [str(p_new), str(p_old)]
+    assert _lines(state_dir / "landscape_playlist.tsv") == [str(l_new), str(l_old)]
 
 
 # --- shuffle_paths edge cases ---
@@ -467,8 +461,8 @@ def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Pat
     assert appearances < 15, "a weight-1/8 video should miss most builds"
 
 
-def test_premiere_recent_build_collapses_groups_to_newest_member(tmp_path: Path):
-    """Premiere shows one entry per action group even while reviewing arrivals:
+def test_latest_build_collapses_groups_to_newest_member(tmp_path: Path):
+    """Latest shows one entry per action group even while reviewing arrivals:
     the group's newest member represents it, ungrouped clips pass through, and
     the whole list stays newest-first."""
     source_dir, library, paths = _grouped_library(tmp_path, {
@@ -496,22 +490,20 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
     })
     state_dir = tmp_path / "state"
 
-    plan = build_satellite_playlists(
+    build_satellite_playlists(
         portrait_sources=str(source_dir),
         landscape_sources=str(source_dir),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         f_mode=False,
-        recent=False,
+        portrait_recent=False,
+        landscape_recent=False,
         rng=random.Random(5),
         library=library,
     )
 
-    for playlist in (plan.portrait_playlist_path, plan.landscape_playlist_path):
-        listed = [
-            line for line in playlist.read_text(encoding="utf-8").splitlines()
-            if line and not line.startswith("#")
-        ]
+    for name in ("portrait_playlist.tsv", "landscape_playlist.tsv"):
+        listed = _lines(state_dir / name)
         assert len(listed) == 1, "the two-action group must collapse to one entry"
         assert listed[0] in paths.values()
 
@@ -525,7 +517,7 @@ def test_build_fmode_playlists_forwards_library_to_satellites(tmp_path: Path):
     primary_dir.mkdir()
     (primary_dir / "main.mp4").write_text("x", encoding="utf-8")
 
-    plan = build_fmode_playlists(
+    build_fmode_playlists(
         primary_sources=str(primary_dir),
         portrait_sources=str(source_dir),
         landscape_sources=str(source_dir),
@@ -536,10 +528,7 @@ def test_build_fmode_playlists_forwards_library_to_satellites(tmp_path: Path):
         library=library,
     )
 
-    listed = [
-        line for line in plan.portrait_playlist_path.read_text(encoding="utf-8").splitlines()
-        if line and not line.startswith("#")
-    ]
+    listed = _lines(tmp_path / "state" / "portrait_playlist.tsv")
     assert len(listed) == 1, "satellite collapse must apply on the F-mode/startup build"
 
 
@@ -570,9 +559,9 @@ def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
     assert got == [paths["clip"]]
 
 
-def test_satellite_filter_composes_with_premiere_recency_order(tmp_path: Path):
+def test_satellite_filter_composes_with_latest_ordering(tmp_path: Path):
     # Distinct prompts put the two Alphas in distinct seed families, so the
-    # filtered build keeps both and premiere's newest-first ordering is visible.
+    # filtered build keeps both and the Latest newest-first ordering is visible.
     source_dir, library, paths = _grouped_library(tmp_path, {
         "old": _t2v_meta("Alpha", "1", prompt="scene one"),
         "new": _t2v_meta("Alpha", "2", prompt="scene two"),
@@ -598,7 +587,7 @@ def test_satellite_filter_is_ignored_without_a_library(tmp_path: Path):
     assert len(got) == 1
 
 
-def test_build_satellite_playlists_applies_independent_per_vlc_filters(tmp_path: Path):
+def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp_path: Path):
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     portrait_dir = media_root / "portrait"
@@ -623,20 +612,21 @@ def test_build_satellite_playlists_applies_independent_per_vlc_filters(tmp_path:
         metadata_root=metadata_root, watch_stats_file=tmp_path / "ws.json"
     )
 
-    plan = build_satellite_playlists(
+    build_satellite_playlists(
         portrait_sources=str(portrait_dir),
         landscape_sources=str(landscape_dir),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         f_mode=False,
-        recent=True,
+        portrait_recent=True,
+        landscape_recent=True,
         portrait_filter="alpha",
         landscape_filter="kissing",
         library=library,
     )
 
-    portrait_written = plan.portrait_playlist_path.read_text(encoding="utf-8")
-    landscape_written = plan.landscape_playlist_path.read_text(encoding="utf-8")
+    portrait_written = _lines(tmp_path / "state" / "portrait_playlist.tsv")
+    landscape_written = _lines(tmp_path / "state" / "landscape_playlist.tsv")
     assert p_cum in portrait_written and p_kiss not in portrait_written
     assert l_kiss in landscape_written and l_cum not in landscape_written
 

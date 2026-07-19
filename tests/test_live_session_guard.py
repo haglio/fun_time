@@ -1,12 +1,15 @@
 """Unit tests: an integration run never reaches the user's live Fun Time session.
 
-The integration config keeps the production VLC HTTP ports, so a run that starts
-while Fun Time is open drives the user's own satellite VLCs.  The guard decides,
-before the hidden desktop is even created, whether the run may proceed.
+A run isolates itself by state dir and one UDP port, so what is left over —
+competing for the GPU, streaming T-Code to the one OSR2 both sessions share —
+still lands on the user's.  The guard decides whether the run may proceed before
+the hidden desktop is created, and goes on watching for the whole run, because
+the user can open Fun Time at any point during one.
 """
 from __future__ import annotations
 
 import configparser
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,10 +21,19 @@ from tests.integration.live_session_guard import (
     close_live_session,
     find_live_session,
     read_recorded_children,
+    watch_for_live_session,
 )
 
 
 LIVE = ChildProcess(pid=4321, created_at=999)
+
+
+def _session(*, state_dir: Path | None = None, children=None, omni_paused: bool) -> LiveSession:
+    return LiveSession(
+        state_dir=state_dir or Path("state"),
+        children={"nau_pid": LIVE} if children is None else children,
+        omni_paused=omni_paused,
+    )
 
 
 def _write_state(state_dir: Path, *, children: dict[str, ChildProcess], omni_paused: bool) -> None:
@@ -38,29 +50,75 @@ def _write_state(state_dir: Path, *, children: dict[str, ChildProcess], omni_pau
         shared.write(fh)
 
 
+class TestFindLiveSessionAcrossCheckouts:
+    def test_finds_the_session_a_different_checkout_is_running(self, tmp_path):
+        """The regression that let a run kill the user's players.
+
+        Agents work in worktrees, and a worktree's config resolves ``state_dir``
+        to that worktree.  A guard that looked in its own state dir therefore
+        looked at an empty directory and declared the machine idle every single
+        time, while the user's session ran out of the primary checkout.  The
+        claim is published somewhere both checkouts resolve identically, so the
+        session is found wherever it is running from.
+        """
+        users_state_dir = tmp_path / "primary_checkout" / "state"
+        _write_state(users_state_dir, children={"nau_pid": LIVE}, omni_paused=True)
+        with patch.object(live_session_guard, "live_session_state_dir", return_value=users_state_dir), \
+             patch.object(live_session_guard, "get_process_creation_time", return_value=LIVE.created_at):
+            session = find_live_session()
+
+        assert session is not None
+        assert session.state_dir == users_state_dir
+        assert session.children == {"nau_pid": LIVE}
+        assert session.omni_paused is True
+
+
+def _claiming(state_dir: Path):
+    """Patch in a live session claiming *state_dir*, as its orchestrator would."""
+    return patch.object(
+        live_session_guard,
+        "live_session_state_dir",
+        return_value=state_dir,
+    )
+
+
 class TestFindLiveSession:
-    def test_no_session_when_no_pids_file(self, tmp_path):
-        assert find_live_session(tmp_path) is None
+    def test_no_session_when_nothing_claimed_the_machine(self, tmp_path):
+        with patch.object(live_session_guard, "live_session_state_dir", return_value=None):
+            assert find_live_session() is None
 
-    def test_no_session_when_every_recorded_child_has_exited(self, tmp_path):
+    def test_a_session_still_starting_up_has_recorded_no_children(self, tmp_path):
+        """The claim goes out before the orchestrator launches anything, so this
+        is the shape of a session caught mid-startup — live, but with nothing yet
+        that could be closed gracefully."""
+        with _claiming(tmp_path):
+            session = find_live_session()
+
+        assert session is not None
+        assert session.children == {}
+
+    def test_children_whose_processes_have_exited_are_not_counted(self, tmp_path):
         _write_state(tmp_path, children={"nau_pid": LIVE}, omni_paused=False)
 
-        with patch.object(live_session_guard, "get_process_creation_time", return_value=None):
-            assert find_live_session(tmp_path) is None
+        with _claiming(tmp_path), \
+             patch.object(live_session_guard, "get_process_creation_time", return_value=None):
+            assert find_live_session().children == {}
 
-    def test_no_session_when_the_pid_was_recycled(self, tmp_path):
+    def test_a_recycled_pid_is_not_counted_as_a_child(self, tmp_path):
         """A PID alone is not an identity — Windows hands freed PIDs straight back
-        out, so a stale bridge_pids.ini must not read as a live session."""
+        out, so a stale bridge_pids.ini must not read as a running child."""
         _write_state(tmp_path, children={"nau_pid": LIVE}, omni_paused=False)
 
-        with patch.object(live_session_guard, "get_process_creation_time", return_value=LIVE.created_at + 1):
-            assert find_live_session(tmp_path) is None
+        with _claiming(tmp_path), \
+             patch.object(live_session_guard, "get_process_creation_time", return_value=LIVE.created_at + 1):
+            assert find_live_session().children == {}
 
     def test_live_session_carries_the_omnipause_flag(self, tmp_path):
         _write_state(tmp_path, children={"nau_pid": LIVE}, omni_paused=True)
 
-        with patch.object(live_session_guard, "get_process_creation_time", return_value=LIVE.created_at):
-            session = find_live_session(tmp_path)
+        with _claiming(tmp_path), \
+             patch.object(live_session_guard, "get_process_creation_time", return_value=LIVE.created_at):
+            session = find_live_session()
 
         assert session is not None
         assert session.omni_paused is True
@@ -69,8 +127,9 @@ class TestFindLiveSession:
     def test_live_session_reports_playing_when_not_omnipaused(self, tmp_path):
         _write_state(tmp_path, children={"nau_pid": LIVE}, omni_paused=False)
 
-        with patch.object(live_session_guard, "get_process_creation_time", return_value=LIVE.created_at):
-            session = find_live_session(tmp_path)
+        with _claiming(tmp_path), \
+             patch.object(live_session_guard, "get_process_creation_time", return_value=LIVE.created_at):
+            session = find_live_session()
 
         assert session is not None
         assert session.omni_paused is False
@@ -80,8 +139,9 @@ class TestFindLiveSession:
         live process can match it — so it must not be probed or counted."""
         _write_state(tmp_path, children={"genau_pid": ChildProcess(pid=0, created_at=0)}, omni_paused=True)
 
-        with patch.object(live_session_guard, "get_process_creation_time") as creation_time:
-            assert find_live_session(tmp_path) is None
+        with _claiming(tmp_path), \
+             patch.object(live_session_guard, "get_process_creation_time") as creation_time:
+            assert find_live_session().children == {}
         creation_time.assert_not_called()
 
 
@@ -108,9 +168,8 @@ class TestAllowIntegrationRun:
 
         with patch.object(live_session_guard, "find_live_session", return_value=session):
             allowed = allow_integration_run(
-                Path("state"),
                 ask=ask,
-                close=lambda _state_dir, s: closed.append(s),
+                close=closed.append,
                 announce=announced.append,
             )
         return allowed, asked, closed, announced
@@ -124,17 +183,25 @@ class TestAllowIntegrationRun:
 
     def test_denies_without_asking_while_fun_time_is_playing(self):
         """The user is watching — never interrupt, never prompt."""
-        allowed, asked, closed, announced = self._allow(
-            LiveSession(children={"nau_pid": LIVE}, omni_paused=False)
-        )
+        allowed, asked, closed, announced = self._allow(_session(omni_paused=False))
 
         assert allowed is False
         assert asked == []
         assert closed == []
         assert any("playing" in line for line in announced)
 
+    def test_denies_a_session_that_has_not_recorded_its_children_yet(self):
+        """Caught mid-startup: it has claimed the machine, so it is live, but
+        there is nothing recorded that closing could shut down."""
+        allowed, asked, closed, announced = self._allow(_session(children={}, omni_paused=True))
+
+        assert allowed is False
+        assert asked == []
+        assert closed == []
+        assert any("starting up" in line for line in announced)
+
     def test_closes_fun_time_and_runs_when_the_user_agrees(self):
-        session = LiveSession(children={"nau_pid": LIVE}, omni_paused=True)
+        session = _session(omni_paused=True)
 
         allowed, asked, closed, _ = self._allow(session, answer=True)
 
@@ -143,9 +210,7 @@ class TestAllowIntegrationRun:
         assert closed == [session]
 
     def test_denies_and_leaves_fun_time_alone_when_the_user_declines(self):
-        session = LiveSession(children={"nau_pid": LIVE}, omni_paused=True)
-
-        allowed, asked, closed, announced = self._allow(session, answer=False)
+        allowed, asked, closed, announced = self._allow(_session(omni_paused=True), answer=False)
 
         assert allowed is False
         assert asked == [True]
@@ -153,24 +218,74 @@ class TestAllowIntegrationRun:
         assert any("declined" in line.lower() for line in announced)
 
 
+class TestWatchForLiveSession:
+    """The guard has to keep asking, not ask once.
+
+    ``allow_integration_run`` runs before the hidden desktop exists, so it can
+    only see a session that was already open.  A run lasts minutes, which is
+    ample time for the user to open Fun Time — and that is exactly how a run came
+    to be up alongside a live session in the first place.
+    """
+
+    def _watch(self, sessions, *, stop=None):
+        aborted: list[str] = []
+        watch_for_live_session(
+            find=lambda: sessions.pop(0),
+            abort=lambda: aborted.append("abort"),
+            sleep=lambda _s: None,
+            stop=stop or threading.Event(),
+        )
+        return aborted
+
+    def test_aborts_the_run_when_fun_time_opens_mid_run(self):
+        assert self._watch([None, None, _session(omni_paused=False)]) == ["abort"]
+
+    def test_keeps_polling_and_lets_a_finished_run_stop_it(self):
+        """The run ending is the normal way this ends — it must not abort a run
+        that got all the way through on an idle machine."""
+        stop = threading.Event()
+        polls: list[int] = []
+        aborted: list[str] = []
+
+        def find():
+            polls.append(1)
+            if len(polls) == 3:
+                stop.set()
+            return None
+
+        watch_for_live_session(
+            find=find,
+            abort=lambda: aborted.append("abort"),
+            sleep=lambda _s: None,
+            stop=stop,
+        )
+
+        assert aborted == []
+        assert len(polls) == 3
+
+
 class TestCloseLiveSession:
-    def test_asks_ahk_to_exit_then_waits_for_the_children_to_die(self, tmp_path):
+    def test_asks_the_sessions_own_ahk_to_exit_then_waits_for_it_to_die(self, tmp_path):
         """The bridge's own quit path: AHK exits, the orchestrator wakes and
-        shuts its children down.  No taskkill needed when it works."""
-        session = LiveSession(children={"nau_pid": LIVE}, omni_paused=True)
+        shuts its children down.  No taskkill needed when it works.
+
+        The command must land in the session's own state dir — writing it into
+        ours would drop it in a worktree directory no AHK is watching.
+        """
+        session = _session(state_dir=tmp_path, omni_paused=True)
 
         with patch.object(live_session_guard, "get_process_creation_time", return_value=None), \
              patch.object(live_session_guard, "kill_recorded_child") as kill:
-            close_live_session(tmp_path, session, sleep=lambda _s: None)
+            close_live_session(session, sleep=lambda _s: None)
 
         assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
         kill.assert_not_called()
 
     def test_taskkills_a_child_that_outlives_the_graceful_quit(self, tmp_path):
-        session = LiveSession(children={"nau_pid": LIVE}, omni_paused=True)
+        session = _session(state_dir=tmp_path, omni_paused=True)
 
         with patch.object(live_session_guard, "get_process_creation_time", return_value=LIVE.created_at), \
              patch.object(live_session_guard, "kill_recorded_child") as kill:
-            close_live_session(tmp_path, session, timeout=0.0, sleep=lambda _s: None)
+            close_live_session(session, timeout=0.0, sleep=lambda _s: None)
 
         kill.assert_called_once_with(LIVE)

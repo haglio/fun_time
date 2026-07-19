@@ -22,7 +22,13 @@ from fun_time.event_log import (
     SOURCE_SYSTEM,
     notice,
 )
-from fun_time.voice_commands import VOICE_COMMANDS, format_spoken_command
+from fun_time.mic_selection import resolve_input_device
+from fun_time.voice_commands import (
+    SELF_REPORTING_COMMANDS,
+    VOICE_COMMANDS,
+    append_command_line,
+    format_spoken_command,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -156,13 +162,13 @@ class VoiceController:
         cmd_file: Path | str,
         model_path: str,
         confidence_threshold: float = 0.7,
-        device_index: int | None = None,
+        device_name: str | None = None,
         sample_rate: int = 16000,
     ) -> None:
         self.cmd_file = Path(cmd_file)
         self.model_path = model_path
         self.confidence_threshold = confidence_threshold
-        self.device_index = device_index
+        self.device_name = device_name
         self.sample_rate = sample_rate
         self._stop = threading.Event()
         self._muted = threading.Event()
@@ -214,9 +220,7 @@ class VoiceController:
         if self._suspended.is_set() and command not in SUSPEND_EXEMPT_COMMANDS:
             logger.debug("Voice suspended by omnipause: ignored %s", command)
             return False
-        with self.cmd_file.open("a", encoding="utf-8") as f:
-            f.write(format_spoken_command(command, spoken_at=spoken_at) + "\n")
-        return True
+        return append_command_line(self.cmd_file, format_spoken_command(command, spoken_at=spoken_at))
 
     def _handle_recognition(self, interp: Recognition, *, spoken_at: float) -> None:
         """Act on one interpreted utterance: dispatch, confirm, or report.
@@ -231,7 +235,8 @@ class VoiceController:
         if interp.command:
             logger.info("Voice command: %s (spoken %.2fs before recognition)",
                         interp.command, time.monotonic() - spoken_at)
-            if self._write_command(interp.command, spoken_at=spoken_at):
+            dispatched = self._write_command(interp.command, spoken_at=spoken_at)
+            if dispatched and interp.command not in SELF_REPORTING_COMMANDS:
                 notice(
                     logger,
                     friendly_voice(interp.phrase or interp.command),
@@ -245,6 +250,32 @@ class VoiceController:
                 source=SOURCE_SYSTEM,
                 level=logging.ERROR,
             )
+
+    def _resolve_device(self) -> int | None:
+        """The sounddevice input index to open the listen stream on.
+
+        Resolved from ``device_name`` (a mic-name substring).  Pinning by name
+        rather than a fragile index is deliberate: Windows renumbers devices when
+        one is added or removed, and its default input is often a dead virtual
+        mic (a VR headset, "Sound Mapper") that returns pure silence and so
+        silently kills every voice command.  Falls back to None (the system
+        default) when no name is configured or none matches.
+        """
+        if not self.device_name:
+            return None
+        try:
+            index, name = resolve_input_device(self.device_name)
+        except Exception:
+            logger.exception("Voice control device lookup failed; using system default")
+            return None
+        if index is None:
+            logger.warning(
+                "Voice control: no input device matching %r; using system default",
+                self.device_name,
+            )
+        else:
+            logger.info("Voice control listening on input device %s (%s)", index, name)
+        return index
 
     def stop(self) -> None:
         """Signal the run loop to stop."""
@@ -273,6 +304,7 @@ class VoiceController:
             audio_q.put((bytes(indata), time.monotonic()))
 
         onset = UtteranceOnset()
+        device = self._resolve_device()
 
         try:
             model = vosk.Model(model_name=self.model_path)
@@ -290,14 +322,14 @@ class VoiceController:
             rec.SetWords(True)
             free_rec.SetWords(True)
             logger.info("Voice control listening (model=%s, rate=%d, device=%s)",
-                        self.model_path, self.sample_rate, self.device_index)
+                        self.model_path, self.sample_rate, device)
 
             with sd.RawInputStream(
                 samplerate=self.sample_rate,
                 blocksize=8000,
                 dtype="int16",
                 channels=1,
-                device=self.device_index,
+                device=device,
                 callback=_callback,
             ):
                 while not self._stop.is_set():

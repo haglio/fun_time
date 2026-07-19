@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import secrets
 import subprocess
 import sys
 import time
@@ -10,9 +9,10 @@ import os
 from pathlib import Path
 
 from .config import load_config
+from .live_session import publish_live_session
 from .manifest import write_windows_bridge_manifest
 from .windows_bridge_orchestrator import run_python_orchestrated_bridge
-from .logging_utils import configure_logging, install_exception_logging
+from app_support.logging_utils import configure_logging, install_exception_logging
 from . import orchestrator_broker
 
 
@@ -42,7 +42,6 @@ def ensure_runtime_files(config) -> None:
 
 
 def validate_config(config) -> None:
-    require_file(config.paths.vlc_exe)
     require_file(config.paths.ahk_exe)
     require_file(config.paths.python_exe)
     if config.random_favs_browser.enabled:
@@ -124,36 +123,11 @@ def ensure_broker_running(config, logger, *, attempts: int = 20, delay_seconds: 
     return False
 
 
-def vlc_http_password_from_vlcrc() -> str | None:
-    appdata = os.environ.get("APPDATA")
-    if not appdata:
-        return None
-    vlcrc = Path(appdata) / "vlc" / "vlcrc"
-    try:
-        with vlcrc.open("r", encoding="utf-8", errors="ignore") as fh:
-            for line in fh:
-                stripped = line.strip()
-                if not stripped or stripped.startswith("#"):
-                    continue
-                if stripped.startswith("http-password="):
-                    value = stripped.split("=", 1)[1].strip()
-                    return value or None
-    except OSError:
-        return None
-    return None
-
-
-def resolve_vlc_http_password() -> str:
-    return vlc_http_password_from_vlcrc() or f"fun_time_{secrets.token_hex(6)}"
-
-
 def run_windows_bridge(config, logger) -> int:
-    vlc_http_pass = resolve_vlc_http_password()
-    manifest_path = write_windows_bridge_manifest(config, vlc_http_pass)
+    manifest_path = write_windows_bridge_manifest(config)
     hotkey_script = config.project_dir / "windows_bridge_hotkeys.ahk"
 
     logger.info("Launching Python-orchestrated Windows bridge using config %s", config.config_path)
-    logger.info("VLC HTTP ports: portrait=%s landscape=%s", config.vlc.vlc2_http_port, config.vlc.vlc3_http_port)
 
     exit_code = run_python_orchestrated_bridge(
         manifest_path=manifest_path,
@@ -223,6 +197,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         logger.info("Config validation succeeded")
         return 0
+
+    # Say we are up before touching anything the whole machine shares — the
+    # broker restart on the next line above all — because that window is the only
+    # chance an integration run has to see us and get out of the way.  Not before
+    # the --check return: validating a config starts no session, and a claim from
+    # one would block a run for as long as the checking process lived.  An
+    # integration run's own orchestrator stays silent too: the claim is what tells
+    # a run to abort, and a run that published one would abort itself.
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+        publish_live_session(config.paths.state_dir)
 
     ensure_broker_running(config, logger)
     return run_windows_bridge(config, logger)

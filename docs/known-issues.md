@@ -13,8 +13,8 @@
 - Status: Resolved (2026-07-05)
 - Symptom: Pressing `Esc` enters OmniPause, but Fun Time-managed windows can still remain effectively on top of other windows.
 - Scope:
-  - Primary VLC
-  - Satellite VLCs
+  - The primary display
+  - The satellites
   - MFP
   - Fun Time overlay/dashboard
   - Genau

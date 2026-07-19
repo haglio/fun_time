@@ -16,12 +16,22 @@ from pathlib import Path
 # inspect real windows and need real HWNDs, which the offscreen platform cannot give.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-import http.client
+# Send the live-session claim somewhere disposable for the whole unit suite. A
+# running Fun Time publishes one to a fixed machine-global path so an integration
+# run can see it from any checkout and refuse to start; a unit test that runs the
+# orchestrator would publish one too, naming the live pytest process, and a
+# concurrent integration run would read that and abort against a session nobody
+# opened. Set before any test imports the orchestrator. tests/integration/conftest.py
+# pops it — the guard there has to read the real one.
+os.environ.setdefault(
+    "FUN_TIME_LIVE_SESSION_FILE",
+    str(Path(__file__).resolve().parent.parent / ".tmp-pytest-local" / "unit_suite_live_session.ini"),
+)
 
 import pytest
 from PyQt6.QtWidgets import QApplication
 
-from fun_time import vlc_actions
+from fun_time import win32, windows_bridge_orchestrator
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -31,32 +41,47 @@ def _qapp():
     yield app
 
 
-_REAL_HTTP_CONNECTION = http.client.HTTPConnection
-_real_get_pooled_conn = vlc_actions._get_pooled_conn
+# The window wrappers in fun_time.win32 all funnel through a few user32 calls, and
+# the same machine runs the user's live Fun Time.  So an unmocked window call in a
+# unit test lands on THEIR windows: a test that reaches the real ``set_always_on_top``
+# resolves the live "Nau"/"Genau" window by title and forces it on top — the test
+# bleed behind "Nau pops on top during OmniPause" (it looked like a runtime/OmniPause
+# bug for months because it WAS our code, run by a concurrent agent's test process).
+_MUTATING_USER32_CALLS = ("SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW")
 
 
 @pytest.fixture(autouse=True)
-def _never_open_a_socket_to_vlc(monkeypatch):
-    """A unit test must never reach a real VLC.
+def _never_mutate_a_real_window(monkeypatch):
+    """Neutralise the win32 calls that MOVE/topmost/activate/close a window, so no
+    unit test can touch the user's live windows.
 
-    The suite runs on the same machine as the user's Fun Time, whose two
-    satellites listen on the production HTTP ports.  An unmocked call lands on
-    THEM: `ensure_playback_state` answers a paused VLC with `pl_pause`, and
-    `pl_pause` toggles — so a background test run starts the user's video
-    playing in the middle of their own OmniPause.
-
-    Tests that exercise the HTTP layer itself substitute their own
-    `HTTPConnection`; they are let through, because then no socket is opened.
+    Only the mutating primitives are stubbed; the readers (``GetWindowLongW``,
+    ``EnumWindows``, the z-order walk) stay real, so ``is_window_topmost`` /
+    ``find_window_*`` / ``iter_zorder`` still behave — resolving a live handle is
+    harmless, and any attempt to then mutate it is inert.  Tests that assert on these
+    calls patch ``fun_time.win32._user32`` themselves, which overrides this; the
+    integration suite overrides it too, because it drives real native windows.
     """
-    def _guard(port: int):
-        if vlc_actions.http.client.HTTPConnection is _REAL_HTTP_CONNECTION:
-            raise AssertionError(
-                f"a unit test tried to open a real socket to VLC on port {port} — "
-                "mock the vlc_actions function this call goes through"
-            )
-        return _real_get_pooled_conn(port)
+    def _inert(*_args, **_kwargs):
+        return 0
 
-    monkeypatch.setattr(vlc_actions, "_get_pooled_conn", _guard)
+    for name in _MUTATING_USER32_CALLS:
+        monkeypatch.setattr(win32._user32, name, _inert)
+
+
+@pytest.fixture(autouse=True)
+def _never_hold_the_live_loopback_port(monkeypatch):
+    """Keep the orchestrator tests off ``LOOPBACK_PORT``, which is machine-wide.
+
+    Every test that runs ``run_python_orchestrated_bridge`` reaches the real
+    ``serve_loopback``, and a bound port is a bound port: for the length of the
+    run this pytest — not the user — owns 8770.  A Fun Time opened meanwhile
+    finds it busy, logs the warning, and comes up with no loopback server at
+    all, so Tampermonkey stops auto-updating and the RFB tab pages never hear
+    about OmniPause.  The integration suite overrides this: its session is
+    supposed to serve, and the live-session guard keeps it alone on the machine.
+    """
+    monkeypatch.setattr(windows_bridge_orchestrator, "serve_loopback", lambda **_kwargs: None)
 
 
 TMP_ROOT = Path(
@@ -102,7 +127,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
 
     cfg: dict = {
         "paths": {
-            "vlc_exe": str(tmp_path / "vlc.exe"),
             "ahk_exe": str(tmp_path / "ahk.exe"),
             "python_exe": str(tmp_path / "python.exe"),
             "nau_library_dirs": [str(tmp_path / "videos" / "videos" / "nau_library")],
@@ -113,10 +137,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "audio_dir": str(tmp_path / "audio"),
             "favs_file": str(tmp_path / "favs.csv"),
             "state_dir": str(tmp_path / "state"),
-        },
-        "vlc": {
-            "vlc2_http_port": 8091,
-            "vlc3_http_port": 8092,
         },
         "layout": {
             "main_monitor": 1,

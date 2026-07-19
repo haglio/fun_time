@@ -14,25 +14,29 @@ import time
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
-from .command_dispatch import BridgeConfig, BridgeState, WindowOp, command_side, dispatch_command
-from .event_log import SOURCE_LANDSCAPE, SOURCE_PORTRAIT, notice
+from .command_dispatch import (
+    FAILED_NOTICE_LEVEL,
+    BridgeConfig,
+    BridgeState,
+    WindowOp,
+    command_side,
+    dispatch_command,
+)
+from .event_log import NOTICE, notice
+from .hud_transport import HudPublisher
+from .lock_hud import build_panels
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
+from .satellite_control import read_satellite_status
 from .video_timeline import VideoTimeline
-from .vlc_actions import (
-    get_current_file_path,
-    get_playback_fraction,
-    get_repeat_mode,
-    pause_if_playing,
-)
 from .voice_commands import parse_command_line
 from .watch_stats import WatchTracker, record_watch_event, watch_stats_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
-from .voice_control import VoiceController
+from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on, read_nau_status
 from .runtime_flow import read_flag_file
-from .windows_bridge_startup import restart_broker, stop_broker_processes
+from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
@@ -42,18 +46,32 @@ from .win32 import (
     activate_window,
     find_window_by_pid,
     find_window_by_title,
-    hide_window,
     is_window_topmost,
     minimize_window,
     restore_window,
-    send_vk_to_window,
-    send_key_to_window,
     set_always_on_top,
     show_open_file_dialog,
-    show_window,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def read_nau_notice(path) -> tuple[float, str, str]:
+    """Nau's latest one-shot notice as (sequence, level, message).
+
+    Nau bumps the sequence whenever it raises one; (0, "", "") means there is
+    nothing to read. Only Nau knows whether a clip jump had a target, so this is
+    how "full video not available" reaches the overlay.
+    """
+    try:
+        values = dict(
+            line.split("=", 1)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if "=" in line
+        )
+        return float(values.get("seq", "0")), values.get("level", "notice"), values.get("message", "")
+    except (OSError, ValueError):
+        return 0, "", ""
 
 
 def poll_dashboard_commands(cmd_file: Path) -> list[str]:
@@ -75,22 +93,34 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
+# The side-agnostic actions the primary (Nau) answers, and what it answers with.
+# Navigation is the same gesture on every player; "end loop" is the same *word* for
+# a different loop — Nau's A-B loop rather than a satellite's group loop.
+_PRIMARY_EQUIVALENTS = {
+    "next": "primary_next",
+    "prev": "primary_prev",
+    "no_loop": "nau_loop_cancel",
+}
+
+
 def resolve_active_side_command(command: str, active_side: int) -> str:
     """Rewrite a side-agnostic ``active_*`` command onto the active player.
 
     ``active_next``/``active_prev`` follow the last player navigated — primary
-    (Nau, slot 1), portrait (2), or landscape (3).  The other actions (lock,
-    weird, cycle) exist only on the satellites, so while the primary is active
-    they resolve to nothing — returned unchanged, which is a no-op downstream.
-    Every non-``active_`` command passes through unchanged.
+    (Nau, slot 1), portrait (2), or landscape (3).  ``active_no_loop`` reaches the
+    primary too, meaning the loop *it* has: Nau's A-B loop, where on a satellite the
+    same phrase ends a group loop.  The rest (lock, weird, cycle) exist only on the
+    satellites, so while the primary is active they resolve to nothing — returned
+    unchanged, which is a no-op downstream.  Every non-``active_`` command passes
+    through unchanged.
     """
     if not command.startswith("active_"):
         return command
     action = command[len("active_"):]
-    if active_side == 1:  # primary (Nau) participates in navigation only
-        if action in ("next", "prev"):
-            return f"primary_{action}"
-        return command
+    if active_side == 1:
+        # What each side-agnostic action means on the primary; anything absent
+        # here simply has no primary equivalent.
+        return _PRIMARY_EQUIVALENTS.get(action, command)
     prefix = "portrait_" if active_side == 2 else "landscape_"
     return prefix + action
 
@@ -109,56 +139,8 @@ def expand_both_command(command: str) -> list[str]:
     return [command]
 
 
-def execute_window_ops(ops: list[WindowOp], nau_pid: int) -> list[WindowOp]:
-    """Execute window operations via Python win32, returning any that need AHK.
-
-    ``send_key``/``send_vk`` target Nau, which owns the primary display.
-    """
-    remaining: list[WindowOp] = []
-    for op in ops:
-        if op.op in ("suspend_hotkeys", "unsuspend_hotkeys", "notice",
-                      "disable_all_topmost", "restore_all_topmost",
-                      "open_rfb_tab",
-                      "show_role", "hide_role", "activate_role",
-                      "restack_primary"):
-            remaining.append(op)
-            continue
-
-        if op.op == "send_key":
-            hwnd = find_window_by_pid(nau_pid)
-            if hwnd:
-                send_key_to_window(hwnd, op.key)
-            continue
-
-        if op.op == "send_vk":
-            hwnd = find_window_by_pid(nau_pid)
-            if hwnd:
-                send_vk_to_window(hwnd, op.vk)
-            continue
-
-        if op.title:
-            hwnd = find_window_by_title(op.title, exact=op.exact)
-            if not hwnd:
-                continue
-        else:
-            continue
-
-        if op.op == "set_topmost":
-            set_always_on_top(hwnd, op.value)
-        elif op.op == "activate":
-            if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-                activate_window(hwnd)
-        elif op.op == "show":
-            if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-                show_window(hwnd)
-        elif op.op == "hide":
-            hide_window(hwnd)
-
-    return remaining
-
-
 def write_shared_state(state_file: Path, state: BridgeState) -> None:
-    """Write bridge state to a shared INI file for AHK to read."""
+    """Write bridge state to the shared INI file the HUD and the guard read."""
     parser = configparser.ConfigParser()
     parser.optionxform = str
     parser["state"] = {
@@ -170,10 +152,16 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         "active_side": str(state.active_side),
         "portrait_filter": state.portrait_filter,
         "landscape_filter": state.landscape_filter,
+        "portrait_latest": "1" if state.portrait_latest else "0",
+        "landscape_latest": "1" if state.landscape_latest else "0",
         "portrait_loop": state.portrait_loop,
         "landscape_loop": state.landscape_loop,
+        "portrait_map_anchor": state.portrait_map_anchor,
+        "landscape_map_anchor": state.landscape_map_anchor,
         "portrait_widen_clip": state.portrait_widen_clip,
         "landscape_widen_clip": state.landscape_widen_clip,
+        "portrait_nav_anchor": state.portrait_nav_anchor,
+        "landscape_nav_anchor": state.landscape_nav_anchor,
         "volume": str(state.volume),
         "muted": "1" if state.muted else "0",
     }
@@ -202,28 +190,25 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
     if "state" not in parser:
         return None
     s = parser["state"]
-    raw_mode = s.get("primary_mode", s.get("genau_mode", "nau"))
-    # Backward compat: old INI files used "1"/"0" for genau_mode, and Nau
-    # replaced the retired vlc mode as the primary player.
-    if raw_mode == "1":
-        primary_mode = "genau"
-    elif raw_mode in ("0", "vlc"):
-        primary_mode = "nau"
-    else:
-        primary_mode = raw_mode
     return BridgeState(
         locked2=s.get("locked2", "0") == "1",
         locked3=s.get("locked3", "0") == "1",
-        primary_mode=primary_mode,
+        primary_mode=s.get("primary_mode", "nau"),
         f_mode_enabled=s.get("f_mode_enabled", "0") == "1",
         omni_paused=s.get("omni_paused", "0") == "1",
         active_side=_int_or(s, "active_side", 2),
         portrait_filter=s.get("portrait_filter", ""),
         landscape_filter=s.get("landscape_filter", ""),
+        portrait_latest=s.get("portrait_latest", "0") == "1",
+        landscape_latest=s.get("landscape_latest", "0") == "1",
         portrait_loop=s.get("portrait_loop", ""),
         landscape_loop=s.get("landscape_loop", ""),
+        portrait_map_anchor=s.get("portrait_map_anchor", ""),
+        landscape_map_anchor=s.get("landscape_map_anchor", ""),
         portrait_widen_clip=s.get("portrait_widen_clip", ""),
         landscape_widen_clip=s.get("landscape_widen_clip", ""),
+        portrait_nav_anchor=s.get("portrait_nav_anchor", ""),
+        landscape_nav_anchor=s.get("landscape_nav_anchor", ""),
         volume=_int_or(s, "volume", MAX_VOLUME),
         muted=s.get("muted", "0") == "1",
     )
@@ -236,8 +221,8 @@ def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 
     on resume the wall clock has jumped forward by the sleep duration.  A gap
     far above the ~50 ms tick interval means we just woke — the moment AHK's
     hotkeys are prone to not firing until the bridge is restarted.  Returns
-    None for ordinary iterations (and for merely slow ticks, e.g. a stuck VLC
-    HTTP call, which the threshold clears).
+    None for ordinary iterations (and for merely slow ticks, e.g. a blocking
+    file read against a stalled disk, which the threshold clears).
     """
     gap = now_wall - prev_wall
     return gap if gap >= threshold_s else None
@@ -258,6 +243,7 @@ class DispatchLoopRunner:
         landscape_pid: int = 0,
         dashboard_pid: int = 0,
         dashboard_enabled: bool,
+        hud_publisher: HudPublisher | None = None,
         rfb_hwnd: int = 0,
         rfb_shortcut_target: str = "",
         rfb_shortcut_work_dir: str = "",
@@ -274,6 +260,15 @@ class DispatchLoopRunner:
         self.landscape_pid = landscape_pid
         self.dashboard_pid = dashboard_pid
         self.dashboard_enabled = dashboard_enabled
+        # The lock HUD's model: this loop holds the state the map is drawn from
+        # (locks, filters, loops) and already ticks, so it builds each satellite's
+        # panel and publishes it for that satellite's player to render into its
+        # own video.  None when the session runs without HUDs.
+        self._hud_publisher = hud_publisher
+        self._last_hud_publish = 0.0
+        # The clip each satellite last named, so a status read that loses the
+        # race with the player's own republish does not blank its map.
+        self._last_satellite_clip: dict[str, str] = {}
         self.rfb_hwnd = rfb_hwnd
         self.rfb_shortcut_target = rfb_shortcut_target
         self.rfb_shortcut_work_dir = rfb_shortcut_work_dir
@@ -297,29 +292,31 @@ class DispatchLoopRunner:
         # rapid chrome.exe launches race Chrome's singleton and drop a tab.
         self._pending_rfb_urls: list[str] = []
         self._batching_rfb = False
+        # Latch whatever is already on disk, so a notice left over from a
+        # previous session does not flash the moment this one opens.
+        self._last_nau_notice_seq = read_nau_notice(
+            getattr(config, "nau_notice_file", None) or Path("nau_notice.txt")
+        )[0]
         self.voice_controller: VoiceController | None = None
         # Each player's current video is sampled periodically and fed to watch
         # tracking ("breeding"), which classifies playback into completions/skips
-        # for the stats file.  The satellites (2, 3) are polled over VLC's HTTP
-        # interface and additionally feed a timeline, which lets a spoken command
-        # be back-dated to the video on screen when the user started talking (see
-        # _back_dated_video); the primary Nau player (1) is read from its status
-        # file and needs no such timeline.
+        # for the stats file.  The satellites (2, 3) are read from the status file
+        # each native player publishes and additionally feed a timeline, which lets
+        # a spoken command be back-dated to the video on screen when the user
+        # started talking (see _back_dated_video); the primary Nau player (1) is
+        # read from its own status file and needs no such timeline.
         self._watch_trackers: dict[int, WatchTracker] = {
             1: WatchTracker(),
             2: WatchTracker(),
             3: WatchTracker(),
         }
         self._timelines: dict[int, VideoTimeline] = {2: VideoTimeline(), 3: VideoTimeline()}
-        self._satellite_ports = {2: config.portrait_port, 3: config.landscape_port}
+        self._satellite_status_files = {
+            2: config.portrait_status_file,
+            3: config.landscape_status_file,
+        }
         self._watch_stats_file = watch_stats_path(config.state_dir)
         self._last_watch_sample = 0.0
-        # The clip each satellite was on the last time the OmniPause watchdog
-        # caught it playing.  A catch compares against this to say whether the
-        # satellite restarted the *same* clip (VLC's own repeat loop) or moved to
-        # a different one (a playlist advance) — the field that tells the resume's
-        # cause apart.  Cleared whenever OmniPause is not holding.
-        self._omnipause_prev_clip: dict[int, str] = {2: "", 3: ""}
         # Hybrid funscript handoff: whether the funscript is driving the OSR2
         # right now (so Genau is paused and Nau's T-Code is on) or Genau is (a
         # funscript gap or an unscripted video).  None means "no decision applied
@@ -328,16 +325,19 @@ class DispatchLoopRunner:
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
-    # Twice a second: the shared cadence for looking at every player over VLC.
-    # Unpaused, that look SAMPLES playback (both satellites and the primary Nau
-    # feed) for watch tracking; under OmniPause it instead ENFORCES the pause,
-    # re-pausing any satellite that has resumed on its own (see
-    # _enforce_satellites_paused).  The two never run in the same tick, so one
-    # clock gates both.  A satellite video switch is only ever bracketed by two
-    # samples, so this also bounds how far a back-dated command can misplace a
-    # switch (the timeline halves it again by dating the switch to the bracket's
-    # midpoint).
+    # Twice a second: the cadence for sampling every player's current clip for
+    # watch tracking (both satellites and the primary Nau feed).  A satellite
+    # video switch is only ever bracketed by two samples, so this also bounds how
+    # far a back-dated command can misplace a switch (the timeline halves it again
+    # by dating the switch to the bracket's midpoint).  Skipped under OmniPause,
+    # where playback is frozen.
     _WATCH_SAMPLE_INTERVAL_S = 0.5
+
+    # The satellites play ~5 s clips, so the HUD map has to track the current clip
+    # almost the instant it changes — but not at the loop's own 20 Hz.  Building a
+    # panel is index lookups plus a stat per thumbnail, and the publisher skips the
+    # write entirely when the panel is unchanged, so an idle tick is nearly free.
+    _HUD_PUBLISH_INTERVAL_S = 0.15
 
     # Commands that count as the user navigating away from a video — the signal
     # that classifies an early departure as a skip rather than a neutral advance.
@@ -352,6 +352,8 @@ class DispatchLoopRunner:
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
+        self._flash_nau_notice()
+
         # Sync state from shared file — AHK hotkey dispatches update it directly.
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
@@ -394,12 +396,63 @@ class DispatchLoopRunner:
                 self._update_dashboard()
         if now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
             self._last_watch_sample = now
-            if self.state.omni_paused:
-                self._enforce_satellites_paused()
-            else:
-                self._omnipause_prev_clip = {2: "", 3: ""}
+            if not self.state.omni_paused:
                 self._sample_satellites(now=now)
                 self._sample_primary()
+        if now - self._last_hud_publish >= self._HUD_PUBLISH_INTERVAL_S:
+            self._last_hud_publish = now
+            self._publish_huds()
+
+    def _publish_huds(self) -> None:
+        """Rebuild both satellites' HUD panels and publish the ones that changed.
+
+        Runs under OmniPause too: playback is frozen, but the map stays up so the
+        user can still see — and click — what each satellite is holding.
+        """
+        if self._hud_publisher is None:
+            return
+        state = self.state
+        portrait, landscape = build_panels(
+            portrait_sources=self.config.portrait_sources,
+            landscape_sources=self.config.landscape_sources,
+            metadata_root=self.config.regen_metadata_root,
+            portrait_current=self._satellite_clip("portrait", self.config.portrait_status_file),
+            landscape_current=self._satellite_clip("landscape", self.config.landscape_status_file),
+            portrait_locked=state.locked2,
+            landscape_locked=state.locked3,
+            portrait_filter=state.portrait_filter,
+            landscape_filter=state.landscape_filter,
+            portrait_loop=state.portrait_loop,
+            landscape_loop=state.landscape_loop,
+            portrait_map_anchor=state.portrait_map_anchor,
+            landscape_map_anchor=state.landscape_map_anchor,
+            portrait_widen_clip=state.portrait_widen_clip,
+            landscape_widen_clip=state.landscape_widen_clip,
+            portrait_nav_anchor=state.portrait_nav_anchor,
+            landscape_nav_anchor=state.landscape_nav_anchor,
+            portrait_latest=state.portrait_latest,
+            landscape_latest=state.landscape_latest,
+        )
+        self._hud_publisher.publish("portrait", portrait)
+        self._hud_publisher.publish("landscape", landscape)
+
+    def _satellite_clip(self, side: str, status_file: Path) -> str:
+        """The clip *side* is showing, holding the last one it named if the read
+        comes back blank.
+
+        A satellite always has a clip — it cannot discard its way to an empty
+        playlist — so once one has named a clip, a blank status means the read
+        lost a race with the player's own republish, not that the player has
+        nothing.  Believing the blank builds an empty panel, and publishing that
+        blanks the map on screen until the next tick puts it back.  Before a
+        satellite's first status there is nothing to hold, and an empty map is
+        the truth.
+        """
+        video = read_satellite_status(status_file).video
+        if video:
+            self._last_satellite_clip[side] = video
+            return video
+        return self._last_satellite_clip.get(side, "")
 
     def _sync_voice_suspension(self) -> None:
         """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
@@ -416,6 +469,21 @@ class DispatchLoopRunner:
             self.voice_controller.suspend()
         else:
             self.voice_controller.unsuspend()
+
+    def _flash_nau_notice(self) -> None:
+        """Surface anything Nau has raised since the last tick, once."""
+        path = getattr(self.config, "nau_notice_file", None)
+        if path is None:
+            return
+        seq, level, message = read_nau_notice(path)
+        if seq <= self._last_nau_notice_seq:
+            return
+        self._last_nau_notice_seq = seq
+        if message:
+            notice(
+                logger, message, source="primary",
+                level=FAILED_NOTICE_LEVEL if level == "error" else NOTICE,
+            )
 
     def _sync_hybrid_driver(self) -> None:
         """In hybrid, route the OSR2 to the funscript or Genau, moment to moment.
@@ -453,6 +521,19 @@ class DispatchLoopRunner:
         ``spoken_at`` is when a voice command's utterance began, and None for
         the instantaneous hotkey and dashboard presses.
         """
+        if (
+            self.state.omni_paused
+            and spoken_at is not None
+            and cmd not in SUSPEND_EXEMPT_COMMANDS
+        ):
+            # Freeze SPOKEN commands while paused — a mis-heard phrase must not
+            # act on a paused room.  ``spoken_at`` marks a voice line; the
+            # deliberate mouse (dashboard, lock HUD) stays live because a click
+            # is not an accident.  This backstops VoiceController's own suspend,
+            # closing the entry race where a phrase is written in the tick before
+            # the suspend flag is set.  Exempts the same resume/quit voice does.
+            logger.debug("OmniPause dropped spoken command: %s", cmd)
+            return
         button = self._HOTKEY_TO_BUTTON.get(cmd, cmd)
         self._send_press(button)
         if cmd == "quit":
@@ -529,14 +610,14 @@ class DispatchLoopRunner:
             self._dispatch(cmd, spoken_at)
 
     def _sample_satellites(self, *, now: float) -> None:
-        """Sample each satellite's current video for the trackers and timelines."""
-        for which, port in self._satellite_ports.items():
-            fraction = get_playback_fraction(port, self.config.vlc_password)
-            if fraction is None:
+        """Sample each satellite's current video for the trackers and timelines,
+        from the status file its native player publishes."""
+        for which, status_file in self._satellite_status_files.items():
+            status = read_satellite_status(status_file)
+            if status.fraction is None:
                 continue
-            path = get_current_file_path(port, self.config.vlc_password)
-            self._timelines[which].observe(path, now=now)
-            for event, video in self._watch_trackers[which].observe(path, fraction):
+            self._timelines[which].observe(status.video, now=now)
+            for event, video in self._watch_trackers[which].observe(status.video, status.fraction):
                 record_watch_event(self._watch_stats_file, video, event)
 
     def _sample_primary(self) -> None:
@@ -553,67 +634,6 @@ class DispatchLoopRunner:
         fraction = status.position_ms / status.duration_ms
         for event, video in self._watch_trackers[1].observe(status.video, fraction):
             record_watch_event(self._watch_stats_file, video, event)
-
-    def _enforce_satellites_paused(self) -> None:
-        """Re-pause any satellite that has slipped back into playing while
-        OmniPause holds — the watchdog half of OmniPause.
-
-        Entering OmniPause pauses the satellites once, but that is a one-shot
-        best effort: a satellite can end up playing again afterward — most
-        concretely a slow load (the favs are HEVC) that only finished, and began
-        playing, after the enter settle window closed.  With no re-check the
-        video just plays on under the pause, which is the bug that kept coming
-        back.  Running here on the shared twice-a-second cadence catches it
-        within one tick instead.
-
-        ``pause_if_playing`` is safe to call every tick: it pauses only a
-        satellite it observes actually playing, so a correctly-paused one costs
-        a single state read and a stopped/mid-load one is left alone (its
-        ``pl_pause`` would phantom-load item 1).  A catch is logged with a
-        diagnosis of what the satellite resumed into (see
-        :meth:`_resume_diagnosis`); a satellite resuming under OmniPause is an
-        anomaly worth seeing in the event log, and the diagnosis is what turns a
-        storm of identical lines into an actionable cause.
-        """
-        for which, port in self._satellite_ports.items():
-            if pause_if_playing(port, self.config.vlc_password):
-                source = SOURCE_PORTRAIT if which == 2 else SOURCE_LANDSCAPE
-                notice(
-                    logger,
-                    f"OmniPause watchdog re-paused the {source.capitalize()} satellite"
-                    f" — it had resumed on its own ({self._resume_diagnosis(which, port)})",
-                    source=source,
-                    level=logging.WARNING,
-                )
-
-    def _resume_diagnosis(self, which: int, port: int) -> str:
-        """Describe what a just-caught satellite resumed *into*, so the event log
-        records the cause of the resume and not merely the fact of it.
-
-        Nothing in this app plays a satellite while OmniPause holds — the
-        dispatch loop only enforces the pause, voice is suspended, and the lock
-        HUD is read-only — so a resume originates in VLC's own playlist.  Which
-        force it is shows in what the satellite lands on: repeat restarting the
-        same clip from the top (``repeat=one``/``all``, ``pos``≈0, an unchanged
-        clip) is VLC looping a short clip under the pause; a *different* clip is a
-        playlist advance; a mid-clip ``pos`` is an outside play or seek.  These
-        reads run only on the rare catch, never on the common already-paused
-        tick.
-        """
-        password = self.config.vlc_password
-        repeat = get_repeat_mode(port, password)
-        clip = Path(get_current_file_path(port, password) or "").name
-        fraction = get_playback_fraction(port, password)
-        previous = self._omnipause_prev_clip.get(which, "")
-        self._omnipause_prev_clip[which] = clip
-        if not previous:
-            movement = "first catch"
-        elif clip == previous:
-            movement = "same clip"
-        else:
-            movement = f"advanced from {previous}"
-        pos = "?" if fraction is None else f"{fraction:.2f}"
-        return f"repeat={repeat}, pos={pos}, clip={clip or '?'}, {movement}"
 
     def _back_dated_video(self, command: str, spoken_at: float | None) -> str:
         """The video *command* was aimed at, or "" for "whatever is playing now".
@@ -644,9 +664,8 @@ class DispatchLoopRunner:
             target_path=self._back_dated_video(command, spoken_at),
         )
         self.state = new_state
-        remaining = execute_window_ops(ops, self.nau_pid)
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-        for op in remaining:
+        for op in ops:
             if op.op == "show_role":
                 # Restore (un-minimize) rather than SW_SHOW: the idle primary
                 # player is parked by minimizing it (keeps its taskbar button),
@@ -837,7 +856,14 @@ class DispatchLoopRunner:
         if genau and role_topmost("genau", mode):
             set_always_on_top(genau, True)
 
-    def _is_broker_alive(self) -> bool:
+    def _broker_heartbeat_is_fresh(self) -> bool:
+        """Whether the broker is currently talking to the OSR2 — not whether it exists.
+
+        osr2_broker writes the heartbeat only while it holds the serial port, so
+        a stale one means "no broker reaching the device", which a live broker
+        with the OSR2 switched off satisfies.  Reading this as "is the broker
+        alive" is what had the start paths killing healthy brokers.
+        """
         hb = self.config.broker_heartbeat_file
         return hb is not None and is_broker_heartbeat_fresh(hb)
 
@@ -855,27 +881,38 @@ class DispatchLoopRunner:
             self._update_dashboard()
 
     def _handle_broker_toggle(self) -> None:
-        """Stop broker if running, start it if stopped."""
-        project_dir = self.config.state_dir.parent
-        if self._is_broker_alive():
-            stop_broker_processes(project_dir)
+        """Stop the broker if it is running, start it if it is not.
+
+        Only the stopping half may kill.  Starting launches over whatever is
+        there, because the heartbeat this reads goes stale on a live broker
+        whenever the OSR2 is off.
+        """
+        if self._broker_heartbeat_is_fresh():
+            stop_broker_processes()
         else:
-            restart_broker(project_dir, self.config.broker_tray_launcher)
+            launch_broker_tray(self.config.broker_tray_launcher)
 
     def _handle_broker_start(self) -> None:
-        """Start broker only if not already running."""
-        if not self._is_broker_alive():
+        """Start the broker if the heartbeat says none is running.
+
+        A start, never a restart.  The heartbeat only ticks while the broker
+        holds the serial port, so a broker that cannot reach a powered-off OSR2
+        reads as dead while it is alive and still serving every other client --
+        and it used to be killed here, then not relaunched at all, because no
+        tray launcher was passed.
+        """
+        if not self._broker_heartbeat_is_fresh():
             threading.Thread(
-                target=lambda: restart_broker(self.config.state_dir.parent),
+                target=lambda: launch_broker_tray(self.config.broker_tray_launcher),
                 daemon=True,
                 name="broker-start",
             ).start()
 
     def _handle_broker_stop(self) -> None:
         """Stop broker only if currently running."""
-        if self._is_broker_alive():
+        if self._broker_heartbeat_is_fresh():
             threading.Thread(
-                target=lambda: stop_broker_processes(self.config.state_dir.parent),
+                target=stop_broker_processes,
                 daemon=True,
                 name="broker-stop",
             ).start()
@@ -923,7 +960,7 @@ class DispatchLoopRunner:
         Entering omnipause should leave EVERY window non-topmost; a window still
         topmost at "post-enter" is one the drop didn't reach (an unresolved or
         re-asserting window).  Leaving restores the per-mode bands.  This is the
-        diagnostic that pins which window (e.g. a satellite VLC) misbehaves.
+        diagnostic that pins which window (e.g. a satellite) misbehaves.
         """
         parts = []
         for role in MANAGED_ROLES:
@@ -953,7 +990,12 @@ class DispatchLoopRunner:
         self._log_topmost_state("post-enter")
 
     def _handle_open_file_dialog(self) -> None:
-        """Open VLC's file dialog with managed omnipause."""
+        """Open the Windows file dialog and play the pick in Nau, once at a time.
+
+        Serialized on a lock: the dialog is modal to the user but not to the
+        dispatch loop, so a second request while one is open would stack a
+        second dialog and a second topmost drop/restore pair.
+        """
         if not self._file_dialog_lock.acquire(blocking=False):
             return
         try:
@@ -962,10 +1004,19 @@ class DispatchLoopRunner:
             self._file_dialog_lock.release()
 
     def _handle_open_file_dialog_inner(self) -> None:
-        should_manage_omnipause = not self.state.omni_paused
+        # Browsing keeps everything playing — it must NOT enter OmniPause.  The
+        # old flow paused the whole session for the dialog, and picking a video
+        # resumed only Nau, stranding the satellites + voice frozen ("we're in
+        # omnipause").  All the dialog actually needs is to not be buried under
+        # the always-on-top windows, so drop the topmost bands for its duration
+        # and restore them after — playback and voice are never touched.  Under
+        # OmniPause the bands are already down and must stay down (restoring
+        # them would strand windows on top mid-pause), so only manage them when
+        # not paused.
+        manage_topmost = not self.state.omni_paused
 
-        if should_manage_omnipause:
-            self._dispatch("enter_omnipause")
+        if manage_topmost:
+            self._remove_all_topmost()
 
         try:
             default_dir = self.config.primary_sources.split("|")[0] if self.config.primary_sources else ""
@@ -981,8 +1032,8 @@ class DispatchLoopRunner:
                     command = f"PLAY_FILE {selected}"
                 self.config.nau_cmd_file.write_text(command, encoding="utf-8")
         finally:
-            if should_manage_omnipause:
-                self._dispatch("leave_omnipause")
+            if manage_topmost:
+                self._restore_all_topmost()
 
     def run(self) -> None:
         """Main loop — call from a background thread."""
@@ -1015,10 +1066,16 @@ def build_bridge_config_from_manifest(
     manifest: configparser.ConfigParser,
 ) -> BridgeConfig:
     """Build a BridgeConfig from the windows bridge manifest INI."""
+    commands = manifest["commands"]
     return BridgeConfig(
-        portrait_port=int(manifest["vlc"]["vlc2_port"]),
-        landscape_port=int(manifest["vlc"]["vlc3_port"]),
-        vlc_password=manifest["vlc"]["vlc_pass"],
+        portrait_cmd_file=Path(commands["portrait_cmd_file"]),
+        portrait_paused_file=Path(commands["portrait_paused_file"]),
+        portrait_status_file=Path(commands["portrait_status_file"]),
+        portrait_playlist_file=Path(commands["portrait_playlist_file"]),
+        landscape_cmd_file=Path(commands["landscape_cmd_file"]),
+        landscape_paused_file=Path(commands["landscape_paused_file"]),
+        landscape_status_file=Path(commands["landscape_status_file"]),
+        landscape_playlist_file=Path(commands["landscape_playlist_file"]),
         favs_file=Path(manifest["media"]["favs_file"]),
         weird_dir=Path(manifest["media"]["weird_dir"]),
         state_dir=Path(manifest["commands"]["dashboard_state_file"]).parent,
@@ -1033,6 +1090,7 @@ def build_bridge_config_from_manifest(
         nau_cmd_file=Path(manifest["commands"]["nau_cmd_file"]),
         nau_paused_file=Path(manifest["commands"]["nau_paused_file"]),
         nau_status_file=Path(manifest["commands"]["nau_status_file"]),
+        nau_notice_file=Path(manifest["commands"]["nau_status_file"]).with_name("nau_notice.txt"),
         dashboard_state_file=Path(manifest["commands"]["dashboard_state_file"]),
         broker_cmd_file=Path(manifest["commands"]["broker_cmd_file"]),
         broker_heartbeat_file=Path(manifest["commands"]["broker_heartbeat_file"]),

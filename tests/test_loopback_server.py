@@ -1,15 +1,17 @@
-"""The userscript update server hands Tampermonkey the current autofill script."""
+"""The loopback server answers Chrome: the autofill script, and the pause state."""
 from __future__ import annotations
 
+import json
 import threading
 import urllib.error
 import urllib.request
 
 import pytest
 
-from fun_time.userscript_server import (
+from fun_time.loopback_server import (
+    LOOPBACK_PORT,
+    OMNIPAUSE_PATH,
     USERSCRIPT_NAME,
-    USERSCRIPT_PORT,
     make_server,
     userscript_path,
 )
@@ -66,11 +68,43 @@ def test_other_paths_are_404(tmp_path):
         server.shutdown()
 
 
+def test_reports_the_live_omnipause_state(tmp_path):
+    # Read per request, not captured at startup: the RFB tab pages poll this to
+    # decide whether to freeze their clips, so a stale answer freezes forever.
+    script = tmp_path / USERSCRIPT_NAME
+    script.write_text("// x\n", encoding="utf-8")
+    paused = False
+    server = make_server(port=0, script_path=script, omni_paused=lambda: paused)
+    port = _serve(server)
+    try:
+        with _get(port, OMNIPAUSE_PATH) as resp:
+            assert json.loads(resp.read()) == {"omni_paused": False}
+        paused = True
+        with _get(port, OMNIPAUSE_PATH) as resp:
+            assert json.loads(resp.read()) == {"omni_paused": True}
+    finally:
+        server.shutdown()
+
+
+def test_omnipause_is_readable_from_a_file_uri_page(tmp_path):
+    # The tab pages are file:// documents, so they fetch this as origin `null`.
+    # Chrome drops the response without a header opting that origin in.
+    script = tmp_path / USERSCRIPT_NAME
+    script.write_text("// x\n", encoding="utf-8")
+    server = make_server(port=0, script_path=script)
+    port = _serve(server)
+    try:
+        with _get(port, OMNIPAUSE_PATH) as resp:
+            assert resp.headers.get("Access-Control-Allow-Origin") == "*"
+    finally:
+        server.shutdown()
+
+
 def test_real_userscript_points_its_updates_at_this_server():
-    # A desync between the header URL and USERSCRIPT_PORT silently breaks
+    # A desync between the header URL and LOOPBACK_PORT silently breaks
     # auto-update, so pin them together.
     text = userscript_path().read_text(encoding="utf-8")
-    endpoint = f"http://127.0.0.1:{USERSCRIPT_PORT}/{USERSCRIPT_NAME}"
+    endpoint = f"http://127.0.0.1:{LOOPBACK_PORT}/{USERSCRIPT_NAME}"
     assert "@updateURL" in text
     assert "@downloadURL" in text
     assert endpoint in text

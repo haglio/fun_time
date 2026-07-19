@@ -43,7 +43,7 @@ from shared_ui.fonts import (
 from fun_time.config import LayoutConfig
 from fun_time.startup_progress import loading_screen_active
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.vlc_actions import get_current_file_path
+from fun_time.satellite_control import read_satellite_status
 from fun_time.win32 import is_window_topmost, set_always_on_top
 from fun_time.dashboard_actions import (
     BROKER_PANEL,
@@ -85,6 +85,7 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.command_reference import render_reference_html
+from fun_time.voice_commands import append_command_line
 from fun_time.event_log import EVENT_LOG_FILENAME, event_log_path, read_events
 from fun_time.log_panel import LogPanelWidget, prefs_path
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
@@ -104,9 +105,9 @@ from fun_time.dashboard_layout import (
 )
 from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status, read_nau_status
 from fun_time.dashboard_state import (
-    LABEL_LANDSCAPE_VLC,
+    LABEL_LANDSCAPE,
     LABEL_OSR2,
-    LABEL_PORTRAIT_VLC,
+    LABEL_PORTRAIT,
     LABEL_PRIMARY_GENAU,
     LABEL_PRIMARY_HYBRID,
     LABEL_PRIMARY_NAU,
@@ -148,9 +149,8 @@ class DashboardAppConfig:
     manifest_path: Path
     favs_file: Path
     nau_status_file: Path
-    portrait_vlc_port: int
-    landscape_vlc_port: int
-    vlc_password: str
+    portrait_status_file: Path
+    landscape_status_file: Path
     broker_heartbeat_file: Path
     dashboard_state_file: Path
     dashboard_cmd_file: Path
@@ -246,9 +246,8 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         manifest_path=manifest_path,
         favs_file=Path(parser.get("media", "favs_file", fallback="favs.csv")),
         nau_status_file=Path(parser.get("commands", "nau_status_file", fallback="nau_status.txt")),
-        portrait_vlc_port=parser.getint("vlc", "vlc2_port", fallback=8091),
-        landscape_vlc_port=parser.getint("vlc", "vlc3_port", fallback=8092),
-        vlc_password=parser.get("vlc", "vlc_pass", fallback=""),
+        portrait_status_file=Path(parser.get("commands", "portrait_status_file", fallback="portrait_status.txt")),
+        landscape_status_file=Path(parser.get("commands", "landscape_status_file", fallback="landscape_status.txt")),
         broker_heartbeat_file=Path(parser.get("commands", "broker_heartbeat_file", fallback="broker_heartbeat.txt")),
         dashboard_state_file=Path(parser.get("commands", "dashboard_state_file", fallback="dashboard_state.ini")),
         dashboard_cmd_file=Path(parser.get("commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt")),
@@ -256,20 +255,20 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
 
 
 @dataclass(frozen=True)
-class VlcHydration:
+class PlayerHydration:
     primary_path: str = ""
     portrait_path: str = ""
     landscape_path: str = ""
     primary_responsive: bool = False
 
 
-def poll_vlc(app_config: DashboardAppConfig) -> VlcHydration:
-    # Nau owns the primary display, so the primary panel's video and liveness
-    # come from Nau's status file; only the two satellites are still VLC.
+def poll_players(app_config: DashboardAppConfig) -> PlayerHydration:
+    # Every player publishes a status file now: Nau for the primary panel, and each
+    # native satellite for the portrait/landscape panels.
     nau = read_nau_status(app_config.nau_status_file)
-    portrait_path = get_current_file_path(app_config.portrait_vlc_port, app_config.vlc_password)
-    landscape_path = get_current_file_path(app_config.landscape_vlc_port, app_config.vlc_password)
-    return VlcHydration(
+    portrait_path = read_satellite_status(app_config.portrait_status_file).video
+    landscape_path = read_satellite_status(app_config.landscape_status_file).video
+    return PlayerHydration(
         primary_path=nau.video,
         portrait_path=portrait_path,
         landscape_path=landscape_path,
@@ -277,13 +276,13 @@ def poll_vlc(app_config: DashboardAppConfig) -> VlcHydration:
     )
 
 
-def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, vlc: VlcHydration) -> DashboardSnapshot:
+def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, players: PlayerHydration) -> DashboardSnapshot:
     return replace(
         snapshot,
-        primary_responsive=vlc.primary_responsive,
-        primary=replace(snapshot.primary, path=vlc.primary_path),
-        portrait=replace(snapshot.portrait, path=vlc.portrait_path),
-        landscape=replace(snapshot.landscape, path=vlc.landscape_path),
+        primary_responsive=players.primary_responsive,
+        primary=replace(snapshot.primary, path=players.primary_path),
+        portrait=replace(snapshot.portrait, path=players.portrait_path),
+        landscape=replace(snapshot.landscape, path=players.landscape_path),
     )
 
 
@@ -443,6 +442,49 @@ def _draw_waveform_pixmap(shape: str, w: int, h: int) -> QPixmap:
     return _dashboard_pixmap_cache[key]
 
 
+def _draw_mic_pixmap(w: int, h: int) -> QPixmap:
+    """Draw the familiar voice-input microphone as a QPixmap, cached.
+
+    A capsule head cradled by an upward-opening arc over a short stem and base —
+    the mic glyph recording apps use — which reads as "voice" where a bare
+    letter or a karaoke-mic emoji did not.  Drawn in a square centred in the
+    panel so it stays round whatever the panel's aspect.
+    """
+    key = ("mic", w, h)
+    if key not in _dashboard_pixmap_cache:
+        from PyQt6.QtCore import Qt
+
+        pm = QPixmap(w, h)
+        pm.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pm)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        s = min(w, h)
+        oy = (h - s) / 2.0
+        cx = w / 2.0
+        pen = QPen(COLOR_TEXT, max(1, round(s * 0.09)))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        # Capsule (mic head): a filled stadium in the upper portion.
+        cap_w = s * 0.36
+        painter.setBrush(QBrush(COLOR_TEXT))
+        painter.drawRoundedRect(
+            round(cx - cap_w / 2), round(oy + s * 0.12),
+            round(cap_w), round(s * 0.44), cap_w / 2, cap_w / 2,
+        )
+        # Cradle: an upward-opening arc cupping the capsule from below.
+        painter.setBrush(Qt.GlobalColor.transparent)
+        r = round(s * 0.30)
+        arc_cy = round(oy + s * 0.40)
+        painter.drawArc(round(cx) - r, arc_cy - r, 2 * r, 2 * r, 200 * 16, 140 * 16)
+        # Stem down to a short base line.
+        base_y = round(oy + s * 0.90)
+        painter.drawLine(round(cx), arc_cy + r, round(cx), base_y)
+        painter.drawLine(round(cx - s * 0.17), base_y, round(cx + s * 0.17), base_y)
+        painter.end()
+        _dashboard_pixmap_cache[key] = pm
+    return _dashboard_pixmap_cache[key]
+
+
 # Short hover labels for every clickable dashboard action, so no button is
 # left without a tooltip. GENAU_TOGGLE_AUTO is overridden at build time with
 # its live allowed/suppressed state.
@@ -501,8 +543,8 @@ def build_dashboard_scene(
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
     primary_label = LABEL_PRIMARY_NAU
-    portrait_label = LABEL_PORTRAIT_VLC
-    landscape_label = LABEL_LANDSCAPE_VLC
+    portrait_label = LABEL_PORTRAIT
+    landscape_label = LABEL_LANDSCAPE
     osr2_label = LABEL_OSR2
     primary_fill = COLOR_PANEL
     portrait_fill = COLOR_PANEL
@@ -520,8 +562,6 @@ def build_dashboard_scene(
         _mode_labels = {"nau": LABEL_PRIMARY_NAU, "genau": LABEL_PRIMARY_GENAU, "hybrid": LABEL_PRIMARY_HYBRID}
         primary_label_name = _mode_labels.get(snapshot.primary_mode, LABEL_PRIMARY_NAU)
         primary_label = primary_label_name
-        portrait_label = LABEL_PORTRAIT_VLC
-        landscape_label = LABEL_LANDSCAPE_VLC
         primary_funscript_exists = has_matching_funscript(snapshot.primary.path)
         funscript_active = bool(snapshot.primary.path) and primary_funscript_exists
         if snapshot.osr2_mode == "off":
@@ -574,7 +614,7 @@ def build_dashboard_scene(
     _is_hybrid = snapshot is not None and snapshot.primary_mode == "hybrid"
 
     # Genau takeover allow/suppress toggle — owns the bottom-left of the primary
-    # panel in VLC/Hybrid mode (where Genau hasn't claimed the primary, so the
+    # panel in Nau/Hybrid mode (where Genau hasn't claimed the primary, so the
     # takeover is a live choice): green when allowed, red when suppressed.
     takeover_fill = COLOR_GREEN if genau_takeover_allowed else COLOR_RED
     takeover_hover = "Genau takeover: allowed" if genau_takeover_allowed else "Genau takeover: suppressed"
@@ -723,7 +763,6 @@ def build_dashboard_scene(
         DashboardTextItem(">", layout.landscape_next, font=_font_ui_sm),
         DashboardTextItem(ICON_LOCK, layout.landscape_lock, font=_font_emoji),
         DashboardTextItem(ICON_TRASH, layout.landscape_trash, font=_font_emoji),
-        DashboardTextItem("v", layout.voice_panel, font=_font_ui_tiny),
         *(
             (DashboardTextItem("Nau", layout.genau_mode_toggle, font=_font_ui_tiny),)
             if _is_genau else ()
@@ -734,6 +773,10 @@ def build_dashboard_scene(
         DashboardImageItem(_load_icon_pixmap("icon.ico", layout.app_icon.height), layout.app_icon),
         DashboardImageItem(_load_icon_pixmap("broker_icon.ico", _icon_h), layout.broker_panel),
         DashboardImageItem(_load_icon_pixmap("fmode_icon.ico", _icon_h), layout.fmode_panel),
+        DashboardImageItem(
+            _draw_mic_pixmap(layout.voice_panel.width, layout.voice_panel.height),
+            layout.voice_panel,
+        ),
         *(
             (
                 DashboardImageItem(
@@ -1041,8 +1084,13 @@ class ReferenceDialog(QDialog):
 
 
 def write_dashboard_command(path: Path, action_id: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(action_id, encoding="utf-8")
+    """Post a dashboard button (or voice-toggle) action for the dispatch loop.
+
+    Robust to the dispatch loop's ~20 Hz rename-drain of the same file: the write
+    retries past the transient sharing violation rather than raising into the Qt
+    slot, which would abort the dashboard (see :func:`append_command_line`).
+    """
+    append_command_line(path, action_id)
 
 
 def apply_dashboard_window_geometry(
@@ -1107,17 +1155,16 @@ class DashboardWindow(QMainWindow):
         self._suppress_minimize_routing = start_minimized or self._deferred_for_loading
 
         # Set on close, so the poller and press listener wind down with the
-        # window instead of hammering VLC's HTTP interface for the life of the
+        # window instead of reading the player status files for the life of the
         # process.  Under test, several dashboards are built and closed in one
-        # process, and leaked pollers would pile connections onto whatever VLC
-        # happens to hold those ports.
+        # process, and leaked pollers would keep running past their window.
         self._stopping = threading.Event()
         self._pressed: dict[str, float] = {}
         self._reference_dialog: ReferenceDialog | None = None
         self._last_snapshot: DashboardSnapshot | None = None
         self._last_genau_status: GenauStatus | None = None
         self._press_queue: queue.Queue[str] = queue.Queue()
-        self._vlc_cache: list[VlcHydration] = [VlcHydration()]
+        self._player_cache: list[PlayerHydration] = [PlayerHydration()]
 
         self.setWindowTitle("Fun Time")
         icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
@@ -1200,8 +1247,8 @@ class DashboardWindow(QMainWindow):
         port_file.write_text(str(press_port), encoding="utf-8")
         threading.Thread(target=self._press_listener, daemon=True, name="press-listener").start()
 
-        # VLC poller thread
-        threading.Thread(target=self._vlc_poller, daemon=True, name="vlc-poller").start()
+        # Player status poller thread
+        threading.Thread(target=self._player_poller, daemon=True, name="player-poller").start()
 
         # Notice overlays: flash each new event-log notice over the player it is
         # about.  A dedicated tail (its own offset) polls the shared file a touch
@@ -1233,7 +1280,7 @@ class DashboardWindow(QMainWindow):
         Closing the dashboard ends the session, so in production this only tidies
         up ahead of the process being killed.  It matters where a dashboard is
         built and closed inside a longer-lived process — the poller would
-        otherwise keep polling VLC forever.
+        otherwise keep reading the player status files forever.
         """
         self._stopping.set()
         self._refresh_timer.stop()
@@ -1457,9 +1504,9 @@ class DashboardWindow(QMainWindow):
             except OSError:
                 break
 
-    def _vlc_poller(self) -> None:
+    def _player_poller(self) -> None:
         while not self._stopping.is_set():
-            self._vlc_cache[0] = poll_vlc(self._app_config)
+            self._player_cache[0] = poll_players(self._app_config)
             self._stopping.wait(0.5)
 
     def _compute_player_rects(self) -> PlayerRects | None:
@@ -1514,7 +1561,7 @@ class DashboardWindow(QMainWindow):
         self._maybe_reveal_after_loading()
         snapshot = load_dashboard_snapshot(self._app_config.dashboard_state_file)
         if snapshot is not None:
-            snapshot = hydrate_dashboard_snapshot(snapshot, self._vlc_cache[0])
+            snapshot = hydrate_dashboard_snapshot(snapshot, self._player_cache[0])
         genau_status_path = self._app_config.dashboard_state_file.parent / "genau_status.txt"
         genau_status = read_genau_status(genau_status_path)
         self._do_render(snapshot, self._compute_pressed(), genau_status=genau_status)

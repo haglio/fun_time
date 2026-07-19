@@ -20,7 +20,9 @@ Integration tests — run on a hidden Win32 desktop so the real windows never to
 
 The runner creates the hidden desktop, sets `FUN_TIME_RUN_INTEGRATION=1`, and runs the whole suite invisibly (real HWNDs, off-screen, never foreground). The machine-wide lock in the integration conftest auto-serializes concurrent agent runs — a second run queues instead of clobbering, so you don't hunt for a quiet window. Extra pytest args pass through (`... hidden_desktop -k nau`).
 
-The suite keeps the production VLC HTTP ports, so it can never share the machine with a live Fun Time. `live_session_guard` decides before the desktop exists: no session → run; session playing → **denied** (exit `4`); session in OmniPause → the user gets a prompt to close it or refuse the run. Exit `4` is a refusal, not a failure — do not retry it.
+A run brings up a second session, competing for the GPU and driving the shared OSR2 broker, so it can never share the machine with a live Fun Time. A running session publishes a claim to a fixed machine-global path (`%LOCALAPPDATA%\FunTime\live_session.ini`) — *not* to its state dir, which every worktree resolves to itself — and `live_session_guard` reads that. Before the desktop exists: no session → run; session playing or still starting → **denied** (exit `4`); session in OmniPause → the user gets a prompt to close it or refuse the run. It keeps watching for the whole run too, and aborts (exit `5`) if Fun Time opens mid-run. Exits `4` and `5` are refusals, not failures — do not retry them.
+
+Run the suite only through `hidden_desktop`: `pytest tests/integration/` refuses at session start, because that form puts real windows, a real AHK bridge and real players on your own desktop.
 
 **Green means every collected test passes — zero failures, skips, or deselects.**
 
@@ -33,7 +35,7 @@ Before modifying any Win32 API call (ctypes, keyboard/mouse input, window manage
 
 1. **State the mechanism.** Explain WHY the approach works, citing the specific Win32 behavior it depends on.
 2. **Verify the claim.** If not certain, say so explicitly rather than guessing.
-3. **Check interactions.** Identify what other components touch the same subsystem (AHK hooks, VLC's Qt event loop, thread input queues) and explain why the change won't break them.
+3. **Check interactions.** Identify what other components touch the same subsystem (AHK hooks, the Qt event loop behind the dashboard and overlays, the players' own windows, thread input queues) and explain why the change won't break them.
 4. **Map from symptoms.** Trace the execution path that produces the bug and confirm the fix addresses that specific path.
 
 If you cannot complete these steps, stop and say so. Do not submit a speculative fix.
@@ -44,8 +46,14 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 ## Integration test fidelity
 
-- **Test configuration must derive from production code.** Integration tests may test individual components (not only end-to-end), but their configuration (launch commands, flags, init sequences) must come from the same production functions that real sessions use. Never hand-craft config that duplicates production logic — if the test builds its own VLC command line instead of calling `_build_vlc_launch_command`, it can pass while production is broken.
+- **Test configuration must derive from production code.** Integration tests may test individual components (not only end-to-end), but their configuration (launch commands, flags, init sequences) must come from the same production functions that real sessions use. Never hand-craft config that duplicates production logic — if the test builds its own satellite command line instead of calling `_build_satellite_launch_command`, it can pass while production is broken.
 - **Integration tests must randomize video selection.** Use `random.sample()` or `random.choice()` — never `sorted()[:n]` or other deterministic selection. The same videos playing every run masks bugs that only surface with different media files.
+
+## The shared repos
+
+- No app may reach into another's repo. What we share lives in siblings installed editable into this venv, and a change to any of it belongs there: `../player_core` (the satellite players' engine, playlist format, command/paused file channel, status writer), `../app_support` (logging setup and exception hooks, `start_daemon_thread`, `preparse_config_path`, `hidden_subprocess_kwargs`), `../shared_ui` (Qt widgets).
+- Install each with `--config-settings editable_mode=compat`; their READMEs say why, and each carries a `tests/test_install.py` that goes red without it.
+- `satellite/` is a second top-level package in this repo, launched as `python -m satellite` with **our** python (`paths.python_exe`), not genau's. It resolves through the working directory `launch.vbs` sets, the same way `-m fun_time.dashboard_app` does.
 
 ## Repo-specific gotchas
 

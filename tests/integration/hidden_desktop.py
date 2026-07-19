@@ -1,6 +1,6 @@
 """Run the integration suite on a hidden Win32 desktop — invisibly, focus-safe.
 
-The suite launches real windows (VLC, Nau/mpv, the dashboard, AHK) and asserts on
+The suite launches real windows (Nau/the satellites — all mpv, the dashboard, AHK) and asserts on
 real window state, so it must run on the native Qt platform — but that throws those
 windows onto the monitors and can grab focus.  A Win32 *desktop* other than the
 input desktop fixes this: its windows are real HWNDs (winId != 0, real styles, real
@@ -8,16 +8,22 @@ Direct3D11 video output) yet render to nothing and can never hold the input desk
 foreground.
 
 ``CreateDesktopW`` makes the desktop; ``CreateProcessW`` with ``STARTUPINFO.lpDesktop``
-binds pytest to it, and every subprocess pytest spawns (orchestrator -> VLC / Nau /
-AHK / dashboard) inherits it.  The win32 lookup helpers enumerate the caller's own
+binds pytest to it, and every subprocess pytest spawns (orchestrator -> the
+satellites / Nau / AHK / dashboard) inherits it.  The win32 lookup helpers enumerate the caller's own
 desktop, so they see the app because pytest shares the hidden desktop.  There is no
 silent fall-back: if the desktop can't be opened, ``CreateProcessW`` fails, so a run
 can never leak onto the real screen.
 
+The desktop is also this module's authority over where the suite may run at all:
+``require_hidden_desktop`` refuses a run that is not on it, which is what keeps
+bare ``pytest tests/integration/`` off the user's screen.  And once the run is
+going, ``supervise_run`` stands over it from out here — outside the run's own
+pytest capture — to end it if Fun Time opens underneath it.
+
 pytest is also placed in a *job object* that this runner alone holds a handle to.
 Windows destroys a job when its last handle closes, and a job with
 ``KILL_ON_JOB_CLOSE`` takes its members down with it — so however the run ends, it
-cannot leave a VLC or an AHK behind to poison the next one.  The broker is the sole
+cannot leave a player or an AHK behind to poison the next one.  The broker is the sole
 exception: it is a service that outlives the session, and it breaks away (see
 ``fun_time.orchestrator_broker.broker_launch_kwargs``).
 
@@ -33,11 +39,16 @@ import ctypes.wintypes as wt
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
-from fun_time.config import load_config
-
-from .live_session_guard import DENIED_EXIT_CODE, allow_integration_run
+from .live_session_guard import (
+    ABORTED_EXIT_CODE,
+    DENIED_EXIT_CODE,
+    allow_integration_run,
+    announce,
+    find_live_session,
+)
 
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
 INTEGRATION_DIR = "tests/integration/"
@@ -63,11 +74,11 @@ STARTF_USESTDHANDLES = 0x00000100
 STD_INPUT_HANDLE = -10
 STD_OUTPUT_HANDLE = -11
 STD_ERROR_HANDLE = -12
-INFINITE = 0xFFFFFFFF
 CREATE_SUSPENDED = 0x00000004
+WAIT_TIMEOUT = 0x00000102
 
 # Destroying the job terminates every process still in it.  The run's whole
-# process tree — pytest, the orchestrator, VLC, Nau, Genau, AHK — is in it,
+# process tree — pytest, the orchestrator, the satellites, Nau, Genau, AHK — is in it,
 # because a process created by a job member joins that member's job.
 JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
@@ -196,6 +207,30 @@ def pids_with_window_on_current_desktop() -> set[int]:
     return pids
 
 
+def require_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_name) -> None:
+    """Refuse to run the suite anywhere but the hidden desktop.
+
+    Bare ``pytest tests/integration/`` runs on the user's own desktop, where the
+    suite's real windows, AHK bridge and players land on their monitors, steal
+    focus, and are resolved by title alongside their session's.  That invocation
+    has always been forbidden and never enforced — and the harness grew a
+    machine-wide by-name process sweep to serve it, which is precisely the shape
+    of kill that took the user's players down.
+
+    Enforcing it here is what lets the reap have no second mode.
+    """
+    current = desktop_name()
+    if current != HIDDEN_DESKTOP_NAME:
+        raise RuntimeError(
+            f"The integration suite must run on the '{HIDDEN_DESKTOP_NAME}' desktop, "
+            f"not '{current}'.  Run it with:\n\n"
+            f"    .venv/Scripts/python.exe -m tests.integration.hidden_desktop\n\n"
+            "Running pytest against tests/integration/ directly puts real windows, a "
+            "real AHK bridge and real players on your screen, on top of whatever Fun "
+            "Time session you have open."
+        )
+
+
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -206,8 +241,8 @@ def create_run_job() -> int:
     The runner holds the job's only handle, so whichever way the runner ends —
     a clean exit, a crash, a TerminateProcess — Windows closes that handle,
     destroys the job, and terminates every process the run still had running.
-    A run therefore cannot strand a VLC (or an AHK, or an orchestrator) for the
-    next run to trip over.
+    A run therefore cannot strand a player (or an AHK, or an orchestrator) for
+    the next run to trip over.
 
     ``BREAKAWAY_OK`` is what lets the broker opt out with
     CREATE_BREAKAWAY_FROM_JOB: it is a service that outlives the session that
@@ -271,10 +306,61 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int) ->
     return pi
 
 
+def supervise_run(
+    *,
+    wait: Callable[[float], bool],
+    live_session_found: Callable[[], bool],
+    terminate: Callable[[], None],
+    announce: Callable[[str], None] = announce,
+    grace_seconds: float = 30.0,
+    poll_seconds: float = 1.0,
+) -> bool:
+    """Wait out the run, ending it if Fun Time opens.  True if it was aborted.
+
+    The watchdog running inside pytest is the clean way out and gets first go:
+    it asks pytest to stop, so fixtures tear down, the session's children are
+    killed by recorded identity, and the temp tree goes with them.  It cannot be
+    the only way out.  The main thread spends whole seconds at a time inside
+    blocking subprocess calls where a pending ``KeyboardInterrupt`` just waits its
+    turn, and a wedged pytest would never act on one at all — while the user sits
+    there with a second session on their machine.  So once a session is seen, the
+    run gets *grace_seconds* to stop itself and is then terminated outright.
+
+    ``wait(timeout)`` reports whether the run has ended; ``terminate`` closes the
+    job, which takes down everything the run still had running.
+
+    Saying why is this side's job too.  pytest captures at the file-descriptor
+    level, so a notice written from inside the run lands in its capture buffer and
+    is dropped on the way out — leaving the run to end on a bare KeyboardInterrupt
+    with nothing to explain it.  Out here there is no capture.
+    """
+    grace_polls = max(1, round(grace_seconds / poll_seconds))
+    remaining: int | None = None
+    while not wait(poll_seconds):
+        if remaining is None:
+            if live_session_found():
+                announce(
+                    "[integration] Fun Time was opened while this run was in flight — "
+                    "ABORTING the run.  The user's session wins; re-run once it is "
+                    "closed."
+                )
+                remaining = grace_polls
+            continue
+        remaining -= 1
+        if remaining <= 0:
+            terminate()
+            return True
+    return remaining is not None
+
+
 def run_on_hidden_desktop(extra_args: list[str]) -> int:
     """Create the hidden desktop, run the integration pytest bound to it, and
     return pytest's exit code.  The desktop handle is closed on the way out, and
-    the run's job object with it — so nothing the run spawned can survive it."""
+    the run's job object with it — so nothing the run spawned can survive it.
+
+    Returns ``ABORTED_EXIT_CODE`` instead if Fun Time was opened mid-run: pytest's
+    own code for that is a bare "interrupted", which says nothing about why.
+    """
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
     hdesk = _user32.CreateDesktopW(HIDDEN_DESKTOP_NAME, None, None, 0, GENERIC_ALL, None)
     if not hdesk:
@@ -287,7 +373,15 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
         try:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job)
             try:
-                _kernel32.WaitForSingleObject(pi.hProcess, INFINITE)
+                aborted = supervise_run(
+                    wait=lambda seconds: _kernel32.WaitForSingleObject(
+                        pi.hProcess, int(seconds * 1000)
+                    ) != WAIT_TIMEOUT,
+                    live_session_found=lambda: find_live_session() is not None,
+                    terminate=lambda: close_run_job(job),
+                )
+                if aborted:
+                    return ABORTED_EXIT_CODE
                 code = wt.DWORD()
                 _kernel32.GetExitCodeProcess(pi.hProcess, ctypes.byref(code))
                 return int(code.value)
@@ -302,7 +396,7 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
 def main() -> None:
     # Ask before the desktop exists: a MessageBox raised after the switch would
     # be drawn on the hidden desktop, where the user could never answer it.
-    if not allow_integration_run(load_config().paths.state_dir):
+    if not allow_integration_run():
         sys.exit(DENIED_EXIT_CODE)
     sys.exit(run_on_hidden_desktop(sys.argv[1:]))
 

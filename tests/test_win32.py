@@ -15,14 +15,12 @@ from fun_time.win32 import (
     get_process_creation_time,
     get_process_image_name,
     is_process_alive,
-    wait_for_window,
     move_window,
     set_always_on_top,
     is_window_topmost,
     activate_window,
     find_window_by_pid,
     minimize_window,
-    send_vk_to_window,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
     GWL_EXSTYLE,
@@ -32,8 +30,6 @@ from fun_time.win32 import (
     SW_RESTORE,
     SWP_NOZORDER,
     SWP_NOACTIVATE,
-    SWP_NOMOVE,
-    SWP_NOSIZE,
 )
 
 
@@ -78,22 +74,6 @@ class TestFindWindowByPid:
             assert find_window_by_pid(42, include_hidden=True) == 0
 
 
-class TestWaitForWindow:
-    def test_returns_hwnd_immediately_if_found(self):
-        with patch("fun_time.win32.find_window_by_pid", return_value=12345):
-            assert wait_for_window(42, timeout_s=5.0) == 12345
-
-    def test_returns_zero_on_timeout(self):
-        with patch("fun_time.win32.find_window_by_pid", return_value=0):
-            assert wait_for_window(42, timeout_s=0.05) == 0
-
-    def test_retries_until_found(self):
-        attempts = [0, 0, 99999]
-
-        with patch("fun_time.win32.find_window_by_pid", side_effect=attempts):
-            assert wait_for_window(42, timeout_s=5.0) == 99999
-
-
 class TestMoveWindow:
     def test_restores_then_repositions(self):
         calls: list[tuple[str, tuple]] = []
@@ -136,23 +116,6 @@ class TestActivateWindow:
             activate_window(111)
 
         mock.SetForegroundWindow.assert_called_once_with(111)
-
-
-class TestSendVkToWindow:
-    def test_posts_keydown_and_keyup(self):
-        with patch("fun_time.win32._user32") as mock:
-            send_vk_to_window(12345, 0x25)  # VK_LEFT
-
-        calls = mock.PostMessageW.call_args_list
-        assert len(calls) == 2
-        # First call: WM_KEYDOWN (0x0100)
-        assert calls[0][0][0] == 12345
-        assert calls[0][0][1] == 0x0100
-        assert calls[0][0][2] == 0x25
-        # Second call: WM_KEYUP (0x0101)
-        assert calls[1][0][0] == 12345
-        assert calls[1][0][1] == 0x0101
-        assert calls[1][0][2] == 0x25
 
 
 class TestMinimizeWindow:
@@ -305,5 +268,28 @@ class TestConstants:
         import ctypes
         assert isinstance(HWND_NOTOPMOST, ctypes.c_void_p)
         assert HWND_NOTOPMOST.value == (2**64 - 2)
+
+
+class TestLiveWindowMutationGuard:
+    """The autouse guard in tests/conftest.py must keep a unit test from moving,
+    topmosting, activating or closing a REAL window — the test bleed that surfaced for
+    months as "Nau pops on top during OmniPause" (a concurrent agent's unit run
+    resolving the live 'Nau'/'Genau' window by title and forcing it topmost)."""
+
+    def test_mutating_user32_calls_are_inert(self):
+        from fun_time import win32
+
+        for name in ("SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW"):
+            # Stubbed to an inert no-op for the whole unit suite: callable, returns the
+            # sentinel, and can never reach the real Win32 API on any hwnd.
+            assert getattr(win32._user32, name)(0xDEAD, 0, 0, 0, 0, 0, 0) == 0
+        # so a full wrapper call is a harmless no-op, even on a would-be live hwnd
+        assert set_always_on_top(0xDEAD, True) is None
+
+    def test_reader_user32_calls_stay_real(self):
+        # Only the mutators are neutralised; is_window_topmost reads GWL_EXSTYLE through
+        # the real GetWindowLongW, which returns 0 for a bogus hwnd -> False.  (A blanket
+        # _user32 stub would have made this a truthy Mock instead.)
+        assert is_window_topmost(0xDEAD) is False
 
 

@@ -30,10 +30,11 @@
 </style>
 <script>
 (function() {
-  // All three literals are substituted by fun_time.rfb_tab_page.render_tab_page.
+  // All four literals are substituted by fun_time.rfb_tab_page.render_tab_page.
   var target = "__FT_TARGET__";
   var label = "__FT_LABEL__";
   var video = "__FT_VIDEO__";
+  var omnipauseUrl = "__FT_OMNIPAUSE__";
   var nav = performance.getEntriesByType('navigation')[0];
   if (nav && nav.type === 'reload') {
     location.replace(target);
@@ -50,6 +51,7 @@
     } catch (e) {}
     if (video) {
       var clip = document.getElementById('clip');
+      var omniPaused = false;
       // Only reveal the clip once it can actually paint a frame — a source that
       // has been moved or deleted must not leave a black box on the page.
       clip.addEventListener('loadeddata', function() {
@@ -57,12 +59,33 @@
         follow();
       });
       // Decode only in the tab you are looking at: the RFB opens ten at once.
+      // OmniPause stops it too, so everything on screen freezes together.
       function follow() {
-        if (document.hidden) clip.pause();
+        if (document.hidden || omniPaused) clip.pause();
         else clip.play().catch(function() {});
       }
-      document.addEventListener('visibilitychange', follow);
+      // Only the tab on screen asks: a hidden tab's clip is already stopped, so
+      // an answer could not change anything.
+      function ask() {
+        if (document.hidden) return;
+        fetch(omnipauseUrl, {cache: 'no-store'})
+          .then(function(r) { return r.json(); })
+          .then(function(state) {
+            if (state.omni_paused === omniPaused) return;
+            omniPaused = state.omni_paused;
+            follow();
+          })
+          // Nothing answering (the session quit, or this page outlived the one
+          // that wrote it): leave the clip alone rather than freeze it forever.
+          .catch(function() {});
+      }
+      document.addEventListener('visibilitychange', function() {
+        follow();
+        ask();
+      });
       clip.src = video;
+      ask();
+      setInterval(ask, 500);
     }
   });
 })();

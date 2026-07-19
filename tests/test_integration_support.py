@@ -3,7 +3,7 @@
 These guard the deterministic child-process cleanup that
 ``FunTimeIntegrationSession.stop()`` must perform.  ``stop()`` hard-terminates
 the orchestrator, so the orchestrator's own graceful ``_shutdown_children()``
-never runs and its children (the two satellite VLCs, plus Nau/Genau/dashboard/
+never runs and its children (the two satellites, plus Nau/Genau/dashboard/
 audio) are orphaned.  The teardown must therefore kill them itself, by the
 exact processes recorded in ``bridge_pids.ini`` — PID *and* creation time, so a
 PID Windows has since recycled is recognised rather than shot.
@@ -16,7 +16,21 @@ import pytest
 
 from fun_time import windows_bridge_orchestrator
 from fun_time.windows_bridge_orchestrator import ChildProcess
-from tests.integration.integration_support import FunTimeIntegrationSession
+from tests.integration import integration_support
+from tests.integration.integration_support import (
+    INTEGRATION_CONFIG_NAME,
+    FunTimeIntegrationSession,
+    isolate_audio_companion_port,
+)
+
+
+def _completed(stdout: str):
+    class _Result:
+        pass
+
+    result = _Result()
+    result.stdout = stdout
+    return result
 
 
 @pytest.fixture
@@ -53,8 +67,8 @@ def test_stop_taskkills_every_recorded_child(session):
         session,
         {
             "nau_pid": ChildProcess(201, 2010),
-            "portrait_pid": ChildProcess(202, 2020),   # satellite VLC
-            "landscape_pid": ChildProcess(203, 2030),  # satellite VLC
+            "portrait_pid": ChildProcess(202, 2020),   # satellite
+            "landscape_pid": ChildProcess(203, 2030),  # satellite
             "dashboard_pid": ChildProcess(0, 0),       # disabled in integration — absent
             "genau_pid": ChildProcess(205, 2050),
             "audio_pid": ChildProcess(206, 2060),
@@ -90,3 +104,47 @@ def test_stop_survives_missing_bridge_pids(session):
         session.stop()  # no bridge_pids.ini on disk
 
     assert killed == []
+
+
+def test_the_orchestrator_wait_only_ever_waits_on_integration_orchestrators(session):
+    """Between a session's teardown and the next one's start, the harness waits
+    for the *previous run's* orchestrator to finish its shutdown storm — that
+    orchestrator taskkills the PIDs it recorded, and Windows recycles PIDs fast
+    enough for it to shoot a new session's freshly-spawned ones.
+
+    Matching every ``fun_time.orchestrator`` on the machine makes that wait
+    include the user's live session, which will not exit — so the harness burns
+    its whole 15s timeout on both ends of every session, and its own teardown
+    becomes hostage to a session it has nothing to do with.  Only orchestrators
+    started from an integration config can be the one we are waiting on.
+    """
+    with patch.object(integration_support.subprocess, "run") as run:
+        run.return_value = _completed("0")
+        session._wait_for_orchestrators_to_exit()
+
+    ps_command = run.call_args.args[0][-1]
+    assert "fun_time\\.orchestrator" in ps_command
+    # The name appears regex-escaped, so match on its distinguishing stem.  What
+    # matters is that the user's `--config fun_time_config.json` cannot match.
+    assert INTEGRATION_CONFIG_NAME.removesuffix(".json") in ps_command
+
+
+def test_the_integration_config_never_shares_the_live_sessions_audio_port():
+    """The audio companion binds a fixed UDP port, and ``build_integration_config``
+    rewrote only *paths* — so a run and a live session raced for one socket.
+
+    Whichever bound second died with WSAEADDRINUSE.  Started in the order the
+    user would notice, that is theirs: a run holding the port means opening Fun
+    Time loses its companion audio, with nothing on screen to explain it.  And
+    while both were up, Genau's notifications went to whichever companion won,
+    which need not be its own session's.
+    """
+    config = {"audio_companion": {"host": "127.0.0.1", "port": 50556}}
+    genau_config = {"genau": {"notify_host": "127.0.0.1", "notify_port": 50556}}
+
+    isolate_audio_companion_port(config, genau_config)
+
+    assert config["audio_companion"]["port"] != 50556
+    # Sender and receiver have to move together: Genau notifies the port the
+    # companion is listening on, so rewriting one alone just breaks the run.
+    assert genau_config["genau"]["notify_port"] == config["audio_companion"]["port"]

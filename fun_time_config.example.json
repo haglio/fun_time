@@ -1,6 +1,5 @@
 {
   "paths": {
-    "vlc_exe": "C:/Program Files/VideoLAN/VLC/vlc.exe",
     "ahk_exe": "C:/Program Files/AutoHotkey/v2/AutoHotkey64.exe",
     "python_exe": "C:/path/to/fun_time/.venv/Scripts/pythonw.exe",
     "nau_library_dirs": [
@@ -20,10 +19,6 @@
     "genau_python_exe": "C:/path/to/genau/.venv/Scripts/pythonw.exe",
     "genau_config_path": "C:/path/to/genau/genau_config.json",
     "broker_tray_launcher": "../osr2_broker/launch_broker_tray.vbs"
-  },
-  "vlc": {
-    "vlc2_http_port": 8091,
-    "vlc3_http_port": 8092
   },
   "layout": {
     "main_monitor": 1,
@@ -60,7 +55,7 @@
   "voice_control": {
     "enabled": false,
     "model_path": "vosk-model-small-en-us-0.15",
-    "device_index": 1
+    "device_name": "Brio"
   },
   "regen": {
     "generate_video_url": "https://example.com/video",

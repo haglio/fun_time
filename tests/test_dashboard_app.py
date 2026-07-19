@@ -23,14 +23,14 @@ from fun_time.dashboard_app import (
     DashboardLaunchGeometry,
     DashboardLineItem,
     DashboardOvalItem,
-    VlcHydration,
+    PlayerHydration,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
     build_dashboard_window,
     hydrate_dashboard_snapshot,
     lighten_color,
     load_dashboard_app_config,
-    poll_vlc,
+    poll_players,
     resolve_logical_monitor_sizes,
     write_dashboard_command,
 )
@@ -40,19 +40,19 @@ from fun_time import load_config
 
 
 @pytest.fixture(autouse=True)
-def _silence_the_background_vlc_poller():
-    """``build_dashboard_window`` starts a daemon thread that polls both
-    satellites over VLC's HTTP interface every 0.5s.  Left live, it reaches
-    whichever VLC owns those ports on this machine — the user's, when they have
-    Fun Time open.  The tests that exercise ``poll_vlc`` call the function object
+def _silence_the_background_player_poller():
+    """``build_dashboard_window`` starts a daemon thread that polls every player
+    each refresh — Nau for the primary panel and each native satellite's status
+    file.  Stub it so the background thread never reads real state files
+    mid-test.  The tests that exercise ``poll_players`` call the function object
     they imported, so they still run the real one."""
-    with patch("fun_time.dashboard_app.poll_vlc", return_value=VlcHydration()):
+    with patch("fun_time.dashboard_app.poll_players", return_value=PlayerHydration()):
         yield
 
 
 def test_dashboard_app_loads_layout_from_manifest(cfg_path: Path, tmp_path: Path):
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
+    manifest_path = write_windows_bridge_manifest(config, destination=tmp_path / "windows_bridge_launch.ini")
 
     app_config = load_dashboard_app_config(manifest_path)
 
@@ -61,9 +61,8 @@ def test_dashboard_app_loads_layout_from_manifest(cfg_path: Path, tmp_path: Path
     assert app_config.layout.landscape_width_ratio == config.layout.landscape_width_ratio
     assert app_config.favs_file == config.paths.favs_file
     assert app_config.nau_status_file == config.paths.state_dir / "nau_status.txt"
-    assert app_config.portrait_vlc_port == config.vlc.vlc2_http_port
-    assert app_config.landscape_vlc_port == config.vlc.vlc3_http_port
-    assert app_config.vlc_password == "vlc-pass"
+    assert app_config.portrait_status_file == config.paths.state_dir / "portrait_status.txt"
+    assert app_config.landscape_status_file == config.paths.state_dir / "landscape_status.txt"
     assert app_config.dashboard_state_file == config.paths.state_dir / "dashboard_state.ini"
     assert app_config.dashboard_cmd_file == config.paths.state_dir / "dashboard_cmd.txt"
 
@@ -216,7 +215,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     fills = {item.rect: item.fill for item in scene.rects}
     assert len(_cable_lines(scene)) == 1, "Cable should be one straight line"
     assert "Nau" in texts
-    assert "Portrait\nAI VLC" in texts
+    assert "Portrait\nAI Player" in texts
     assert not any(".mp4" in item.text for item in scene.texts)
     assert fills[preview_layout.primary_panel] == COLOR_PINK, "Auto mode makes primary pink"
     assert fills[preview_layout.portrait_panel] == COLOR_GREEN
@@ -329,7 +328,74 @@ def test_dashboard_app_writes_commands_for_click_actions(tmp_path: Path):
 
     write_dashboard_command(command_file, "portrait_next")
 
-    assert command_file.read_text(encoding="utf-8") == "portrait_next"
+    assert command_file.read_text(encoding="utf-8").strip() == "portrait_next"
+
+
+def test_write_dashboard_command_retries_past_a_transient_file_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """The dispatch loop drains this file ~20x/s by renaming it, so a click whose
+    write overlaps a drain hits a Windows sharing violation (WinError 32) — the
+    same race AHK's QueueCommand retries past.  The write must retry rather than
+    raise: unhandled, the PermissionError propagates out of the Qt slot and PyQt6
+    aborts the whole dashboard, which is the "power button closed the Dash instead
+    of quitting Fun Time" bug."""
+    command_file = tmp_path / "state" / "dashboard_cmd.txt"
+    command_file.parent.mkdir(parents=True)
+
+    real_open = Path.open
+    attempts = {"n": 0}
+
+    def flaky_open(self: Path, *args: object, **kwargs: object):
+        if self == command_file:
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise PermissionError(32, "being used by another process")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", flaky_open)
+    monkeypatch.setattr("fun_time.voice_commands.time.sleep", lambda _s: None)
+
+    write_dashboard_command(command_file, "quit")  # must not raise
+
+    assert attempts["n"] >= 2  # retried past the first failure
+    assert command_file.read_text(encoding="utf-8").strip() == "quit"
+
+
+def test_write_dashboard_command_drops_rather_than_raises_when_locked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """If the file stays locked for every retry, the click is dropped — never
+    raised.  A raise here aborts the whole PyQt6 dashboard; a dropped click just
+    means the user clicks again."""
+    command_file = tmp_path / "state" / "dashboard_cmd.txt"
+    command_file.parent.mkdir(parents=True)
+
+    def always_locked(self: Path, *args: object, **kwargs: object):
+        if self == command_file:
+            raise PermissionError(32, "being used by another process")
+        raise AssertionError("unexpected open")
+
+    monkeypatch.setattr(Path, "open", always_locked)
+    monkeypatch.setattr("fun_time.voice_commands.time.sleep", lambda _s: None)
+
+    write_dashboard_command(command_file, "quit")  # must not raise
+
+    assert not command_file.exists()
+
+
+def test_write_dashboard_command_queues_rather_than_clobbers(tmp_path: Path):
+    """Two clicks landing between dispatch-loop drains must both survive: the
+    writer appends newline-terminated lines, so ``poll_dashboard_commands`` reads
+    both in order rather than only the last."""
+    from fun_time.windows_bridge_dispatch_loop import poll_dashboard_commands
+
+    command_file = tmp_path / "state" / "dashboard_cmd.txt"
+
+    write_dashboard_command(command_file, "portrait_lock")
+    write_dashboard_command(command_file, "quit")
+
+    assert poll_dashboard_commands(command_file) == ["portrait_lock", "quit"]
 
 
 def test_dashboard_window_geometry_uses_snapshot_window_when_available(cfg_path: Path):
@@ -417,7 +483,7 @@ def test_dashboard_app_marks_broker_disconnected_when_heartbeat_is_stale(cfg_pat
 def test_minimize_routes_omniminimize_command(cfg_path: Path):
     """Minimizing the dashboard writes the omniminimize command for the dispatch loop."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -431,7 +497,7 @@ def test_minimize_routes_omniminimize_command(cfg_path: Path):
 
         window._maybe_route_omniminimize(now_minimized=True, was_minimized=False)
 
-        assert cmd_file.read_text(encoding="utf-8") == "omniminimize"
+        assert cmd_file.read_text(encoding="utf-8").strip() == "omniminimize"
     finally:
         window.close()
 
@@ -439,7 +505,7 @@ def test_minimize_routes_omniminimize_command(cfg_path: Path):
 def test_omniminimize_not_routed_on_restore_or_repeat(cfg_path: Path):
     """Only the not-minimized -> minimized transition routes; restore/repeat do not."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -464,7 +530,7 @@ def test_omniminimize_not_routed_on_restore_or_repeat(cfg_path: Path):
 def test_restore_routes_omnirestore_command(cfg_path: Path):
     """Un-minimizing the dashboard writes omnirestore so the others come back too."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -478,7 +544,7 @@ def test_restore_routes_omnirestore_command(cfg_path: Path):
 
         # Restore edge (minimized -> normal) routes omnirestore.
         window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
-        assert cmd_file.read_text(encoding="utf-8") == "omnirestore"
+        assert cmd_file.read_text(encoding="utf-8").strip() == "omnirestore"
 
         # Minimize edge and steady state must not route omnirestore.
         cmd_file.unlink()
@@ -492,7 +558,7 @@ def test_restore_routes_omnirestore_command(cfg_path: Path):
 def test_do_render_skips_geometry_reapply_while_minimized(cfg_path: Path):
     """The refresh loop must not re-assert geometry on a minimized window (which would restore it)."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -520,7 +586,7 @@ def test_dashboard_stays_hidden_during_loading(cfg_path: Path):
     from unittest.mock import MagicMock
 
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -548,7 +614,7 @@ def test_dashboard_reveals_with_show_after_loading(cfg_path: Path):
     from unittest.mock import MagicMock
 
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -582,7 +648,7 @@ def test_dashboard_syncs_own_topmost_with_omnipause(cfg_path: Path):
     Qt window is unreliable) and restores it after — drift-corrected, so it
     never issues a redundant SetWindowPos."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -615,7 +681,7 @@ def test_do_render_syncs_own_topmost_from_snapshot(cfg_path: Path):
     """Every render drives the topmost sync off the snapshot's omni_paused, so
     the dashboard's band stays correct even if Qt re-asserts its StaysOnTop."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -636,7 +702,7 @@ def test_help_action_opens_dialog_locally_without_routing_command(cfg_path: Path
     from fun_time.dashboard_app import DashboardWindow
 
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -663,7 +729,7 @@ def test_help_reference_press_toggles_reference_dialog(cfg_path: Path):
     """A voice "help" reaches the dashboard as a UDP press, not a button click;
     processing that press must toggle the reference popup."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -683,7 +749,7 @@ def test_help_reference_close_press_closes_reference_dialog(cfg_path: Path):
     """A voice "close help" arrives as a press and must only dismiss the popup —
     never open it."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -706,7 +772,7 @@ def test_toggle_reference_dialog_opens_then_closes(cfg_path: Path):
     from unittest.mock import MagicMock
 
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -737,7 +803,7 @@ def test_reference_dialog_frame_fills_rfb_rect(cfg_path: Path):
     from fun_time.dashboard_layout import Rect
 
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
     rfb_rect = Rect(7, 408, 640, 984)
@@ -790,7 +856,7 @@ def test_reference_dialog_renders_hotkeys_and_voice():
         dialog.close()
 
 
-def test_dashboard_app_hydrates_live_vlc_state():
+def test_dashboard_app_hydrates_live_player_state():
     snapshot = DashboardSnapshot(
         f_mode_enabled=False,
         primary_mode="nau",
@@ -802,14 +868,14 @@ def test_dashboard_app_hydrates_live_vlc_state():
         landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(1, 2, 3, 4),
     )
-    vlc = VlcHydration(
+    players = PlayerHydration(
         primary_path="primary.mp4",
         portrait_path="portrait.mp4",
         landscape_path="landscape.mp4",
         primary_responsive=True,
     )
 
-    hydrated = hydrate_dashboard_snapshot(snapshot, vlc)
+    hydrated = hydrate_dashboard_snapshot(snapshot, players)
 
     assert hydrated.primary.path == "primary.mp4"
     assert hydrated.portrait.path == "portrait.mp4"
@@ -817,36 +883,35 @@ def test_dashboard_app_hydrates_live_vlc_state():
     assert hydrated.primary_responsive is True
 
 
-def test_poll_vlc_reads_primary_from_nau_status(cfg_path: Path, tmp_path: Path):
-    """The primary panel's video comes from Nau (which owns the primary
-    display), while the two satellites still come from their VLC HTTP ports."""
+def test_poll_players_reads_primary_from_nau_and_satellites_from_status_files(cfg_path: Path, tmp_path: Path):
+    """The primary panel's video comes from Nau (which owns the primary display),
+    while the two satellites come from their native status files."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
+    manifest_path = write_windows_bridge_manifest(config, destination=tmp_path / "windows_bridge_launch.ini")
     app_config = load_dashboard_app_config(manifest_path)
 
-    with (
-        patch("fun_time.dashboard_app.read_nau_status", return_value=NauStatus(video="p.mp4")),
-        patch("fun_time.dashboard_app.get_current_file_path", side_effect=["po.mp4", "l.mp4"]),
-    ):
-        result = poll_vlc(app_config)
+    app_config.portrait_status_file.write_text(
+        "video=po.mp4\nposition_ms=100\nduration_ms=1000\npaused=0\nlocked=0\n", encoding="utf-8")
+    app_config.landscape_status_file.write_text(
+        "video=l.mp4\nposition_ms=100\nduration_ms=1000\npaused=0\nlocked=0\n", encoding="utf-8")
 
-    assert isinstance(result, VlcHydration)
+    with patch("fun_time.dashboard_app.read_nau_status", return_value=NauStatus(video="p.mp4")):
+        result = poll_players(app_config)
+
+    assert isinstance(result, PlayerHydration)
     assert result.primary_path == "p.mp4"
     assert result.portrait_path == "po.mp4"
     assert result.landscape_path == "l.mp4"
     assert result.primary_responsive is True
 
 
-def test_poll_vlc_marks_primary_unresponsive_when_nau_reports_no_video(cfg_path: Path, tmp_path: Path):
+def test_poll_players_marks_primary_unresponsive_when_nau_reports_no_video(cfg_path: Path, tmp_path: Path):
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass", destination=tmp_path / "windows_bridge_launch.ini")
+    manifest_path = write_windows_bridge_manifest(config, destination=tmp_path / "windows_bridge_launch.ini")
     app_config = load_dashboard_app_config(manifest_path)
 
-    with (
-        patch("fun_time.dashboard_app.read_nau_status", return_value=NauStatus()),
-        patch("fun_time.dashboard_app.get_current_file_path", return_value=""),
-    ):
-        result = poll_vlc(app_config)
+    with patch("fun_time.dashboard_app.read_nau_status", return_value=NauStatus()):
+        result = poll_players(app_config)
 
     assert result.primary_responsive is False
     assert result.primary_path == ""
@@ -979,7 +1044,7 @@ def test_dashboard_scene_omnipause_button_shows_pause_icon_when_not_paused(cfg_p
     assert omnipause_rects[0].fill == COLOR_PANEL
 
 
-def test_dashboard_scene_vlc_panel_labels_are_top_justified(cfg_path: Path):
+def test_dashboard_scene_panel_labels_are_top_justified(cfg_path: Path):
     config = load_config(cfg_path)
     preview_layout = compute_dashboard_preview_layout(
         Size(2560, 1392),
@@ -1395,14 +1460,17 @@ def test_osr2_off_mode_shows_off_label_and_dim_color(cfg_path: Path):
     assert fills[layout.osr2_panel] == COLOR_PANEL
 
 
-def test_portrait_label_is_split_across_two_lines(cfg_path: Path):
+def test_the_panels_name_the_players_their_windows_do(cfg_path: Path):
+    """The Dash calls each side what its window calls itself, so the panel and
+    the Alt-Tab entry are recognisably the same thing.  Portrait's panel is a
+    narrow column, so its name wraps rather than being shortened."""
     layout = _make_layout(cfg_path)
 
     scene = build_dashboard_scene(layout)
 
     texts = {item.text for item in scene.texts}
-    assert "Portrait\nAI VLC" in texts
-    assert "Portrait AI VLC" not in texts
+    assert "Portrait\nAI Player" in texts
+    assert "Landscape AI Player" in texts
 
 
 def test_omnipause_resume_button_is_not_green_when_paused(cfg_path: Path):
@@ -1831,14 +1899,16 @@ def test_broker_panel_blue_when_running(cfg_path: Path):
     assert fills[layout.broker_panel] == COLOR_BLUE
 
 
-def test_voice_panel_shows_v_label(cfg_path: Path):
+def test_voice_panel_shows_mic_icon(cfg_path: Path):
     layout = _make_layout(cfg_path)
 
     scene = build_dashboard_scene(layout)
 
-    voice_texts = [item for item in scene.texts if item.rect == layout.voice_panel]
-    assert len(voice_texts) == 1
-    assert voice_texts[0].text == "v"
+    # The mic is a drawn glyph (a QPixmap image), not a letter or emoji text.
+    voice_images = [item for item in scene.images if item.rect == layout.voice_panel]
+    assert len(voice_images) == 1
+    assert not voice_images[0].pixmap.isNull()
+    assert not [item for item in scene.texts if item.rect == layout.voice_panel]
 
 
 def test_voice_panel_has_hover_text(cfg_path: Path):

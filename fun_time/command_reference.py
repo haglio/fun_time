@@ -62,13 +62,13 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             # Space and "pause" both enter Omnipause; "pause" is shown for parity.
             _Row("Omnipause", ("Space",), ("enter_omnipause",), ("pause",)),
             _Row("Toggle F-Mode", ("F",), ("fmode_toggle", "fmode_on", "fmode_off")),
-            _Row("Premiere — (re)load Portrait/Landscape newest-first", ("P",), ("recency_order_refresh",)),
-            _Row("Shuffle — reshuffle Portrait/Landscape (cancels Premiere; keeps filters)", (), ("shuffle",)),
+            _Row("Latest — (re)load Portrait/Landscape newest-first", (), ("both_latest",)),
+            _Row("Shuffle — reshuffle Portrait/Landscape (cancels Latest; keeps filters)", (), ("both_shuffle",)),
             # The primary display's sound, in whichever mode owns it — Nau's
             # video in nau/hybrid, Genau's clip audio in genau.
             _Row("Mute / unmute the primary display", (), ("audio_mute", "audio_unmute")),
             _Row("Volume down / up, in tenths", (), ("audio_volume_down", "audio_volume_up")),
-            _Row("Disable voice control", ("Backspace",), ("voice_toggle", "voice_off")),
+            _Row("Disable voice control", (), ("voice_toggle", "voice_off")),
             _Row("Start / stop broker", ("B",), ("broker_panel", "broker_start", "broker_stop")),
             _Row(
                 "Open / close this hotkeys & voice reference",
@@ -96,9 +96,21 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             ),
             _Row("Cycle through versions of the current video", ("V",), ("nau_cycle_version",)),
             _Row(
-                "Toggle viewing full-length vs short content",
+                "Length of what plays: \"mixed\" (the default, everything), "
+                "\"shorts\", or \"full length\"; \"primary reset\" also returns "
+                "to mixed, and leaves any compilation with it",
                 ("T",),
-                ("nau_toggle_length", "nau_length_shorts", "nau_length_full"),
+                ("nau_toggle_length", "nau_length_shorts", "nau_length_full",
+                 "nau_length_mixed"),
+            ),
+            _Row(
+                "Clip navigation: \"compilation\" plays the clip's compilation "
+                "in order and \"end compilation\" leaves it for the length mode "
+                "you were in; \"full video\" jumps to its source scene; \"money "
+                "shot\"/\"redacted\" jumps back to the clip",
+                (),
+                ("nau_compilation", "nau_end_compilation", "nau_full_vid",
+                 "nau_money_shot"),
             ),
             _Row(
                 "Loop control: hold and release to set a loop, press to end loop",
@@ -110,7 +122,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         ),
     ),
     (
-        "Portrait VLC",
+        "Portrait",
         (
             _Row("Previous portrait clip", ("Left",), ("portrait_prev",)),
             _Row("Next portrait clip", ("Right",), ("portrait_next",)),
@@ -118,16 +130,24 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Lock / unlock portrait", ("Down",), ("portrait_lock", "portrait_lock_on", "portrait_lock_off")),
             _Row("Cycle action — same subject(s) & scene, another act", ("Del",), ("portrait_cycle_action",)),
             _Row("Cycle seed — same config, different subject", ("End",), ("portrait_cycle_seed",)),
+            _Row(
+                "Navigate the map — Shift+arrows move a selection, switching to that clip",
+                ("Shift+Left", "Shift+Right", "Shift+Up", "Shift+Down"),
+                ("portrait_nav_left", "portrait_nav_right", "portrait_nav_up", "portrait_nav_down"),
+            ),
             _Row("More seeds — widen to same-scene near-matches", (), ("portrait_more_seeds",)),
             _Row("Loop the subject's actions — repeat that group", (), ("portrait_action_loop",)),
             _Row("Loop the act's other seeds — repeat that family", (), ("portrait_seed_loop",)),
             _Row("Stop looping portrait — back to browse, keep the filter", (), ("portrait_no_loop",)),
             _Row("Filter portrait to the current clip's action", (), ("portrait_lock_action",)),
-            _Row("Reset portrait — clear filter, reshuffle to default", (), ("portrait_reset",)),
+            _Row("Latest portrait — reload it newest-first", (), ("portrait_latest",)),
+            _Row("Shuffle portrait — reshuffle it (cancels Latest; keeps the filter)", (), ("portrait_shuffle",)),
+            _Row("Drop portrait's filter — keep its order and everything else", (), ("portrait_no_filter",)),
+            _Row("Reset portrait — back to every default: no filter, no lock, no loop, shuffled from the top", (), ("portrait_reset",)),
         ),
     ),
     (
-        "Landscape VLC",
+        "Landscape",
         (
             _Row("Previous landscape clip", ("A",), ("landscape_prev",)),
             _Row("Next landscape clip", ("D",), ("landscape_next",)),
@@ -135,16 +155,24 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Lock / unlock landscape", ("S",), ("landscape_lock", "landscape_lock_on", "landscape_lock_off")),
             _Row("Cycle action — same subject(s) & scene, another act", ("E",), ("landscape_cycle_action",)),
             _Row("Cycle seed — same config, different subject", ("Q",), ("landscape_cycle_seed",)),
+            _Row(
+                "Navigate the map — Shift+WASD move a selection, switching to that clip",
+                ("Shift+W", "Shift+A", "Shift+S", "Shift+D"),
+                ("landscape_nav_up", "landscape_nav_left", "landscape_nav_down", "landscape_nav_right"),
+            ),
             _Row("More seeds — widen to same-scene near-matches", (), ("landscape_more_seeds",)),
             _Row("Loop the subject's actions — repeat that group", (), ("landscape_action_loop",)),
             _Row("Loop the act's other seeds — repeat that family", (), ("landscape_seed_loop",)),
             _Row("Stop looping landscape — back to browse, keep the filter", (), ("landscape_no_loop",)),
             _Row("Filter landscape to the current clip's action", (), ("landscape_lock_action",)),
-            _Row("Reset landscape — clear filter, reshuffle to default", (), ("landscape_reset",)),
+            _Row("Latest landscape — reload it newest-first", (), ("landscape_latest",)),
+            _Row("Shuffle landscape — reshuffle it (cancels Latest; keeps the filter)", (), ("landscape_shuffle",)),
+            _Row("Drop landscape's filter — keep its order and everything else", (), ("landscape_no_filter",)),
+            _Row("Reset landscape — back to every default: no filter, no lock, no loop, shuffled from the top", (), ("landscape_reset",)),
         ),
     ),
     (
-        "Both VLC",
+        "Both",
         (
             _Row("Previous both clips", (), ("both_prev",)),
             _Row("Next both clips", (), ("both_next",)),
@@ -157,7 +185,9 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Loop each act's other seeds on both", (), ("both_seed_loop",)),
             _Row("Stop looping both — back to browse, keep the filters", (), ("both_no_loop",)),
             _Row("Filter both to their current clip's action", (), ("both_lock_action",)),
-            _Row("Reset both — clear filters, reshuffle to default", (), ("both_reset",)),
+            _Row("Shuffle both — reshuffle each (cancels Latest; keeps filters)", (), ("both_shuffle",)),
+            _Row("Drop both filters — keep their orders and everything else", (), ("both_no_filter",)),
+            _Row("Reset both — back to every default: no filters, no locks, no loops, shuffled from the top", (), ("both_reset",)),
         ),
     ),
     (
@@ -182,6 +212,11 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("active_next",),
             ),
             _Row("Mark the active side's clip as weird", (), ("active_trash",)),
+            _Row(
+                "Lock the selected map clip and re-home the map on it (keyboard navigation)",
+                ("Enter",),
+                ("active_nav_lock",),
+            ),
             _Row("Cycle action — same subject(s) & scene, another act", (), ("active_cycle_action",)),
             _Row("Cycle seed — same config, different subject", (), ("active_cycle_seed",)),
             _Row("More seeds — widen to same-scene near-matches", (), ("active_more_seeds",)),
@@ -189,20 +224,23 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Loop the act's other seeds — repeat that family", (), ("active_seed_loop",)),
             _Row("Stop looping the active side — back to browse, keep the filter", (), ("active_no_loop",)),
             _Row("Filter the active side to the current clip's action", (), ("active_lock_action",)),
-            _Row("Reset the active side — clear filter, reshuffle to default", (), ("active_reset",)),
+            _Row("Latest on the active side — reload it newest-first", (), ("active_latest",)),
+            _Row("Shuffle the active side (cancels Latest; keeps the filter)", (), ("active_shuffle",)),
+            _Row("Drop the active side's filter — keep its order and everything else", (), ("active_no_filter",)),
+            _Row("Reset the active side — back to every default: no filter, no lock, no loop, shuffled from the top", (), ("active_reset",)),
         ),
     ),
     (
-        "Filters (satellite VLCs)",
+        "Filters (satellites)",
         (
             _Row(
-                "Filter both VLCs by act — say the act alone",
+                "Filter both satellites by act — say the act alone",
                 (),
                 set_commands_for_scope("both"),
                 voice_display=spoken_forms_for_both(),
             ),
             _Row(
-                "Filter one VLC — prefix “portrait” or “landscape”",
+                "Filter one satellite — prefix “portrait” or “landscape”",
                 (),
                 set_commands_for_scope("portrait") + set_commands_for_scope("landscape"),
                 voice_display=("portrait <act>", "landscape <act>"),

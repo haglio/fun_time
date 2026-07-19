@@ -12,6 +12,9 @@ neither may import the other.
 """
 from __future__ import annotations
 
+import time
+from pathlib import Path
+
 from fun_time.filter_vocab import filter_voice_commands
 
 # A spoken command carries when the *utterance began*, appended after " @".  A
@@ -29,6 +32,32 @@ _SPOKEN_AT_SEP = " @"
 def format_spoken_command(command: str, *, spoken_at: float) -> str:
     """The command-file line for *command*, stamped with its utterance start."""
     return f"{command}{_SPOKEN_AT_SEP}{spoken_at:.3f}"
+
+
+def append_command_line(path: Path, line: str, *, attempts: int = 5, delay_s: float = 0.005) -> bool:
+    """Append *line* as its own command to the dashboard command file.
+
+    Every mouse- and voice-driven writer shares one file that the dispatch loop
+    drains ~20x/s by renaming it (see ``poll_dashboard_commands``).  A write that
+    overlaps a drain hits a transient Windows sharing violation (WinError 32) —
+    the same race AHK's ``QueueCommand`` retries past.  Retry briefly so a
+    collision delays the command by milliseconds instead of raising: unhandled,
+    the error propagates out of a Qt click slot and PyQt6 aborts the whole
+    window (the "power button closed the Dash instead of quitting Fun Time" bug).
+    Append, newline-terminated, so a second click within one drain window queues
+    behind the first rather than clobbering it.  Returns whether it was written;
+    a persistently locked file drops the line (the next click lands) over raising.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    for attempt in range(attempts):
+        try:
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+            return True
+        except OSError:
+            if attempt < attempts - 1:
+                time.sleep(delay_s)
+    return False
 
 
 def parse_command_line(line: str) -> tuple[str, float | None]:
@@ -56,17 +85,11 @@ VOICE_COMMANDS: dict[str, str] = {
     # shows it as "unpause" via the row's friendly_voice override.
     "resume": "play",
     "un pause": "play",
-    # "Shuffle" reshuffles Portrait/Landscape, cancelling Premiere's newest-first
-    # order (the counterpart to "premiere"); each satellite keeps its filter.
-    "shuffle": "shuffle",
     # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
     # generated as an order-agnostic grid below the literal.
     "f mode": "fmode_toggle",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
-    # "Premiere": (re)load the Portrait/Landscape VLC playlists newest-first,
-    # picking up any new files and restarting each from the top.
-    "premiere": "recency_order_refresh",
     # Recognizer listens for "go now" (reliably recognized); the reference
     # displays this as "genau" via the row's voice_display override.
     "go now": "genau_activate",
@@ -92,6 +115,20 @@ VOICE_COMMANDS: dict[str, str] = {
     "next version": "nau_cycle_version",
     "shorts": "nau_length_shorts",
     "full length": "nau_length_full",
+    # The unfiltered library Nau opens in, and so the way back out of either
+    # half — "primary reset" says the same thing (see the primary grid below).
+    "mixed": "nau_length_mixed",
+    # Clip navigation (Winston-style clips carved from compilations). "vid" is
+    # not in the vosk vocabulary, so "full video" is the reliable phrase; "full
+    # vid" stays as a fallback the model uses only if it knows the word.
+    "compilation": "nau_compilation",
+    # …and back out of one, without having to name a length: Nau returns to
+    # whichever mode was feeding the playlist when it went in.
+    "end compilation": "nau_end_compilation",
+    "full video": "nau_full_vid",
+    "full vid": "nau_full_vid",
+    "money shot": "nau_money_shot",
+    "redacted": "nau_money_shot",
     "slow down": "genau_speed_down",
     "speed down": "genau_speed_down",
     "speed up": "genau_speed_up",
@@ -110,7 +147,11 @@ VOICE_COMMANDS: dict[str, str] = {
     "previous clip": "genau_prev_clip",
     "next clip": "genau_next_clip",
     "offset": "quarter_button",
+    # "voice off" / "mic off" both mute voice control (there is no spoken way
+    # back — a muted recognizer hears nothing; the dashboard mic button or a
+    # restart re-enables it).
     "voice off": "voice_off",
+    "mic off": "voice_off",
     # The primary display's sound, whichever mode owns it.  Each pair's two
     # words mean the same thing, so a speaker never has to pick between them.
     # vosk has no "unmute" token but does have "un", so the recognizer listens
@@ -152,9 +193,15 @@ _SATELLITE_ACTIONS: dict[str, str] = {
     # subject's other acts exactly like "action", bare or sided.
     "scene": "cycle_action",
     "seed": "cycle_seed",
-    # Drop any filter/premiere/loop and reshuffle back to the default browse
+    # Drop any filter/ordering/loop and reshuffle back to the default browse
     # order (all clips, one per subject).
     "reset": "reset",
+    # The two browse orderings, each rescanning the sources so new files are picked
+    # up: "latest" reloads newest-first, "shuffle" reshuffles.  Both are sided like
+    # every other satellite action — a side put in latest order has to be
+    # shuffleable on its own — and "both latest" is what the P key sends.
+    "latest": "latest",
+    "shuffle": "shuffle",
 }
 for _act_word, _act in _SATELLITE_ACTIONS.items():
     VOICE_COMMANDS[_act_word] = f"active_{_act}"
@@ -184,8 +231,12 @@ _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
     # "more seeds" / "widen (the) net" widens cycle-seed's reach on demand until
     # it finds another subject doing the same act.
     "more_seeds": ("more seeds", "widen net", "widen the net"),
-    # "no loop" / "loop off" ends any group loop, back to the browse.
+    # "no loop" / "loop off" ends any group loop, back to the browse.  ("end loop"
+    # joins them, but only sided — bare it belongs to Nau; see below.)
     "no_loop": ("no loop", "loop off"),
+    # "no filter" drops just the filter, where "reset" puts the whole side back to
+    # its defaults (lock, order, loop and all).
+    "no_filter": ("no filter", "filter off"),
     "lock_action": ("lock action", "action lock"),
     "lock_on": ("lock all",),
     "reset": ("loop all",),
@@ -197,6 +248,15 @@ for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
             _sided = f"{_side}_{_group_act}"
             VOICE_COMMANDS[f"{_side} {_group_word}"] = _sided
             VOICE_COMMANDS[f"{_group_word} {_side}"] = _sided
+
+# "end loop" is side-agnostic like the rest of the grid: bare, it reaches the
+# player last addressed and means that player's own kind of loop — the dispatch
+# loop resolves ``active_no_loop`` to Nau's A-B loop cancel on the primary, and to
+# a satellite's group loop on portrait/landscape.
+VOICE_COMMANDS["end loop"] = "active_no_loop"
+for _side in ("portrait", "landscape", "both"):
+    VOICE_COMMANDS[f"{_side} end loop"] = f"{_side}_no_loop"
+    VOICE_COMMANDS[f"end loop {_side}"] = f"{_side}_no_loop"
 
 # The cycle axes also take an explicit verb up front — "cycle / next / change
 # <axis>" — and "scene" reads as "action".  These are extra spoken forms for the
@@ -213,14 +273,19 @@ for _cycle_cmd, _cycle_phrases in _SATELLITE_CYCLE_PHRASES.items():
     for _cycle_phrase in _cycle_phrases:
         VOICE_COMMANDS[_cycle_phrase] = _cycle_cmd
 
-# The primary (Nau) player joins the grid for navigation ONLY — "primary next"
-# / "next primary" (either order) — since it has no lock/weird/cycle.  "main" is
-# a synonym for "primary".  Bare "next"/"previous" also reach it whenever it was
-# the last player navigated (the active side resolves to the primary then).
+# The primary (Nau) player joins the grid for navigation and reset — "primary
+# next" / "next primary" (either order) — since it has no lock/weird/cycle.
+# "main" is a synonym for "primary".  Bare "next"/"previous" also reach it
+# whenever it was the last player navigated (the active side resolves to the
+# primary then).  "reset" means here what it means for a satellite — drop
+# whatever is narrowing the playlist, back to the default browse — which for Nau
+# is leaving any compilation and any length filter for the mixed library.
 for _player_word in ("primary", "main"):
     for _nav_word, _nav in {"next": "next", "previous": "prev"}.items():
         VOICE_COMMANDS[f"{_player_word} {_nav_word}"] = f"primary_{_nav}"
         VOICE_COMMANDS[f"{_nav_word} {_player_word}"] = f"primary_{_nav}"
+    VOICE_COMMANDS[f"{_player_word} reset"] = "nau_length_mixed"
+    VOICE_COMMANDS[f"reset {_player_word}"] = "nau_length_mixed"
 
 # Mode-named navigation: a mode's name + next/previous (either order) navigates
 # that mode's player.  Nau and Hybrid drive the primary (Nau owns the primary
@@ -302,3 +367,13 @@ _shadowed = set(_filter_commands) & set(VOICE_COMMANDS)
 if _shadowed:
     raise RuntimeError(f"filter phrases collide with existing voice commands: {sorted(_shadowed)}")
 VOICE_COMMANDS.update(_filter_commands)
+
+
+# Commands whose outcome only Nau knows: it flashes the result itself (the clip
+# it jumped to, or "full video not available"), so confirming recognition here
+# too would stack a green toast under a red correction.
+SELF_REPORTING_COMMANDS = frozenset({
+    "nau_compilation",
+    "nau_full_vid",
+    "nau_money_shot",
+})

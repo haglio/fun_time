@@ -1,4 +1,4 @@
-"""Verify every third-party import in the package is declared in pyproject.toml."""
+"""Verify every third-party import in the packages is declared in pyproject.toml."""
 from __future__ import annotations
 
 import ast
@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PACKAGE_DIR = PROJECT_ROOT / "fun_time"
+# Both top-level packages ship from this repo, so both must be covered: the
+# satellite player pulls in numpy and Pillow that the orchestrator alone would
+# not have justified.
+PACKAGE_DIRS = (PROJECT_ROOT / "fun_time", PROJECT_ROOT / "satellite")
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 
 # Map import name -> pyproject.toml dependency name when they differ.
@@ -82,22 +85,28 @@ def _collect_third_party_imports() -> dict[str, set[str]]:
     """
     third_party: dict[str, set[str]] = {}
     stdlib = _stdlib_modules()
-    local_packages = {"fun_time", "shared_ui"}
+    # The shared siblings are installed editable from local paths, so they are
+    # deliberately absent from [project.dependencies] — see pyproject.toml.
+    local_packages = {
+        "fun_time", "satellite",           # this repo
+        "app_support", "player_core", "shared_ui",  # sibling repos
+    }
 
-    for py_file in PACKAGE_DIR.rglob("*.py"):
-        try:
-            tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
-        except SyntaxError:
-            continue
+    for package_dir in PACKAGE_DIRS:
+        for py_file in package_dir.rglob("*.py"):
+            try:
+                tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+            except SyntaxError:
+                continue
 
-        visitor = _TryAwareVisitor()
-        visitor.visit(tree)
+            visitor = _TryAwareVisitor()
+            visitor.visit(tree)
 
-        for top, inside_try in visitor.imports:
-            if top not in stdlib and top not in local_packages and not inside_try:
-                third_party.setdefault(top, set()).add(
-                    str(py_file.relative_to(PROJECT_ROOT))
-                )
+            for top, inside_try in visitor.imports:
+                if top not in stdlib and top not in local_packages and not inside_try:
+                    third_party.setdefault(top, set()).add(
+                        str(py_file.relative_to(PROJECT_ROOT))
+                    )
 
     return third_party
 

@@ -28,34 +28,23 @@ from .media_metadata import (
 )
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
-from .modes import collect_video_files
+from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
+from .modes import collect_video_files, write_playlist_file
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .mode_plan import genau_active, nau_displays
 from .filter_vocab import decode_filter_command
 from .runtime_flow import (
+    SatelliteFilterFlowResult,
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_mode_switch,
-    apply_reorder_satellites,
     apply_satellite_filter,
-    apply_satellite_loop,
     apply_toggle_fmode,
     build_omnipause_toggle,
+    satellite_browse_paths,
 )
-from .vlc_actions import (
-    ensure_playback_state,
-    get_current_file_path,
-    get_playback_fraction,
-    get_playlist_entries,
-    set_repeat_mode,
-    vlc_advance_and_remove,
-    vlc_http_cmd,
-    vlc_nav_step,
-    vlc_play_playlist_item,
-    vlc_seek_fraction,
-    vlc_swap_current_with,
-)
+from .satellite_control import read_satellite_status, write_satellite_command
 from .watch_stats import record_watch_event, watch_stats_path
 from .event_log import (
     NOTICE,
@@ -86,31 +75,50 @@ class BridgeState:
     primary_mode: str = "nau"
     f_mode_enabled: bool = False
     omni_paused: bool = False
-    recency_order: bool = False
+    # Which browse order each satellite is in: newest-first ("Latest") when set,
+    # else shuffled.  Per side, since Latest and Shuffle name a side, and read by
+    # every later rebuild (a filter, F-mode) so the side reloads the same way.
+    portrait_latest: bool = False
+    landscape_latest: bool = False
     # The player most recently navigated (1=primary/Nau, 2=portrait,
     # 3=landscape). Any portrait_/landscape_ command, or a primary next/prev,
     # updates it; the side-agnostic "active_*" commands resolve against it —
     # nav (next/prev) reaches all three, the satellite-only actions only 2/3.
     active_side: int = 2
-    # Per-VLC metadata filter queries ("" = no filter). Persisted in the shared
+    # Per-satellite metadata filter queries ("" = no filter). Persisted in the shared
     # state file so they survive the dispatch loop's per-tick state resync and
-    # are honoured by later F-mode / premiere rebuilds.
+    # are honoured by later F-mode / reorder rebuilds.
     portrait_filter: str = ""
     landscape_filter: str = ""
     # Which group loop each satellite is running: "" none, "action" (looping the
     # action column) or "seed" (looping the seed row).  A loop is repeat-all over
-    # a sub-playlist; VLC's own auto-advance keeps it alive, but any dispatch
+    # a sub-playlist; the satellite's own auto-advance keeps it alive, but any dispatch
     # command that rebuilds or re-navigates the side drops it.  Persisted so the
     # HUD can freeze its map on the looped group and keep the loop button lit
     # while the clip auto-advances.
     portrait_loop: str = ""
     landscape_loop: str = ""
+    # The clip each satellite's HUD map hangs on — the head of the queue a loop
+    # wrote.  The map is ordered from it, so the group is drawn in the order the
+    # player actually plays it: the clip you pressed loop on in the corner, the rest
+    # walking away from it.  It outlives the loop: switching a loop off leaves the
+    # map hanging here, so only the loop's own chrome goes, and the map re-homes on
+    # its own once the browse moves on past the group.
+    portrait_map_anchor: str = ""
+    landscape_map_anchor: str = ""
     # The clip each satellite's seed row has been widened around ("more seeds").
-    # While it equals the clip on screen the HUD shows the wider net (same act,
-    # any config); navigating to another clip leaves it behind, so the widen
-    # auto-resets without any explicit clear.
+    # While it equals the clip on screen the HUD shows the near-matches ranked in
+    # alongside the family; navigating to another clip leaves it behind, so the
+    # widen auto-resets without any explicit clear.
     portrait_widen_clip: str = ""
     landscape_widen_clip: str = ""
+    # The clip each satellite's HUD map is frozen on for keyboard navigation ("" =
+    # not navigating).  The arrow / WASD keys move a selection across that frozen
+    # map, switching the satellite to each cell's clip; the anchor holds until Enter
+    # locks the selection, another command re-homes the side, or the satellite
+    # drifts off the map.  Persisted so the HUD freezes its map to match.
+    portrait_nav_anchor: str = ""
+    landscape_nav_anchor: str = ""
     # The primary display's sound level, 0-100, and whether it is silenced.  A
     # mute leaves the level alone so a second "mute" restores what was set.
     volume: int = MAX_VOLUME
@@ -119,9 +127,18 @@ class BridgeState:
 
 @dataclass
 class BridgeConfig:
-    portrait_port: int
-    landscape_port: int
-    vlc_password: str
+    # Each satellite (2=portrait, 3=landscape) is a native mpv-backed player
+    # driven through a file quartet — a command file it drains verbs from, a
+    # paused flag it obeys, a status file it publishes, and the playlist file it
+    # plays.  See :mod:`fun_time.satellite_control`.
+    portrait_cmd_file: Path
+    portrait_paused_file: Path
+    portrait_status_file: Path
+    portrait_playlist_file: Path
+    landscape_cmd_file: Path
+    landscape_paused_file: Path
+    landscape_status_file: Path
+    landscape_playlist_file: Path
     favs_file: Path
     weird_dir: Path
     state_dir: Path
@@ -137,6 +154,8 @@ class BridgeConfig:
     nau_paused_file: Path
     nau_status_file: Path
     dashboard_state_file: Path
+    # Where Nau publishes its one-shot notices (a clip jump with nowhere to go).
+    nau_notice_file: Path | None = None
     broker_cmd_file: Path | None = None
     broker_heartbeat_file: Path | None = None
     broker_tray_launcher: Path | None = None
@@ -145,9 +164,18 @@ class BridgeConfig:
     regen_generate_video_url: str = "https://example.com/video"
     regen_generate_image_url: str = "https://example.com/create"
 
+    def satellite_cmd_file(self, which: int) -> Path:
+        return self.portrait_cmd_file if which == 2 else self.landscape_cmd_file
+
+    def satellite_status_file(self, which: int) -> Path:
+        return self.portrait_status_file if which == 2 else self.landscape_status_file
+
+    def satellite_playlist_file(self, which: int) -> Path:
+        return self.portrait_playlist_file if which == 2 else self.landscape_playlist_file
+
     @property
     def regen(self) -> RegenConfig:
-        """The four regen settings, in the shape the regenerate code expects."""
+        """The four Provider settings, in the shape the regenerate code expects."""
         return RegenConfig(
             generate_video_url=self.regen_generate_video_url,
             generate_image_url=self.regen_generate_image_url,
@@ -159,12 +187,8 @@ class BridgeConfig:
 @dataclass(frozen=True)
 class WindowOp:
     op: str
-    pid: int = 0
-    title: str = ""
+    # The op's one payload: a role name, an RFB URL, or a notice's message.
     key: str = ""
-    value: bool = True
-    vk: int = 0
-    exact: bool = False
     # Which window a ``notice`` op is about, so the log panel can filter it.
     source: str = SOURCE_SYSTEM
     # The log level a ``notice`` op is logged at — NOTICE (green) for a normal
@@ -261,6 +285,11 @@ _NAU_CMD_MAP = {
     "nau_toggle_length": "TOGGLE_LENGTH_MODE",
     "nau_length_shorts": "SET_LENGTH_MODE shorts",
     "nau_length_full": "SET_LENGTH_MODE full",
+    "nau_length_mixed": "SET_LENGTH_MODE mixed",
+    "nau_compilation": "PLAY_COMPILATION",
+    "nau_end_compilation": "END_COMPILATION",
+    "nau_full_vid": "PLAY_FULL_VID",
+    "nau_money_shot": "PLAY_MONEY_SHOT",
 }
 
 
@@ -294,72 +323,62 @@ def _same_video(left: str, right: str) -> bool:
     return normalize_path_key(left) == normalize_path_key(right)
 
 
-def _play_video(port: int, password: str, path: str, entries: list[tuple[int, str]]) -> bool:
-    """Make *path* the satellite's current item, playing it from *entries* when
-    it is already queued and swapping it in over the current item otherwise."""
-    entry_ids = {normalize_path_key(entry_path): item_id for item_id, entry_path in entries}
-    target_id = entry_ids.get(normalize_path_key(path))
-    if target_id is not None:
-        return vlc_play_playlist_item(port, password, target_id)
-    return vlc_swap_current_with(port, password, path)
+def _satellite_current(config: BridgeConfig, which: int) -> str:
+    """The video a satellite is showing now, read from its published status file."""
+    return read_satellite_status(config.satellite_status_file(which)).video
 
 
-def _rebuild_keeping_current(
-    port: int, password: str, current: str, rebuild: Callable[[], object]
-) -> None:
-    """Run *rebuild* (which replaces the satellite's playlist) but keep *current*
-    playing right where it was.
+def _send_satellite(config: BridgeConfig, which: int, verb: str) -> None:
+    """Queue one verb on a satellite's command file for the player to drain."""
+    write_satellite_command(config.satellite_cmd_file(which), verb)
 
-    A playlist replace otherwise restarts on item 0 — for a loop toggle that
-    yanks you off the clip you were watching onto a different one.  Capturing the
-    position, then replaying the same clip and seeking back, makes toggling a loop
-    on or off leave the current video alone.
+
+def _play_video(config: BridgeConfig, which: int, path: str) -> None:
+    """Make *path* the satellite's current clip.
+
+    ``PLAY_FILE`` is the native player's jump-or-splice: it jumps to the clip if
+    it is already queued, else splices it in after the current clip and plays it.
     """
-    fraction = get_playback_fraction(port, password) or 0.0
-    rebuild()
-    entries, _current_id = get_playlist_entries(port, password)
-    if _play_video(port, password, current, entries) and fraction > 0.0:
-        vlc_seek_fraction(port, password, fraction)
+    _send_satellite(config, which, f"PLAY_FILE {path}")
 
 
 def _cancel_lock(which: int, state: BridgeState, config: BridgeConfig) -> BridgeState:
-    port = config.portrait_port if which == 2 else config.landscape_port
+    """Release a repeat-one lock so the side auto-advances again.
+
+    A locked satellite is holding one clip (``LOCK`` → mpv ``loop_file``); the
+    ``UNLOCK`` verb restores end-of-file playlist advance.  A no-op when the side
+    was not locked.
+    """
     locked = state.locked2 if which == 2 else state.locked3
-    plan = build_lock_plan("cancel-lock", which=which, locked=locked, current_path="")
-    if plan.repeat_mode:
-        set_repeat_mode(port, config.vlc_password, plan.repeat_mode)
-    if which == 2:
-        return replace(state, locked2=plan.next_locked)
-    return replace(state, locked3=plan.next_locked)
+    if locked:
+        _send_satellite(config, which, "UNLOCK")
+    return replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
 
 
 def _toggle_lock(
     which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    port = config.portrait_port if which == 2 else config.landscape_port
     locked = state.locked2 if which == 2 else state.locked3
-    current_path = get_current_file_path(port, config.vlc_password)
+    current_path = _satellite_current(config, which)
     # "Lock" names the video the speaker had in front of them.  If the satellite
     # auto-advanced while the phrase was being recognized, bring that video back
     # and lock it — the whole point of the lock is to keep watching *it*.  An
     # unlock needs no such rescue: a locked satellite repeats one video and
     # cannot have advanced.
     if not locked and target_path and not _same_video(target_path, current_path):
-        entries, _current_id = get_playlist_entries(port, config.vlc_password)
-        if _play_video(port, config.vlc_password, target_path, entries):
-            logger.info("Lock back-dated to %s (player %d had advanced)", target_path, which)
-            current_path = target_path
-        else:
-            logger.warning("Lock could not return player %d to %s", which, target_path)
+        _play_video(config, which, target_path)
+        logger.info("Lock back-dated to %s (player %d had advanced)", target_path, which)
+        current_path = target_path
     plan = build_lock_plan("toggle-lock", which=which, locked=locked, current_path=current_path)
-    if plan.repeat_mode:
-        set_repeat_mode(port, config.vlc_password, plan.repeat_mode)
+    _send_satellite(config, which, "LOCK" if plan.next_locked else "UNLOCK")
     if plan.ensure_in_favs and current_path:
         ensure_in_favs(config.favs_file, current_path)
         # Locking is the strongest positive watch signal ("breeding" weight).
         record_watch_event(watch_stats_path(config.state_dir), current_path, "lock")
     if plan.advance_playlist:
-        vlc_http_cmd(port, "pl_next", config.vlc_password)
+        # Unlocking moves on from the clip you were dwelling on, rather than
+        # replaying it once more before the auto-advance.
+        _send_satellite(config, which, "NEXT")
     if plan.log_message:
         logger.info(plan.log_message)
     lock_ops: list[WindowOp] = []
@@ -374,50 +393,39 @@ def _toggle_lock(
             uri = write_lock_tab_page(tabs_dir(config.state_dir), target)
             lock_ops.append(WindowOp(op="open_rfb_tab", key=uri))
     # A lock is repeat-one on a single clip — incompatible with a group loop's
-    # repeat-all — so toggling the lock ends any loop the side was running.
+    # repeat-all — so toggling the lock ends any loop (and widened row) the side
+    # was running.
     next_state = replace(state, locked2=plan.next_locked) if which == 2 else replace(state, locked3=plan.next_locked)
-    return _clear_side_loop(next_state, which), lock_ops
-
-
-def _drop_playlist_entry(port: int, password: str, path: str) -> bool:
-    """Delete *path* from the playlist wherever it sits, leaving playback alone."""
-    entries, _current_id = get_playlist_entries(port, password)
-    for item_id, entry_path in entries:
-        if _same_video(entry_path, path):
-            return vlc_http_cmd(port, f"pl_delete&id={item_id}", password)
-    return False
+    return _clear_side_grouping(next_state, which), lock_ops
 
 
 def _discard(
     which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> BridgeState:
-    port = config.portrait_port if which == 2 else config.landscape_port
     locked = state.locked2 if which == 2 else state.locked3
-    current_path = get_current_file_path(port, config.vlc_password)
+    current_path = _satellite_current(config, which)
     # "Weird" condemns the video the speaker saw.  When the satellite advanced
-    # while the phrase was being recognized there is nothing to advance past —
-    # the condemned video is dropped from the playlist where it now sits, and
-    # the innocent video that replaced it keeps playing.
+    # while the phrase was being recognized, jump back to the condemned clip
+    # before trashing it, so the wrong (innocent) clip is never the one dropped.
     condemned = target_path or current_path
     already_moved_on = bool(target_path) and not _same_video(target_path, current_path)
     plan = build_lock_plan("discard", which=which, locked=locked, current_path=condemned)
-    if plan.repeat_mode:
-        set_repeat_mode(port, config.vlc_password, plan.repeat_mode)
+    if locked:
+        # A locked satellite is repeat-one; drop the lock so TRASH advances into
+        # the playlist instead of looping the clip that replaced the discarded one.
+        _send_satellite(config, which, "UNLOCK")
     if plan.remove_from_favs and condemned:
         remove_from_favs(config.favs_file, condemned)
     if plan.advance_playlist:
         if already_moved_on:
-            _drop_playlist_entry(port, config.vlc_password, condemned)
-        else:
-            vlc_advance_and_remove(port, config.vlc_password)
+            _play_video(config, which, condemned)
+        # TRASH drops the current clip from the playlist and plays the next.
+        _send_satellite(config, which, "TRASH")
     if plan.move_to_weird and condemned:
         move_to_weird(config.weird_dir, Path(condemned))
-    ensure_playback_state(port, config.vlc_password, should_play=True)
     if plan.log_message:
         logger.info(plan.log_message)
-    if which == 2:
-        return replace(state, locked2=plan.next_locked)
-    return replace(state, locked3=plan.next_locked)
+    return replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
 
 
 # display slot (2=portrait, 3=landscape) and variation axis per cycle command.
@@ -448,58 +456,42 @@ def _next_action_sibling(index: GroupIndex, current: str) -> str | None:
     return members[0]
 
 
-def _next_seed_sibling(
-    index: GroupIndex, current: str, entries: list[tuple[int, str]]
-) -> str | None:
+def _next_seed_sibling(index: GroupIndex, current: str) -> str | None:
     """The next exact seed sibling of *current* — a different seed of the
     identical config — toured in seed order (the first seed above the current
-    one, wrapping to the lowest) and preferring playlist entries.  None when
-    there is no sister; the HUD shows exactly which sisters exist, and widening
-    the net is a separate, HUD-only action ("more seeds"), not a cycle.
+    one, wrapping to the lowest).  None when there is no sister; the HUD shows
+    exactly which sisters exist, and widening the net is a separate, HUD-only
+    action ("more seeds"), not a cycle.
     """
     current_key = normalize_path_key(current)
     current_action = index.action_by_path.get(current_key, "")
-
-    def pool(key_by_path, members_by_family, accept) -> tuple[str | None, list[tuple[str, str]]]:
-        entry = key_by_path.get(current_key)
-        if entry is None:
-            return None, []
-        family, current_seed = entry
-
-        def gather(paths) -> list[tuple[str, str]]:
-            found: list[tuple[str, str]] = []
-            for path in paths:
-                key = normalize_path_key(path)
-                candidate = key_by_path.get(key)
-                # Same action only. An image-to-video seed family is keyed on the
-                # source image alone, so it spans actions; but the seed axis is
-                # "the same act, another subject", so a sister seed doing a different
-                # act belongs on the action axis, not here. This keeps the walk in
-                # step with what seed_family_members draws in the HUD.
-                if (
-                    candidate
-                    and candidate[0] == family
-                    and index.action_by_path.get(key, "") == current_action
-                    and accept(candidate[1], path, current_seed)
-                ):
-                    found.append((candidate[1], path))
-            return sorted(found)
-
-        found = gather(path for _item_id, path in entries)
-        if not found:
-            found = gather(m for m in members_by_family.get(family, []) if Path(m).exists())
-        return current_seed, found
-
-    current_seed, candidates = pool(
-        index.seed_key_by_path, index.seed_members,
-        lambda seed, _path, cur: seed != cur,
-    )
-    if not candidates:
+    entry = index.seed_key_by_path.get(current_key)
+    if entry is None:
         return None
-    for seed, path in candidates:
+    family, current_seed = entry
+    found: list[tuple[str, str]] = []
+    for path in (m for m in index.seed_members.get(family, []) if Path(m).exists()):
+        key = normalize_path_key(path)
+        candidate = index.seed_key_by_path.get(key)
+        # Same action only. An image-to-video seed family is keyed on the source
+        # image alone, so it spans actions; but the seed axis is "the same act,
+        # another subject", so a sister seed doing a different act belongs on the
+        # action axis, not here. This keeps the walk in step with what
+        # seed_family_members draws in the HUD.
+        if (
+            candidate
+            and candidate[0] == family
+            and index.action_by_path.get(key, "") == current_action
+            and candidate[1] != current_seed
+        ):
+            found.append((candidate[1], path))
+    found.sort()
+    if not found:
+        return None
+    for seed, path in found:
         if seed > current_seed:
             return path
-    return candidates[0][1]
+    return found[0][1]
 
 
 def _video_action_label(video_path: str, config: BridgeConfig) -> str:
@@ -549,20 +541,51 @@ _NO_LOOP_SIDES: dict[str, str] = {
     "landscape_no_loop": "landscape",
 }
 
+# "no filter" drops just the filter — the narrow counterpart of reset, which puts
+# the whole side back to its defaults.
+_NO_FILTER_SIDES: dict[str, str] = {
+    "portrait_no_filter": "portrait",
+    "landscape_no_filter": "landscape",
+}
 
-def _set_side_loop(state: BridgeState, which: int, axis: str) -> BridgeState:
-    """Record that *which* satellite is now running *axis*'s group loop."""
-    return replace(state, portrait_loop=axis) if which == 2 else replace(state, landscape_loop=axis)
+# The two browse orderings, per side: Latest reloads newest-first, Shuffle
+# reshuffles.  "both …" reaches each of these in turn (the dispatch loop expands
+# it), which is what the P key sends.
+_REORDER_COMMANDS: dict[str, tuple[int, bool]] = {
+    "portrait_latest": (2, True),
+    "landscape_latest": (3, True),
+    "portrait_shuffle": (2, False),
+    "landscape_shuffle": (3, False),
+}
 
 
-def _clear_side_loop(state: BridgeState, which: int) -> BridgeState:
-    """Forget any group loop on *which* satellite — its playlist was rebuilt or
-    re-navigated, which drops the loop.  A no-op when none was running."""
-    return replace(state, portrait_loop="") if which == 2 else replace(state, landscape_loop="")
+def _set_side_latest(state: BridgeState, which: int, recent: bool) -> BridgeState:
+    """Record which order *which* satellite's browse is now in."""
+    if which == 2:
+        return replace(state, portrait_latest=recent)
+    return replace(state, landscape_latest=recent)
+
+
+def _set_side_loop(state: BridgeState, which: int, axis: str, anchor: str) -> BridgeState:
+    """Record that *which* satellite is running *axis*'s group loop, started on
+    *anchor* — the clip that heads the queue the loop just wrote."""
+    if which == 2:
+        return replace(state, portrait_loop=axis, portrait_map_anchor=anchor)
+    return replace(state, landscape_loop=axis, landscape_map_anchor=anchor)
+
+
+def _clear_side_grouping(state: BridgeState, which: int) -> BridgeState:
+    """Forget any group loop AND any widened seed row on *which* satellite — its
+    playlist was rebuilt or re-navigated, which drops both.  A no-op when neither
+    was set.  The widen only ever means something in the context of the clip/loop
+    it was taken around, so a rebuild that drops the loop drops the widen with it."""
+    if which == 2:
+        return replace(state, portrait_loop="", portrait_map_anchor="", portrait_widen_clip="")
+    return replace(state, landscape_loop="", landscape_map_anchor="", landscape_widen_clip="")
 
 
 def _set_side_widen(state: BridgeState, which: int, clip: str) -> BridgeState:
-    """Record that *which* satellite's seed row is widened around *clip*."""
+    """Record that *which* satellite's seed row is widened around *clip* ("" clears)."""
     if which == 2:
         return replace(state, portrait_widen_clip=clip)
     return replace(state, landscape_widen_clip=clip)
@@ -574,12 +597,13 @@ def _dispatch_more_seeds(
     """Widen the seed row the HUD draws around the current clip — "more seeds".
 
     This does NOT change what is playing; it records that this clip's net is
-    widened, and the HUD redraws its seed row with the wider same-act pool.  If
-    there is nothing beyond the exact seed family to add, it says so rather than
-    silently doing nothing."""
-    port = config.portrait_port if which == 2 else config.landscape_port
+    widened, and the HUD redraws its seed row with the near-matches ranked in.  It
+    then loops that pool — the point of a wider row is to cycle it — which also
+    re-shapes a seed loop that was already running onto exactly what the HUD now
+    shows.  Only a library holding nothing but this clip can fail to widen, so the
+    dead end is a real "there is no other video", not "nothing matched"."""
     source = _satellite_source(which)
-    current = target_path or get_current_file_path(port, config.vlc_password)
+    current = target_path or _satellite_current(config, which)
     if not current:
         return state, []
     index = _satellite_group_index(which, config, current)
@@ -588,58 +612,60 @@ def _dispatch_more_seeds(
     wide = {normalize_path_key(m) for m in widened_seed_members(index, current)} - {current_key}
     if wide <= exact:
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
-    return _set_side_widen(state, which, current), [WindowOp(op="notice", key="More seeds", source=source)]
+    state = _set_side_widen(state, which, current)
+    # Loop the pool that was just widened: the widen anchor now matches the clip on
+    # screen, so the loop gathers the wider row the HUD draws.  This starts a loop
+    # where none was running and re-shapes one that was.  Its notices are dropped —
+    # "More seeds" is the one thing that happened, from the user's side.
+    state, _loop_ops = _dispatch_group_loop(which, "seed", state, config, target_path=current)
+    return state, [WindowOp(op="notice", key="More seeds", source=source)]
 
 
 def _dispatch_group_loop(
     which: int, axis: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Loop the satellite around the current clip's action group or seed family."""
-    port = config.portrait_port if which == 2 else config.landscape_port
     source = _satellite_source(which)
     ops: list[WindowOp] = []
-    current = target_path or get_current_file_path(port, config.vlc_password)
+    current = target_path or _satellite_current(config, which)
     if not current:
         return state, ops
     index = _satellite_group_index(which, config, current)
     # Loop what the HUD is showing: if the seed row has been widened around this
     # very clip ("more seeds"), loop that wider pool, not just the exact family.
     widen_clip = state.portrait_widen_clip if which == 2 else state.landscape_widen_clip
-    seed_gather = (
-        widened_seed_members
-        if axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
-        else seed_family_members
+    widened = axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
+    gather = widened_seed_members if widened else (
+        action_group_members if axis == "action" else seed_family_members
     )
-    gather = action_group_members if axis == "action" else seed_gather
     members = [member for member in gather(index, current) if Path(member).exists()]
     if len(members) < 2:
         # Only this clip is in the group, so "looping" it is a single-video lock:
-        # repeat this one.  Never a dead end — the loop buttons are still valid
-        # with one video, they just mean "lock" then.  A lock is not a loop, so
-        # any prior loop flag is dropped.
-        set_repeat_mode(port, config.vlc_password, "one")
+        # LOCK this one.  Never a dead end — the loop buttons are still valid with
+        # one video, they just mean "lock" then.  A lock is not a loop, so any
+        # prior loop (and widened row) is dropped.
+        _send_satellite(config, which, "LOCK")
         state = replace(state, locked2=True) if which == 2 else replace(state, locked3=True)
-        state = _clear_side_loop(state, which)
+        state = _clear_side_grouping(state, which)
         return state, [WindowOp(op="notice", key="Locked", source=source)]
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = _cancel_lock(which, state, config)
-    # Put the clip on screen first in the sub-playlist and restore its position
-    # across the replace, so turning the loop on doesn't restart or jump it.
+    # Write the group as the side's playlist with the current clip first, then
+    # RELOAD_PLAYLIST: the native player keeps the current clip playing when it
+    # survives the reload, so the clip on screen is never restarted and only what
+    # comes up next becomes the group, which then cycles by auto-advance.
     members = [current] + [m for m in members if normalize_path_key(m) != normalize_path_key(current)]
-    result_box = []
-    _rebuild_keeping_current(
-        port, config.vlc_password, current,
-        lambda: result_box.append(apply_satellite_loop(
-            which=which, axis=axis, members=members,
-            state_dir=config.state_dir, port=port, password=config.vlc_password,
-        )),
-    )
-    result = result_box[0]
-    logger.info(result.log_message)
-    if result.applied:
-        ensure_playback_state(port, config.vlc_password, should_play=True)
-        state = _set_side_loop(state, which, axis)
-    ops.append(WindowOp(op="notice", key=result.log_message, source=source))
+    write_playlist_file(config.satellite_playlist_file(which), members)
+    _send_satellite(config, which, "RELOAD_PLAYLIST")
+    label = "portrait" if which == 2 else "landscape"
+    message = f"Loop {label}: {len(members)} {axis}s"
+    logger.info(message)
+    state = _set_side_loop(state, which, axis, current)
+    # Anchor the widen on the loop iff it is the loose family being looped, so the
+    # HUD reads a running seed loop as widened exactly when it truly is — and a
+    # plain exact-family loop drops any stale anchor.
+    state = _set_side_widen(state, which, current if widened else "")
+    ops.append(WindowOp(op="notice", key=message, source=source))
     return state, ops
 
 
@@ -649,8 +675,7 @@ def _dispatch_lock_action(
     """Filter the satellite to the current clip's action — "portrait [act]",
     with the act read off the clip instead of spoken."""
     which = 2 if scope == "portrait" else 3
-    port = config.portrait_port if which == 2 else config.landscape_port
-    current = target_path or get_current_file_path(port, config.vlc_password)
+    current = target_path or _satellite_current(config, which)
     if not current:
         return state, []
     action = _video_action_label(current, config)
@@ -663,16 +688,11 @@ def _dispatch_play_video(
     which: int, path: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Switch a satellite straight to *path* — the command a HUD thumbnail click
-    sends.  Plays it from the playlist if it is already there, else swaps it into
-    the current slot, exactly as cycling to a sibling does."""
-    port = config.portrait_port if which == 2 else config.landscape_port
+    sends.  Plays it from the playlist if it is already there, else splices it in
+    after the current clip, exactly as cycling to a sibling does."""
     if not path:
         return state, []
-    entries, _current_id = get_playlist_entries(port, config.vlc_password)
-    if not _play_video(port, config.vlc_password, path, entries):
-        logger.warning("play_video: could not switch %s to %s", _satellite_source(which), path)
-        return state, []
-    ensure_playback_state(port, config.vlc_password, should_play=True)
+    _play_video(config, which, path)
     return state, [WindowOp(op="notice", key="Switched", source=_satellite_source(which))]
 
 
@@ -691,6 +711,95 @@ def _dispatch_lock_video(
     return _toggle_lock(which, state, config, target_path=path)
 
 
+# Keyboard navigation of the HUD map.  "<side>_nav_<dir>" moves a selection
+# around the frozen map (right/left walk the seed row, down/up the action
+# column) and switches the satellite to the picked cell; "<side>_nav_lock"
+# (Enter) locks the selection and re-homes the map on it.
+_NAV_DIRECTIONS = ("left", "right", "up", "down")
+_NAV_LOCK_SIDES = {"portrait_nav_lock": 2, "landscape_nav_lock": 3}
+
+
+def _parse_nav(command: str) -> tuple[int, str] | None:
+    """``(slot, direction)`` for a ``<side>_nav_<dir>`` command, else None."""
+    for prefix, which in (("portrait_nav_", 2), ("landscape_nav_", 3)):
+        if command.startswith(prefix):
+            direction = command[len(prefix):]
+            if direction in _NAV_DIRECTIONS:
+                return which, direction
+    return None
+
+
+def _is_hud_nav_command(command: str) -> bool:
+    """Whether *command* drives HUD keyboard navigation — a direction step or the
+    Enter lock.  Those manage the side's nav anchor themselves, so the generic
+    "any other side command re-homes the map" rule leaves them alone."""
+    return _parse_nav(command) is not None or command in _NAV_LOCK_SIDES
+
+
+def _nav_anchor(state: BridgeState, which: int) -> str:
+    return state.portrait_nav_anchor if which == 2 else state.landscape_nav_anchor
+
+
+def _set_nav_anchor(state: BridgeState, which: int, anchor: str) -> BridgeState:
+    if which == 2:
+        return replace(state, portrait_nav_anchor=anchor)
+    return replace(state, landscape_nav_anchor=anchor)
+
+
+def _clear_nav_anchor(state: BridgeState, which: int) -> BridgeState:
+    return _set_nav_anchor(state, which, "")
+
+
+def _navigate_hud(
+    which: int, direction: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Move the HUD map's keyboard selection one step and switch the satellite to
+    the picked clip, keeping the map frozen on the clip navigation began from.
+
+    The selection is wherever the satellite is now playing on the frozen map; the
+    step lands on a neighbouring cell, whose clip becomes the new current video.
+    A satellite that auto-advanced off the frozen map re-anchors on whatever is
+    now playing.  Each axis wraps, so running off its end comes round to the
+    anchor; only a step with genuinely nowhere to go — off the axis the selection
+    is on, or along an axis holding just the anchor — is a dead end, reported red
+    like the other no-effect notices.
+    """
+    source = _satellite_source(which)
+    current = _satellite_current(config, which)
+    if not current:
+        return state, []
+    index = _satellite_group_index(which, config, current)
+    anchor = _nav_anchor(state, which)
+    if anchor:
+        seeds, actions = hud_map_cells(index, anchor)
+        if locate_cell(current, anchor, seeds, actions) is None:
+            anchor = ""  # drifted off the frozen map — start over from the live clip
+    if not anchor:
+        anchor = current
+    seeds, actions = hud_map_cells(index, anchor)
+    cell = locate_cell(current, anchor, seeds, actions) or ("corner", 0)
+    target_cell = navigate_cell(cell, direction, seed_count=len(seeds), action_count=len(actions))
+    target = cell_path(target_cell, anchor, seeds, actions)
+    state = _set_nav_anchor(state, which, anchor)
+    if target_cell == cell or not target or _same_video(target, current):
+        return state, [WindowOp(op="notice", key="No clip that way", source=source, level=FAILED_NOTICE_LEVEL)]
+    return _dispatch_play_video(which, target, state, config)
+
+
+def _dispatch_nav_lock(
+    which: int, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Enter: lock the selected clip and re-home the map on it (like a
+    double-click).  The selection is whatever the satellite is now playing, so
+    this locks the current clip and drops the frozen nav anchor, letting the HUD
+    re-home its map on the freshly locked clip."""
+    state = _clear_nav_anchor(state, which)
+    current = _satellite_current(config, which)
+    if not current:
+        return state, []
+    return _dispatch_lock_video(which, current, state, config)
+
+
 def _cycle_variant(
     which: int, kind: str, state: BridgeState, config: BridgeConfig,
     target_path: str = "",
@@ -706,27 +815,22 @@ def _cycle_variant(
     the satellite has since advanced past: "show me this differently" is about
     the video the speaker saw, not its replacement.
     """
-    port = config.portrait_port if which == 2 else config.landscape_port
     source = _satellite_source(which)
     ops: list[WindowOp] = []
-    current = target_path or get_current_file_path(port, config.vlc_password)
+    current = target_path or _satellite_current(config, which)
     if not current:
         return state, ops
     index = _satellite_group_index(which, config, current)
-    entries, _current_id = get_playlist_entries(port, config.vlc_password)
     if kind == "action":
         target = _next_action_sibling(index, current)
         missing_message = "No other actions"
     else:
-        target = _next_seed_sibling(index, current, entries)
+        target = _next_seed_sibling(index, current)
         missing_message = "No other seeds"
     if target is None:
         ops.append(WindowOp(op="notice", key=missing_message, source=source, level=FAILED_NOTICE_LEVEL))
         return state, ops
-    if not _play_video(port, config.vlc_password, target, entries):
-        logger.warning("cycle %s: could not switch to %s", kind, target)
-        return state, ops
-    ensure_playback_state(port, config.vlc_password, should_play=True)
+    _play_video(config, which, target)
     if kind == "action":
         # Numbered when the group holds several of the same act ("Alpha 2").
         action = action_label(index, target)
@@ -778,6 +882,20 @@ def dispatch_command(
     side = command_side(command)
     if side is not None:
         state = replace(state, active_side=side)
+        # Every side command except a navigation step ends keyboard navigation on
+        # that side, so its map re-homes on the live clip; nav commands manage
+        # their own anchor.
+        if not _is_hud_nav_command(command):
+            state = _clear_nav_anchor(state, side)
+
+    # Keyboard navigation of the HUD map: "<side>_nav_<dir>" moves the selection
+    # and switches the satellite; "<side>_nav_lock" (Enter) locks the selection.
+    nav = _parse_nav(command)
+    if nav is not None:
+        return _navigate_hud(*nav, state, config)
+    nav_lock_side = _NAV_LOCK_SIDES.get(command)
+    if nav_lock_side is not None:
+        return _dispatch_nav_lock(nav_lock_side, state, config)
 
     # A HUD thumbnail click sends "<side>_play_video|<path>": switch straight to
     # that clip. The path is carried after the "|" ("|" is illegal in a Windows
@@ -815,14 +933,12 @@ def dispatch_command(
 
     if command == "portrait_prev":
         state = _cancel_lock(2, state, config)
-        vlc_nav_step(config.portrait_port, config.vlc_password, "prev")
-        ensure_playback_state(config.portrait_port, config.vlc_password, should_play=True)
+        _send_satellite(config, 2, "PREV")
         return state, ops
 
     if command == "portrait_next":
         state = _cancel_lock(2, state, config)
-        vlc_nav_step(config.portrait_port, config.vlc_password, "next")
-        ensure_playback_state(config.portrait_port, config.vlc_password, should_play=True)
+        _send_satellite(config, 2, "NEXT")
         return state, ops
 
     if command == "portrait_lock":
@@ -836,14 +952,12 @@ def dispatch_command(
 
     if command == "landscape_prev":
         state = _cancel_lock(3, state, config)
-        vlc_nav_step(config.landscape_port, config.vlc_password, "prev")
-        ensure_playback_state(config.landscape_port, config.vlc_password, should_play=True)
+        _send_satellite(config, 3, "PREV")
         return state, ops
 
     if command == "landscape_next":
         state = _cancel_lock(3, state, config)
-        vlc_nav_step(config.landscape_port, config.vlc_password, "next")
-        ensure_playback_state(config.landscape_port, config.vlc_password, should_play=True)
+        _send_satellite(config, 3, "NEXT")
         return state, ops
 
     if command == "landscape_lock":
@@ -902,15 +1016,18 @@ def dispatch_command(
     if command in ("fmode_toggle", "fmode_panel"):
         return _dispatch_fmode_toggle(state, config)
 
-    if command == "recency_order_refresh":
-        return _dispatch_reorder_satellites(state, config, recent=True)
-
-    if command == "shuffle":
-        return _dispatch_reorder_satellites(state, config, recent=False)
+    reorder = _REORDER_COMMANDS.get(command)
+    if reorder is not None:
+        which, recent = reorder
+        return _dispatch_reorder(which, recent, state, config)
 
     reset_scope = _RESET_SIDES.get(command)
     if reset_scope is not None:
         return _dispatch_reset(reset_scope, state, config)
+
+    no_filter_scope = _NO_FILTER_SIDES.get(command)
+    if no_filter_scope is not None:
+        return _dispatch_set_filter(no_filter_scope, "", state, config)
 
     filter_target = decode_filter_command(command)
     if filter_target is not None:
@@ -968,9 +1085,9 @@ _MUTE_COMMANDS = {"audio_mute": True, "audio_unmute": False}
 def _step_volume(state: BridgeState, step: int) -> BridgeState:
     """Move the sound level by *step*, staying within the silent/full bounds.
 
-    Asking for a loudness lifts a mute, as reaching for the volume does in VLC
-    and in the Windows mixer: a "louder" that left the room silent would read as
-    the command having been missed.
+    Asking for a loudness lifts a mute, as reaching for the volume does in the
+    Windows mixer: a "louder" that left the room silent would read as the
+    command having been missed.
     """
     volume = max(MIN_VOLUME, min(MAX_VOLUME, state.volume + step))
     return replace(state, volume=volume, muted=False)
@@ -1006,9 +1123,8 @@ def _dispatch_omnipause_toggle(
         result = apply_enter_omnipause(
             omni_paused=state.omni_paused,
             primary_mode=state.primary_mode,
-            portrait_port=config.portrait_port,
-            landscape_port=config.landscape_port,
-            password=config.vlc_password,
+            portrait_paused_file=config.portrait_paused_file,
+            landscape_paused_file=config.landscape_paused_file,
             genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
             genau_cmd_file=config.genau_cmd_file,
@@ -1022,9 +1138,8 @@ def _dispatch_omnipause_toggle(
         result = apply_leave_omnipause(
             omni_paused=state.omni_paused,
             primary_mode=state.primary_mode,
-            portrait_port=config.portrait_port,
-            landscape_port=config.landscape_port,
-            password=config.vlc_password,
+            portrait_paused_file=config.portrait_paused_file,
+            landscape_paused_file=config.landscape_paused_file,
             genau_paused_file=config.genau_paused_file,
             audio_paused_file=config.audio_paused_file,
             genau_cmd_file=config.genau_cmd_file,
@@ -1047,9 +1162,8 @@ def _dispatch_enter_omnipause(
     result = apply_enter_omnipause(
         omni_paused=state.omni_paused,
         primary_mode=state.primary_mode,
-        portrait_port=config.portrait_port,
-        landscape_port=config.landscape_port,
-        password=config.vlc_password,
+        portrait_paused_file=config.portrait_paused_file,
+        landscape_paused_file=config.landscape_paused_file,
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
@@ -1071,9 +1185,8 @@ def _dispatch_leave_omnipause(
     result = apply_leave_omnipause(
         omni_paused=state.omni_paused,
         primary_mode=state.primary_mode,
-        portrait_port=config.portrait_port,
-        landscape_port=config.landscape_port,
-        password=config.vlc_password,
+        portrait_paused_file=config.portrait_paused_file,
+        landscape_paused_file=config.landscape_paused_file,
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
@@ -1134,15 +1247,15 @@ def _dispatch_fmode_toggle(
 ) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_toggle_fmode(
         f_mode_enabled=state.f_mode_enabled,
-        recent=state.recency_order,
+        portrait_recent=state.portrait_latest,
+        landscape_recent=state.landscape_latest,
         primary_sources=config.primary_sources,
         portrait_sources=config.portrait_sources,
         landscape_sources=config.landscape_sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
-        portrait_port=config.portrait_port,
-        landscape_port=config.landscape_port,
-        password=config.vlc_password,
+        portrait_cmd_file=config.portrait_cmd_file,
+        landscape_cmd_file=config.landscape_cmd_file,
         nau_cmd_file=config.nau_cmd_file,
         regen_media_root=config.regen_media_root,
         regen_metadata_root=config.regen_metadata_root,
@@ -1151,7 +1264,8 @@ def _dispatch_fmode_toggle(
     )
     if result.log_message:
         logger.info(result.log_message)
-    # F-mode rebuilds both satellites' playlists, dropping any group loops.
+    # F-mode rebuilds both satellites' playlists, dropping any group loops and the
+    # widened seed rows that rode on them.
     return replace(
         state,
         f_mode_enabled=result.next_f_mode_enabled,
@@ -1159,75 +1273,148 @@ def _dispatch_fmode_toggle(
         locked3=result.next_locked3,
         portrait_loop="",
         landscape_loop="",
+        portrait_widen_clip="",
+        landscape_widen_clip="",
     ), []
 
 
-def _dispatch_reorder_satellites(
-    state: BridgeState, config: BridgeConfig, *, recent: bool
+def _dispatch_reorder(
+    which: int, recent: bool, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Reorder both satellites — Premiere (newest-first) or Shuffle — keeping
-    each one's filter."""
-    result = apply_reorder_satellites(
-        recent=recent,
-        f_mode_enabled=state.f_mode_enabled,
-        portrait_sources=config.portrait_sources,
-        landscape_sources=config.landscape_sources,
-        favs_file=config.favs_file,
-        state_dir=config.state_dir,
-        portrait_port=config.portrait_port,
-        landscape_port=config.landscape_port,
-        password=config.vlc_password,
-        portrait_filter=state.portrait_filter,
-        landscape_filter=state.landscape_filter,
-        regen_media_root=config.regen_media_root,
-        regen_metadata_root=config.regen_metadata_root,
-    )
-    if result.log_message:
-        logger.info(result.log_message)
-    # Premiere/Shuffle rebuild both satellites' playlists, dropping any loops.
-    return replace(
-        state,
-        recency_order=result.next_recency_order,
-        locked2=result.next_locked2,
-        locked3=result.next_locked3,
-        portrait_loop="",
-        landscape_loop="",
-    ), []
+    """Reload one satellite in a fresh order — Latest (newest-first) or Shuffle.
+
+    Either rescans that side's sources, so clips that have arrived since are picked
+    up, and keeps its filter.  The order is remembered per side — the two satellites
+    can be in different ones — so a later filter or F-mode rebuild reloads it the
+    same way.  The rebuild replaces the queue, which drops the side's lock and any
+    group loop (with the widened row that rode on it).
+    """
+    state = _set_side_latest(state, which, recent)
+    # From the top of the new order: asking for the latest is asking to see what has
+    # just arrived, and the reload alone would leave the clip on screen playing with
+    # the new order applying only behind it.
+    result = _rebuild_side(which, _side_filter(state, which), state, config, start_at_top=True)
+    state = replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
+    state = _clear_side_grouping(state, which)
+    label = "portrait" if which == 2 else "landscape"
+    message = f"{'Latest' if recent else 'Shuffle'}: {label} {'newest-first' if recent else 'reshuffled'}"
+    logger.info("%s (%d clips)", message, result.count)
+    return state, [WindowOp(op="notice", key=message, source=_satellite_source(which))]
 
 
 def _dispatch_reset(
     scope: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Return a satellite (or both) to the default browse: no filter, no
-    premiere, no loop — reshuffled, one clip per subject.  Clearing the filter
-    rebuilds the full playlist, which also drops any group loop."""
-    state = replace(state, recency_order=False)
-    return _dispatch_set_filter(scope, "", state, config)
+    """Put a satellite (or both) back to every default, not just its filter.
+
+    The lock is released, the filter cleared, the order returned to shuffled, any
+    group loop and widened row and frozen map dropped, and the side starts from the
+    top of a freshly-built browse — one clip per subject.  "no filter" is the narrow
+    gesture; this one is "put it back how it started".
+    """
+    ops: list[WindowOp] = []
+    for which in _FILTER_TARGETS[scope]:
+        state = _cancel_lock(which, state, config)
+        state = _set_side_latest(state, which, False)
+        state = _set_side_filter(state, which, "")
+        state = _clear_side_grouping(state, which)
+        state = _clear_nav_anchor(state, which)
+        result = _rebuild_side(which, "", state, config, start_at_top=True)
+        logger.info("Reset %s: %s", _satellite_source(which), result.log_message)
+        ops.append(WindowOp(op="notice", key="Reset", source=_satellite_source(which)))
+    return state, ops
+
+
+def _browse_behind(browse: list[str], current: str) -> list[str]:
+    """*browse*, guaranteed to still hold *current* — the clip on screen.
+
+    The player keeps its clip across a playlist reload only while the new list
+    still holds it, and a loop member usually is not in the browse: the browse
+    picks one clip per group and the loop was cycling that group's others.  So the
+    clip on screen heads the restored list — it plays to its own end and the browse
+    is simply what comes up next.  A browse that already holds it keeps its own
+    order, which the reload resumes from wherever the clip sits.
+    """
+    if not current or any(_same_video(path, current) for path in browse):
+        return browse
+    return [current, *browse]
 
 
 def _dispatch_no_loop(
     scope: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """End a group loop, back to the current browse — but keep the filter.
+    """End a group loop, returning the queue to the browse — but keep the filter.
 
-    A loop is repeat-all over a loaded sub-playlist, and any full playlist
-    rebuild drops it; re-applying the satellite's own filter rebuilds the browse
-    while keeping that filter (reset, by contrast, also clears it).
+    A loop shrank the queue to the group; ending it reshapes the queue back to
+    the satellite's default browse *in place*, so the clip on screen keeps
+    playing to its end and only what comes up next returns to browsing.  The
+    satellite's own filter is kept (reset, by contrast, also clears it), so the
+    restored browse still honours it.
     """
     which = 2 if scope == "portrait" else 3
-    port = config.portrait_port if which == 2 else config.landscape_port
-    # The clip on screen when the loop ends should keep playing — not be swapped
-    # for whatever the rebuilt browse starts on.  Capture it and its position
-    # first, rebuild, then bring it back where it was.
-    current = get_current_file_path(port, config.vlc_password)
-    fraction = get_playback_fraction(port, config.vlc_password) or 0.0
-    current_filter = state.portrait_filter if which == 2 else state.landscape_filter
-    state, _filter_ops = _dispatch_set_filter(scope, current_filter, state, config)
-    if current:
-        entries, _current_id = get_playlist_entries(port, config.vlc_password)
-        if _play_video(port, config.vlc_password, current, entries) and fraction > 0.0:
-            vlc_seek_fraction(port, config.vlc_password, fraction)
+    current = _satellite_current(config, which)
+    browse = satellite_browse_paths(
+        which=which,
+        query=_side_filter(state, which),
+        f_mode_enabled=state.f_mode_enabled,
+        recent=state.portrait_latest if which == 2 else state.landscape_latest,
+        sources=config.portrait_sources if which == 2 else config.landscape_sources,
+        favs_file=config.favs_file,
+        state_dir=config.state_dir,
+        regen_metadata_root=config.regen_metadata_root,
+    )
+    # A non-empty filter that now matches nothing would blank the queue, so the
+    # browse is only reshaped when it actually has clips; otherwise the loop's
+    # queue keeps playing and just the flag clears.
+    if browse:
+        write_playlist_file(config.satellite_playlist_file(which), _browse_behind(browse, current))
+        _send_satellite(config, which, "RELOAD_PLAYLIST")
+    # Only the loop itself goes.  The map anchor and any widened row stay, so the HUD
+    # keeps hanging exactly where it was and switching a loop off takes away the lit
+    # button and the rectangle and nothing else; the map lets go by itself once the
+    # browse moves on past the group.
+    state = replace(state, portrait_loop="") if which == 2 else replace(state, landscape_loop="")
     return state, [WindowOp(op="notice", key="Loop off", source=_satellite_source(which))]
+
+
+_FILTER_TARGETS = {"both": (2, 3), "portrait": (2,), "landscape": (3,)}
+
+
+def _side_filter(state: BridgeState, which: int) -> str:
+    return state.portrait_filter if which == 2 else state.landscape_filter
+
+
+def _set_side_filter(state: BridgeState, which: int, query: str) -> BridgeState:
+    if which == 2:
+        return replace(state, portrait_filter=query)
+    return replace(state, landscape_filter=query)
+
+
+def _rebuild_side(
+    which: int, query: str, state: BridgeState, config: BridgeConfig,
+    *, start_at_top: bool = False,
+) -> SatelliteFilterFlowResult:
+    """Rebuild one satellite's browse under *query* and its own current ordering.
+
+    The single place a satellite's playlist is rebuilt from its sources, so a
+    filter and a reorder cannot drift apart in how they read the side's state.
+    ``start_at_top`` is for the callers that mean "start over" — a reorder or a
+    reset — since the reload otherwise keeps the clip on screen and carries on from
+    where it sat, leaving the new order to apply only behind it.
+    """
+    return apply_satellite_filter(
+        which=which,
+        query=query,
+        f_mode_enabled=state.f_mode_enabled,
+        recent=state.portrait_latest if which == 2 else state.landscape_latest,
+        sources=config.portrait_sources if which == 2 else config.landscape_sources,
+        favs_file=config.favs_file,
+        state_dir=config.state_dir,
+        cmd_file=config.satellite_cmd_file(which),
+        start_at_top=start_at_top,
+        regen_media_root=config.regen_media_root,
+        regen_metadata_root=config.regen_metadata_root,
+    )
 
 
 def _dispatch_set_filter(
@@ -1237,38 +1424,19 @@ def _dispatch_set_filter(
 
     ``scope`` is both/portrait/landscape; ``query`` is the substring to match
     ("" clears).  Each targeted satellite records its own filter in the state so
-    later F-mode / premiere rebuilds keep it, then reloads under the current
-    ordering.
+    later F-mode / reorder rebuilds keep it, then reloads under its own ordering.
     """
-    targets = {"both": (2, 3), "portrait": (2,), "landscape": (3,)}[scope]
     ops: list[WindowOp] = []
-    for which in targets:
-        sources = config.portrait_sources if which == 2 else config.landscape_sources
-        port = config.portrait_port if which == 2 else config.landscape_port
-        result = apply_satellite_filter(
-            which=which,
-            query=query,
-            f_mode_enabled=state.f_mode_enabled,
-            recent=state.recency_order,
-            sources=sources,
-            favs_file=config.favs_file,
-            state_dir=config.state_dir,
-            port=port,
-            password=config.vlc_password,
-            regen_media_root=config.regen_media_root,
-            regen_metadata_root=config.regen_metadata_root,
-        )
+    for which in _FILTER_TARGETS[scope]:
+        result = _rebuild_side(which, query, state, config)
         # Only remember a filter that actually selected videos: a zero-match
         # filter left the current playlist alone, so recording it would let the
-        # next F-mode/premiere rebuild blank the VLC.  A filter that *did* rebuild
-        # also replaced any loop's sub-playlist, so the loop is gone; a zero-match
-        # one touched nothing, so a running loop survives it.
+        # next F-mode/reorder rebuild blank the satellite.  A filter that *did* rebuild
+        # also replaced any loop's sub-playlist, so the loop (and its widened row)
+        # is gone; a zero-match one touched nothing, so a running loop survives it.
         if result.applied:
-            if which == 2:
-                state = replace(state, portrait_filter=query)
-            else:
-                state = replace(state, landscape_filter=query)
-            state = _clear_side_loop(state, which)
+            state = _set_side_filter(state, which, query)
+            state = _clear_side_grouping(state, which)
         logger.info(result.log_message)
         # A filter that selected nothing left the playlist untouched — a dead end,
         # so it reads red like the other no-effect notices.
