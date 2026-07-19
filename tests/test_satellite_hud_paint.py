@@ -272,6 +272,28 @@ def test_the_map_prints_how_big_each_axis_is(thumb):
     assert corner_ink() == 0  # nothing to say before the index has answered
 
 
+def test_the_filtered_actions_label_is_lit(thumb):
+    """A filter shows on the map, on the row it holds you to — so which act you are
+    filtered to is readable where you would act on it, and the lit label is the
+    control that lifts it."""
+    renderer = HudRenderer("portrait")
+
+    def gutter_ink(filter_query: str) -> int:
+        rendered = renderer.render(_model(
+            corner=HudCell(path="c.mp4", thumb=thumb),
+            actions=(HudCell(path="a1.mp4", thumb=thumb, label="gamma"),),
+            current_action="alpha", filter_query=filter_query,
+        ))
+        (cx, cy, _cw, ch), _path = rendered.targets.click[0]
+        # The corner's own row label, in the gutter beside it — "alpha".
+        band = _rgb(rendered.bgra)[cy:cy + ch, PAD:cx - MAP_GAP]
+        return int((band > 200).sum())  # near-white only; a plain label is grey
+
+    assert gutter_ink("alpha") > 0
+    assert gutter_ink("") == 0
+    assert gutter_ink("gamma") == 0  # …that row's label lights, not this one
+
+
 def test_gutter_width_fits_the_acts_present():
     """The gutter is sized to the acts actually shown — narrow for short ones, no
     wider than the cap for a long one — so it isn't a big empty margin."""

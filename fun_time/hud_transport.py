@@ -93,6 +93,7 @@ def hud_payload(panel: HudPanel, cache_dir: Path) -> dict:
         "side": panel.side,
         "locked": panel.locked,
         "lock_label": panel.lock_label,
+        "filter_query": panel.filter_query,
         "seed_count": panel.seed_count,
         "action_count": panel.action_count,
         "active_loop": panel.active_loop,

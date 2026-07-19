@@ -54,6 +54,7 @@ from .hud import (
     ellipsis_rects,
     expand_button_rect,
     friendly_action_label,
+    label_is_filtered,
     loop_button_rects,
     looped_group_box,
     map_window,
@@ -392,7 +393,10 @@ class HudRenderer:
         def row(row_y: int, row_h: int, text: str) -> None:
             # One block of tight word-lines per act, with a bigger gap between
             # acts, so a two-word act ("Motion" / "Bounce") wraps close but two acts
-            # ("Alpha" then "Theta Motion") are clearly separated.
+            # ("Alpha" then "Theta Motion") are clearly separated.  The act the
+            # side is filtered to is drawn lit, since its label is also the control
+            # that lifts that filter.
+            colour = TEXT_PRIMARY if label_is_filtered(text, model.filter_query) else TEXT_MUTED
             ascent, descent = self._row.getmetrics()
             line_h = ascent + descent - 4
             blocks = action_label_blocks(text)
@@ -401,7 +405,7 @@ class HudRenderer:
             for block in blocks:
                 for line in block:
                     draw.text((x + gutter_w - MAP_GAP, ty + line_h / 2), line,
-                              font=self._row, anchor="rm", fill=(*TEXT_MUTED, 255))
+                              font=self._row, anchor="rm", fill=(*colour, 255))
                     ty += line_h
                 ty += ACT_GAP
 
