@@ -19,6 +19,8 @@ stacked relative to each other:
 """
 from __future__ import annotations
 
+from .mode_plan import genau_active, nau_displays
+
 # Windows with their own screen rect — always topmost; order among them is
 # irrelevant because they never overlap.  The log stream is a child widget of the
 # dashboard window, not a role of its own, so it rides the dashboard's band.
@@ -35,12 +37,15 @@ MANAGED_ROLES: tuple[str, ...] = FIXED_TOPMOST_ROLES + PRIMARY_SLOT_ROLES
 def role_topmost(role: str, primary_mode: str) -> bool:
     """Whether *role*'s window belongs in the TOPMOST band in *primary_mode*.
 
-    Nau is the only mode-dependent role: topmost whenever it owns the display
-    (nau and hybrid) so its video floats above the desktop, and non-topmost in
-    genau mode where it is hidden.  In hybrid Genau's HUD must sit ABOVE Nau —
-    that stacking is handled by promotion order, not this flag.  Every other
-    managed window is unconditionally topmost.
+    Both primary-slot players are mode-dependent, because they share a rect:
+    each is topmost only in the modes where it shows something, and the hidden
+    slot-mate stays out of the band entirely.  Genau is promoted last, so being
+    in the band at all puts it ABOVE Nau — which is what hybrid wants and what
+    nau mode must not have.  Every other managed window owns its own rect,
+    overlaps nothing, and is unconditionally topmost.
     """
     if role == "nau":
-        return primary_mode in ("nau", "hybrid")
+        return nau_displays(primary_mode)
+    if role == "genau":
+        return genau_active(primary_mode)
     return True

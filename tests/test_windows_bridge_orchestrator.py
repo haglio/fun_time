@@ -726,13 +726,15 @@ class TestPostLoadingWindowState:
         # nau startup mode: the inactive slot-mate (Genau) is minimized.
         assert GENAU_HWND in hide_calls, f"Genau not minimized: {hide_calls}"
 
-        # nau startup mode: every managed window is promoted to topmost, Nau
-        # (hwnd 2020) included — it floats above the desktop like the primary
-        # player always has.
+        # nau startup mode: the windows that own a rect are promoted to topmost,
+        # Nau (hwnd 2020) included — it floats above the desktop like the primary
+        # player always has.  Genau, the hidden slot-mate, is held out of the
+        # band: it is promoted last, so joining it would put it over Nau.
         promoted = {h for h, v in topmost_calls if v}
-        assert {DASH_HWND, GENAU_HWND, 2020, 3030, 4040, 55555} <= promoted, (
+        assert {DASH_HWND, 2020, 3030, 4040, 55555} <= promoted, (
             f"Wrong promotions: {topmost_calls}"
         )
+        assert GENAU_HWND not in promoted, f"Genau promoted over Nau: {topmost_calls}"
 
 
 class TestNauObstructionLog:
