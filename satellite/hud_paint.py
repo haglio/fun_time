@@ -178,14 +178,10 @@ class HudRenderer:
 
         x, y = PAD, PAD
         # One status line, composed by fun_time: it already holds the lock, what is
-        # looping, the browse order and the filter, so there is nothing to lay out
-        # here beyond the lock dot beside it.
-        lock_color = GREEN if model.locked else TEXT_MUTED
-        draw.ellipse([x, y + 2, x + 10, y + 12], fill=(*lock_color, 255))
-        # Always full-strength: the line is the panel's headline whatever it says,
-        # and dimming it when the side happened to be unlocked made the state hard to
-        # read in exactly the case there is most of it to read.
-        draw.text((x + 18, y + 11), model.lock_label, font=self._body, anchor="ls",
+        # looping, the browse order and the filter, so there is nothing else to lay
+        # out up here.  It is drawn full-strength whatever it says — dimming it when
+        # the side happened to be unlocked hid it in the case where it carries most.
+        draw.text((x, y + 11), model.lock_label, font=self._body, anchor="ls",
                   fill=(*TEXT_PRIMARY, 255))
         y += LOCK_BAND_H
 

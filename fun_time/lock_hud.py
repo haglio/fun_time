@@ -27,21 +27,13 @@ from fun_time.thumbnail_cache import thumbnail_for
 THUMBNAIL_CACHE_DIRNAME = "hud_thumbnails"
 
 
-def _lock_label(locked: bool, lock_type: str | None) -> str:
-    """The status word for the lock band.
-
-    Today a lock is just repeat-one on the current clip, so this is
-    "Locked"/"Unlocked". When distinct lock *types* land, *lock_type* flows in
-    here — "Locked · seed" — without the callers changing.
-    """
-    if not locked:
-        return "Unlocked"
-    return f"Locked · {lock_type}" if lock_type else "Locked"
+def _lock_label(locked: bool) -> str:
+    """The status word for the lock: a lock is repeat-one on the clip on screen, and
+    the one kind there is — the grid's other "lock <scope>" words are the loops."""
+    return "Locked" if locked else "Unlocked"
 
 
-def _status_label(
-    locked: bool, lock_type: str | None, loop_axis: str, latest: bool, filter_query: str
-) -> str:
+def _status_label(locked: bool, loop_axis: str, latest: bool, filter_query: str) -> str:
     """The HUD's one status line — everything the side is in, at a glance.
 
     What is looping (or, with no loop, the lock), which order the browse is in, and
@@ -52,7 +44,7 @@ def _status_label(
     phrase from the vocabulary in that position can only be the filter.  How big each
     axis is belongs to the map, which prints its own counts.
     """
-    parts = [f"Looping {loop_axis}s" if loop_axis else _lock_label(locked, lock_type)]
+    parts = [f"Looping {loop_axis}s" if loop_axis else _lock_label(locked)]
     parts.append("Latest" if latest else "Shuffle")
     if filter_query:
         parts.append(filter_query)
@@ -266,7 +258,6 @@ def build_hud_panel(
     locked: bool,
     current: str,
     index: GroupIndex | None,
-    lock_type: str | None = None,
     filter_query: str = "",
     loop_axis: str = "",
     map_anchor: str = "",
@@ -355,7 +346,7 @@ def build_hud_panel(
     return HudPanel(
         side=side,
         locked=locked,
-        lock_label=_status_label(locked, lock_type, active_loop, latest, filter_query),
+        lock_label=_status_label(locked, active_loop, latest, filter_query),
         current=anchor,
         seed_siblings=seed,
         action_siblings=action,
