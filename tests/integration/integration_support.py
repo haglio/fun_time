@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import configparser
 import json
 import os
 import random
@@ -27,7 +28,29 @@ from .hidden_desktop import (
     current_desktop_name,
     pids_with_window_on_current_desktop,
 )
-from .live_session_guard import read_recorded_children
+
+
+def read_recorded_children(state_dir: Path) -> dict[str, ChildProcess]:
+    """The children the orchestrator recorded at startup, by role.
+
+    Identity is the ``(pid, created_at)`` pair, never the PID alone: Windows
+    hands freed PIDs straight back out, so a teardown that killed by PID would
+    eventually shoot whatever inherited a dead child's number.
+
+    Empty when no session has ever written ``bridge_pids.ini`` — or when startup
+    failed before it got that far.
+    """
+    pids_file = state_dir / "bridge_pids.ini"
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(str(pids_file), encoding="utf-8")
+    if "pids" not in parser or "created_at" not in parser:
+        return {}
+    created_at = parser["created_at"]
+    return {
+        role: ChildProcess(pid=int(pid), created_at=int(created_at[role]))
+        for role, pid in parser["pids"].items()
+    }
 
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")

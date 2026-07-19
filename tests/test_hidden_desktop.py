@@ -26,7 +26,6 @@ from tests.integration.hidden_desktop import (
     create_run_job,
     main,
 )
-from tests.integration.live_session_guard import DENIED_EXIT_CODE
 
 
 def test_argv_runs_pytest_on_the_integration_dir():
@@ -41,27 +40,13 @@ def test_argv_appends_caller_args_after_the_defaults():
     assert argv[-3:] == ["-k", "smoke", "-x"]
 
 
-def test_main_never_creates_the_desktop_when_the_run_is_denied():
-    """A run restarts the shared broker and competes for the user's GPU, so a
-    denied run must not reach pytest at all."""
-    with patch.object(hidden_desktop, "allow_integration_run", return_value=False), \
-         patch.object(hidden_desktop, "run_on_hidden_desktop") as run:
-        with pytest.raises(SystemExit) as exit_info:
-            main()
-
-    assert exit_info.value.code == DENIED_EXIT_CODE
-    run.assert_not_called()
-
-
-def test_main_runs_the_suite_once_the_guard_allows_it():
-    with patch.object(hidden_desktop, "allow_integration_run", return_value=True) as allow, \
-         patch.object(hidden_desktop, "run_on_hidden_desktop", return_value=0) as run, \
+def test_main_hands_its_own_args_to_the_run_and_returns_its_code():
+    with patch.object(hidden_desktop, "run_on_hidden_desktop", return_value=0) as run, \
          patch.object(sys, "argv", ["hidden_desktop", "-k", "nau"]):
         with pytest.raises(SystemExit) as exit_info:
             main()
 
     assert exit_info.value.code == 0
-    allow.assert_called_once_with()
     run.assert_called_once_with(["-k", "nau"])
 
 

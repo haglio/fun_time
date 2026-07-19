@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 
 from .config import DEFAULT_CONFIG_PATH, load_config
-from .live_session import publish_live_session
 from .manifest import write_windows_bridge_manifest
 from .windows_bridge_orchestrator import run_python_orchestrated_bridge
 from app_support.logging_utils import configure_logging, install_exception_logging
@@ -203,16 +202,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         logger.info("Config validation succeeded")
         return 0
-
-    # Say we are up before touching anything the whole machine shares — the
-    # broker restart on the next line above all — because that window is the only
-    # chance an integration run has to see us and get out of the way.  Not before
-    # the --check return: validating a config starts no session, and a claim from
-    # one would block a run for as long as the checking process lived.  An
-    # integration run's own orchestrator stays silent too: the claim is what tells
-    # a run to abort, and a run that published one would abort itself.
-    if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-        publish_live_session(config.paths.state_dir)
 
     ensure_broker_running(config, logger)
     return run_windows_bridge(config, logger)

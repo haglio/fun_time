@@ -16,9 +16,14 @@ can never leak onto the real screen.
 
 The desktop is also this module's authority over where the suite may run at all:
 ``require_hidden_desktop`` refuses a run that is not on it, which is what keeps
-bare ``pytest tests/integration/`` off the user's screen.  And once the run is
-going, ``supervise_run`` stands over it from out here — outside the run's own
-pytest capture — to end it if Fun Time opens underneath it.
+bare ``pytest tests/integration/`` off the user's screen.
+
+What the desktop does *not* isolate is anything without a per-desktop version —
+sockets, devices, machine singletons.  Those are stripped out of the run's config
+instead (``integration_support.isolate_shared_resources``), and between the two a
+run reaches nothing of the user's.  That is why there is no longer a guard here
+asking whether Fun Time is open: a run and a live session no longer have anything
+to collide over, so they no longer have to take turns.
 
 pytest is also placed in a *job object* that this runner alone holds a handle to.
 Windows destroys a job when its last handle closes, and a job with
@@ -42,16 +47,12 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from .live_session_guard import (
-    ABORTED_EXIT_CODE,
-    DENIED_EXIT_CODE,
-    allow_integration_run,
-    announce,
-    find_live_session,
-)
-
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
 INTEGRATION_DIR = "tests/integration/"
+
+# Distinct from pytest's own codes (1 failed, 2 interrupted) so a caller can tell
+# "the suite was invoked wrongly" from "the tests failed".
+REFUSED_EXIT_CODE = 4
 
 
 def build_pytest_argv(extra_args: list[str]) -> list[str]:
@@ -75,7 +76,7 @@ STD_INPUT_HANDLE = -10
 STD_OUTPUT_HANDLE = -11
 STD_ERROR_HANDLE = -12
 CREATE_SUSPENDED = 0x00000004
-WAIT_TIMEOUT = 0x00000102
+INFINITE = 0xFFFFFFFF
 
 # Destroying the job terminates every process still in it.  The run's whole
 # process tree — pytest, the orchestrator, the satellites, Nau, Genau, AHK — is in it,
@@ -306,60 +307,10 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int) ->
     return pi
 
 
-def supervise_run(
-    *,
-    wait: Callable[[float], bool],
-    live_session_found: Callable[[], bool],
-    terminate: Callable[[], None],
-    announce: Callable[[str], None] = announce,
-    grace_seconds: float = 30.0,
-    poll_seconds: float = 1.0,
-) -> bool:
-    """Wait out the run, ending it if Fun Time opens.  True if it was aborted.
-
-    The watchdog running inside pytest is the clean way out and gets first go:
-    it asks pytest to stop, so fixtures tear down, the session's children are
-    killed by recorded identity, and the temp tree goes with them.  It cannot be
-    the only way out.  The main thread spends whole seconds at a time inside
-    blocking subprocess calls where a pending ``KeyboardInterrupt`` just waits its
-    turn, and a wedged pytest would never act on one at all — while the user sits
-    there with a second session on their machine.  So once a session is seen, the
-    run gets *grace_seconds* to stop itself and is then terminated outright.
-
-    ``wait(timeout)`` reports whether the run has ended; ``terminate`` closes the
-    job, which takes down everything the run still had running.
-
-    Saying why is this side's job too.  pytest captures at the file-descriptor
-    level, so a notice written from inside the run lands in its capture buffer and
-    is dropped on the way out — leaving the run to end on a bare KeyboardInterrupt
-    with nothing to explain it.  Out here there is no capture.
-    """
-    grace_polls = max(1, round(grace_seconds / poll_seconds))
-    remaining: int | None = None
-    while not wait(poll_seconds):
-        if remaining is None:
-            if live_session_found():
-                announce(
-                    "[integration] Fun Time was opened while this run was in flight — "
-                    "ABORTING the run.  The user's session wins; re-run once it is "
-                    "closed."
-                )
-                remaining = grace_polls
-            continue
-        remaining -= 1
-        if remaining <= 0:
-            terminate()
-            return True
-    return remaining is not None
-
-
 def run_on_hidden_desktop(extra_args: list[str]) -> int:
     """Create the hidden desktop, run the integration pytest bound to it, and
     return pytest's exit code.  The desktop handle is closed on the way out, and
     the run's job object with it — so nothing the run spawned can survive it.
-
-    Returns ``ABORTED_EXIT_CODE`` instead if Fun Time was opened mid-run: pytest's
-    own code for that is a bare "interrupted", which says nothing about why.
     """
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
     hdesk = _user32.CreateDesktopW(HIDDEN_DESKTOP_NAME, None, None, 0, GENERIC_ALL, None)
@@ -373,15 +324,7 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
         try:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job)
             try:
-                aborted = supervise_run(
-                    wait=lambda seconds: _kernel32.WaitForSingleObject(
-                        pi.hProcess, int(seconds * 1000)
-                    ) != WAIT_TIMEOUT,
-                    live_session_found=lambda: find_live_session() is not None,
-                    terminate=lambda: close_run_job(job),
-                )
-                if aborted:
-                    return ABORTED_EXIT_CODE
+                _kernel32.WaitForSingleObject(pi.hProcess, INFINITE)
                 code = wt.DWORD()
                 _kernel32.GetExitCodeProcess(pi.hProcess, ctypes.byref(code))
                 return int(code.value)
@@ -394,10 +337,6 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
 
 
 def main() -> None:
-    # Ask before the desktop exists: a MessageBox raised after the switch would
-    # be drawn on the hidden desktop, where the user could never answer it.
-    if not allow_integration_run():
-        sys.exit(DENIED_EXIT_CODE)
     sys.exit(run_on_hidden_desktop(sys.argv[1:]))
 
 

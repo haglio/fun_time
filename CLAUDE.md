@@ -13,16 +13,16 @@ Unit tests (run freely, no permission needed):
 
 The default `pytest` invocation only runs unit tests. Integration tests live in `tests/integration/` and are excluded from the default collection.
 
-Integration tests — run on a hidden Win32 desktop so the real windows never touch your screen; safe to run unattended, like unit tests:
+Integration tests — run on a hidden Win32 desktop so the real windows never touch your screen; safe to run unattended, like unit tests, **including while Fun Time is open**:
 ```powershell
 .\.venv\Scripts\python.exe -m tests.integration.hidden_desktop
 ```
 
 The runner creates the hidden desktop, sets `FUN_TIME_RUN_INTEGRATION=1`, and runs the whole suite invisibly (real HWNDs, off-screen, never foreground). The machine-wide lock in the integration conftest auto-serializes concurrent agent runs — a second run queues instead of clobbering, so you don't hunt for a quiet window. Extra pytest args pass through (`... hidden_desktop -k nau`).
 
-A run brings up a second session, competing for the GPU and driving the shared OSR2 broker, so it can never share the machine with a live Fun Time. A running session publishes a claim to a fixed machine-global path (`%LOCALAPPDATA%\FunTime\live_session.ini`) — *not* to its state dir, which every worktree resolves to itself — and `live_session_guard` reads that. Before the desktop exists: no session → run; session playing or still starting → **denied** (exit `4`); session in OmniPause → the user gets a prompt to close it or refuse the run. It keeps watching for the whole run too, and aborts (exit `5`) if Fun Time opens mid-run. Exits `4` and `5` are refusals, not failures — do not retry them.
+A run reaches nothing of the user's, so it never has to wait for one. Two mechanisms, and every shared resource belongs to one of them: the hidden desktop covers everything with a per-desktop version (windows, focus, input hooks, AHK's single-instance search, the leftover-process reap), and `integration_support.isolate_shared_resources` strips out everything without one (the three UDP ports, the loopback port, the broker's tray launcher, the microphone) — see its docstring for what each collision was. Adding a new machine-global resource means adding it there; `test_integration_support.py` sweeps a run's config for any surviving mention of the machine's endpoints. What is still shared is the GPU, so a run and a live session compete for decode.
 
-Run the suite only through `hidden_desktop`: `pytest tests/integration/` refuses at session start, because that form puts real windows, a real AHK bridge and real players on your own desktop.
+Run the suite only through `hidden_desktop`: `pytest tests/integration/` refuses at session start (exit `4`), because that form puts real windows, a real AHK bridge and real players on your own desktop.
 
 **Green means every collected test passes — zero failures, skips, or deselects.**
 

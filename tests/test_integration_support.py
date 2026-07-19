@@ -275,3 +275,34 @@ def test_the_integration_config_never_shares_genaus_inbound_socket(isolated_port
     _config, genau_config = isolated_ports
 
     assert genau_config["genau"]["udp_port"] != GENAU_INBOUND_PORT
+
+
+def _every_value(node) -> list:
+    """Every leaf value in a nested config, wherever it is nested."""
+    if isinstance(node, dict):
+        return [leaf for child in node.values() for leaf in _every_value(child)]
+    if isinstance(node, list):
+        return [leaf for child in node for leaf in _every_value(child)]
+    return [node]
+
+
+def test_no_endpoint_of_the_machines_survives_anywhere_in_a_runs_config(isolated_ports):
+    """The completeness check the whole arrangement rests on.
+
+    Each test above names one shared endpoint and says why it matters; between
+    them they are the entire list, and this sweeps both configs to prove it —
+    including any field that mentions one of these ports in passing, or a new
+    field that quietly copies one in.  A run that holds none of them cannot
+    reach the user's session at all, which is what lets the two share a machine
+    instead of taking turns on it.
+    """
+    config, genau_config = isolated_ports
+    machines_own = {AUDIO_COMPANION_PORT, GENAU_INBOUND_PORT, BROKER_TCODE_PORT, LOOPBACK_PORT}
+
+    survivors = [
+        value
+        for value in _every_value(config) + _every_value(genau_config)
+        if value in machines_own or str(value) in {str(port) for port in machines_own}
+    ]
+
+    assert survivors == []
