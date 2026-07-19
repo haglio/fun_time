@@ -501,6 +501,44 @@ class TestMainPublishesLiveSessionClaim:
         publish.assert_not_called()
 
 
+class TestMainStampsOnlyTheMachinesOwnShortcut:
+    """The taskbar pin belongs to the installed app, not to whoever is running.
+
+    Stamping it writes into ``%APPDATA%``, outside every checkout — so a session
+    started from some other config (an integration run's temp one, a developer's
+    alternate) was reaching into the user's shell to relabel a shortcut that
+    points at neither of them.
+    """
+
+    def _main(self, cfg_path: Path, stamp):
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.ensure_runtime_files"), \
+             patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.publish_live_session"), \
+             patch("fun_time.orchestrator.stamp_shortcut_aumid", stamp), \
+             patch("fun_time.orchestrator.ensure_broker_running"), \
+             patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
+            return main(["--config", str(cfg_path)])
+
+    def test_a_session_on_another_config_leaves_the_pin_alone(self, cfg_path: Path):
+        stamp = MagicMock()
+
+        self._main(cfg_path, stamp)
+
+        stamp.assert_not_called()
+
+    def test_the_installed_app_still_stamps_its_own_pin(self, cfg_path: Path):
+        """Without this the indicator never gets set for the session that owns it."""
+        stamp = MagicMock()
+
+        with patch("fun_time.orchestrator.DEFAULT_CONFIG_PATH", Path(cfg_path)):
+            self._main(cfg_path, stamp)
+
+        stamp.assert_called_once_with()
+
+
 class TestOrchestratorSingleInstance:
     def test_shows_message_and_exits_when_already_running(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
