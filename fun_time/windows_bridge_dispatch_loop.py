@@ -461,7 +461,7 @@ class DispatchLoopRunner:
         The suspend_hotkeys WindowOp only reaches AHK; voice lives in this
         process, so it is driven off ``omni_paused`` itself — the one authority
         both the dashboard and the shared state file agree on.  Suspended, only
-        the exempt commands (resume, quit) still write, mirroring the AHK
+        the exempt commands (resume, quit, relief) still write, mirroring the AHK
         script's ``#SuspendExempt`` block.
         """
         if self.voice_controller is None:
@@ -532,7 +532,8 @@ class DispatchLoopRunner:
             # deliberate mouse (dashboard, lock HUD) stays live because a click
             # is not an accident.  This backstops VoiceController's own suspend,
             # closing the entry race where a phrase is written in the tick before
-            # the suspend flag is set.  Exempts the same resume/quit voice does.
+            # the suspend flag is set.  Exempts the same resume/quit/relief
+            # voice does.
             logger.debug("OmniPause dropped spoken command: %s", cmd)
             return
         button = self._HOTKEY_TO_BUTTON.get(cmd, cmd)
@@ -552,7 +553,12 @@ class DispatchLoopRunner:
             self._handle_omnipause_toggle()
         elif cmd == "enter_omnipause":
             if not self.state.omni_paused:
-                self._handle_enter_omnipause()
+                self._handle_enter_omnipause("enter_omnipause")
+        elif cmd == "relief_omnipause":
+            # No already-paused guard, unlike Space above: a session can be paused
+            # with the device still on the user, which is the case relief exists
+            # for, so the retract must go out even from inside omnipause.
+            self._handle_enter_omnipause("relief_omnipause")
         elif cmd == "open_file_dialog":
             threading.Thread(
                 target=self._handle_open_file_dialog,
@@ -981,13 +987,16 @@ class DispatchLoopRunner:
         self._dispatch("omnipause_toggle")
         self._log_topmost_state("post-leave" if was_paused else "post-enter")
 
-    def _handle_enter_omnipause(self) -> None:
-        """Enter omnipause with topmost management (Space key — enter only, no leave).
+    def _handle_enter_omnipause(self, command: str) -> None:
+        """Enter omnipause with topmost management — enter only, no leave.
 
-        Topmost removal is driven by the disable_all_topmost WindowOp
-        that command_dispatch emits — _dispatch handles it automatically.
+        *command* is the way in: ``enter_omnipause`` (Space) parks the OSR2,
+        ``relief_omnipause`` (Shift+Esc) retracts it instead.  Everything else
+        about the entry is the same, topmost removal included — that is driven by
+        the disable_all_topmost WindowOp command_dispatch emits, which _dispatch
+        handles automatically.
         """
-        self._dispatch("enter_omnipause")
+        self._dispatch(command)
         self._log_topmost_state("post-enter")
 
     def _handle_open_file_dialog(self) -> None:

@@ -16,7 +16,7 @@ from .modes import (
     build_satellite_playlists,
     write_playlist_file,
 )
-from .broker_control import PARK_CMD, RESUME_CMD, write_broker_command
+from .broker_control import RESUME_CMD, write_broker_command
 from .omnipause import build_omnipause_plan
 from .mode_plan import build_mode_switch_plan, genau_active
 from .satellite_control import write_satellite_command
@@ -246,24 +246,8 @@ def apply_satellite_filter(
 
 @dataclass(frozen=True)
 class OmniPauseFlowResult:
-    action: str
     next_omni_paused: bool
-    genau_branch: bool
     log_message: str
-
-
-def build_omnipause_toggle(*, omni_paused: bool, primary_mode: str) -> OmniPauseFlowResult:
-    plan = build_omnipause_plan(
-        "toggle",
-        omni_paused=omni_paused,
-        primary_mode=primary_mode,
-    )
-    return OmniPauseFlowResult(
-        action=plan.action,
-        next_omni_paused=plan.next_omni_paused,
-        genau_branch=plan.genau_branch,
-        log_message=plan.log_message,
-    )
 
 
 def apply_enter_omnipause(
@@ -277,9 +261,16 @@ def apply_enter_omnipause(
     genau_cmd_file: str | Path,
     nau_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
+    relief: bool = False,
 ) -> OmniPauseFlowResult:
+    """Freeze the whole session, and send the OSR2 somewhere safe.
+
+    ``relief`` picks which somewhere: home by default, or — for the sensation
+    emergency Shift+Esc raises — the far end of the stroke, away from the user.
+    Nothing else about the freeze differs between the two.
+    """
     plan = build_omnipause_plan(
-        "enter",
+        "relief" if relief else "enter",
         omni_paused=omni_paused,
         primary_mode=primary_mode,
     )
@@ -294,11 +285,9 @@ def apply_enter_omnipause(
     write_flag_file(landscape_paused_file, True)
     Path(genau_cmd_file).write_text("PAUSE", encoding="utf-8")
     if broker_cmd_file is not None:
-        write_broker_command(broker_cmd_file, PARK_CMD)
+        write_broker_command(broker_cmd_file, plan.broker_command)
     return OmniPauseFlowResult(
-        action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        genau_branch=plan.genau_branch,
         log_message=plan.log_message,
     )
 
@@ -327,14 +316,12 @@ def apply_leave_omnipause(
     if plan.resume_nau_playback:
         write_flag_file(nau_paused_file, False)
     if broker_cmd_file is not None:
-        write_broker_command(broker_cmd_file, RESUME_CMD)
+        write_broker_command(broker_cmd_file, plan.broker_command)
     # Unfreeze both satellites; a locked one holds its clip (its lock is
     # independent of the pause flag), an unlocked one resumes auto-advancing.
     write_flag_file(portrait_paused_file, False)
     write_flag_file(landscape_paused_file, False)
     return OmniPauseFlowResult(
-        action=plan.action,
         next_omni_paused=plan.next_omni_paused,
-        genau_branch=plan.genau_branch,
         log_message=plan.log_message,
     )

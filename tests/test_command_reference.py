@@ -11,16 +11,30 @@ from fun_time.command_reference import (
     build_reference_sections,
     render_reference_html,
 )
-from fun_time.voice_control import VOICE_COMMANDS
+from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS, VOICE_COMMANDS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _NUMERIC_RE = re.compile(r"^genau_(amp|center|speed)_\d+$")
+_QUEUED_RE = re.compile(r'QueueCommand\("([^"]+)"\)')
+
+
+def _ahk_script() -> str:
+    return (_REPO_ROOT / "windows_bridge_hotkeys.ahk").read_text(encoding="utf-8")
 
 
 def _ahk_hotkey_commands() -> set[str]:
     """Every command bound to a key via QueueCommand() in the AHK hotkey script."""
-    text = (_REPO_ROOT / "windows_bridge_hotkeys.ahk").read_text(encoding="utf-8")
-    return set(re.findall(r'QueueCommand\("([^"]+)"\)', text))
+    return set(_QUEUED_RE.findall(_ahk_script()))
+
+
+def _ahk_suspend_exempt_commands() -> set[str]:
+    """The commands bound inside the script's ``#SuspendExempt`` block.
+
+    Omnipause suspends the hotkeys wholesale, so these are the only keys that
+    still reach Python while the session is paused.
+    """
+    block = _ahk_script().split("#SuspendExempt true", 1)[1].split("#SuspendExempt false", 1)[0]
+    return set(_QUEUED_RE.findall(block))
 
 
 def _all_rows() -> list[CommandRef]:
@@ -395,6 +409,35 @@ def test_omnipause_row_uses_esc_and_pause_play_voice():
     assert "omnipause_toggle" in row.commands
     assert "pause" in row.voice
     assert "play" in row.voice
+
+
+def test_relief_omnipause_row_shows_shift_esc_and_the_single_word_name():
+    """Shift+Esc is documented next to plain Esc, and its phrase reads as one
+    word — vosk has no "omnipause" token, so the recognizer listens for the
+    three-word "relief omni pause" while the legend shows "relief omnipause"."""
+    assert VOICE_COMMANDS["relief omni pause"] == "relief_omnipause"
+    assert "relief omnipause" not in VOICE_COMMANDS  # display-only, not a recognizer phrase
+
+    rows = [r for r in _all_rows() if "relief_omnipause" in r.commands]
+    assert len(rows) == 1, "expected exactly one relief row"
+    row = rows[0]
+    assert row.hotkeys == ("Shift+Esc",)
+    assert row.voice == ("relief omnipause",)
+
+
+def test_relief_survives_the_omnipause_suspension_on_both_input_paths():
+    """Relief has to fire from inside omnipause — a paused session is exactly
+    where the device may still be on the user — so Shift+Esc sits in the AHK
+    #SuspendExempt block and its command is exempt from the voice freeze too.
+    Either half missing leaves the emergency dead in the one state it is for."""
+    assert "relief_omnipause" in _ahk_suspend_exempt_commands()
+    assert "relief_omnipause" in SUSPEND_EXEMPT_COMMANDS
+
+
+def test_no_say_column_leaks_the_raw_omni_pause_form():
+    for row in _all_rows():
+        for phrase in row.voice:
+            assert "omni pause" not in phrase, phrase
 
 
 def test_reference_does_not_import_voice_runtime():

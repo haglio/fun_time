@@ -34,6 +34,7 @@ from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .mode_plan import genau_active, nau_displays
 from .filter_vocab import decode_filter_command
+from .omnipause import build_omnipause_plan
 from .runtime_flow import (
     SatelliteFilterFlowResult,
     apply_enter_omnipause,
@@ -41,7 +42,6 @@ from .runtime_flow import (
     apply_mode_switch,
     apply_satellite_filter,
     apply_toggle_fmode,
-    build_omnipause_toggle,
     satellite_browse_paths,
 )
 from .satellite_control import read_satellite_status, write_satellite_command
@@ -1010,6 +1010,9 @@ def dispatch_command(
     if command == "enter_omnipause":
         return _dispatch_enter_omnipause(state, config)
 
+    if command == "relief_omnipause":
+        return _dispatch_enter_omnipause(state, config, relief=True)
+
     if command == "leave_omnipause":
         return _dispatch_leave_omnipause(state, config)
 
@@ -1114,51 +1117,20 @@ def _dispatch_audio(
 def _dispatch_omnipause_toggle(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    ops: list[WindowOp] = []
-    toggle = build_omnipause_toggle(
+    """Esc: whichever of enter and leave the current state calls for."""
+    plan = build_omnipause_plan(
+        "toggle",
         omni_paused=state.omni_paused,
         primary_mode=state.primary_mode,
     )
-    if toggle.action == "enter":
-        result = apply_enter_omnipause(
-            omni_paused=state.omni_paused,
-            primary_mode=state.primary_mode,
-            portrait_paused_file=config.portrait_paused_file,
-            landscape_paused_file=config.landscape_paused_file,
-            genau_paused_file=config.genau_paused_file,
-            audio_paused_file=config.audio_paused_file,
-            genau_cmd_file=config.genau_cmd_file,
-            nau_paused_file=config.nau_paused_file,
-            broker_cmd_file=config.broker_cmd_file,
-        )
-        state = replace(state, omni_paused=result.next_omni_paused)
-        ops.append(WindowOp(op="disable_all_topmost"))
-        ops.append(WindowOp(op="suspend_hotkeys"))
-    else:
-        result = apply_leave_omnipause(
-            omni_paused=state.omni_paused,
-            primary_mode=state.primary_mode,
-            portrait_paused_file=config.portrait_paused_file,
-            landscape_paused_file=config.landscape_paused_file,
-            genau_paused_file=config.genau_paused_file,
-            audio_paused_file=config.audio_paused_file,
-            genau_cmd_file=config.genau_cmd_file,
-            nau_paused_file=config.nau_paused_file,
-            broker_cmd_file=config.broker_cmd_file,
-        )
-        state = replace(state, omni_paused=result.next_omni_paused)
-        ops.append(WindowOp(op="restore_all_topmost"))
-        ops.append(WindowOp(op="unsuspend_hotkeys"))
-        ops.extend(_primary_focus_ops(state.primary_mode))
-    if result.log_message:
-        logger.info(result.log_message)
-    return state, ops
+    if plan.action == "enter":
+        return _dispatch_enter_omnipause(state, config)
+    return _dispatch_leave_omnipause(state, config)
 
 
 def _dispatch_enter_omnipause(
-    state: BridgeState, config: BridgeConfig
+    state: BridgeState, config: BridgeConfig, *, relief: bool = False
 ) -> tuple[BridgeState, list[WindowOp]]:
-    ops: list[WindowOp] = []
     result = apply_enter_omnipause(
         omni_paused=state.omni_paused,
         primary_mode=state.primary_mode,
@@ -1169,10 +1141,10 @@ def _dispatch_enter_omnipause(
         genau_cmd_file=config.genau_cmd_file,
         nau_paused_file=config.nau_paused_file,
         broker_cmd_file=config.broker_cmd_file,
+        relief=relief,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
-    ops.append(WindowOp(op="disable_all_topmost"))
-    ops.append(WindowOp(op="suspend_hotkeys"))
+    ops = [WindowOp(op="disable_all_topmost"), WindowOp(op="suspend_hotkeys")]
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
@@ -1181,7 +1153,6 @@ def _dispatch_enter_omnipause(
 def _dispatch_leave_omnipause(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    ops: list[WindowOp] = []
     result = apply_leave_omnipause(
         omni_paused=state.omni_paused,
         primary_mode=state.primary_mode,
@@ -1194,8 +1165,7 @@ def _dispatch_leave_omnipause(
         broker_cmd_file=config.broker_cmd_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
-    ops.append(WindowOp(op="restore_all_topmost"))
-    ops.append(WindowOp(op="unsuspend_hotkeys"))
+    ops = [WindowOp(op="restore_all_topmost"), WindowOp(op="unsuspend_hotkeys")]
     ops.extend(_primary_focus_ops(state.primary_mode))
     if result.log_message:
         logger.info(result.log_message)

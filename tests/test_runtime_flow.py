@@ -13,7 +13,6 @@ from fun_time.runtime_flow import (
     apply_mode_switch,
     apply_satellite_filter,
     apply_toggle_fmode,
-    build_omnipause_toggle,
     satellite_browse_paths,
 )
 
@@ -605,16 +604,6 @@ def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
     assert not any("pk.mp4" in p for p in paths)
 
 
-def test_build_omnipause_toggle_returns_enter_or_leave():
-    enter = build_omnipause_toggle(omni_paused=False, primary_mode="nau")
-    leave = build_omnipause_toggle(omni_paused=True, primary_mode="genau")
-
-    assert enter.action == "enter"
-    assert enter.next_omni_paused is True
-    assert leave.action == "leave"
-    assert leave.next_omni_paused is False
-
-
 def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     result = apply_enter_omnipause(
         omni_paused=False,
@@ -628,7 +617,6 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
         broker_cmd_file=flow_files["broker_cmd_file"],
     )
 
-    assert result.action == "enter"
     assert result.next_omni_paused is True
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
@@ -637,6 +625,32 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "PARK"
     # Both satellites are frozen via their paused flag file — a paused native
     # satellite simply cannot auto-advance, so no HTTP re-pause is needed.
+    assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "1"
+    assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
+
+
+def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow_files):
+    """Relief freezes the session exactly as a plain enter does — only the OSR2's
+    destination changes, from home to the far end of its stroke."""
+    result = apply_enter_omnipause(
+        omni_paused=False,
+        primary_mode="hybrid",
+        portrait_paused_file=flow_files["portrait_paused_file"],
+        landscape_paused_file=flow_files["landscape_paused_file"],
+        genau_paused_file=flow_files["genau_paused_file"],
+        audio_paused_file=flow_files["audio_paused_file"],
+        genau_cmd_file=flow_files["genau_cmd_file"],
+        nau_paused_file=flow_files["nau_paused_file"],
+        broker_cmd_file=flow_files["broker_cmd_file"],
+        relief=True,
+    )
+
+    assert result.next_omni_paused is True
+    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "RETRACT"
+    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
+    assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
+    assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
@@ -661,7 +675,6 @@ def test_apply_leave_omnipause_in_nau_mode_resumes_nau(flow_files):
 
     result = _leave_omnipause(flow_files, primary_mode="nau")
 
-    assert result.action == "leave"
     assert result.next_omni_paused is False
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
     # Genau stays paused when primary_mode is nau
@@ -695,7 +708,6 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
 
     result = _leave_omnipause(flow_files, primary_mode="genau", broker=False)
 
-    assert result.action == "leave"
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME"

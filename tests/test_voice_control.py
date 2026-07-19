@@ -613,6 +613,18 @@ class TestVoiceController:
         written = cmd_file.read_text(encoding="utf-8").splitlines()
         assert [parse_command_line(line)[0] for line in written] == ["play", "quit"]
 
+    def test_suspend_still_lets_relief_through(self, tmp_path: Path):
+        """Voice frozen by omnipause must not swallow the one command whose whole
+        purpose is to act from inside omnipause: a paused session can still have
+        the device on the user, and speaking is the way out when reaching for a
+        key is not."""
+        cmd_file = tmp_path / "cmd.txt"
+        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
+        vc.suspend()
+        vc._write_command("relief_omnipause", spoken_at=1.0)
+        written = cmd_file.read_text(encoding="utf-8").splitlines()
+        assert [parse_command_line(line)[0] for line in written] == ["relief_omnipause"]
+
     def test_suspend_still_lets_the_reference_popup_through(self, tmp_path: Path):
         """The popup opens a dashboard window and touches no player, so the
         freeze has nothing to protect from it — and a pause is exactly when the

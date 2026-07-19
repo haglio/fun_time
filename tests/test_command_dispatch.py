@@ -51,6 +51,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         nau_paused_file=state_dir / "nau_paused.txt",
         nau_status_file=state_dir / "nau_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
+        broker_cmd_file=state_dir / "broker_cmd.txt",
     )
 
 
@@ -2013,6 +2014,22 @@ def test_enter_omnipause_emits_disable_all_topmost(tmp_path: Path):
     new_state, ops = dispatch_command("enter_omnipause", state, config)
 
     assert any(op.op == "disable_all_topmost" for op in ops)
+
+
+def test_relief_omnipause_retracts_the_osr2_and_otherwise_enters_normally(tmp_path: Path):
+    """Shift+Esc lands on the same frozen session a plain enter does, with the
+    OSR2 sent away instead of home."""
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=False)
+
+    new_state, ops = dispatch_command("relief_omnipause", state, config)
+
+    assert new_state.omni_paused is True
+    assert config.broker_cmd_file.read_text(encoding="utf-8") == "RETRACT"
+    assert any(op.op == "disable_all_topmost" for op in ops)
+    assert any(op.op == "suspend_hotkeys" for op in ops)
+    assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
+    assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
 
 
 def test_omnipause_toggle_enter_emits_disable_all_topmost(tmp_path: Path):

@@ -85,6 +85,11 @@ VOICE_COMMANDS: dict[str, str] = {
     # shows it as "unpause" via the row's friendly_voice override.
     "resume": "play",
     "un pause": "play",
+    # The sensation emergency: enter omnipause and send the OSR2 away instead of
+    # home.  vosk has no "omnipause" token but has both halves of it, so the
+    # recognizer listens for the split "omni pause"; the reference shows the
+    # single word via the row's friendly_voice override.
+    "relief omni pause": "relief_omnipause",
     # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
     # generated as an order-agnostic grid below the literal.
     "f mode": "fmode_toggle",
