@@ -53,7 +53,7 @@ The userscript only acts when the URL carries a `#ft=` fragment (i.e. opened by 
 
 ### Updating or maintaining the userscript
 
-The script now **auto-updates over localhost**. It carries `@updateURL` / `@downloadURL` pointing at `http://127.0.0.1:8770/provider_autofill.user.js`, and Fun Time's orchestrator serves that file (`fun_time/userscript_server.py`, a loopback-only daemon thread) whenever a session is running. Every edit bumps `@version`, so Tampermonkey pulls the new copy on its next update check. No more hand-pasting after the first install.
+The script now **auto-updates over localhost**. It carries `@updateURL` / `@downloadURL` pointing at `http://127.0.0.1:8770/provider_autofill.user.js`, and Fun Time's orchestrator serves that file (`fun_time/loopback_server.py`, a loopback-only daemon thread) whenever a session is running. Every edit bumps `@version`, so Tampermonkey pulls the new copy on its next update check. No more hand-pasting after the first install.
 
 Environment facts (learned the hard way):
 

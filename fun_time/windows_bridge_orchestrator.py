@@ -28,7 +28,7 @@ from .startup_progress import (
 )
 from .hud_transport import HUD_FILENAME, HudPublisher
 from .lock_hud import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails, prime_group_indexes
-from .userscript_server import USERSCRIPT_PORT, serve_userscript_updates
+from .loopback_server import LOOPBACK_PORT, serve_loopback
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -514,13 +514,14 @@ def run_python_orchestrated_bridge(
     logger.info("Background dispatch loop started")
 
     # Serve the Provider autofill userscript so Tampermonkey can auto-update it
-    # instead of needing a hand-paste after every edit. A busy port (a second
+    # instead of needing a hand-paste after every edit, and answer the RFB tab
+    # pages when they ask whether the session is paused. A busy port (a second
     # Fun Time, a leftover server) is not worth failing startup over.
     try:
-        serve_userscript_updates()
-        logger.info("Userscript update server started on 127.0.0.1:%d", USERSCRIPT_PORT)
+        serve_loopback(omni_paused=lambda: dispatch_runner.state.omni_paused)
+        logger.info("Loopback server started on 127.0.0.1:%d", LOOPBACK_PORT)
     except OSError:
-        logger.warning("Userscript update server not started (port %d busy)", USERSCRIPT_PORT, exc_info=True)
+        logger.warning("Loopback server not started (port %d busy)", LOOPBACK_PORT, exc_info=True)
 
     # --- Optional voice control ---
     voice_controller: VoiceController | None = None
