@@ -228,31 +228,59 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
 
 
 def test_the_status_line_holds_every_state_the_side_is_in():
-    """One line to read the satellite off: the lock, whether a loop is running, and
-    which order its browse is in.  Anything the HUD knows about how the side is
+    """One line to read the satellite off: the lock, what is looping, which order its
+    browse is in, and the filter.  Anything the HUD knows about how the side is
     behaving belongs up there, not spread around the panel."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     looping = build_hud_panel(
         "portrait", locked=False, current=CUR, index=index,
-        loop_axis="seed", map_anchor=CUR, recents=True,
+        loop_axis="seed", map_anchor=CUR, latest=True, filter_query="beta gamma",
     )
     locked = build_hud_panel("portrait", locked=True, current=CUR, index=index)
 
-    assert looping.lock_label == "Unlocked · Looping · Recents"
+    assert looping.lock_label == "Looping seeds · Latest · beta gamma"
     assert locked.lock_label == "Locked · Shuffle"
 
 
+def test_the_status_line_names_the_axis_that_is_looping():
+    """"Looping" alone leaves you looking at the map to find out which axis it is."""
+    seed_index = _index(current=CUR, seed_sibs=[S1])
+    action_index = _index(current=CUR, action_sibs=[A1])
+
+    seeds = build_hud_panel("portrait", locked=False, current=CUR, index=seed_index,
+                            loop_axis="seed", map_anchor=CUR)
+    actions = build_hud_panel("portrait", locked=False, current=CUR, index=action_index,
+                              loop_axis="action", map_anchor=CUR)
+
+    assert seeds.lock_label.startswith("Looping seeds")
+    assert actions.lock_label.startswith("Looping actions")
+
+
+def test_the_lock_word_stands_down_while_a_loop_runs():
+    """A loop is repeat-all over a group, so the lock is off and saying so is noise.
+    The browse order stays on the line: the moment the loop ends, that is what the
+    side goes back to playing."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
+    )
+
+    assert "Locked" not in panel.lock_label and "Unlocked" not in panel.lock_label
+    assert "Shuffle" in panel.lock_label
+
+
 def test_the_status_line_says_looping_without_counting():
-    """The size of each axis is on the map itself now, so this line just says that a
-    loop is running."""
+    """The size of each axis is on the map itself now, so this line just says what is
+    looping, not how much of it."""
     index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"])
 
     panel = build_hud_panel(
         "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
-    assert "Looping" in panel.lock_label
+    assert "Looping seeds" in panel.lock_label
     assert "3" not in panel.lock_label
 
 

@@ -678,7 +678,7 @@ def test_fmode_toggle_passes_each_sides_current_order(tmp_path: Path):
     """F-mode rebuilds both satellites, and the two can be in different orders, so
     each side's own ordering has to go with it."""
     config = _make_config(tmp_path)
-    state = _make_state(f_mode_enabled=False, portrait_recents=True, landscape_recents=False)
+    state = _make_state(f_mode_enabled=False, portrait_latest=True, landscape_latest=False)
 
     with patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode:
         mock_fmode.return_value = type("R", (), {
@@ -1015,10 +1015,10 @@ def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
-        dispatch_command("portrait_recents", state, config)
+        dispatch_command("portrait_latest", state, config)
 
     kwargs = mock_filter.call_args.kwargs
-    assert kwargs["recent"] is True  # Recents = newest-first
+    assert kwargs["recent"] is True  # Latest = newest-first
     assert kwargs["query"] == "alpha"  # its own filter is kept
     assert kwargs["provider_media_root"] == tmp_path / "media"
 
@@ -1030,27 +1030,27 @@ def test_recents_reorders_only_the_side_it_names(tmp_path: Path):
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
-        state, ops = dispatch_command("portrait_recents", _make_state(), config)
+        state, ops = dispatch_command("portrait_latest", _make_state(), config)
 
     assert [call.kwargs["which"] for call in mock_filter.call_args_list] == [2]
-    assert state.portrait_recents is True
-    assert state.landscape_recents is False
+    assert state.portrait_latest is True
+    assert state.landscape_latest is False
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
 
 
 def test_shuffle_puts_one_side_back_without_touching_the_other(tmp_path: Path):
-    """Recents' counterpart has to be sided too, or a side reloaded newest-first
+    """Latest' counterpart has to be sided too, or a side reloaded newest-first
     could never be shuffled back on its own."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_recents=True, landscape_recents=True)
+    state = _make_state(portrait_latest=True, landscape_latest=True)
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         new_state, _ops = dispatch_command("landscape_shuffle", state, config)
 
     assert mock_filter.call_args.kwargs["recent"] is False
-    assert new_state.landscape_recents is False
-    assert new_state.portrait_recents is True  # the other side keeps its order
+    assert new_state.landscape_latest is False
+    assert new_state.portrait_latest is True  # the other side keeps its order
 
 
 def test_a_sided_reorder_drops_that_sides_lock_and_loop(tmp_path: Path):
@@ -1062,7 +1062,7 @@ def test_a_sided_reorder_drops_that_sides_lock_and_loop(tmp_path: Path):
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
-        new_state, _ops = dispatch_command("portrait_recents", state, config)
+        new_state, _ops = dispatch_command("portrait_latest", state, config)
 
     assert new_state.locked2 is False
     assert new_state.portrait_loop == ""
@@ -1073,15 +1073,15 @@ def test_a_sided_reorder_drops_that_sides_lock_and_loop(tmp_path: Path):
 def test_reset_clears_the_filter_and_reshuffles(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait_filter="alpha", landscape_filter="kissing",
-                        portrait_recents=True, landscape_recents=True)
+                        portrait_latest=True, landscape_latest=True)
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_reset", state, config)
 
-    # Clears only its side's filter, drops that side's Recents order, and rebuilds.
-    assert new_state.portrait_recents is False
-    assert new_state.landscape_recents is True  # the other side is untouched
+    # Clears only its side's filter, drops that side's Latest order, and rebuilds.
+    assert new_state.portrait_latest is False
+    assert new_state.landscape_latest is True  # the other side is untouched
     assert mock_filter.call_args.kwargs["query"] == ""
     assert mock_filter.call_args.kwargs["recent"] is False
     assert new_state.portrait_filter == ""
@@ -1465,27 +1465,27 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
     assert _cmds(config, 2) == []  # ...and never touches the portrait side.
 
 
-# --- recents / shuffle ---
+# --- latest / shuffle ---
 
 
 def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     config = _make_config(tmp_path)
     config.provider_media_root = tmp_path / "media"
     config.provider_metadata_root = tmp_path / "metadata"
-    # Already in Recents: asking again must keep newest-first, never toggle off.
-    state = _make_state(portrait_recents=True, locked2=True)
+    # Already in Latest: asking again must keep newest-first, never toggle off.
+    state = _make_state(portrait_latest=True, locked2=True)
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
-        new_state, _ops = dispatch_command("portrait_recents", state, config)
+        new_state, _ops = dispatch_command("portrait_latest", state, config)
 
-    assert new_state.portrait_recents is True
+    assert new_state.portrait_latest is True
     assert new_state.locked2 is False
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["recent"] is True
     assert kwargs["f_mode_enabled"] is False
     assert kwargs["cmd_file"] == config.portrait_cmd_file
-    # Recents must collapse action groups too, so the provider roots flow through.
+    # Latest must collapse action groups too, so the provider roots flow through.
     assert kwargs["provider_media_root"] == config.provider_media_root
     assert kwargs["provider_metadata_root"] == config.provider_metadata_root
 
@@ -2525,7 +2525,7 @@ def test_a_reorder_clears_only_its_own_sides_loop(tmp_path: Path):
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         state, _ops = dispatch_command(
-            "portrait_recents",
+            "portrait_latest",
             _make_state(portrait_loop="seed", landscape_loop="action",
                         portrait_widen_clip="C:/v/p.mp4", landscape_widen_clip="C:/v/l.mp4"),
             config,

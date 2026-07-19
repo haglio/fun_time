@@ -154,7 +154,9 @@ class TestVoiceCommands:
             "back": "primary_nudge_prev",
             "record": "nau_record_down",
             "loop": "nau_record_up",
-            "end loop": "nau_loop_cancel",
+            # "end loop" is side-agnostic — it reaches Nau's own loop through the
+            # active-side resolution, not by naming the player here.
+            "end loop": "active_no_loop",
             "cycle version": "nau_cycle_version",
             "next version": "nau_cycle_version",
             "shorts": "nau_length_shorts",
@@ -649,7 +651,7 @@ def test_resume_and_unpause_are_synonyms_for_play():
 
 
 def test_shuffle_joins_the_order_agnostic_satellite_grid():
-    """Shuffle is sided like its counterpart Recents, so a single satellite can be
+    """Shuffle is sided like its counterpart Latest, so a single satellite can be
     reshuffled without disturbing the other."""
     assert VOICE_COMMANDS["shuffle"] == "active_shuffle"
     for side in ("portrait", "landscape", "both"):

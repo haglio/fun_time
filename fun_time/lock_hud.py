@@ -39,18 +39,23 @@ def _lock_label(locked: bool, lock_type: str | None) -> str:
     return f"Locked · {lock_type}" if lock_type else "Locked"
 
 
-def _status_label(locked: bool, lock_type: str | None, looping: bool, recents: bool) -> str:
+def _status_label(
+    locked: bool, lock_type: str | None, loop_axis: str, latest: bool, filter_query: str
+) -> str:
     """The HUD's one status line — everything the side is in, at a glance.
 
-    The lock, whether a loop is running, and which order the browse is in: a reader
-    should not have to look anywhere else to know how the satellite is behaving.
-    (The filter has the line below, since it can be any length.)  How big each axis
-    is belongs to the map, which prints its own counts.
+    What is looping (or, with no loop, the lock), which order the browse is in, and
+    the filter: a reader should not have to look anywhere else to know how the
+    satellite is behaving.  A running loop displaces the lock word, which is off and
+    beside the point while a group repeats — but never the order, since ending the
+    loop drops the side straight back into it.  The filter goes on unlabelled: a
+    phrase from the vocabulary in that position can only be the filter.  How big each
+    axis is belongs to the map, which prints its own counts.
     """
-    parts = [_lock_label(locked, lock_type)]
-    if looping:
-        parts.append("Looping")
-    parts.append("Recents" if recents else "Shuffle")
+    parts = [f"Looping {loop_axis}s" if loop_axis else _lock_label(locked, lock_type)]
+    parts.append("Latest" if latest else "Shuffle")
+    if filter_query:
+        parts.append(filter_query)
     return " · ".join(parts)
 
 
@@ -267,7 +272,7 @@ def build_hud_panel(
     map_anchor: str = "",
     widen_clip: str = "",
     nav_anchor: str = "",
-    recents: bool = False,
+    latest: bool = False,
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
@@ -350,7 +355,7 @@ def build_hud_panel(
     return HudPanel(
         side=side,
         locked=locked,
-        lock_label=_status_label(locked, lock_type, bool(active_loop), recents),
+        lock_label=_status_label(locked, lock_type, active_loop, latest, filter_query),
         current=anchor,
         seed_siblings=seed,
         action_siblings=action,
@@ -367,7 +372,7 @@ def build_hud_panel(
 def _side_panel(
     side: str, sources: str, metadata_root: Path | None, current: str, locked: bool,
     filter_query: str, loop_axis: str, map_anchor: str, widen_clip: str, nav_anchor: str,
-    recents: bool,
+    latest: bool,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if current:
@@ -383,7 +388,7 @@ def _side_panel(
     return build_hud_panel(
         side, locked=locked, current=current, index=index,
         filter_query=filter_query, loop_axis=loop_axis, map_anchor=map_anchor,
-        widen_clip=widen_clip, nav_anchor=nav_anchor, recents=recents,
+        widen_clip=widen_clip, nav_anchor=nav_anchor, latest=latest,
     )
 
 
@@ -391,7 +396,7 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
     """Build both satellites' group indexes up front — behind the loading screen,
     before the first clip is drawn — so the map is instant on the first refresh
     and no later refresh pays for a rebuild.  The library is fixed for the run,
-    so one build is enough (a Recents reload is what would extend it)."""
+    so one build is enough (a Latest reload is what would extend it)."""
     for source in sources:
         if source:
             cached_group_index(
@@ -442,8 +447,8 @@ def build_panels(
     landscape_widen_clip: str = "",
     portrait_nav_anchor: str = "",
     landscape_nav_anchor: str = "",
-    portrait_recents: bool = False,
-    landscape_recents: bool = False,
+    portrait_latest: bool = False,
+    landscape_latest: bool = False,
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -458,12 +463,12 @@ def build_panels(
         _side_panel(
             "portrait", portrait_sources, metadata_root,
             portrait_current, portrait_locked, portrait_filter, portrait_loop,
-            portrait_map_anchor, portrait_widen_clip, portrait_nav_anchor, portrait_recents,
+            portrait_map_anchor, portrait_widen_clip, portrait_nav_anchor, portrait_latest,
         ),
         _side_panel(
             "landscape", landscape_sources, metadata_root,
             landscape_current, landscape_locked, landscape_filter, landscape_loop,
-            landscape_map_anchor, landscape_widen_clip, landscape_nav_anchor, landscape_recents,
+            landscape_map_anchor, landscape_widen_clip, landscape_nav_anchor, landscape_latest,
         ),
     )
 

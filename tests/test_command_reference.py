@@ -215,32 +215,37 @@ def test_no_say_column_leaks_the_raw_un_mute_form():
             assert "un mute" not in phrase, phrase
 
 
-def test_recents_row_uses_p_key_and_recents_voice():
-    """The newest-first refresh is branded "Recents": P key, spoken "both recents".
-    The old name, "premiere", is gone rather than kept as a synonym."""
-    rows = [r for r in _all_rows() if "both_recents" in r.commands]
-    assert len(rows) == 1, "expected exactly one both-sides Recents row"
+def test_latest_is_spoken_only_and_the_older_names_are_gone():
+    """The newest-first refresh is branded "Latest", by voice alone: it lost the P
+    key along with the global command that key used to send.
+
+    Both older names are gone rather than kept as synonyms — "recents" especially,
+    which the small vosk model has no word for and heard as "reset".
+    """
+    rows = [r for r in _all_rows() if "both_latest" in r.commands]
+    assert len(rows) == 1, "expected exactly one both-sides Latest row"
     row = rows[0]
-    assert row.hotkeys == ("P",)
-    assert "both recents" in row.voice
+    assert row.hotkeys == ()
+    assert "both latest" in row.voice
     assert "premiere" not in VOICE_COMMANDS
+    assert "recents" not in VOICE_COMMANDS
 
 
-def test_end_loop_ends_a_satellite_loop_only_when_a_side_is_named():
-    """"end loop" is what comes out when you say what you mean.  Bare it is already
-    Nau's phrase — the cancel for its A-B loop — so only the sided forms were given
-    to the satellites."""
+def test_end_loop_follows_the_player_last_spoken_to():
+    """"end loop" is side-agnostic like every other bare command: it reaches whichever
+    player was last addressed, and means that player's kind of loop — Nau's A-B loop
+    on the primary, a satellite's group loop on portrait or landscape."""
+    assert VOICE_COMMANDS["end loop"] == "active_no_loop"
     assert VOICE_COMMANDS["portrait end loop"] == "portrait_no_loop"
     assert VOICE_COMMANDS["end loop landscape"] == "landscape_no_loop"
     assert VOICE_COMMANDS["both end loop"] == "both_no_loop"
-    assert VOICE_COMMANDS["end loop"] == "nau_loop_cancel"
 
 
-def test_recents_and_shuffle_reach_one_side_or_both():
+def test_latest_and_shuffle_reach_one_side_or_both():
     """Both orderings were global-only, so "portrait premiere" parsed as nothing.
     They join the side grid like every other satellite action — and shuffle has to
-    come too, or a side put in recents order could never be shuffled back alone."""
-    for word, action in (("recents", "recents"), ("shuffle", "shuffle")):
+    come too, or a side put in latest order could never be shuffled back alone."""
+    for word, action in (("latest", "latest"), ("shuffle", "shuffle")):
         assert VOICE_COMMANDS[word] == f"active_{action}"
         assert VOICE_COMMANDS[f"portrait {word}"] == f"portrait_{action}"
         assert VOICE_COMMANDS[f"{word} landscape"] == f"landscape_{action}"
@@ -318,9 +323,10 @@ def test_loop_control_row_consolidates_record_and_cancel():
     assert "R" in row.hotkeys
     assert "record" in row.voice
     assert "loop" in row.voice
-    # Record and cancel are one row now; cancel's phrase is "end loop".
+    # Record and cancel are one row.  The cancel's phrase, "end loop", is no longer
+    # this row's own: it is the side-agnostic phrase, and reaches Nau's loop through
+    # the active-side resolution whenever the primary is the player last addressed.
     assert "nau_loop_cancel" in row.commands
-    assert "end loop" in row.voice
 
 
 def test_previous_shape_is_a_separate_keyless_line():

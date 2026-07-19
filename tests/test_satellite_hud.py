@@ -28,8 +28,7 @@ def test_parse_hud_reads_the_panel_fun_time_published():
     text = json.dumps({
         "side": "portrait",
         "locked": True,
-        "lock_label": "Locked",
-        "filter_query": "alpha",
+        "lock_label": "Locked · Shuffle · alpha",
         "active_loop": "seed",
         "playing": ["seed", 1],
         "current_action": "alpha",
@@ -43,8 +42,7 @@ def test_parse_hud_reads_the_panel_fun_time_published():
     assert model is not None
     assert model.side == "portrait"
     assert model.locked is True
-    assert model.lock_label == "Locked"
-    assert model.filter_query == "alpha"
+    assert model.lock_label == "Locked · Shuffle · alpha"
     assert model.active_loop == "seed"
     assert model.playing == ("seed", 1)
     assert model.current_action == "alpha"

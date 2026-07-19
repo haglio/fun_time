@@ -75,11 +75,11 @@ class BridgeState:
     primary_mode: str = "nau"
     f_mode_enabled: bool = False
     omni_paused: bool = False
-    # Which browse order each satellite is in: newest-first ("Recents") when set,
-    # else shuffled.  Per side, since Recents and Shuffle name a side, and read by
+    # Which browse order each satellite is in: newest-first ("Latest") when set,
+    # else shuffled.  Per side, since Latest and Shuffle name a side, and read by
     # every later rebuild (a filter, F-mode) so the side reloads the same way.
-    portrait_recents: bool = False
-    landscape_recents: bool = False
+    portrait_latest: bool = False
+    landscape_latest: bool = False
     # The player most recently navigated (1=primary/Nau, 2=portrait,
     # 3=landscape). Any portrait_/landscape_ command, or a primary next/prev,
     # updates it; the side-agnostic "active_*" commands resolve against it —
@@ -539,22 +539,22 @@ _NO_LOOP_SIDES: dict[str, str] = {
     "landscape_no_loop": "landscape",
 }
 
-# The two browse orderings, per side: Recents reloads newest-first, Shuffle
+# The two browse orderings, per side: Latest reloads newest-first, Shuffle
 # reshuffles.  "both …" reaches each of these in turn (the dispatch loop expands
 # it), which is what the P key sends.
 _REORDER_COMMANDS: dict[str, tuple[int, bool]] = {
-    "portrait_recents": (2, True),
-    "landscape_recents": (3, True),
+    "portrait_latest": (2, True),
+    "landscape_latest": (3, True),
     "portrait_shuffle": (2, False),
     "landscape_shuffle": (3, False),
 }
 
 
-def _set_side_recents(state: BridgeState, which: int, recent: bool) -> BridgeState:
+def _set_side_latest(state: BridgeState, which: int, recent: bool) -> BridgeState:
     """Record which order *which* satellite's browse is now in."""
     if which == 2:
-        return replace(state, portrait_recents=recent)
-    return replace(state, landscape_recents=recent)
+        return replace(state, portrait_latest=recent)
+    return replace(state, landscape_latest=recent)
 
 
 def _set_side_loop(state: BridgeState, which: int, axis: str, anchor: str) -> BridgeState:
@@ -1234,8 +1234,8 @@ def _dispatch_fmode_toggle(
 ) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_toggle_fmode(
         f_mode_enabled=state.f_mode_enabled,
-        portrait_recent=state.portrait_recents,
-        landscape_recent=state.landscape_recents,
+        portrait_recent=state.portrait_latest,
+        landscape_recent=state.landscape_latest,
         primary_sources=config.primary_sources,
         portrait_sources=config.portrait_sources,
         landscape_sources=config.landscape_sources,
@@ -1268,7 +1268,7 @@ def _dispatch_fmode_toggle(
 def _dispatch_reorder(
     which: int, recent: bool, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Reload one satellite in a fresh order — Recents (newest-first) or Shuffle.
+    """Reload one satellite in a fresh order — Latest (newest-first) or Shuffle.
 
     Either rescans that side's sources, so clips that have arrived since are picked
     up, and keeps its filter.  The order is remembered per side — the two satellites
@@ -1276,12 +1276,12 @@ def _dispatch_reorder(
     same way.  The rebuild replaces the queue, which drops the side's lock and any
     group loop (with the widened row that rode on it).
     """
-    state = _set_side_recents(state, which, recent)
+    state = _set_side_latest(state, which, recent)
     result = _rebuild_side(which, _side_filter(state, which), state, config)
     state = replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
     state = _clear_side_grouping(state, which)
     label = "portrait" if which == 2 else "landscape"
-    message = f"{'Recents' if recent else 'Shuffle'}: {label} {'newest-first' if recent else 'reshuffled'}"
+    message = f"{'Latest' if recent else 'Shuffle'}: {label} {'newest-first' if recent else 'reshuffled'}"
     logger.info("%s (%d clips)", message, result.count)
     return state, [WindowOp(op="notice", key=message, source=_satellite_source(which))]
 
@@ -1289,11 +1289,11 @@ def _dispatch_reorder(
 def _dispatch_reset(
     scope: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Return a satellite (or both) to the default browse: no filter, no Recents
+    """Return a satellite (or both) to the default browse: no filter, no Latest
     order, no loop — reshuffled, one clip per subject.  Clearing the filter rebuilds
     the full playlist, which also drops any group loop."""
     for which in _FILTER_TARGETS[scope]:
-        state = _set_side_recents(state, which, False)
+        state = _set_side_latest(state, which, False)
     return _dispatch_set_filter(scope, "", state, config)
 
 
@@ -1329,7 +1329,7 @@ def _dispatch_no_loop(
         which=which,
         query=_side_filter(state, which),
         f_mode_enabled=state.f_mode_enabled,
-        recent=state.portrait_recents if which == 2 else state.landscape_recents,
+        recent=state.portrait_latest if which == 2 else state.landscape_latest,
         sources=config.portrait_sources if which == 2 else config.landscape_sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
@@ -1368,7 +1368,7 @@ def _rebuild_side(
         which=which,
         query=query,
         f_mode_enabled=state.f_mode_enabled,
-        recent=state.portrait_recents if which == 2 else state.landscape_recents,
+        recent=state.portrait_latest if which == 2 else state.landscape_latest,
         sources=config.portrait_sources if which == 2 else config.landscape_sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
