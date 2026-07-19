@@ -718,8 +718,10 @@ def _navigate_hud(
     The selection is wherever the satellite is now playing on the frozen map; the
     step lands on a neighbouring cell, whose clip becomes the new current video.
     A satellite that auto-advanced off the frozen map re-anchors on whatever is
-    now playing.  An at-the-edge step (nothing that way) is a dead end, reported
-    red like the other no-effect notices.
+    now playing.  Each axis wraps, so running off its end comes round to the
+    anchor; only a step with genuinely nowhere to go — off the axis the selection
+    is on, or along an axis holding just the anchor — is a dead end, reported red
+    like the other no-effect notices.
     """
     source = _satellite_source(which)
     current = _satellite_current(config, which)

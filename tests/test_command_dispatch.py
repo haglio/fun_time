@@ -844,19 +844,37 @@ def test_nav_continues_across_the_seed_row_from_the_frozen_anchor(tmp_path: Path
     assert new_state.portrait_nav_anchor == paths["subject_a"]  # the anchor held
 
 
-def test_nav_at_the_edge_of_the_map_is_a_dead_end(tmp_path: Path):
-    """Shift+Right off the last seed has nowhere to go: nothing switches and the
-    dead end reads red."""
+def test_nav_past_the_last_seed_wraps_round_to_the_anchor(tmp_path: Path):
+    """The seed row is a ring the anchor heads, so Shift+Right off its last seed
+    comes back round to the anchor instead of stopping — hold the key and you
+    tour the row."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
     })
     state = _make_state(portrait_nav_anchor=paths["subject_a"])
 
-    _set_current(config, 2, paths["subject_b"])
-    _new_state, ops = dispatch_command("portrait_nav_right", state, config)
+    _set_current(config, 2, paths["subject_b"])  # the row's only seed — its last
+    new_state, _ops = dispatch_command("portrait_nav_right", state, config)
 
-    assert _cmds(config, 2) == []  # at the edge: nothing switched
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a']}"]
+    assert new_state.portrait_nav_anchor == paths["subject_a"]  # the ring kept its head
+
+
+def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
+    """Wrapping needs somewhere to wrap to.  These clips share an act, so the
+    anchor has no other action to step down onto: nothing switches and it reads
+    red."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_a": _cycle_meta("111", "Alpha"),
+        "subject_b": _cycle_meta("222", "Alpha"),
+    })
+    state = _make_state(portrait_nav_anchor=paths["subject_a"])
+
+    _set_current(config, 2, paths["subject_a"])
+    _new_state, ops = dispatch_command("portrait_nav_down", state, config)
+
+    assert _cmds(config, 2) == []  # an empty axis: nothing switched
     dead_end = [op for op in ops if op.op == "notice"]
     assert dead_end and dead_end[0].level == FAILED_NOTICE_LEVEL
 
