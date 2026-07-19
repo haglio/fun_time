@@ -266,6 +266,9 @@ class DispatchLoopRunner:
         # own video.  None when the session runs without HUDs.
         self._hud_publisher = hud_publisher
         self._last_hud_publish = 0.0
+        # The clip each satellite last named, so a status read that loses the
+        # race with the player's own republish does not blank its map.
+        self._last_satellite_clip: dict[str, str] = {}
         self.rfb_hwnd = rfb_hwnd
         self.rfb_shortcut_target = rfb_shortcut_target
         self.rfb_shortcut_work_dir = rfb_shortcut_work_dir
@@ -413,8 +416,8 @@ class DispatchLoopRunner:
             portrait_sources=self.config.portrait_sources,
             landscape_sources=self.config.landscape_sources,
             metadata_root=self.config.provider_metadata_root,
-            portrait_current=read_satellite_status(self.config.portrait_status_file).video,
-            landscape_current=read_satellite_status(self.config.landscape_status_file).video,
+            portrait_current=self._satellite_clip("portrait", self.config.portrait_status_file),
+            landscape_current=self._satellite_clip("landscape", self.config.landscape_status_file),
             portrait_locked=state.locked2,
             landscape_locked=state.locked3,
             portrait_filter=state.portrait_filter,
@@ -432,6 +435,24 @@ class DispatchLoopRunner:
         )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)
+
+    def _satellite_clip(self, side: str, status_file: Path) -> str:
+        """The clip *side* is showing, holding the last one it named if the read
+        comes back blank.
+
+        A satellite always has a clip — it cannot discard its way to an empty
+        playlist — so once one has named a clip, a blank status means the read
+        lost a race with the player's own republish, not that the player has
+        nothing.  Believing the blank builds an empty panel, and publishing that
+        blanks the map on screen until the next tick puts it back.  Before a
+        satellite's first status there is nothing to hold, and an empty map is
+        the truth.
+        """
+        video = read_satellite_status(status_file).video
+        if video:
+            self._last_satellite_clip[side] = video
+            return video
+        return self._last_satellite_clip.get(side, "")
 
     def _sync_voice_suspension(self) -> None:
         """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
