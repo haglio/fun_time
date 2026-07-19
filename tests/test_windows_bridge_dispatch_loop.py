@@ -1157,9 +1157,8 @@ class TestDispatchLoopRunner:
         assert vc.is_muted
 
     def test_omnipause_suspends_the_voice_controller(self, tmp_path):
-        """Omnipause freezes voice the way it freezes the AHK hotkeys: only the
-        exempt commands still reach the dispatch loop, so a paused room's noise
-        can no longer open the reference popup."""
+        """Omnipause freezes voice the way it freezes the AHK hotkeys: of what a
+        paused room says, only the exempt commands reach the dispatch loop."""
         from fun_time.voice_control import VoiceController
 
         runner = make_runner(tmp_path, sync_interval_ms=999999)
@@ -1172,7 +1171,7 @@ class TestDispatchLoopRunner:
 
         runner.tick()
 
-        vc._write_command("help_reference", spoken_at=1.0)
+        vc._write_command("landscape_next", spoken_at=1.0)
         vc._write_command("play", spoken_at=2.0)
         written = vc_cmd.read_text(encoding="utf-8").splitlines()
         assert [parse_command_line(line)[0] for line in written] == ["play"]
@@ -1191,9 +1190,9 @@ class TestDispatchLoopRunner:
 
         runner.tick()
 
-        vc._write_command("help_reference", spoken_at=1.0)
+        vc._write_command("landscape_next", spoken_at=1.0)
         written = vc_cmd.read_text(encoding="utf-8").splitlines()
-        assert [parse_command_line(line)[0] for line in written] == ["help_reference"]
+        assert [parse_command_line(line)[0] for line in written] == ["landscape_next"]
 
 
 class TestOpenRfbTab:
@@ -1795,7 +1794,8 @@ class TestUpdateDashboardOsr2Off:
 # ---------------------------------------------------------------------------
 
 class TestOmnipauseVoiceFreeze:
-    """Under OmniPause a *spoken* command is frozen unless it resumes or quits.
+    """Under OmniPause a *spoken* command is frozen unless it resumes, quits, or
+    only opens the dashboard's reference popup.
 
     A mis-heard phrase must not act on a paused room — that is the whole bug.
     ``spoken_at`` is what marks a voice line; the deliberate mouse (dashboard,
@@ -1814,14 +1814,20 @@ class TestOmnipauseVoiceFreeze:
             runner._handle_command("landscape_next", spoken_at=123.0)
         mock_dispatch.assert_not_called()
 
-    def test_freezes_a_spoken_reference_popup_under_omnipause(self, tmp_path):
-        """The bug it was born from: room noise heard as "help" opening the
-        reference popup mid-pause.  Frozen, it never reaches the dashboard."""
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True)
-        with patch.object(runner, "_send_press") as mock_press:
-            runner._handle_command("help_reference", spoken_at=123.0)
-        mock_press.assert_not_called()
+    def test_a_spoken_reference_popup_still_opens_under_omnipause(self, tmp_path):
+        """The reference popup is not the room: it opens a dashboard window and
+        touches no player, so the freeze has nothing to protect from it — while a
+        paused session is exactly when the user stops to look a phrase up.  What
+        keeps room noise out of it is the confidence gate on recognition, which
+        the popup-opening-itself bug this freeze was born from actually needed."""
+        for command in ("help_reference", "help_reference_close"):
+            runner = make_runner(tmp_path)
+            runner.state = BridgeState(omni_paused=True)
+            with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+                with patch.object(runner, "_send_press") as mock_press:
+                    runner._handle_command(command, spoken_at=123.0)
+            mock_press.assert_called_once_with(command)
+            mock_dispatch.assert_not_called()
 
     def test_keeps_the_mouse_live_under_omnipause(self, tmp_path):
         """A lock-HUD click (bare command, no ``spoken_at``) still acts while
