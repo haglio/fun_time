@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from satellite.hud import LOCK_BAND_H, PAD, PANEL_SIZE, HudCell, HudModel
+from satellite.hud import LOCK_BAND_H, PAD, PANEL_SIZE, HudCell, HudModel, ellipsis_rects
 from satellite.hud_paint import HudRenderer, gutter_width_for
 
 
@@ -108,6 +108,86 @@ def test_the_playing_cell_is_brighter_than_the_others(tmp_path: Path):
     corner_dim, seed_lit = corner_and_seed(("seed", 0))
     assert corner_lit > corner_dim
     assert seed_lit > seed_dim
+
+
+def _loop_model(thumb: str, playing, *, count: int = 12) -> HudModel:
+    """A seed loop far longer than the map can draw, at *playing*."""
+    return _model(
+        locked=False, lock_label=f"Looping {count + 1} seeds",
+        corner=HudCell(path="c.mp4", thumb=thumb),
+        seeds=tuple(HudCell(path=f"s{i}.mp4", thumb=thumb) for i in range(count)),
+        active_loop="seed", playing=playing,
+    )
+
+
+def test_a_long_loop_draws_a_window_that_holds_the_clip_on_screen(thumb):
+    """The reported bug: a loop longer than the map could draw kept showing its
+    first cells, so once it advanced past them nothing was lit and the clip playing
+    was not among the thumbnails at all.  The map now follows the loop."""
+    rendered = HudRenderer("portrait").render(_loop_model(thumb, ("seed", 8)))
+
+    drawn = [path for _rect, path in rendered.targets.click]
+    assert "s8.mp4" in drawn
+
+
+def test_a_loop_just_started_draws_the_clip_on_screen_in_the_corner(thumb):
+    """At the moment the loop starts, the clip on screen is its head — so it is the
+    top-left cell, never somewhere in the middle of the row."""
+    rendered = HudRenderer("portrait").render(_loop_model(thumb, ("corner", 0)))
+
+    drawn = [path for _rect, path in rendered.targets.click]
+    assert drawn[0] == "c.mp4"
+
+
+def test_a_long_loop_lights_the_clip_on_screen_wherever_it_has_got_to(tmp_path: Path):
+    """The window is only worth having if the highlight lands on the right cell in
+    it: the clip playing is drawn bright and its neighbours dim."""
+    bright = tmp_path / "bright.jpg"
+    Image.new("RGB", (40, 60), (240, 240, 240)).save(bright)
+    rendered = HudRenderer("portrait").render(_loop_model(str(bright), ("seed", 8)))
+
+    by_path = {path: rect for rect, path in rendered.targets.click}
+
+    def mean(rect):
+        x, y, w, h = rect
+        return float(_rgb(rendered.bgra)[y + 5:y + h - 5, x + 5:x + w - 5].mean())
+
+    lit = mean(by_path["s8.mp4"])
+    others = [mean(rect) for path, rect in by_path.items() if path != "s8.mp4"]
+    assert others and lit > max(others)
+
+
+def test_a_long_loop_marks_that_it_runs_on_past_the_map(thumb):
+    """"…" at the end of the row says the loop holds more than is drawn — without it
+    a three-cell map of a thirty-clip loop looks like the whole set."""
+    renderer = HudRenderer("portrait")
+    long_loop = renderer.render(_loop_model(thumb, ("corner", 0)))
+    short_loop = renderer.render(_loop_model(thumb, ("corner", 0), count=1))
+
+    # The mark goes in the slot the loop reserves past the end of the drawn row; a
+    # loop with nothing past its end leaves that slot blank.  Sampled inset from the
+    # slot's edges so the loop rectangle's own border is not counted as a mark.
+    def tail_ink(rendered) -> int:
+        corner_rect = rendered.targets.click[0][0]
+        seed_rects = [rect for rect, _p in rendered.targets.click[1:]]
+        _before, after = ellipsis_rects(corner_rect, seed_rects, [], "seed")
+        x, y, w, h = after
+        return int((_rgb(rendered.bgra)[y + 2:y + h - 2, x + 2:x + w - 2] > 100).sum())
+
+    assert tail_ink(long_loop) > 0
+    assert tail_ink(short_loop) == 0
+
+
+def test_a_sliding_loop_window_never_shifts_the_map(thumb):
+    """The map must hold still as the window slides — the ellipses appearing and
+    going is exactly when a shifting layout would be most distracting."""
+    renderer = HudRenderer("portrait")
+    at_start = renderer.render(_loop_model(thumb, ("corner", 0)))
+    midway = renderer.render(_loop_model(thumb, ("seed", 6)))
+
+    assert at_start.targets.click[0][0] == midway.targets.click[0][0]
+    assert at_start.targets.loop == midway.targets.loop
+    assert at_start.targets.expand == midway.targets.expand
 
 
 def test_gutter_width_fits_the_acts_present():

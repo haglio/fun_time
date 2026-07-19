@@ -23,6 +23,14 @@ from .thumbnail_cache import cached_thumbnail
 HUD_FILENAME = {"portrait": "portrait_hud.json", "landscape": "landscape_hud.json"}
 
 
+def _cell(path: str, thumb: object, label: str = "") -> dict[str, str]:
+    """One map cell as the player parses it; an absent thumbnail draws a placeholder."""
+    cell = {"path": path, "thumb": str(thumb) if thumb else ""}
+    if label:
+        cell["label"] = label
+    return cell
+
+
 def _cells(paths: list[str], cache_dir: Path, *, limit: int,
            labels: tuple[str, ...] = ()) -> list[dict[str, str]]:
     """The drawable siblings: up to *limit* clips whose thumbnail is already cached.
@@ -34,10 +42,24 @@ def _cells(paths: list[str], cache_dir: Path, *, limit: int,
     """
     by_path = dict(zip(paths, labels))
     return [
-        {"path": path, "thumb": str(thumb), **({"label": by_path[path]} if by_path.get(path) else {})}
+        _cell(path, thumb, by_path.get(path, ""))
         for path, thumb in panel_thumbnails(
             paths, cache_dir, limit=limit, thumbnailer=cached_thumbnail)
     ]
+
+
+def _loop_cells(paths: list[str], cache_dir: Path,
+                labels: tuple[str, ...] = ()) -> list[dict[str, str]]:
+    """Every clip a running loop cycles, in the loop's own order.
+
+    Neither capped nor cached-only, unlike the browse map: the player windows this
+    list around the clip on screen, so it needs the whole loop to window over, and
+    a member whose frame is not ready yet has to hold its place (as a placeholder)
+    rather than renumber the cells behind it and slide the window off the clip
+    playing.
+    """
+    by_path = dict(zip(paths, labels))
+    return [_cell(path, cached_thumbnail(path, cache_dir), by_path.get(path, "")) for path in paths]
 
 
 def hud_payload(panel: HudPanel, cache_dir: Path) -> dict:
@@ -48,13 +70,21 @@ def hud_payload(panel: HudPanel, cache_dir: Path) -> dict:
     siblings that actually made it onto the map, so the player lights exactly the
     thumbnail it drew.
     """
-    seeds = _cells(panel.seed_siblings, cache_dir, limit=SEED_LIMIT)
-    actions = _cells(panel.action_siblings, cache_dir, limit=ACTION_LIMIT,
-                     labels=panel.action_labels)
+    # The looped axis is published whole — the player windows it around the clip on
+    # screen; the other axis is the ordinary browse map, drawn to its cap.
+    seeds = (
+        _loop_cells(panel.seed_siblings, cache_dir) if panel.active_loop == "seed"
+        else _cells(panel.seed_siblings, cache_dir, limit=SEED_LIMIT)
+    )
+    actions = (
+        _loop_cells(panel.action_siblings, cache_dir, panel.action_labels)
+        if panel.active_loop == "action"
+        else _cells(panel.action_siblings, cache_dir, limit=ACTION_LIMIT,
+                    labels=panel.action_labels)
+    )
     corner = None
     if panel.current:
-        thumb = cached_thumbnail(panel.current, cache_dir)
-        corner = {"path": panel.current, "thumb": str(thumb) if thumb else ""}
+        corner = _cell(panel.current, cached_thumbnail(panel.current, cache_dir))
     playing = locate_cell(
         panel.playing, panel.current,
         [cell["path"] for cell in seeds], [cell["path"] for cell in actions],
