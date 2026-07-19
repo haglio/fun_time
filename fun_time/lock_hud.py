@@ -110,36 +110,35 @@ ACTION_LIMIT = 4
 Cell = tuple[str, int]  # ("corner", 0) | ("seed", i) | ("action", i)
 
 
+# Each direction rides one axis of the L: right/left the seed row, down/up the
+# action column.
+_AXIS_STEPS = {
+    "right": ("seed", 1),
+    "left": ("seed", -1),
+    "down": ("action", 1),
+    "up": ("action", -1),
+}
+
+
 def navigate_cell(cell: Cell, direction: str, *, seed_count: int, action_count: int) -> Cell:
     """The cell reached by moving *direction* from *cell* on the L-shaped map.
 
-    Right/left walk the seed row, down/up the action column; the corner joins
-    both axes.  Movement clamps at each end and no-ops off the axis it is on (a
-    seed has nothing below it, an action nothing to its right), so an at-the-edge
-    press simply returns *cell* unchanged.
+    Each axis is a ring with the corner at its head, so walking off either end
+    comes back around rather than dead-ending — hold a direction and you tour
+    that axis.  Two moves still keep the selection put, because there is nowhere
+    for them to go: off the axis the cell is on (a seed has nothing below it, an
+    action nothing beside it), and a ring holding only the corner.
     """
+    axis_step = _AXIS_STEPS.get(direction)
+    if axis_step is None:
+        return cell
+    axis, step = axis_step
     bucket, index = cell
-    if direction == "right":
-        if bucket == "corner":
-            return ("seed", 0) if seed_count else cell
-        if bucket == "seed":
-            return ("seed", index + 1) if index + 1 < seed_count else cell
+    if bucket not in ("corner", axis):
         return cell
-    if direction == "left":
-        if bucket == "seed":
-            return ("seed", index - 1) if index >= 1 else ("corner", 0)
-        return cell
-    if direction == "down":
-        if bucket == "corner":
-            return ("action", 0) if action_count else cell
-        if bucket == "action":
-            return ("action", index + 1) if index + 1 < action_count else cell
-        return cell
-    if direction == "up":
-        if bucket == "action":
-            return ("action", index - 1) if index >= 1 else ("corner", 0)
-        return cell
-    return cell
+    ring = (seed_count if axis == "seed" else action_count) + 1  # the corner heads it
+    position = ((0 if bucket == "corner" else index + 1) + step) % ring
+    return ("corner", 0) if position == 0 else (axis, position - 1)
 
 
 def locate_cell(current: str, corner: str, seeds: list[str], actions: list[str]) -> Cell | None:

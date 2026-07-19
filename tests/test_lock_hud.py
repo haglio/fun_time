@@ -332,19 +332,19 @@ def test_a_loop_takes_precedence_over_a_stale_nav_anchor():
 
 def test_navigate_from_the_corner_steps_onto_each_axis():
     """From the anchor, right enters the seed row and down enters the action
-    column; left/up stay put — there is nothing above or left of the corner."""
+    column; left/up come round the other way, onto each axis's last cell."""
     corner = ("corner", 0)
     assert navigate_cell(corner, "right", seed_count=3, action_count=2) == ("seed", 0)
     assert navigate_cell(corner, "down", seed_count=3, action_count=2) == ("action", 0)
-    assert navigate_cell(corner, "left", seed_count=3, action_count=2) == corner
-    assert navigate_cell(corner, "up", seed_count=3, action_count=2) == corner
+    assert navigate_cell(corner, "left", seed_count=3, action_count=2) == ("seed", 2)
+    assert navigate_cell(corner, "up", seed_count=3, action_count=2) == ("action", 1)
 
 
-def test_navigate_walks_the_seed_row_and_clamps_at_its_end():
+def test_navigate_walks_the_seed_row_and_wraps_past_its_end():
     assert navigate_cell(("seed", 0), "right", seed_count=3, action_count=0) == ("seed", 1)
     assert navigate_cell(("seed", 1), "right", seed_count=3, action_count=0) == ("seed", 2)
-    # Already on the last seed — right has nowhere to go.
-    assert navigate_cell(("seed", 2), "right", seed_count=3, action_count=0) == ("seed", 2)
+    # Off the last seed, right comes round to the corner the row started from.
+    assert navigate_cell(("seed", 2), "right", seed_count=3, action_count=0) == ("corner", 0)
 
 
 def test_navigate_walks_the_seed_row_back_to_the_corner():
@@ -352,9 +352,9 @@ def test_navigate_walks_the_seed_row_back_to_the_corner():
     assert navigate_cell(("seed", 0), "left", seed_count=3, action_count=0) == ("corner", 0)
 
 
-def test_navigate_walks_the_action_column_and_clamps_at_its_end():
+def test_navigate_walks_the_action_column_and_wraps_past_its_end():
     assert navigate_cell(("action", 0), "down", seed_count=0, action_count=2) == ("action", 1)
-    assert navigate_cell(("action", 1), "down", seed_count=0, action_count=2) == ("action", 1)
+    assert navigate_cell(("action", 1), "down", seed_count=0, action_count=2) == ("corner", 0)
     assert navigate_cell(("action", 1), "up", seed_count=0, action_count=2) == ("action", 0)
     assert navigate_cell(("action", 0), "up", seed_count=0, action_count=2) == ("corner", 0)
 
