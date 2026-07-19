@@ -10,6 +10,7 @@ PID Windows has since recycled is recognised rather than shot.
 """
 from __future__ import annotations
 
+import socket
 from unittest.mock import patch
 
 import pytest
@@ -20,8 +21,40 @@ from tests.integration import integration_support
 from tests.integration.integration_support import (
     INTEGRATION_CONFIG_NAME,
     FunTimeIntegrationSession,
-    isolate_audio_companion_port,
+    close_udp_sinks,
+    isolate_shared_udp_ports,
 )
+
+
+BROKER_TCODE_PORT = 50557
+GENAU_INBOUND_PORT = 50555
+AUDIO_COMPANION_PORT = 50556
+
+
+def _real_ports() -> tuple[dict, dict]:
+    """The two configs as the user's session has them, sharing the machine's ports."""
+    config = {"audio_companion": {"host": "127.0.0.1", "port": AUDIO_COMPANION_PORT}}
+    genau_config = {
+        "genau": {
+            "udp_port": GENAU_INBOUND_PORT,
+            "notify_host": "127.0.0.1",
+            "notify_port": AUDIO_COMPANION_PORT,
+            "tcode_udp_port": BROKER_TCODE_PORT,
+        },
+        "nau": {"tcode_udp_port": BROKER_TCODE_PORT},
+    }
+    return config, genau_config
+
+
+@pytest.fixture
+def isolated_ports():
+    """The rewritten pair, with the run's sink ports released afterwards."""
+    config, genau_config = _real_ports()
+    isolate_shared_udp_ports(config, genau_config)
+    try:
+        yield config, genau_config
+    finally:
+        close_udp_sinks()
 
 
 def _completed(stdout: str):
@@ -129,7 +162,7 @@ def test_the_orchestrator_wait_only_ever_waits_on_integration_orchestrators(sess
     assert INTEGRATION_CONFIG_NAME.removesuffix(".json") in ps_command
 
 
-def test_the_integration_config_never_shares_the_live_sessions_audio_port():
+def test_the_integration_config_never_shares_the_live_sessions_audio_port(isolated_ports):
     """The audio companion binds a fixed UDP port, and ``build_integration_config``
     rewrote only *paths* — so a run and a live session raced for one socket.
 
@@ -139,12 +172,56 @@ def test_the_integration_config_never_shares_the_live_sessions_audio_port():
     while both were up, Genau's notifications went to whichever companion won,
     which need not be its own session's.
     """
-    config = {"audio_companion": {"host": "127.0.0.1", "port": 50556}}
-    genau_config = {"genau": {"notify_host": "127.0.0.1", "notify_port": 50556}}
+    config, genau_config = isolated_ports
 
-    isolate_audio_companion_port(config, genau_config)
-
-    assert config["audio_companion"]["port"] != 50556
+    assert config["audio_companion"]["port"] != AUDIO_COMPANION_PORT
     # Sender and receiver have to move together: Genau notifies the port the
     # companion is listening on, so rewriting one alone just breaks the run.
     assert genau_config["genau"]["notify_port"] == config["audio_companion"]["port"]
+
+
+def test_the_integration_config_never_streams_tcode_to_the_machines_broker(isolated_ports):
+    """T-Code is the one output that reaches hardware, and it leaves by UDP.
+
+    Nau and Genau both stream to the broker's inlet, and the broker holds the
+    OSR2's serial port — one process, one device, for the whole machine.  A run
+    that keeps the production inlet therefore drives the user's OSR2 while they
+    are using it, and no amount of desktop or state-dir isolation touches that:
+    a socket is not per-desktop.  This is the leak the whole live-session guard
+    existed to work around.
+
+    Both senders move to one port together, so a future test can watch a run's
+    own stream where it lands.
+    """
+    _config, genau_config = isolated_ports
+
+    assert genau_config["genau"]["tcode_udp_port"] != BROKER_TCODE_PORT
+    assert genau_config["nau"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
+
+
+def test_the_runs_tcode_port_is_bound_so_the_stream_has_somewhere_to_land(isolated_ports):
+    """Moving T-Code off the broker is not enough — it has to arrive somewhere.
+
+    ``UdpTCodeSink.send`` is a bare ``sendto`` with no handler.  A datagram sent
+    at a port nothing has bound draws an ICMP port-unreachable, which Windows
+    hands back to the sender as WSAECONNRESET on a later call — so an unbound
+    port would kill Genau's T-Code thread with an error the isolation invented.
+    Binding it absorbs the stream the way the broker does.
+    """
+    _config, genau_config = isolated_ports
+    port = genau_config["genau"]["tcode_udp_port"]
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rival:
+        with pytest.raises(OSError):
+            rival.bind(("127.0.0.1", port))
+
+
+def test_the_integration_config_never_shares_genaus_inbound_socket(isolated_ports):
+    """Genau *binds* its UDP port to hear from the broker, and binds it with
+    SO_REUSEADDR — which on Windows lets a second Genau bind the same port
+    rather than refusing it.  Two Genaus then split one datagram stream between
+    them at random, so a run's Genau would swallow packets meant for the user's.
+    """
+    _config, genau_config = isolated_ports
+
+    assert genau_config["genau"]["udp_port"] != GENAU_INBOUND_PORT
