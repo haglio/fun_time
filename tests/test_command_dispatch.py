@@ -473,6 +473,16 @@ def test_nau_length_full_writes_set_length_mode(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full"
 
 
+def test_nau_length_mixed_writes_set_length_mode(tmp_path: Path):
+    """The unfiltered mode Nau opens in, and the way back to it from either half."""
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    dispatch_command("nau_length_mixed", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE mixed"
+
+
 def test_nau_length_mode_written_in_hybrid_mode(tmp_path: Path):
     """Nau owns the display in hybrid too, so length/version actions apply."""
     config = _make_config(tmp_path)
@@ -1555,7 +1565,9 @@ def test_leaving_hybrid_reenables_nau_tcode(tmp_path: Path):
 
     dispatch_command("nau_activate", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_TCODE_ENABLED 1"
+    assert config.nau_cmd_file.read_text(encoding="utf-8").splitlines() == [
+        "SET_HYBRID 0", "SET_TCODE_ENABLED 1",
+    ]
 
 
 # --- genau command forwarding (_GENAU_CMD_MAP) ---

@@ -98,8 +98,15 @@ def apply_mode_switch(
         ]
         if cmds:
             Path(genau_cmd_file).write_text("\n".join(cmds), encoding="utf-8")
+        # Nau is told which mode the primary slot is in on every switch: in
+        # hybrid, Genau's window is a transparent layer over Nau's and its own
+        # panel holds the top-left corner, so Nau starts its own furniture past
+        # it.  Written together with the T-Code re-enable rather than after it,
+        # because this file is overwritten, not appended.
+        nau_cmds = [f"SET_HYBRID {int(plan.target_mode == 'hybrid')}"]
         if plan.reenable_nau_tcode:
-            Path(nau_cmd_file).write_text("SET_TCODE_ENABLED 1", encoding="utf-8")
+            nau_cmds.append("SET_TCODE_ENABLED 1")
+        Path(nau_cmd_file).write_text("\n".join(nau_cmds), encoding="utf-8")
         if not will_genau and broker_cmd_file is not None:
             write_broker_command(broker_cmd_file, RESUME_CMD)
     return ModeSwitchFlowResult(
