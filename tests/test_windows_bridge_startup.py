@@ -44,6 +44,33 @@ def test_stop_broker_processes_is_a_machine_wide_sweep_with_nothing_to_scope():
     assert "cwd" not in run.call_args.kwargs
 
 
+def test_the_sweep_reaches_the_tray_now_that_it_is_a_python_process():
+    """osr2_broker's tray became `pythonw -m osr2_broker.tray`.
+
+    Missed by the sweep, it would survive the kill and immediately restart the
+    broker we just stopped.
+    """
+    import re
+
+    from fun_time.orchestrator_broker import BROKER_TRAY_PATTERN
+
+    tray_command_line = (
+        r'"C:\path\to\suite-root\projects\osr2_broker\.venv\Scripts\pythonw.exe" '
+        r'-m osr2_broker.tray --config '
+        r'C:\path\to\suite-root\projects\osr2_broker\osr2_broker_config.json'
+    )
+    assert re.search(BROKER_TRAY_PATTERN, tray_command_line)
+
+    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        stop_broker_processes()
+
+    ps_command = run.call_args.args[0][-1]
+    python_clause = ps_command.split("-or")[0]
+    assert BROKER_TRAY_PATTERN in python_clause
+
+
 def test_launch_broker_tray_uses_the_brokers_own_launch_kwargs(tmp_path: Path):
     """The tray launches with the broker's own kwargs, not the ordinary
     hidden-window ones: it has to break away from an integration run's job
