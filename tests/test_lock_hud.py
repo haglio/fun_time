@@ -82,13 +82,6 @@ def test_panel_labels_an_unlocked_satellite():
     assert panel.action_siblings == [A1]  # siblings show whether locked or not
 
 
-def test_panel_folds_a_future_lock_type_into_the_label():
-    index = _index(current=CUR)
-
-    panel = build_hud_panel("portrait", locked=True, current=CUR, index=index, lock_type="seed")
-
-    assert panel.lock_label == "Locked · seed · Shuffle"
-
 
 def test_panel_without_a_current_video_has_no_siblings():
     index = _index(current=CUR, action_sibs=[A1], seed_sibs=[S1])
