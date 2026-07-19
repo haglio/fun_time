@@ -28,7 +28,7 @@ from .startup_progress import (
 )
 from .hud_transport import HUD_FILENAME, HudPublisher
 from .lock_hud import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails, prime_group_indexes
-from .loopback_server import LOOPBACK_PORT, serve_loopback
+from .loopback_server import serve_loopback
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -515,13 +515,15 @@ def run_python_orchestrated_bridge(
 
     # Serve the Provider autofill userscript so Tampermonkey can auto-update it
     # instead of needing a hand-paste after every edit, and answer the RFB tab
-    # pages when they ask whether the session is paused. A busy port (a second
-    # Fun Time, a leftover server) is not worth failing startup over.
+    # pages when they ask whether the session is paused. The port comes from
+    # config so a session started alongside another can serve somewhere of its
+    # own; a busy one (a leftover server) is not worth failing startup over.
+    loopback_port = int(manifest["loopback"]["port"])
     try:
-        serve_loopback(omni_paused=lambda: dispatch_runner.state.omni_paused)
-        logger.info("Loopback server started on 127.0.0.1:%d", LOOPBACK_PORT)
+        serve_loopback(port=loopback_port, omni_paused=lambda: dispatch_runner.state.omni_paused)
+        logger.info("Loopback server started on 127.0.0.1:%d", loopback_port)
     except OSError:
-        logger.warning("Loopback server not started (port %d busy)", LOOPBACK_PORT, exc_info=True)
+        logger.warning("Loopback server not started (port %d busy)", loopback_port, exc_info=True)
 
     # --- Optional voice control ---
     voice_controller: VoiceController | None = None

@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .loopback_server import LOOPBACK_PORT
+
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "fun_time_config.json"
 
@@ -132,6 +134,10 @@ class ProjectConfig:
     random_favs_browser: RandomFavsBrowserConfig
     voice_control: VoiceControlConfig
     regen: RegenConfig
+    # The one port this session serves on, and the last fixed one it claims.
+    # Named here so a second session can be given one of its own; the default is
+    # what the userscript's @updateURL is pinned to.
+    loopback_port: int = LOOPBACK_PORT
 
     @property
     def genau_mode_file(self) -> Path:
@@ -341,6 +347,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         random_favs_browser=_load_random_favs_browser_config(browser_raw),
         voice_control=_load_voice_control_config(voice_raw),
         regen=_load_regen_config(regen_raw),
+        loopback_port=int(raw.get("loopback_port", LOOPBACK_PORT)),
     )
 
 

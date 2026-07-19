@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.config import (
     ProjectConfig,
     _require_dict,
@@ -324,3 +325,28 @@ class TestVoiceControlConfig:
         path = cfg_factory({"voice_control": "not-a-dict"})
         with pytest.raises(TypeError):
             load_config(path)
+
+
+# ---------------------------------------------------------------------------
+# loopback_port
+# ---------------------------------------------------------------------------
+
+class TestLoopbackPort:
+    """The loopback server's port is the last fixed port a session claims.
+
+    It is machine-wide, so a second session — an integration run, above all —
+    finds it busy and comes up without a loopback server at all: Tampermonkey
+    stops auto-updating and the RFB tab pages never hear about OmniPause, with
+    only a log line to say so.  Naming it in config is what lets a run take one
+    of its own; the default stays the port the userscript's @updateURL is pinned
+    to, so nothing about a real session changes.
+    """
+
+    def test_defaults_to_the_port_the_userscript_is_pinned_to(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.loopback_port == LOOPBACK_PORT
+
+    def test_a_session_can_be_given_a_port_of_its_own(self, cfg_factory):
+        path = cfg_factory({"loopback_port": 54321})
+        cfg = load_config(path)
+        assert cfg.loopback_port == 54321

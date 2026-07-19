@@ -418,6 +418,13 @@ def _free_udp_port() -> int:
         return probe.getsockname()[1]
 
 
+def _free_tcp_port() -> int:
+    """A loopback TCP port the OS says is free, for the run's own server to bind."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
 def _sink_udp_port() -> int:
     """A loopback port bound here for the rest of the run, and never read.
 
@@ -513,6 +520,12 @@ def isolate_shared_resources(config: dict, genau_config: dict) -> None:
     behaviour that only the tests exercise.
     """
     _isolate_shared_udp_ports(config, genau_config)
+
+    # The loopback server binds a fixed TCP port, and the loser of a race for it
+    # loses the surface entirely: no Tampermonkey auto-update, and RFB tab pages
+    # that never learn about OmniPause.  Startup treats a busy port as a warning
+    # rather than a failure, so the loss is silent.
+    config["loopback_port"] = _free_tcp_port()
 
     # The broker is a machine singleton holding the OSR2's serial port, and it
     # outlives the sessions that use it.  Without a launcher a run cannot start

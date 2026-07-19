@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pytest
 
 from fun_time import windows_bridge_orchestrator
+from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from tests.integration import integration_support
 from tests.integration.integration_support import (
@@ -37,6 +38,7 @@ def _the_users_config() -> tuple[dict, dict]:
         "audio_companion": {"host": "127.0.0.1", "port": AUDIO_COMPANION_PORT},
         "paths": {"broker_tray_launcher": "../osr2_broker/launch_broker_tray.vbs"},
         "voice_control": {"enabled": True, "device_name": "Brio"},
+        "loopback_port": LOOPBACK_PORT,
     }
     genau_config = {
         "genau": {
@@ -218,6 +220,17 @@ def test_the_runs_tcode_port_is_bound_so_the_stream_has_somewhere_to_land(isolat
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rival:
         with pytest.raises(OSError):
             rival.bind(("127.0.0.1", port))
+
+
+def test_a_run_serves_its_loopback_surface_somewhere_of_its_own(isolated_ports):
+    """8770 is machine-wide, and the loser of a race for it loses the surface
+    entirely — a warning in a log, then no Tampermonkey auto-update and RFB tab
+    pages that never hear about OmniPause.  A run held it for minutes at a time
+    and the guard is what kept the user's session from being that loser.
+    """
+    config, _genau_config = isolated_ports
+
+    assert config["loopback_port"] != LOOPBACK_PORT
 
 
 def test_a_run_never_starts_or_adopts_the_machines_broker(isolated_ports):

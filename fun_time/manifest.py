@@ -75,6 +75,9 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
         "dashboard": {
             "enabled": "1" if dashboard_enabled else "0",
         },
+        "loopback": {
+            "port": str(config.loopback_port),
+        },
         "layout": {
             "main_monitor": str(layout.main_monitor),
             "secondary_monitor": str(layout.secondary_monitor),
