@@ -343,3 +343,13 @@ _shadowed = set(_filter_commands) & set(VOICE_COMMANDS)
 if _shadowed:
     raise RuntimeError(f"filter phrases collide with existing voice commands: {sorted(_shadowed)}")
 VOICE_COMMANDS.update(_filter_commands)
+
+
+# Commands whose outcome only Nau knows: it flashes the result itself (the clip
+# it jumped to, or "full video not available"), so confirming recognition here
+# too would stack a green toast under a red correction.
+SELF_REPORTING_COMMANDS = frozenset({
+    "nau_compilation",
+    "nau_full_vid",
+    "nau_money_shot",
+})

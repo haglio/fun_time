@@ -23,7 +23,12 @@ from fun_time.event_log import (
     notice,
 )
 from fun_time.mic_selection import resolve_input_device
-from fun_time.voice_commands import VOICE_COMMANDS, append_command_line, format_spoken_command
+from fun_time.voice_commands import (
+    SELF_REPORTING_COMMANDS,
+    VOICE_COMMANDS,
+    append_command_line,
+    format_spoken_command,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +235,8 @@ class VoiceController:
         if interp.command:
             logger.info("Voice command: %s (spoken %.2fs before recognition)",
                         interp.command, time.monotonic() - spoken_at)
-            if self._write_command(interp.command, spoken_at=spoken_at):
+            dispatched = self._write_command(interp.command, spoken_at=spoken_at)
+            if dispatched and interp.command not in SELF_REPORTING_COMMANDS:
                 notice(
                     logger,
                     friendly_voice(interp.phrase or interp.command),
