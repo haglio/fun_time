@@ -9,6 +9,10 @@ class ModeSwitchPlan:
     is_transition: bool
     genau_cmd: str | None
     hud_cmd: str | None
+    # Whether Genau paints its clips or goes black.  Distinct from genau_cmd:
+    # PAUSE stops the hand (it still shows the clip it's resting on), while
+    # DISPLAY_OFF blanks the window in the modes that don't show Genau at all.
+    display_cmd: str | None
     nau_should_play: bool | None
     log_message: str
     # Leaving hybrid re-enables Nau's funscript T-Code: the per-video arbiter
@@ -49,6 +53,7 @@ def build_mode_switch_plan(
             is_transition=False,
             genau_cmd=None,
             hud_cmd=None,
+            display_cmd=None,
             nau_should_play=None,
             log_message=f"Already in {target_mode} mode",
         )
@@ -59,6 +64,7 @@ def build_mode_switch_plan(
             is_transition=False,
             genau_cmd=None,
             hud_cmd=None,
+            display_cmd=None,
             nau_should_play=None,
             log_message=f"Mode set to {target_mode} (omnipaused)",
         )
@@ -90,6 +96,7 @@ def build_mode_switch_plan(
         is_transition=True,
         genau_cmd=genau_cmd,
         hud_cmd=hud_cmd,
+        display_cmd="DISPLAY_ON" if will_genau else "DISPLAY_OFF",
         nau_should_play=nau_should_play,
         log_message=f"Switched to {target_mode} mode",
         reenable_nau_tcode=current_mode == "hybrid" and target_mode != "hybrid",
