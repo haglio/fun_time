@@ -18,6 +18,7 @@ from satellite.hud import (
     friendly_action_label,
     hit_test_targets,
     loop_button_rects,
+    loop_window,
     parse_hud,
     thumbnail_rects,
 )
@@ -69,6 +70,63 @@ def test_parse_hud_rejects_junk():
     crash the player — it just keeps the HUD it already had."""
     assert parse_hud('{"side": "portrait"') is None
     assert parse_hud("") is None
+
+
+# --- the window a long loop is drawn through ---------------------------------
+# 30px cells with MAP_GAP (5) between them: 110px of room holds exactly three
+# (30 + 35 + 35), which is about what a real satellite panel fits.
+_CELLS = [30] * 12
+_ROOM_FOR_THREE = 110
+
+
+def test_a_loop_short_enough_to_fit_is_drawn_whole():
+    window = loop_window([30, 30, 30], playing=0, available=_ROOM_FOR_THREE)
+
+    assert (window.start, window.count) == (0, 3)
+    assert window.more_before is False
+    assert window.more_after is False
+
+
+def test_a_loop_just_started_opens_on_the_clip_on_screen():
+    """The loop's head is the clip it started on, so at that moment the window opens
+    there — the clip you pressed loop on is drawn in the corner, never mid-row."""
+    window = loop_window(_CELLS, playing=0, available=_ROOM_FOR_THREE)
+
+    assert (window.start, window.count) == (0, 3)
+    assert window.more_after is True
+    assert window.more_before is False
+
+
+def test_a_loop_partway_through_keeps_the_clip_on_screen_in_the_middle():
+    """Once the loop has advanced past the first cells the window slides with it, so
+    the lit thumbnail stays in the middle instead of walking off the end of the map
+    and leaving nothing highlighted."""
+    window = loop_window(_CELLS, playing=5, available=_ROOM_FOR_THREE)
+
+    assert (window.start, window.count) == (4, 3)  # 4, 5, 6 — the playing one centred
+    assert window.more_before is True
+    assert window.more_after is True
+
+
+def test_a_loop_near_its_end_clamps_rather_than_running_off():
+    window = loop_window(_CELLS, playing=11, available=_ROOM_FOR_THREE)
+
+    assert (window.start, window.count) == (9, 3)
+    assert window.more_before is True
+    assert window.more_after is False
+
+
+def test_a_cell_too_big_for_the_room_is_still_drawn():
+    """A clipped thumbnail beats a map with nothing on it at all."""
+    window = loop_window([300], playing=0, available=100)
+
+    assert (window.start, window.count) == (0, 1)
+
+
+def test_an_empty_axis_has_no_window():
+    window = loop_window([], playing=0, available=200)
+
+    assert (window.start, window.count) == (0, 0)
 
 
 def test_thumbnail_rects_positions_the_map_and_drops_overflow():

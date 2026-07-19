@@ -11,7 +11,7 @@ handed to mpv as a BGRA array.  The layout and hit-test rects come from
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -20,6 +20,7 @@ from .hud import (
     ACT_GAP,
     COL_LABEL_GAP,
     COL_LABEL_H,
+    ELLIPSIS,
     LOCK_BAND_H,
     LOOP_BTN,
     MAP_GAP,
@@ -28,17 +29,23 @@ from .hud import (
     MIN_GUTTER,
     PAD,
     PANEL_SIZE,
+    ROW_GAP,
     STATUS_LINE_H,
     HudCell,
     HudModel,
     HudTargets,
+    LoopWindow,
     Rect,
     action_label_blocks,
     build_click_targets,
     build_label_targets,
+    ellipsis_rects,
     expand_button_rect,
     friendly_action_label,
     loop_button_rects,
+    looped_group_box,
+    loop_window,
+    seed_column_label,
     thumbnail_rects,
 )
 
@@ -55,6 +62,8 @@ _PANEL_ALPHA = 224
 _TOOLTIP_ALPHA = 240
 _DIM = 0.5      # non-playing thumbnails; the one on screen stays full
 _BORDER_W = 2   # the lock ring around the corner
+_DOT = 2        # radius of one dot in a loop's "…" mark
+_DOT_GAP = 4    # centre-to-centre spacing of those dots along the looped axis
 
 # Qt sized these fonts in points; Pillow sizes in pixels, so convert at the
 # standard 96 dpi (points * 96/72) to keep the panel looking as it did.
@@ -201,19 +210,31 @@ class HudRenderer:
             return RenderedHud(_rgba_to_bgra(image),
                                HudTargets(click=[], loop=[], label=[], expand=None))
 
+        # Sized from the whole model, before any windowing, so the gutter does not
+        # change width as a loop's window slides along.
         gutter_w = gutter_width_for(self._row, model.current_action,
                                     tuple(cell.label for cell in model.actions))
         right, bottom = width - PAD, height - PAD
-        corner_thumb = self._thumbnail(model.corner)
-        seed_thumbs = [self._thumbnail(cell) for cell in model.seeds]
-        action_thumbs = [self._thumbnail(cell) for cell in model.actions]
+        # A running loop keeps room at both ends of the axis it cycles for the "…"
+        # marks, and is drawn through a window that follows the clip on screen.  The
+        # room is held for as long as the loop runs, whether or not there is anything
+        # past the ends right now, so the map never shifts as the window slides.
+        reserve_row = ELLIPSIS + MAP_GAP if model.active_loop == "seed" else 0
+        reserve_col = ELLIPSIS + MAP_GAP if model.active_loop == "action" else 0
+        map_x = x + gutter_w + reserve_row
+        map_y = y + COL_LABEL_H + COL_LABEL_GAP + reserve_col
         # Reserve room past the map for its buttons — the seed-loop + expand
         # buttons sit right of the seed row, the action-loop button below the
         # column — so a widened row can never push them off the panel.
+        map_right = right - (2 * LOOP_BTN + 2 * MAP_GAP) - reserve_row
+        map_bottom = bottom - (LOOP_BTN + MAP_GAP) - reserve_col
+        model, window = self._window(model, room_x=map_right - map_x, room_y=map_bottom - map_y)
+
+        corner_thumb = self._thumbnail(model.corner)
+        seed_thumbs = [self._thumbnail(cell) for cell in model.seeds]
+        action_thumbs = [self._thumbnail(cell) for cell in model.actions]
         corner_rect, seed_rects, action_rects = thumbnail_rects(
-            map_x=x + gutter_w, map_y=y + COL_LABEL_H + COL_LABEL_GAP,
-            right=right - (2 * LOOP_BTN + 2 * MAP_GAP),
-            bottom=bottom - (LOOP_BTN + MAP_GAP),
+            map_x=map_x, map_y=map_y, right=map_right, bottom=map_bottom,
             corner_size=corner_thumb.size,
             seed_sizes=[thumb.size for thumb in seed_thumbs],
             action_sizes=[thumb.size for thumb in action_thumbs],
@@ -226,13 +247,19 @@ class HudRenderer:
             draw.rectangle([cx, cy, cx + cw - 1, cy + ch - 1],
                            outline=(*_WHITE, 255), width=_BORDER_W)
         self._draw_labels(image, draw, model, x, y, gutter_w,
-                          corner_rect, seed_rects, action_rects)
+                          corner_rect, seed_rects, action_rects,
+                          seed_offset=window.start if window and model.active_loop == "seed" else 0)
 
         loop_action_rect, loop_seed_rect = loop_button_rects(
-            corner_rect, seed_rects, action_rects, right, bottom)
+            corner_rect, seed_rects, action_rects, right, bottom,
+            reserve_row=reserve_row, reserve_col=reserve_col)
         expand_rect = expand_button_rect(loop_seed_rect, right)
         self._draw_loop_controls(draw, corner_rect, loop_action_rect, loop_seed_rect,
-                                 seed_rects, action_rects, model.active_loop, hover_loop)
+                                 seed_rects, action_rects, model.active_loop, hover_loop,
+                                 reserve=reserve_row or reserve_col)
+        if window is not None:
+            self._draw_ellipses(draw, corner_rect, seed_rects, action_rects,
+                                model.active_loop, window)
         if expand_rect is not None:
             ex, ey, ew, eh = expand_rect
             draw.rounded_rectangle([ex, ey, ex + ew - 1, ey + eh - 1], radius=3,
@@ -256,6 +283,62 @@ class HudRenderer:
         )
         return RenderedHud(_rgba_to_bgra(image), targets)
 
+    def _window(self, model: HudModel, *, room_x: int, room_y: int) -> tuple[HudModel, LoopWindow | None]:
+        """*model* narrowed to the run of a running loop that is actually drawn.
+
+        A loop can hold far more clips than the map has room for.  Rather than draw
+        its first few and leave the clip on screen off the map once it advances past
+        them — which showed as the highlight vanishing onto an unrecognisable video —
+        the looped axis is drawn through a window that keeps the playing clip near
+        the middle.  Narrowing the model here means everything downstream (rects,
+        labels, hit targets, the bright cell) works off the drawn cells alone,
+        exactly as it does for an ordinary browse map.
+        """
+        if model.corner is None or model.active_loop not in ("seed", "action"):
+            return model, None
+        seeds = model.active_loop == "seed"
+        strip = [model.corner, *(model.seeds if seeds else model.actions)]
+        bucket, index = model.playing
+        playing = 0 if bucket == "corner" else index + 1
+        # Along the row the cells differ in width, so they are measured; down the
+        # column every thumbnail is scaled to one height, so none need decoding.
+        sizes = [self._thumbnail(cell).width for cell in strip] if seeds else [MAP_THUMB_H] * len(strip)
+        window = loop_window(sizes, playing, room_x if seeds else room_y,
+                             gap=MAP_GAP if seeds else ROW_GAP)
+        visible = strip[window.start:window.start + window.count]
+        if not visible:
+            return model, None
+        corner, rest = visible[0], tuple(visible[1:])
+        lit = playing - window.start
+        cell = ("corner", 0) if lit == 0 else (model.active_loop, lit - 1)
+        narrowed = replace(model, corner=corner, playing=cell,
+                           **({"seeds": rest} if seeds else {"actions": rest}))
+        if not seeds:
+            # A windowed column can open on a sibling act, so the corner's row label
+            # comes from the cell drawn there rather than the anchor's own action.
+            narrowed = replace(narrowed, current_action=corner.label or model.current_action)
+        return narrowed, window
+
+    def _draw_ellipses(self, draw, corner_rect, seed_rects, action_rects, axis, window) -> None:
+        """Three dots in the slots the loop reserved, on whichever side it runs on
+        past the map — along the row, down the column.  They sit inside the loop's own
+        rectangle, so they read as "more of these are in the loop" rather than as
+        something outside it.
+
+        Drawn rather than typed: an "…" glyph hangs off the text baseline, which in a
+        slot this small puts it against the bottom edge instead of in the middle.
+        """
+        before, after = ellipsis_rects(corner_rect, seed_rects, action_rects, axis)
+        for rect, show in ((before, window.more_before), (after, window.more_after)):
+            if not show:
+                continue
+            bx, by, bw, bh = rect
+            mx, my = bx + bw / 2, by + bh / 2
+            for step in (-1, 0, 1):
+                dx, dy = (step * _DOT_GAP, 0) if axis == "seed" else (0, step * _DOT_GAP)
+                draw.ellipse([mx + dx - _DOT, my + dy - _DOT, mx + dx + _DOT, my + dy + _DOT],
+                             fill=(*_TEXT_PRIMARY, 255))
+
     def _draw_thumbnails(self, image, model, corner_rect, seed_rects, action_rects,
                          corner_thumb, seed_thumbs, action_thumbs) -> None:
         """Paste the map, with only the clip actually on screen at full opacity.
@@ -277,7 +360,7 @@ class HudRenderer:
             image.alpha_composite(thumb, (rx, ry))
 
     def _draw_labels(self, image, draw, model, x, y, gutter_w, corner_rect, seed_rects,
-                     action_rects) -> None:
+                     action_rects, *, seed_offset: int = 0) -> None:
         """Column labels ("Seed N") in the header strip and action names down the
         left gutter, drawn over the (possibly dimmed) thumbnails at full opacity."""
         def column(cx: int, cw: int, text: str) -> None:
@@ -306,24 +389,29 @@ class HudRenderer:
                 ty += ACT_GAP
 
         cx, cy, cw, ch = corner_rect
-        column(cx, cw, "Seed 1")
+        # Offset by where a windowed loop opens, so the headers carry each seed's
+        # real place in the family instead of restarting at one every window.
+        column(cx, cw, seed_column_label(seed_offset))
         row(cy, ch, model.current_action)
         for i, (sx, _sy, sw, _sh) in enumerate(seed_rects):
-            column(sx, sw, f"Seed {i + 2}")
+            column(sx, sw, seed_column_label(seed_offset + i + 1))
         for i, (_ax, ay, _aw, ah) in enumerate(action_rects):
             row(ay, ah, model.actions[i].label if i < len(model.actions) else "")
 
     def _draw_loop_controls(self, draw, corner_rect, loop_action_rect, loop_seed_rect,
-                            seed_rects, action_rects, active_loop, hover_loop) -> None:
+                            seed_rects, action_rects, active_loop, hover_loop,
+                            *, reserve: int = 0) -> None:
         """The two loop buttons, and — while one is hovered or its loop is on — a
         border around the videos it loops (dashed for a hover preview, solid once
-        on)."""
-        cx, cy, cw, ch = corner_rect
-        col_bottom = max([cy + ch] + [ay + ah for _ax, ay, _aw, ah in action_rects])
-        row_right = max([cx + cw] + [sx + sw for sx, _sy, sw, _sh in seed_rects])
+        on).  The running loop's border also wraps the room kept for its "…" marks,
+        so the clips they stand for read as part of the looped set."""
         boxes = {
-            "action": (loop_action_rect, (cx, cy, cw, col_bottom - cy)),
-            "seed": (loop_seed_rect, (cx, cy, row_right - cx, ch)),
+            kind: (
+                button,
+                looped_group_box(corner_rect, seed_rects, action_rects, kind,
+                                 reserve=reserve if active_loop == kind else 0),
+            )
+            for kind, button in (("action", loop_action_rect), ("seed", loop_seed_rect))
         }
         for kind, (button, group_box) in boxes.items():
             if button is None:

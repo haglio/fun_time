@@ -75,6 +75,64 @@ class HudModel:
 
 # --- map geometry ------------------------------------------------------------
 
+# Room kept at each end of a looped axis for the "…" that says the loop runs on
+# past what is drawn.  Held for as long as the loop runs, whether or not there is
+# anything past the ends right now, so the map never shifts as the window slides.
+ELLIPSIS = 14
+
+
+@dataclass(frozen=True)
+class LoopWindow:
+    """Which run of a looped axis is drawn, and whether the loop runs on past it."""
+
+    start: int
+    count: int
+    more_before: bool
+    more_after: bool
+
+
+def loop_window(sizes: list[int], playing: int, available: int, *, gap: int = MAP_GAP) -> LoopWindow:
+    """The run of cells to draw from a looped axis, keeping *playing* near its middle.
+
+    *sizes* are the cells' extents along the axis (widths across the seed row,
+    heights down the action column) and *available* is the room they share.  The run
+    always holds *playing* and grows outward from it, alternating sides and taking
+    the right first: a loop whose head is still on screen therefore fills away from
+    the corner, while one partway through keeps the clip on screen in the middle —
+    which is what stops the lit cell walking off the end of the map and leaving
+    nothing highlighted at all.  A single cell too big for the room is still drawn.
+    """
+    if not sizes:
+        return LoopWindow(0, 0, False, False)
+    playing = max(0, min(playing, len(sizes) - 1))
+    start, end = playing, playing + 1
+    used = sizes[playing]
+    while True:
+        sides = []
+        if end < len(sizes):
+            sides.append(True)
+        if start > 0:
+            sides.append(False)
+        if not sides:
+            break
+        # Take from whichever side has been given fewer cells so far — that is what
+        # centres *playing* — with the right winning ties so a fresh loop reads left
+        # to right.  A side that no longer fits defers to the other.
+        sides.sort(key=lambda right: (end - playing - 1) if right else (playing - start))
+        for right in sides:
+            cost = sizes[end if right else start - 1] + gap
+            if used + cost > available:
+                continue
+            used += cost
+            if right:
+                end += 1
+            else:
+                start -= 1
+            break
+        else:
+            break
+    return LoopWindow(start, end - start, start > 0, end < len(sizes))
+
 
 def thumbnail_rects(
     *,
@@ -113,26 +171,80 @@ def thumbnail_rects(
     return corner, seeds, actions
 
 
+def _row_right(corner_rect: Rect, seed_rects: list[Rect]) -> int:
+    cx, _cy, cw, _ch = corner_rect
+    return max([cx + cw] + [sx + sw for sx, _sy, sw, _sh in seed_rects])
+
+
+def _col_bottom(corner_rect: Rect, action_rects: list[Rect]) -> int:
+    _cx, cy, _cw, ch = corner_rect
+    return max([cy + ch] + [ay + ah for _ax, ay, _aw, ah in action_rects])
+
+
 def loop_button_rects(
     corner_rect: Rect | None,
     seed_rects: list[Rect],
     action_rects: list[Rect],
     right: int,
     bottom: int,
+    *,
+    reserve_row: int = 0,
+    reserve_col: int = 0,
 ) -> tuple[Rect | None, Rect | None]:
     """``(loop_action_rect, loop_seed_rect)``: a button below the action column
     and one right of the seed row — or None for either that would overflow the
-    panel.  The action button loops the column, the seed button the row."""
+    panel.  The action button loops the column, the seed button the row.
+
+    *reserve_row* / *reserve_col* are the room a running loop keeps past the end of
+    the axis it cycles for its "…" mark, so the button clears it.
+    """
     if corner_rect is None:
         return None, None
     cx, cy, cw, ch = corner_rect
-    col_bottom = max([cy + ch] + [ay + ah for _ax, ay, _aw, ah in action_rects])
-    loop_action_y = col_bottom + MAP_GAP
+    loop_action_y = _col_bottom(corner_rect, action_rects) + reserve_col + MAP_GAP
     loop_action = (cx, loop_action_y, cw, LOOP_BTN) if loop_action_y + LOOP_BTN <= bottom else None
-    row_right = max([cx + cw] + [sx + sw for sx, _sy, sw, _sh in seed_rects])
-    loop_seed_x = row_right + MAP_GAP
+    loop_seed_x = _row_right(corner_rect, seed_rects) + reserve_row + MAP_GAP
     loop_seed = (loop_seed_x, cy, LOOP_BTN, ch) if loop_seed_x + LOOP_BTN <= right else None
     return loop_action, loop_seed
+
+
+def looped_group_box(
+    corner_rect: Rect, seed_rects: list[Rect], action_rects: list[Rect], axis: str,
+    *, reserve: int = 0,
+) -> Rect:
+    """The rectangle drawn around the clips an *axis* loop is cycling — the row for
+    "seed", the column for "action" — grown by *reserve* at each end so the loop's
+    "…" marks fall inside it, saying those clips are in the loop too."""
+    cx, cy, cw, ch = corner_rect
+    if axis == "seed":
+        row_right = _row_right(corner_rect, seed_rects)
+        return (cx - reserve, cy, (row_right + reserve) - (cx - reserve), ch)
+    col_bottom = _col_bottom(corner_rect, action_rects)
+    return (cx, cy - reserve, cw, (col_bottom + reserve) - (cy - reserve))
+
+
+def ellipsis_rects(
+    corner_rect: Rect, seed_rects: list[Rect], action_rects: list[Rect], axis: str,
+) -> tuple[Rect, Rect]:
+    """The two slots a looped axis keeps for the "…" marks that say it runs on past
+    what is drawn: flanking the seed row left and right, or the action column above
+    and below."""
+    cx, cy, cw, ch = corner_rect
+    if axis == "seed":
+        return ((cx - MAP_GAP - ELLIPSIS, cy, ELLIPSIS, ch),
+                (_row_right(corner_rect, seed_rects) + MAP_GAP, cy, ELLIPSIS, ch))
+    return ((cx, cy - MAP_GAP - ELLIPSIS, cw, ELLIPSIS),
+            (cx, _col_bottom(corner_rect, action_rects) + MAP_GAP, cw, ELLIPSIS))
+
+
+def seed_column_label(index: int) -> str:
+    """The header over a seed column: its place in the family, counting from one.
+
+    A windowed loop draws a run from the middle of the family, so the headers carry
+    the real ordinals — "Seed 7" over the seventh seed — rather than restarting at
+    one and hiding how far through the loop the map has got.
+    """
+    return f"Seed {index + 1}"
 
 
 def expand_button_rect(loop_seed_rect: Rect | None, right: int) -> Rect | None:

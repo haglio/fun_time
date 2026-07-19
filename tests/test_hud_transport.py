@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fun_time.hud_transport import HudPublisher, hud_payload
-from fun_time.lock_hud import HudPanel
+from fun_time.lock_hud import ACTION_LIMIT, HudPanel
 
 
 def _panel(**overrides) -> HudPanel:
@@ -69,6 +69,49 @@ def test_hud_payload_marks_the_cell_actually_on_screen():
 
     assert payload["playing"] == ["seed", 0]
     assert payload["active_loop"] == "seed"
+
+
+def test_a_running_loop_publishes_every_member_it_cycles():
+    """The player windows the looped axis around the clip on screen, so it has to be
+    given the whole loop.  Capping it at the handful of cells a map can draw is what
+    left the highlight nowhere to be once the loop advanced past them — the user saw
+    three thumbnails, then a stretch with nothing lit and an unrecognisable clip."""
+    seeds = [f"C:/v/s{i}.mp4" for i in range(12)]
+    panel = _panel(active_loop="seed", seed_siblings=seeds, playing=seeds[9])
+
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+        payload = hud_payload(panel, Path("C:/t"))
+
+    assert [cell["path"] for cell in payload["seeds"]] == seeds
+    assert payload["playing"] == ["seed", 9]
+
+
+def test_a_running_loop_keeps_a_member_whose_thumbnail_is_not_cached_yet():
+    """Dropping it would renumber every cell behind it and slide the player's window
+    off the clip on screen, so a loop member with no frame yet is published with an
+    empty thumbnail — drawn as a placeholder, in the loop's own order."""
+    seeds = ["C:/v/s0.mp4", "C:/v/s1.mp4", "C:/v/s2.mp4"]
+    panel = _panel(active_loop="seed", seed_siblings=seeds, playing=seeds[2])
+
+    with patch("fun_time.hud_transport.cached_thumbnail",
+               side_effect=lambda p, _d: None if p == "C:/v/s1.mp4" else _thumb(p)):
+        payload = hud_payload(panel, Path("C:/t"))
+
+    assert [cell["path"] for cell in payload["seeds"]] == seeds
+    assert payload["seeds"][1]["thumb"] == ""
+    assert payload["playing"] == ["seed", 2]
+
+
+def test_the_axis_a_loop_is_not_running_on_stays_capped(tmp_path: Path):
+    """Only the looped axis needs the whole group; the other one is still the browse
+    map, so it keeps its draw cap and its cached-only rule."""
+    actions = [f"C:/v/a{i}.mp4" for i in range(9)]
+    panel = _panel(active_loop="seed", action_siblings=actions, action_labels=tuple("x" * 9))
+
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+        payload = hud_payload(panel, Path("C:/t"))
+
+    assert len(payload["actions"]) == ACTION_LIMIT
 
 
 def test_hud_payload_falls_back_to_the_corner_for_an_off_map_clip():
