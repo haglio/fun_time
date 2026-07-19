@@ -25,6 +25,11 @@ from .watch_stats import watch_stats_path
 # Both Nau and the native satellites re-read their playlist file on this verb.
 RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
 PLAY_FILE_CMD = "PLAY_FILE"
+# Nau's HUD says whether F-mode is on, and this is the only way it can know: the
+# playlist it is handed has already been narrowed, and a list of scripted videos
+# looks like any other.  The satellites need no such verb — fun_time draws their
+# HUD model itself.
+SET_F_MODE_CMD = "SET_F_MODE"
 
 
 def _satellite_library(
@@ -153,7 +158,11 @@ def apply_toggle_fmode(
     )
     write_satellite_command(Path(portrait_cmd_file), RELOAD_PLAYLIST_CMD)
     write_satellite_command(Path(landscape_cmd_file), RELOAD_PLAYLIST_CMD)
-    Path(nau_cmd_file).write_text(RELOAD_PLAYLIST_CMD, encoding="utf-8")
+    # Both verbs on one write: this file is overwritten, not appended, so telling
+    # Nau the flag afterwards would drop the reload that goes with it.
+    Path(nau_cmd_file).write_text(
+        f"{RELOAD_PLAYLIST_CMD}\n{SET_F_MODE_CMD} {int(target_enabled)}", encoding="utf-8"
+    )
     return FModeFlowResult(
         success=True,
         next_f_mode_enabled=target_enabled,

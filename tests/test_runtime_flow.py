@@ -263,10 +263,39 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
     # command file too.  All three playlist files are rewritten in place.
     assert portrait_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
     assert landscape_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
-    assert nau_cmd_file.read_text(encoding="utf-8") == "RELOAD_PLAYLIST"
+    # …and what else rides along on Nau's write is that test's business.
+    assert "RELOAD_PLAYLIST" in nau_cmd_file.read_text(encoding="utf-8").splitlines()
     assert (state_dir / "portrait_playlist.tsv").exists()
     assert (state_dir / "landscape_playlist.tsv").exists()
     assert (state_dir / "nau_playlist.tsv").exists()
+
+
+def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_path: Path):
+    """Nau cannot read F-mode off the playlist it is handed — a list of scripted
+    videos looks like any other — so its HUD only knows because it is told.
+
+    It has to ride along with the reload rather than follow it: the command file is
+    overwritten, not appended, so a second write would drop the first verb.
+    """
+    root = tmp_path / "videos" / "videos" / "primary"
+    root.mkdir(parents=True)
+    (root / "main.mp4").write_text("x", encoding="utf-8")
+    nau_cmd_file = tmp_path / "nau_cmd.txt"
+
+    def toggle(enabled: bool) -> list[str]:
+        apply_toggle_fmode(
+            f_mode_enabled=enabled,
+            portrait_recent=False, landscape_recent=False,
+            primary_sources=str(root), portrait_sources="", landscape_sources="",
+            favs_file=tmp_path / "favs.csv", state_dir=tmp_path / "state",
+            portrait_cmd_file=tmp_path / "p_cmd.txt",
+            landscape_cmd_file=tmp_path / "l_cmd.txt",
+            nau_cmd_file=nau_cmd_file,
+        )
+        return nau_cmd_file.read_text(encoding="utf-8").splitlines()
+
+    assert toggle(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 1"]
+    assert toggle(True) == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
 
 
 def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path):
