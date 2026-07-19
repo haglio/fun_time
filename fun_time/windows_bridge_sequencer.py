@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import LayoutConfig
+from .dashboard_runtime import read_nau_status
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .startup_progress import NullProgress, ProgressReporter, StartupCancelled
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
@@ -49,6 +50,14 @@ logger = logging.getLogger(__name__)
 # returns the moment the window appears — a satellite's takes about half a second
 # — so this is a ceiling for a machine under load, not a cost anyone pays.
 WINDOW_RESOLVE_TIMEOUT_S = 15.0
+
+# How long startup waits for Nau to finish loading.  Wide enough for the worst
+# case, a cold duration cache: one ffprobe per unprobed video, measured at 28s
+# for 525 of them, and paid once because the cache persists.  Its ceiling is the
+# overlay's own patience: the two waits in this phase run back to back under a
+# single progress write, and the overlay tears itself down when that file has
+# gone ``loading_screen.STALE_TIMEOUT_S`` without changing.  A test pins the sum.
+NAU_LOAD_TIMEOUT_S = 40.0
 
 
 @dataclass(frozen=True)
@@ -312,6 +321,13 @@ def _run_startup_phases(
         command_file=m["commands"]["genau_cmd_file"],
         paused_file=m["commands"]["genau_paused_file"],
     )
+    # Nau's status file is how startup learns Nau has finished loading, and it
+    # can only say that once last session's copy is gone.  start_core_session
+    # read that one already, to resume Nau onto the video it names, so this is
+    # the first moment it is spent — and the last before Nau could write a new
+    # one.  See _wait_for_nau_loaded.
+    nau_status_file = Path(m["commands"]["nau_status_file"])
+    nau_status_file.unlink(missing_ok=True)
     nau_pid = launch_nau(
         python_exe=m["executables"]["genau_python_exe"],
         nau_module=m["modules"]["nau_module"],
@@ -395,6 +411,18 @@ def _run_startup_phases(
         # their playlists, so there is nothing to start here — just resolve and
         # position each behind the loading overlay.
         portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
+
+        # Nau is the third player, and by now the only one still loading: its
+        # window has been up since half a second after launch with its own
+        # loading screen painted into it.  Hold the overlay over that, so the
+        # session is revealed on a video rather than on Nau's progress bar.  A
+        # Nau that never gets there does not get to keep the desktop, though —
+        # the reveal goes ahead, and says why.
+        if not _wait_for_nau_loaded(nau_status_file, progress):
+            logger.warning(
+                "Nau reported no video within %.0fs; revealing over whatever it "
+                "still has on screen", NAU_LOAD_TIMEOUT_S,
+            )
 
         progress.advance("windows")
         _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
@@ -484,6 +512,39 @@ def _resolve_satellite_hwnds() -> tuple[int, int]:
         wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         wait_for_window_by_title(SATELLITE_LANDSCAPE_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
     )
+
+
+def _wait_for_nau_loaded(
+    status_file: Path,
+    progress: ProgressReporter,
+    timeout_s: float = NAU_LOAD_TIMEOUT_S,
+) -> bool:
+    """Wait until Nau has a video on screen, returning whether it got there.
+
+    Nau's caption is NOT this signal.  Nau opens its window before reading its
+    library and paints its own loading screen into it while it does — so the
+    window exists within half a second of launch, however long the library walk
+    then runs.  Waiting on the caption alone brings the overlay down over that
+    loading screen, which is the one place it must never be seen: standalone Nau
+    owns its wait, and inside Fun Time, Fun Time owns it.
+
+    Nau's status file is the signal, because Nau writes it only from its playback
+    loop.  The stale one is dropped at launch, so a file naming a video is this
+    session's Nau saying it is up.  Reading the *video* rather than merely the
+    file's existence also survives a read that catches the first write half-done.
+
+    Also a cancellation checkpoint, for the same reason ``advance`` is one — but
+    checked per poll rather than once, because this is the one stretch of startup
+    that can run for tens of seconds, and the overlay covering it offers Esc.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if progress.cancelled:
+            raise StartupCancelled()
+        if read_nau_status(status_file).video:
+            return True
+        time.sleep(0.1)
+    return False
 
 
 def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:

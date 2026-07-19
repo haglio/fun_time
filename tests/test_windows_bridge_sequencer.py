@@ -5,12 +5,17 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from fun_time.config import load_config
+from fun_time.dashboard_runtime import read_nau_status
+from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time import windows_bridge_sequencer
 from fun_time.windows_bridge_sequencer import (
+    NAU_LOAD_TIMEOUT_S,
+    WINDOW_RESOLVE_TIMEOUT_S,
     run_startup_sequence,
     _maybe_launch_random_favs_browser,
     _resolve_satellite_hwnds,
+    _wait_for_nau_loaded,
 )
 from fun_time.monitors import MonitorInfo
 from fun_time.window_layout import (
@@ -64,6 +69,16 @@ def _fake_ui(**kwargs):
     _write_result(kwargs["result_file"], UI_PIDS)
 
 
+def _fake_nau(**kwargs):
+    """Nau, launched: its status file appears once it has a video up.
+
+    The overlay is held on exactly that file, so a fake that returned a pid and
+    wrote nothing would leave every startup here waiting out the full budget.
+    """
+    Path(kwargs["status_file"]).write_text("video=this_session.mp4\n", encoding="utf-8")
+    return NAU_PID
+
+
 class TestRunStartupSequence:
     def test_calls_start_core_session_and_launch_ui_companions(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory({
@@ -89,7 +104,7 @@ class TestRunStartupSequence:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=capture_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=capture_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
@@ -170,7 +185,7 @@ class TestRunStartupSequence:
 
         def capture_nau(**kwargs):
             nau_kwargs.update(kwargs)
-            return NAU_PID
+            return _fake_nau(**kwargs)
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", side_effect=capture_genau), \
@@ -230,7 +245,7 @@ class TestRunStartupSequence:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
@@ -258,7 +273,7 @@ class TestRunStartupSequence:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -289,7 +304,7 @@ class TestRunStartupSequence:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -303,6 +318,26 @@ class TestRunStartupSequence:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
 
         assert nau_paused.read_text(encoding="utf-8").strip() == "0"
+
+
+class _TrackingProgress:
+    """A ProgressReporter that records the phases it is told, in order.
+
+    Carries ``cancelled`` because the real reporter does and the sequencer reads
+    it — the wait for Nau polls it, so a double without it fails there rather
+    than at the assertion.
+    """
+
+    cancelled = False
+
+    def __init__(self, log: list[str] | None = None) -> None:
+        self.phases: list[str] = log if log is not None else []
+
+    def advance(self, phase: str) -> None:
+        self.phases.append(phase)
+
+    def finish(self) -> None:
+        pass
 
 
 class _CancelOnAdvance:
@@ -338,7 +373,7 @@ class TestRunStartupSequenceCancellation:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
@@ -363,7 +398,7 @@ class TestRunStartupSequenceCancellation:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer._maybe_launch_random_favs_browser", return_value=7777), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
@@ -394,7 +429,7 @@ class TestNoActivateWindowDuringIntegration:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -418,7 +453,7 @@ class TestNoActivateWindowDuringIntegration:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -447,17 +482,11 @@ class TestProgressReporting:
         """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        advance_keys: list[str] = []
-
-        class TrackingProgress:
-            def advance(self, phase: str) -> None:
-                advance_keys.append(phase)
-            def finish(self) -> None:
-                pass
+        progress = _TrackingProgress()
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -471,11 +500,11 @@ class TestProgressReporting:
             run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
-                progress=TrackingProgress(),
+                progress=progress,
                 hide_windows=True,
             )
 
-        assert advance_keys == [phase.key for phase in STARTUP_PHASES]
+        assert progress.phases == [phase.key for phase in STARTUP_PHASES]
 
     def test_null_progress_accepted_silently(self, cfg_factory, tmp_path):
         """NullProgress should work as a no-op."""
@@ -483,7 +512,7 @@ class TestProgressReporting:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
@@ -519,7 +548,7 @@ class TestLoadingScreenStartup:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title",
@@ -566,7 +595,7 @@ class TestLoadingScreenStartup:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title",
@@ -607,7 +636,7 @@ class TestPhase4Reveal:
 
         with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
              patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_map.get(title, 0)), \
@@ -689,6 +718,112 @@ class TestPhase4Reveal:
         )
 
         assert result.role_hwnds["dashboard"] == DASH_HWND
+
+
+class TestNauGatesTheReveal:
+    """The overlay must not come down over Nau's own loading screen.
+
+    Nau opens its window before it reads its library, so the caption lookup that
+    stood for "Nau is up" now answers while Nau is still loading and painting its
+    own progress bar.  Standalone, that screen is Nau's to show; inside Fun Time
+    the wait belongs to Fun Time, and the phase named for it — "Waiting for
+    players..." — is where it goes.  Nau is the third player, and the only one
+    still loading by then.
+    """
+
+    def test_the_players_phase_covers_the_wait_for_nau(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        events: list[str] = []
+
+        def track_wait(status_file, *_args, **_kwargs):
+            events.append(f"wait-for-nau:{status_file}")
+            return True
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer._wait_for_nau_loaded", side_effect=track_wait), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                progress=_TrackingProgress(events),
+                hide_windows=True,
+            )
+
+        # Inside the players phase, and on Nau's own status file — not after
+        # "windows", where the bar would sit under "Positioning windows..."
+        # through a wait that positions nothing.
+        assert events == [
+            "services",
+            "browser",
+            "companions",
+            "players",
+            f"wait-for-nau:{cfg.nau_status_file}",
+            "windows",
+            "finalizing",
+        ]
+
+    def test_the_stale_status_is_read_for_the_resume_and_only_then_dropped(
+        self, cfg_factory, tmp_path,
+    ):
+        """Dropping last session's status file is what makes the next one mean
+        something — without it the wait ends at once on a video from a session
+        that is over.  But startup also resumes Nau onto the video that same file
+        names, so the drop has to fall between that read and Nau's launch.
+        """
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        status_file = Path(cfg.nau_status_file)
+        status_file.parent.mkdir(parents=True, exist_ok=True)
+        status_file.write_text("video=last_session.mp4\n", encoding="utf-8")
+
+        seen: dict = {}
+
+        def capture_core(**kwargs):
+            seen["resumed_onto"] = read_nau_status(Path(kwargs["nau_status_file"])).video
+            _write_result(kwargs["result_file"], CORE_PIDS)
+
+        def capture_nau(**kwargs):
+            seen["stale_at_launch"] = Path(kwargs["status_file"]).exists()
+            return _fake_nau(**kwargs)
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=capture_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=capture_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
+            )
+
+        assert seen["resumed_onto"] == "last_session.mp4"
+        assert seen["stale_at_launch"] is False
+
+    def test_the_wait_for_the_players_cannot_outlast_the_overlay(self):
+        """The overlay tears itself down when the progress file has gone
+        STALE_TIMEOUT_S without changing — its guard against an orchestrator that
+        died.  The file is written when a phase STARTS, so a players phase able to
+        run longer than that guard would drop the overlay mid-wait and reveal the
+        very loading screen it is waiting out.
+        """
+        assert WINDOW_RESOLVE_TIMEOUT_S + NAU_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
 
 
 FAKE_LAYOUT_CFG = LayoutConfig(
@@ -809,3 +944,64 @@ class TestResolveSatelliteHwnds:
         resolved = {call.args[0] for call in by_title.call_args_list}
         assert resolved == {"Satellite Portrait", "Satellite Landscape"}
         assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)
+
+
+class TestWaitForNauLoaded:
+    """Nau's window is not the signal that Nau is ready.
+
+    Nau opens its window within half a second of launch and reads its library
+    behind it — one ffprobe per unprobed video on a cold cache, tens of seconds —
+    painting its OWN loading screen into it meanwhile.  So a caption lookup
+    returns while Nau is still loading.  Its status file does not: Nau writes
+    that from its playback loop, once a video is up.
+    """
+
+    def test_returns_once_nau_reports_a_video(self, tmp_path):
+        status_file = tmp_path / "nau_status.txt"
+
+        def nau_finishes_loading(_seconds):
+            status_file.write_text("video=clip.mp4\n", encoding="utf-8")
+
+        # Absent on the first look, so it can only return by polling again.
+        with patch("fun_time.windows_bridge_sequencer.time.sleep",
+                   side_effect=nau_finishes_loading):
+            assert _wait_for_nau_loaded(status_file, NullProgress()) is True
+
+    def test_a_status_file_naming_no_video_is_not_a_loaded_nau(self, tmp_path):
+        """Nau writes its status whole, but a poll can catch that first write
+        half-done.  So the wait reads the video out rather than taking the file's
+        mere existence for the signal, and an empty read keeps it waiting.
+        """
+        status_file = tmp_path / "nau_status.txt"
+        status_file.write_text("", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_sequencer.time.sleep"):
+            assert _wait_for_nau_loaded(
+                status_file, NullProgress(), timeout_s=0.3,
+            ) is False
+
+    def test_a_nau_that_never_loads_gives_the_desktop_up_rather_than_keep_it(self, tmp_path):
+        """A crashed Nau must not wedge startup behind an overlay forever: the
+        wait is bounded, and past its budget the session is revealed without it.
+        """
+        with patch("fun_time.windows_bridge_sequencer.time.sleep"):
+            assert _wait_for_nau_loaded(
+                tmp_path / "never.txt", NullProgress(), timeout_s=0.0,
+            ) is False
+
+    def test_esc_is_answered_inside_the_wait_not_at_the_end_of_it(self, tmp_path):
+        """This is the one stretch of startup that can run for tens of seconds,
+        and the overlay covering it says "Press Esc to cancel".  Checked only at
+        the next phase boundary, that Esc would go unanswered for the whole of
+        the wait it is most likely to be pressed during.
+        """
+        class Cancelled:
+            cancelled = True
+            def advance(self, phase: str) -> None: pass
+            def finish(self) -> None: pass
+
+        with patch("fun_time.windows_bridge_sequencer.time.sleep") as slept:
+            with pytest.raises(StartupCancelled):
+                _wait_for_nau_loaded(tmp_path / "never.txt", Cancelled())
+
+        slept.assert_not_called()
