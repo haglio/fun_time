@@ -425,7 +425,6 @@ class TestLoadingScreenLifecycle:
             nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
             layout_plan=_fake_plan(),
-            core_hwnds=[1010, 2020, 3030, 4040],
         )
 
         popen_calls: list[list] = []
@@ -653,7 +652,6 @@ class TestPostLoadingWindowState:
             nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
             layout_plan=_fake_plan(),
-            core_hwnds=[1010, 2020, 3030, 4040],
             rfb_hwnd=55555,
         )
 

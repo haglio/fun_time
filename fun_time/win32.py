@@ -213,17 +213,6 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     return best
 
 
-def wait_for_window(pid: int, timeout_s: float = 15.0) -> int:
-    """Poll for a window belonging to *pid*, returning its hwnd or 0 on timeout."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        hwnd = find_window_by_pid(pid)
-        if hwnd:
-            return hwnd
-        time.sleep(0.1)
-    return 0
-
-
 def wait_for_window_by_title(
     title: str, timeout_s: float = 5.0, *, exact: bool = False, include_hidden: bool = False
 ) -> int:

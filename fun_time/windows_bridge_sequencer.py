@@ -31,11 +31,9 @@ from .windows_bridge_startup import (
 from .window_roles import role_topmost
 from .win32 import (
     disable_window_transitions,
-    find_window_by_pid,
     minimize_window,
     move_window,
     set_always_on_top,
-    wait_for_window,
     wait_for_window_by_title,
 )
 from .window_layout import (
@@ -47,6 +45,11 @@ from .window_layout import (
 
 logger = logging.getLogger(__name__)
 
+# How long startup waits for a launched app to put its window on screen.  A poll
+# returns the moment the window appears — a satellite's takes about half a second
+# — so this is a ceiling for a machine under load, not a cost anyone pays.
+WINDOW_RESOLVE_TIMEOUT_S = 15.0
+
 
 @dataclass(frozen=True)
 class StartupResult:
@@ -57,7 +60,6 @@ class StartupResult:
     genau_pid: int
     audio_pid: int
     layout_plan: WindowLayoutPlan
-    core_hwnds: list[int] = field(default_factory=list)
     rfb_hwnd: int = 0
     # HWNDs resolved while every window was still visible; the dispatch
     # loop's role cache is seeded from this (hidden windows cannot be
@@ -188,7 +190,7 @@ def run_startup_sequence(
 
     When *hide_windows* is True, the satellite windows launch behind the loading
     overlay and all positioning is deferred to the end so everything appears at
-    once.  The window handles are returned in ``StartupResult.core_hwnds``.
+    once.  The window handles are returned in ``StartupResult.role_hwnds``.
 
     Each ``progress.advance`` is a cancellation checkpoint: if the loading
     screen has dropped the cancel flag, the reporter raises ``StartupCancelled``
@@ -336,7 +338,7 @@ def _run_startup_phases(
     if not hide_windows:
         # --- Normal mode: position immediately ---
         progress.advance("Positioning windows...")
-        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds(portrait_pid, landscape_pid)
+        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
         _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=not skip_activate)
         _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=not skip_activate)
         logger.info("Core windows positioned")
@@ -345,9 +347,8 @@ def _run_startup_phases(
         role_hwnds = _apply_startup_window_state(
             portrait_hwnd=portrait_hwnd,
             landscape_hwnd=landscape_hwnd,
-            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
-            nau_hwnd=wait_for_window(nau_pid, timeout_s=3.0)
-            or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
+            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
+            nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         )
         logger.info("Startup window state applied")
 
@@ -387,50 +388,38 @@ def _run_startup_phases(
     launched.pids.extend([ui_pids["dashboard_pid"], ui_pids["audio_pid"]])
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
-    collected_hwnds: list[int] = []
     if hide_windows:
         progress.advance("Positioning windows...")
 
         # The satellites launched playing (their paused flag is unset) and own
         # their playlists, so there is nothing to start here — just resolve and
         # position each behind the loading overlay.
-        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds(portrait_pid, landscape_pid)
+        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
         _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
         _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
         logger.info("Core windows positioned (deferred reveal)")
-
-        # Collect core window handles for StartupResult
-        for hwnd in (portrait_hwnd, landscape_hwnd, find_window_by_pid(nau_pid)):
-            if hwnd:
-                collected_hwnds.append(hwnd)
 
         # Resolve every managed window and park the idle slot-mate.  The topmost
         # bands are deliberately NOT applied here: the overlay is topmost, and
         # HWND_TOPMOST inserts above it, so each promotion would flash its window
         # over the overlay.  _fix_post_loading_windows applies them once the
         # overlay process has exited.  This is still the last moment the dashboard
-        # is resolvable, so its handle is captured now.
-        dashboard_pid = ui_pids["dashboard_pid"]
-        dash_hwnd = 0
-        if dashboard_pid:
-            # The dashboard is hidden (SW_HIDE) behind the loading overlay here,
-            # so both lookups must include hidden windows — a visible-only lookup
-            # returns 0 and leaves the dispatch loop unable to manage it.  The
-            # window PID also differs from the venv-launcher PID, so the exact
-            # title lookup is the path that actually resolves it in production.
-            dash_hwnd = find_window_by_pid(dashboard_pid, include_hidden=True)
-            if not dash_hwnd:
-                dash_hwnd = wait_for_window_by_title(
-                    "Fun Time", timeout_s=5.0, exact=True, include_hidden=True
-                )
+        # is resolvable, so its handle is captured now — and it is hidden (SW_HIDE)
+        # behind the loading overlay, so its lookup must include hidden windows.
+        dash_hwnd = (
+            wait_for_window_by_title(
+                "Fun Time", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True, include_hidden=True,
+            )
+            if ui_pids["dashboard_pid"]
+            else 0
+        )
 
         role_hwnds = _startup_role_hwnds(
             rfb_hwnd=rfb_hwnd,
             portrait_hwnd=portrait_hwnd,
             landscape_hwnd=landscape_hwnd,
-            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=5.0),
-            nau_hwnd=wait_for_window(nau_pid, timeout_s=5.0)
-            or wait_for_window_by_title("Nau", timeout_s=5.0, exact=True),
+            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
+            nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
             dashboard_hwnd=dash_hwnd,
         )
         _apply_primary_slot_visibility(role_hwnds["nau"], role_hwnds["genau"])
@@ -452,7 +441,6 @@ def _run_startup_phases(
         genau_pid=genau_pid,
         audio_pid=ui_pids["audio_pid"],
         layout_plan=plan,
-        core_hwnds=collected_hwnds,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,
     )
@@ -477,24 +465,23 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
         logger.warning("Could not find window for %s", label)
 
 
-def _resolve_satellite_hwnds(portrait_pid: int, landscape_pid: int) -> tuple[int, int]:
+def _resolve_satellite_hwnds() -> tuple[int, int]:
     """The portrait and landscape native-satellite windows, as (portrait, landscape).
 
-    Each side is resolved by its pid first; when that fails (the genau venv's
-    pythonw launcher can own a pid other than the window's — the same reason
-    :func:`launch_nau` needs a title fallback), fall back to the side's DISTINCT
-    window caption.  The two satellites are launched with different titles
-    ("Satellite Portrait" vs "Satellite Landscape"), so the fallback can never
-    assign one side's window to the other — a shared caption could, and that was
-    the portrait/landscape visual swap this resolves.
+    Each side is resolved by its DISTINCT window caption ("Satellite Portrait" vs
+    "Satellite Landscape"), so the lookup can never assign one side's window to the
+    other — a shared caption could, and that was the portrait/landscape visual swap.
+
+    Deliberately NOT by pid.  The pid we launch with is the venv's
+    ``Scripts\\pythonw.exe``, a launcher that spawns the base interpreter as a
+    child, and the child is what owns the window — so a pid poll here can only
+    ever run out its timeout.  Two of them (plus Nau's) were 25 seconds of a
+    28-second loading screen.
     """
-    portrait = wait_for_window(portrait_pid, timeout_s=10.0)
-    landscape = wait_for_window(landscape_pid, timeout_s=10.0)
-    if not portrait:
-        portrait = wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=10.0, exact=True)
-    if not landscape:
-        landscape = wait_for_window_by_title(SATELLITE_LANDSCAPE_TITLE, timeout_s=10.0, exact=True)
-    return portrait, landscape
+    return (
+        wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        wait_for_window_by_title(SATELLITE_LANDSCAPE_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+    )
 
 
 def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:

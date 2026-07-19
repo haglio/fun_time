@@ -6,6 +6,7 @@ from unittest.mock import patch, MagicMock
 
 from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
+from fun_time import windows_bridge_sequencer
 from fun_time.windows_bridge_sequencer import (
     run_startup_sequence,
     _maybe_launch_random_favs_browser,
@@ -91,8 +92,6 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=capture_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=99999), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=99999), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
@@ -178,8 +177,6 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=capture_nau), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
@@ -222,8 +219,12 @@ class TestRunStartupSequence:
     def test_positions_satellite_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        pid_to_hwnd = {30: 3030, 40: 4040, NAU_PID: 2525}
-        title_to_hwnd = {"Genau": 6060}
+        title_to_hwnd = {
+            "Genau": 6060,
+            "Nau": 2525,
+            "Satellite Portrait": 3030,
+            "Satellite Landscape": 4040,
+        }
         move_calls: list[tuple] = []
         topmost_calls: list[tuple] = []
 
@@ -232,8 +233,6 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
@@ -262,8 +261,6 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
@@ -295,8 +292,6 @@ class TestRunStartupSequence:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
@@ -372,8 +367,6 @@ class TestRunStartupSequenceCancellation:
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer._maybe_launch_random_favs_browser", return_value=7777), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.time") as mock_time:
             mock_time.sleep = lambda _: None
@@ -404,8 +397,6 @@ class TestNoActivateWindowDuringIntegration:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True))), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
@@ -430,8 +421,6 @@ class TestNoActivateWindowDuringIntegration:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True))), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
@@ -469,8 +458,6 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
@@ -516,8 +503,6 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
@@ -550,8 +535,6 @@ class TestProgressReporting:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
@@ -572,10 +555,10 @@ class TestProgressReporting:
 class TestLoadingScreenStartup:
     """When hide_windows=True, positioning is deferred until after UI companions launch."""
 
-    def test_defers_positioning_and_collects_hwnds(self, cfg_factory, tmp_path):
+    def test_defers_positioning_behind_the_overlay(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        pid_to_hwnd = {30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
+        title_to_hwnd = {"Satellite Portrait": 3030, "Satellite Landscape": 4040}
         move_calls: list[tuple] = []
         move_activates: list[bool] = []
 
@@ -588,9 +571,8 @@ class TestLoadingScreenStartup:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title",
+                   side_effect=lambda title, **kw: title_to_hwnd.get(title, 88888)), \
              patch("fun_time.windows_bridge_sequencer.move_window", side_effect=track_move), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
              patch("fun_time.windows_bridge_sequencer.minimize_window"), \
@@ -598,7 +580,7 @@ class TestLoadingScreenStartup:
             mock_time.sleep = lambda _: None
             mock_time.monotonic = MagicMock(return_value=0)
 
-            result = run_startup_sequence(
+            run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
                 hide_windows=True,
@@ -612,8 +594,55 @@ class TestLoadingScreenStartup:
         assert all(activate is False for activate in move_activates), \
             f"move_window must not activate in loading screen mode: {move_activates}"
 
-        # core_hwnds contains the two satellite windows plus Nau
-        assert set(result.core_hwnds) == {3030, 4040, 2525}
+    def test_resolves_every_window_by_title_never_by_a_launcher_pid(self, cfg_factory, tmp_path):
+        """No window lookup may poll on a pid this sequence launched.
+
+        Every child starts through a venv ``Scripts\\pythonw.exe``, a launcher that
+        spawns the base interpreter as a CHILD — and the child owns the window.  So
+        the launched pid never matches, and each poll on one runs its full timeout
+        before the title lookup that was going to answer anyway.  The two
+        satellites and Nau together were 25 seconds of a 28-second loading screen.
+        """
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        title_to_hwnd = {
+            "Satellite Portrait": 3030,
+            "Satellite Landscape": 4040,
+            "Nau": 2525,
+            "Genau": 6060,
+            "Fun Time": 5050,
+        }
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title",
+                   side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.disable_window_transitions"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            result = run_startup_sequence(
+                manifest_path=manifest_path,
+                state_dir=tmp_path,
+                hide_windows=True,
+            )
+
+        # Not merely unused here — a pid lookup is not reachable from this module
+        # at all, so re-introducing one is a deliberate act rather than a habit.
+        assert not hasattr(windows_bridge_sequencer, "wait_for_window")
+        assert not hasattr(windows_bridge_sequencer, "find_window_by_pid")
+        # And every managed window is still resolved, by caption alone.
+        assert result.role_hwnds == {
+            "portrait": 3030, "landscape": 4040, "nau": 2525,
+            "genau": 6060, "dashboard": 5050, "rfb": 0,
+        }
 
 
 class TestPhase4Reveal:
@@ -630,8 +659,6 @@ class TestPhase4Reveal:
              patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
              patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
              patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window", side_effect=lambda pid, **kw: pid_map.get(pid, 0)), \
-             patch("fun_time.windows_bridge_sequencer.find_window_by_pid", side_effect=lambda pid, **kw: pid_map.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_map.get(title, 0)), \
              patch("fun_time.windows_bridge_sequencer.move_window"), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=topmost_tracker), \
@@ -805,41 +832,29 @@ class TestMaybeLaunchRandomFavsBrowser:
 
 
 class TestResolveSatelliteHwnds:
-    """The pid->hwnd lookup fails in production (the genau venv's pythonw launcher
-    owns a pid other than the window's), so the sequencer must fall back to each
-    satellite's DISTINCT title.  Distinct captions are what make that fallback
-    unable to swap the two — the portrait/landscape visual-swap bug."""
+    """A satellite window is found by its DISTINCT caption, and by nothing else.
 
-    def test_falls_back_to_distinct_titles_without_swapping(self):
-        # pid lookup dead; only the title fallback can resolve either window.
+    Its pid cannot find it: ``Popen`` returns the venv's ``Scripts\\pythonw.exe``
+    launcher, which spawns the base interpreter as a CHILD, and that child owns the
+    window — so a pid poll here never resolves and always burns its whole timeout.
+    Distinct captions are also what keep the lookup from crossing the two, which
+    was the portrait/landscape visual swap.
+    """
+
+    def test_resolves_each_side_by_its_distinct_title(self):
         title_to_hwnd = {"Satellite Portrait": 1111, "Satellite Landscape": 2222}
 
-        with patch("fun_time.windows_bridge_sequencer.wait_for_window", return_value=0), \
-             patch(
-                 "fun_time.windows_bridge_sequencer.wait_for_window_by_title",
-                 side_effect=lambda title, **kw: title_to_hwnd.get(title, 0),
-             ) as by_title:
-            portrait, landscape = _resolve_satellite_hwnds(portrait_pid=30, landscape_pid=40)
+        with patch(
+            "fun_time.windows_bridge_sequencer.wait_for_window_by_title",
+            side_effect=lambda title, **kw: title_to_hwnd.get(title, 0),
+        ) as by_title:
+            portrait, landscape = _resolve_satellite_hwnds()
 
         # The portrait window lands in the portrait slot, the landscape in the
         # landscape slot — never crossed.
         assert (portrait, landscape) == (1111, 2222)
         # Resolved by the two DISTINCT captions, never the shared "Satellite" that
-        # made the fallback ambiguous, and each lookup is exact.
+        # made the lookup ambiguous, and each lookup is exact.
         resolved = {call.args[0] for call in by_title.call_args_list}
         assert resolved == {"Satellite Portrait", "Satellite Landscape"}
-        assert "Satellite" not in resolved
         assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)
-
-    def test_prefers_pid_when_the_lookup_resolves(self):
-        # When the pid lookup works there is no need for — and no risk from — the
-        # title fallback, so it must not be consulted.
-        pid_to_hwnd = {30: 3030, 40: 4040}
-
-        with patch("fun_time.windows_bridge_sequencer.wait_for_window",
-                   side_effect=lambda pid, **kw: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title") as by_title:
-            portrait, landscape = _resolve_satellite_hwnds(portrait_pid=30, landscape_pid=40)
-
-        assert (portrait, landscape) == (3030, 4040)
-        by_title.assert_not_called()
