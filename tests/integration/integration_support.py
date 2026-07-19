@@ -149,18 +149,33 @@ class FunTimeIntegrationSession:
         cause ahk_proc.wait() to return, triggering the orchestrator's
         finally block which calls _shutdown_children().
 
+        The command is re-sent until the process goes.  ``ahk_cmd.txt`` is a
+        one-slot mailbox that AHK reads-and-deletes on a 150ms timer, and the
+        dispatch loop writes to it too — an OmniPause enter puts
+        ``suspend_hotkeys`` there — so a lone write can be overwritten before
+        AHK ever reads it, and an exit lost that way never arrives.  That is
+        what made ``test_fun_time_reopens_on_the_video_it_was_closed_on``
+        (which quits from inside OmniPause) fail about one run in ten.  Nothing
+        in production races here: the dispatch loop is the mailbox's only
+        writer and returns the moment it has written "exit".
+
         Returns the orchestrator process exit code.
         """
         if not self._proc or self._proc.poll() is not None:
             raise RuntimeError("Orchestrator is not running")
         ahk_cmd = self.config.paths.state_dir / "ahk_cmd.txt"
-        ahk_cmd.write_text("exit", encoding="utf-8")
-        try:
-            exit_code = self._proc.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            raise AssertionError(
-                f"Orchestrator did not exit within {timeout}s after AHK was killed\n{self._log_tail()}"
-            )
+        deadline = time.monotonic() + timeout
+        while True:
+            ahk_cmd.write_text("exit", encoding="utf-8")
+            try:
+                exit_code = self._proc.wait(timeout=min(1.0, max(deadline - time.monotonic(), 0.0)))
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= deadline:
+                    raise AssertionError(
+                        f"Orchestrator did not exit within {timeout}s after AHK was told to quit"
+                        f"\n{self._log_tail()}"
+                    )
         if hasattr(self, "_stderr_fh") and self._stderr_fh:
             self._stderr_fh.close()
         return exit_code
