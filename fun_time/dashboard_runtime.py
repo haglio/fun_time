@@ -61,7 +61,7 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
 
     return DashboardSnapshot(
         f_mode_enabled=_read_bool(parser, "fmode", "enabled"),
-        primary_mode=_read_primary_mode(parser),
+        primary_mode=parser.get("primary", "mode", fallback="nau"),
         osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
         primary_responsive=_read_bool(parser, "primary", "responsive"),
         omni_paused=_read_bool(parser, "omnipause", "active"),
@@ -190,18 +190,6 @@ def _read_dashboard_text(path: Path) -> str:
         except UnicodeDecodeError:
             continue
     raise UnicodeDecodeError("dashboard_state", raw, 0, 1, "unable to decode dashboard snapshot")
-
-
-def _read_primary_mode(parser: configparser.ConfigParser) -> str:
-    mode = parser.get("primary", "mode", fallback="")
-    if mode == "vlc":
-        # Nau replaced the retired vlc mode as the primary player.
-        return "nau"
-    if mode:
-        return mode
-    # Backward compat: old snapshots used uses_genau=1/0
-    uses_genau = parser.get("primary", "uses_genau", fallback="0")
-    return "genau" if uses_genau.strip() not in {"", "0", "false", "False"} else "nau"
 
 
 def _read_bool(parser: configparser.ConfigParser, section: str, option: str) -> bool:

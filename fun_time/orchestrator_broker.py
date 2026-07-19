@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import sys
 
-from .runtime_support import hidden_subprocess_kwargs
+from app_support.subprocess_utils import hidden_subprocess_kwargs
 
+# The broker and its tray are both `python -m osr2_broker.<module>`; only the
+# tray's launcher runs under a script host, and it exits as soon as the tray
+# is up. They are kept apart because is_broker_running() asks after the broker
+# alone — a live tray is not a live broker.
 BROKER_PROCESS_PATTERN = "osr2_broker\\.app"
-BROKER_TRAY_PATTERN = "broker_tray\\.ps1|launch_broker_tray\\.vbs"
+BROKER_TRAY_PATTERN = "osr2_broker\\.tray"
+BROKER_LAUNCHER_PATTERN = "launch_broker_tray\\.vbs"
 
 # The broker outlives the session that starts it — harem and the user's next Fun
 # Time launch keep talking to it.  An integration run wraps its whole process
@@ -17,8 +22,11 @@ CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 
 
 def subprocess_window_kwargs() -> dict:
-    if sys.platform != "win32":
-        return {}
+    """This session's standard "launch a child without a console" kwargs.
+
+    A thin name of our own over the shared helper, so ``broker_launch_kwargs``
+    below has something to extend and every launch site reads the same.
+    """
     return hidden_subprocess_kwargs()
 
 

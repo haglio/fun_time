@@ -14,8 +14,8 @@ import pygame
 from .audio_companion_runtime import AudioCompanionRuntime
 from .audio_volume import MAX_VOLUME, read_volume
 from .config import load_config
-from .logging_utils import configure_logging, install_exception_logging
-from .runtime_support import preparse_config_path
+from app_support.cli import preparse_config_path
+from app_support.logging_utils import configure_logging, install_exception_logging
 
 SUPPORTED_EXTS = [".mp3", ".wav", ".ogg", ".flac", ".m4a"]
 

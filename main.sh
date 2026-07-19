@@ -4,13 +4,15 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-if command -v python >/dev/null 2>&1; then
-  exec python -m fun_time.orchestrator "$@"
+# The project venv, never a python from PATH: fun_time imports its sibling
+# packages -- app_support, player_core -- and those are editable installs that
+# exist only here. A PATH python finds the sibling repo directories as namespace
+# packages instead and dies while importing, before the orchestrator has
+# configured any logging, so the launch fails without saying anything.
+VENV_PYTHON="$SCRIPT_DIR/.venv/Scripts/python.exe"
+if [[ ! -f "$VENV_PYTHON" ]]; then
+  echo "Fun Time's virtual environment is missing: $VENV_PYTHON" >&2
+  exit 1
 fi
 
-if command -v py >/dev/null 2>&1; then
-  exec py -3 -m fun_time.orchestrator "$@"
-fi
-
-echo "Could not find python or py on PATH." >&2
-exit 1
+exec "$VENV_PYTHON" -m fun_time.orchestrator "$@"

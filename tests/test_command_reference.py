@@ -73,6 +73,17 @@ def test_every_ahk_hotkey_command_is_represented_with_a_hotkey():
         )
 
 
+def test_voice_toggle_is_not_key_bound():
+    """Voice is muted by voice ("voice off" / "mic off") or the dashboard mic
+    button — never a hotkey.  Backspace used to toggle it, which nobody could
+    remember, so the key binding was removed from both the AHK script and here."""
+    assert "voice_toggle" not in _ahk_hotkey_commands()
+    owning = [row for row in _all_rows() if "voice_toggle" in row.commands]
+    assert owning, "voice_toggle must still be documented"
+    for row in owning:
+        assert row.hotkeys == (), f"{row.description!r} must show no hotkey"
+
+
 def test_cycle_action_and_seed_rows_have_keys_and_voice():
     """Del/End cycle the portrait's action/seed; E/Q do the same for landscape."""
     expected = {
@@ -91,17 +102,17 @@ def test_cycle_action_and_seed_rows_have_keys_and_voice():
 
 
 def test_both_section_lists_combined_satellite_commands():
-    """A "Both VLC" section drives Portrait + Landscape together, by voice only."""
+    """A "Both" section drives Portrait + Landscape together, by voice only."""
     sections = {s.title: s for s in build_reference_sections()}
-    assert "Both VLC" in sections
-    both = sections["Both VLC"]
+    assert "Both" in sections
+    both = sections["Both"]
     cmds = {c for row in both.rows for c in row.commands}
     assert cmds == {
         "both_prev", "both_next", "both_trash",
         "both_lock_on", "both_lock_off",
         "both_cycle_action", "both_cycle_seed", "both_more_seeds",
         "both_action_loop", "both_seed_loop", "both_no_loop", "both_lock_action",
-        "both_reset",
+        "both_shuffle", "both_no_filter", "both_reset",
     }
     # Voice phrases are derived from VOICE_COMMANDS, so each row surfaces one —
     # side word first ("both next", "both lock"), matching every satellite row.
@@ -204,14 +215,41 @@ def test_no_say_column_leaks_the_raw_un_mute_form():
             assert "un mute" not in phrase, phrase
 
 
-def test_premiere_row_uses_p_key_and_premiere_voice():
-    """The newest-first refresh is branded "Premiere": P key, spoken "premiere"."""
-    assert VOICE_COMMANDS["premiere"] == "recency_order_refresh"
-    rows = [r for r in _all_rows() if "recency_order_refresh" in r.commands]
-    assert len(rows) == 1, "expected exactly one Premiere row"
+def test_latest_is_spoken_only_and_the_older_names_are_gone():
+    """The newest-first refresh is branded "Latest", by voice alone: it lost the P
+    key along with the global command that key used to send.
+
+    Both older names are gone rather than kept as synonyms — "recents" especially,
+    which the small vosk model has no word for and heard as "reset".
+    """
+    rows = [r for r in _all_rows() if "both_latest" in r.commands]
+    assert len(rows) == 1, "expected exactly one both-sides Latest row"
     row = rows[0]
-    assert row.hotkeys == ("P",)
-    assert "premiere" in row.voice
+    assert row.hotkeys == ()
+    assert "both latest" in row.voice
+    assert "premiere" not in VOICE_COMMANDS
+    assert "recents" not in VOICE_COMMANDS
+
+
+def test_end_loop_follows_the_player_last_spoken_to():
+    """"end loop" is side-agnostic like every other bare command: it reaches whichever
+    player was last addressed, and means that player's kind of loop — Nau's A-B loop
+    on the primary, a satellite's group loop on portrait or landscape."""
+    assert VOICE_COMMANDS["end loop"] == "active_no_loop"
+    assert VOICE_COMMANDS["portrait end loop"] == "portrait_no_loop"
+    assert VOICE_COMMANDS["end loop landscape"] == "landscape_no_loop"
+    assert VOICE_COMMANDS["both end loop"] == "both_no_loop"
+
+
+def test_latest_and_shuffle_reach_one_side_or_both():
+    """Both orderings were global-only, so "portrait premiere" parsed as nothing.
+    They join the side grid like every other satellite action — and shuffle has to
+    come too, or a side put in latest order could never be shuffled back alone."""
+    for word, action in (("latest", "latest"), ("shuffle", "shuffle")):
+        assert VOICE_COMMANDS[word] == f"active_{action}"
+        assert VOICE_COMMANDS[f"portrait {word}"] == f"portrait_{action}"
+        assert VOICE_COMMANDS[f"{word} landscape"] == f"landscape_{action}"
+        assert VOICE_COMMANDS[f"both {word}"] == f"both_{action}"
 
 
 def test_voice_phrases_are_derived_from_voice_commands():
@@ -256,10 +294,9 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
 def test_section_titles_and_backslash_split():
     sections = build_reference_sections()
     titles = [s.title for s in sections]
-    for expected in ("Global", "Nau", "Portrait VLC", "Landscape VLC", "Modes", "Genau"):
+    for expected in ("Global", "Nau", "Portrait", "Landscape", "Modes", "Genau"):
         assert expected in titles, f"missing section {expected!r}"
     assert "Genau control" not in titles  # renamed to "Genau"
-    assert "Primary VLC" not in titles  # replaced by "Nau"
 
     by_title = {s.title: s for s in sections}
     primary_backslash = [r for r in by_title["Nau"].rows if "\\" in r.hotkeys]
@@ -286,9 +323,10 @@ def test_loop_control_row_consolidates_record_and_cancel():
     assert "R" in row.hotkeys
     assert "record" in row.voice
     assert "loop" in row.voice
-    # Record and cancel are one row now; cancel's phrase is "end loop".
+    # Record and cancel are one row.  The cancel's phrase, "end loop", is no longer
+    # this row's own: it is the side-agnostic phrase, and reaches Nau's loop through
+    # the active-side resolution whenever the primary is the player last addressed.
     assert "nau_loop_cancel" in row.commands
-    assert "end loop" in row.voice
 
 
 def test_previous_shape_is_a_separate_keyless_line():
@@ -400,8 +438,8 @@ def test_filters_section_documents_the_spoken_filters():
     from fun_time.filter_vocab import spoken_forms_for_both
 
     sections = {s.title: s for s in build_reference_sections()}
-    assert "Filters (satellite VLCs)" in sections
-    blob = " ".join(v for row in sections["Filters (satellite VLCs)"].rows for v in row.voice)
+    assert "Filters (satellites)" in sections
+    blob = " ".join(v for row in sections["Filters (satellites)"].rows for v in row.voice)
     assert any(form in blob for form in spoken_forms_for_both())  # a spoken act form
     assert "clear portrait" in blob  # a clear phrase
 

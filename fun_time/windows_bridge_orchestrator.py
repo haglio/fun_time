@@ -18,9 +18,17 @@ from pathlib import Path
 
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
-from .startup_progress import NullProgress, PROGRESS_FILENAME, StartupProgress
-from .lock_hud import HUD_READY_FILENAME, wait_for_hud_ready
-from .userscript_server import USERSCRIPT_PORT, serve_userscript_updates
+from .startup_progress import (
+    CANCEL_FILENAME,
+    NullProgress,
+    PROGRESS_FILENAME,
+    ProgressReporter,
+    StartupCancelled,
+    StartupProgress,
+)
+from .hud_transport import HUD_FILENAME, HudPublisher
+from .lock_hud import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails, prime_group_indexes
+from .loopback_server import LOOPBACK_PORT, serve_loopback
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -49,7 +57,6 @@ _CHILD_PID_KEYS = (
     "portrait_pid",
     "landscape_pid",
     "dashboard_pid",
-    "lock_hud_pid",
     "genau_pid",
     "audio_pid",
 )
@@ -75,8 +82,8 @@ def identify_children(result: StartupResult) -> dict[str, ChildProcess]:
     """Pin each freshly-launched child PID to the process now holding it.
 
     Called seconds after launch, with startup having just driven the children
-    (VLC's HTTP interface answered, Nau's and Genau's windows appeared), so the
-    creation time read here is the one our child was born with.  Everything that
+    (the satellites' status files appeared, as did Nau's and Genau's windows), so
+    the creation time read here is the one our child was born with.  Everything that
     kills a child later compares against it, and a PID Windows has since handed
     to someone else no longer matches.
 
@@ -145,16 +152,48 @@ def kill_process_tree(pid: int) -> None:
         pass
 
 
-# Number of progress steps reported by run_startup_sequence in hide_windows
-# mode (the only mode with a loading screen).
-_STARTUP_PROGRESS_STEPS = 6
-
-
 def _shutdown_children(rfb_hwnd: int, children: dict[str, ChildProcess]) -> None:
     """Kill all child processes launched during startup."""
     close_window(rfb_hwnd)
     for child in children.values():
         kill_recorded_child(child)
+
+
+# Cancelling from the loading screen is a clean, user-initiated exit.
+_CANCELLED_EXIT_CODE = 0
+
+
+def _cancel_startup(
+    *,
+    pids: list[int],
+    rfb_hwnd: int,
+    loading_proc: subprocess.Popen | None,
+    progress: ProgressReporter,
+    progress_file: Path,
+    cancel_file: Path,
+) -> int:
+    """Tear down a startup the user aborted from the loading screen, then exit.
+
+    Kills every child launched so far and closes the browser window *before*
+    bringing the overlay down, so nothing half-started ever flashes into view.
+    These children were launched seconds ago, so their PIDs are still theirs —
+    no creation-time pinning is needed the way a deferred teardown needs it.
+    """
+    logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(pids))
+    for pid in pids:
+        kill_process_tree(pid)
+    close_window(rfb_hwnd)
+    # Only now that the windows behind it are gone: drop the overlay.
+    progress.finish()
+    if loading_proc is not None:
+        try:
+            loading_proc.wait(timeout=3.0)
+        except subprocess.TimeoutExpired:
+            loading_proc.kill()
+            logger.warning("Loading screen did not exit after cancel, killed")
+    progress_file.unlink(missing_ok=True)
+    cancel_file.unlink(missing_ok=True)
+    return _CANCELLED_EXIT_CODE
 
 
 class _AppendOnWriteHandler(logging.Handler):
@@ -187,7 +226,7 @@ def _add_dispatch_file_handler(log_path: Path) -> None:
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     handler = _AppendOnWriteHandler(log_path)
-    for name in ("fun_time.command_dispatch", "fun_time.vlc_actions",
+    for name in ("fun_time.command_dispatch",
                   "fun_time.windows_bridge_dispatch_loop", "fun_time.voice_control",
                   "fun_time.windows_bridge_orchestrator"):
         lg = logging.getLogger(name)
@@ -267,6 +306,41 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
     _log_nau_obstruction(nau_hwnd)
 
 
+def _start_hud_priming(
+    bridge_config, manifest, *, enabled: bool
+) -> tuple[HudPublisher | None, threading.Event]:
+    """Build the HUD publisher and warm what it needs, off the startup thread.
+
+    Two costs sit behind the first map: indexing each library's seed families and
+    action groups, and extracting a still frame per clip.  Both used to run in the
+    separate HUD process; with the model here they run on this daemon thread, so
+    startup keeps going while they finish.  The returned event fires once the
+    indexes are ready — startup waits on it before revealing Fun Time, so the maps
+    are never blank on screen.  The far longer thumbnail warm continues behind it;
+    those fill in as they land.
+    """
+    primed = threading.Event()
+    if not enabled:
+        primed.set()
+        return None, primed
+    sources = (bridge_config.portrait_sources, bridge_config.landscape_sources)
+    cache_dir = bridge_config.state_dir / THUMBNAIL_CACHE_DIRNAME
+    publisher = HudPublisher(
+        {side: Path(manifest["commands"][f"{side}_hud_file"]) for side in HUD_FILENAME},
+        cache_dir,
+    )
+
+    def _warm() -> None:
+        try:
+            prime_group_indexes(sources, bridge_config.regen_metadata_root)
+        finally:
+            primed.set()
+        prewarm_thumbnails(sources, cache_dir)
+
+    threading.Thread(target=_warm, daemon=True, name="hud-warm").start()
+    return publisher, primed
+
+
 def run_python_orchestrated_bridge(
     *,
     manifest_path: str | Path,
@@ -297,8 +371,12 @@ def run_python_orchestrated_bridge(
     # --- Launch loading screen (normal mode only) ---
     loading_proc = None
     progress_file = state_dir / PROGRESS_FILENAME
+    cancel_file = state_dir / CANCEL_FILENAME
+    # Clear a cancel flag left over from a previous session so it can't abort
+    # this one before the user has touched anything.
+    cancel_file.unlink(missing_ok=True)
     if show_loading:
-        progress = StartupProgress(progress_file, total_steps=_STARTUP_PROGRESS_STEPS)
+        progress = StartupProgress(progress_file, cancel_file=cancel_file)
         python_exe = sys.executable
         loading_proc = subprocess.Popen(
             [python_exe, "-m", "fun_time.loading_screen", str(progress_file)],
@@ -307,19 +385,52 @@ def run_python_orchestrated_bridge(
     else:
         progress = NullProgress()
 
-    # Clear any stale ready flag from a prior session before the HUD (launched
-    # inside the sequence) writes a fresh one, so the wait below can't see an
-    # old file and reveal Fun Time before this run's maps are primed.
-    hud_ready_file = state_dir / HUD_READY_FILENAME
-    hud_ready_file.unlink(missing_ok=True)
+    manifest = configparser.ConfigParser()
+    manifest.optionxform = str
+    manifest.read(str(manifest_path), encoding="utf-8")
+    bridge_config = build_bridge_config_from_manifest(manifest)
+    dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
+    # The lock HUD's model is built here and published for each satellite player
+    # to draw into its own video.  It rides the dashboard's enable gate, so an
+    # integration run stays free of library scans and frame grabs.
+    hud_publisher, hud_primed = _start_hud_priming(
+        bridge_config, manifest, enabled=dashboard_enabled)
 
     logger.info("Running startup sequence")
-    result = run_startup_sequence(
-        manifest_path=manifest_path,
-        state_dir=state_dir,
-        progress=progress,
-        hide_windows=show_loading,
-    )
+    try:
+        result = run_startup_sequence(
+            manifest_path=manifest_path,
+            state_dir=state_dir,
+            progress=progress,
+            hide_windows=show_loading,
+        )
+    except StartupCancelled as cancelled:
+        # Esc during a phase: the sequence handed back exactly what it had
+        # launched.  Tear it down and exit before AHK or the dispatch loop start.
+        return _cancel_startup(
+            pids=cancelled.launched_pids,
+            rfb_hwnd=cancelled.rfb_hwnd,
+            loading_proc=loading_proc,
+            progress=progress,
+            progress_file=progress_file,
+            cancel_file=cancel_file,
+        )
+
+    # Esc can also land in the sliver after the last checkpoint but before the
+    # reveal: the sequence finished, yet the flag is set.  Tear the full result
+    # down rather than reveal a session the user asked to abort.
+    if progress.cancelled:
+        return _cancel_startup(
+            pids=[
+                result.nau_pid, result.portrait_pid, result.landscape_pid,
+                result.dashboard_pid, result.genau_pid, result.audio_pid,
+            ],
+            rfb_hwnd=result.rfb_hwnd,
+            loading_proc=loading_proc,
+            progress=progress,
+            progress_file=progress_file,
+            cancel_file=cancel_file,
+        )
 
     logger.info(
         "Startup complete: nau=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
@@ -330,14 +441,11 @@ def run_python_orchestrated_bridge(
     # --- Close loading screen (normal mode only) ---
     # The sequencer already positioned all windows in Phase 4 (the reveal).
     if show_loading:
-        # Hold the loading screen until the lock HUD has primed its indexes, so
-        # Fun Time isn't revealed with the maps still blank.  Capped so a HUD
-        # that never signals (or was never launched) can't wedge startup.
-        if result.lock_hud_pid:
-            if wait_for_hud_ready(hud_ready_file, timeout_s=20.0):
-                logger.info("Lock HUD ready; dropping loading screen")
-            else:
-                logger.warning("Lock HUD not ready after 20s; revealing anyway")
+        # Hold the loading screen until the HUD's group indexes are primed, so
+        # Fun Time isn't revealed with the maps still blank.  Capped so a slow
+        # library scan can't wedge startup — the maps just fill in late.
+        if hud_publisher is not None and not hud_primed.wait(timeout=20.0):
+            logger.warning("HUD indexes not primed after 20s; revealing anyway")
         progress.finish()
         if loading_proc:
             try:
@@ -359,10 +467,6 @@ def run_python_orchestrated_bridge(
     # Clean stale state files from previous sessions so the dispatch loop
     # starts fresh (e.g. omni_paused=True left over from a crash).
     # Start background dispatch loop (dashboard polling + genau sync)
-    manifest = configparser.ConfigParser()
-    manifest.optionxform = str
-    manifest.read(str(manifest_path), encoding="utf-8")
-    bridge_config = build_bridge_config_from_manifest(manifest)
     dashboard_cmd_file = Path(manifest["commands"]["dashboard_cmd_file"])
     for stale in (
         state_dir / "shared_bridge_state.ini",
@@ -371,7 +475,6 @@ def run_python_orchestrated_bridge(
         dashboard_cmd_file.with_suffix(".processing"),
     ):
         stale.unlink(missing_ok=True)
-    dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
 
     # Route dispatch log messages to the windows bridge log file so they
     # appear alongside AHK log entries (integration tests read this file).
@@ -394,6 +497,7 @@ def run_python_orchestrated_bridge(
         landscape_pid=result.landscape_pid,
         dashboard_pid=result.dashboard_pid,
         dashboard_enabled=dashboard_enabled,
+        hud_publisher=hud_publisher,
         rfb_hwnd=result.rfb_hwnd,
         rfb_shortcut_target=rfb_target,
         rfb_shortcut_work_dir=rfb_work_dir,
@@ -402,20 +506,22 @@ def run_python_orchestrated_bridge(
     # Genau startup detection is handled by the dispatch loop's first
     # sync tick: if the broker has already written genau_mode.txt = "1"
     # (it detects auto mode within ~4s via BPM/stroke inference), the sync
-    # will detect the entering transition and pause Primary VLC naturally.
+    # will detect the entering transition and hand the primary display over
+    # to Genau naturally.
 
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()
     logger.info("Background dispatch loop started")
 
-    # Serve the autofill userscript so Tampermonkey can auto-update it
-    # instead of needing a hand-paste after every edit. A busy port (a second
+    # Serve the Provider autofill userscript so Tampermonkey can auto-update it
+    # instead of needing a hand-paste after every edit, and answer the RFB tab
+    # pages when they ask whether the session is paused. A busy port (a second
     # Fun Time, a leftover server) is not worth failing startup over.
     try:
-        serve_userscript_updates()
-        logger.info("Userscript update server started on 127.0.0.1:%d", USERSCRIPT_PORT)
+        serve_loopback(omni_paused=lambda: dispatch_runner.state.omni_paused)
+        logger.info("Loopback server started on 127.0.0.1:%d", LOOPBACK_PORT)
     except OSError:
-        logger.warning("Userscript update server not started (port %d busy)", USERSCRIPT_PORT, exc_info=True)
+        logger.warning("Loopback server not started (port %d busy)", LOOPBACK_PORT, exc_info=True)
 
     # --- Optional voice control ---
     voice_controller: VoiceController | None = None
@@ -426,7 +532,7 @@ def run_python_orchestrated_bridge(
             f"VOICE_AVAILABLE={VOICE_AVAILABLE}, "
             f"enabled={cfg.voice_control.enabled}, "
             f"model={cfg.voice_control.model_path}, "
-            f"device={cfg.voice_control.device_index}"
+            f"device_name={cfg.voice_control.device_name}"
         )
         logger.info("Voice control check: %s", voice_diag)
         if VOICE_AVAILABLE and cfg.voice_control.enabled:
@@ -434,7 +540,7 @@ def run_python_orchestrated_bridge(
                 cmd_file=dashboard_cmd_file,
                 model_path=cfg.voice_control.model_path,
                 confidence_threshold=cfg.voice_control.confidence_threshold,
-                device_index=cfg.voice_control.device_index,
+                device_name=cfg.voice_control.device_name,
                 sample_rate=cfg.voice_control.sample_rate,
             )
             dispatch_runner.voice_controller = voice_controller

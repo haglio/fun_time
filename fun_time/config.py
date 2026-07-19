@@ -37,7 +37,6 @@ def _require_value(parent: dict[str, Any], key: str, source_path: Path, context:
 
 @dataclass(frozen=True)
 class PathsConfig:
-    vlc_exe: Path
     ahk_exe: Path
     python_exe: Path
     nau_library_dirs: tuple[Path, ...]
@@ -71,12 +70,6 @@ class LayoutConfig:
     secondary_monitor: int
     primary_top_ratio: float
     landscape_width_ratio: float
-
-
-@dataclass(frozen=True)
-class VlcConfig:
-    vlc2_http_port: int
-    vlc3_http_port: int
 
 
 @dataclass(frozen=True)
@@ -123,7 +116,7 @@ class RegenConfig:
 class VoiceControlConfig:
     enabled: bool
     model_path: str
-    device_index: int | None = None
+    device_name: str | None = None
     sample_rate: int = 16000
     confidence_threshold: float = 0.7
 
@@ -133,7 +126,6 @@ class ProjectConfig:
     project_dir: Path
     config_path: Path
     paths: PathsConfig
-    vlc: VlcConfig
     layout: LayoutConfig
     genau: GenauConfig
     audio_companion: AudioCompanionConfig
@@ -164,6 +156,10 @@ class ProjectConfig:
     @property
     def nau_status_file(self) -> Path:
         return self.paths.state_dir / "nau_status.txt"
+
+    @property
+    def nau_notice_file(self) -> Path:
+        return self.paths.state_dir / "nau_notice.txt"
 
     @property
     def nau_playlist_file(self) -> Path:
@@ -227,7 +223,6 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path) -> PathsCon
         raise ValueError("paths.nau_library_dirs must include at least one folder path")
 
     return PathsConfig(
-        vlc_exe=_require_path_value(paths_raw, "vlc_exe", source_path, "config.paths"),
         ahk_exe=_require_path_value(paths_raw, "ahk_exe", source_path, "config.paths"),
         python_exe=_require_path_value(paths_raw, "python_exe", source_path, "config.paths"),
         nau_library_dirs=tuple(_resolve_path(PROJECT_DIR, str(value)) for value in nau_library_dirs_raw),
@@ -256,13 +251,6 @@ def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> Layout
         secondary_monitor=int(secondary_monitor),
         primary_top_ratio=_require_typed_value(layout_raw, "primary_top_ratio", source_path, "config.layout", float),
         landscape_width_ratio=_require_typed_value(layout_raw, "landscape_width_ratio", source_path, "config.layout", float),
-    )
-
-
-def _load_vlc_config(vlc_raw: dict[str, Any], source_path: Path) -> VlcConfig:
-    return VlcConfig(
-        vlc2_http_port=_require_typed_value(vlc_raw, "vlc2_http_port", source_path, "config.vlc", int),
-        vlc3_http_port=_require_typed_value(vlc_raw, "vlc3_http_port", source_path, "config.vlc", int),
     )
 
 
@@ -320,7 +308,7 @@ def _load_voice_control_config(voice_raw: dict[str, Any] | None) -> VoiceControl
     return VoiceControlConfig(
         enabled=bool(values.get("enabled", False)),
         model_path=str(values.get("model_path", "vosk-model-small-en-us-0.15")),
-        device_index=int(values["device_index"]) if values.get("device_index") is not None else None,
+        device_name=str(values["device_name"]) if values.get("device_name") is not None else None,
         sample_rate=int(values.get("sample_rate", 16000)),
         confidence_threshold=float(values.get("confidence_threshold", 0.7)),
     )
@@ -334,7 +322,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         raw: dict[str, Any] = json.load(fp)
 
     paths_raw = _require_dict(raw, "paths", path)
-    vlc_raw = _require_dict(raw, "vlc", path)
     layout_raw = _require_dict(raw, "layout", path)
     genau_raw = _require_dict(raw, "genau", path)
     audio_raw = _require_dict(raw, "audio_companion", path)
@@ -348,7 +335,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         project_dir=PROJECT_DIR,
         config_path=path,
         paths=_load_paths_config(paths_raw, path),
-        vlc=_load_vlc_config(vlc_raw, path),
         layout=_load_layout_config(layout_raw, path),
         genau=_load_genau_config(genau_raw, path),
         audio_companion=_load_audio_companion_config(audio_raw, path),

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,12 +16,15 @@ from .modes import (
     build_satellite_playlists,
     write_playlist_file,
 )
+from .broker_control import PARK_CMD, RESUME_CMD, write_broker_command
 from .omnipause import build_omnipause_plan
 from .mode_plan import build_mode_switch_plan, genau_active
-from .vlc_actions import ensure_playback_state, replace_playlist_from_file
+from .satellite_control import write_satellite_command
 from .watch_stats import watch_stats_path
 
-NAU_RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
+# Both Nau and the native satellites re-read their playlist file on this verb.
+RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
+PLAY_FILE_CMD = "PLAY_FILE"
 
 
 def _satellite_library(
@@ -68,14 +70,6 @@ class FModeFlowResult:
     log_message: str
 
 
-@dataclass(frozen=True)
-class RecencyOrderFlowResult:
-    next_recency_order: bool
-    next_locked2: bool
-    next_locked3: bool
-    log_message: str
-
-
 def apply_mode_switch(
     *,
     current_mode: str,
@@ -99,13 +93,23 @@ def apply_mode_switch(
         write_flag_file(audio_paused_file, not will_genau)
         if plan.nau_should_play is not None:
             write_flag_file(nau_paused_file, not plan.nau_should_play)
-        cmds = [cmd for cmd in (plan.genau_cmd, plan.hud_cmd) if cmd is not None]
+        cmds = [
+            cmd for cmd in (plan.genau_cmd, plan.hud_cmd, plan.display_cmd)
+            if cmd is not None
+        ]
         if cmds:
             Path(genau_cmd_file).write_text("\n".join(cmds), encoding="utf-8")
+        # Nau is told which mode the primary slot is in on every switch: in
+        # hybrid, Genau's window is a transparent layer over Nau's and its own
+        # panel holds the top-left corner, so Nau starts its own furniture past
+        # it.  Written together with the T-Code re-enable rather than after it,
+        # because this file is overwritten, not appended.
+        nau_cmds = [f"SET_HYBRID {int(plan.target_mode == 'hybrid')}"]
         if plan.reenable_nau_tcode:
-            Path(nau_cmd_file).write_text("SET_TCODE_ENABLED 1", encoding="utf-8")
+            nau_cmds.append("SET_TCODE_ENABLED 1")
+        Path(nau_cmd_file).write_text("\n".join(nau_cmds), encoding="utf-8")
         if not will_genau and broker_cmd_file is not None:
-            Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
+            write_broker_command(broker_cmd_file, RESUME_CMD)
     return ModeSwitchFlowResult(
         next_mode=plan.target_mode,
         is_transition=plan.is_transition,
@@ -116,15 +120,15 @@ def apply_mode_switch(
 def apply_toggle_fmode(
     *,
     f_mode_enabled: bool,
-    recent: bool,
+    portrait_recent: bool,
+    landscape_recent: bool,
     primary_sources: str,
     portrait_sources: str,
     landscape_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
-    portrait_port: int,
-    landscape_port: int,
-    password: str,
+    portrait_cmd_file: str | Path,
+    landscape_cmd_file: str | Path,
     nau_cmd_file: str | Path,
     regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
@@ -132,23 +136,24 @@ def apply_toggle_fmode(
     landscape_filter: str = "",
 ) -> FModeFlowResult:
     target_enabled = not f_mode_enabled
-    plan = build_fmode_playlists(
+    # Writes each satellite's and Nau's playlist file in place; the players below
+    # are told to re-read them.
+    build_fmode_playlists(
         primary_sources=primary_sources,
         portrait_sources=portrait_sources,
         landscape_sources=landscape_sources,
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         enabled=target_enabled,
-        recent=recent,
+        portrait_recent=portrait_recent,
+        landscape_recent=landscape_recent,
         portrait_filter=portrait_filter,
         landscape_filter=landscape_filter,
         library=_satellite_library(state_dir, regen_metadata_root),
     )
-    if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
-        logger.warning("Portrait VLC failed to load F-mode playlist")
-    if not replace_playlist_from_file(landscape_port, password, plan.landscape_playlist_path, repeat_mode="all"):
-        logger.warning("Landscape VLC failed to load F-mode playlist")
-    Path(nau_cmd_file).write_text(NAU_RELOAD_PLAYLIST_CMD, encoding="utf-8")
+    write_satellite_command(Path(portrait_cmd_file), RELOAD_PLAYLIST_CMD)
+    write_satellite_command(Path(landscape_cmd_file), RELOAD_PLAYLIST_CMD)
+    Path(nau_cmd_file).write_text(RELOAD_PLAYLIST_CMD, encoding="utf-8")
     return FModeFlowResult(
         success=True,
         next_f_mode_enabled=target_enabled,
@@ -158,90 +163,30 @@ def apply_toggle_fmode(
     )
 
 
-def apply_reorder_satellites(
-    *,
-    recent: bool,
-    f_mode_enabled: bool,
-    portrait_sources: str,
-    landscape_sources: str,
-    favs_file: str | Path,
-    state_dir: str | Path,
-    portrait_port: int,
-    landscape_port: int,
-    password: str,
-    portrait_filter: str = "",
-    landscape_filter: str = "",
-    regen_media_root: Path | None = None,
-    regen_metadata_root: Path | None = None,
-) -> RecencyOrderFlowResult:
-    """Rebuild and reload the Portrait/Landscape playlists in a fresh order.
-
-    ``recent`` chooses the order: newest-first (Premiere) or reshuffled
-    (Shuffle, Premiere's counterpart).  Either rescans the satellite sources —
-    honouring the current F-mode and metadata filters — so newly-arrived files
-    are picked up, and restarts each player from the top
-    (``replace_playlist_from_file`` empties then re-plays from item 0).  Clips
-    still collapse to one entry per group when the regen roots are supplied.  The
-    primary/Nau player is left alone.  Pushing a fresh playlist with repeat-all
-    clears any per-window lock, so the caller's lock flags reset to match.
-    """
-    plan = build_satellite_playlists(
-        portrait_sources=portrait_sources,
-        landscape_sources=landscape_sources,
-        favs_file=Path(favs_file),
-        state_dir=Path(state_dir),
-        f_mode=f_mode_enabled,
-        recent=recent,
-        portrait_filter=portrait_filter,
-        landscape_filter=landscape_filter,
-        library=_satellite_library(state_dir, regen_metadata_root),
-    )
-    order = "newest-first" if recent else "reshuffled"
-    if not replace_playlist_from_file(portrait_port, password, plan.portrait_playlist_path, repeat_mode="all"):
-        logger.warning("Portrait VLC failed to load %s playlist", order)
-    if not replace_playlist_from_file(landscape_port, password, plan.landscape_playlist_path, repeat_mode="all"):
-        logger.warning("Landscape VLC failed to load %s playlist", order)
-    return RecencyOrderFlowResult(
-        next_recency_order=recent,
-        next_locked2=False,
-        next_locked3=False,
-        log_message=f"{'Premiere' if recent else 'Shuffle'}: Portrait/Landscape {order}",
-    )
-
-
-@dataclass(frozen=True)
-class SatelliteLoopFlowResult:
-    count: int
-    applied: bool
-    log_message: str
-
-
-def apply_satellite_loop(
+def satellite_browse_paths(
     *,
     which: int,
-    axis: str,
-    members: list[str],
+    query: str,
+    f_mode_enabled: bool,
+    recent: bool,
+    sources: str,
+    favs_file: str | Path,
     state_dir: str | Path,
-    port: int,
-    password: str,
-) -> SatelliteLoopFlowResult:
-    """Load *members* as a repeat-all sub-playlist so the VLC cycles just them.
+    regen_metadata_root: Path | None = None,
+) -> list[str]:
+    """The paths a satellite's default browse holds under *query* and the current
+    ordering — one clip per group, filter-honouring, Latest/Shuffle-aware.
 
-    A lock is repeat-*one* over a single clip; a loop is repeat-*all* over a
-    group — the same playlist-replace call the filter uses, so VLC advances and
-    wraps natively.  Fewer than two members means there is nothing to cycle, so
-    the current playlist is left alone.  Any later rebuild (a filter, a clear,
-    premiere or an F-mode toggle) restores the full playlist.
+    This is the list a filter rebuild loads into the satellite, and equally the
+    target "no loop" reshapes the queue back to when a group loop ends.  ``which``
+    selects nothing here (both satellites browse the same way); it is kept for a
+    symmetric call site.
     """
-    label = "portrait" if which == 2 else "landscape"
-    if len(members) < 2:
-        return SatelliteLoopFlowResult(len(members), False, f"Loop {label}: no other {axis}s")
-    name = f"{PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE}_loop"
-    playlist_path = build_playlist_file_path(Path(state_dir), name)
-    write_playlist_file(playlist_path, members)
-    if not replace_playlist_from_file(port, password, playlist_path, repeat_mode="all"):
-        logger.warning("%s VLC failed to load the %s loop", label, axis)
-    return SatelliteLoopFlowResult(len(members), True, f"Loop {label}: {len(members)} {axis}s")
+    library = _satellite_library(state_dir, regen_metadata_root)
+    return build_satellite_playlist_paths(
+        sources, f_mode_enabled, Path(favs_file),
+        filter_query=query, recent=recent, library=library,
+    )
 
 
 @dataclass(frozen=True)
@@ -260,31 +205,41 @@ def apply_satellite_filter(
     sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
-    port: int,
-    password: str,
+    cmd_file: str | Path,
+    start_at_top: bool = False,
     regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
 ) -> SatelliteFilterFlowResult:
     """Rebuild and reload one satellite (2=portrait, 3=landscape) under *query*.
 
     Ordering follows the caller's ``recent``/``f_mode`` just like a full rebuild,
-    so the filtered playlist still honours premiere vs shuffle and F-mode.  A
+    so the filtered playlist still honours Latest vs Shuffle and F-mode.  A
     non-empty query that matches nothing leaves the current playlist in place
-    rather than blanking the VLC; ``query == ""`` clears the filter.
+    rather than blanking the satellite; ``query == ""`` clears the filter.  The
+    playlist file it writes is the one the satellite plays, so a RELOAD_PLAYLIST
+    verb makes the player pick it up.
+
+    That reload keeps the clip on screen playing while it survives the new list, and
+    carries on from where it sits — which is right for a filter, and wrong for a
+    caller whose whole point is a fresh start.  Reordering newest-first is exactly
+    that: the new order would otherwise only apply *behind* the clip playing, and the
+    newest arrivals never come up.  ``start_at_top`` follows the reload with a jump
+    to the head of the list it just wrote.
     """
     label = "portrait" if which == 2 else "landscape"
     name = PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE
-    library = _satellite_library(state_dir, regen_metadata_root)
-    paths = build_satellite_playlist_paths(
-        sources, f_mode_enabled, Path(favs_file),
-        filter_query=query, recent=recent, library=library,
+    paths = satellite_browse_paths(
+        which=which, query=query, f_mode_enabled=f_mode_enabled, recent=recent,
+        sources=sources, favs_file=favs_file, state_dir=state_dir,
+        regen_metadata_root=regen_metadata_root,
     )
     if query and not paths:
         return SatelliteFilterFlowResult(0, False, f"Filter {label}: no matches for '{query}'")
     playlist_path = build_playlist_file_path(Path(state_dir), name)
     write_playlist_file(playlist_path, paths)
-    if not replace_playlist_from_file(port, password, playlist_path, repeat_mode="all"):
-        logger.warning("%s VLC failed to load filtered playlist", label)
+    write_satellite_command(Path(cmd_file), RELOAD_PLAYLIST_CMD)
+    if start_at_top and paths:
+        write_satellite_command(Path(cmd_file), f"{PLAY_FILE_CMD} {paths[0]}")
     summary = "cleared" if not query else f"'{query}'"
     return SatelliteFilterFlowResult(len(paths), True, f"Filter {label}: {summary} ({len(paths)})")
 
@@ -315,9 +270,8 @@ def apply_enter_omnipause(
     *,
     omni_paused: bool,
     primary_mode: str,
-    portrait_port: int,
-    landscape_port: int,
-    password: str,
+    portrait_paused_file: str | Path,
+    landscape_paused_file: str | Path,
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
@@ -332,21 +286,15 @@ def apply_enter_omnipause(
     write_flag_file(genau_paused_file, True)
     write_flag_file(audio_paused_file, True)
     write_flag_file(nau_paused_file, True)
+    # The satellites obey their paused flag file each tick, so freezing playback
+    # is a single flag write per side.  A paused native satellite simply cannot
+    # auto-advance (its advance() returns early while paused), so OmniPause is a
+    # settled state: one write holds it, with nothing to police afterwards.
+    write_flag_file(portrait_paused_file, True)
+    write_flag_file(landscape_paused_file, True)
     Path(genau_cmd_file).write_text("PAUSE", encoding="utf-8")
     if broker_cmd_file is not None:
-        Path(broker_cmd_file).write_text("PARK", encoding="utf-8")
-    vlc_targets = [
-        (portrait_port, "Portrait"),
-        (landscape_port, "Landscape"),
-    ]
-    with ThreadPoolExecutor(max_workers=len(vlc_targets)) as pool:
-        futures = {
-            pool.submit(ensure_playback_state, port, password, should_play=False): label
-            for port, label in vlc_targets
-        }
-        for fut in futures:
-            if not fut.result():
-                logger.warning("%s VLC failed to pause for omnipause", futures[fut])
+        write_broker_command(broker_cmd_file, PARK_CMD)
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,
@@ -359,9 +307,8 @@ def apply_leave_omnipause(
     *,
     omni_paused: bool,
     primary_mode: str,
-    portrait_port: int,
-    landscape_port: int,
-    password: str,
+    portrait_paused_file: str | Path,
+    landscape_paused_file: str | Path,
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
@@ -380,19 +327,11 @@ def apply_leave_omnipause(
     if plan.resume_nau_playback:
         write_flag_file(nau_paused_file, False)
     if broker_cmd_file is not None:
-        Path(broker_cmd_file).write_text("RESUME", encoding="utf-8")
-    vlc_targets = [
-        (portrait_port, "Portrait"),
-        (landscape_port, "Landscape"),
-    ]
-    with ThreadPoolExecutor(max_workers=len(vlc_targets)) as pool:
-        futures = {
-            pool.submit(ensure_playback_state, port, password, should_play=True): label
-            for port, label in vlc_targets
-        }
-        for fut in futures:
-            if not fut.result():
-                logger.warning("%s VLC failed to resume from omnipause", futures[fut])
+        write_broker_command(broker_cmd_file, RESUME_CMD)
+    # Unfreeze both satellites; a locked one holds its clip (its lock is
+    # independent of the pause flag), an unlocked one resumes auto-advancing.
+    write_flag_file(portrait_paused_file, False)
+    write_flag_file(landscape_paused_file, False)
     return OmniPauseFlowResult(
         action=plan.action,
         next_omni_paused=plan.next_omni_paused,

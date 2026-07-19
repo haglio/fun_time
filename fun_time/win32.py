@@ -213,17 +213,6 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     return best
 
 
-def wait_for_window(pid: int, timeout_s: float = 15.0) -> int:
-    """Poll for a window belonging to *pid*, returning its hwnd or 0 on timeout."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        hwnd = find_window_by_pid(pid)
-        if hwnd:
-            return hwnd
-        time.sleep(0.1)
-    return 0
-
-
 def wait_for_window_by_title(
     title: str, timeout_s: float = 5.0, *, exact: bool = False, include_hidden: bool = False
 ) -> int:
@@ -256,7 +245,6 @@ def set_always_on_top(hwnd: int, on_top: bool) -> None:
     """Set or clear the always-on-top flag for a window."""
     insert_after = HWND_TOPMOST if on_top else HWND_NOTOPMOST
     _user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-
 
 
 def is_window_topmost(hwnd: int) -> bool:
@@ -343,6 +331,16 @@ def activate_window(hwnd: int) -> None:
     _user32.SetForegroundWindow(hwnd)
 
 
+# argtypes matter on 64-bit: without them ctypes marshals the HWND as a 32-bit
+# c_int and truncates the handle, and the process-id out-param pointer must be a
+# real pointer (same reasoning as the SetWindowPos/OpenProcess declarations).
+_user32.GetWindowThreadProcessId.argtypes = [
+    ctypes.wintypes.HWND,                   # hWnd
+    ctypes.POINTER(ctypes.wintypes.DWORD),  # lpdwProcessId (out)
+]
+_user32.GetWindowThreadProcessId.restype = ctypes.wintypes.DWORD
+
+
 def find_window_by_title(title: str, *, exact: bool = False, include_hidden: bool = False) -> int:
     """Find a visible window whose title contains (or, with *exact*, equals)
     *title*. Returns 0 if not found.
@@ -371,20 +369,8 @@ def find_window_by_title(title: str, *, exact: bool = False, include_hidden: boo
     return best
 
 
-SW_SHOW = 5
-SW_HIDE = 0
 SW_MINIMIZE = 6
 SW_SHOWMINNOACTIVE = 7
-
-
-def show_window(hwnd: int) -> None:
-    """Show a window (WinShow equivalent)."""
-    _user32.ShowWindow(hwnd, SW_SHOW)
-
-
-def hide_window(hwnd: int) -> None:
-    """Hide a window (WinHide equivalent)."""
-    _user32.ShowWindow(hwnd, SW_HIDE)
 
 
 def minimize_window(hwnd: int, *, activate: bool = True) -> None:
@@ -424,28 +410,6 @@ def disable_window_transitions(hwnd: int) -> None:
 def is_window_minimized(hwnd: int) -> bool:
     """True if the window is currently minimized (iconic)."""
     return bool(_user32.IsIconic(hwnd))
-
-
-def send_key_to_window(hwnd: int, key: str) -> None:
-    """Send a single keystroke to a window via PostMessage (WM_KEYDOWN/UP).
-
-    Uses WM_KEYDOWN + WM_KEYUP rather than WM_CHAR so that applications
-    which only process key-down events (e.g. VLC media shortcuts) respond.
-    """
-    WM_KEYDOWN = 0x0100
-    WM_KEYUP = 0x0101
-    for ch in key:
-        vk = ord(ch.upper())
-        _user32.PostMessageW(hwnd, WM_KEYDOWN, vk, 0)
-        _user32.PostMessageW(hwnd, WM_KEYUP, vk, 0)
-
-
-def send_vk_to_window(hwnd: int, vk: int) -> None:
-    """Send a virtual-key code to a window via PostMessage (WM_KEYDOWN/UP)."""
-    WM_KEYDOWN = 0x0100
-    WM_KEYUP = 0x0101
-    _user32.PostMessageW(hwnd, WM_KEYDOWN, vk, 0)
-    _user32.PostMessageW(hwnd, WM_KEYUP, vk, 0)
 
 
 # --- File Open Dialog (COM IFileOpenDialog) ---

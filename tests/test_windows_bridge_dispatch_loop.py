@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import socket
 import threading
@@ -11,12 +12,12 @@ from unittest.mock import patch
 import pytest
 
 from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
+from fun_time.hud_transport import HudPublisher
 from fun_time.media_metadata import normalize_path_key
 from fun_time.voice_commands import parse_command_line
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
-    execute_window_ops,
     expand_both_command,
     write_shared_state,
     read_shared_state,
@@ -43,27 +44,26 @@ PID_TO_HWND = {
     500: DASHBOARD_HWND,
 }
 
-# The windows that are topmost in EVERY mode.  Nau is the exception: its band is
-# mode-dependent (topmost in nau mode, non-topmost under Genau's HUD in hybrid,
-# hidden in genau), so each test folds NAU_HWND in or out of this set as needed.
+# The windows that are topmost in EVERY mode — the ones that own a rect and so
+# overlap nothing.  Nau and Genau SHARE the primary rect, so each is in the band
+# only in the modes where it shows something; every test folds those two in or
+# out as its own mode requires.
 TOPMOST_HWNDS = {
-    RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, GENAU_HWND, DASHBOARD_HWND,
+    RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
 }
 
 
 @pytest.fixture(autouse=True)
-def _no_satellite_vlc_io():
-    """A tick() reaches VLC over HTTP for both satellites: it SAMPLES them when
-    unpaused and ENFORCES the pause (the OmniPause watchdog) when paused, reading
-    the caught satellite's clip/repeat/position for its catch diagnosis.  These
-    tests are about dispatch, not any of that, and a real request would land on
-    whichever VLC happens to own that port on this machine — so every channel is
-    neutralised (no fraction to sample, nothing found playing to re-pause, inert
-    diagnosis reads).  A test exercising the watchdog patches these itself."""
-    with patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=None), \
-         patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path", return_value=""), \
-         patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value=None), \
-         patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing", return_value=False):
+def _neutralise_topmost_reads():
+    """The only real-desktop reach left in a tick() is _log_topmost_state, which
+    reads each managed window's WS_EX_TOPMOST flag on every OmniPause toggle.
+    These tests are about dispatch, not z-order, and a real read would land on
+    whichever window answers on this machine — so the flag read is neutralised
+    (nothing is ever found topmost).  The native satellites publish their
+    playback to status files, so a tick's satellite/primary sampling is inert
+    here (no status files written).  A test asserting on topmost state patches
+    is_window_topmost itself."""
+    with patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False):
         yield
 
 
@@ -77,9 +77,14 @@ def lookup_title(title, exact=False):
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
     settings = dict(
-        portrait_port=9091,
-        landscape_port=9092,
-        vlc_password="test",
+        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
+        portrait_paused_file=tmp_path / "portrait_paused.txt",
+        portrait_status_file=tmp_path / "portrait_status.txt",
+        portrait_playlist_file=tmp_path / "portrait_playlist.tsv",
+        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
+        landscape_paused_file=tmp_path / "landscape_paused.txt",
+        landscape_status_file=tmp_path / "landscape_status.txt",
+        landscape_playlist_file=tmp_path / "landscape_playlist.tsv",
         favs_file=tmp_path / "favs.txt",
         weird_dir=tmp_path / "weird",
         state_dir=tmp_path,
@@ -117,6 +122,24 @@ def _write_nau_status(path: Path, video, *, position_ms: int, duration_ms: int, 
     )
 
 
+def _write_satellite_status(path: Path, video, *, fraction: float | None = None,
+                            paused: bool = False, locked: bool = False) -> None:
+    """Write a native satellite's status file the way its player publishes it.
+
+    ``fraction`` sets how far through the clip the player reports: None writes a
+    not-yet-known duration (``read_satellite_status().fraction`` is then None, so
+    the sample is dropped), otherwise position/duration encode the fraction.
+    """
+    duration_ms = 0 if fraction is None else 1000
+    position_ms = 0 if fraction is None else round(fraction * duration_ms)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"video={video}\nposition_ms={position_ms}\nduration_ms={duration_ms}\n"
+        f"paused={'1' if paused else '0'}\nlocked={'1' if locked else '0'}\n",
+        encoding="utf-8",
+    )
+
+
 def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
     settings = dict(
         nau_pid=200,
@@ -144,10 +167,9 @@ class TestDetectSleepGap:
     def test_no_gap_for_normal_iteration(self):
         assert detect_sleep_gap(1000.0, 1000.05) is None
 
-    def test_default_threshold_ignores_a_slow_vlc_tick(self):
-        # A wholly unresponsive VLC can stall one tick ~40s (8 HTTP calls at a
-        # 5s timeout). The default threshold must clear that, not misread it as
-        # a wake.
+    def test_default_threshold_ignores_a_merely_slow_tick(self):
+        # A tick blocked on a stalled disk can run tens of seconds.  The default
+        # threshold must clear that, not misread it as a wake.
         assert detect_sleep_gap(1000.0, 1000.0 + 40) is None
 
 
@@ -261,125 +283,6 @@ class TestPollDashboardCommands:
         assert result == ["primary_prev"]
 
 
-class TestExecuteWindowOps:
-    def test_set_topmost_calls_win32(self):
-        ops = [WindowOp(op="set_topmost", title="Genau", value=True)]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost:
-            remaining = execute_window_ops(ops, nau_pid=1)
-
-        mock_topmost.assert_called_once_with(12345, True)
-        assert remaining == []
-
-    def test_activate_calls_win32(self, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        ops = [WindowOp(op="activate", title="Genau")]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window") as mock_activate:
-            remaining = execute_window_ops(ops, nau_pid=1)
-
-        mock_activate.assert_called_once_with(12345)
-        assert remaining == []
-
-    def test_show_calls_win32(self, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        ops = [WindowOp(op="show", title="Genau")]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_window") as mock_show:
-            remaining = execute_window_ops(ops, nau_pid=1)
-
-        mock_show.assert_called_once_with(12345)
-        assert remaining == []
-
-    def test_hide_calls_win32(self):
-        ops = [WindowOp(op="hide", title="Genau")]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=12345), \
-             patch("fun_time.windows_bridge_dispatch_loop.hide_window") as mock_hide:
-            remaining = execute_window_ops(ops, nau_pid=1)
-
-        mock_hide.assert_called_once_with(12345)
-        assert remaining == []
-
-    def test_suspend_returned_as_remaining(self):
-        """suspend_hotkeys can only be done by AHK — returned for forwarding."""
-        ops = [WindowOp(op="suspend_hotkeys")]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert len(remaining) == 1
-        assert remaining[0].op == "suspend_hotkeys"
-
-    def test_unsuspend_returned_as_remaining(self):
-        ops = [WindowOp(op="unsuspend_hotkeys")]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert len(remaining) == 1
-        assert remaining[0].op == "unsuspend_hotkeys"
-
-    def test_send_key_uses_pid(self):
-        ops = [WindowOp(op="send_key", key="p")]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=99), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_key_to_window") as mock_send:
-            remaining = execute_window_ops(ops, nau_pid=42)
-
-        mock_send.assert_called_once_with(99, "p")
-        assert remaining == []
-
-    def test_send_vk_uses_pid(self):
-        ops = [WindowOp(op="send_vk", vk=0x25)]  # VK_LEFT
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=99), \
-             patch("fun_time.windows_bridge_dispatch_loop.send_vk_to_window") as mock_send:
-            remaining = execute_window_ops(ops, nau_pid=42)
-
-        mock_send.assert_called_once_with(99, 0x25)
-        assert remaining == []
-
-    def test_skips_op_when_window_not_found(self):
-        ops = [WindowOp(op="set_topmost", title="Nonexistent", value=True)]
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost:
-            remaining = execute_window_ops(ops, nau_pid=1)
-
-        mock_topmost.assert_not_called()
-        assert remaining == []
-
-    def test_disable_all_topmost_returned_as_remaining(self):
-        ops = [WindowOp(op="disable_all_topmost")]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert len(remaining) == 1
-        assert remaining[0].op == "disable_all_topmost"
-
-    def test_restore_all_topmost_returned_as_remaining(self):
-        ops = [WindowOp(op="restore_all_topmost")]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert len(remaining) == 1
-        assert remaining[0].op == "restore_all_topmost"
-
-    def test_role_ops_returned_as_remaining(self):
-        """show_role/hide_role/activate_role/restack_primary are handled against
-        the runner's role cache, not window titles — execute_window_ops must hand
-        them back untouched.  Dropping them here silently broke mode switches
-        once (the title-less ops fell through the title branch)."""
-        ops = [
-            WindowOp(op="show_role", key="nau"),
-            WindowOp(op="restack_primary"),
-            WindowOp(op="activate_role", key="nau"),
-            WindowOp(op="hide_role", key="genau"),
-        ]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert remaining == ops
-
-    def test_open_rfb_tab_returned_as_remaining(self):
-        ops = [WindowOp(op="open_rfb_tab", key="https://example.com")]
-        remaining = execute_window_ops(ops, nau_pid=1)
-
-        assert len(remaining) == 1
-        assert remaining[0].op == "open_rfb_tab"
-        assert remaining[0].key == "https://example.com"
-
-
 class TestSharedState:
     def test_write_then_read_roundtrip(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
@@ -436,7 +339,7 @@ class TestSharedState:
         assert loaded.volume == 30
         assert loaded.muted is True
 
-    def test_roundtrip_preserves_per_vlc_filters(self, tmp_path):
+    def test_roundtrip_preserves_per_satellite_filters(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(
             primary_mode="nau",
@@ -450,7 +353,7 @@ class TestSharedState:
         assert loaded.portrait_filter == "beta gamma"
         assert loaded.landscape_filter == "alpha"
 
-    def test_roundtrip_preserves_per_vlc_loops(self, tmp_path):
+    def test_roundtrip_preserves_per_satellite_loops(self, tmp_path):
         """The HUD runs in its own process and reads its loop state from this
         file, so a loop set by a command has to survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
@@ -461,6 +364,18 @@ class TestSharedState:
 
         assert loaded.portrait_loop == "seed"
         assert loaded.landscape_loop == "action"
+
+    def test_roundtrip_preserves_the_map_anchor(self, tmp_path):
+        """The HUD orders a running loop's map from the clip the loop started on,
+        which it reads from this file, so it must survive the round-trip."""
+        state_file = tmp_path / "shared_state.ini"
+        state = BridgeState(portrait_map_anchor="C:/v/a.mp4", landscape_map_anchor="C:/v/b.mp4")
+
+        write_shared_state(state_file, state)
+        loaded = read_shared_state(state_file)
+
+        assert loaded.portrait_map_anchor == "C:/v/a.mp4"
+        assert loaded.landscape_map_anchor == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_widen_clip(self, tmp_path):
         """The HUD reads which clip each side's seed row is widened around from
@@ -473,6 +388,18 @@ class TestSharedState:
 
         assert loaded.portrait_widen_clip == "C:/v/a.mp4"
         assert loaded.landscape_widen_clip == "C:/v/b.mp4"
+
+    def test_roundtrip_preserves_the_nav_anchor(self, tmp_path):
+        """The HUD reads which clip each side's map is frozen on for keyboard
+        navigation from this file, so it must survive the round-trip."""
+        state_file = tmp_path / "shared_state.ini"
+        state = BridgeState(portrait_nav_anchor="C:/v/a.mp4", landscape_nav_anchor="C:/v/b.mp4")
+
+        write_shared_state(state_file, state)
+        loaded = read_shared_state(state_file)
+
+        assert loaded.portrait_nav_anchor == "C:/v/a.mp4"
+        assert loaded.landscape_nav_anchor == "C:/v/b.mp4"
 
     def test_state_files_without_loop_keys_load_as_unlooped(self, tmp_path):
         # A state file written before loops were tracked must still load.
@@ -522,14 +449,28 @@ class TestResolveActiveSideCommand:
     def test_rewrites_to_landscape_when_active_side_is_landscape(self):
         assert resolve_active_side_command("active_next", 3) == "landscape_next"
 
+    def test_rewrites_the_bare_enter_lock_onto_the_active_side(self):
+        # Enter enqueues "active_nav_lock"; it locks whichever satellite was last
+        # navigated (by an arrow / WASD nav step).
+        assert resolve_active_side_command("active_nav_lock", 2) == "portrait_nav_lock"
+        assert resolve_active_side_command("active_nav_lock", 3) == "landscape_nav_lock"
+
     def test_passes_non_active_commands_through(self):
         assert resolve_active_side_command("primary_next", 3) == "primary_next"
         assert resolve_active_side_command("portrait_lock", 3) == "portrait_lock"
 
     def test_active_nav_targets_primary_when_primary_is_active(self):
-        """The primary (slot 1) joins the active-side feature for nav only."""
+        """The primary (slot 1) joins the active-side feature for nav."""
         assert resolve_active_side_command("active_next", 1) == "primary_next"
         assert resolve_active_side_command("active_prev", 1) == "primary_prev"
+
+    def test_end_loop_on_the_primary_means_naus_own_loop(self):
+        """A side-agnostic phrase may mean a different thing on each player: on a
+        satellite "end loop" ends a group loop, on the primary it cancels Nau's A-B
+        loop.  The resolution is where that translation belongs."""
+        assert resolve_active_side_command("active_no_loop", 1) == "nau_loop_cancel"
+        assert resolve_active_side_command("active_no_loop", 2) == "portrait_no_loop"
+        assert resolve_active_side_command("active_no_loop", 3) == "landscape_no_loop"
 
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
         """Primary has no lock/weird/cycle, so a bare satellite-only command
@@ -547,8 +488,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_next", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -564,8 +504,7 @@ class TestDispatchLoopRunner:
         runner.state = BridgeState(active_side=3, locked3=False)
         (tmp_path / "dashboard_cmd.txt").write_text("active_lock_on", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -580,8 +519,7 @@ class TestDispatchLoopRunner:
         runner.state = BridgeState(active_side=2)
         (tmp_path / "dashboard_cmd.txt").write_text("active_next", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -600,8 +538,7 @@ class TestDispatchLoopRunner:
         runner._timelines[2].observe("C:\\clips\\advanced_to.mp4", now=101.0)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock_on @100.200", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -619,8 +556,7 @@ class TestDispatchLoopRunner:
         runner._timelines[3].observe("C:\\clips\\landscape.mp4", now=100.0)
         (tmp_path / "dashboard_cmd.txt").write_text("landscape_trash @100.200", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -634,8 +570,7 @@ class TestDispatchLoopRunner:
         runner._timelines[2].observe("C:\\clips\\meant.mp4", now=100.0)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_trash", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -643,12 +578,10 @@ class TestDispatchLoopRunner:
 
     def test_sampling_records_each_satellites_video_into_its_timeline(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
-        paths = {9091: "C:\\clips\\portrait.mp4", 9092: "C:\\clips\\landscape.mp4"}
+        _write_satellite_status(runner.config.portrait_status_file, "C:\\clips\\portrait.mp4", fraction=0.1)
+        _write_satellite_status(runner.config.landscape_status_file, "C:\\clips\\landscape.mp4", fraction=0.1)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.1), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                   side_effect=lambda port, _pw: paths[port]):
-            runner._sample_satellites(now=500.0)
+        runner._sample_satellites(now=500.0)
 
         assert runner._timelines[2].path_at(500.0) == "C:\\clips\\portrait.mp4"
         assert runner._timelines[3].path_at(500.0) == "C:\\clips\\landscape.mp4"
@@ -749,157 +682,6 @@ class TestDispatchLoopRunner:
 
         mock_primary.assert_not_called()
 
-    def test_tick_under_omnipause_re_pauses_playing_satellites(self, tmp_path):
-        """OmniPause pauses the satellites once on entry, but one can resume on
-        its own afterward — most often a slow load that only began playing after
-        the enter settle window.  On the sampling cadence the tick runs a
-        watchdog that re-pauses any satellite slipped back into playing, and
-        samples neither player (nothing is watched while paused)."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-        checked_ports: list[int] = []
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: checked_ports.append(port) or True), \
-             patch.object(runner, "_sample_satellites") as mock_sat, \
-             patch.object(runner, "_sample_primary") as mock_primary:
-            runner.tick()
-
-        assert checked_ports == [9091, 9092], "both satellites are checked every enforcement tick"
-        mock_sat.assert_not_called()
-        mock_primary.assert_not_called()
-
-    def test_omnipause_watchdog_shares_the_sampling_throttle(self, tmp_path):
-        """The watchdog rides the same twice-a-second cadence as sampling, so a
-        just-checked tick does not re-poll the satellites 20 times a second."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-        runner._last_watch_sample = float("inf")
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing") as mock_pause:
-            runner.tick()
-
-        mock_pause.assert_not_called()
-
-    def test_tick_never_runs_the_watchdog_while_playing_normally(self, tmp_path):
-        """Outside OmniPause the satellites are meant to play, so the watchdog
-        stays idle and never fights normal playback."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing") as mock_pause:
-            runner.tick()
-
-        mock_pause.assert_not_called()
-
-    def test_omnipause_watchdog_logs_the_satellite_it_catches(self, tmp_path, caplog):
-        """A satellite resuming under OmniPause is the recurring bug; when the
-        watchdog catches one it names the side in the log, so a recurrence is
-        visible instead of silent."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: port == 9091), \
-             caplog.at_level("WARNING"):
-            runner.tick()
-
-        assert any("Portrait" in r.getMessage() for r in caplog.records)
-        assert not any("Landscape" in r.getMessage() for r in caplog.records)
-
-    def test_omnipause_watchdog_flashes_on_the_caught_satellite(self, tmp_path, caplog):
-        """The re-pause toast must appear over the satellite it re-paused, not
-        the primary — so the record carries that satellite's source. The default
-        (system) would flash the toast on the primary instead."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: port == 9092), \
-             caplog.at_level("WARNING"):
-            runner.tick()
-
-        caught = [r for r in caplog.records if "Landscape" in r.getMessage()]
-        assert caught, "the watchdog logged the landscape satellite it caught"
-        assert all(getattr(r, "source", None) == "landscape" for r in caught)
-
-    def test_omnipause_watchdog_records_what_the_satellite_resumed_into(self, tmp_path, caplog):
-        """The bare 'it resumed on its own' line is the symptom, not the cause.
-        A catch also records what the satellite resumed *into* — its repeat mode,
-        position and current clip — so a recurrence is diagnosable from the log
-        alone instead of needing a live repro."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: port == 9091), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value="one"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                   return_value=r"C:\clips\abc_topaz.mp4"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.03), \
-             caplog.at_level("WARNING"):
-            runner.tick()
-
-        caught = [r for r in caplog.records if "Portrait" in r.getMessage()]
-        assert caught, "the watchdog logged the portrait catch"
-        message = caught[0].getMessage()
-        assert "repeat=one" in message
-        assert "abc_topaz.mp4" in message
-        assert "pos=0.03" in message
-
-    def test_omnipause_watchdog_flags_a_repeated_clip_as_the_same_clip(self, tmp_path, caplog):
-        """Two catches of the *same* clip is VLC's repeat looping it under the
-        pause, not a playlist advance — the diagnosis says so, which is the
-        single field that tells the storm's cause apart."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: port == 9091), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value="one"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                   return_value=r"C:\clips\abc_topaz.mp4"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.01), \
-             caplog.at_level("WARNING"):
-            runner._last_watch_sample = 0.0
-            runner.tick()
-            runner._last_watch_sample = 0.0
-            runner.tick()
-
-        caught = [r for r in caplog.records if "Portrait" in r.getMessage()]
-        assert len(caught) == 2, "the watchdog caught the same satellite on both ticks"
-        assert "first catch" in caught[0].getMessage()
-        assert "same clip" in caught[1].getMessage()
-
-    def test_omnipause_watchdog_diagnosis_resets_when_the_pause_lifts(self, tmp_path, caplog):
-        """A fresh OmniPause episode must not describe its first catch as an
-        advance from a clip caught in a previous episode: leaving the pause (a
-        sampling tick) clears the remembered clip, so the next catch reads as a
-        first catch again."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.windows_bridge_dispatch_loop.pause_if_playing",
-                   side_effect=lambda port, pw: port == 9091), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_repeat_mode", return_value="one"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                   return_value=r"C:\clips\abc_topaz.mp4"), \
-             patch("fun_time.windows_bridge_dispatch_loop.get_playback_fraction", return_value=0.01), \
-             caplog.at_level("WARNING"):
-            runner._last_watch_sample = 0.0
-            runner.tick()
-            # OmniPause lifts: a sampling tick runs and clears the memory.
-            runner.state = BridgeState(omni_paused=False)
-            runner._last_watch_sample = 0.0
-            runner.tick()
-            # A new episode catches the same clip — it must read as a first catch.
-            runner.state = BridgeState(omni_paused=True)
-            runner._last_watch_sample = 0.0
-            runner.tick()
-
-        caught = [r for r in caplog.records if "Portrait" in r.getMessage()]
-        assert len(caught) == 2, "one catch per omnipause episode"
-        assert "first catch" in caught[1].getMessage()
-
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the primary display in every mode it appears, so a nudge
         dispatches to Nau's SEEK command (which stacks against its live clock)."""
@@ -907,8 +689,7 @@ class TestDispatchLoopRunner:
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("primary_nudge_next", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -925,22 +706,26 @@ class TestDispatchLoopRunner:
 
         topmost_calls: list[tuple[int, bool]] = []
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
         assert runner.state.omni_paused is True
-        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
         self, tmp_path, monkeypatch,
     ):
         """Leaving omnipause in nau mode gives every managed window its TOPMOST
         bit back — INCLUDING Nau, which floats above the desktop again — and
-        re-activates the window that owns the primary display."""
+        re-activates the window that owns the primary display.
+
+        Genau is the exception, and the reason this is worth pinning: it shares
+        Nau's rect and is promoted last, so putting it back in the band puts it
+        ABOVE Nau's video.  Coming back from omnipause used to do exactly that.
+        """
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
@@ -950,8 +735,7 @@ class TestDispatchLoopRunner:
         topmost_calls: list[tuple[int, bool]] = []
         activated: list[int] = []
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window", side_effect=activated.append), \
@@ -961,6 +745,7 @@ class TestDispatchLoopRunner:
 
         assert runner.state.omni_paused is False
         assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS | {NAU_HWND}
+        assert GENAU_HWND not in {h for h, v in topmost_calls if v is True}
         assert activated == [NAU_HWND]
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
@@ -969,8 +754,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omnipause_toggle", encoding="utf-8")
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner.tick()
@@ -987,8 +771,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -1009,8 +792,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -1039,8 +821,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
@@ -1064,8 +845,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
@@ -1080,8 +860,7 @@ class TestDispatchLoopRunner:
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         suspend_op = WindowOp(op="suspend_hotkeys")
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[suspend_op]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [suspend_op])
             runner._dispatch("some_command")
 
@@ -1094,8 +873,7 @@ class TestDispatchLoopRunner:
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[unsuspend_op]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [unsuspend_op])
             runner._dispatch("some_command")
 
@@ -1108,8 +886,7 @@ class TestDispatchLoopRunner:
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[unsuspend_op]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [unsuspend_op])
             runner._dispatch("some_command")
 
@@ -1125,7 +902,6 @@ class TestDispatchLoopRunner:
 
         notice_op = WindowOp(op="notice", key="Clipper: MyVideo", source="primary")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[notice_op]), \
              patch("fun_time.windows_bridge_dispatch_loop.notice") as mock_notice:
             mock_dispatch.return_value = (runner.state, [notice_op])
             runner._dispatch("some_command")
@@ -1145,7 +921,6 @@ class TestDispatchLoopRunner:
 
         notice_op = WindowOp(op="notice", key="No other seeds", source="portrait", level=logging.ERROR)
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[notice_op]), \
              patch("fun_time.windows_bridge_dispatch_loop.notice") as mock_notice:
             mock_dispatch.return_value = (runner.state, [notice_op])
             runner._dispatch("portrait_cycle_seed")
@@ -1179,8 +954,7 @@ class TestDispatchLoopRunner:
         state_file = tmp_path / "shared_state.ini"
 
         new_state = BridgeState(locked3=True)
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", return_value=(new_state, [])), \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", return_value=(new_state, [])):
             runner.tick()
 
         loaded = read_shared_state(state_file)
@@ -1298,8 +1072,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_lock", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
@@ -1310,7 +1083,7 @@ class TestDispatchLoopRunner:
     def test_help_reference_commands_send_press_but_do_not_dispatch(self, tmp_path):
         """The reference popup is a dashboard-UI concern: the loop echoes each
         command (toggle and close) as a press (the dashboard acts on it) and
-        dispatches nothing — no VLC calls, no shared-state churn."""
+        dispatches nothing — no player commands, no shared-state churn."""
         for command in ("help_reference", "help_reference_close"):
             recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             recv_sock.bind(("127.0.0.1", 0))
@@ -1336,8 +1109,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_lock", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()  # should not raise
 
@@ -1438,7 +1210,6 @@ class TestOpenRfbTab:
 
         rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[rfb_op]), \
              patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
             mock_dispatch.return_value = (runner.state, [rfb_op])
             runner._dispatch("portrait_lock")
@@ -1463,7 +1234,6 @@ class TestOpenRfbTab:
 
         rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[rfb_op]), \
              patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
             mock_dispatch.return_value = (runner.state, [rfb_op])
             runner._dispatch("portrait_lock")
@@ -1480,7 +1250,6 @@ class TestOpenRfbTab:
 
         rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[rfb_op]), \
              patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
             mock_dispatch.return_value = (runner.state, [rfb_op])
             runner._dispatch("portrait_lock")
@@ -1510,7 +1279,6 @@ class TestOpenRfbTab:
             return state, []
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", side_effect=fake_dispatch), \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=lambda ops, nau_pid: ops), \
              patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
             runner.tick()
 
@@ -1528,11 +1296,9 @@ class TestModeSwitchVisibility:
     activated BEFORE the outgoing one hides, so focus never falls through to
     another application.
 
-    These tests run the real dispatch_command and the real
-    execute_window_ops, pinning the whole path from command string to
-    win32 call — including execute_window_ops' pass-through of the
-    show_role/activate_role/hide_role ops, whose silent dropping broke
-    mode switches once.
+    These tests run the real dispatch_command, pinning the whole path from
+    command string to win32 call — including the show_role/activate_role/
+    hide_role ops, whose silent dropping broke mode switches once.
     """
 
     def _run_mode_switch(self, tmp_path, monkeypatch, *, from_mode, command,
@@ -1553,8 +1319,7 @@ class TestModeSwitchVisibility:
                    side_effect=lambda h, **kw: calls.append(("hide", h))), \
              patch("fun_time.windows_bridge_dispatch_loop.activate_window",
                    side_effect=lambda h: calls.append(("activate", h))), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.runtime_flow.ensure_playback_state", return_value=True):
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner._dispatch(command)
 
         assert runner.state.primary_mode == {
@@ -1699,7 +1464,7 @@ class TestModeDependentTopmost:
 
         calls = self._topmost_calls(runner, "_remove_all_topmost")
 
-        assert {h for h, v in calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
+        assert {h for h, v in calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_restore_all_topmost_floats_nau_in_nau_mode(self, tmp_path):
         """nau mode: Nau reclaims the topmost band, above the desktop."""
@@ -1727,50 +1492,54 @@ class TestModeDependentTopmost:
 
 
 class TestHandleOpenFileDialog:
-    """Tests for the open_file_dialog command that migrates
-    AHK's OpenPrimaryVlcFileDialogWithManagedOmniPause to Python.
+    """Tests for the open_file_dialog command (the Nau "browse" feature).
+
+    Browsing must leave playback and voice alone — everything keeps playing
+    while you pick.  The dialog only needs the topmost bands dropped so it is
+    not buried under the always-on-top windows; it must never enter OmniPause.
     """
 
-    def test_enters_omnipause_when_not_paused(self, tmp_path):
+    def test_browse_never_enters_omnipause(self, tmp_path):
+        """The core regression: browsing must not pause the session.
+
+        The bug — browse entered OmniPause, and picking a video resumed only
+        Nau, leaving the satellites + voice frozen (so "pause" was ignored with
+        "we're in omnipause").  Browsing keeps everything playing, so it never
+        enters OmniPause and never leaves the session paused.
+        """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "enter_omnipause" in dispatched
+        assert "enter_omnipause" not in dispatched
+        assert "leave_omnipause" not in dispatched
+        assert runner.state.omni_paused is False
 
     def test_removes_topmost_from_all_managed_windows(self, tmp_path):
+        """The dialog needs a clear stage: every managed window drops out of the
+        topmost band so it can't bury the dialog.  Nothing pauses — this is the
+        only window state browsing touches."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
         topmost_calls = []
 
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
-
-        exec_returns = iter([
-            [WindowOp(op="disable_all_topmost")],
-            [WindowOp(op="restore_all_topmost")],
-        ])
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         removed = {h for h, v in topmost_calls if not v}
-        assert removed == TOPMOST_HWNDS | {NAU_HWND}
+        assert removed == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_shows_file_dialog_with_primary_sources_dir(self, tmp_path):
         """Shows our own file dialog with the first primary_sources directory."""
@@ -1778,12 +1547,10 @@ class TestHandleOpenFileDialog:
         runner = make_runner(tmp_path, config=config)
         runner.state = BridgeState(omni_paused=False)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI", owner_hwnd=NAU_HWND)
@@ -1801,12 +1568,10 @@ class TestHandleOpenFileDialog:
         mirrored.parent.mkdir(parents=True)
         mirrored.write_text("{}", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=str(video)):
-            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner._handle_open_file_dialog()
 
         command = runner.config.nau_cmd_file.read_text(encoding="utf-8")
@@ -1819,12 +1584,10 @@ class TestHandleOpenFileDialog:
         runner = make_runner(tmp_path, config=config)
         runner.state = BridgeState(omni_paused=False, primary_mode="hybrid")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"):
-            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner._handle_open_file_dialog()
 
         assert runner.config.nau_cmd_file.read_text(encoding="utf-8") == r"PLAY_FILE C:\videos\movie.mp4"
@@ -1834,44 +1597,29 @@ class TestHandleOpenFileDialog:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         assert not runner.config.nau_cmd_file.exists()
 
-    def test_restores_topmost_in_finally(self, tmp_path):
+    def test_restores_topmost_after_the_pick(self, tmp_path):
+        """After the pick, every managed window gets its topmost band back —
+        Nau included in nau mode, so it floats above the desktop again."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
         topmost_calls = []
 
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
-
-        exec_returns = iter([
-            [WindowOp(op="disable_all_topmost")],
-            [WindowOp(op="restore_all_topmost")],
-        ])
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
-        dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "leave_omnipause" in dispatched
-
-        # nau mode (the default): every managed window gets its TOPMOST bit
-        # back, Nau included — it floats above the desktop again.
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS | {NAU_HWND}
 
@@ -1881,27 +1629,17 @@ class TestHandleOpenFileDialog:
 
         topmost_calls = []
 
-        def track_topmost(hwnd, on_top):
-            topmost_calls.append((hwnd, on_top))
-
-        exec_returns = iter([
-            [WindowOp(op="disable_all_topmost")],
-            [WindowOp(op="restore_all_topmost")],
-        ])
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=track_topmost), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+                   side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True, primary_mode="genau"), [])
             runner._handle_open_file_dialog()
 
         # genau mode: Nau is hidden and never joins the topmost band — it is
         # explicitly held non-topmost, never promoted.
         restored = {h for h, v in topmost_calls if v}
-        assert restored == TOPMOST_HWNDS
+        assert restored == TOPMOST_HWNDS | {GENAU_HWND}
         assert (NAU_HWND, False) in topmost_calls
         assert NAU_HWND not in restored
 
@@ -1912,36 +1650,28 @@ class TestHandleOpenFileDialog:
 
         call_log: list[str] = []
 
-        exec_returns = iter([
-            [WindowOp(op="disable_all_topmost")],
-            [WindowOp(op="restore_all_topmost")],
-        ])
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d, **kw: (call_log.append("dialog"), None)[-1]):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         assert "dialog" in call_log
         first_remove = next(i for i, c in enumerate(call_log) if c == "topmost_False")
         assert first_remove < call_log.index("dialog")
 
-    def test_skips_omnipause_when_already_paused(self, tmp_path):
+    def test_skips_topmost_management_when_already_paused(self, tmp_path):
+        """Under OmniPause the topmost bands are already down and must stay down
+        (restoring them would strand windows on top mid-pause), so browse leaves
+        them alone — but still shows the dialog."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=NAU_HWND), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=NAU_HWND), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
             runner._handle_open_file_dialog()
 
-        # Should not dispatch enter/leave omnipause
-        mock_dispatch.assert_not_called()
         # Should not touch topmost
         mock_topmost.assert_not_called()
         # Should still show the file dialog owned by the Nau window
@@ -1952,50 +1682,18 @@ class TestHandleOpenFileDialog:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]), \
+        # With no Nau window found, the dialog is owner-less.  find_window_by_title
+        # is stubbed too: _resolve_role("nau") falls back to it when the pid lookup
+        # misses, and left live it would enumerate the real desktop and return a
+        # stray HWND (e.g. a running Fun Time's Nau window) — a flake.
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
             runner._handle_open_file_dialog()
 
         mock_dialog.assert_called_once_with("", owner_hwnd=0)
-
-    def test_forwards_suspend_and_unsuspend_via_dispatch(self, tmp_path, monkeypatch):
-        """Suspend/unsuspend reach AHK via _dispatch forwarding remaining ops."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=False)
-        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
-
-        suspend_op = WindowOp(op="suspend_hotkeys")
-        unsuspend_op = WindowOp(op="unsuspend_hotkeys")
-
-        ahk_commands_written = []
-        original_write_text = Path.write_text
-
-        def capture_write(self_path, text, **kwargs):
-            if self_path == ahk_cmd_file:
-                ahk_commands_written.append(text)
-            return original_write_text(self_path, text, **kwargs)
-
-        # enter_omnipause returns suspend_hotkeys, leave_omnipause returns unsuspend
-        exec_returns = iter([[suspend_op], [unsuspend_op]])
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", side_effect=exec_returns), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None), \
-             patch.object(Path, "write_text", capture_write):
-            mock_dispatch.return_value = (BridgeState(omni_paused=True), [])
-            runner._handle_open_file_dialog()
-
-        assert "suspend_hotkeys" in ahk_commands_written
-        assert "unsuspend_hotkeys" in ahk_commands_written
-        assert ahk_commands_written.index("suspend_hotkeys") < ahk_commands_written.index("unsuspend_hotkeys")
 
     def test_concurrent_invocations_prevented(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2093,6 +1791,72 @@ class TestUpdateDashboardOsr2Off:
 
 
 # ---------------------------------------------------------------------------
+# OmniPause voice freeze
+# ---------------------------------------------------------------------------
+
+class TestOmnipauseVoiceFreeze:
+    """Under OmniPause a *spoken* command is frozen unless it resumes or quits.
+
+    A mis-heard phrase must not act on a paused room — that is the whole bug.
+    ``spoken_at`` is what marks a voice line; the deliberate mouse (dashboard,
+    lock HUD) stays live, because a click cannot mis-fire the way a phrase can,
+    and those channels write the command file with no ``spoken_at`` stamp.  This
+    is the dispatch-loop backstop to VoiceController's own suspend, closing the
+    entry race where a phrase is written in the tick before the suspend flag is
+    set.
+    """
+
+    def test_freezes_a_spoken_command_under_omnipause(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+            mock_dispatch.return_value = (runner.state, [])
+            runner._handle_command("landscape_next", spoken_at=123.0)
+        mock_dispatch.assert_not_called()
+
+    def test_freezes_a_spoken_reference_popup_under_omnipause(self, tmp_path):
+        """The bug it was born from: room noise heard as "help" opening the
+        reference popup mid-pause.  Frozen, it never reaches the dashboard."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        with patch.object(runner, "_send_press") as mock_press:
+            runner._handle_command("help_reference", spoken_at=123.0)
+        mock_press.assert_not_called()
+
+    def test_keeps_the_mouse_live_under_omnipause(self, tmp_path):
+        """A lock-HUD click (bare command, no ``spoken_at``) still acts while
+        paused — the user cannot fat-finger it the way a phrase mis-fires."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+            mock_dispatch.return_value = (runner.state, [])
+            runner._handle_command("portrait_lock_video|C:/clip.mp4")
+        assert mock_dispatch.call_args[0][0] == "portrait_lock_video|C:/clip.mp4"
+
+    def test_a_spoken_resume_still_un_pauses(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+            runner._handle_command("play", spoken_at=123.0)
+        mock_toggle.assert_called_once()
+
+    def test_a_spoken_quit_still_quits(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        runner._handle_command("quit", spoken_at=123.0)
+        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+
+    def test_outside_omnipause_a_spoken_command_dispatches(self, tmp_path):
+        """The freeze is OmniPause-only: live, the same phrase dispatches."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False)
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+            mock_dispatch.return_value = (runner.state, [])
+            runner._handle_command("landscape_next", spoken_at=123.0)
+        assert mock_dispatch.call_args[0][0] == "landscape_next"
+
+
+# ---------------------------------------------------------------------------
 # Idempotent voice commands
 # ---------------------------------------------------------------------------
 
@@ -2154,8 +1918,7 @@ class TestIdempotentVoiceCommands:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("enter_omnipause", encoding="utf-8")
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner.tick()
@@ -2171,14 +1934,13 @@ class TestIdempotentVoiceCommands:
 
         topmost_calls: list[tuple[int, bool]] = []
 
-        with patch("fun_time.runtime_flow.ensure_playback_state", return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_enter_omnipause_noop_when_already_paused(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
@@ -2361,24 +2123,54 @@ class TestIdempotentVoiceCommands:
     def test_broker_start_starts_when_not_running(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         # No heartbeat file → broker not running
-        with patch("fun_time.windows_bridge_dispatch_loop.restart_broker") as mock_restart:
+        with patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_start", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
             time.sleep(0.2)  # daemon thread
-        mock_restart.assert_called_once()
+        mock_launch.assert_called_once_with(runner.config.broker_tray_launcher)
 
     def test_broker_start_noop_when_already_running(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         # Fresh heartbeat → broker running
         (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
-        with patch("fun_time.windows_bridge_dispatch_loop.restart_broker") as mock_restart:
+        with patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_start", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_restart.assert_not_called()
+        mock_launch.assert_not_called()
+
+    def test_broker_start_never_kills_the_broker(self, tmp_path):
+        """A stale heartbeat does not mean no broker. osr2_broker only ticks the
+        heartbeat while it holds the serial port, so a broker that cannot reach a
+        powered-off OSR2 reads as dead while it is very much alive -- and killing
+        it drops harem and the user's own MFP session with it. Starting is a
+        start; only an explicit stop may kill."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        # No heartbeat file at all: the broker reads as dead.
+        with patch("fun_time.windows_bridge_startup.stop_broker_processes") as mock_stop:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("broker_start", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+            time.sleep(0.2)  # daemon thread
+        mock_stop.assert_not_called()
+
+    def test_broker_panel_toggle_starts_without_killing(self, tmp_path):
+        """The B panel toggles the broker.  Toggling one that reads as dead has
+        to start it, not restart it — the same stale-heartbeat trap as
+        broker_start, and the same live broker on the other side of it."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        # No heartbeat file: the toggle takes its "not running, so start" arm.
+        with patch("fun_time.windows_bridge_startup.stop_broker_processes") as mock_stop:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("broker_panel", encoding="utf-8")
+            runner._last_sync = float("inf")
+            runner.tick()
+            time.sleep(0.2)  # daemon thread
+        mock_stop.assert_not_called()
 
     def test_broker_stop_stops_when_running(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
@@ -2407,28 +2199,17 @@ class TestWatchTracking:
     watch-stats events, with user nav commands marking skips."""
 
     def _run_samples(self, runner, monkeypatch, timeline):
-        """Drive tick() through (t, portrait_path, portrait_fraction) samples."""
-        current = {"value": ("", None)}
+        """Drive tick() through (t, portrait_path, portrait_fraction) samples,
+        publishing each to the portrait satellite's status file the way its
+        native player would (a None fraction writes an unknown duration, which
+        the sampler drops)."""
         fake_now = {"t": 0.0}
         monkeypatch.setattr(
             "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
         )
-
-        def fake_path(port, pw):
-            return current["value"][0] if port == 9091 else ""
-
-        def fake_fraction(port, pw):
-            return current["value"][1] if port == 9091 else None
-
-        monkeypatch.setattr(
-            "fun_time.windows_bridge_dispatch_loop.get_current_file_path", fake_path
-        )
-        monkeypatch.setattr(
-            "fun_time.windows_bridge_dispatch_loop.get_playback_fraction", fake_fraction
-        )
         for t, path, fraction in timeline:
             fake_now["t"] = t
-            current["value"] = (path, fraction)
+            _write_satellite_status(runner.config.portrait_status_file, path, fraction=fraction)
             runner.tick()
 
     def test_tick_records_a_completion_for_a_fully_watched_video(self, tmp_path, monkeypatch):
@@ -2457,28 +2238,16 @@ class TestWatchTracking:
         a = tmp_path / "a.mp4"
         a.write_text("x", encoding="utf-8")
 
-        with (
-            patch("fun_time.command_dispatch.vlc_nav_step", return_value=True),
-            patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-        ):
-            current = {"value": (str(a), 0.2)}
-            fake_now = {"t": 100.0}
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
-            )
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                lambda port, pw: current["value"][0] if port == 9091 else "",
-            )
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.get_playback_fraction",
-                lambda port, pw: current["value"][1] if port == 9091 else None,
-            )
-            runner.tick()                       # samples a.mp4 at 20%
-            runner._dispatch("portrait_next")   # user skips
-            fake_now["t"] = 101.1
-            current["value"] = (str(tmp_path / "b.mp4"), 0.0)
-            runner.tick()
+        fake_now = {"t": 100.0}
+        monkeypatch.setattr(
+            "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
+        )
+        _write_satellite_status(runner.config.portrait_status_file, str(a), fraction=0.2)
+        runner.tick()                       # samples a.mp4 at 20%
+        runner._dispatch("portrait_next")   # user skips
+        fake_now["t"] = 101.1
+        _write_satellite_status(runner.config.portrait_status_file, str(tmp_path / "b.mp4"), fraction=0.0)
+        runner.tick()
 
         stats = load_watch_stats(tmp_path / "watch_stats.json")
         assert stats[normalize_path_key(str(a))]["skips"] == 1
@@ -2491,29 +2260,16 @@ class TestWatchTracking:
         a = tmp_path / "a.mp4"
         a.write_text("x", encoding="utf-8")
 
-        with (
-            patch("fun_time.command_dispatch.get_current_file_path", return_value=str(a)),
-            patch("fun_time.command_dispatch.vlc_advance_and_remove", return_value=True),
-            patch("fun_time.command_dispatch.ensure_playback_state", return_value=True),
-        ):
-            current = {"value": (str(a), 0.2)}
-            fake_now = {"t": 100.0}
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
-            )
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.get_current_file_path",
-                lambda port, pw: current["value"][0] if port == 9091 else "",
-            )
-            monkeypatch.setattr(
-                "fun_time.windows_bridge_dispatch_loop.get_playback_fraction",
-                lambda port, pw: current["value"][1] if port == 9091 else None,
-            )
-            runner.tick()
-            runner._dispatch("portrait_trash")  # moves the file to weird
-            fake_now["t"] = 101.1
-            current["value"] = (str(tmp_path / "b.mp4"), 0.0)
-            runner.tick()
+        fake_now = {"t": 100.0}
+        monkeypatch.setattr(
+            "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
+        )
+        _write_satellite_status(runner.config.portrait_status_file, str(a), fraction=0.2)
+        runner.tick()
+        runner._dispatch("portrait_trash")  # moves the file to weird
+        fake_now["t"] = 101.1
+        _write_satellite_status(runner.config.portrait_status_file, str(tmp_path / "b.mp4"), fraction=0.0)
+        runner.tick()
 
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
 
@@ -2653,11 +2409,9 @@ class TestHybridFunscriptHandoff:
         runner.state = BridgeState(primary_mode="hybrid")
         self._write_status(runner, has_funscript=True, resting=False)
 
-        with patch(
-            "fun_time.windows_bridge_dispatch_loop.get_playback_fraction",
-            return_value=None,
-        ):
-            runner.tick()
+        # The native satellites publish to status files (none written here), so
+        # the tick's sampling is inert and the hybrid handoff runs alone.
+        runner.tick()
 
         assert self._genau(runner) == "PAUSE"
 
@@ -2694,8 +2448,7 @@ class TestBothSatelliteCommands:
         runner._last_sync = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text("both_next", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner.tick()
 
@@ -2710,8 +2463,7 @@ class TestBothSatelliteCommands:
         runner.state = BridgeState(locked2=True, locked3=False)
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner.tick()
 
@@ -2724,10 +2476,87 @@ class TestBothSatelliteCommands:
         runner.state = BridgeState(locked2=True, locked3=True)
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_off", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.execute_window_ops", return_value=[]):
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
             runner.tick()
 
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert commands == ["portrait_lock", "landscape_lock"]
+
+
+class TestHudPublishing:
+    """The dispatch loop owns the lock HUD's model: it holds the bridge state and
+    already ticks, so it builds each satellite's panel and publishes it to the
+    file that satellite's player renders from."""
+
+    def _runner_with_hud(self, tmp_path):
+        publisher = HudPublisher(
+            {"portrait": tmp_path / "portrait_hud.json",
+             "landscape": tmp_path / "landscape_hud.json"},
+            tmp_path / "thumbs",
+        )
+        return make_runner(tmp_path, hud_publisher=publisher)
+
+    def test_tick_publishes_each_satellites_panel(self, tmp_path):
+        runner = self._runner_with_hud(tmp_path)
+        _write_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4", fraction=0.1)
+        _write_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4", fraction=0.1)
+        runner.state = replace(runner.state, locked2=True, portrait_filter="alpha")
+
+        runner.tick()
+
+        portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        landscape = json.loads((tmp_path / "landscape_hud.json").read_text(encoding="utf-8"))
+        assert portrait["side"] == "portrait"
+        assert portrait["locked"] is True
+        # The status line composes the lot — lock, order, and the filter unlabelled.
+        assert portrait["lock_label"] == "Locked · Shuffle · alpha"
+        assert portrait["corner"]["path"] == "C:/v/p.mp4"
+        assert landscape["locked"] is False
+        assert landscape["corner"]["path"] == "C:/v/l.mp4"
+
+    def test_publishing_is_throttled_below_the_tick_rate(self, tmp_path):
+        """The loop ticks 20x/s; rebuilding and rewriting both panels that often
+        is waste the map never shows, so publishing runs on its own cadence."""
+        runner = self._runner_with_hud(tmp_path)
+        _write_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4", fraction=0.1)
+
+        with patch.object(runner._hud_publisher, "publish", return_value=True) as publish:
+            runner.tick()
+            runner.tick()
+
+        assert publish.call_count == 2, "one publish per side on the first tick only"
+
+    def test_a_status_that_cannot_be_read_keeps_the_clip_it_last_named(self, tmp_path):
+        """A satellite always has a clip, so a status file that reads blank means
+        the read lost — not that the player has nothing.
+
+        Believing the blank republishes an empty panel, which the player renders
+        as a HUD with nothing on it, and the next tick puts it back: the map
+        blinks.  It is most visible under OmniPause, where the picture is frozen
+        and the map is the only thing that can move.
+        """
+        runner = self._runner_with_hud(tmp_path)
+        status = tmp_path / "portrait_status.txt"
+        _write_satellite_status(status, "C:/v/p.mp4", fraction=0.1)
+        runner.tick()
+
+        status.write_text("", encoding="utf-8")  # caught mid-republish
+        runner._last_hud_publish -= 1  # past the publish throttle
+        runner.tick()
+
+        portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        assert portrait["corner"]["path"] == "C:/v/p.mp4"
+
+    def test_a_satellite_that_has_not_started_yet_publishes_an_empty_panel(self, tmp_path):
+        # The other side of it: before a satellite's first status there is no
+        # clip to hold onto, and an empty map is the truth.
+        runner = self._runner_with_hud(tmp_path)
+
+        runner.tick()
+
+        portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        assert portrait["corner"] is None
+
+    def test_a_runner_without_a_hud_publisher_just_ticks(self, tmp_path):
+        make_runner(tmp_path).tick()

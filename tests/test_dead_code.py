@@ -1,4 +1,4 @@
-"""Ensure no dead code accumulates in the production package."""
+"""Ensure no dead code accumulates in the production packages."""
 
 import subprocess
 import sys
@@ -13,6 +13,10 @@ def test_no_dead_code():
         [
             sys.executable, "-m", "vulture",
             str(ROOT / "fun_time"),
+            # The satellite player ships from this repo too, so it is held to the
+            # same bar. It went unscanned while it lived in genau, which is how
+            # two unreachable SatelliteSession methods survived the move here.
+            str(ROOT / "satellite"),
             str(ROOT / "vulture_whitelist.py"),
             "--min-confidence", "60",
         ],

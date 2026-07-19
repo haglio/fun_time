@@ -4,6 +4,7 @@ import json
 import os
 import random
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -31,14 +32,21 @@ from .live_session_guard import read_recorded_children
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
 
+# Every integration config is written under this name, in a temp tree of its own.
+# It is also what tells an integration orchestrator apart from the user's on a
+# command line, so the two uses share the constant rather than the spelling.
+INTEGRATION_CONFIG_NAME = "fun_time_integration_config.json"
 
-# The images the apps a session leaves behind actually run as: the two satellite
-# VLCs, Nau/Genau/the audio companion/the dashboard (all pythonw), and the AHK
-# hotkey shell.  python.exe is deliberately absent — pytest and the orchestrator
-# both run as python.exe, and a reap that kills a pytest takes down a whole
-# integration run (this one, or one queued behind it) with no output at all.
-# The orchestrator needs no killing here: it exits once its AHK is gone.
-_APP_IMAGE_NAMES = frozenset({"vlc.exe", "pythonw.exe", "autohotkey64.exe"})
+
+# The images the apps a session leaves behind actually run as: the two
+# satellites, Nau/Genau/the audio companion/the dashboard (all pythonw), and the
+# AHK hotkey shell.  python.exe is deliberately absent — pytest and the
+# orchestrator both run as python.exe, and a reap that kills a pytest takes down
+# a whole integration run (this one, or one queued behind it) with no output at
+# all.  The orchestrator needs no killing here: it exits once its AHK is gone.
+# The set is an allow-list on purpose: an image a run never launches is never
+# swept, so a third-party app of the user's is never at risk.
+_APP_IMAGE_NAMES = frozenset({"pythonw.exe", "autohotkey64.exe"})
 
 
 def _is_leftover_app(pid: int) -> bool:
@@ -47,34 +55,28 @@ def _is_leftover_app(pid: int) -> bool:
 
 
 def _kill_leftover_app_processes() -> None:
-    """Kill leftover VLC / Nau / AHK / pythonw from a prior session so the next
+    """Kill leftover players / AHK / pythonw from a prior session so the next
     one starts clean.
 
-    On the hidden integration desktop, scope the kill to that desktop's windows:
-    none of them belong to the user's real (input-desktop) session, so a run is
-    safe to fire unattended.  They are not all *ours*, though — the desktop is
-    shared with any leftover session and with the pytest of a run queued behind
-    this one — so kill only the app images.  On a visible manual run, fall back
-    to the by-name + 5-minute-recency sweep (the user accepts the screen
-    takeover in that mode).  Both branches target the same images, so neither
-    can reach a pytest.
+    Bounded to the hidden integration desktop's own windows.  Nothing on that
+    desktop belongs to the user's real (input-desktop) session, which is what
+    makes a run safe to fire unattended.  They are not all *ours*, though — the
+    desktop is shared with any leftover session and with the pytest of a run
+    queued behind this one — so kill only the app images, never a python.exe.
+
+    Anywhere else there is nothing of ours to find and nothing safe to kill, so
+    this does nothing at all.  It used to fall back to
+    ``Get-Process pythonw,autohotkey64 | where StartTime > -5min | Stop-Process``
+    — every player, companion and AHK bridge of any session started in the last
+    five minutes, the user's included.  That existed to serve bare
+    ``pytest tests/integration/``, the one invocation the suite forbids and now
+    refuses outright.
     """
-    if current_desktop_name() == HIDDEN_DESKTOP_NAME:
-        for pid in pids_with_window_on_current_desktop():
-            if _is_leftover_app(pid):
-                kill_process_tree(pid)
+    if current_desktop_name() != HIDDEN_DESKTOP_NAME:
         return
-    # StartTime is wrapped in try/catch: reading it throws if a process exited
-    # between the Get-Process snapshot and this evaluation, or if it is owned by
-    # another user.  An unguarded throw drops that item; catching it per-process
-    # (treat as "not recent") keeps the pipeline going to the rest.
-    names = ",".join(sorted(name.removesuffix(".exe") for name in _APP_IMAGE_NAMES))
-    ps = (
-        f"Get-Process {names} -ErrorAction SilentlyContinue | "
-        "Where-Object { try { $_.StartTime -gt (Get-Date).AddMinutes(-5) } catch { $false } } | "
-        "Stop-Process -Force -ErrorAction SilentlyContinue"
-    )
-    subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], check=False)
+    for pid in pids_with_window_on_current_desktop():
+        if _is_leftover_app(pid):
+            kill_process_tree(pid)
 
 
 
@@ -147,18 +149,33 @@ class FunTimeIntegrationSession:
         cause ahk_proc.wait() to return, triggering the orchestrator's
         finally block which calls _shutdown_children().
 
+        The command is re-sent until the process goes.  ``ahk_cmd.txt`` is a
+        one-slot mailbox that AHK reads-and-deletes on a 150ms timer, and the
+        dispatch loop writes to it too — an OmniPause enter puts
+        ``suspend_hotkeys`` there — so a lone write can be overwritten before
+        AHK ever reads it, and an exit lost that way never arrives.  That is
+        what made ``test_fun_time_reopens_on_the_video_it_was_closed_on``
+        (which quits from inside OmniPause) fail about one run in ten.  Nothing
+        in production races here: the dispatch loop is the mailbox's only
+        writer and returns the moment it has written "exit".
+
         Returns the orchestrator process exit code.
         """
         if not self._proc or self._proc.poll() is not None:
             raise RuntimeError("Orchestrator is not running")
         ahk_cmd = self.config.paths.state_dir / "ahk_cmd.txt"
-        ahk_cmd.write_text("exit", encoding="utf-8")
-        try:
-            exit_code = self._proc.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            raise AssertionError(
-                f"Orchestrator did not exit within {timeout}s after AHK was killed\n{self._log_tail()}"
-            )
+        deadline = time.monotonic() + timeout
+        while True:
+            ahk_cmd.write_text("exit", encoding="utf-8")
+            try:
+                exit_code = self._proc.wait(timeout=min(1.0, max(deadline - time.monotonic(), 0.0)))
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= deadline:
+                    raise AssertionError(
+                        f"Orchestrator did not exit within {timeout}s after AHK was told to quit"
+                        f"\n{self._log_tail()}"
+                    )
         if hasattr(self, "_stderr_fh") and self._stderr_fh:
             self._stderr_fh.close()
         return exit_code
@@ -172,6 +189,11 @@ class FunTimeIntegrationSession:
         self._stderr_file = self.config.paths.state_dir / "orchestrator_stderr.log"
         self._stderr_file.parent.mkdir(parents=True, exist_ok=True)
         self._stderr_fh = self._stderr_file.open("w", encoding="utf-8")
+        # The windows-bridge log outlives the session that wrote it, so a
+        # whole-file search would answer with a PREVIOUS session's "Hotkey script
+        # started" and hand back a session that has not launched anything yet.
+        # Only what is appended from here on can satisfy the wait.
+        already_logged = len(self._read_windows_bridge_log())
         self._proc = subprocess.Popen(
             [sys.executable, "-m", "fun_time.orchestrator", "--config", str(self.config.config_path)],
             cwd=self.config.project_dir,
@@ -180,9 +202,20 @@ class FunTimeIntegrationSession:
             stderr=self._stderr_fh,
             text=True,
         )
-        self.wait_for_log("Hotkey script started", timeout=wait_seconds)
+        self._wait_for_own_log("Hotkey script started", after=already_logged, timeout=wait_seconds)
         time.sleep(1.0)
         self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
+
+    def _wait_for_own_log(self, needle: str, *, after: int, timeout: float) -> None:
+        """Wait for *needle* among the log characters written past *after*."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if needle in self._read_windows_bridge_log()[after:]:
+                return
+            time.sleep(0.2)
+        raise AssertionError(
+            f"Did not find log line containing {needle!r} from this session\n{self._log_tail()}"
+        )
 
     def stop(self) -> None:
         if self._proc and self._proc.poll() is None:
@@ -195,7 +228,7 @@ class FunTimeIntegrationSession:
             self._stderr_fh.close()
         # Deterministically kill the children by their recorded PIDs first —
         # hard-terminating the orchestrator above skips its graceful
-        # _shutdown_children(), so the satellite VLCs would otherwise survive
+        # _shutdown_children(), so the satellites would otherwise survive
         # until the racy name+StartTime sweep happens to catch them.
         self._kill_recorded_children()
         self._reap_leftover_runtime_processes()
@@ -305,7 +338,7 @@ class FunTimeIntegrationSession:
 
         stop() hard-terminates the orchestrator with TerminateProcess, so the
         orchestrator's own graceful _shutdown_children() never runs and the
-        processes it launched (the two satellite VLCs, plus Nau/Genau/dashboard/
+        processes it launched (the two satellites, plus Nau/Genau/dashboard/
         audio) are orphaned.  Kill them via the production kill_recorded_child,
         which taskkills a recorded PID only while its creation time still names
         the process the orchestrator launched — a child that has already died
@@ -339,7 +372,7 @@ class FunTimeIntegrationSession:
         self._wait_for_orchestrators_to_exit()
 
     def _wait_for_orchestrators_to_exit(self, timeout: float = 15.0) -> None:
-        """Block until no fun_time.orchestrator processes remain.
+        """Block until no *integration* fun_time.orchestrator processes remain.
 
         Killing a session's AHK wakes its orchestrator, whose shutdown then
         taskkills the PIDs it recorded at startup.  Windows recycles PIDs
@@ -347,11 +380,19 @@ class FunTimeIntegrationSession:
         dying orchestrator can kill the new session's freshly-spawned
         processes.  Serialize the handoff: let the old orchestrator finish
         its shutdown storm before anything new starts.
+
+        Bounded to orchestrators started from an integration config.  Matching
+        every orchestrator on the machine swept in the user's live session, which
+        is never going to exit for us — so both ends of every session burned the
+        whole timeout, and a run's own teardown waited on a session it has
+        nothing to do with.
         """
+        config_pattern = INTEGRATION_CONFIG_NAME.replace(".", "\\.")
         ps = (
             "@(Get-CimInstance Win32_Process | Where-Object { "
             "$_.Name -match '^pythonw?\\.exe$' -and "
-            "$_.CommandLine -match 'fun_time\\.orchestrator' }).Count"
+            "$_.CommandLine -match 'fun_time\\.orchestrator' -and "
+            f"$_.CommandLine -match '{config_pattern}' }}).Count"
         )
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -363,6 +404,25 @@ class FunTimeIntegrationSession:
                 return
             time.sleep(0.5)
 
+
+
+def isolate_audio_companion_port(config: dict, genau_config: dict) -> None:
+    """Move this run's audio companion off the port the user's session uses.
+
+    The companion ``bind``s a fixed UDP port from config, and Genau notifies it
+    on the matching ``notify_port``.  Both sides of that pair are rewritten here,
+    to a port the OS says is free: rewriting one alone would only leave the run's
+    own Genau shouting at nobody.
+
+    Two sessions on the production port cannot both have it.  The loser dies with
+    WSAEADDRINUSE, and if the run got there first the loser is the user's — they
+    open Fun Time and it comes up with no companion audio and nothing to say why.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    config["audio_companion"]["port"] = port
+    genau_config["genau"]["notify_port"] = port
 
 
 def build_integration_config(tmp_path: Path) -> Path:
@@ -406,11 +466,14 @@ def build_integration_config(tmp_path: Path) -> Path:
     genau_config["nau"]["videos_dir"] = str(primary_dir)
     genau_config["nau"]["scripts_dir"] = str(scripts_root)
     genau_config["nau"]["clips_dir"] = str(nau_clips_dir)
+    # Paths are not the whole of what a session claims: the audio companion binds
+    # a fixed UDP port, so a run and a live session would race for one socket.
+    isolate_audio_companion_port(config, genau_config)
     test_genau_config = integration_root / "genau_integration_config.json"
     test_genau_config.write_text(json.dumps(genau_config), encoding="utf-8")
     config["paths"]["genau_config_path"] = str(test_genau_config)
 
-    config_path = integration_root / "fun_time_integration_config.json"
+    config_path = integration_root / INTEGRATION_CONFIG_NAME
     config_path.write_text(json.dumps(config), encoding="utf-8")
     return config_path
 

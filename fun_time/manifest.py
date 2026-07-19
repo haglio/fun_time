@@ -4,10 +4,12 @@ import configparser
 import os
 from pathlib import Path
 
+from .hud_transport import HUD_FILENAME
+
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 
 
-def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[str, str]]:
+def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
     layout = config.layout
     dashboard_enabled = os.environ.get("FUN_TIME_DISABLE_DASHBOARD") != "1"
     return {
@@ -18,7 +20,9 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "genau_config_path": str(config.paths.genau_config_path or config.config_path),
         },
         "executables": {
-            "vlc_exe": str(config.paths.vlc_exe),
+            # Two interpreters: ours runs everything this repo ships (the
+            # dashboard, the audio companion, the satellite players), and
+            # genau's runs the apps that live in ../genau (Genau and Nau).
             "python_exe": str(config.paths.python_exe),
             "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
         },
@@ -34,9 +38,9 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
         "modules": {
             "genau_module": "genau",
             "nau_module": "nau",
+            "satellite_module": "satellite",
             "audio_module": "fun_time.audio_companion_app",
             "dashboard_module": "fun_time.dashboard_app",
-            "lock_hud_module": "fun_time.lock_hud_app",
         },
         "genau": {
             "udp_host": config.genau.udp_host,
@@ -50,6 +54,16 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
             "nau_paused_file": str(config.nau_paused_file),
             "nau_status_file": str(config.nau_status_file),
             "nau_playlist_file": str(config.nau_playlist_file),
+            "portrait_cmd_file": str(config.paths.state_dir / "portrait_cmd.txt"),
+            "portrait_paused_file": str(config.paths.state_dir / "portrait_paused.txt"),
+            "portrait_status_file": str(config.paths.state_dir / "portrait_status.txt"),
+            "portrait_playlist_file": str(config.paths.state_dir / "portrait_playlist.tsv"),
+            "portrait_hud_file": str(config.paths.state_dir / HUD_FILENAME["portrait"]),
+            "landscape_cmd_file": str(config.paths.state_dir / "landscape_cmd.txt"),
+            "landscape_paused_file": str(config.paths.state_dir / "landscape_paused.txt"),
+            "landscape_status_file": str(config.paths.state_dir / "landscape_status.txt"),
+            "landscape_playlist_file": str(config.paths.state_dir / "landscape_playlist.tsv"),
+            "landscape_hud_file": str(config.paths.state_dir / HUD_FILENAME["landscape"]),
             "broker_cmd_file": str(config.paths.state_dir / "broker_cmd.txt"),
             "broker_heartbeat_file": str(config.paths.state_dir / "broker_heartbeat.txt"),
             "broker_tray_launcher": str(config.paths.broker_tray_launcher or ""),
@@ -60,11 +74,6 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
         },
         "dashboard": {
             "enabled": "1" if dashboard_enabled else "0",
-        },
-        "vlc": {
-            "vlc2_port": str(config.vlc.vlc2_http_port),
-            "vlc3_port": str(config.vlc.vlc3_http_port),
-            "vlc_pass": vlc_http_pass,
         },
         "layout": {
             "main_monitor": str(layout.main_monitor),
@@ -86,13 +95,13 @@ def build_windows_bridge_manifest(config, vlc_http_pass: str) -> dict[str, dict[
     }
 
 
-def write_windows_bridge_manifest(config, vlc_http_pass: str, destination: Path | None = None) -> Path:
+def write_windows_bridge_manifest(config, destination: Path | None = None) -> Path:
     manifest_path = destination or (config.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
     parser = configparser.ConfigParser()
     parser.optionxform = str
-    parser.read_dict(build_windows_bridge_manifest(config, vlc_http_pass))
+    parser.read_dict(build_windows_bridge_manifest(config))
     with manifest_path.open("w", encoding="utf-8") as fp:
         parser.write(fp)
     return manifest_path

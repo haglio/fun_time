@@ -154,7 +154,9 @@ class TestVoiceCommands:
             "back": "primary_nudge_prev",
             "record": "nau_record_down",
             "loop": "nau_record_up",
-            "end loop": "nau_loop_cancel",
+            # "end loop" is side-agnostic — it reaches Nau's own loop through the
+            # active-side resolution, not by naming the player here.
+            "end loop": "active_no_loop",
             "cycle version": "nau_cycle_version",
             "next version": "nau_cycle_version",
             "shorts": "nau_length_shorts",
@@ -179,6 +181,7 @@ class TestVoiceCommands:
             "next clip": "genau_next_clip",
             "offset": "quarter_button",
             "voice off": "voice_off",
+            "mic off": "voice_off",
         }
         for phrase, cmd in static_phrases.items():
             assert VOICE_COMMANDS[phrase] == cmd
@@ -235,6 +238,19 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["cycle version"] == "nau_cycle_version"
         assert VOICE_COMMANDS["shorts"] == "nau_length_shorts"
         assert VOICE_COMMANDS["full length"] == "nau_length_full"
+        assert VOICE_COMMANDS["mixed"] == "nau_length_mixed"
+
+    def test_end_compilation_leaves_without_naming_a_length(self):
+        """"compilation" gets you in; this gets you out, back to whichever length
+        mode was feeding the playlist before — the same shape as "end loop"."""
+        assert VOICE_COMMANDS["end compilation"] == "nau_end_compilation"
+
+    def test_primary_reset_returns_the_playlist_to_the_default_browse(self):
+        """"reset" means for the primary what it means for a satellite — drop
+        whatever is narrowing the playlist — and it is order-agnostic and takes
+        "main" for "primary" like the rest of that grid."""
+        for phrase in ("primary reset", "reset primary", "main reset", "reset main"):
+            assert VOICE_COMMANDS[phrase] == "nau_length_mixed"
 
     def test_satellite_grid_supports_both_orders(self):
         """Each satellite action works BARE (→ active side) and with a side word
@@ -509,6 +525,45 @@ class TestVoiceController:
         vc.stop()
         assert vc._stop.is_set()
 
+    def test_resolve_device_returns_none_when_unpinned(self, tmp_path, monkeypatch):
+        """With no device_name, sounddevice uses the system default (index None)
+        and no lookup is attempted."""
+        vc = VoiceController(cmd_file=tmp_path / "c.txt", model_path="unused")
+        monkeypatch.setattr(
+            voice_control, "resolve_input_device",
+            lambda name: pytest.fail("must not look up a device when unpinned"),
+        )
+        assert vc._resolve_device() is None
+
+    def test_resolve_device_looks_up_the_pinned_name(self, tmp_path, monkeypatch):
+        """A configured mic name is resolved to its live sounddevice index."""
+        vc = VoiceController(cmd_file=tmp_path / "c.txt", model_path="unused", device_name="Brio")
+        seen: list = []
+
+        def fake_resolve(name):
+            seen.append(name)
+            return (2, "Microphone (Brio 101)")
+
+        monkeypatch.setattr(voice_control, "resolve_input_device", fake_resolve)
+        assert vc._resolve_device() == 2
+        assert seen == ["Brio"]
+
+    def test_resolve_device_falls_back_to_none_when_name_matches_nothing(self, tmp_path, monkeypatch):
+        """The pinned mic is absent → None, letting sounddevice use the default."""
+        vc = VoiceController(cmd_file=tmp_path / "c.txt", model_path="unused", device_name="Brio")
+        monkeypatch.setattr(voice_control, "resolve_input_device", lambda name: (None, None))
+        assert vc._resolve_device() is None
+
+    def test_resolve_device_survives_a_lookup_error(self, tmp_path, monkeypatch):
+        """A sounddevice failure during lookup must not kill the voice thread."""
+        vc = VoiceController(cmd_file=tmp_path / "c.txt", model_path="unused", device_name="Brio")
+
+        def boom(name):
+            raise OSError("PortAudio exploded")
+
+        monkeypatch.setattr(voice_control, "resolve_input_device", boom)
+        assert vc._resolve_device() is None
+
     def test_mute_prevents_write_command(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
@@ -608,8 +663,13 @@ def test_resume_and_unpause_are_synonyms_for_play():
     assert "unpause" not in VOICE_COMMANDS  # single OOV token — never a phrase
 
 
-def test_shuffle_is_a_standalone_command():
-    assert VOICE_COMMANDS["shuffle"] == "shuffle"
+def test_shuffle_joins_the_order_agnostic_satellite_grid():
+    """Shuffle is sided like its counterpart Latest, so a single satellite can be
+    reshuffled without disturbing the other."""
+    assert VOICE_COMMANDS["shuffle"] == "active_shuffle"
+    for side in ("portrait", "landscape", "both"):
+        assert VOICE_COMMANDS[f"{side} shuffle"] == f"{side}_shuffle"
+        assert VOICE_COMMANDS[f"shuffle {side}"] == f"{side}_shuffle"
 
 
 def test_reset_joins_the_order_agnostic_satellite_grid():

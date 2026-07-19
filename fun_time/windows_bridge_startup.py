@@ -1,24 +1,53 @@
 from __future__ import annotations
 
 import configparser
+import logging
+import re
 import subprocess
-import time
+from collections.abc import Sequence
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME, write_volume
+from .broker_control import PARK_CMD, write_broker_command
 from .config import load_config
-from .dashboard_runtime import is_broker_heartbeat_fresh
-from .modes import SatelliteLibraryContext, build_fmode_playlists
+from .dashboard_runtime import is_broker_heartbeat_fresh, read_nau_status
+from .modes import (
+    PLAYLIST_LANDSCAPE,
+    PLAYLIST_NAU,
+    PLAYLIST_PORTRAIT,
+    SatelliteLibraryContext,
+    build_fmode_playlists,
+    build_playlist_file_path,
+)
+from .satellite_control import read_satellite_status
+from .session_resume import resume_playlists
 from .watch_stats import watch_stats_path
-from .vlc_actions import replace_playlist_from_file, set_repeat_mode, vlc_http_cmd, wait_for_http
 from .orchestrator_broker import (
+    BROKER_LAUNCHER_PATTERN,
     BROKER_PROCESS_PATTERN,
     BROKER_TRAY_PATTERN,
     broker_launch_kwargs,
     subprocess_window_kwargs,
 )
 from .random_favs_browser import build_manifest, write_manifest
+from .child_log import open_child_log
 from .rfb_tab_page import tabs_dir, write_tab_pages
+from .window_layout import WindowRect
+
+logger = logging.getLogger(__name__)
+
+
+# The two native satellites carry DISTINCT window captions so the sequencer can
+# resolve each to its slot by title when the pid lookup fails (the genau venv's
+# pythonw launcher can own a pid other than the window's — the same reason
+# launch_nau needs a title fallback).  A shared caption lets the fallback assign
+# one side's window to the other, which is the portrait/landscape visual swap.
+# The sequencer imports these to resolve by, so the strings live in one place.
+# These captions are also what each window calls itself in Alt-Tab and on its
+# taskbar button, so they name what the window *is* rather than this project's
+# internal word for it.
+SATELLITE_PORTRAIT_TITLE = "Portrait AI Player"
+SATELLITE_LANDSCAPE_TITLE = "Landscape AI Player"
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
@@ -31,32 +60,81 @@ def _write_result_file(result_file: str | Path, values: dict[str, int | str]) ->
         parser.write(fp)
 
 
+def stop_broker_processes() -> None:
+    """Kill every broker and broker-tray process on the machine.
 
-def stop_broker_processes(project_dir: str | Path) -> None:
-    """Kill all broker and broker-tray processes without restarting."""
-    project_path = Path(project_dir)
+    Matched by command line, so there is nothing for a working directory to
+    scope: the sweep reaches the same processes wherever it runs from.
+    """
     ps_command = (
         "$targets = Get-CimInstance Win32_Process | Where-Object { "
         "(($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $_.CommandLine -match '"
-        + BROKER_PROCESS_PATTERN
+        + BROKER_PROCESS_PATTERN + "|" + BROKER_TRAY_PATTERN
         + "') -or "
-        "(($_.Name -match '^powershell\\.exe$|^pwsh\\.exe$|^wscript\\.exe$') -and $_.CommandLine -match '"
-        + BROKER_TRAY_PATTERN
+        "(($_.Name -match '^wscript\\.exe$') -and $_.CommandLine -match '"
+        + BROKER_LAUNCHER_PATTERN
         + "') "
         "}; "
         "$targets | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
     )
     subprocess.run(
         ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
-        cwd=project_path,
         check=False,
         **subprocess_window_kwargs(),
     )
 
 
-def restart_broker(project_dir: str | Path, broker_tray_launcher: Path | None = None) -> None:
-    stop_broker_processes(project_dir)
-    time.sleep(0.4)
+def reap_orphaned_satellites(
+    satellite_module: str, status_files: Sequence[str | Path],
+) -> None:
+    """Kill satellite players stranded on the state files this session is claiming.
+
+    Normal shutdown kills the two satellites the orchestrator tracked, but a hard
+    crash or an unclean close can strand them alive.  A stranded pair keeps reading
+    the same ``state/*_cmd.txt`` / ``*_status.txt`` files this session's pair will
+    use, so on reopen four players race two files — stalled video and crossed
+    controls.  Reaped once at startup, before the new pair launches.
+
+    *status_files* is what bounds the reap, and it must: every satellite on the
+    machine runs ``-m <satellite_module>``, so matching the module alone made this
+    a machine-wide sweep — an integration run, whose state dir is somewhere else
+    entirely, killed both players in the user's live session on its way up.  Only a
+    player already bound to one of *our* files can be stranded on it, and nothing
+    else can be.  No files means nothing to claim and so nothing to reap.
+    """
+    if not status_files:
+        return
+    module_pattern = re.escape(satellite_module)
+    # PowerShell single-quoted literals: only ' needs doubling, so a Windows path's
+    # backslashes and brackets stay literal (no regex or -like wildcard surprises).
+    claimed = ",".join("'" + str(path).replace("'", "''") + "'" for path in status_files)
+    ps_command = (
+        f"$claimed = @({claimed}); "
+        "Get-CimInstance Win32_Process | Where-Object { $p = $_; "
+        "($p.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $p.CommandLine -and "
+        f"($p.CommandLine -match '-m\\s+{module_pattern}(\\s|$)') -and "
+        "($claimed | Where-Object { $p.CommandLine.Contains($_) }) "
+        "} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+    )
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
+        check=False,
+        **subprocess_window_kwargs(),
+    )
+
+
+def launch_broker_tray(broker_tray_launcher: Path | None) -> None:
+    """Start the broker's tray, or do nothing if one is already up.
+
+    The tray and the broker each hold a single-instance mutex, so launching
+    over a live pair costs one process that exits immediately.  That is what
+    makes this safe to run on a liveness reading we do not fully trust: the
+    worst case is a wasted launch, where killing first cannot be taken back.
+
+    The tray goes up with the broker's own kwargs, not the ordinary
+    hidden-window ones: it has to break away from an integration run's job
+    object and outlive the run that started it.
+    """
     if broker_tray_launcher and broker_tray_launcher.is_file():
         subprocess.Popen(
             ["wscript.exe", str(broker_tray_launcher)],
@@ -66,22 +144,25 @@ def restart_broker(project_dir: str | Path, broker_tray_launcher: Path | None = 
 
 
 def ensure_broker(
-    project_dir: str | Path,
     broker_heartbeat_file: str | Path | None,
     broker_tray_launcher: Path | None = None,
 ) -> None:
     """Start the broker only if one is not already running.
 
     A healthy broker outlives the session that launched it: harem and the user's
-    direct VLC+MFP use keep talking to it over the shared UDP inlet, and
-    osr2_broker installs a self-healing scheduled task that keeps one alive.
-    Killing a live broker to relaunch our own would drop every client
-    mid-stream, so a session (re)starts it only when the heartbeat is stale —
-    the same liveness signal the dashboard and dispatch loop already read.
+    own tools keep talking to it over the shared UDP inlet, and osr2_broker
+    installs a self-healing scheduled task that keeps one alive.  Killing a live
+    broker to relaunch our own would drop every client mid-stream.
+
+    A stale heartbeat is not permission to kill, either.  osr2_broker only ticks
+    it while it holds the serial port, so a powered-off OSR2 makes a healthy
+    broker look gone — and a session start is exactly when the device tends to
+    be off.  So we never kill here: launching over a live pair is a no-op the
+    mutexes absorb, and that is the cheap half of the trade.
     """
     if broker_heartbeat_file is not None and is_broker_heartbeat_fresh(Path(broker_heartbeat_file)):
         return
-    restart_broker(project_dir, broker_tray_launcher)
+    launch_broker_tray(broker_tray_launcher)
 
 
 def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: str | Path) -> None:
@@ -105,12 +186,21 @@ def seed_startup_states(
     audio_paused_file: str | Path,
     nau_paused_file: str | Path,
     audio_volume_file: str | Path,
+    genau_cmd_file: str | Path | None = None,
 ) -> None:
     """Seed the cross-process flags for the startup mode (nau): Genau parked, Nau
     paused until the sequencer's reveal unpauses it, and the sound level back at
     full — Nau and the audio companion each launch unattenuated, so a level left
     muted by the last session would silence this one with nothing on screen to
-    explain it."""
+    explain it.
+
+    Genau's *display* is seeded too, on its command channel.  Blanking keys off
+    DISPLAY_ON/DISPLAY_OFF and Genau defaults to owning its display (so a
+    standalone run paints its clips), while the DISPLAY_OFF that would blank it
+    under an orchestrator only rides a mode *switch* — and a session that starts
+    in nau mode never switches.  Left unsaid, Genau comes up painting its clips
+    in the primary slot it shares with Nau.
+    """
     for path, value in (
         (Path(genau_paused_file), "1"),
         (Path(audio_paused_file), "1"),
@@ -119,60 +209,143 @@ def seed_startup_states(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(value, encoding="utf-8")
     write_volume(Path(audio_volume_file), MAX_VOLUME)
+    if genau_cmd_file is not None:
+        path = Path(genau_cmd_file)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("PAUSE\nDISPLAY_OFF", encoding="utf-8")
+
+
+def reset_satellite_paused_states(
+    portrait_paused_file: str | Path,
+    landscape_paused_file: str | Path,
+) -> None:
+    """Clear both satellite paused flags so this session's players start playing.
+
+    Unlike the genau/audio/nau flags, the satellite paused files are outside
+    ``seed_startup_states``' scope and nothing else clears them.  A ``"1"`` left
+    stranded by a prior session's OmniPause would make this session's satellites
+    read paused and never play (frozen at position 0), so reset both to ``"0"``
+    before they launch — a satellite always comes up playing.
+    """
+    for path in (Path(portrait_paused_file), Path(landscape_paused_file)):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("0", encoding="utf-8")
 
 
 def start_core_session(
     *,
-    project_dir: str | Path,
     config_path: str | Path,
+    broker_cmd_file: str | Path,
     broker_tray_launcher: Path | None = None,
     broker_heartbeat_file: str | Path | None = None,
     random_favs_browser_manifest_file: str | Path,
     genau_paused_file: str | Path,
+    genau_cmd_file: str | Path | None = None,
     audio_paused_file: str | Path,
     nau_paused_file: str | Path,
     audio_volume_file: str | Path,
-    vlc_exe: str | Path,
+    satellite_python_exe: str | Path,
+    satellite_module: str,
+    portrait_cmd_file: str | Path,
+    portrait_paused_file: str | Path,
+    portrait_status_file: str | Path,
+    landscape_cmd_file: str | Path,
+    landscape_paused_file: str | Path,
+    landscape_status_file: str | Path,
+    nau_status_file: str | Path,
+    portrait_log_file: str | Path,
+    landscape_log_file: str | Path,
+    portrait_rect: WindowRect,
+    landscape_rect: WindowRect,
     primary_sources: str,
     portrait_sources: str,
     landscape_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
-    portrait_port: int,
-    landscape_port: int,
-    password: str,
     result_file: str | Path,
-    hide_windows: bool = False,
+    portrait_hud_file: str | Path | None = None,
+    landscape_hud_file: str | Path | None = None,
+    dashboard_cmd_file: str | Path | None = None,
     regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
 ) -> None:
-    ensure_broker(project_dir, broker_heartbeat_file, broker_tray_launcher)
-    seed_startup_states(genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file)
+    # Clear any satellites stranded by a prior crash on the very files this
+    # session is about to claim, so four players never race the two command/status
+    # file sets.  Bounded to those files: a session elsewhere on the machine (an
+    # integration run) owns different ones and must be left alone.
+    reap_orphaned_satellites(
+        satellite_module, [portrait_status_file, landscape_status_file],
+    )
+    # Send the OSR2 home first, so it waits out startup parked rather than
+    # wherever the last session left it — the two native players decode their
+    # first frames while Nau and Genau scan their libraries, and that wait is
+    # long.  The verb keeps in the file until the broker's next tick, so it does
+    # not matter that ensure_broker may only now be starting one.
+    write_broker_command(broker_cmd_file, PARK_CMD)
+    ensure_broker(broker_heartbeat_file, broker_tray_launcher)
+    seed_startup_states(
+        genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file,
+        genau_cmd_file,
+    )
+    # seed_startup_states does not touch the satellite paused files; clear any "1"
+    # a prior OmniPause stranded so the satellites launch playing, not frozen.
+    reset_satellite_paused_states(portrait_paused_file, landscape_paused_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
-    # One playlist authority: the same builder the F-mode toggle uses writes
-    # the three VLC playlists and Nau's video/funscript pair list.
-    playlist_plan = build_fmode_playlists(
-        primary_sources=primary_sources,
-        portrait_sources=portrait_sources,
-        landscape_sources=landscape_sources,
-        favs_file=Path(favs_file),
-        state_dir=Path(state_dir),
-        enabled=False,
-        library=SatelliteLibraryContext(
-            metadata_root=regen_metadata_root,
-            watch_stats_file=watch_stats_path(state_dir),
-        ),
+    state_path = Path(state_dir)
+    portrait_playlist = build_playlist_file_path(state_path, PLAYLIST_PORTRAIT)
+    landscape_playlist = build_playlist_file_path(state_path, PLAYLIST_LANDSCAPE)
+    # Come back to the clips this session was closed on, rather than three the
+    # user never chose: last session's playlists are still on disk and each
+    # player's status file names the video it had on screen, so a reopen rotates
+    # them instead of reshuffling.  Only a session with nothing to resume — a
+    # first run, a wiped state dir — is built, by the same builder the F-mode
+    # toggle uses.  Shuffle and Premiere still rebuild on demand, and that is
+    # where videos added since come in.
+    resumed = resume_playlists([
+        (portrait_playlist, read_satellite_status(Path(portrait_status_file)).video),
+        (landscape_playlist, read_satellite_status(Path(landscape_status_file)).video),
+        (build_playlist_file_path(state_path, PLAYLIST_NAU),
+         read_nau_status(Path(nau_status_file)).video),
+    ])
+    if not resumed:
+        build_fmode_playlists(
+            primary_sources=primary_sources,
+            portrait_sources=portrait_sources,
+            landscape_sources=landscape_sources,
+            favs_file=Path(favs_file),
+            state_dir=state_path,
+            enabled=False,
+            library=SatelliteLibraryContext(
+                metadata_root=regen_metadata_root,
+                watch_stats_file=watch_stats_path(state_path),
+            ),
+        )
+    # Which of the two ran is the difference between the clips of the last
+    # session and three new ones, so the log says outright which you are getting.
+    logger.info(
+        "Resumed last session's playlists"
+        if resumed
+        else "Nothing to resume; built fresh playlists"
     )
     launch_core_apps(
-        project_dir=project_dir,
-        vlc_exe=vlc_exe,
-        portrait_playlist=playlist_plan.portrait_playlist_path,
-        landscape_playlist=playlist_plan.landscape_playlist_path,
-        portrait_port=portrait_port,
-        landscape_port=landscape_port,
-        password=password,
+        python_exe=satellite_python_exe,
+        satellite_module=satellite_module,
+        portrait_playlist=portrait_playlist,
+        landscape_playlist=landscape_playlist,
+        portrait_cmd_file=portrait_cmd_file,
+        portrait_paused_file=portrait_paused_file,
+        portrait_status_file=portrait_status_file,
+        landscape_cmd_file=landscape_cmd_file,
+        landscape_paused_file=landscape_paused_file,
+        landscape_status_file=landscape_status_file,
+        portrait_log_file=portrait_log_file,
+        landscape_log_file=landscape_log_file,
+        portrait_rect=portrait_rect,
+        landscape_rect=landscape_rect,
         result_file=result_file,
-        hide_windows=hide_windows,
+        portrait_hud_file=portrait_hud_file,
+        landscape_hud_file=landscape_hud_file,
+        dashboard_cmd_file=dashboard_cmd_file,
     )
 
 
@@ -225,13 +398,19 @@ def launch_nau(
     command_file: str | Path,
     paused_file: str | Path,
     status_file: str | Path,
+    log_file: str | Path,
     nau_x: int,
     nau_y: int,
     nau_width: int,
     nau_height: int,
     metadata_dir: str | Path | None = None,
 ) -> int:
-    """Launch Nau subprocess, returning its PID."""
+    """Launch Nau subprocess, returning its PID.
+
+    Its stdout and stderr go to *log_file* for the same reason a satellite's do:
+    Nau is the same mpv-backed player under the same windowed ``pythonw``, which
+    gives an unhandled exception nowhere to print its traceback.
+    """
     cmd = [
         str(python_exe),
         "-m",
@@ -259,7 +438,8 @@ def launch_nau(
     # than guessing from clip names.
     if metadata_dir:
         cmd += ["--metadata-dir", str(metadata_dir)]
-    proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
+    with open_child_log(log_file, cmd) as log:
+        proc = subprocess.Popen(cmd, stdout=log, stderr=log, **subprocess_window_kwargs())
     return proc.pid
 
 
@@ -268,8 +448,6 @@ def launch_ui_companions(
     python_exe: str | Path,
     dashboard_module: str,
     dashboard_enabled: bool,
-    lock_hud_module: str,
-    hud_enabled: bool,
     windows_bridge_manifest_path: str | Path,
     dashboard_x: int,
     dashboard_y: int,
@@ -318,17 +496,6 @@ def launch_ui_companions(
         )
         dashboard_pid = dashboard_proc.pid
 
-    # The HUD self-positions over each satellite from the same manifest, so it
-    # only needs the manifest path.  It rides the dashboard's enable gate, so a
-    # dashboard-less integration run stays free of always-on-top overlays.
-    lock_hud_pid = 0
-    if hud_enabled:
-        lock_hud_proc = subprocess.Popen(
-            [python_exe, "-m", lock_hud_module, windows_bridge_manifest_path],
-            **subprocess_window_kwargs(),
-        )
-        lock_hud_pid = lock_hud_proc.pid
-
     audio_proc = subprocess.Popen(
         [
             python_exe,
@@ -346,121 +513,180 @@ def launch_ui_companions(
         result_file,
         {
             "dashboard_pid": dashboard_pid,
-            "lock_hud_pid": lock_hud_pid,
             "audio_pid": audio_proc.pid,
         },
     )
 
 
-# A full integration run spawns and kills VLC many times; on a loaded machine
-# the HTTP interface occasionally takes several seconds longer than a naive
-# fixed timeout to bind.  Wait generously — _await_vlc_http still fails fast if
-# the process dies, so the ceiling only bites a genuinely hung-but-alive VLC.
-_VLC_HTTP_BIND_TIMEOUT_MS = 20000
-
-
-def _await_vlc_http(port: int, password: str, proc, label: str) -> None:
-    """Block until VLC's HTTP interface binds, or fail with a precise error.
-
-    Waits up to _VLC_HTTP_BIND_TIMEOUT_MS, but only while *proc* is alive: a
-    VLC that has already exited will never bind, so we surface its exit code
-    immediately instead of waiting out the whole timeout.
-    """
-    if wait_for_http(port, password, _VLC_HTTP_BIND_TIMEOUT_MS, is_alive=lambda: proc.poll() is None):
-        return
-    if proc.poll() is not None:
-        raise RuntimeError(f"{label} VLC exited before its HTTP interface bound (exit code {proc.returncode})")
-    raise RuntimeError(f"{label} VLC HTTP did not come up within {_VLC_HTTP_BIND_TIMEOUT_MS // 1000}s")
-
-
 def launch_core_apps(
     *,
-    project_dir: str | Path,
-    vlc_exe: str | Path,
+    python_exe: str | Path,
+    satellite_module: str,
     portrait_playlist: str | Path,
     landscape_playlist: str | Path,
-    portrait_port: int,
-    landscape_port: int,
-    password: str,
+    portrait_cmd_file: str | Path,
+    portrait_paused_file: str | Path,
+    portrait_status_file: str | Path,
+    landscape_cmd_file: str | Path,
+    landscape_paused_file: str | Path,
+    landscape_status_file: str | Path,
+    portrait_log_file: str | Path,
+    landscape_log_file: str | Path,
+    portrait_rect: WindowRect,
+    landscape_rect: WindowRect,
     result_file: str | Path,
-    hide_windows: bool = False,
+    portrait_hud_file: str | Path | None = None,
+    landscape_hud_file: str | Path | None = None,
+    dashboard_cmd_file: str | Path | None = None,
 ) -> None:
-    project_dir = Path(project_dir)
-    vlc_exe = str(vlc_exe)
+    """Spawn the two native satellite players (portrait + landscape).
 
-    # Behind the loading screen, hold the playlist back: VLC launches with no
-    # media on its command line and has it enqueued over HTTP afterwards, so
-    # nothing plays before the sequencer has placed the windows.
-    portrait_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, portrait_port, password, repeat_mode="loop",
-                                   playlist_path=None if hide_windows else Path(portrait_playlist)),
-        cwd=project_dir,
+    Each is our own mpv-backed process (this repo's ``satellite`` package),
+    driven through its command/paused/status file quartet like Nau.  Each launches
+    straight into its final portrait/landscape rect: mpv sizes its output to the
+    launch geometry and does NOT rescale when a later Win32 move resizes the
+    window, so launching at the real rect (exactly as Nau does) is what makes the
+    video fill it.  There is no HTTP interface to wait on and nothing to enqueue or
+    repeat-mode here — the native player owns its playlist and auto-advances (its
+    wrap is repeat-all).
+    """
+    portrait_pid = launch_satellite(
+        python_exe=python_exe,
+        satellite_module=satellite_module,
+        title=SATELLITE_PORTRAIT_TITLE,
+        playlist_file=portrait_playlist,
+        command_file=portrait_cmd_file,
+        paused_file=portrait_paused_file,
+        status_file=portrait_status_file,
+        log_file=portrait_log_file,
+        x=portrait_rect.x, y=portrait_rect.y,
+        width=portrait_rect.width, height=portrait_rect.height,
+        hud_file=portrait_hud_file, dashboard_cmd_file=dashboard_cmd_file,
     )
-    landscape_proc = subprocess.Popen(
-        _build_vlc_launch_command(vlc_exe, landscape_port, password, repeat_mode="loop",
-                                   playlist_path=None if hide_windows else Path(landscape_playlist)),
-        cwd=project_dir,
+    landscape_pid = launch_satellite(
+        python_exe=python_exe,
+        satellite_module=satellite_module,
+        title=SATELLITE_LANDSCAPE_TITLE,
+        playlist_file=landscape_playlist,
+        command_file=landscape_cmd_file,
+        paused_file=landscape_paused_file,
+        status_file=landscape_status_file,
+        log_file=landscape_log_file,
+        x=landscape_rect.x, y=landscape_rect.y,
+        width=landscape_rect.width, height=landscape_rect.height,
+        hud_file=landscape_hud_file, dashboard_cmd_file=dashboard_cmd_file,
     )
-
-    _await_vlc_http(portrait_port, password, portrait_proc, "Portrait")
-    _await_vlc_http(landscape_port, password, landscape_proc, "Landscape")
-
-    set_repeat_mode(portrait_port, password, "all")
-    set_repeat_mode(landscape_port, password, "all")
-
-    time.sleep(0.25)
-    if hide_windows:
-        replace_playlist_from_file(portrait_port, password, Path(portrait_playlist), enqueue_only=True)
-    else:
-        vlc_http_cmd(portrait_port, "pl_next", password)
-    time.sleep(0.15)
-    if hide_windows:
-        replace_playlist_from_file(landscape_port, password, Path(landscape_playlist), enqueue_only=True)
-    else:
-        vlc_http_cmd(landscape_port, "pl_next", password)
-
     _write_result_file(
         result_file,
         {
-            "portrait_pid": portrait_proc.pid,
-            "landscape_pid": landscape_proc.pid,
+            "portrait_pid": portrait_pid,
+            "landscape_pid": landscape_pid,
         },
     )
 
 
+def _build_satellite_launch_command(
+    python_exe: str | Path,
+    satellite_module: str,
+    *,
+    title: str,
+    playlist_file: str | Path,
+    command_file: str | Path,
+    paused_file: str | Path,
+    status_file: str | Path,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    hud_file: str | Path | None = None,
+    dashboard_cmd_file: str | Path | None = None,
+) -> list[str]:
+    """The argv for a native satellite player (``python -m satellite ...``).
 
-def _build_vlc_launch_command(vlc_exe: str, port: int, password: str, *, repeat_mode: str, playlist_path: Path | None = None) -> list[str]:
+    The satellite is our own mpv-backed process, driven through the
+    command/paused/status file quartet exactly as Nau is.  It takes no
+    ``--config`` — the quartet plus geometry fully specify it — and stays silent
+    with ``--no-audio``.  ``--title`` gives it the distinct caption the sequencer
+    resolves its slot by.
+
+    The lock HUD rides along as two more files: the panel this loop publishes for
+    the player to composite into its own video, and the command file a click on
+    that HUD posts back to.  Both absent means the satellite simply draws no map.
+    """
     command = [
-        vlc_exe,
-        "--no-one-instance",
-        "--extraintf",
-        "http",
-        "--http-host",
-        "127.0.0.1",
-        "--http-port",
-        str(port),
-        "--http-password",
-        password,
+        str(python_exe),
+        "-m",
+        str(satellite_module),
+        "--title",
+        str(title),
+        "--playlist",
+        str(playlist_file),
+        "--command-file",
+        str(command_file),
+        "--paused-file",
+        str(paused_file),
+        "--status-file",
+        str(status_file),
+        "--x",
+        str(x),
+        "--y",
+        str(y),
+        "--width",
+        str(width),
+        "--height",
+        str(height),
+        "--no-audio",
     ]
-    # A satellite must never be heard — a stray clip with an audio track would
-    # blurt out mid-session.  --no-audio drops the audio output module, so
-    # there is nothing to hear and no audio session to leave behind.  Muting by
-    # volume instead would follow the user into their own VLC: VLC's volume is
-    # a Windows per-application mixer level shared by every vlc.exe, remembered
-    # across launches.
-    command.append("--no-audio")
-    # --start-paused must NEVER be used to keep a launching VLC quiet: VLC
-    # re-applies it on every item transition, not just startup, which blacks
-    # out the screen every time the user navigates.
-    # --no-random overrides VLC's saved vlcrc setting.  Without it, if the
-    # user ever toggled shuffle inside VLC, the preference persists across
-    # launches and VLC advances to random items instead of sequentially,
-    # breaking vlc_nav_step's index-based prev/next navigation.
-    command.append("--no-random")
-    if repeat_mode == "repeat":
-        command.append("--repeat")
-    elif repeat_mode == "loop":
-        command.append("--loop")
-    if playlist_path is not None:
-        command.append(str(playlist_path))
+    if hud_file:
+        command += ["--hud-file", str(hud_file)]
+    if dashboard_cmd_file:
+        command += ["--dashboard-cmd-file", str(dashboard_cmd_file)]
     return command
+
+
+def launch_satellite(
+    *,
+    python_exe: str | Path,
+    satellite_module: str,
+    title: str,
+    playlist_file: str | Path,
+    command_file: str | Path,
+    paused_file: str | Path,
+    status_file: str | Path,
+    log_file: str | Path,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    hud_file: str | Path | None = None,
+    dashboard_cmd_file: str | Path | None = None,
+) -> int:
+    """Launch a native satellite player subprocess, returning its PID.
+
+    A sibling of :func:`launch_nau`: our own mpv-backed process, launched at the
+    given rect with the given distinct *title*, driven through the
+    command/paused/status file quartet, and drawing its own lock HUD from the
+    published panel.
+
+    Its stdout and stderr go to *log_file*: a satellite runs windowed under
+    ``pythonw`` and would otherwise die from an unhandled exception with the
+    traceback written to a handle that goes nowhere.
+    """
+    cmd = _build_satellite_launch_command(
+        python_exe,
+        satellite_module,
+        title=title,
+        playlist_file=playlist_file,
+        command_file=command_file,
+        paused_file=paused_file,
+        status_file=status_file,
+        x=x,
+        y=y,
+        width=width,
+        height=height,
+        hud_file=hud_file,
+        dashboard_cmd_file=dashboard_cmd_file,
+    )
+    with open_child_log(log_file, cmd) as log:
+        proc = subprocess.Popen(cmd, stdout=log, stderr=log, **subprocess_window_kwargs())
+    return proc.pid

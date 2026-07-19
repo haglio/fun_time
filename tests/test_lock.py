@@ -1,64 +1,126 @@
+"""Unit tests for the native satellite lock model.
+
+Each lock action appends a verb to the satellite's command file — ``LOCK`` to
+hold the current clip, ``UNLOCK`` to release it, ``NEXT`` to advance, ``TRASH``
+to drop and move on — and the clip an action is about is read from the
+satellite's published status file (``read_satellite_status``).
+
+These exercise the three lock helpers in ``command_dispatch`` directly;
+``test_command_dispatch`` covers their routing through ``dispatch_command``.  The
+shared ``BridgeConfig`` builder and file helpers live there, so they are imported
+rather than duplicated.
+"""
 from __future__ import annotations
 
-from fun_time.lock import build_lock_plan
+import logging
+from pathlib import Path
+from unittest.mock import patch
+
+from fun_time.command_dispatch import _cancel_lock, _discard, _toggle_lock
+from tests.test_command_dispatch import _cmds, _make_config, _make_state, _set_current
 
 
-def test_toggle_lock_locks_and_favorites_when_unlocked():
-    plan = build_lock_plan("toggle-lock", which=2, locked=False, current_path="clip.mp4")
+def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
+    config = _make_config(tmp_path)
+    _set_current(config, 2, "clip.mp4")
 
-    assert plan.next_locked is True
-    assert plan.repeat_mode == "one"
-    assert plan.ensure_in_favs is True
-    assert plan.advance_playlist is False
-    assert plan.log_message == "Locked portrait VLC"
+    with (
+        patch("fun_time.command_dispatch.ensure_in_favs") as favs,
+        caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"),
+    ):
+        state, _ops = _toggle_lock(2, _make_state(locked2=False), config)
 
-
-def test_toggle_lock_unlocks_and_advances_when_locked():
-    plan = build_lock_plan("toggle-lock", which=3, locked=True, current_path="clip.mp4")
-
-    assert plan.next_locked is False
-    assert plan.repeat_mode == "all"
-    assert plan.ensure_in_favs is False
-    assert plan.advance_playlist is True
-    assert plan.log_message == "Unlocked landscape VLC"
+    assert state.locked2 is True
+    # Locking holds the current clip (LOCK) and does not advance past it.
+    assert _cmds(config, 2) == ["LOCK"]
+    assert favs.call_args[0][1] == "clip.mp4"
+    assert "Locked portrait satellite" in caplog.text
 
 
-def test_cancel_lock_only_changes_state_when_currently_locked():
-    locked_plan = build_lock_plan("cancel-lock", which=2, locked=True, current_path="")
-    unlocked_plan = build_lock_plan("cancel-lock", which=2, locked=False, current_path="")
+def test_toggle_lock_unlocks_and_advances_when_locked(tmp_path: Path, caplog):
+    config = _make_config(tmp_path)
+    _set_current(config, 3, "clip.mp4")
 
-    assert locked_plan.next_locked is False
-    assert locked_plan.repeat_mode == "all"
-    assert unlocked_plan.next_locked is False
-    assert unlocked_plan.repeat_mode == ""
+    with caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"):
+        state, _ops = _toggle_lock(3, _make_state(locked3=True), config)
 
-
-def test_toggle_lock_sets_open_rfb_tab_true_when_locking():
-    plan = build_lock_plan("toggle-lock", which=2, locked=False, current_path="clip.mp4")
-
-    assert plan.open_rfb_tab is True
+    assert state.locked3 is False
+    # Unlocking releases the hold (UNLOCK) and moves on rather than replaying (NEXT).
+    assert _cmds(config, 3) == ["UNLOCK", "NEXT"]
+    assert "Unlocked landscape satellite" in caplog.text
 
 
-def test_toggle_lock_sets_open_rfb_tab_false_when_unlocking():
-    plan = build_lock_plan("toggle-lock", which=3, locked=True, current_path="clip.mp4")
+def test_cancel_lock_writes_unlock_only_when_currently_locked(tmp_path: Path):
+    config = _make_config(tmp_path)
 
-    assert plan.open_rfb_tab is False
+    state = _cancel_lock(2, _make_state(locked2=True), config)
 
-
-def test_cancel_lock_and_discard_set_open_rfb_tab_false():
-    cancel = build_lock_plan("cancel-lock", which=2, locked=True, current_path="")
-    discard = build_lock_plan("discard", which=3, locked=True, current_path="odd.mp4")
-
-    assert cancel.open_rfb_tab is False
-    assert discard.open_rfb_tab is False
+    assert state.locked2 is False
+    # A locked side is repeat-one; cancelling it queues UNLOCK to restore advance.
+    assert _cmds(config, 2) == ["UNLOCK"]
 
 
-def test_discard_unlocks_removes_from_favs_advances_and_moves_to_weird():
-    plan = build_lock_plan("discard", which=3, locked=True, current_path="odd.mp4")
+def test_cancel_lock_writes_nothing_when_not_locked(tmp_path: Path):
+    config = _make_config(tmp_path)
 
-    assert plan.next_locked is False
-    assert plan.repeat_mode == "all"
-    assert plan.remove_from_favs is True
-    assert plan.advance_playlist is True
-    assert plan.move_to_weird is True
-    assert plan.log_message == "Discarding from player 3: odd.mp4"
+    state = _cancel_lock(2, _make_state(locked2=False), config)
+
+    assert state.locked2 is False
+    # Nothing was locked, so there is no hold to release — no verb is queued.
+    assert _cmds(config, 2) == []
+
+
+def test_locking_a_known_video_opens_an_rfb_tab(tmp_path: Path):
+    config = _make_config(tmp_path)
+    from fun_time.media_actions import WEB_PROVIDERS
+
+    _set_current(config, 2, rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4")
+
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
+        _state, ops = _toggle_lock(2, _make_state(locked2=False), config)
+
+    assert any(op.op == "open_rfb_tab" for op in ops)
+
+
+def test_unlocking_opens_no_rfb_tab(tmp_path: Path):
+    config = _make_config(tmp_path)
+    _set_current(config, 2, r"C:\videos\provider2\abc_123.mp4")
+
+    _state, ops = _toggle_lock(2, _make_state(locked2=True), config)
+
+    assert not any(op.op == "open_rfb_tab" for op in ops)
+
+
+def test_discard_unlocks_removes_from_favs_advances_and_moves_to_weird(tmp_path: Path, caplog):
+    config = _make_config(tmp_path)
+    _set_current(config, 3, "odd.mp4")
+
+    with (
+        patch("fun_time.command_dispatch.remove_from_favs") as favs,
+        patch("fun_time.command_dispatch.move_to_weird") as weird,
+        caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"),
+    ):
+        state = _discard(3, _make_state(locked3=True), config)
+
+    assert state.locked3 is False
+    # A locked discard drops the repeat-one hold (UNLOCK) then trashes the clip,
+    # which advances into the playlist (TRASH).
+    assert _cmds(config, 3) == ["UNLOCK", "TRASH"]
+    assert favs.call_args[0][1] == "odd.mp4"
+    assert weird.call_args[0][1] == Path("odd.mp4")
+    assert "Discarding from player 3: odd.mp4" in caplog.text
+
+
+def test_unlocked_discard_trashes_without_unlocking(tmp_path: Path):
+    config = _make_config(tmp_path)
+    _set_current(config, 3, "odd.mp4")
+
+    with (
+        patch("fun_time.command_dispatch.remove_from_favs"),
+        patch("fun_time.command_dispatch.move_to_weird"),
+    ):
+        state = _discard(3, _make_state(locked3=False), config)
+
+    assert state.locked3 is False
+    # Nothing to release, so discard is a bare TRASH (drop current, play next).
+    assert _cmds(config, 3) == ["TRASH"]

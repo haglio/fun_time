@@ -42,7 +42,7 @@ pytestmark = [
 def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
     """Window must show in taskbar (WS_EX_APPWINDOW) and close handler writes exit."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -69,7 +69,7 @@ def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
 def test_dashboard_window_shows_native_minimize_and_close_buttons(cfg_path: Path):
     """Top-right title-bar controls: minimize + close, but no maximize."""
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
@@ -93,7 +93,7 @@ def _build_merged_dashboard(cfg_path: Path):
     from PyQt6.QtWidgets import QApplication
 
     config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config, "vlc-pass")
+    manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
 
     plan = compute_window_layout(
@@ -193,10 +193,10 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
 
 
 def test_closing_the_dashboard_stops_its_pollers_and_the_log_tail(cfg_path: Path):
-    """A dashboard left running keeps polling VLC's HTTP interface twice a second
-    and holds a UDP socket.  Several dashboards are built and closed inside this
-    one pytest process, so a leaked poller would pile connections onto whichever
-    VLC holds those ports for the rest of the run.  The embedded log widget's
+    """A dashboard left running keeps polling the players' status files twice a
+    second and holds a UDP socket.  Several dashboards are built and closed
+    inside this one pytest process, so a leaked poller would keep reading — and
+    keep its socket bound — for the rest of the run.  The embedded log widget's
     tail must stop with them."""
     window, _state_dir = _build_merged_dashboard(cfg_path)
     log = window._log_widget

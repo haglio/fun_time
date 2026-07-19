@@ -6,7 +6,13 @@ build-backend = "setuptools.build_meta"
 name = "fun-time"
 version = "0.1.0"
 requires-python = ">=3.10"
+# The shared siblings are NOT listed here — ../player_core (the satellite
+# players' engine, which brings python-mpv and the libmpv DLL), ../app_support
+# (logging, threading, CLI and subprocess scaffolding) and ../shared_ui. Each is
+# installed editable from a local path (see their READMEs) and none is
+# published, so pip would go looking for them on PyPI.
 dependencies = [
+    "numpy",
     "opencv-python",
     "pillow",
     "pygame-ce",
@@ -24,3 +30,9 @@ voice = [
     "vosk",
     "sounddevice",
 ]
+
+# Two top-level packages share this repo — the orchestrator and the satellite
+# player it launches as `python -m satellite`. Setuptools' automatic flat-layout
+# discovery refuses more than one, so declare them explicitly.
+[tool.setuptools.packages.find]
+include = ["fun_time*", "satellite*"]

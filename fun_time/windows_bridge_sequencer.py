@@ -16,33 +16,48 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import LayoutConfig
-from .dashboard_layout import Size
+from .dashboard_runtime import read_nau_status
 from .monitors import enumerate_monitors, get_logical_monitor_rects
-from .startup_progress import NullProgress, ProgressReporter
-from .vlc_actions import vlc_http_cmd
+from .startup_progress import NullProgress, ProgressReporter, StartupCancelled
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
 from .runtime_flow import write_flag_file
-from .windows_bridge_startup import launch_genau, launch_nau, start_core_session, launch_ui_companions
+from .windows_bridge_startup import (
+    SATELLITE_LANDSCAPE_TITLE,
+    SATELLITE_PORTRAIT_TITLE,
+    launch_genau,
+    launch_nau,
+    launch_ui_companions,
+    start_core_session,
+)
 from .window_roles import role_topmost
 from .win32 import (
     disable_window_transitions,
-    find_window_by_pid,
     minimize_window,
     move_window,
     set_always_on_top,
-    wait_for_window,
     wait_for_window_by_title,
 )
 from .window_layout import (
-    MonitorRect,
     WindowLayoutPlan,
     WindowRect,
-    clamp01,
     compute_primary_media_rect,
     compute_window_layout,
 )
 
 logger = logging.getLogger(__name__)
+
+# How long startup waits for a launched app to put its window on screen.  A poll
+# returns the moment the window appears — a satellite's takes about half a second
+# — so this is a ceiling for a machine under load, not a cost anyone pays.
+WINDOW_RESOLVE_TIMEOUT_S = 15.0
+
+# How long startup waits for Nau to finish loading.  Wide enough for the worst
+# case, a cold duration cache: one ffprobe per unprobed video, measured at 28s
+# for 525 of them, and paid once because the cache persists.  Its ceiling is the
+# overlay's own patience: the two waits in this phase run back to back under a
+# single progress write, and the overlay tears itself down when that file has
+# gone ``loading_screen.STALE_TIMEOUT_S`` without changing.  A test pins the sum.
+NAU_LOAD_TIMEOUT_S = 40.0
 
 
 @dataclass(frozen=True)
@@ -54,10 +69,6 @@ class StartupResult:
     genau_pid: int
     audio_pid: int
     layout_plan: WindowLayoutPlan
-    # Defaulted so existing constructors need not pass it; 0 means "not launched"
-    # (HUD disabled / integration), which kill_process_tree treats as a no-op.
-    lock_hud_pid: int = 0
-    core_hwnds: list[int] = field(default_factory=list)
     rfb_hwnd: int = 0
     # HWNDs resolved while every window was still visible; the dispatch
     # loop's role cache is seeded from this (hidden windows cannot be
@@ -164,6 +175,19 @@ def _apply_startup_window_state(
     return role_hwnds
 
 
+@dataclass
+class _LaunchedChildren:
+    """What the startup sequence has spawned so far.
+
+    Accumulated as each child launches so that if a checkpoint cancels
+    (``StartupCancelled``), the orchestrator can be handed exactly what to
+    tear down — no more, no less.
+    """
+
+    pids: list[int] = field(default_factory=list)
+    rfb_hwnd: int = 0
+
+
 def run_startup_sequence(
     *,
     manifest_path: str | Path,
@@ -173,52 +197,107 @@ def run_startup_sequence(
 ) -> StartupResult:
     """Run the full startup sequence, returning all PIDs and the layout plan.
 
-    When *hide_windows* is True, VLC windows are moved offscreen during
-    launch (preserving D3D11 init) and all positioning is deferred to the
-    end so everything appears at once.  The window handles are returned
-    in ``StartupResult.core_hwnds``.
+    When *hide_windows* is True, the satellite windows launch behind the loading
+    overlay and all positioning is deferred to the end so everything appears at
+    once.  The window handles are returned in ``StartupResult.role_hwnds``.
+
+    Each ``progress.advance`` is a cancellation checkpoint: if the loading
+    screen has dropped the cancel flag, the reporter raises ``StartupCancelled``
+    and this re-raises it tagged with everything launched so far, so the caller
+    can tear the half-built session down.
     """
     if progress is None:
         progress = NullProgress()
 
+    launched = _LaunchedChildren()
+    try:
+        return _run_startup_phases(
+            manifest_path=manifest_path,
+            state_dir=state_dir,
+            progress=progress,
+            hide_windows=hide_windows,
+            launched=launched,
+        )
+    except StartupCancelled as cancelled:
+        cancelled.launched_pids = launched.pids
+        cancelled.rfb_hwnd = launched.rfb_hwnd
+        raise
+
+
+def _run_startup_phases(
+    *,
+    manifest_path: str | Path,
+    state_dir: str | Path,
+    progress: ProgressReporter,
+    hide_windows: bool,
+    launched: _LaunchedChildren,
+) -> StartupResult:
     manifest_path = Path(manifest_path)
     state_dir = Path(state_dir)
     state_dir.mkdir(parents=True, exist_ok=True)
     m = _read_manifest(manifest_path)
 
+    # Compute the window layout up front so the satellites can launch straight
+    # into their real portrait/landscape rects (mpv sizes its output to the launch
+    # geometry and will NOT rescale when a later Win32 move resizes the window),
+    # exactly as Nau launches straight into its primary rect below.
+    layout_cfg = _layout_config_from_manifest(m)
+    monitors = enumerate_monitors()
+    main_rect, secondary_rect = get_logical_monitor_rects(
+        monitors, main_index=layout_cfg.main_monitor, secondary_index=layout_cfg.secondary_monitor,
+    )
+    plan = compute_window_layout(
+        main_monitor=main_rect,
+        secondary_monitor=secondary_rect,
+        layout_config=layout_cfg,
+    )
+
     # --- Phase 1: Launch core media stack ---
-    progress.advance("Preparing services...")
+    progress.advance("services")
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m["commands"].get("broker_tray_launcher", "").strip()
     regen_media_raw = m.get("regen", "media_root", fallback="").strip()
     regen_metadata_raw = m.get("regen", "metadata_root", fallback="").strip()
     start_core_session(
-        project_dir=m["runtime"]["project_dir"],
         config_path=m["runtime"]["config_path"],
+        broker_cmd_file=m["commands"]["broker_cmd_file"],
         broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
         broker_heartbeat_file=m["commands"]["broker_heartbeat_file"],
         random_favs_browser_manifest_file=m["random_favs_browser"]["manifest_file"],
         genau_paused_file=m["commands"]["genau_paused_file"],
+        genau_cmd_file=m["commands"]["genau_cmd_file"],
         audio_paused_file=m["commands"]["audio_paused_file"],
         nau_paused_file=m["commands"]["nau_paused_file"],
         audio_volume_file=m["commands"]["audio_volume_file"],
-        vlc_exe=m["executables"]["vlc_exe"],
+        satellite_python_exe=m["executables"]["python_exe"],
+        satellite_module=m["modules"]["satellite_module"],
+        portrait_cmd_file=m["commands"]["portrait_cmd_file"],
+        portrait_paused_file=m["commands"]["portrait_paused_file"],
+        portrait_status_file=m["commands"]["portrait_status_file"],
+        landscape_cmd_file=m["commands"]["landscape_cmd_file"],
+        landscape_paused_file=m["commands"]["landscape_paused_file"],
+        landscape_status_file=m["commands"]["landscape_status_file"],
+        nau_status_file=m["commands"]["nau_status_file"],
+        portrait_log_file=state_dir / "portrait_satellite.log",
+        landscape_log_file=state_dir / "landscape_satellite.log",
+        portrait_rect=plan.portrait,
+        landscape_rect=plan.landscape,
+        portrait_hud_file=m["commands"]["portrait_hud_file"],
+        landscape_hud_file=m["commands"]["landscape_hud_file"],
+        dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
         primary_sources=m["media"]["nau_library_sources"],
         portrait_sources=m["media"]["portrait_dirs"],
         landscape_sources=m["media"]["landscape_dirs"],
         favs_file=m["media"]["favs_file"],
         state_dir=state_dir,
-        portrait_port=int(m["vlc"]["vlc2_port"]),
-        landscape_port=int(m["vlc"]["vlc3_port"]),
-        password=m["vlc"]["vlc_pass"],
         result_file=str(core_result_file),
-        hide_windows=hide_windows,
         regen_media_root=Path(regen_media_raw) if regen_media_raw else None,
         regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
     )
     core_pids = _read_result_pids(core_result_file)
     portrait_pid = core_pids["portrait_pid"]
     landscape_pid = core_pids["landscape_pid"]
+    launched.pids.extend([portrait_pid, landscape_pid])
     logger.info(
         "Core session launched: portrait=%d landscape=%d",
         portrait_pid, landscape_pid,
@@ -227,8 +306,10 @@ def run_startup_sequence(
     # Launch Genau and Nau as early as possible so they can initialise
     # pygame, scan media, and decode first frames while the rest of startup
     # continues.  Both share the Primary slot's rect, which depends only on
-    # the secondary monitor + primary_top_ratio.
-    primary_media_rect = _compute_primary_media_rect(m)
+    # the secondary monitor + primary_top_ratio (already computed above).
+    primary_media_rect = compute_primary_media_rect(
+        secondary_monitor=secondary_rect, layout_config=layout_cfg,
+    )
     genau_pid = launch_genau(
         python_exe=m["executables"]["genau_python_exe"],
         genau_module=m["modules"]["genau_module"],
@@ -241,6 +322,13 @@ def run_startup_sequence(
         command_file=m["commands"]["genau_cmd_file"],
         paused_file=m["commands"]["genau_paused_file"],
     )
+    # Nau's status file is how startup learns Nau has finished loading, and it
+    # can only say that once last session's copy is gone.  start_core_session
+    # read that one already, to resume Nau onto the video it names, so this is
+    # the first moment it is spent — and the last before Nau could write a new
+    # one.  See _wait_for_nau_loaded.
+    nau_status_file = Path(m["commands"]["nau_status_file"])
+    nau_status_file.unlink(missing_ok=True)
     nau_pid = launch_nau(
         python_exe=m["executables"]["genau_python_exe"],
         nau_module=m["modules"]["nau_module"],
@@ -249,53 +337,43 @@ def run_startup_sequence(
         command_file=m["commands"]["nau_cmd_file"],
         paused_file=m["commands"]["nau_paused_file"],
         status_file=m["commands"]["nau_status_file"],
+        log_file=state_dir / "nau.log",
         nau_x=primary_media_rect.x,
         nau_y=primary_media_rect.y,
         nau_width=primary_media_rect.width,
         nau_height=primary_media_rect.height,
         metadata_dir=regen_metadata_raw or None,
     )
+    launched.pids.extend([genau_pid, nau_pid])
 
-    # --- Phase 2: Compute window layout ---
-    progress.advance("Computing window layout...")
-    layout_cfg = _layout_config_from_manifest(m)
-    monitors = enumerate_monitors()
-    main_rect, secondary_rect = get_logical_monitor_rects(
-        monitors, main_index=layout_cfg.main_monitor, secondary_index=layout_cfg.secondary_monitor,
-    )
-
-    plan = compute_window_layout(
-        main_monitor=main_rect,
-        secondary_monitor=secondary_rect,
-        layout_config=layout_cfg,
-    )
-
+    # --- Phase 2: Position windows (layout computed up front) ---
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     role_hwnds: dict[str, int] = {}
 
     if not hide_windows:
         # --- Normal mode: position immediately ---
-        progress.advance("Positioning windows...")
-        _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=not skip_activate)
-        _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=not skip_activate)
+        # No progress reporting on this path: it is the integration one, and the
+        # loading screen (with the reporter that drives it) belongs to the other.
+        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
+        _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=not skip_activate)
+        _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=not skip_activate)
         logger.info("Core windows positioned")
 
-        progress.advance("Finalizing window layout...")
         role_hwnds = _apply_startup_window_state(
-            portrait_hwnd=find_window_by_pid(portrait_pid),
-            landscape_hwnd=find_window_by_pid(landscape_pid),
-            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
-            nau_hwnd=wait_for_window(nau_pid, timeout_s=3.0)
-            or wait_for_window_by_title("Nau", timeout_s=3.0, exact=True),
+            portrait_hwnd=portrait_hwnd,
+            landscape_hwnd=landscape_hwnd,
+            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
+            nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         )
         logger.info("Startup window state applied")
 
     # --- Phase 2.5: Launch Random Favs Browser ---
-    progress.advance("Launching browser...")
+    progress.advance("browser")
     rfb_hwnd = _maybe_launch_random_favs_browser(m, plan)
+    launched.rfb_hwnd = rfb_hwnd
 
     # --- Phase 3: Launch UI companions ---
-    progress.advance("Launching companions...")
+    progress.advance("companions")
     time.sleep(1.2)
 
     dashboard_enabled = m["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
@@ -304,10 +382,8 @@ def run_startup_sequence(
         python_exe=m["executables"]["python_exe"],
         dashboard_module=m["modules"]["dashboard_module"],
         dashboard_enabled=dashboard_enabled,
-        lock_hud_module=m["modules"]["lock_hud_module"],
         # The HUD rides the dashboard's enable gate so integration's
         # FUN_TIME_DISABLE_DASHBOARD keeps both always-on-top overlays off.
-        hud_enabled=dashboard_enabled,
         windows_bridge_manifest_path=str(manifest_path),
         dashboard_x=plan.dashboard.x,
         dashboard_y=plan.dashboard.y,
@@ -324,64 +400,63 @@ def run_startup_sequence(
         result_file=str(ui_result_file),
     )
     ui_pids = _read_result_pids(ui_result_file)
+    launched.pids.extend([ui_pids["dashboard_pid"], ui_pids["audio_pid"]])
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
-    collected_hwnds: list[int] = []
     if hide_windows:
-        progress.advance("Positioning windows...")
+        # Named for the wait it actually is: the players open their own windows,
+        # and until they have there is nothing here to position.
+        progress.advance("players")
 
-        # Start the two satellites playing.  Their playlists were enqueued but
-        # never played during loading.  They launch with --no-audio, so nothing
-        # here can be heard and VLC's volume is never touched.
-        portrait_port = int(m["vlc"]["vlc2_port"])
-        landscape_port = int(m["vlc"]["vlc3_port"])
-        password = m["vlc"]["vlc_pass"]
-        for port in [portrait_port, landscape_port]:
-            vlc_http_cmd(port, "pl_play", password)
+        # The satellites launched playing (their paused flag is unset) and own
+        # their playlists, so there is nothing to start here — just resolve and
+        # position each behind the loading overlay.
+        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
 
-        _position_pid_window(portrait_pid, plan.portrait, "portrait VLC", activate=False)
-        _position_pid_window(landscape_pid, plan.landscape, "landscape VLC", activate=False)
+        # Nau is the third player, and by now the only one still loading: its
+        # window has been up since half a second after launch with its own
+        # loading screen painted into it.  Hold the overlay over that, so the
+        # session is revealed on a video rather than on Nau's progress bar.  A
+        # Nau that never gets there does not get to keep the desktop, though —
+        # the reveal goes ahead, and says why.
+        if not _wait_for_nau_loaded(nau_status_file, progress):
+            logger.warning(
+                "Nau reported no video within %.0fs; revealing over whatever it "
+                "still has on screen", NAU_LOAD_TIMEOUT_S,
+            )
+
+        progress.advance("windows")
+        _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
+        _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
         logger.info("Core windows positioned (deferred reveal)")
-
-        # Collect core window handles for StartupResult
-        for pid in [portrait_pid, landscape_pid, nau_pid]:
-            hwnd = find_window_by_pid(pid)
-            if hwnd:
-                collected_hwnds.append(hwnd)
 
         # Resolve every managed window and park the idle slot-mate.  The topmost
         # bands are deliberately NOT applied here: the overlay is topmost, and
         # HWND_TOPMOST inserts above it, so each promotion would flash its window
         # over the overlay.  _fix_post_loading_windows applies them once the
         # overlay process has exited.  This is still the last moment the dashboard
-        # is resolvable, so its handle is captured now.
-        dashboard_pid = ui_pids["dashboard_pid"]
-        dash_hwnd = 0
-        if dashboard_pid:
-            # The dashboard is hidden (SW_HIDE) behind the loading overlay here,
-            # so both lookups must include hidden windows — a visible-only lookup
-            # returns 0 and leaves the dispatch loop unable to manage it.  The
-            # window PID also differs from the venv-launcher PID, so the exact
-            # title lookup is the path that actually resolves it in production.
-            dash_hwnd = find_window_by_pid(dashboard_pid, include_hidden=True)
-            if not dash_hwnd:
-                dash_hwnd = wait_for_window_by_title(
-                    "Fun Time", timeout_s=5.0, exact=True, include_hidden=True
-                )
+        # is resolvable, so its handle is captured now — and it is hidden (SW_HIDE)
+        # behind the loading overlay, so its lookup must include hidden windows.
+        dash_hwnd = (
+            wait_for_window_by_title(
+                "Fun Time", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True, include_hidden=True,
+            )
+            if ui_pids["dashboard_pid"]
+            else 0
+        )
 
         role_hwnds = _startup_role_hwnds(
             rfb_hwnd=rfb_hwnd,
-            portrait_hwnd=find_window_by_pid(portrait_pid),
-            landscape_hwnd=find_window_by_pid(landscape_pid),
-            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=5.0),
-            nau_hwnd=wait_for_window(nau_pid, timeout_s=5.0)
-            or wait_for_window_by_title("Nau", timeout_s=5.0, exact=True),
+            portrait_hwnd=portrait_hwnd,
+            landscape_hwnd=landscape_hwnd,
+            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
+            nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
             dashboard_hwnd=dash_hwnd,
         )
         _apply_primary_slot_visibility(role_hwnds["nau"], role_hwnds["genau"])
         logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
 
-        progress.advance("Finalizing...")
+        progress.advance("finalizing")
 
     # The reveal: startup mode is nau, so Nau starts playing once startup
     # completes. This runs in both paths — the loading-screen (hide_windows)
@@ -396,27 +471,10 @@ def run_startup_sequence(
         dashboard_pid=ui_pids["dashboard_pid"],
         genau_pid=genau_pid,
         audio_pid=ui_pids["audio_pid"],
-        lock_hud_pid=ui_pids.get("lock_hud_pid", 0),
         layout_plan=plan,
-        core_hwnds=collected_hwnds,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,
     )
-
-
-def _compute_primary_media_rect(m: configparser.ConfigParser) -> WindowRect:
-    """The Primary display slot shared by Genau and Nau.
-
-    Depends only on the secondary monitor dimensions and primary_top_ratio,
-    so both apps can launch before the full layout is computed.
-    """
-    layout_cfg = _layout_config_from_manifest(m)
-    monitors = enumerate_monitors()
-    _, secondary_rect = get_logical_monitor_rects(
-        monitors, main_index=layout_cfg.main_monitor,
-        secondary_index=layout_cfg.secondary_monitor,
-    )
-    return compute_primary_media_rect(secondary_monitor=secondary_rect, layout_config=layout_cfg)
 
 
 def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
@@ -428,15 +486,66 @@ def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
     )
 
 
-def _position_pid_window(pid: int, rect: WindowRect, label: str, *, activate: bool = True) -> None:
-    """Wait for a visible window belonging to *pid* and move it."""
-    hwnd = wait_for_window(pid, timeout_s=10.0)
+def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool = True) -> None:
+    """Move an already-resolved window to *rect* (a no-op warning if unresolved)."""
     if hwnd:
         move_window(hwnd, rect.x, rect.y, rect.width, rect.height, activate=activate)
-        logger.info("Positioned %s (pid=%d hwnd=%d) at %d,%d %dx%d",
-                     label, pid, hwnd, rect.x, rect.y, rect.width, rect.height)
+        logger.info("Positioned %s (hwnd=%d) at %d,%d %dx%d",
+                     label, hwnd, rect.x, rect.y, rect.width, rect.height)
     else:
-        logger.warning("Could not find window for %s (pid=%d)", label, pid)
+        logger.warning("Could not find window for %s", label)
+
+
+def _resolve_satellite_hwnds() -> tuple[int, int]:
+    """The portrait and landscape native-satellite windows, as (portrait, landscape).
+
+    Each side is resolved by its DISTINCT window caption ("Portrait AI Player" vs
+    "Landscape AI Player"), so the lookup can never assign one side's window to the
+    other — a shared caption could, and that was the portrait/landscape visual swap.
+
+    Deliberately NOT by pid.  The pid we launch with is the venv's
+    ``Scripts\\pythonw.exe``, a launcher that spawns the base interpreter as a
+    child, and the child is what owns the window — so a pid poll here can only
+    ever run out its timeout.  Two of them (plus Nau's) were 25 seconds of a
+    28-second loading screen.
+    """
+    return (
+        wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        wait_for_window_by_title(SATELLITE_LANDSCAPE_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+    )
+
+
+def _wait_for_nau_loaded(
+    status_file: Path,
+    progress: ProgressReporter,
+    timeout_s: float = NAU_LOAD_TIMEOUT_S,
+) -> bool:
+    """Wait until Nau has a video on screen, returning whether it got there.
+
+    Nau's caption is NOT this signal.  Nau opens its window before reading its
+    library and paints its own loading screen into it while it does — so the
+    window exists within half a second of launch, however long the library walk
+    then runs.  Waiting on the caption alone brings the overlay down over that
+    loading screen, which is the one place it must never be seen: standalone Nau
+    owns its wait, and inside Fun Time, Fun Time owns it.
+
+    Nau's status file is the signal, because Nau writes it only from its playback
+    loop.  The stale one is dropped at launch, so a file naming a video is this
+    session's Nau saying it is up.  Reading the *video* rather than merely the
+    file's existence also survives a read that catches the first write half-done.
+
+    Also a cancellation checkpoint, for the same reason ``advance`` is one — but
+    checked per poll rather than once, because this is the one stretch of startup
+    that can run for tens of seconds, and the overlay covering it offers Esc.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if progress.cancelled:
+            raise StartupCancelled()
+        if read_nau_status(status_file).video:
+            return True
+        time.sleep(0.1)
+    return False
 
 
 def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:

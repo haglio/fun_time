@@ -113,13 +113,8 @@ class TestLoadConfig:
 
     def test_loads_paths_correctly(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.paths.vlc_exe == tmp_path / "vlc.exe"
+        assert cfg.paths.ahk_exe == tmp_path / "ahk.exe"
         assert cfg.paths.state_dir == (tmp_path / "state").resolve()
-
-    def test_loads_vlc_ports(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        assert cfg.vlc.vlc2_http_port == 8091
-        assert cfg.vlc.vlc3_http_port == 8092
 
     def test_loads_layout(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -315,7 +310,7 @@ class TestVoiceControlConfig:
                 "model_path": "vosk-model-small-en-us-0.15",
                 "sample_rate": 8000,
                 "confidence_threshold": 0.6,
-                "device_index": 2,
+                "device_name": "Brio",
             },
         })
         cfg = load_config(path)
@@ -323,7 +318,7 @@ class TestVoiceControlConfig:
         assert cfg.voice_control.model_path == "vosk-model-small-en-us-0.15"
         assert cfg.voice_control.sample_rate == 8000
         assert cfg.voice_control.confidence_threshold == 0.6
-        assert cfg.voice_control.device_index == 2
+        assert cfg.voice_control.device_name == "Brio"
 
     def test_raises_on_wrong_type(self, cfg_factory):
         path = cfg_factory({"voice_control": "not-a-dict"})
