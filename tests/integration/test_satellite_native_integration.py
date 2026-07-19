@@ -13,7 +13,6 @@ import os
 import random
 import subprocess
 import time
-from pathlib import Path
 
 import pytest
 
@@ -25,7 +24,7 @@ from fun_time.thumbnail_cache import thumbnail_for
 from fun_time.win32 import get_process_creation_time
 from fun_time.windows_bridge_startup import launch_satellite, reap_orphaned_satellites
 
-_CONFIG = Path(__file__).resolve().parents[2] / "fun_time_config.json"
+from .integration_support import real_config_path
 
 
 def _wait(predicate, *, timeout, desc):
@@ -40,14 +39,14 @@ def _wait(predicate, *, timeout, desc):
 
 
 def _sample_videos(count: int) -> list[str]:
-    cfg = load_config(_CONFIG)
+    cfg = load_config(real_config_path())
     portrait_dir = str(cfg.paths.portrait_dirs[0])
     return random.sample(
         glob.glob(os.path.join(portrait_dir, "**", "*.mp4"), recursive=True), count)
 
 
 def test_native_satellite_plays_and_obeys_commands(tmp_path):
-    cfg = load_config(_CONFIG)
+    cfg = load_config(real_config_path())
     videos = _sample_videos(3)
 
     playlist = tmp_path / "portrait_playlist.tsv"
@@ -101,7 +100,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
     PowerShell filter actually holds, so this launches one and fires both halves of
     the contract at it: a stranger's reap must spare it, its own must still take it.
     """
-    cfg = load_config(_CONFIG)
+    cfg = load_config(real_config_path())
     videos = _sample_videos(2)
 
     playlist = tmp_path / "portrait_playlist.tsv"
@@ -150,7 +149,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     The panel is built by the production publisher from a production HudPanel, so
     the bytes the player parses are exactly the bytes fun_time writes.
     """
-    cfg = load_config(_CONFIG)
+    cfg = load_config(real_config_path())
     videos = _sample_videos(2)
     cache_dir = tmp_path / THUMBNAIL_CACHE_DIRNAME
     for video in videos:

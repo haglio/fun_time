@@ -29,6 +29,8 @@ from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
 from fun_time.windows_bridge_startup import launch_satellite
 
+from .integration_support import real_config_path
+
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows only"),
     pytest.mark.skipif(
@@ -37,7 +39,6 @@ pytestmark = [
     ),
 ]
 
-_CONFIG = Path(__file__).resolve().parents[2] / "fun_time_config.json"
 
 
 def _wait(predicate, *, timeout, desc):
@@ -77,7 +78,7 @@ class _Satellite:
 @pytest.fixture()
 def satellite(tmp_path):
     """Launch a native satellite on a random real portrait playlist, playing."""
-    cfg = load_config(_CONFIG)
+    cfg = load_config(real_config_path())
     portrait_dir = str(cfg.paths.portrait_dirs[0])
     all_videos = glob.glob(os.path.join(portrait_dir, "**", "*.mp4"), recursive=True)
     videos = random.sample(all_videos, 4)
