@@ -242,7 +242,7 @@ Fun Time comes back on the clips it was closed on. Each player publishes what it
 
 Nothing is written at shutdown, so this survives a crash or a power cut as well as a normal quit. Clips deleted since are dropped as each playlist is rewritten. It is all-or-nothing across the three: only when there is no session to come back to — a first run, or a wiped `state/` — does startup build fresh.
 
-Rebuilding is therefore a deliberate gesture: **Shuffle** (reshuffle), **Premiere** (`P`, newest-first), a filter, a reset, or an F-Mode toggle. Those are also where videos added since the last session first appear.
+Rebuilding is therefore a deliberate gesture: **Shuffle** (reshuffle), **Recents** (`P`, newest-first), a filter, a reset, or an F-Mode toggle. Those are also where videos added since the last session first appear.
 
 The queue is what comes back, not the session's switches: mode, F-Mode, filters, locks and group loops all still start from their defaults. So a satellite closed inside a group loop reopens inside it with nothing on the dashboard saying so — **Reset** or **Shuffle** returns it to the full browse.
 
@@ -270,7 +270,7 @@ Two command pairs ride on those groups (keys: `Del`/`End` portrait, `E`/`Q` land
 
 Unlike prev/next, cycling does **not** release an active lock: it means "show me this differently", so the lock's repeat-one simply carries over to the sibling.
 
-During satellite builds, each action group **collapses to one playlist slot**, so the same subject+scene doesn't recur once per action. Shuffled builds draw that member weighted by the watch stats below; Premiere (`P`, newest-first) instead keeps the group's newest member and orders by recency. Either way it's one entry per group. Videos without a metadata sidecar behave exactly as before.
+During satellite builds, each action group **collapses to one playlist slot**, so the same subject+scene doesn't recur once per action. Shuffled builds draw that member weighted by the watch stats below; Recents (`P`, newest-first) instead keeps the group's newest member and orders by recency. Either way it's one entry per group. Videos without a metadata sidecar behave exactly as before.
 
 ### Watch stats — videos "breed" by attention
 

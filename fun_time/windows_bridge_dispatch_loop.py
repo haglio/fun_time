@@ -140,6 +140,8 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         "active_side": str(state.active_side),
         "portrait_filter": state.portrait_filter,
         "landscape_filter": state.landscape_filter,
+        "portrait_recents": "1" if state.portrait_recents else "0",
+        "landscape_recents": "1" if state.landscape_recents else "0",
         "portrait_loop": state.portrait_loop,
         "landscape_loop": state.landscape_loop,
         "portrait_map_anchor": state.portrait_map_anchor,
@@ -185,6 +187,8 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         active_side=_int_or(s, "active_side", 2),
         portrait_filter=s.get("portrait_filter", ""),
         landscape_filter=s.get("landscape_filter", ""),
+        portrait_recents=s.get("portrait_recents", "0") == "1",
+        landscape_recents=s.get("landscape_recents", "0") == "1",
         portrait_loop=s.get("portrait_loop", ""),
         landscape_loop=s.get("landscape_loop", ""),
         portrait_map_anchor=s.get("portrait_map_anchor", ""),
@@ -411,6 +415,8 @@ class DispatchLoopRunner:
             landscape_widen_clip=state.landscape_widen_clip,
             portrait_nav_anchor=state.portrait_nav_anchor,
             landscape_nav_anchor=state.landscape_nav_anchor,
+            portrait_recents=state.portrait_recents,
+            landscape_recents=state.landscape_recents,
         )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)

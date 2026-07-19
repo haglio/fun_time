@@ -35,10 +35,10 @@ from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .mode_plan import genau_active, nau_displays
 from .filter_vocab import decode_filter_command
 from .runtime_flow import (
+    SatelliteFilterFlowResult,
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_mode_switch,
-    apply_reorder_satellites,
     apply_satellite_filter,
     apply_toggle_fmode,
     build_omnipause_toggle,
@@ -75,7 +75,11 @@ class BridgeState:
     primary_mode: str = "nau"
     f_mode_enabled: bool = False
     omni_paused: bool = False
-    recency_order: bool = False
+    # Which browse order each satellite is in: newest-first ("Recents") when set,
+    # else shuffled.  Per side, since Recents and Shuffle name a side, and read by
+    # every later rebuild (a filter, F-mode) so the side reloads the same way.
+    portrait_recents: bool = False
+    landscape_recents: bool = False
     # The player most recently navigated (1=primary/Nau, 2=portrait,
     # 3=landscape). Any portrait_/landscape_ command, or a primary next/prev,
     # updates it; the side-agnostic "active_*" commands resolve against it —
@@ -83,7 +87,7 @@ class BridgeState:
     active_side: int = 2
     # Per-satellite metadata filter queries ("" = no filter). Persisted in the shared
     # state file so they survive the dispatch loop's per-tick state resync and
-    # are honoured by later F-mode / premiere rebuilds.
+    # are honoured by later F-mode / reorder rebuilds.
     portrait_filter: str = ""
     landscape_filter: str = ""
     # Which group loop each satellite is running: "" none, "action" (looping the
@@ -534,6 +538,23 @@ _NO_LOOP_SIDES: dict[str, str] = {
     "portrait_no_loop": "portrait",
     "landscape_no_loop": "landscape",
 }
+
+# The two browse orderings, per side: Recents reloads newest-first, Shuffle
+# reshuffles.  "both …" reaches each of these in turn (the dispatch loop expands
+# it), which is what the P key sends.
+_REORDER_COMMANDS: dict[str, tuple[int, bool]] = {
+    "portrait_recents": (2, True),
+    "landscape_recents": (3, True),
+    "portrait_shuffle": (2, False),
+    "landscape_shuffle": (3, False),
+}
+
+
+def _set_side_recents(state: BridgeState, which: int, recent: bool) -> BridgeState:
+    """Record which order *which* satellite's browse is now in."""
+    if which == 2:
+        return replace(state, portrait_recents=recent)
+    return replace(state, landscape_recents=recent)
 
 
 def _set_side_loop(state: BridgeState, which: int, axis: str, anchor: str) -> BridgeState:
@@ -986,11 +1007,10 @@ def dispatch_command(
     if command in ("fmode_toggle", "fmode_panel"):
         return _dispatch_fmode_toggle(state, config)
 
-    if command == "recency_order_refresh":
-        return _dispatch_reorder_satellites(state, config, recent=True)
-
-    if command == "shuffle":
-        return _dispatch_reorder_satellites(state, config, recent=False)
+    reorder = _REORDER_COMMANDS.get(command)
+    if reorder is not None:
+        which, recent = reorder
+        return _dispatch_reorder(which, recent, state, config)
 
     reset_scope = _RESET_SIDES.get(command)
     if reset_scope is not None:
@@ -1214,7 +1234,8 @@ def _dispatch_fmode_toggle(
 ) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_toggle_fmode(
         f_mode_enabled=state.f_mode_enabled,
-        recent=state.recency_order,
+        portrait_recent=state.portrait_recents,
+        landscape_recent=state.landscape_recents,
         primary_sources=config.primary_sources,
         portrait_sources=config.portrait_sources,
         landscape_sources=config.landscape_sources,
@@ -1244,48 +1265,35 @@ def _dispatch_fmode_toggle(
     ), []
 
 
-def _dispatch_reorder_satellites(
-    state: BridgeState, config: BridgeConfig, *, recent: bool
+def _dispatch_reorder(
+    which: int, recent: bool, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Reorder both satellites — Premiere (newest-first) or Shuffle — keeping
-    each one's filter."""
-    result = apply_reorder_satellites(
-        recent=recent,
-        f_mode_enabled=state.f_mode_enabled,
-        portrait_sources=config.portrait_sources,
-        landscape_sources=config.landscape_sources,
-        favs_file=config.favs_file,
-        state_dir=config.state_dir,
-        portrait_cmd_file=config.portrait_cmd_file,
-        landscape_cmd_file=config.landscape_cmd_file,
-        portrait_filter=state.portrait_filter,
-        landscape_filter=state.landscape_filter,
-        provider_media_root=config.provider_media_root,
-        provider_metadata_root=config.provider_metadata_root,
-    )
-    if result.log_message:
-        logger.info(result.log_message)
-    # Premiere/Shuffle rebuild both satellites' playlists, dropping any loops and
-    # the widened seed rows that rode on them.
-    return replace(
-        state,
-        recency_order=result.next_recency_order,
-        locked2=result.next_locked2,
-        locked3=result.next_locked3,
-        portrait_loop="",
-        landscape_loop="",
-        portrait_widen_clip="",
-        landscape_widen_clip="",
-    ), []
+    """Reload one satellite in a fresh order — Recents (newest-first) or Shuffle.
+
+    Either rescans that side's sources, so clips that have arrived since are picked
+    up, and keeps its filter.  The order is remembered per side — the two satellites
+    can be in different ones — so a later filter or F-mode rebuild reloads it the
+    same way.  The rebuild replaces the queue, which drops the side's lock and any
+    group loop (with the widened row that rode on it).
+    """
+    state = _set_side_recents(state, which, recent)
+    result = _rebuild_side(which, _side_filter(state, which), state, config)
+    state = replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
+    state = _clear_side_grouping(state, which)
+    label = "portrait" if which == 2 else "landscape"
+    message = f"{'Recents' if recent else 'Shuffle'}: {label} {'newest-first' if recent else 'reshuffled'}"
+    logger.info("%s (%d clips)", message, result.count)
+    return state, [WindowOp(op="notice", key=message, source=_satellite_source(which))]
 
 
 def _dispatch_reset(
     scope: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Return a satellite (or both) to the default browse: no filter, no
-    premiere, no loop — reshuffled, one clip per subject.  Clearing the filter
-    rebuilds the full playlist, which also drops any group loop."""
-    state = replace(state, recency_order=False)
+    """Return a satellite (or both) to the default browse: no filter, no Recents
+    order, no loop — reshuffled, one clip per subject.  Clearing the filter rebuilds
+    the full playlist, which also drops any group loop."""
+    for which in _FILTER_TARGETS[scope]:
+        state = _set_side_recents(state, which, False)
     return _dispatch_set_filter(scope, "", state, config)
 
 
@@ -1317,12 +1325,11 @@ def _dispatch_no_loop(
     """
     which = 2 if scope == "portrait" else 3
     current = _satellite_current(config, which)
-    current_filter = state.portrait_filter if which == 2 else state.landscape_filter
     browse = satellite_browse_paths(
         which=which,
-        query=current_filter,
+        query=_side_filter(state, which),
         f_mode_enabled=state.f_mode_enabled,
-        recent=state.recency_order,
+        recent=state.portrait_recents if which == 2 else state.landscape_recents,
         sources=config.portrait_sources if which == 2 else config.landscape_sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
@@ -1342,6 +1349,35 @@ def _dispatch_no_loop(
     return state, [WindowOp(op="notice", key="Loop off", source=_satellite_source(which))]
 
 
+_FILTER_TARGETS = {"both": (2, 3), "portrait": (2,), "landscape": (3,)}
+
+
+def _side_filter(state: BridgeState, which: int) -> str:
+    return state.portrait_filter if which == 2 else state.landscape_filter
+
+
+def _rebuild_side(
+    which: int, query: str, state: BridgeState, config: BridgeConfig
+) -> SatelliteFilterFlowResult:
+    """Rebuild one satellite's browse under *query* and its own current ordering.
+
+    The single place a satellite's playlist is rebuilt from its sources, so a
+    filter and a reorder cannot drift apart in how they read the side's state.
+    """
+    return apply_satellite_filter(
+        which=which,
+        query=query,
+        f_mode_enabled=state.f_mode_enabled,
+        recent=state.portrait_recents if which == 2 else state.landscape_recents,
+        sources=config.portrait_sources if which == 2 else config.landscape_sources,
+        favs_file=config.favs_file,
+        state_dir=config.state_dir,
+        cmd_file=config.satellite_cmd_file(which),
+        provider_media_root=config.provider_media_root,
+        provider_metadata_root=config.provider_metadata_root,
+    )
+
+
 def _dispatch_set_filter(
     scope: str, query: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -1349,28 +1385,14 @@ def _dispatch_set_filter(
 
     ``scope`` is both/portrait/landscape; ``query`` is the substring to match
     ("" clears).  Each targeted satellite records its own filter in the state so
-    later F-mode / premiere rebuilds keep it, then reloads under the current
-    ordering.
+    later F-mode / reorder rebuilds keep it, then reloads under its own ordering.
     """
-    targets = {"both": (2, 3), "portrait": (2,), "landscape": (3,)}[scope]
     ops: list[WindowOp] = []
-    for which in targets:
-        sources = config.portrait_sources if which == 2 else config.landscape_sources
-        result = apply_satellite_filter(
-            which=which,
-            query=query,
-            f_mode_enabled=state.f_mode_enabled,
-            recent=state.recency_order,
-            sources=sources,
-            favs_file=config.favs_file,
-            state_dir=config.state_dir,
-            cmd_file=config.satellite_cmd_file(which),
-            provider_media_root=config.provider_media_root,
-            provider_metadata_root=config.provider_metadata_root,
-        )
+    for which in _FILTER_TARGETS[scope]:
+        result = _rebuild_side(which, query, state, config)
         # Only remember a filter that actually selected videos: a zero-match
         # filter left the current playlist alone, so recording it would let the
-        # next F-mode/premiere rebuild blank the satellite.  A filter that *did* rebuild
+        # next F-mode/reorder rebuild blank the satellite.  A filter that *did* rebuild
         # also replaced any loop's sub-playlist, so the loop (and its widened row)
         # is gone; a zero-match one touched nothing, so a running loop survives it.
         if result.applied:

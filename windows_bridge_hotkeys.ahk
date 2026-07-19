@@ -105,9 +105,9 @@ q::QueueCommand("landscape_cycle_seed")
 +s::QueueCommand("landscape_nav_down")
 Enter::QueueCommand("active_nav_lock")
 '::QueueCommand("clipper_save")
-; Premiere: (re)load Portrait/Landscape newest-first, restarting from the
+; Recents: (re)load Portrait/Landscape newest-first, restarting from the
 ; top; press again to pick up newly-arrived files.
-p::QueueCommand("recency_order_refresh")
+p::QueueCommand("both_recents")
 
 ; Nau loop recording: hold R to mark, release to loop, press again to cancel.
 ; The held flag suppresses key-repeat so only one RECORD_DOWN is queued.

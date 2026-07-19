@@ -85,17 +85,11 @@ VOICE_COMMANDS: dict[str, str] = {
     # shows it as "unpause" via the row's friendly_voice override.
     "resume": "play",
     "un pause": "play",
-    # "Shuffle" reshuffles Portrait/Landscape, cancelling Premiere's newest-first
-    # order (the counterpart to "premiere"); each satellite keeps its filter.
-    "shuffle": "shuffle",
     # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
     # generated as an order-agnostic grid below the literal.
     "f mode": "fmode_toggle",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
-    # "Premiere": (re)load the Portrait/Landscape satellite playlists newest-first,
-    # picking up any new files and restarting each from the top.
-    "premiere": "recency_order_refresh",
     # Recognizer listens for "go now" (reliably recognized); the reference
     # displays this as "genau" via the row's voice_display override.
     "go now": "genau_activate",
@@ -193,9 +187,15 @@ _SATELLITE_ACTIONS: dict[str, str] = {
     # subject's other acts exactly like "action", bare or sided.
     "scene": "cycle_action",
     "seed": "cycle_seed",
-    # Drop any filter/premiere/loop and reshuffle back to the default browse
+    # Drop any filter/ordering/loop and reshuffle back to the default browse
     # order (all clips, one per subject).
     "reset": "reset",
+    # The two browse orderings, each rescanning the sources so new files are picked
+    # up: "recents" reloads newest-first, "shuffle" reshuffles.  Both are sided like
+    # every other satellite action — a side put in recents order has to be
+    # shuffleable on its own — and "both recents" is what the P key sends.
+    "recents": "recents",
+    "shuffle": "shuffle",
 }
 for _act_word, _act in _SATELLITE_ACTIONS.items():
     VOICE_COMMANDS[_act_word] = f"active_{_act}"
@@ -225,7 +225,8 @@ _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
     # "more seeds" / "widen (the) net" widens cycle-seed's reach on demand until
     # it finds another subject doing the same act.
     "more_seeds": ("more seeds", "widen net", "widen the net"),
-    # "no loop" / "loop off" ends any group loop, back to the browse.
+    # "no loop" / "loop off" ends any group loop, back to the browse.  ("end loop"
+    # joins them, but only sided — bare it belongs to Nau; see below.)
     "no_loop": ("no loop", "loop off"),
     "lock_action": ("lock action", "action lock"),
     "lock_on": ("lock all",),
@@ -238,6 +239,12 @@ for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
             _sided = f"{_side}_{_group_act}"
             VOICE_COMMANDS[f"{_side} {_group_word}"] = _sided
             VOICE_COMMANDS[f"{_group_word} {_side}"] = _sided
+
+# "end loop" ends a satellite's group loop when a side is named, but bare it is
+# Nau's own phrase — its A-B loop's cancel — so only the sided forms are taken.
+for _side in ("portrait", "landscape", "both"):
+    VOICE_COMMANDS[f"{_side} end loop"] = f"{_side}_no_loop"
+    VOICE_COMMANDS[f"end loop {_side}"] = f"{_side}_no_loop"
 
 # The cycle axes also take an explicit verb up front — "cycle / next / change
 # <axis>" — and "scene" reads as "action".  These are extra spoken forms for the

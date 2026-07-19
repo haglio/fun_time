@@ -11,7 +11,6 @@ from fun_time.runtime_flow import (
     apply_enter_omnipause,
     apply_leave_omnipause,
     apply_mode_switch,
-    apply_reorder_satellites,
     apply_satellite_filter,
     apply_toggle_fmode,
     build_omnipause_toggle,
@@ -216,7 +215,8 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
 
     result = apply_toggle_fmode(
         f_mode_enabled=False,
-        recent=False,
+        portrait_recent=False,
+        landscape_recent=False,
         primary_sources=str(primary_root),
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
@@ -261,7 +261,8 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
 
     apply_toggle_fmode(
         f_mode_enabled=True,
-        recent=False,
+        portrait_recent=False,
+        landscape_recent=False,
         primary_sources="",
         portrait_sources=str(portrait_root),
         landscape_sources="",
@@ -289,7 +290,8 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
     # Toggling F-mode off must keep the satellite playlists newest-first, not reshuffle.
     apply_toggle_fmode(
         f_mode_enabled=True,
-        recent=True,
+        portrait_recent=True,
+        landscape_recent=True,
         primary_sources="",
         portrait_sources=str(portrait_root),
         landscape_sources="",
@@ -303,66 +305,39 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(p_new), str(p_old)]
 
 
-def test_refresh_recency_order_reorders_only_satellites(tmp_path: Path):
-    portrait_root = tmp_path / "portrait"
-    landscape_root = tmp_path / "landscape"
-    for root in (portrait_root, landscape_root):
-        root.mkdir(parents=True)
-    p_old, p_new = portrait_root / "p_old.mp4", portrait_root / "p_new.mp4"
-    l_old, l_new = landscape_root / "l_old.mp4", landscape_root / "l_new.mp4"
-    for path, mtime in ((p_old, 1000), (p_new, 2000), (l_old, 1000), (l_new, 2000)):
-        path.write_text("x", encoding="utf-8")
-        os.utime(path, (mtime, mtime))
-    portrait_cmd_file = tmp_path / "portrait_cmd.txt"
-    landscape_cmd_file = tmp_path / "landscape_cmd.txt"
-
-    result = apply_reorder_satellites(
-        recent=True,
+def _reorder(tmp_path: Path, sources: Path, *, recent: bool, query: str = "", **roots) -> None:
+    """Reload the portrait satellite in one order — what "recents"/"shuffle" run."""
+    apply_satellite_filter(
+        which=2,
+        query=query,
         f_mode_enabled=False,
-        portrait_sources=str(portrait_root),
-        landscape_sources=str(landscape_root),
+        recent=recent,
+        sources=str(sources),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_cmd_file=portrait_cmd_file,
-        landscape_cmd_file=landscape_cmd_file,
+        cmd_file=tmp_path / "portrait_cmd.txt",
+        **roots,
     )
 
-    assert result.next_recency_order is True
-    assert result.next_locked2 is False
-    assert result.next_locked3 is False
-    # Only the two satellites are reloaded — never the primary/Nau.
-    assert _reloaded(portrait_cmd_file)
-    assert _reloaded(landscape_cmd_file)
-    assert _satellite_lines(tmp_path / "state", "portrait") == [str(p_new), str(p_old)]
-    assert _satellite_lines(tmp_path / "state", "landscape") == [str(l_new), str(l_old)]
 
-
-def test_reorder_satellites_shuffle_clears_recency_and_reloads_both(tmp_path: Path):
+def test_recents_orders_one_satellite_newest_first(tmp_path: Path):
+    """Recents is a sided command now — it reloads the satellite it names, and only
+    that one, newest-first."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
-    (portrait_root / "clip.mp4").write_text("x", encoding="utf-8")
-    portrait_cmd_file = tmp_path / "portrait_cmd.txt"
-    landscape_cmd_file = tmp_path / "landscape_cmd.txt"
+    old, new = portrait_root / "old.mp4", portrait_root / "new.mp4"
+    for path, mtime in ((old, 1000), (new, 2000)):
+        path.write_text("x", encoding="utf-8")
+        os.utime(path, (mtime, mtime))
 
-    result = apply_reorder_satellites(
-        recent=False,
-        f_mode_enabled=False,
-        portrait_sources=str(portrait_root),
-        landscape_sources="",
-        favs_file=tmp_path / "favs.csv",
-        state_dir=tmp_path / "state",
-        portrait_cmd_file=portrait_cmd_file,
-        landscape_cmd_file=landscape_cmd_file,
-    )
+    _reorder(tmp_path, portrait_root, recent=True)
 
-    assert result.next_recency_order is False  # Shuffle, not Premiere
-    # Both satellites reload even when a side is empty.
-    assert _reloaded(portrait_cmd_file)
-    assert _reloaded(landscape_cmd_file)
-    assert "Shuffle" in result.log_message
+    assert _reloaded(tmp_path / "portrait_cmd.txt")
+    assert not (tmp_path / "landscape_cmd.txt").exists()  # the other side is untouched
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(new), str(old)]
 
 
-def test_refresh_recency_order_repicks_up_new_files(tmp_path: Path):
+def test_recents_repicks_up_new_files(tmp_path: Path):
     """A repeat press rescans the sources so newly-arrived files land on top."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
@@ -370,30 +345,18 @@ def test_refresh_recency_order_repicks_up_new_files(tmp_path: Path):
     old.write_text("x", encoding="utf-8")
     os.utime(old, (1000, 1000))
 
-    def refresh():
-        apply_reorder_satellites(
-            recent=True,
-            f_mode_enabled=False,
-            portrait_sources=str(portrait_root),
-            landscape_sources="",
-            favs_file=tmp_path / "favs.csv",
-            state_dir=tmp_path / "state",
-            portrait_cmd_file=tmp_path / "portrait_cmd.txt",
-            landscape_cmd_file=tmp_path / "landscape_cmd.txt",
-        )
-
-    refresh()
+    _reorder(tmp_path, portrait_root, recent=True)
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(old)]
 
     new = portrait_root / "new.mp4"
     new.write_text("x", encoding="utf-8")
     os.utime(new, (2000, 2000))
-    refresh()
+    _reorder(tmp_path, portrait_root, recent=True)
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(new), str(old)]
 
 
-def test_refresh_recency_order_collapses_action_groups_with_provider_roots(tmp_path: Path):
-    """Premiere honours action groups too: with the provider roots supplied,
+def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
+    """Recents honours action groups too: with the provider roots supplied,
     same-source-image clips collapse to one entry, its newest member."""
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
@@ -411,18 +374,8 @@ def test_refresh_recency_order_collapses_action_groups_with_provider_roots(tmp_p
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
 
-    apply_reorder_satellites(
-        recent=True,
-        f_mode_enabled=False,
-        portrait_sources=str(portrait_root),
-        landscape_sources="",
-        favs_file=tmp_path / "favs.csv",
-        state_dir=tmp_path / "state",
-        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
-        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
-    )
+    _reorder(tmp_path, portrait_root, recent=True,
+             provider_media_root=media_root, provider_metadata_root=metadata_root)
 
     entries = [line for line in _satellite_lines(tmp_path / "state", "portrait") if line]
     assert entries == [str(newer)], "the two-action group collapses to its newest member"
@@ -438,7 +391,8 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
 
     apply_toggle_fmode(
         f_mode_enabled=True,  # toggles F-mode OFF, so only the metadata filter applies
-        recent=True,
+        portrait_recent=True,
+        landscape_recent=True,
         primary_sources="",
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
@@ -459,30 +413,19 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
     assert l_kiss in landscape and "lc.mp4" not in landscape
 
 
-def test_refresh_recency_order_honours_filters_and_orders_newest_first(tmp_path: Path):
+def test_recents_honours_the_sides_filter_and_orders_newest_first(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     # Distinct prompts keep the two Alphas in distinct seed families, so the
-    # filtered build keeps both and premiere's newest-first order is visible.
+    # filtered build keeps both and the newest-first order is visible.
     old = _make_action_video(portrait_root, media_root, metadata_root, "old", "Alpha", "scene one")
     new = _make_action_video(portrait_root, media_root, metadata_root, "new", "Alpha", "scene two")
     _make_action_video(portrait_root, media_root, metadata_root, "other", "Kissing", "scene three")
     os.utime(old, (1000, 1000))
     os.utime(new, (2000, 2000))
 
-    apply_reorder_satellites(
-        recent=True,
-        f_mode_enabled=False,
-        portrait_sources=str(portrait_root),
-        landscape_sources="",
-        favs_file=tmp_path / "favs.csv",
-        state_dir=tmp_path / "state",
-        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
-        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
-        provider_media_root=media_root,
-        provider_metadata_root=metadata_root,
-        portrait_filter="alpha",
-    )
+    _reorder(tmp_path, portrait_root, recent=True, query="alpha",
+             provider_media_root=media_root, provider_metadata_root=metadata_root)
 
     assert _satellite_lines(tmp_path / "state", "portrait") == [new, old]  # filtered to alpha, newest-first
 

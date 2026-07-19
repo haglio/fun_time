@@ -69,6 +69,7 @@ _DIM = 0.5      # non-playing thumbnails; the one on screen stays full
 _BORDER_W = 2   # the lock ring around the corner
 _DOT = 1        # radius of one dot in a "…" mark — small, so three read as three
 _DOT_GAP = 4    # centre-to-centre spacing of those dots along the axis
+_COUNT_LINE_H = 11  # line pitch of the axis counts in the map's top-left corner
 
 # The loop (U+21BB) and expand (U+2194) glyphs on the buttons: Segoe UI has no
 # U+21BB, and Pillow — unlike Qt, which fell back silently — would draw a tofu
@@ -82,17 +83,21 @@ _EXPAND_GLYPH = "↔"
 
 
 def gutter_width_for(font: ImageFont.FreeTypeFont, current_action: str,
-                     action_labels: tuple[str, ...]) -> int:
+                     action_labels: tuple[str, ...], *, min_width: int = 0) -> int:
     """Size the row-label gutter to the actions actually present — wide enough for
     the widest word, no wider — so a map of short acts doesn't carry a big empty
-    gutter, and a long one ("Delta") still fits without splitting."""
+    gutter, and a long one ("Delta") still fits without splitting.
+
+    *min_width* is a floor the caller needs regardless of the acts: the axis counts
+    printed in the corner above the gutter have to fit in it too.
+    """
     words = [
         word
         for label in (current_action, *action_labels)
         for word in friendly_action_label(label).split("\n")
     ]
     widest = max((text_width(font, word) for word in words), default=0)
-    return min(max(widest + 2 * MAP_GAP, MIN_GUTTER), MAX_GUTTER)
+    return min(max(widest + 2 * MAP_GAP, MIN_GUTTER, min_width), MAX_GUTTER)
 
 
 @dataclass(frozen=True)
@@ -189,9 +194,14 @@ class HudRenderer:
                                HudTargets(click=[], loop=[], label=[], expand=None))
 
         # Sized from the whole model, before any windowing, so the gutter does not
-        # change width as a loop's window slides along.
-        gutter_w = gutter_width_for(self._row, model.current_action,
-                                    tuple(cell.label for cell in model.actions))
+        # change width as a loop's window slides along — and never narrower than the
+        # axis counts printed above it.
+        counts = self._count_lines(model)
+        gutter_w = gutter_width_for(
+            self._row, model.current_action, tuple(cell.label for cell in model.actions),
+            min_width=max((text_width(self._tiny, line) for line in counts), default=0) + MAP_GAP,
+        )
+        self._draw_counts(draw, x, y, counts)
         right, bottom = width - PAD, height - PAD
         # Both axes are drawn through a window that keeps the clip on screen in view,
         # and both keep room at each end for the "…" that says the map runs on past
@@ -305,6 +315,29 @@ class HudRenderer:
             # comes from the cell drawn there rather than the anchor's own action.
             narrowed = replace(narrowed, current_action=corner.label or model.current_action)
         return narrowed, seed_win, action_win
+
+    @staticmethod
+    def _count_lines(model: HudModel) -> tuple[str, ...]:
+        """"Seeds: n" / "Actions: n" — how many clips each axis stands for.
+
+        Empty until fun_time's index has answered, so a satellite still starting up
+        prints nothing rather than a confident "Seeds: 0".
+        """
+        if not (model.seed_count or model.action_count):
+            return ()
+        return (f"Seeds: {model.seed_count}", f"Actions: {model.action_count}")
+
+    def _draw_counts(self, draw, x: int, y: int, lines: tuple[str, ...]) -> None:
+        """The axis counts, in the corner left of the map and above its first row.
+
+        The map draws only the cells that fit — and a window can hide a whole loop's
+        worth — so this is the only place its real size can be read.  It sits outside
+        the map proper, in the gutter's own column, and is there whether or not a
+        loop is running.
+        """
+        for line_no, text in enumerate(lines, start=1):
+            draw.text((x, y + _COUNT_LINE_H * line_no), text, font=self._tiny,
+                      anchor="ls", fill=(*TEXT_MUTED, 255))
 
     def _draw_ellipses(self, draw, corner_rect, seed_rects, action_rects, axis, window) -> None:
         """Three dots in the slots kept at each end of *axis*, on whichever side it

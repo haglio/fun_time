@@ -298,7 +298,8 @@ def test_build_satellite_playlists_writes_both_recency_ordered_files(tmp_path: P
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         f_mode=False,
-        recent=True,
+        portrait_recent=True,
+        landscape_recent=True,
     )
 
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(p_new), str(p_old)]
@@ -323,7 +324,8 @@ def test_build_fmode_playlists_recent_orders_satellites(tmp_path: Path):
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         enabled=False,
-        recent=True,
+        portrait_recent=True,
+        landscape_recent=True,
     )
 
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(p_new), str(p_old)]
@@ -459,8 +461,8 @@ def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Pat
     assert appearances < 15, "a weight-1/8 video should miss most builds"
 
 
-def test_premiere_recent_build_collapses_groups_to_newest_member(tmp_path: Path):
-    """Premiere shows one entry per action group even while reviewing arrivals:
+def test_recents_build_collapses_groups_to_newest_member(tmp_path: Path):
+    """Recents shows one entry per action group even while reviewing arrivals:
     the group's newest member represents it, ungrouped clips pass through, and
     the whole list stays newest-first."""
     source_dir, library, paths = _grouped_library(tmp_path, {
@@ -494,7 +496,8 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         f_mode=False,
-        recent=False,
+        portrait_recent=False,
+        landscape_recent=False,
         rng=random.Random(5),
         library=library,
     )
@@ -556,9 +559,9 @@ def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
     assert got == [paths["redacted"]]
 
 
-def test_satellite_filter_composes_with_premiere_recency_order(tmp_path: Path):
+def test_satellite_filter_composes_with_recents_ordering(tmp_path: Path):
     # Distinct prompts put the two Alphas in distinct seed families, so the
-    # filtered build keeps both and premiere's newest-first ordering is visible.
+    # filtered build keeps both and the Recents newest-first ordering is visible.
     source_dir, library, paths = _grouped_library(tmp_path, {
         "old": _t2v_meta("Alpha", "1", prompt="scene one"),
         "new": _t2v_meta("Alpha", "2", prompt="scene two"),
@@ -615,7 +618,8 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         f_mode=False,
-        recent=True,
+        portrait_recent=True,
+        landscape_recent=True,
         portrait_filter="alpha",
         landscape_filter="kissing",
         library=library,

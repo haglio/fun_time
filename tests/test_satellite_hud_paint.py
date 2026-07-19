@@ -254,6 +254,24 @@ def test_a_sliding_loop_window_never_shifts_the_map(thumb):
     assert at_start.targets.expand == midway.targets.expand
 
 
+def test_the_map_prints_how_big_each_axis_is(thumb):
+    """The map draws only the cells that fit, so its top-left corner carries the
+    counts — the only place the real size of each axis can be read.  They are always
+    there, loop or no loop."""
+    renderer = HudRenderer("portrait")
+
+    def corner_ink(**counts) -> int:
+        rendered = renderer.render(_model(corner=HudCell(path="c.mp4", thumb=thumb), **counts))
+        (cx, cy, _cw, _ch), _path = rendered.targets.click[0]
+        # The block left of the map and above its first row: the "Seed N" column
+        # headers live to the right of it, over the thumbnails.
+        block = _rgb(rendered.bgra)[PAD + LOCK_BAND_H:cy, PAD:cx - MAP_GAP]
+        return int((block > 80).sum())
+
+    assert corner_ink(seed_count=12, action_count=4) > 0
+    assert corner_ink() == 0  # nothing to say before the index has answered
+
+
 def test_gutter_width_fits_the_acts_present():
     """The gutter is sized to the acts actually shown — narrow for short ones, no
     wider than the cap for a long one — so it isn't a big empty margin."""
