@@ -237,8 +237,8 @@ class TestRunStartupSequence:
         title_to_hwnd = {
             "Genau": 6060,
             "Nau": 2525,
-            "Satellite Portrait": 3030,
-            "Satellite Landscape": 4040,
+            "Portrait AI Player": 3030,
+            "Landscape AI Player": 4040,
         }
         move_calls: list[tuple] = []
         topmost_calls: list[tuple] = []
@@ -538,7 +538,7 @@ class TestLoadingScreenStartup:
     def test_defers_positioning_behind_the_overlay(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        title_to_hwnd = {"Satellite Portrait": 3030, "Satellite Landscape": 4040}
+        title_to_hwnd = {"Portrait AI Player": 3030, "Landscape AI Player": 4040}
         move_calls: list[tuple] = []
         move_activates: list[bool] = []
 
@@ -586,8 +586,8 @@ class TestLoadingScreenStartup:
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {
-            "Satellite Portrait": 3030,
-            "Satellite Landscape": 4040,
+            "Portrait AI Player": 3030,
+            "Landscape AI Player": 4040,
             "Nau": 2525,
             "Genau": 6060,
             "Fun Time": 5050,
@@ -928,7 +928,7 @@ class TestResolveSatelliteHwnds:
     """
 
     def test_resolves_each_side_by_its_distinct_title(self):
-        title_to_hwnd = {"Satellite Portrait": 1111, "Satellite Landscape": 2222}
+        title_to_hwnd = {"Portrait AI Player": 1111, "Landscape AI Player": 2222}
 
         with patch(
             "fun_time.windows_bridge_sequencer.wait_for_window_by_title",
@@ -942,7 +942,7 @@ class TestResolveSatelliteHwnds:
         # Resolved by the two DISTINCT captions, never the shared "Satellite" that
         # made the lookup ambiguous, and each lookup is exact.
         resolved = {call.args[0] for call in by_title.call_args_list}
-        assert resolved == {"Satellite Portrait", "Satellite Landscape"}
+        assert resolved == {"Portrait AI Player", "Landscape AI Player"}
         assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)
 
 

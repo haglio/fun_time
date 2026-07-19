@@ -215,7 +215,7 @@ def test_dashboard_app_scene_uses_runtime_snapshot_when_available(cfg_path: Path
     fills = {item.rect: item.fill for item in scene.rects}
     assert len(_cable_lines(scene)) == 1, "Cable should be one straight line"
     assert "Nau" in texts
-    assert "Portrait\nAI" in texts
+    assert "Portrait\nAI Player" in texts
     assert not any(".mp4" in item.text for item in scene.texts)
     assert fills[preview_layout.primary_panel] == COLOR_PINK, "Auto mode makes primary pink"
     assert fills[preview_layout.portrait_panel] == COLOR_GREEN
@@ -1460,14 +1460,17 @@ def test_osr2_off_mode_shows_off_label_and_dim_color(cfg_path: Path):
     assert fills[layout.osr2_panel] == COLOR_PANEL
 
 
-def test_portrait_label_is_split_across_two_lines(cfg_path: Path):
+def test_the_panels_name_the_players_their_windows_do(cfg_path: Path):
+    """The Dash calls each side what its window calls itself, so the panel and
+    the Alt-Tab entry are recognisably the same thing.  Portrait's panel is a
+    narrow column, so its name wraps rather than being shortened."""
     layout = _make_layout(cfg_path)
 
     scene = build_dashboard_scene(layout)
 
     texts = {item.text for item in scene.texts}
-    assert "Portrait\nAI" in texts
-    assert "Portrait AI" not in texts
+    assert "Portrait\nAI Player" in texts
+    assert "Landscape AI Player" in texts
 
 
 def test_omnipause_resume_button_is_not_green_when_paused(cfg_path: Path):

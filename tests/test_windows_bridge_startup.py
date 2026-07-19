@@ -816,7 +816,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     # lookup fails — the portrait title on the portrait side, never swapped.
     assert portrait_kwargs["python_exe"] == "fun_time_python.exe"
     assert portrait_kwargs["satellite_module"] == "satellite"
-    assert portrait_kwargs["title"] == "Satellite Portrait"
+    assert portrait_kwargs["title"] == "Portrait AI Player"
     assert portrait_kwargs["playlist_file"] == portrait_playlist
     assert portrait_kwargs["command_file"] == state_dir / "portrait_cmd.txt"
     assert portrait_kwargs["paused_file"] == state_dir / "portrait_paused.txt"
@@ -824,7 +824,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
 
     assert landscape_kwargs["python_exe"] == "fun_time_python.exe"
     assert landscape_kwargs["satellite_module"] == "satellite"
-    assert landscape_kwargs["title"] == "Satellite Landscape"
+    assert landscape_kwargs["title"] == "Landscape AI Player"
     assert landscape_kwargs["playlist_file"] == landscape_playlist
     assert landscape_kwargs["command_file"] == state_dir / "landscape_cmd.txt"
     assert landscape_kwargs["paused_file"] == state_dir / "landscape_paused.txt"
@@ -858,7 +858,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
 def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry():
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
-        title="Satellite Portrait",
+        title="Portrait AI Player",
         playlist_file="state/portrait_playlist.tsv",
         command_file="state/portrait_cmd.txt",
         paused_file="state/portrait_paused.txt",
@@ -870,7 +870,7 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
     def _val(flag):
         return cmd[cmd.index(flag) + 1]
 
-    assert _val("--title") == "Satellite Portrait"
+    assert _val("--title") == "Portrait AI Player"
     assert _val("--playlist") == "state/portrait_playlist.tsv"
     assert _val("--command-file") == "state/portrait_cmd.txt"
     assert _val("--paused-file") == "state/portrait_paused.txt"
@@ -884,11 +884,11 @@ def test_build_satellite_launch_command_forwards_the_distinct_title():
     # (or a dropped --title) would let the portrait/landscape windows cross.
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
-        title="Satellite Landscape",
+        title="Landscape AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
         x=0, y=0, width=1, height=1,
     )
-    assert cmd[cmd.index("--title") + 1] == "Satellite Landscape"
+    assert cmd[cmd.index("--title") + 1] == "Landscape AI Player"
 
 
 def test_build_satellite_launch_command_always_disables_audio():
@@ -896,7 +896,7 @@ def test_build_satellite_launch_command_always_disables_audio():
     # at launch rather than mixed down afterwards.
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
-        title="Satellite Portrait",
+        title="Portrait AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
         x=0, y=0, width=1, height=1,
     )
@@ -908,7 +908,7 @@ def test_build_satellite_launch_command_passes_no_config_flag():
     # the file quartet and geometry, so none must be forwarded.
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
-        title="Satellite Portrait",
+        title="Portrait AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
         x=0, y=0, width=1, height=1,
     )
@@ -926,7 +926,7 @@ def test_launch_satellite_starts_process_and_returns_pid(tmp_path: Path):
         pid = launch_satellite(
             python_exe="python.exe",
             satellite_module="satellite",
-            title="Satellite Portrait",
+            title="Portrait AI Player",
             playlist_file="state/portrait_playlist.tsv",
             command_file="state/portrait_cmd.txt",
             paused_file="state/portrait_paused.txt",
@@ -943,7 +943,7 @@ def test_launch_satellite_starts_process_and_returns_pid(tmp_path: Path):
     assert popen.call_args.args[0][:3] == ["python.exe", "-m", "satellite"]
     assert popen.call_args.args[0][-1] == "--no-audio"
     argv = popen.call_args.args[0]
-    assert argv[argv.index("--title") + 1] == "Satellite Portrait"
+    assert argv[argv.index("--title") + 1] == "Portrait AI Player"
 
 
 def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
@@ -961,7 +961,7 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
         launch_satellite(
             python_exe="pythonw.exe",
             satellite_module="satellite",
-            title="Satellite Portrait",
+            title="Portrait AI Player",
             playlist_file="state/portrait_playlist.tsv",
             command_file="state/portrait_cmd.txt",
             paused_file="state/portrait_paused.txt",
@@ -984,7 +984,7 @@ def test_build_satellite_launch_command_forwards_the_hud_files():
     panel file to render and where to post the clicks on it."""
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
-        title="Satellite Portrait",
+        title="Portrait AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
         hud_file="state/portrait_hud.json", dashboard_cmd_file="state/dashboard_cmd.txt",
         x=0, y=0, width=1, height=1,
@@ -999,7 +999,7 @@ def test_build_satellite_launch_command_omits_an_absent_hud():
     so a satellite launched without one simply draws no map."""
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
-        title="Satellite Portrait",
+        title="Portrait AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
         hud_file=None, dashboard_cmd_file=None,
         x=0, y=0, width=1, height=1,

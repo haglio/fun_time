@@ -499,8 +499,8 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
 def _resolve_satellite_hwnds() -> tuple[int, int]:
     """The portrait and landscape native-satellite windows, as (portrait, landscape).
 
-    Each side is resolved by its DISTINCT window caption ("Satellite Portrait" vs
-    "Satellite Landscape"), so the lookup can never assign one side's window to the
+    Each side is resolved by its DISTINCT window caption ("Portrait AI Player" vs
+    "Landscape AI Player"), so the lookup can never assign one side's window to the
     other — a shared caption could, and that was the portrait/landscape visual swap.
 
     Deliberately NOT by pid.  The pid we launch with is the venv's

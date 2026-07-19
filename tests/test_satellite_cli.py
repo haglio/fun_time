@@ -52,8 +52,8 @@ def test_title_is_taken_from_the_flag():
     """fun_time gives each satellite a distinct caption so the sequencer can
     resolve each window to its portrait/landscape slot; a shared title crosses
     them, which is the visual swap this prevents."""
-    args = build_parser().parse_args(["--title", "Satellite Portrait"])
-    assert args.title == "Satellite Portrait"
+    args = build_parser().parse_args(["--title", "Portrait AI Player"])
+    assert args.title == "Portrait AI Player"
 
 
 def test_parser_takes_the_hud_panel_and_command_files():

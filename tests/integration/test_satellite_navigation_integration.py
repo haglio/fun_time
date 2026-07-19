@@ -91,7 +91,7 @@ def satellite(tmp_path):
     pid = launch_satellite(
         python_exe=str(cfg.paths.python_exe),
         satellite_module="satellite",
-        title="Satellite Portrait",
+        title="Portrait AI Player",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
         log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,

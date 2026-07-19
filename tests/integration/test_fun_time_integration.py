@@ -318,7 +318,7 @@ def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_ses
     s.write_dashboard_command("play")
 
     # Resolve exactly as startup does: by each satellite's DISTINCT caption
-    # ("Satellite Portrait" / "Satellite Landscape").  A pid cannot find either
+    # ("Portrait AI Player" / "Landscape AI Player").  A pid cannot find either
     # window — the venv's pythonw launcher spawns the interpreter that owns it as
     # a child — and the distinct captions are what tell portrait from landscape
     # without swapping them.

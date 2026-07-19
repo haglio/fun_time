@@ -59,7 +59,7 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
     pid = launch_satellite(
         python_exe=str(cfg.paths.python_exe),
         satellite_module="satellite",
-        title="Satellite Portrait",
+        title="Portrait AI Player",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
         log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,
@@ -112,7 +112,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
     pid = launch_satellite(
         python_exe=str(cfg.paths.python_exe),
         satellite_module="satellite",
-        title="Satellite Portrait",
+        title="Portrait AI Player",
         playlist_file=playlist, command_file=cmd,
         paused_file=tmp_path / "portrait_paused.txt", status_file=status,
         log_file=tmp_path / "portrait_satellite.log",
@@ -177,7 +177,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     pid = launch_satellite(
         python_exe=str(cfg.paths.python_exe),
         satellite_module="satellite",
-        title="Satellite Portrait",
+        title="Portrait AI Player",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
         hud_file=hud_file, dashboard_cmd_file=dashboard_cmd,
         log_file=tmp_path / "portrait_satellite.log",
