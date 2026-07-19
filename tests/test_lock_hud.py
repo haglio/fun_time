@@ -236,6 +236,33 @@ def test_the_status_line_holds_every_state_the_side_is_in():
     assert locked.lock_label == "Locked · Shuffle"
 
 
+def test_the_status_line_says_when_f_mode_is_narrowing_the_library():
+    """F-mode is a filtering layer of its own — favourites only — sitting under
+    whatever else the side is doing.  Left off the line, a side that has been cut
+    to a handful of clips looks identical to one browsing everything."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    on = build_hud_panel("portrait", locked=False, current=CUR, index=index, f_mode=True)
+    off = build_hud_panel("portrait", locked=False, current=CUR, index=index)
+
+    assert on.lock_label == "Unlocked · Shuffle · F-Mode"
+    assert "F-Mode" not in off.lock_label
+
+
+def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
+    """The unlabelled phrase at the end can only be the filter — that is what makes
+    it readable without a label — so a second, fixed filtering word goes ahead of it
+    rather than after."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=CUR, index=index,
+        f_mode=True, filter_query="beta gamma",
+    )
+
+    assert panel.lock_label == "Unlocked · Shuffle · F-Mode · beta gamma"
+
+
 def test_the_status_line_names_the_axis_that_is_looping():
     """"Looping" alone leaves you looking at the map to find out which axis it is."""
     seed_index = _index(current=CUR, seed_sibs=[S1])
@@ -668,6 +695,26 @@ def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
     assert landscape.side == "landscape" and landscape.locked is False
     assert landscape.action_siblings == [] and landscape.seed_siblings == []
     assert landscape.filter_query == ""
+
+
+def test_build_panels_puts_f_mode_on_both_sides(tmp_path: Path):
+    """F-mode is one global flag, not a sided one — the F key narrows both
+    satellites at once — so both status lines say it or neither does."""
+    reset_group_index_cache()
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+    current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
+    sources = str(media_root / "portrait")
+
+    portrait, landscape = build_panels(
+        portrait_sources=sources, landscape_sources=sources,
+        metadata_root=metadata_root,
+        portrait_current=current, landscape_current=current,
+        portrait_locked=False, landscape_locked=False,
+        f_mode=True,
+    )
+
+    assert "F-Mode" in portrait.lock_label
+    assert "F-Mode" in landscape.lock_label
 
 
 def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):

@@ -233,12 +233,14 @@ Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recor
 
 ### F-Mode
 
-Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the next advance — the three VLC `.m3u` playlists plus Nau's `nau_playlist.tsv` (Nau is sent `RELOAD_PLAYLIST`) — and restricts playback to funscript-backed media:
+Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the next advance — both satellite playlists plus Nau's `nau_playlist.tsv` — and each player is sent `RELOAD_PLAYLIST`. What it narrows to differs by player:
 
 - the primary playlist (Nau) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
-- each satellite VLC plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
+- each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
-The same builder (`build_fmode_playlists`) writes all four playlist files at startup, so startup and the F-mode toggle share one playlist authority.
+The same builder (`build_fmode_playlists`) writes all three playlist files at startup, so startup and the F-mode toggle share one playlist authority.
+
+Because the narrowing is invisible in the playlist itself, each satellite's status line says when it is on, carrying `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`).
 
 ### Cycle action & cycle seed (satellites)
 

@@ -433,6 +433,7 @@ class DispatchLoopRunner:
             landscape_nav_anchor=state.landscape_nav_anchor,
             portrait_latest=state.portrait_latest,
             landscape_latest=state.landscape_latest,
+            f_mode=state.f_mode_enabled,
         )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)

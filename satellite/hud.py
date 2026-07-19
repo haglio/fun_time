@@ -13,6 +13,7 @@ font: the paint module measures text and hands the width back in.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 
 # --- layout constants (px) ---------------------------------------------------
@@ -36,8 +37,51 @@ MIN_GUTTER = 30     # row-label gutter: never narrower than this
 MAX_GUTTER = 100    # …and never wider, so a stray long act can't eat the map
 LOOP_BTN = 18       # loop-button thickness: below the action column, right of the row
 
+STATUS_SEPARATOR = " · "  # what fun_time joins the status line's parts with
+STATUS_LINE_H = 14        # what each line past the first adds to the band
+
 Rect = tuple[int, int, int, int]  # (x, y, w, h)
 Cell = tuple[str, int]            # ("corner", 0) | ("seed", i) | ("action", i)
+
+
+# --- the status line ---------------------------------------------------------
+
+
+def wrap_status_line(
+    label: str, available: int, measure: Callable[[str], int]
+) -> list[str]:
+    """fun_time's status line broken into lines that fit *available* px.
+
+    The portrait panel is only as wide as its clips, and the line can carry four
+    parts at once — what is holding playback, the browse order, F-mode, and the
+    act filter.  Pillow clips at the panel's edge without a word, so an unwrapped
+    line does not read as "there is more": it reads as the states that ran out of
+    room being *off*, which is the one thing a status line must never say.
+
+    Breaks fall only on the separators, so a part is never split across lines and
+    never reads as two states — a part too wide for the panel keeps its own line
+    and overhangs instead.
+    """
+    parts = [part for part in label.split(STATUS_SEPARATOR) if part]
+    lines: list[str] = []
+    for part in parts:
+        if lines:
+            candidate = lines[-1] + STATUS_SEPARATOR + part
+            if measure(candidate) <= available:
+                lines[-1] = candidate
+                continue
+        lines.append(part)
+    return lines
+
+
+def status_band_height(lines: int) -> int:
+    """The room the status takes above the map, for a status of *lines* lines.
+
+    A wrapped line pushes the map down rather than being drawn over its first row.
+    An empty status keeps the one-line band: the map's geometry is measured off
+    the band's foot, so a side with nothing to say must not shift its own map.
+    """
+    return LOCK_BAND_H + max(0, lines - 1) * STATUS_LINE_H
 
 
 @dataclass(frozen=True)

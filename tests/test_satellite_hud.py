@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 
 from satellite.hud import (
+    LOCK_BAND_H,
     LOOP_BTN,
     MAP_GAP,
     ROW_GAP,
@@ -20,8 +21,63 @@ from satellite.hud import (
     loop_button_rects,
     map_window,
     parse_hud,
+    status_band_height,
     thumbnail_rects,
+    wrap_status_line,
 )
+
+
+# --- the status line ---------------------------------------------------------
+
+# One "character" per 10px, so the arithmetic in these tests is readable.
+def _measure(text: str) -> int:
+    return 10 * len(text)
+
+
+def test_a_status_line_that_fits_stays_on_one_line():
+    assert wrap_status_line("Locked · Shuffle", 200, _measure) == ["Locked · Shuffle"]
+
+
+def test_a_status_line_too_wide_for_the_panel_wraps_at_its_separators():
+    """The portrait panel is as narrow as its clips, and the line grew a fourth
+    part with F-mode.  Pillow clips silently at the panel edge, so an unwrapped
+    line does not look long — it looks like the state it ran out of room for is
+    switched off."""
+    label = "Looping actions · Latest · F-Mode · beta gamma"
+
+    assert wrap_status_line(label, 280, _measure) == [
+        "Looping actions · Latest",
+        "F-Mode · beta gamma",
+    ]
+
+
+def test_a_single_part_wider_than_the_panel_still_gets_its_own_line():
+    """Breaking mid-phrase would read as two states rather than one, so an
+    over-wide part is left whole and simply overhangs."""
+    assert wrap_status_line("Unlocked · a very long filter phrase indeed", 150, _measure) == [
+        "Unlocked",
+        "a very long filter phrase indeed",
+    ]
+
+
+def test_an_empty_status_line_needs_no_lines_at_all():
+    assert wrap_status_line("", 280, _measure) == []
+
+
+def test_the_status_band_grows_by_a_line_for_each_wrap():
+    """Everything below is laid out from the band's foot, so a second line has to
+    push the map down rather than being drawn over its first row."""
+    assert status_band_height(1) == LOCK_BAND_H
+    assert status_band_height(2) > status_band_height(1)
+    assert status_band_height(3) - status_band_height(2) == (
+        status_band_height(2) - status_band_height(1)
+    )
+
+
+def test_a_panel_with_nothing_to_say_keeps_the_band_it_always_had():
+    """The map's own geometry is measured off the band, so an empty status must not
+    move it — the map sits where it sits whatever the line says."""
+    assert status_band_height(0) == LOCK_BAND_H
 
 
 def test_parse_hud_reads_the_panel_fun_time_published():

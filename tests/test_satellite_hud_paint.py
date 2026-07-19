@@ -78,6 +78,37 @@ def test_render_without_a_corner_still_draws_the_shell():
     assert rendered.targets.expand is None
 
 
+def test_a_status_too_wide_for_the_panel_is_drawn_wrapped_not_clipped(thumb):
+    """The real worst case on the narrow portrait panel: lock/loop, order, F-mode
+    and a filter.  Pillow clips at the panel edge without a word, so an unwrapped
+    line would silently drop the parts on the end — which reads as those states
+    being off.  Wrapping is the only thing that gets them onto the screen.
+    """
+    label = "Looping actions · Latest · F-Mode · beta gamma"
+    rgb = _rgb(HudRenderer("portrait").render(
+        _model(lock_label=label, corner=HudCell(path="c.mp4", thumb=thumb))).bgra)
+    width, _height = PANEL_SIZE["portrait"]
+
+    # Text running into the panel's right margin is what clipping looks like: the
+    # glyphs past it were simply never drawn.
+    assert (rgb[:, width - PAD:] > 200).all(axis=2).sum() == 0
+
+
+def test_a_wrapped_status_pushes_the_map_down_instead_of_overdrawing_it(thumb):
+    """The map is laid out from the band's foot, so a second status line has to
+    move it — otherwise the wrap lands on top of the corner thumbnail."""
+    def corner_top(label: str) -> int:
+        rendered = HudRenderer("portrait").render(
+            _model(lock_label=label, corner=HudCell(path="c.mp4", thumb=thumb)))
+        (_x, y, _w, _h), _path = rendered.targets.click[0]
+        return y
+
+    one_line = corner_top("Locked · Shuffle")
+    wrapped = corner_top("Looping actions · Latest · F-Mode · beta gamma")
+
+    assert wrapped > one_line
+
+
 def test_render_exposes_the_controls_it_drew(thumb):
     """Every drawn thumbnail, loop button and action label comes back as a hit
     target, so what is clickable is exactly what is visible."""

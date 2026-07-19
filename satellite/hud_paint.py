@@ -34,7 +34,6 @@ from .hud import (
     COL_LABEL_GAP,
     COL_LABEL_H,
     ELLIPSIS_ROOM,
-    LOCK_BAND_H,
     LOOP_BTN,
     MAP_GAP,
     MAP_THUMB_H,
@@ -43,6 +42,7 @@ from .hud import (
     PAD,
     PANEL_SIZE,
     ROW_GAP,
+    STATUS_LINE_H,
     HudCell,
     HudModel,
     HudTargets,
@@ -59,7 +59,9 @@ from .hud import (
     looped_group_box,
     map_window,
     seed_column_label,
+    status_band_height,
     thumbnail_rects,
+    wrap_status_line,
 )
 
 _PLACEHOLDER = (48, 48, 60)  # a thumbnail fun_time has not produced yet
@@ -178,13 +180,18 @@ class HudRenderer:
         image, draw = panel.image, panel.draw
 
         x, y = PAD, PAD
-        # One status line, composed by fun_time: it already holds the lock, what is
-        # looping, the browse order and the filter, so there is nothing else to lay
-        # out up here.  It is drawn full-strength whatever it says — dimming it when
-        # the side happened to be unlocked hid it in the case where it carries most.
-        draw.text((x, y + 11), model.lock_label, font=self._body, anchor="ls",
-                  fill=(*TEXT_PRIMARY, 255))
-        y += LOCK_BAND_H
+        # The status, composed by fun_time: it already holds the lock, what is
+        # looping, the browse order, F-mode and the filter, so there is nothing else
+        # to lay out up here.  Drawn full-strength whatever it says — dimming it when
+        # the side happened to be unlocked hid it in the case where it carries most —
+        # and wrapped, because all five at once outruns the narrow portrait panel and
+        # Pillow's answer to that is to clip the tail away in silence.
+        lines = wrap_status_line(
+            model.lock_label, width - 2 * PAD, lambda text: text_width(self._body, text))
+        for line_no, line in enumerate(lines):
+            draw.text((x, y + 11 + line_no * STATUS_LINE_H), line, font=self._body,
+                      anchor="ls", fill=(*TEXT_PRIMARY, 255))
+        y += status_band_height(len(lines))
 
         if model.corner is None:
             return RenderedHud(panel.to_bgra(),
