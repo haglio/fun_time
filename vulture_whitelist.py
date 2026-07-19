@@ -40,7 +40,6 @@ resize_debounce_ms  # noqa
 success  # noqa
 # StartupResult
 layout_plan  # noqa
-core_hwnds  # noqa
 
 # --- Functions vulture reports as unused at low confidence (false positive) ---
 # build_mode_switch_plan is called from runtime_flow.py

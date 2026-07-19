@@ -15,7 +15,6 @@ from fun_time.win32 import (
     get_process_creation_time,
     get_process_image_name,
     is_process_alive,
-    wait_for_window,
     move_window,
     set_always_on_top,
     is_window_topmost,
@@ -73,22 +72,6 @@ class TestFindWindowByPid:
         with patch("fun_time.win32._user32") as mock:
             self._mock_user32(mock, hwnd=555, pid=42, visible=False, title_len=0)
             assert find_window_by_pid(42, include_hidden=True) == 0
-
-
-class TestWaitForWindow:
-    def test_returns_hwnd_immediately_if_found(self):
-        with patch("fun_time.win32.find_window_by_pid", return_value=12345):
-            assert wait_for_window(42, timeout_s=5.0) == 12345
-
-    def test_returns_zero_on_timeout(self):
-        with patch("fun_time.win32.find_window_by_pid", return_value=0):
-            assert wait_for_window(42, timeout_s=0.05) == 0
-
-    def test_retries_until_found(self):
-        attempts = [0, 0, 99999]
-
-        with patch("fun_time.win32.find_window_by_pid", side_effect=attempts):
-            assert wait_for_window(42, timeout_s=5.0) == 99999
 
 
 class TestMoveWindow:
