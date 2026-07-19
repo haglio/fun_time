@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+from .loopback_server import omnipause_url
+
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "tab_page_template.html"
 _PAGE_GLOB = "*.html"
 
@@ -64,6 +66,7 @@ def render_tab_page(target: TabTarget) -> str:
         ('"__FT_TARGET__"', target.url),
         ('"__FT_LABEL__"', target.label),
         ('"__FT_VIDEO__"', _file_uri(target.video_path)),
+        ('"__FT_OMNIPAUSE__"', omnipause_url()),
     ):
         template = template.replace(token, _js_string(value))
     return template

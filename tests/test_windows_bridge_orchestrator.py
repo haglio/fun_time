@@ -23,6 +23,7 @@ from fun_time.windows_bridge_orchestrator import (
     run_python_orchestrated_bridge,
 )
 from fun_time.win32 import StackedWindow
+from fun_time.windows_bridge_dispatch_loop import BridgeState
 from fun_time.windows_bridge_sequencer import StartupResult
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.startup_progress import (
@@ -368,6 +369,37 @@ class TestRunPythonOrchestratedBridge:
             )
 
         mock_wait.assert_not_called()
+
+    def test_lets_the_browser_pages_read_the_live_omnipause_state(self, cfg_factory, tmp_path, monkeypatch):
+        """The RFB tab pages poll the loopback server to decide whether to freeze
+        their clips, so it has to read the dispatch loop as it runs — a state
+        copied at startup would answer "playing" for the rest of the session."""
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        fake_proc = MagicMock()
+        fake_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=lambda **kwargs: _fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner, \
+             patch("fun_time.windows_bridge_orchestrator.serve_loopback") as mock_serve:
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state", project_dir=tmp_path,
+            )
+
+        omni_paused = mock_serve.call_args.kwargs["omni_paused"]
+        mock_runner.return_value.state = BridgeState(omni_paused=True)
+        assert omni_paused() is True
+        mock_runner.return_value.state = BridgeState(omni_paused=False)
+        assert omni_paused() is False
 
     def test_passes_manifest_and_pids_file_to_ahk(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
