@@ -2557,6 +2557,18 @@ class TestHudPublishing:
         assert landscape["locked"] is False
         assert landscape["corner"]["path"] == "C:/v/l.mp4"
 
+    def test_the_published_panel_says_when_f_mode_is_on(self, tmp_path):
+        """The flag lives on the bridge state and nowhere the player can see, so the
+        status line is the only way F-mode reaches the screen a satellite is on."""
+        runner = self._runner_with_hud(tmp_path)
+        _write_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4", fraction=0.1)
+        runner.state = replace(runner.state, f_mode_enabled=True)
+
+        runner.tick()
+
+        portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        assert portrait["lock_label"] == "Unlocked · Shuffle · F-Mode"
+
     def test_publishing_is_throttled_below_the_tick_rate(self, tmp_path):
         """The loop ticks 20x/s; rebuilding and rewriting both panels that often
         is waste the map never shows, so publishing runs on its own cadence."""

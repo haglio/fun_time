@@ -26,6 +26,12 @@ from fun_time.thumbnail_cache import thumbnail_for
 
 THUMBNAIL_CACHE_DIRNAME = "hud_thumbnails"
 
+# What F-mode is called on screen.  One key toggles it for every player at once, so
+# it has to read the same on both HUDs and on the dashboard — Nau's own HUD carries
+# a matching constant (``nau.hud.F_MODE_LABEL`` in genau), which is the one place
+# the wording could drift.
+F_MODE_LABEL = "F-Mode"
+
 
 def _lock_label(locked: bool) -> str:
     """The status word for the lock: a lock is repeat-one on the clip on screen, and
@@ -33,19 +39,27 @@ def _lock_label(locked: bool) -> str:
     return "Locked" if locked else "Unlocked"
 
 
-def _status_label(locked: bool, loop_axis: str, latest: bool, filter_query: str) -> str:
+def _status_label(
+    locked: bool, loop_axis: str, latest: bool, filter_query: str, f_mode: bool
+) -> str:
     """The HUD's one status line — everything the side is in, at a glance.
 
     What is looping (or, with no loop, the lock), which order the browse is in, and
-    the filter: a reader should not have to look anywhere else to know how the
-    satellite is behaving.  A running loop displaces the lock word, which is off and
-    beside the point while a group repeats — but never the order, since ending the
-    loop drops the side straight back into it.  The filter goes on unlabelled: a
-    phrase from the vocabulary in that position can only be the filter.  How big each
-    axis is belongs to the map, which prints its own counts.
+    the two filtering layers: a reader should not have to look anywhere else to know
+    how the satellite is behaving.  A running loop displaces the lock word, which is
+    off and beside the point while a group repeats — but never the order, since
+    ending the loop drops the side straight back into it.
+
+    The filters run coarse to fine: F-mode cuts the whole library to favourites,
+    then the act filter narrows what is left.  The act goes last and unlabelled — a
+    phrase from the vocabulary in *that* position can only be the filter — so the
+    fixed word has to precede it rather than follow it.  How big each axis is belongs
+    to the map, which prints its own counts.
     """
     parts = [f"Looping {loop_axis}s" if loop_axis else _lock_label(locked)]
     parts.append("Latest" if latest else "Shuffle")
+    if f_mode:
+        parts.append(F_MODE_LABEL)
     if filter_query:
         parts.append(filter_query)
     return " · ".join(parts)
@@ -264,6 +278,7 @@ def build_hud_panel(
     widen_clip: str = "",
     nav_anchor: str = "",
     latest: bool = False,
+    f_mode: bool = False,
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
@@ -346,7 +361,7 @@ def build_hud_panel(
     return HudPanel(
         side=side,
         locked=locked,
-        lock_label=_status_label(locked, active_loop, latest, filter_query),
+        lock_label=_status_label(locked, active_loop, latest, filter_query, f_mode),
         current=anchor,
         seed_siblings=seed,
         action_siblings=action,
@@ -361,10 +376,23 @@ def build_hud_panel(
 
 
 def _side_panel(
-    side: str, sources: str, metadata_root: Path | None, current: str, locked: bool,
-    filter_query: str, loop_axis: str, map_anchor: str, widen_clip: str, nav_anchor: str,
+    side: str,
+    *,
+    sources: str,
+    metadata_root: Path | None,
+    current: str,
+    locked: bool,
+    filter_query: str,
+    loop_axis: str,
+    map_anchor: str,
+    widen_clip: str,
+    nav_anchor: str,
     latest: bool,
+    f_mode: bool,
 ) -> HudPanel:
+    # Keyword-only: every argument past *side* is a bare string or flag, so a
+    # positional call site says nothing about which is which and two of them
+    # swapped would still typecheck and still run.
     index: GroupIndex | None = None
     if current:
         # must_contain=None: read the up-front index (see prime_group_indexes),
@@ -379,7 +407,7 @@ def _side_panel(
     return build_hud_panel(
         side, locked=locked, current=current, index=index,
         filter_query=filter_query, loop_axis=loop_axis, map_anchor=map_anchor,
-        widen_clip=widen_clip, nav_anchor=nav_anchor, latest=latest,
+        widen_clip=widen_clip, nav_anchor=nav_anchor, latest=latest, f_mode=f_mode,
     )
 
 
@@ -440,6 +468,7 @@ def build_panels(
     landscape_nav_anchor: str = "",
     portrait_latest: bool = False,
     landscape_latest: bool = False,
+    f_mode: bool = False,
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -449,17 +478,26 @@ def build_panels(
     clip on screen (so it auto-resets on navigation) and across a widened seed loop
     for every member of the looped pool, and the ``nav_anchor`` while the live clip
     is still one of its map cells.
+
+    ``f_mode`` is unsided on purpose: one key narrows every player at once, so it
+    goes to both panels or to neither.
     """
     return (
         _side_panel(
-            "portrait", portrait_sources, metadata_root,
-            portrait_current, portrait_locked, portrait_filter, portrait_loop,
-            portrait_map_anchor, portrait_widen_clip, portrait_nav_anchor, portrait_latest,
+            "portrait",
+            sources=portrait_sources, metadata_root=metadata_root,
+            current=portrait_current, locked=portrait_locked,
+            filter_query=portrait_filter, loop_axis=portrait_loop,
+            map_anchor=portrait_map_anchor, widen_clip=portrait_widen_clip,
+            nav_anchor=portrait_nav_anchor, latest=portrait_latest, f_mode=f_mode,
         ),
         _side_panel(
-            "landscape", landscape_sources, metadata_root,
-            landscape_current, landscape_locked, landscape_filter, landscape_loop,
-            landscape_map_anchor, landscape_widen_clip, landscape_nav_anchor, landscape_latest,
+            "landscape",
+            sources=landscape_sources, metadata_root=metadata_root,
+            current=landscape_current, locked=landscape_locked,
+            filter_query=landscape_filter, loop_axis=landscape_loop,
+            map_anchor=landscape_map_anchor, widen_clip=landscape_widen_clip,
+            nav_anchor=landscape_nav_anchor, latest=landscape_latest, f_mode=f_mode,
         ),
     )
 
