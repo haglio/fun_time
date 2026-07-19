@@ -265,6 +265,7 @@ def _run_startup_phases(
         broker_heartbeat_file=m["commands"]["broker_heartbeat_file"],
         random_favs_browser_manifest_file=m["random_favs_browser"]["manifest_file"],
         genau_paused_file=m["commands"]["genau_paused_file"],
+        genau_cmd_file=m["commands"]["genau_cmd_file"],
         audio_paused_file=m["commands"]["audio_paused_file"],
         nau_paused_file=m["commands"]["nau_paused_file"],
         audio_volume_file=m["commands"]["audio_volume_file"],

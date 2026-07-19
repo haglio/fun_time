@@ -257,6 +257,23 @@ def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
     assert nau_file.read_text(encoding="utf-8") == "1"
 
 
+def test_seed_startup_states_blanks_genaus_display(tmp_path: Path):
+    """Genau blanks on DISPLAY_OFF and defaults to owning its display, so a
+    session that starts in nau mode — no mode switch, nothing to transition —
+    has to say so, or Genau comes up painting its clips over Nau's window."""
+    genau_cmd = tmp_path / "genau_cmd.txt"
+
+    seed_startup_states(
+        tmp_path / "genau_paused.txt",
+        tmp_path / "audio_paused.txt",
+        tmp_path / "nau_paused.txt",
+        tmp_path / "audio_volume.txt",
+        genau_cmd,
+    )
+
+    assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "DISPLAY_OFF"]
+
+
 def test_seed_startup_states_restores_full_volume(tmp_path: Path):
     """A session muted last night must not come back silent: Nau and the audio
     companion both launch at full volume, so the published level must say so."""
@@ -286,6 +303,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         broker_heartbeat_file=state_dir / "broker_heartbeat.txt",
         random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
         genau_paused_file=tmp_path / "genau_paused.txt",
+        genau_cmd_file=tmp_path / "genau_cmd.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
         nau_paused_file=tmp_path / "nau_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
@@ -347,6 +365,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         tmp_path / "audio_paused.txt",
         tmp_path / "nau_paused.txt",
         tmp_path / "audio_volume.txt",
+        tmp_path / "genau_cmd.txt",
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
     # The same playlist builder the F-mode toggle uses, with F-mode off.
