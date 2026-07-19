@@ -11,7 +11,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from fun_time.config import load_config
+from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
 from fun_time.dashboard_runtime import NauStatus, read_nau_status
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
@@ -425,8 +425,31 @@ def isolate_audio_companion_port(config: dict, genau_config: dict) -> None:
     genau_config["genau"]["notify_port"] = port
 
 
+def real_config_path() -> Path:
+    """The machine's real runtime config, found from a worktree as well.
+
+    ``fun_time_config.json`` is a private overlay now — git-ignored, with only
+    the sanitized example committed — so it is checked out in the primary
+    checkout and nowhere else.  Worktrees made before it stopped being tracked
+    still carry a copy; ones made since have none, and every integration run in
+    them died at setup on a missing file.
+
+    A run needs the real one (it links its sample clips out of the actual
+    library), and the overlay describes the machine rather than the checkout, so
+    a worktree borrows the primary checkout's.  ``--git-common-dir`` is what
+    names it: worktrees share one git dir, and its parent is that checkout.
+    """
+    if DEFAULT_CONFIG_PATH.exists():
+        return DEFAULT_CONFIG_PATH
+    common_dir = subprocess.run(
+        ["git", "-C", str(PROJECT_DIR), "rev-parse", "--git-common-dir"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    return (PROJECT_DIR / common_dir).resolve().parent / DEFAULT_CONFIG_PATH.name
+
+
 def build_integration_config(tmp_path: Path) -> Path:
-    real = load_config()
+    real = load_config(real_config_path())
     integration_root = tmp_path.resolve() / "integration_runtime"
     state_dir = integration_root / "state"
     weird_dir = integration_root / "weird"
