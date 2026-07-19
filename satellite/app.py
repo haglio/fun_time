@@ -32,6 +32,31 @@ from .status import status_fields
 
 logger = logging.getLogger(__name__)
 
+# Fun Time's own icon, so a satellite's Alt-Tab entry and taskbar button say
+# which application it belongs to.  Without one, pygame supplies its own logo and
+# these windows read as some unrelated program.  (Nau loads its icon the same
+# way, in the genau repo.  The pair is not worth sharing through player_core:
+# that package deliberately knows nothing of pygame — MpvPlayer takes a bare
+# window handle — and an icon loader is not worth breaking that for.)
+ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
+
+
+def _load_icon_surface():
+    """Fun Time's icon as a pygame surface, or None if it cannot be read.
+
+    Must be set before ``set_mode``: SDL takes the icon from the display at
+    window creation, so a later call has nothing to apply it to.
+    """
+    if not ICON_PATH.exists():
+        return None
+    try:
+        from PIL import Image
+
+        image = Image.open(ICON_PATH).convert("RGBA")
+        return pygame.image.frombytes(image.tobytes(), image.size, "RGBA")
+    except Exception:
+        return None
+
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -53,10 +78,14 @@ def _run(args, playlist: list[Path]) -> int:
     # window via its HWND (we never blit the surface); the sequencer then sizes
     # the window to the portrait/landscape rect, and with no chrome the client
     # area IS the rect.
+    icon = _load_icon_surface()
+    if icon is not None:
+        pygame.display.set_icon(icon)  # must precede set_mode to take effect
     pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
-    # fun_time passes a distinct --title per satellite ("Satellite Portrait" /
-    # "Satellite Landscape") so the sequencer can resolve each window to its slot
-    # by title when the pid lookup fails; a shared caption crosses the two.
+    # fun_time passes a distinct --title per satellite ("Portrait AI Player" /
+    # "Landscape AI Player") so the sequencer can resolve each window to its slot
+    # by title when the pid lookup fails; a shared caption crosses the two.  It is
+    # also what the window calls itself in Alt-Tab.
     pygame.display.set_caption(args.title)
     clock = pygame.time.Clock()
     # mpv renders the video directly into this window; the lock HUD is composited

@@ -43,8 +43,11 @@ logger = logging.getLogger(__name__)
 # launch_nau needs a title fallback).  A shared caption lets the fallback assign
 # one side's window to the other, which is the portrait/landscape visual swap.
 # The sequencer imports these to resolve by, so the strings live in one place.
-SATELLITE_PORTRAIT_TITLE = "Satellite Portrait"
-SATELLITE_LANDSCAPE_TITLE = "Satellite Landscape"
+# These captions are also what each window calls itself in Alt-Tab and on its
+# taskbar button, so they name what the window *is* rather than this project's
+# internal word for it.
+SATELLITE_PORTRAIT_TITLE = "Portrait AI Player"
+SATELLITE_LANDSCAPE_TITLE = "Landscape AI Player"
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
