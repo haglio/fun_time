@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
+
+import pytest
+from PyQt6.QtCore import QEvent, QPointF, Qt
+from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtWidgets import QApplication, QToolButton
 
 from fun_time.event_log import NOTICE, EventRecord
 from fun_time.log_panel import (
     MAX_RECORDS,
     LogFilter,
     LogPanelPrefs,
+    LogPanelWidget,
     append_records,
+    copy_button_position,
     format_record,
     load_prefs,
     save_prefs,
@@ -76,6 +84,126 @@ class TestFormatRecord:
         assert "landscape" in line
         assert "Similar clip" in line
         assert line.count(":") == 2  # HH:MM:SS
+
+
+class TestCopyButtonPosition:
+    def test_sits_at_the_rows_top_inset_from_the_viewports_right_edge(self):
+        x, y = copy_button_position(
+            row_top=40, viewport_width=300, viewport_height=200, button_size=16, margin=2
+        )
+
+        assert (x, y) == (300 - 16 - 2, 40 + 2)
+
+    def test_a_row_scrolled_off_the_top_keeps_its_button_inside_the_viewport(self):
+        # The topmost row is usually half-scrolled under the top edge; a button
+        # placed at its true top would be drawn where nobody can click it.
+        _, y = copy_button_position(
+            row_top=-30, viewport_width=300, viewport_height=200, button_size=16, margin=2
+        )
+
+        assert y == 2
+
+    def test_a_row_running_past_the_bottom_keeps_its_button_inside_the_viewport(self):
+        _, y = copy_button_position(
+            row_top=195, viewport_width=300, viewport_height=200, button_size=16, margin=2
+        )
+
+        assert y == 200 - 16 - 2
+
+
+def _event_line(message: str) -> str:
+    return json.dumps({"ts": 0.0, "level": NOTICE, "source": "system", "msg": message}) + "\n"
+
+
+@pytest.fixture()
+def panel_factory(tmp_path: Path):
+    """Build a live LogPanelWidget over an event log already holding *messages*."""
+    built: list[LogPanelWidget] = []
+
+    def factory(messages: list[str]) -> LogPanelWidget:
+        QApplication.clipboard().clear()
+        log = tmp_path / "event_log.jsonl"
+        log.write_text("".join(_event_line(m) for m in messages), encoding="utf-8")
+        panel = LogPanelWidget(log, tmp_path / "log_panel.ini")
+        panel.resize(300, 200)
+        panel.show()
+        built.append(panel)
+        return panel
+
+    yield factory
+
+    for panel in built:
+        panel.shutdown()
+        panel.close()
+
+
+def _hover_row(panel: LogPanelWidget, row: int) -> None:
+    """Send a real mouse-move over *row*, the way the cursor would."""
+    viewport = panel._list.viewport()
+    point = QPointF(panel._list.visualItemRect(panel._list.item(row)).center())
+    QApplication.sendEvent(
+        viewport,
+        QMouseEvent(
+            QEvent.Type.MouseMove,
+            point,
+            viewport.mapToGlobal(point),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        ),
+    )
+
+
+def _copy_button(panel: LogPanelWidget) -> QToolButton:
+    return panel._list.viewport().findChild(QToolButton)
+
+
+def _tail_advances(panel: LogPanelWidget, message: str) -> None:
+    """Append a line to the log the panel is tailing and let it pick the line up."""
+    with panel._event_log.open("a", encoding="utf-8") as fh:
+        fh.write(_event_line(message))
+    panel._poll()
+
+
+class TestHoverCopyButton:
+    def test_hovering_a_row_offers_a_button_that_copies_that_line(self, panel_factory):
+        panel = panel_factory(["Clip saved", "No other seeds"])
+
+        _hover_row(panel, 1)
+        _copy_button(panel).click()
+
+        assert QApplication.clipboard().text() == panel._list.item(1).text()
+
+    def test_the_button_goes_away_once_the_cursor_leaves_the_log(self, panel_factory):
+        panel = panel_factory(["Clip saved"])
+        _hover_row(panel, 0)
+        assert _copy_button(panel).isVisible()  # it was there to be dismissed
+
+        QApplication.sendEvent(panel._list, QEvent(QEvent.Type.Leave))
+
+        assert not _copy_button(panel).isVisible()
+
+    def test_a_line_arriving_mid_hover_does_not_strand_the_button_on_a_dead_row(
+        self, panel_factory
+    ):
+        # Every tail advance clears and refills the list, so a button holding the
+        # item it was shown for would be pointing at a destroyed row by now.
+        panel = panel_factory(["Clip saved", "No other seeds"])
+        _hover_row(panel, 0)
+
+        _tail_advances(panel, "Similar clip")
+        _copy_button(panel).click()
+
+        assert QApplication.clipboard().text().endswith("Clip saved")
+
+    def test_filtering_the_hovered_row_away_takes_its_button_with_it(self, panel_factory):
+        panel = panel_factory(["Clip saved", "No other seeds"])
+        _hover_row(panel, 0)
+        assert _copy_button(panel).isVisible()
+
+        panel._source_boxes["system"].setChecked(False)  # empties the list
+
+        assert not _copy_button(panel).isVisible()
 
 
 class TestPrefs:
