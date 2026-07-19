@@ -21,10 +21,10 @@ from .media_metadata import (
     action_label,
     cached_group_index,
     load_metadata,
-    loose_seed_family_members,
     metadata_path_for,
     normalize_path_key,
     seed_family_members,
+    widened_seed_members,
 )
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
@@ -95,9 +95,9 @@ class BridgeState:
     portrait_loop: str = ""
     landscape_loop: str = ""
     # The clip each satellite's seed row has been widened around ("more seeds").
-    # While it equals the clip on screen the HUD shows the loose family (the same
-    # scene, render knobs freed); navigating to another clip leaves it behind, so
-    # the widen auto-resets without any explicit clear.
+    # While it equals the clip on screen the HUD shows the near-matches ranked in
+    # alongside the family; navigating to another clip leaves it behind, so the
+    # widen auto-resets without any explicit clear.
     portrait_widen_clip: str = ""
     landscape_widen_clip: str = ""
     # The clip each satellite's HUD map is frozen on for keyboard navigation ("" =
@@ -556,11 +556,11 @@ def _dispatch_more_seeds(
     """Widen the seed row the HUD draws around the current clip — "more seeds".
 
     This does NOT change what is playing; it records that this clip's net is
-    widened, and the HUD redraws its seed row with the loose family (the same
-    scene, render knobs freed).  If a seed loop is already running it is re-looped
-    over that wider pool so the satellite cycles exactly what the HUD now shows.  If there is
-    nothing beyond the exact seed family to add, it says so rather than silently
-    doing nothing."""
+    widened, and the HUD redraws its seed row with the near-matches ranked in.  If
+    a seed loop is already running it is re-looped over that wider pool so the
+    satellite cycles exactly what the HUD now shows.  Only a library holding
+    nothing but this clip can fail to widen, so the dead end is a real "there is no
+    other video", not "nothing matched"."""
     source = _satellite_source(which)
     current = target_path or _satellite_current(config, which)
     if not current:
@@ -568,7 +568,7 @@ def _dispatch_more_seeds(
     index = _satellite_group_index(which, config, current)
     current_key = normalize_path_key(current)
     exact = {normalize_path_key(m) for m in seed_family_members(index, current)} - {current_key}
-    wide = {normalize_path_key(m) for m in loose_seed_family_members(index, current)} - {current_key}
+    wide = {normalize_path_key(m) for m in widened_seed_members(index, current)} - {current_key}
     if wide <= exact:
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
     state = _set_side_widen(state, which, current)
@@ -591,10 +591,10 @@ def _dispatch_group_loop(
         return state, ops
     index = _satellite_group_index(which, config, current)
     # Loop what the HUD is showing: if the seed row has been widened around this
-    # very clip ("more seeds"), loop that loose family, not just the exact family.
+    # very clip ("more seeds"), loop that wider pool, not just the exact family.
     widen_clip = state.portrait_widen_clip if which == 2 else state.landscape_widen_clip
     widened = axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
-    gather = loose_seed_family_members if widened else (
+    gather = widened_seed_members if widened else (
         action_group_members if axis == "action" else seed_family_members
     )
     members = [member for member in gather(index, current) if Path(member).exists()]

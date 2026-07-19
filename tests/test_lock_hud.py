@@ -41,9 +41,7 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
         action_by_path=action_by_path,
         seed_key_by_path={K(p): ("S", str(i)) for i, p in enumerate(seed_all)},
         seed_members={"S": seed_all},
-        loose_seed_key_by_path={},
-        loose_seed_members={},
-        indexed_paths=frozenset(K(p) for p in (current, *action_sibs, *seed_sibs)),
+        path_by_key={K(p): p for p in (current, *action_sibs, *seed_sibs)},
     )
 
 
@@ -150,10 +148,9 @@ def test_an_action_loop_freezes_the_map_and_marks_the_playing_action():
     assert panel.action_siblings == [CUR]
 
 
-def test_widen_grows_the_seed_row_to_the_loose_family():
-    """"more seeds" widens the display: the seed row grows from the exact family to
-    the loose family — the same scene re-rendered with a render knob freed — without
-    the current clip changing."""
+def test_widen_grows_the_seed_row_with_the_nearest_clips():
+    """"more seeds" widens the display: the seed row grows past the exact family to
+    the nearest-scened clips of this act, without the current clip changing."""
     other = "C:/vids/other.mp4"
     index = GroupIndex(
         action_key_by_path={K(CUR): "g1", K(S1): "g1", K(other): "g2"},
@@ -161,17 +158,20 @@ def test_widen_grows_the_seed_row_to_the_loose_family():
         action_by_path={K(CUR): "Alpha", K(S1): "Alpha", K(other): "Alpha"},
         seed_key_by_path={K(CUR): ("S", "0"), K(S1): ("S", "1")},
         seed_members={"S": sorted([CUR, S1])},
-        # The loose family is the strict one plus `other` — same scene, a knob freed.
-        loose_seed_key_by_path={K(CUR): ("L", "0"), K(S1): ("L", "1"), K(other): ("L", "2")},
-        loose_seed_members={"L": sorted([CUR, S1, other])},
-        indexed_paths=frozenset({K(CUR), K(S1), K(other)}),
+        path_by_key={K(p): p for p in (CUR, S1, other)},
+        # `other` is not in the family but shares most of the scene's tags.
+        scene_tags_by_path={
+            K(CUR): frozenset({"a", "b", "c"}),
+            K(S1): frozenset({"a", "b", "c"}),
+            K(other): frozenset({"a", "b", "d"}),
+        },
     )
 
     narrow = build_hud_panel("portrait", locked=False, current=CUR, index=index)
     wide = build_hud_panel("portrait", locked=False, current=CUR, index=index, widen_clip=CUR)
 
     assert narrow.seed_siblings == [S1]                 # exact family only
-    assert set(wide.seed_siblings) == {S1, other}       # widened to the loose family
+    assert set(wide.seed_siblings) == {S1, other}       # widened to the near-match
     assert wide.current == CUR                          # the clip on screen is unchanged
 
 
@@ -185,8 +185,7 @@ def test_widen_off_a_loop_resets_once_its_anchor_clip_leaves_the_screen():
         action_by_path={K(CUR): "Alpha", K(S1): "Alpha", K(other): "Alpha"},
         seed_key_by_path={K(CUR): ("S", "0"), K(S1): ("S", "1")},
         seed_members={"S": sorted([CUR, S1])},
-        loose_seed_key_by_path={}, loose_seed_members={},
-        indexed_paths=frozenset({K(CUR), K(S1), K(other)}),
+        path_by_key={K(p): p for p in (CUR, S1, other)},
     )
 
     # Widened around CUR, but the live clip is now `other` and no loop is running.
@@ -195,13 +194,13 @@ def test_widen_off_a_loop_resets_once_its_anchor_clip_leaves_the_screen():
     assert panel.seed_siblings == []  # `other` has no same-act sisters of its own
 
 
-def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_loose_family():
-    """The bug: a seed loop over the loose family auto-advances to a re-render (a
+def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
+    """The bug: a seed loop over the widened pool auto-advances to a near-match (a
     different exact seed family) that is not in the current clip's exact family. The
     row must stay wide and the map stay frozen on the widened anchor — not collapse
     onto that clip's own exact family with no loop shown."""
     # x, x2 share the exact family F1; y and z are their own renders F2, F3; all four
-    # are one loose family L (the same scene, render knobs freed).
+    # are the same scene, so y and z rank into the pool widened around x.
     x, x2, y, z = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4", "C:/v/z.mp4"
     index = GroupIndex(
         action_key_by_path={K(p): "scene" for p in (x, x2, y, z)},
@@ -209,13 +208,12 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_loose_family():
         action_by_path={K(p): "Alpha" for p in (x, x2, y, z)},
         seed_key_by_path={K(x): ("F1", "0"), K(x2): ("F1", "1"), K(y): ("F2", "0"), K(z): ("F3", "0")},
         seed_members={"F1": sorted([x, x2]), "F2": [y], "F3": [z]},
-        loose_seed_key_by_path={K(x): ("L", "0"), K(x2): ("L", "1"), K(y): ("L", "2"), K(z): ("L", "3")},
-        loose_seed_members={"L": sorted([x, x2, y, z])},
-        indexed_paths=frozenset(K(p) for p in (x, x2, y, z)),
+        path_by_key={K(p): p for p in (x, x2, y, z)},
+        scene_tags_by_path={K(p): frozenset({"a", "b", "c"}) for p in (x, x2, y, z)},
     )
 
-    # The loop was widened around x; the satellite has auto-advanced to y, a loose-family
-    # re-render that is NOT in x's exact seed family {x, x2}.
+    # The loop was widened around x; the satellite has auto-advanced to y, a near-match
+    # that is NOT in x's exact seed family {x, x2}.
     panel = build_hud_panel(
         "portrait", locked=False, current=y, index=index, loop_axis="seed", widen_clip=x,
     )
@@ -223,12 +221,12 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_loose_family():
     assert panel.active_loop == "seed"                 # still looping — not reset
     assert panel.current == x                          # frozen on the widened anchor (min key)
     assert panel.playing == y                          # the widened member actually on screen
-    assert set(panel.seed_siblings) == {x2, y, z}      # the whole loose family, minus the anchor
+    assert set(panel.seed_siblings) == {x2, y, z}      # the whole widened pool, minus the anchor
 
 
 def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
     """With no widen anchor, a seed loop stays on the exact family even when the
-    live clip has loose-family kin — the widen is opt-in."""
+    live clip has near-matches outside it — the widen is opt-in."""
     x, x2, y = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4"
     index = GroupIndex(
         action_key_by_path={K(p): "scene" for p in (x, x2, y)},
@@ -236,9 +234,8 @@ def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
         action_by_path={K(p): "Alpha" for p in (x, x2, y)},
         seed_key_by_path={K(x): ("F1", "0"), K(x2): ("F1", "1"), K(y): ("F2", "0")},
         seed_members={"F1": sorted([x, x2]), "F2": [y]},
-        loose_seed_key_by_path={K(x): ("L", "0"), K(x2): ("L", "1"), K(y): ("L", "2")},
-        loose_seed_members={"L": sorted([x, x2, y])},
-        indexed_paths=frozenset(K(p) for p in (x, x2, y)),
+        path_by_key={K(p): p for p in (x, x2, y)},
+        scene_tags_by_path={K(p): frozenset({"a", "b", "c"}) for p in (x, x2, y)},
     )
 
     panel = build_hud_panel(
@@ -471,7 +468,7 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     # Served from the primed cache: a lazy build here (empty supplier) would be
     # empty, so a non-empty index proves prime populated it from the real tree.
     index = cached_group_index(sources, paths_supplier=lambda: [], metadata_root=metadata_root, must_contain=None)
-    assert index.indexed_paths
+    assert index.path_by_key
 
 
 def test_prewarm_thumbnails_covers_every_clip_in_both_libraries(tmp_path: Path):

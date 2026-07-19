@@ -11,7 +11,7 @@ regenerate URLs from it).
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
@@ -159,14 +159,6 @@ def action_group_key(metadata: dict) -> str | None:
 
 _IMAGE_FAMILY_FIELDS = tuple(f for f in _IMAGE_IDENTITY_FIELDS if f != "seed")
 
-# The loose family keeps only the scene's semantic identity — the prompts, and
-# how the subject is cast (image ``style`` / video ``action``) — while freeing
-# the render knobs (model, resolution, aspect ratio, quality, creativity) along
-# with the seed.  It backs "widen the net": when no exact same-config sister
-# exists, a clip that differs only in a render setting is still very-nearly it.
-_IMAGE_LOOSE_FAMILY_FIELDS = ("positive_prompt", "negative_prompt", "style")
-_VIDEO_LOOSE_FAMILY_FIELDS = ("prompt", "action")
-
 
 def _seed_key(
     metadata: dict, image_fields: tuple[str, ...], video_fields: tuple[str, ...]
@@ -195,14 +187,24 @@ def seed_group_key(metadata: dict) -> tuple[str, str] | None:
     return _seed_key(metadata, _IMAGE_FAMILY_FIELDS, _VIDEO_BASE_FIELDS + ("action",))
 
 
-def loose_seed_group_key(metadata: dict) -> tuple[str, str] | None:
-    """(family, seed) placing a video among its same-scene kin, render knobs freed.
+def scene_tags(metadata: dict) -> frozenset[str]:
+    """The scene a video shows, as the set of its prompt's comma-separated tags.
 
-    Wider than :func:`seed_group_key`: only the prompts and the cast/action are
-    held fixed, so configs differing solely in a render setting still family
-    together.  Used as the fallback when no exact seed sister exists.
+    These prompts are tag lists ("redacted, bangs, big bright eyes, …"), so
+    how much two clips have in common is how much their tag sets overlap — the
+    measure "more seeds" ranks by.  The source image's prompt describes the
+    subject for an image-to-video clip; a text-to-video clip has only its own.
     """
-    return _seed_key(metadata, _IMAGE_LOOSE_FAMILY_FIELDS, _VIDEO_LOOSE_FAMILY_FIELDS)
+    source = metadata.get("source_image") or {}
+    text = source.get("positive_prompt") or (metadata.get("video") or {}).get("prompt") or ""
+    return frozenset(tag for tag in (_norm_text(part) for part in str(text).split(",")) if tag)
+
+
+def _tag_overlap(one: frozenset[str], other: frozenset[str]) -> float:
+    """How alike two scenes are, 0.0-1.0 — shared tags over all tags between them."""
+    if not one or not other:
+        return 0.0
+    return len(one & other) / len(one | other)
 
 
 @dataclass(frozen=True)
@@ -210,9 +212,10 @@ class GroupIndex:
     """Grouping of a video library by generation identity.
 
     Paths are keyed by :func:`normalize_path_key`; member lists hold the
-    original path strings, sorted.  ``indexed_paths`` remembers every input
-    path (sidecar or not) so callers can tell "no metadata" apart from
-    "not indexed yet" when deciding whether a cached index is stale.
+    original path strings, sorted.  ``path_by_key`` remembers every input path
+    (sidecar or not) so callers can tell "no metadata" apart from "not indexed
+    yet" when deciding whether a cached index is stale — and so the widen can
+    range over the whole library, not just the grouped part of it.
     """
 
     action_key_by_path: dict[str, str]
@@ -220,12 +223,11 @@ class GroupIndex:
     action_by_path: dict[str, str]
     seed_key_by_path: dict[str, tuple[str, str]]
     seed_members: dict[str, list[str]]
-    loose_seed_key_by_path: dict[str, tuple[str, str]]
-    loose_seed_members: dict[str, list[str]]
-    indexed_paths: frozenset[str]
+    path_by_key: dict[str, str]
+    scene_tags_by_path: dict[str, frozenset[str]] = field(default_factory=dict)
 
     def contains(self, path: str) -> bool:
-        return normalize_path_key(path) in self.indexed_paths
+        return normalize_path_key(path) in self.path_by_key
 
 
 def action_group_members(index: GroupIndex, path: str) -> list[str]:
@@ -236,46 +238,65 @@ def action_group_members(index: GroupIndex, path: str) -> list[str]:
     return list(index.action_members[key])
 
 
-def _seed_family_members(
-    key_by_path: dict[str, tuple[str, str]],
-    members_by_family: dict[str, list[str]],
-    action_by_path: dict[str, str],
-    path: str,
-) -> list[str]:
-    """The seed family *path* belongs to under *key_by_path*, narrowed to *path*'s
-    action.  A text-to-video family already pins the action, but an image-to-video
-    family is keyed on the source image alone, so its members span actions and are
-    narrowed here to the current clip's action — "the same act, another subject".
+def seed_family_members(index: GroupIndex, path: str) -> list[str]:
+    """Every clip of *path*'s parameter set doing *path*'s action, each seed.
+
+    A text-to-video family already pins the action, but an image-to-video family
+    is keyed on the source image alone, so its members are narrowed here to the
+    current clip's action — "the same act, another subject".
     """
-    entry = key_by_path.get(normalize_path_key(path))
+    entry = index.seed_key_by_path.get(normalize_path_key(path))
     if entry is None:
         return []
     family, _seed = entry
-    action = action_by_path.get(normalize_path_key(path), "")
+    action = index.action_by_path.get(normalize_path_key(path), "")
     return [
         member
-        for member in members_by_family[family]
-        if action_by_path.get(normalize_path_key(member), "") == action
+        for member in index.seed_members[family]
+        if index.action_by_path.get(normalize_path_key(member), "") == action
     ]
 
 
-def seed_family_members(index: GroupIndex, path: str) -> list[str]:
-    """Every clip of *path*'s exact parameter set doing *path*'s action, each seed."""
-    return _seed_family_members(
-        index.seed_key_by_path, index.seed_members, index.action_by_path, path
-    )
+# How many near-matches "more seeds" adds to the exact family.  Six fills the
+# HUD's seed row; the point of the cap is that widening must never dump the
+# whole action (hundreds of clips) into a row meant to show a few close kin.
+WIDEN_ADDITIONS = 6
 
 
-def loose_seed_family_members(index: GroupIndex, path: str) -> list[str]:
-    """The widened seed row for *path* — "more seeds": its loose family, the same
-    scene doing the same act re-rendered with the render knobs and seed freed ("a
-    few more really similar").  Wider than :func:`seed_family_members` — a clip
-    differing only in a render setting is still very-nearly it — but never the
-    whole act: a different scene that merely shares the action label stays out, so
-    "more seeds" finds the near-siblings, not every clip of the act."""
-    return _seed_family_members(
-        index.loose_seed_key_by_path, index.loose_seed_members, index.action_by_path, path
+def widened_seed_members(
+    index: GroupIndex, path: str, additions: int = WIDEN_ADDITIONS
+) -> list[str]:
+    """The widened seed row for *path* — "more seeds": its exact seed family plus
+    the *additions* clips whose scene is closest to it.
+
+    Closeness is prompt-tag overlap (:func:`scene_tags`), with clips of the same
+    action ranked ahead of the rest — the seed axis means "the same act, another
+    subject", and a different act of this very subject is what the action column is
+    for.  Ranking rather than set-membership is what makes this always find
+    something: an exact-config family is often just this clip, and holding any
+    field fixed to widen (prompts, render settings) can match nothing at all,
+    but *nearest* is well defined as long as the library holds another video.
+    """
+    key = normalize_path_key(path)
+    members = list(seed_family_members(index, path))
+    seen = {normalize_path_key(member) for member in members} | {key}
+    action = index.action_by_path.get(key, "")
+    mine = index.scene_tags_by_path.get(key, frozenset())
+    ranked = sorted(
+        (
+            (
+                index.action_by_path.get(other_key, "") == action,
+                _tag_overlap(mine, index.scene_tags_by_path.get(other_key, frozenset())),
+                other_key,
+            )
+            for other_key, other in index.path_by_key.items()
+            if other_key not in seen
+        ),
+        # Nearest first; the path key only breaks ties, so the row is stable.
+        key=lambda scored: (-scored[0], -scored[1], scored[2]),
     )
+    members.extend(index.path_by_key[scored[2]] for scored in ranked[:max(additions, 0)])
+    return members
 
 
 def action_label(index: GroupIndex, path: str) -> str:
@@ -329,11 +350,10 @@ def build_group_index(
     action_by_path: dict[str, str] = {}
     seed_key_by_path: dict[str, tuple[str, str]] = {}
     seed_members: dict[str, list[str]] = {}
-    loose_seed_key_by_path: dict[str, tuple[str, str]] = {}
-    loose_seed_members: dict[str, list[str]] = {}
-    indexed: set[str] = set()
+    path_by_key: dict[str, str] = {}
+    scene_tags_by_path: dict[str, frozenset[str]] = {}
     for path in video_paths:
-        indexed.add(normalize_path_key(path))
+        path_by_key[normalize_path_key(path)] = path
         sidecar = metadata_path_for(path, metadata_root)
         if sidecar is None or not sidecar.is_file():
             continue
@@ -341,15 +361,15 @@ def build_group_index(
         action = str((metadata.get("video") or {}).get("action") or "").strip()
         if action:
             action_by_path[normalize_path_key(path)] = action
+        tags = scene_tags(metadata)
+        if tags:
+            scene_tags_by_path[normalize_path_key(path)] = tags
         action_key = action_group_key(metadata)
         if action_key is not None:
             action_key_by_path[normalize_path_key(path)] = action_key
             action_members.setdefault(action_key, []).append(path)
         _record_seed_membership(seed_group_key(metadata), path, seed_key_by_path, seed_members)
-        _record_seed_membership(
-            loose_seed_group_key(metadata), path, loose_seed_key_by_path, loose_seed_members
-        )
-    for members in (*action_members.values(), *seed_members.values(), *loose_seed_members.values()):
+    for members in (*action_members.values(), *seed_members.values()):
         members.sort()
     return GroupIndex(
         action_key_by_path=action_key_by_path,
@@ -357,9 +377,8 @@ def build_group_index(
         action_by_path=action_by_path,
         seed_key_by_path=seed_key_by_path,
         seed_members=seed_members,
-        loose_seed_key_by_path=loose_seed_key_by_path,
-        loose_seed_members=loose_seed_members,
-        indexed_paths=frozenset(indexed),
+        path_by_key=path_by_key,
+        scene_tags_by_path=scene_tags_by_path,
     )
 
 

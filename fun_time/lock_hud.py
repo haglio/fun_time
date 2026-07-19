@@ -17,9 +17,9 @@ from fun_time.media_metadata import (
     GroupIndex,
     action_group_members,
     cached_group_index,
-    loose_seed_family_members,
     normalize_path_key,
     seed_family_members,
+    widened_seed_members,
 )
 from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
@@ -213,17 +213,15 @@ def build_hud_panel(
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
     to one clip per distinct other act.  *widen_clip* names the clip the seed row
-    was widened around ("more seeds"); while widening is in force the row grows to
-    the loose family — the same scene re-rendered with a render knob or seed freed —
-    instead of just the exact parameter set.
+    was widened around ("more seeds"); while widening is in force the row grows
+    past the exact parameter set to the clips nearest that one's scene.
 
     When *loop_axis* names a running loop, the map anchors on the looped group's
     fixed representative instead of the live clip, so it does not re-orient as the
     loop auto-advances; ``playing`` then marks the cell that is actually on screen.
-    A *widened* seed loop cycles the loose family, whose members span several exact
-    seed families, so its anchor and row are taken from that pool — computed
-    identically from any member (they share the loose family and act) — and so hold
-    still across the whole loop.
+    A *widened* seed loop cycles the widened pool, whose members span several exact
+    seed families, so its anchor and row are taken from that pool — ranked once
+    around *widen_clip* and reused — and so hold still across the whole loop.
 
     ``nav_anchor`` does the same for keyboard navigation: while it names a clip and
     the live clip is still one of that clip's map cells, the map freezes on it and
@@ -233,17 +231,18 @@ def build_hud_panel(
     wins over a nav anchor.
     """
     have_siblings = bool(current) and index is not None
-    # Is the seed row widened around the clip on screen, and over what pool?  Off
-    # a loop the widen holds only while its exact anchor clip is on screen, so a
-    # plain auto-advance drops it.  While a seed loop cycles the loose family it
-    # holds for every member of that pool (the pool is identical computed from any
-    # member — they share the loose family and act), so the row stays wide and the
-    # map stays frozen as the loop advances across the loose family's re-renders.
+    # Is the seed row widened around the clip on screen, and over what pool?  The
+    # pool is ranked around *widen_clip* and computed once: ranking it again from
+    # another member would score a different set and shuffle the row underneath a
+    # running loop.  Off a loop the widen holds only while its exact anchor clip is
+    # on screen, so a plain auto-advance drops it.  While a seed loop cycles the
+    # pool it holds for every member, so the row stays wide and the map stays
+    # frozen as the loop advances across the near-matches.
     widen = False
     widened_pool: list[str] = []
     if have_siblings and widen_clip:
+        widened_pool = widened_seed_members(index, widen_clip)
         if loop_axis == "seed":
-            widened_pool = loose_seed_family_members(index, widen_clip)
             pool_keys = {normalize_path_key(member) for member in widened_pool}
             widen = normalize_path_key(current) in pool_keys
         else:
@@ -269,9 +268,14 @@ def build_hud_panel(
             anchor = nav_anchor
             nav_frozen = True
     # Navigation walks the exact family (never widened), so a frozen map matches
-    # what the keys can reach.
-    seed_pool = loose_seed_family_members if widen and not nav_frozen else seed_family_members
-    seed = _others(seed_pool(index, anchor), anchor) if have_siblings else []
+    # what the keys can reach.  The widened row is the pool as already ranked, not
+    # a re-ranking around whatever the anchor turned out to be.
+    if not have_siblings:
+        seed = []
+    elif widen and not nav_frozen:
+        seed = _others(widened_pool, anchor)
+    else:
+        seed = _others(seed_family_members(index, anchor), anchor)
     action = _distinct_action_siblings(index, anchor) if have_siblings else []
     current_action = ""
     action_labels: tuple[str, ...] = ()
