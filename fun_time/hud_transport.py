@@ -1,9 +1,9 @@
-"""Publish each satellite's lock HUD to the file its player renders from.
+"""Publish each satellite's HUD to the file its player renders from.
 
 The HUD's *model* has to live here: only fun_time knows the library's seed
 families, action groups and thumbnails.  The *drawing* lives in the satellite
 player, which composites it straight into the video with mpv — so the HUD has no
-window of its own and no z-order to fight (see ``satellite.hud`` in genau).
+window of its own and no z-order to fight (see :mod:`satellite.hud`).
 
 This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.HudPanel`
 into the small JSON payload the player parses, and writes it only when it
@@ -94,6 +94,8 @@ def hud_payload(panel: HudPanel, cache_dir: Path) -> dict:
         "locked": panel.locked,
         "lock_label": panel.lock_label,
         "active": panel.active,
+
+        "is_favorite": panel.is_favorite,
         "filter_query": panel.filter_query,
         "seed_count": panel.seed_count,
         "action_count": panel.action_count,

@@ -106,7 +106,7 @@ class HudOverlay:
         """The cursor moved to window coordinates ``(x, y)``."""
         px, py = self._local(x, y)
         hover = hit_test_targets(self.targets.loop, px, py)
-        tip = button_tooltip(self.targets.loop, self.targets.expand, px, py)
+        tip = button_tooltip(self.targets, px, py)
         if hover == self._hover_loop and tip == self._hover_tip:
             return
         self._hover_loop, self._hover_tip, self._hover_pos = hover, tip, (px, py)

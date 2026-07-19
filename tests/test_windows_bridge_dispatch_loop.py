@@ -2635,6 +2635,45 @@ class TestHudPublishing:
 
         assert self._nau_cmds(tmp_path) == ["SET_TCODE_ENABLED 0", "SET_ACTIVE 1"]
 
+    def test_each_sides_panel_says_whether_its_own_clip_is_a_favourite(self, tmp_path):
+        """The dashboard's panel used to say this by turning green; the HUD marks
+        it, so the loop has to judge each side's clip against the favs file."""
+        runner = self._runner_with_hud(tmp_path)
+        _write_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4", fraction=0.1)
+        _write_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4", fraction=0.1)
+        runner.config.favs_file.write_text("local,C:/v/p.mp4,web\n", encoding="utf-8")
+
+        runner.tick()
+
+        portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        landscape = json.loads((tmp_path / "landscape_hud.json").read_text(encoding="utf-8"))
+        assert portrait["is_favorite"] is True
+        assert landscape["is_favorite"] is False
+
+    def test_the_favourites_file_is_re_read_only_when_it_moves(self, tmp_path):
+        """Every publish asks the question, ~7x a second for the whole session,
+        while the list itself moves a few times an hour — so the read is gated on
+        the file actually having changed, and picks the change up when it does."""
+        runner = self._runner_with_hud(tmp_path)
+        _write_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4", fraction=0.1)
+        favs = runner.config.favs_file
+        favs.write_text("local,C:/v/other.mp4,web\n", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.read_favs_content",
+                   side_effect=lambda path: path.read_text(encoding="utf-8")) as read:
+            runner.tick()
+            runner._last_hud_publish -= 1
+            runner.tick()
+            assert read.call_count == 1, "an unmoved file is not read again"
+
+            favs.write_text("local,C:/v/p.mp4,web\nlocal,C:/v/other.mp4,web\n", encoding="utf-8")
+            runner._last_hud_publish -= 1
+            runner.tick()
+            assert read.call_count == 2
+
+        portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        assert portrait["is_favorite"] is True
+
     def test_publishing_is_throttled_below_the_tick_rate(self, tmp_path):
         """The loop ticks 20x/s; rebuilding and rewriting both panels that often
         is waste the map never shows, so publishing runs on its own cadence."""

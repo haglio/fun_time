@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 
 from satellite.hud import (
+    CTRL_BTN,
     LOCK_BAND_H,
     LOOP_BTN,
     MAP_GAP,
@@ -15,6 +16,7 @@ from satellite.hud import (
     build_click_targets,
     build_label_targets,
     button_tooltip,
+    control_button_rects,
     expand_button_rect,
     friendly_action_label,
     hit_test_targets,
@@ -113,6 +115,13 @@ def test_parse_hud_reads_the_panel_fun_time_published():
     assert model.corner == HudCell(path="C:/v/cur.mp4", thumb="C:/t/cur.jpg")
     assert model.seeds == (HudCell(path="C:/v/s1.mp4", thumb="C:/t/s1.jpg"),)
     assert model.actions == (HudCell(path="C:/v/a1.mp4", thumb="C:/t/a1.jpg", label="gamma"),)
+
+
+def test_parse_hud_reads_whether_the_clip_is_a_favourite():
+    """What the dashboard's panel said by turning green — now a mark on the HUD,
+    so it is read off the player showing the clip rather than off a schematic."""
+    assert parse_hud(json.dumps({"side": "portrait", "is_favorite": True})).is_favorite is True
+    assert parse_hud(json.dumps({"side": "portrait"})).is_favorite is False
 
 
 def test_parse_hud_defaults_an_empty_panel():
@@ -307,13 +316,37 @@ def test_build_label_targets_maps_the_gutter_rows_to_actions():
 
 
 def test_button_tooltip_names_each_button():
-    loop_targets = [((0, 0, 20, 20), "action"), ((30, 0, 20, 20), "seed")]
-    expand = (30, 30, 18, 18)
+    """Every glyph on the panel is cryptic on purpose, so each one names itself on
+    hover — the side's own controls and the favourite mark included."""
+    targets = HudTargets(
+        click=[], label=[],
+        loop=[((0, 0, 20, 20), "action"), ((30, 0, 20, 20), "seed")],
+        expand=(30, 30, 18, 18),
+        control=control_button_rects(0, 60),
+        favorite=(200, 60, CTRL_BTN, CTRL_BTN),
+    )
 
-    assert button_tooltip(loop_targets, expand, 5, 5) == "Loop this action column"
-    assert button_tooltip(loop_targets, expand, 35, 5) == "Loop this seed row"
-    assert button_tooltip(loop_targets, expand, 35, 35) == "More seeds — widen the net"
-    assert button_tooltip(loop_targets, expand, 200, 200) == ""
+    assert button_tooltip(targets, 5, 5) == "Loop this action column"
+    assert button_tooltip(targets, 35, 5) == "Loop this seed row"
+    assert button_tooltip(targets, 35, 35) == "More seeds — widen the net"
+    assert button_tooltip(targets, 5, 65) == "Previous clip"
+    assert button_tooltip(targets, CTRL_BTN + MAP_GAP + 5, 65) == "Next clip"
+    assert button_tooltip(targets, 205, 65) == "In the favourites"
+    assert button_tooltip(targets, 400, 400) == ""
+
+
+def test_control_button_rects_lays_the_sides_own_controls_out_in_a_row():
+    """The browse pair, then the two that act on the clip on screen — the buttons
+    the dashboard used to carry for this side, now in the side's own HUD."""
+    rects = control_button_rects(10, 40)
+
+    assert [name for _rect, name in rects] == ["prev", "next", "lock", "trash"]
+    assert [rect for rect, _name in rects] == [
+        (10, 40, CTRL_BTN, CTRL_BTN),
+        (10 + (CTRL_BTN + MAP_GAP), 40, CTRL_BTN, CTRL_BTN),
+        (10 + 2 * (CTRL_BTN + MAP_GAP), 40, CTRL_BTN, CTRL_BTN),
+        (10 + 3 * (CTRL_BTN + MAP_GAP), 40, CTRL_BTN, CTRL_BTN),
+    ]
 
 
 def test_action_label_blocks_separate_comma_joined_acts():
@@ -352,6 +385,27 @@ def test_single_click_switches_and_double_click_locks():
     assert clicks.press(targets, 10, 10, now=10.0) == ""
     assert clicks.press(targets, 10, 10, now=10.2) == "landscape_lock_video|C:/v/pick.mp4"
     assert clicks.due(now=11.0) == ""                         # the single was cancelled
+
+
+def test_clicking_a_side_control_posts_that_sides_command():
+    """The four buttons post exactly the commands the dashboard's panel used to —
+    "portrait_prev", "landscape_trash" — so the dispatch loop needs no new verbs."""
+    targets = _targets(control=control_button_rects(0, 0))
+    ctrl = CTRL_BTN + MAP_GAP
+
+    assert HudClicks("portrait").press(targets, 5, 5, now=0.0) == "portrait_prev"
+    assert HudClicks("portrait").press(targets, ctrl + 5, 5, now=0.0) == "portrait_next"
+    assert HudClicks("landscape").press(targets, 2 * ctrl + 5, 5, now=0.0) == "landscape_lock"
+    assert HudClicks("landscape").press(targets, 3 * ctrl + 5, 5, now=0.0) == "landscape_trash"
+
+
+def test_a_side_control_posts_at_once_rather_than_waiting_out_a_double_click():
+    """Only a thumbnail press is ambiguous (single switches, double locks).  A
+    button means one thing, so it fires on the press and leaves nothing pending."""
+    clicks = HudClicks("portrait")
+
+    assert clicks.press(_targets(control=control_button_rects(0, 0)), 5, 5, now=0.0) == "portrait_prev"
+    assert clicks.due(now=5.0) == ""
 
 
 def test_clicking_empty_space_posts_nothing():

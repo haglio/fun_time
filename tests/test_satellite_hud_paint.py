@@ -10,6 +10,7 @@ from PIL import Image
 from player_core.hud_panel import GREEN, TEXT_MUTED
 
 from satellite.hud import (
+    CTRL_BAND_H,
     ELLIPSIS_ROOM,
     LOCK_BAND_H,
     MAP_GAP,
@@ -155,6 +156,37 @@ def test_render_exposes_the_controls_it_drew(thumb):
     assert sorted(kind for _rect, kind in rendered.targets.loop) == ["action", "seed"]
     assert [name for _rect, name in rendered.targets.label] == ["alpha", "gamma"]
     assert rendered.targets.expand is not None
+
+
+def test_render_draws_the_sides_own_controls_even_with_no_clip():
+    """The four buttons the dashboard used to carry are the side's, not the map's,
+    so they are there before the first clip arrives — a satellite that came up
+    empty can still be stepped off it."""
+    rendered = HudRenderer("landscape").render(
+        HudModel(side="landscape", locked=False, lock_label="Unlocked"))
+
+    assert [name for _rect, name in rendered.targets.control] == ["prev", "next", "lock", "trash"]
+    assert rendered.targets.favorite is not None
+
+
+def test_the_lock_button_and_favourite_mark_light_up_when_they_apply():
+    """Green is what the dashboard's panel used for both, so both keep it: the
+    lock button while the side is locked, the star while the clip is a favourite."""
+    def ink(rect, rendered) -> int:
+        x, y, w, h = rect
+        rgb = _rgb(rendered.bgra)[y:y + h, x:x + w].astype(int)
+        green = (rgb[:, :, 1] > 100) & (rgb[:, :, 0] < 100) & (rgb[:, :, 2] < 100)
+        return int(green.sum())
+
+    def rendered_with(**overrides):
+        return HudRenderer("landscape").render(
+            HudModel(side="landscape", lock_label="Unlocked", **overrides))
+
+    off, on = rendered_with(), rendered_with(locked=True, is_favorite=True)
+    lock_rect = dict((name, rect) for rect, name in on.targets.control)["lock"]
+
+    assert ink(lock_rect, on) > ink(lock_rect, off)
+    assert ink(on.targets.favorite, on) > ink(off.targets.favorite, off)
 
 
 def test_the_playing_cell_is_brighter_than_the_others(tmp_path: Path):
@@ -326,9 +358,10 @@ def test_the_map_prints_how_big_each_axis_is(thumb):
     def corner_ink(**counts) -> int:
         rendered = renderer.render(_model(corner=HudCell(path="c.mp4", thumb=thumb), **counts))
         (cx, cy, _cw, _ch), _path = rendered.targets.click[0]
-        # The block left of the map and above its first row: the "Seed N" column
-        # headers live to the right of it, over the thumbnails.
-        block = _rgb(rendered.bgra)[PAD + LOCK_BAND_H:cy, PAD:cx - MAP_GAP]
+        # The block left of the map and above its first row, below the status and
+        # control bands: the "Seed N" column headers live to the right of it, over
+        # the thumbnails.
+        block = _rgb(rendered.bgra)[PAD + LOCK_BAND_H + CTRL_BAND_H:cy, PAD:cx - MAP_GAP]
         return int((block > 80).sum())
 
     assert corner_ink(seed_count=12, action_count=4) > 0

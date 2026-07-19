@@ -14,6 +14,7 @@ from fun_time.modes import (
     build_satellite_playlist_paths,
     build_satellite_playlists,
     collect_video_files,
+    has_matching_funscript,
     is_favorite_path,
     order_paths,
     read_favs_content,
@@ -220,6 +221,18 @@ def test_collect_video_files_ignores_single_non_video_file(tmp_path: Path):
 
 def test_build_mirrored_funscript_path_returns_empty_when_no_marker():
     assert build_mirrored_funscript_path(r"C:\other\path\clip.mp4") == ""
+
+
+def test_has_matching_funscript_needs_only_the_video_path(tmp_path: Path):
+    """The mirrored tree is derivable from the clip's own path, so nothing has to
+    be told where the scripts live."""
+    video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
+    script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "portrait" / "clip.funscript"
+    script.parent.mkdir(parents=True)
+    script.write_text("script", encoding="utf-8")
+
+    assert has_matching_funscript(str(video))
+    assert not has_matching_funscript(r"C:\other\path\clip.mp4")
 
 
 # --- read_favs_content / is_favorite_path edge cases ---

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fun_time.lock_hud import (
     build_hud_panel,
+    SideInputs,
     build_panels,
     cell_path,
     hud_map_cells,
@@ -682,11 +683,10 @@ def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
     sources = str(media_root / "portrait")
 
     portrait, landscape = build_panels(
-        portrait_sources=sources, landscape_sources="",
+        SideInputs("portrait", sources=sources, current=current, locked=True,
+                   filter_query="beta gamma"),
+        SideInputs("landscape"),
         metadata_root=metadata_root,
-        portrait_current=current, landscape_current="",
-        portrait_locked=True, landscape_locked=False,
-        portrait_filter="beta gamma", landscape_filter="",
     )
 
     assert portrait.side == "portrait" and portrait.locked is True
@@ -708,11 +708,9 @@ def test_build_panels_marks_only_the_active_side_active(tmp_path: Path):
 
     def actives(active_side: str) -> tuple[bool, bool]:
         portrait, landscape = build_panels(
-            portrait_sources=sources, landscape_sources=sources,
-            metadata_root=metadata_root,
-            portrait_current=current, landscape_current=current,
-            portrait_locked=False, landscape_locked=False,
-            active_side=active_side,
+            SideInputs("portrait", sources=sources, current=current),
+            SideInputs("landscape", sources=sources, current=current),
+            metadata_root=metadata_root, active_side=active_side,
         )
         return portrait.active, landscape.active
 
@@ -730,11 +728,9 @@ def test_build_panels_puts_f_mode_on_both_sides(tmp_path: Path):
     sources = str(media_root / "portrait")
 
     portrait, landscape = build_panels(
-        portrait_sources=sources, landscape_sources=sources,
-        metadata_root=metadata_root,
-        portrait_current=current, landscape_current=current,
-        portrait_locked=False, landscape_locked=False,
-        f_mode=True,
+        SideInputs("portrait", sources=sources, current=current),
+        SideInputs("landscape", sources=sources, current=current),
+        metadata_root=metadata_root, f_mode=True,
     )
 
     assert "F-Mode" in portrait.lock_label
@@ -751,11 +747,9 @@ def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):
     sources = str(media_root / "portrait")
 
     portrait, _landscape = build_panels(
-        portrait_sources=sources, landscape_sources="",
+        SideInputs("portrait", sources=sources, current=b, loop_axis="seed"),
+        SideInputs("landscape"),
         metadata_root=metadata_root,
-        portrait_current=b, landscape_current="",
-        portrait_locked=False, landscape_locked=False,
-        portrait_loop="seed",
     )
 
     assert portrait.active_loop == "seed"
@@ -774,10 +768,9 @@ def test_build_panels_threads_the_nav_anchor_onto_the_panel(tmp_path: Path):
 
     # Navigation began from a; the satellite has since switched to its seed sibling b.
     portrait, _landscape = build_panels(
-        portrait_sources=sources, landscape_sources="", metadata_root=metadata_root,
-        portrait_current=b, landscape_current="",
-        portrait_locked=False, landscape_locked=False,
-        portrait_nav_anchor=a,
+        SideInputs("portrait", sources=sources, current=b, nav_anchor=a),
+        SideInputs("landscape"),
+        metadata_root=metadata_root,
     )
 
     assert portrait.current == a       # frozen on the start clip
@@ -803,10 +796,9 @@ def test_build_panels_keeps_a_widened_seed_loop_wide_across_the_loose_family(tmp
     # Widened around `a`; the loop has auto-advanced to `b`, a loose-family re-render
     # that is not in a's exact seed family {a, a2}.
     portrait, _landscape = build_panels(
-        portrait_sources=sources, landscape_sources="", metadata_root=metadata_root,
-        portrait_current=b, landscape_current="",
-        portrait_locked=False, landscape_locked=False,
-        portrait_loop="seed", portrait_widen_clip=a,
+        SideInputs("portrait", sources=sources, current=b, loop_axis="seed", widen_clip=a),
+        SideInputs("landscape"),
+        metadata_root=metadata_root,
     )
 
     assert portrait.active_loop == "seed"            # the loop is still recognised
