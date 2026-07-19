@@ -100,7 +100,10 @@ def apply_mode_switch(
         write_flag_file(audio_paused_file, not will_genau)
         if plan.nau_should_play is not None:
             write_flag_file(nau_paused_file, not plan.nau_should_play)
-        cmds = [cmd for cmd in (plan.genau_cmd, plan.hud_cmd) if cmd is not None]
+        cmds = [
+            cmd for cmd in (plan.genau_cmd, plan.hud_cmd, plan.display_cmd)
+            if cmd is not None
+        ]
         if cmds:
             Path(genau_cmd_file).write_text("\n".join(cmds), encoding="utf-8")
         if plan.reenable_nau_tcode:

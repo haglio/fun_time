@@ -85,7 +85,7 @@ def test_nau_to_genau_resumes_genau_and_pauses_nau(flow_files):
     assert result.is_transition is True
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nDISPLAY_ON"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
 
 
@@ -95,7 +95,7 @@ def test_genau_to_nau_pauses_genau_and_resumes_nau(flow_files):
     assert result.next_mode == "nau"
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nDISPLAY_OFF"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
 
 
@@ -105,7 +105,7 @@ def test_nau_to_hybrid_keeps_nau_playing(flow_files):
     result = _mode_switch(flow_files, current="nau", target="hybrid")
 
     assert result.is_transition is True
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\nDISPLAY_ON"
     assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
 
 
@@ -113,7 +113,7 @@ def test_hybrid_to_nau_keeps_nau_playing(flow_files):
     result = _mode_switch(flow_files, current="hybrid", target="nau")
 
     assert result.next_mode == "nau"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nHUD_OFF"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nHUD_OFF\nDISPLAY_OFF"
     assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
 
 
@@ -123,7 +123,7 @@ def test_hybrid_to_genau_resumes_genau(flow_files):
     result = _mode_switch(flow_files, current="hybrid", target="genau")
 
     assert result.next_mode == "genau"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_OFF"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_OFF\nDISPLAY_ON"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
 
 
@@ -146,8 +146,19 @@ def test_genau_to_hybrid_starts_nau(flow_files):
     result = _mode_switch(flow_files, current="genau", target="hybrid")
 
     assert result.next_mode == "hybrid"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\nDISPLAY_ON"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
+
+
+def test_mode_switch_tells_genau_whether_it_is_on_screen(flow_files):
+    # Switching away from a mode that shows Genau blanks its window, so an
+    # alt-tab doesn't land on the clip frame it was resting on; switching back
+    # restores it.  PAUSE alone never blanks — a paused hand still shows a clip.
+    _mode_switch(flow_files, current="genau", target="nau")
+    assert "DISPLAY_OFF" in flow_files["genau_cmd_file"].read_text(encoding="utf-8").split("\n")
+
+    _mode_switch(flow_files, current="nau", target="genau")
+    assert "DISPLAY_ON" in flow_files["genau_cmd_file"].read_text(encoding="utf-8").split("\n")
 
 
 def test_mode_switch_during_omnipause_no_side_effects(flow_files):
