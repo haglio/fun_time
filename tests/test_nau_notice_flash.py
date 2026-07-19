@@ -16,7 +16,7 @@ class TestReadNauNotice:
         path = tmp_path / "nau_notice.txt"
         _write(path, 3, "error", "full video not available")
 
-        assert read_nau_notice(path) == (3, "error", "full video not available")
+        assert read_nau_notice(path) == (3.0, "error", "full video not available")
 
     def test_missing_file_is_empty(self, tmp_path):
         assert read_nau_notice(tmp_path / "nope.txt") == (0, "", "")
@@ -63,3 +63,33 @@ class TestFlashNauNotice:
             loop._flash_nau_notice()
 
         assert any("money shot not available" in r.message for r in caplog.records)
+
+
+def test_a_notice_from_a_previous_session_does_not_flash_on_open(tmp_path):
+    """Opening Fun Time replayed whatever was last in the file, so a stale
+    'full video not available' appeared the instant it started."""
+    import logging
+
+    from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner
+
+    path = tmp_path / "nau_notice.txt"
+    _write(path, 500, "error", "stale from last time")
+
+    class _Loop:
+        config = type("C", (), {"nau_notice_file": path})()
+
+    loop = _Loop()
+    loop._last_nau_notice_seq = read_nau_notice(path)[0]
+    loop._flash_nau_notice = DispatchLoopRunner._flash_nau_notice.__get__(loop, _Loop)
+
+    seen: list[str] = []
+    handler = logging.Handler()
+    handler.emit = lambda record: seen.append(record.getMessage())
+    logger = logging.getLogger("fun_time.windows_bridge_dispatch_loop")
+    logger.addHandler(handler)
+    try:
+        loop._flash_nau_notice()
+    finally:
+        logger.removeHandler(handler)
+
+    assert not [m for m in seen if "stale from last time" in m]
