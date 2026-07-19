@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # --- layout constants (px) ---------------------------------------------------
 # The panel is shaped like its satellite's clips so more of the map fits: the
@@ -36,6 +36,8 @@ COL_LABEL_GAP = 4   # breathing room between a column label and its thumbnail
 MIN_GUTTER = 30     # row-label gutter: never narrower than this
 MAX_GUTTER = 100    # …and never wider, so a stray long act can't eat the map
 LOOP_BTN = 18       # loop-button thickness: below the action column, right of the row
+CTRL_BTN = 18       # a side-control button — the same square as a loop button
+CTRL_BAND_H = 24    # the band those controls sit in, under the status line
 
 STATUS_SEPARATOR = " · "  # what fun_time joins the status line's parts with
 STATUS_LINE_H = 14        # what each line past the first adds to the band
@@ -110,6 +112,11 @@ class HudModel:
     # recently.  Drawn as the dot beside the status line, and the only thing on
     # any HUD that says where those words are going.
     active: bool = False
+
+    # Whether the clip on screen is one of the favourites.  The dashboard said
+    # this by turning the side's panel green; the HUD marks it in the control
+    # band, beside the buttons that act on that clip.
+    is_favorite: bool = False
     corner: HudCell | None = None
     seeds: tuple[HudCell, ...] = ()
     actions: tuple[HudCell, ...] = ()
@@ -299,6 +306,33 @@ def ellipsis_rects(
             (cx, _col_bottom(corner_rect, action_rects) + MAP_GAP, cw, ELLIPSIS))
 
 
+# --- the side's own controls -------------------------------------------------
+# The buttons the dashboard used to carry for this satellite, now on the
+# satellite itself: browse first (the pair reached for most), then the two that
+# act on the clip on screen.  Each name is also its command's verb, so
+# "portrait_prev" and "landscape_trash" fall out of the same tuple that draws
+# them and the button can never post a command it isn't labelled for.
+CONTROLS = ("prev", "next", "lock", "trash")
+
+
+def control_button_rects(x: int, y: int) -> list[tuple[Rect, str]]:
+    """Each side-control's ``(rect, name)``, in a row running right from ``(x, y)``."""
+    return [
+        ((x + index * (CTRL_BTN + MAP_GAP), y, CTRL_BTN, CTRL_BTN), name)
+        for index, name in enumerate(CONTROLS)
+    ]
+
+
+def favorite_mark_rect(right: int, y: int) -> Rect:
+    """The favourite mark, at the far end of the control band.
+
+    A readout, not a button: the dashboard said this with a green panel, and the
+    star says it in the space the panel used to occupy.  It keeps the row's far
+    end rather than following the buttons, so it does not move when they change.
+    """
+    return (right - CTRL_BTN, y, CTRL_BTN, CTRL_BTN)
+
+
 def seed_column_label(index: int) -> str:
     """The header over a seed column: its place in the family, counting from one.
 
@@ -323,6 +357,19 @@ def expand_button_rect(loop_seed_rect: Rect | None, right: int) -> Rect | None:
 
 
 # --- hit-testing -------------------------------------------------------------
+
+
+@dataclass
+class HudTargets:
+    """What the last render put where — the rects a press is tested against."""
+
+    click: list[tuple[Rect, str]]
+    loop: list[tuple[Rect, str]]
+    label: list[tuple[Rect, str]]
+    expand: Rect | None
+    control: list[tuple[Rect, str]] = field(default_factory=list)
+    # The favourite mark is a readout, so it is here only to carry its tooltip.
+    favorite: Rect | None = None
 
 
 def build_click_targets(
@@ -385,24 +432,37 @@ def label_is_filtered(label: str, filter_query: str) -> bool:
 
 LOOP_TOOLTIPS = {"action": "Loop this action column", "seed": "Loop this seed row"}
 EXPAND_TOOLTIP = "More seeds — widen the net"
+CONTROL_TOOLTIPS = {
+    "prev": "Previous clip",
+    "next": "Next clip",
+    "lock": "Lock / unlock this clip",
+    "trash": "Mark weird — move it out",
+}
+FAVORITE_TOOLTIP = "In the favourites"
 
 
-def button_tooltip(
-    loop_targets: list[tuple[Rect, str]],
-    expand_rect: Rect | None,
-    px: int,
-    py: int,
-) -> str:
-    """The tooltip for whichever HUD button is under ``(px, py)`` — the loop buttons
-    or the expand button — or "" when the cursor is over neither, so the user can
-    tell what each cryptic glyph does."""
-    loop = hit_test_targets(loop_targets, px, py)
-    if loop:
-        return LOOP_TOOLTIPS.get(loop, "")
-    if expand_rect is not None:
-        ex, ey, ew, eh = expand_rect
-        if ex <= px < ex + ew and ey <= py < ey + eh:
-            return EXPAND_TOOLTIP
+def _in(rect: Rect | None, px: int, py: int) -> bool:
+    if rect is None:
+        return False
+    x, y, w, h = rect
+    return x <= px < x + w and y <= py < y + h
+
+
+def button_tooltip(targets: HudTargets, px: int, py: int) -> str:
+    """What the HUD control under ``(px, py)`` is, or "" over none of them.
+
+    Every glyph on this panel is cryptic on purpose — it is read over moving video
+    — so each one names itself on hover.  Taking the whole target bundle means a
+    new control needs a line in a dict here and nothing else.
+    """
+    for bucket, tooltips in ((targets.control, CONTROL_TOOLTIPS), (targets.loop, LOOP_TOOLTIPS)):
+        hit = hit_test_targets(bucket, px, py)
+        if hit:
+            return tooltips.get(hit, "")
+    if _in(targets.expand, px, py):
+        return EXPAND_TOOLTIP
+    if _in(targets.favorite, px, py):
+        return FAVORITE_TOOLTIP
     return ""
 
 
@@ -413,16 +473,6 @@ def button_tooltip(
 # long before it is posted.  Erring short is safe: a slow double-click simply
 # switches to the clip it then locks.
 DOUBLE_CLICK_S = 0.5
-
-
-@dataclass
-class HudTargets:
-    """What the last render put where — the rects a press is tested against."""
-
-    click: list[tuple[Rect, str]]
-    loop: list[tuple[Rect, str]]
-    label: list[tuple[Rect, str]]
-    expand: Rect | None
 
 
 class HudClicks:
@@ -448,13 +498,14 @@ class HudClicks:
     def press(self, targets: HudTargets, px: int, py: int, *, now: float) -> str:
         """The command for a press at ``(px, py)``, or "" when it posts nothing
         yet (a first thumbnail click, or empty space)."""
+        control = hit_test_targets(targets.control, px, py)
+        if control:
+            return f"{self._side}_{control}"
         loop = hit_test_targets(targets.loop, px, py)
         if loop:
             return self._toggle_loop(loop)
-        if targets.expand is not None:
-            ex, ey, ew, eh = targets.expand
-            if ex <= px < ex + ew and ey <= py < ey + eh:
-                return f"{self._side}_more_seeds"
+        if _in(targets.expand, px, py):
+            return f"{self._side}_more_seeds"
         action = hit_test_targets(targets.label, px, py)
         if action:
             # A lit label is the filter it set, so pressing it again lifts it: the way
@@ -553,6 +604,8 @@ def parse_hud(text: str) -> HudModel | None:
         locked=bool(raw.get("locked", False)),
         lock_label=str(raw.get("lock_label", "") or ""),
         active=bool(raw.get("active", False)),
+
+        is_favorite=bool(raw.get("is_favorite", False)),
         corner=_cell(raw.get("corner")),
         seeds=tuple(cell for cell in seeds if cell is not None),
         actions=tuple(cell for cell in actions if cell is not None),

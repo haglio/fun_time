@@ -29,9 +29,9 @@ from .command_dispatch import (
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
 from .event_log import NOTICE, notice
 from .hud_transport import HudPublisher
-from .lock_hud import build_panels
+from .lock_hud import SideInputs, build_panels
 from .mode_plan import genau_active
-from .modes import build_mirrored_funscript_path
+from .modes import build_mirrored_funscript_path, is_favorite_path, read_favs_content
 from .satellite_control import read_satellite_status
 from .video_timeline import VideoTimeline
 from .voice_commands import parse_command_line
@@ -271,6 +271,10 @@ class DispatchLoopRunner:
         # own video.  None when the session runs without HUDs.
         self._hud_publisher = hud_publisher
         self._last_hud_publish = 0.0
+        # The favourites list, and the stat that says whether it has moved (see
+        # _favs_content) — every HUD publish asks whether the clip on screen is on it.
+        self._favs_text = ""
+        self._favs_stamp: tuple[int, int] | None = None
         # The clip each satellite last named, so a status read that loses the
         # race with the player's own republish does not blank its map.
         self._last_satellite_clip: dict[str, str] = {}
@@ -442,31 +446,50 @@ class DispatchLoopRunner:
         if self._hud_publisher is None:
             return
         state = self.state
+        favs = self._favs_content()
+
+        def side(name: str, *, sources: str, status_file: Path, locked: bool) -> SideInputs:
+            current = self._satellite_clip(name, status_file)
+            return SideInputs(
+                side=name, sources=sources, current=current, locked=locked,
+                filter_query=getattr(state, f"{name}_filter"),
+                loop_axis=getattr(state, f"{name}_loop"),
+                map_anchor=getattr(state, f"{name}_map_anchor"),
+                widen_clip=getattr(state, f"{name}_widen_clip"),
+                nav_anchor=getattr(state, f"{name}_nav_anchor"),
+                latest=getattr(state, f"{name}_latest"),
+                is_favorite=is_favorite_path(current, favs),
+            )
+
         portrait, landscape = build_panels(
-            portrait_sources=self.config.portrait_sources,
-            landscape_sources=self.config.landscape_sources,
+            side("portrait", sources=self.config.portrait_sources,
+                 status_file=self.config.portrait_status_file, locked=state.locked2),
+            side("landscape", sources=self.config.landscape_sources,
+                 status_file=self.config.landscape_status_file, locked=state.locked3),
             metadata_root=self.config.regen_metadata_root,
-            portrait_current=self._satellite_clip("portrait", self.config.portrait_status_file),
-            landscape_current=self._satellite_clip("landscape", self.config.landscape_status_file),
-            portrait_locked=state.locked2,
-            landscape_locked=state.locked3,
-            portrait_filter=state.portrait_filter,
-            landscape_filter=state.landscape_filter,
-            portrait_loop=state.portrait_loop,
-            landscape_loop=state.landscape_loop,
-            portrait_map_anchor=state.portrait_map_anchor,
-            landscape_map_anchor=state.landscape_map_anchor,
-            portrait_widen_clip=state.portrait_widen_clip,
-            landscape_widen_clip=state.landscape_widen_clip,
-            portrait_nav_anchor=state.portrait_nav_anchor,
-            landscape_nav_anchor=state.landscape_nav_anchor,
-            portrait_latest=state.portrait_latest,
-            landscape_latest=state.landscape_latest,
             f_mode=state.f_mode_enabled,
             active_side=side_name(state.active_side),
         )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)
+
+    def _favs_content(self) -> str:
+        """The favourites file, re-read only when it has actually changed.
+
+        Each HUD publish asks whether the clip on screen is a favourite, ~7x a
+        second for the life of the session; the list itself moves a handful of
+        times an hour, so gate the read on the file's mtime and size and keep the
+        text between changes.
+        """
+        try:
+            stat = self.config.favs_file.stat()
+            stamp = (stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            stamp = None
+        if stamp != self._favs_stamp:
+            self._favs_stamp = stamp
+            self._favs_text = read_favs_content(self.config.favs_file)
+        return self._favs_text
 
     def _satellite_clip(self, side: str, status_file: Path) -> str:
         """The clip *side* is showing, holding the last one it named if the read

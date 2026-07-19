@@ -1,10 +1,10 @@
-"""What each satellite's lock-status HUD shows.
+"""What each satellite's HUD shows.
 
-Assembles the panel behind the map drawn over each satellite: its lock state and
-the other videos reachable in the current clip's action group and seed family.
-Only fun_time has the library metadata this needs, so the model lives here —
-:mod:`fun_time.hud_transport` publishes it, and each satellite player draws it
-straight into its own video (``satellite.hud`` in genau).
+Assembles the panel drawn over each satellite: the side's own state — locked,
+looping, filtered, favourite — and the other videos reachable in the current
+clip's action group and seed family.  Only fun_time has the library metadata this
+needs, so the model lives here — :mod:`fun_time.hud_transport` publishes it, and
+each satellite player draws it straight into its own video (:mod:`satellite.hud`).
 """
 from __future__ import annotations
 
@@ -79,6 +79,12 @@ class HudPanel:
     current: str
     seed_siblings: list[str]
     action_siblings: list[str]
+    # Whether the clip on screen is one of the favourites.  The dashboard used to
+    # say this by turning the side's panel green; the HUD marks it in its control
+    # band instead, beside the buttons that act on that clip.  It would read
+    # better beside ``locked``, but a defaulted field cannot precede a required
+    # one, and defaulting it keeps every construction site from naming it.
+    is_favorite: bool = False
     # Labels for the map's axes: the current clip's own action (the top row),
     # and each action sibling's action name (the rows down the column). Seed
     # columns are labelled by ordinal ("Seed 1", …) so need no data here.
@@ -284,6 +290,7 @@ def build_hud_panel(
     latest: bool = False,
     f_mode: bool = False,
     active: bool = False,
+    is_favorite: bool = False,
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
@@ -367,6 +374,7 @@ def build_hud_panel(
         side=side,
         locked=locked,
         lock_label=_status_label(locked, active_loop, latest, filter_query, f_mode),
+        is_favorite=is_favorite,
         current=anchor,
         seed_siblings=seed,
         action_siblings=action,
@@ -381,30 +389,38 @@ def build_hud_panel(
     )
 
 
+@dataclass(frozen=True)
+class SideInputs:
+    """Everything one satellite's panel is built from.
+
+    The two sides take an identical set of inputs, so they travel as one object
+    each rather than as ``portrait_``/``landscape_`` twins of every field — which
+    is what kept every caller, and this module's own helper, restating the whole
+    list twice.
+    """
+
+    side: str
+    sources: str = ""
+    current: str = ""
+    locked: bool = False
+    filter_query: str = ""
+    loop_axis: str = ""
+    map_anchor: str = ""
+    widen_clip: str = ""
+    nav_anchor: str = ""
+    latest: bool = False
+    is_favorite: bool = False
+
+
 def _side_panel(
-    side: str,
-    *,
-    sources: str,
-    metadata_root: Path | None,
-    current: str,
-    locked: bool,
-    filter_query: str,
-    loop_axis: str,
-    map_anchor: str,
-    widen_clip: str,
-    nav_anchor: str,
-    latest: bool,
-    f_mode: bool,
-    active: bool,
+    inputs: SideInputs, metadata_root: Path | None, f_mode: bool, active_side: str,
 ) -> HudPanel:
-    # Keyword-only: every argument past *side* is a bare string or flag, so a
-    # positional call site says nothing about which is which and two of them
-    # swapped would still typecheck and still run.
     index: GroupIndex | None = None
-    if current:
+    if inputs.current:
         # must_contain=None: read the up-front index (see prime_group_indexes),
         # never a per-clip rebuild — the library does not change during a session,
         # so the map is drawn from memory the instant the clip changes.
+        sources = inputs.sources
         index = cached_group_index(
             sources,
             paths_supplier=lambda: collect_video_files(sources),
@@ -412,10 +428,12 @@ def _side_panel(
             must_contain=None,
         )
     return build_hud_panel(
-        side, locked=locked, current=current, index=index,
-        filter_query=filter_query, loop_axis=loop_axis, map_anchor=map_anchor,
-        widen_clip=widen_clip, nav_anchor=nav_anchor, latest=latest, f_mode=f_mode,
-        active=active,
+        inputs.side, locked=inputs.locked, current=inputs.current, index=index,
+        filter_query=inputs.filter_query, loop_axis=inputs.loop_axis,
+        map_anchor=inputs.map_anchor, widen_clip=inputs.widen_clip,
+        nav_anchor=inputs.nav_anchor, latest=inputs.latest,
+        is_favorite=inputs.is_favorite, f_mode=f_mode,
+        active=active_side == inputs.side,
     )
 
 
@@ -456,37 +474,16 @@ def prewarm_thumbnails(
 
 
 def build_panels(
-    *,
-    portrait_sources: str,
-    landscape_sources: str,
-    metadata_root: Path | None,
-    portrait_current: str,
-    landscape_current: str,
-    portrait_locked: bool,
-    landscape_locked: bool,
-    portrait_filter: str = "",
-    landscape_filter: str = "",
-    portrait_loop: str = "",
-    landscape_loop: str = "",
-    portrait_map_anchor: str = "",
-    landscape_map_anchor: str = "",
-    portrait_widen_clip: str = "",
-    landscape_widen_clip: str = "",
-    portrait_nav_anchor: str = "",
-    landscape_nav_anchor: str = "",
-    portrait_latest: bool = False,
-    landscape_latest: bool = False,
-    f_mode: bool = False,
-    active_side: str = "",
+    portrait: SideInputs, landscape: SideInputs, *,
+    metadata_root: Path | None = None, f_mode: bool = False, active_side: str = "",
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
-    does, so the siblings shown match what cycling would actually reach.  Each
-    side's widen-clip and nav-anchor are threaded through as-is; ``build_hud_panel``
-    decides whether each still applies — the widen off a loop only while it is the
-    clip on screen (so it auto-resets on navigation) and across a widened seed loop
-    for every member of the looped pool, and the ``nav_anchor`` while the live clip
-    is still one of its map cells.
+    Each side's widen-clip and nav-anchor are threaded through as-is;
+    ``build_hud_panel`` decides whether each still applies — the widen off a loop
+    only while it is the clip on screen (so it auto-resets on navigation) and
+    across a widened seed loop for every member of the looped pool, and the
+    ``nav_anchor`` while the live clip is still one of its map cells.
 
     ``f_mode`` is unsided on purpose: one key narrows every player at once, so it
     goes to both panels or to neither.  ``active_side`` is unsided for the opposite
@@ -495,26 +492,8 @@ def build_panels(
     dispatcher's slot number, because that is what a side is called everywhere else
     in here; the one translation lives where the number does.
     """
-    return (
-        _side_panel(
-            "portrait",
-            sources=portrait_sources, metadata_root=metadata_root,
-            current=portrait_current, locked=portrait_locked,
-            filter_query=portrait_filter, loop_axis=portrait_loop,
-            map_anchor=portrait_map_anchor, widen_clip=portrait_widen_clip,
-            nav_anchor=portrait_nav_anchor, latest=portrait_latest, f_mode=f_mode,
-            active=active_side == "portrait",
-        ),
-        _side_panel(
-            "landscape",
-            sources=landscape_sources, metadata_root=metadata_root,
-            current=landscape_current, locked=landscape_locked,
-            filter_query=landscape_filter, loop_axis=landscape_loop,
-            map_anchor=landscape_map_anchor, widen_clip=landscape_widen_clip,
-            nav_anchor=landscape_nav_anchor, latest=landscape_latest, f_mode=f_mode,
-            active=active_side == "landscape",
-        ),
-    )
+    return (_side_panel(portrait, metadata_root, f_mode, active_side),
+            _side_panel(landscape, metadata_root, f_mode, active_side))
 
 
 def panel_thumbnails(

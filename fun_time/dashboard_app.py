@@ -112,10 +112,8 @@ from fun_time.dashboard_state import (
     LABEL_PRIMARY_GENAU,
     LABEL_PRIMARY_HYBRID,
     LABEL_PRIMARY_NAU,
-    has_matching_funscript,
-    is_favorite_path,
-    read_favs_content,
 )
+from fun_time.modes import has_matching_funscript, is_favorite_path, read_favs_content
 
 # Semantic aliases — map old Dashboard names to shared_ui tokens.
 COLOR_BG = BG_PRIMARY

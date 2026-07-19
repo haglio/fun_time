@@ -33,6 +33,7 @@ from .hud import (
     ACT_GAP,
     COL_LABEL_GAP,
     COL_LABEL_H,
+    CTRL_BAND_H,
     ELLIPSIS_ROOM,
     LOOP_BTN,
     MAP_GAP,
@@ -53,8 +54,10 @@ from .hud import (
     action_label_blocks,
     build_click_targets,
     build_label_targets,
+    control_button_rects,
     ellipsis_rects,
     expand_button_rect,
+    favorite_mark_rect,
     friendly_action_label,
     label_is_filtered,
     loop_button_rects,
@@ -84,6 +87,12 @@ _SIZE_TINY = 8
 _ROW_LABEL_PT = 7
 _LOOP_GLYPH = "↻"
 _EXPAND_GLYPH = "↔"
+# The side's own controls.  Skip-track for the browse pair rather than bare
+# arrows, so they cannot be read as "step along the map"; a padlock and a bin for
+# the two that act on the clip on screen.  All four come from the same symbol
+# face as the loop glyph above — Segoe UI Bold has none of them.
+_CONTROL_GLYPHS = {"prev": "⏮", "next": "⏭", "lock": "🔒", "trash": "🗑"}
+_FAVORITE_GLYPH = "★"
 
 
 def gutter_width_for(font: ImageFont.FreeTypeFont, current_action: str,
@@ -202,9 +211,19 @@ class HudRenderer:
                       font=self._body, anchor="ls", fill=(*TEXT_PRIMARY, 255))
         y += status_band_height(len(lines))
 
+        # The side's own controls, above the map: they act on the satellite and
+        # the clip on screen, not on anything the map draws, so they are laid out
+        # against the panel rather than against the map — and are there whether or
+        # not there is a map to draw.
+        controls = control_button_rects(x, y)
+        favorite = favorite_mark_rect(width - PAD, y)
+        self._draw_controls(draw, controls, favorite, model)
+        y += CTRL_BAND_H
+
         if model.corner is None:
             return RenderedHud(panel.to_bgra(),
-                               HudTargets(click=[], loop=[], label=[], expand=None))
+                               HudTargets(click=[], loop=[], label=[], expand=None,
+                                          control=controls, favorite=favorite))
 
         # Sized from the whole model, before any windowing, so the gutter does not
         # change width as a loop's window slides along — and never narrower than the
@@ -261,12 +280,8 @@ class HudRenderer:
             if window is not None:
                 self._draw_ellipses(draw, corner_rect, seed_rects, action_rects, axis, window)
         if expand_rect is not None:
-            ex, ey, ew, eh = expand_rect
-            draw.rounded_rectangle([ex, ey, ex + ew - 1, ey + eh - 1], radius=3,
-                                   outline=(*TEXT_MUTED, 255), width=1)
             # "↔" reads as expanding — the seed row widening.
-            draw.text((ex + ew / 2, ey + eh / 2), _EXPAND_GLYPH, font=self._glyph,
-                      anchor="mm", fill=(*TEXT_MUTED, 255))
+            self._glyph_button(draw, expand_rect, _EXPAND_GLYPH)
         if hover_tip:
             self._draw_tooltip(draw, width, height, hover_tip, hover_pos)
 
@@ -280,6 +295,8 @@ class HudRenderer:
                                       model.current_action,
                                       [cell.label for cell in model.actions]),
             expand=expand_rect,
+            control=controls,
+            favorite=favorite,
         )
         return RenderedHud(panel.to_bgra(), targets)
 
@@ -435,6 +452,38 @@ class HudRenderer:
         for i, (_ax, ay, _aw, ah) in enumerate(action_rects):
             row(ay, ah, model.actions[i].label if i < len(model.actions) else "")
 
+    def _glyph_button(self, draw, rect: Rect, glyph: str, *, on: bool = False) -> None:
+        """One of the panel's square glyph buttons — the single button shape every
+        control on this HUD is drawn with, so a new one cannot invent its own look.
+
+        Off it is an outline in the muted grey the rest of the chrome uses; on it
+        fills green and the glyph reverses out of it.
+        """
+        bx, by, bw, bh = rect
+        draw.rounded_rectangle(
+            [bx, by, bx + bw - 1, by + bh - 1], radius=3,
+            fill=(*GREEN, 255) if on else None,
+            outline=(*(GREEN if on else TEXT_MUTED), 255), width=1,
+        )
+        draw.text((bx + bw / 2, by + bh / 2), glyph, font=self._glyph,
+                  anchor="mm", fill=(*(BG_PRIMARY if on else TEXT_MUTED), 255))
+
+    def _draw_controls(self, draw, controls: list[tuple[Rect, str]], favorite: Rect,
+                       model: HudModel) -> None:
+        """The side's own four buttons, and the mark saying whether the clip on
+        screen is one of the favourites.
+
+        Only the lock has an on-state — the other three do a thing rather than be
+        in one.  The star is a readout, not a button, so it gets no box: a box
+        would invite a press that does nothing.
+        """
+        for rect, name in controls:
+            self._glyph_button(draw, rect, _CONTROL_GLYPHS[name],
+                               on=model.locked and name == "lock")
+        fx, fy, fw, fh = favorite
+        draw.text((fx + fw / 2, fy + fh / 2), _FAVORITE_GLYPH, font=self._glyph, anchor="mm",
+                  fill=(*(GREEN if model.is_favorite else TEXT_MUTED), 255))
+
     def _draw_loop_controls(self, draw, corner_rect, loop_action_rect, loop_seed_rect,
                             seed_rects, action_rects, active_loop, hover_loop) -> None:
         """The two loop buttons, and — while one is hovered or its loop is on — a
@@ -453,14 +502,7 @@ class HudRenderer:
             if button is None:
                 continue
             on = active_loop == kind
-            bx, by, bw, bh = button
-            draw.rounded_rectangle(
-                [bx, by, bx + bw - 1, by + bh - 1], radius=3,
-                fill=(*GREEN, 255) if on else None,
-                outline=(*(GREEN if on else TEXT_MUTED), 255), width=1,
-            )
-            draw.text((bx + bw / 2, by + bh / 2), _LOOP_GLYPH, font=self._glyph,
-                      anchor="mm", fill=(*(BG_PRIMARY if on else TEXT_MUTED), 255))
+            self._glyph_button(draw, button, _LOOP_GLYPH, on=on)
             if on:
                 gx, gy, gw, gh = group_box
                 draw.rectangle([gx, gy, gx + gw - 1, gy + gh - 1],
