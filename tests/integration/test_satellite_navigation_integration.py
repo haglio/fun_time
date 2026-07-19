@@ -18,9 +18,11 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+from fun_time.command_dispatch import BridgeConfig, BridgeState, dispatch_command
 from fun_time.config import load_config
 from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
@@ -169,3 +171,77 @@ def test_reload_playlist_keeps_the_current_clip(satellite):
     # The clip on screen must survive the reload — never restarted to item 0.
     time.sleep(1.0)
     assert satellite.video() == current, "RELOAD_PLAYLIST should keep the current clip"
+
+
+def _playlist_videos(satellite: _Satellite) -> list[str]:
+    return [v.strip() for v in satellite.playlist.read_text(encoding="utf-8").splitlines() if v.strip()]
+
+
+def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
+    """A BridgeConfig whose portrait side drives this launched satellite.
+
+    Only the portrait quartet has to be real — the loop commands touch just the
+    satellite they address — so every other file points somewhere under tmp_path.
+    """
+    state_dir = tmp_path / "bridge_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    favs = tmp_path / "favs.csv"
+    favs.write_text("local_file,web_url\n", encoding="utf-8")
+    return BridgeConfig(
+        portrait_cmd_file=satellite.cmd,
+        portrait_paused_file=satellite.paused,
+        portrait_status_file=satellite.status,
+        portrait_playlist_file=satellite.playlist,
+        landscape_cmd_file=state_dir / "landscape_cmd.txt",
+        landscape_paused_file=state_dir / "landscape_paused.txt",
+        landscape_status_file=state_dir / "landscape_status.txt",
+        landscape_playlist_file=state_dir / "landscape_playlist.tsv",
+        favs_file=favs,
+        weird_dir=tmp_path / "weird",
+        state_dir=state_dir,
+        primary_sources=str(tmp_path / "primary"),
+        portrait_sources=str(tmp_path / "portrait"),
+        landscape_sources=str(tmp_path / "landscape"),
+        genau_mode_file=state_dir / "genau_mode.txt",
+        genau_cmd_file=state_dir / "genau_cmd.txt",
+        genau_paused_file=state_dir / "genau_paused.txt",
+        audio_paused_file=state_dir / "audio_paused.txt",
+        audio_volume_file=state_dir / "audio_volume.txt",
+        nau_cmd_file=state_dir / "nau_cmd.txt",
+        nau_paused_file=state_dir / "nau_paused.txt",
+        nau_status_file=state_dir / "nau_status.txt",
+        dashboard_state_file=state_dir / "dashboard_state.ini",
+    )
+
+
+def _drained(satellite: _Satellite) -> None:
+    """Block until the player has consumed everything on its command file."""
+    _wait(
+        lambda: not satellite.cmd.read_text(encoding="utf-8").strip(),
+        timeout=10, desc="the player to drain its command file",
+    )
+
+
+def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
+    """Turning a loop OFF must leave the clip on screen alone, changing only what
+    comes up next — the whole contract of the loop toggle.
+
+    The interesting case is the real one: a loop cycles a group whose members are
+    NOT in the browse it returns to (the browse holds one clip per group), and a
+    player whose clip is missing from a reloaded playlist restarts at the top.  So
+    this drives the production ``portrait_no_loop`` against a real player with
+    exactly that shape of browse — stubbing only where the browse's *contents* come
+    from, since the real library might happen to include the clip on screen and
+    then never exercise the case at all.
+    """
+    config = _bridge_config(satellite, tmp_path)
+    playing = satellite.video()
+    browse = [v for v in _playlist_videos(satellite) if v != playing]
+    assert playing not in browse
+
+    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+        dispatch_command("portrait_no_loop", BridgeState(portrait_loop="seed"), config)
+
+    _drained(satellite)
+    time.sleep(0.5)
+    assert satellite.video() == playing, "loop off must never switch the clip on screen"
