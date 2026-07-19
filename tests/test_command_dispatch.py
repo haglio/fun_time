@@ -473,6 +473,17 @@ def test_nau_length_full_writes_set_length_mode(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full"
 
 
+def test_end_compilation_writes_end_compilation(tmp_path: Path):
+    """Out of a compilation without naming a length — Nau goes back to whichever
+    mode it was in when it entered."""
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    dispatch_command("nau_end_compilation", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION"
+
+
 def test_nau_length_mixed_writes_set_length_mode(tmp_path: Path):
     """The unfiltered mode Nau opens in, and the way back to it from either half."""
     config = _make_config(tmp_path)

@@ -122,6 +122,9 @@ VOICE_COMMANDS: dict[str, str] = {
     # not in the vosk vocabulary, so "full video" is the reliable phrase; "full
     # vid" stays as a fallback the model uses only if it knows the word.
     "compilation": "nau_compilation",
+    # …and back out of one, without having to name a length: Nau returns to
+    # whichever mode was feeding the playlist when it went in.
+    "end compilation": "nau_end_compilation",
     "full video": "nau_full_vid",
     "full vid": "nau_full_vid",
     "money shot": "nau_money_shot",

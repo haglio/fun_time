@@ -240,6 +240,11 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["full length"] == "nau_length_full"
         assert VOICE_COMMANDS["mixed"] == "nau_length_mixed"
 
+    def test_end_compilation_leaves_without_naming_a_length(self):
+        """"compilation" gets you in; this gets you out, back to whichever length
+        mode was feeding the playlist before — the same shape as "end loop"."""
+        assert VOICE_COMMANDS["end compilation"] == "nau_end_compilation"
+
     def test_primary_reset_returns_the_playlist_to_the_default_browse(self):
         """"reset" means for the primary what it means for a satellite — drop
         whatever is narrowing the playlist — and it is order-agnostic and takes
