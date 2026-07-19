@@ -244,7 +244,7 @@ def _run_startup_phases(
     )
 
     # --- Phase 1: Launch core media stack ---
-    progress.advance("Preparing services...")
+    progress.advance("services")
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m["commands"].get("broker_tray_launcher", "").strip()
     provider_media_raw = m.get("provider_regen", "media_root", fallback="").strip()
@@ -330,20 +330,18 @@ def _run_startup_phases(
     launched.pids.extend([genau_pid, nau_pid])
 
     # --- Phase 2: Position windows (layout computed up front) ---
-    progress.advance("Computing window layout...")
-
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     role_hwnds: dict[str, int] = {}
 
     if not hide_windows:
         # --- Normal mode: position immediately ---
-        progress.advance("Positioning windows...")
+        # No progress reporting on this path: it is the integration one, and the
+        # loading screen (with the reporter that drives it) belongs to the other.
         portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
         _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=not skip_activate)
         _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=not skip_activate)
         logger.info("Core windows positioned")
 
-        progress.advance("Finalizing window layout...")
         role_hwnds = _apply_startup_window_state(
             portrait_hwnd=portrait_hwnd,
             landscape_hwnd=landscape_hwnd,
@@ -353,12 +351,12 @@ def _run_startup_phases(
         logger.info("Startup window state applied")
 
     # --- Phase 2.5: Launch Random Favs Browser ---
-    progress.advance("Launching browser...")
+    progress.advance("browser")
     rfb_hwnd = _maybe_launch_random_favs_browser(m, plan)
     launched.rfb_hwnd = rfb_hwnd
 
     # --- Phase 3: Launch UI companions ---
-    progress.advance("Launching companions...")
+    progress.advance("companions")
     time.sleep(1.2)
 
     dashboard_enabled = m["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
@@ -389,12 +387,16 @@ def _run_startup_phases(
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
     if hide_windows:
-        progress.advance("Positioning windows...")
+        # Named for the wait it actually is: the players open their own windows,
+        # and until they have there is nothing here to position.
+        progress.advance("players")
 
         # The satellites launched playing (their paused flag is unset) and own
         # their playlists, so there is nothing to start here — just resolve and
         # position each behind the loading overlay.
         portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
+
+        progress.advance("windows")
         _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
         _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
         logger.info("Core windows positioned (deferred reveal)")
@@ -425,7 +427,7 @@ def _run_startup_phases(
         _apply_primary_slot_visibility(role_hwnds["nau"], role_hwnds["genau"])
         logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
 
-        progress.advance("Finalizing...")
+        progress.advance("finalizing")
 
     # The reveal: startup mode is nau, so Nau starts playing once startup
     # completes. This runs in both paths — the loading-screen (hide_windows)
