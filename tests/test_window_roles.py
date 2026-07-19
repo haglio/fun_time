@@ -9,10 +9,10 @@ from fun_time.window_roles import (
 
 
 class TestRoleTopmost:
-    """Every managed window is topmost in every mode EXCEPT Nau, which is
-    topmost only while it owns the display.  In hybrid both Nau and Genau are
-    topmost (Genau's HUD stacked above Nau) — the stacking is enforced by
-    promotion order, so ``role_topmost`` just says both belong in the band."""
+    """The windows with their own rect are always topmost.  The two that SHARE
+    the primary rect are each topmost only while they are showing something —
+    in hybrid that is both, with Genau's HUD stacked above Nau by promotion
+    order, which is not this flag's job."""
 
     def test_nau_is_topmost_whenever_it_displays(self):
         # Nau owns the display in nau and hybrid, so it floats topmost in both.
@@ -21,8 +21,17 @@ class TestRoleTopmost:
         # In genau mode Nau is hidden and stays out of the band.
         assert role_topmost("nau", "genau") is False
 
-    def test_every_other_role_is_always_topmost(self):
-        for role in ("rfb", "portrait", "landscape", "genau", "dashboard"):
+    def test_genau_is_topmost_only_where_it_displays(self):
+        """Genau is promoted last, so being in the band at all puts it ABOVE
+        Nau.  In nau mode it is the hidden slot-mate and must stay out — leaving
+        omnipause re-applies the bands with no hide op to mask it, and Genau came
+        back over Nau's video."""
+        assert role_topmost("genau", "genau") is True
+        assert role_topmost("genau", "hybrid") is True
+        assert role_topmost("genau", "nau") is False
+
+    def test_every_window_with_its_own_rect_is_always_topmost(self):
+        for role in FIXED_TOPMOST_ROLES:
             for mode in ("nau", "hybrid", "genau"):
                 assert role_topmost(role, mode) is True, (role, mode)
 

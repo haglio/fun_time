@@ -44,11 +44,12 @@ PID_TO_HWND = {
     500: DASHBOARD_HWND,
 }
 
-# The windows that are topmost in EVERY mode.  Nau is the exception: its band is
-# mode-dependent (topmost in nau mode, non-topmost under Genau's HUD in hybrid,
-# hidden in genau), so each test folds NAU_HWND in or out of this set as needed.
+# The windows that are topmost in EVERY mode — the ones that own a rect and so
+# overlap nothing.  Nau and Genau SHARE the primary rect, so each is in the band
+# only in the modes where it shows something; every test folds those two in or
+# out as its own mode requires.
 TOPMOST_HWNDS = {
-    RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, GENAU_HWND, DASHBOARD_HWND,
+    RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
 }
 
 
@@ -712,14 +713,19 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert runner.state.omni_paused is True
-        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
         self, tmp_path, monkeypatch,
     ):
         """Leaving omnipause in nau mode gives every managed window its TOPMOST
         bit back — INCLUDING Nau, which floats above the desktop again — and
-        re-activates the window that owns the primary display."""
+        re-activates the window that owns the primary display.
+
+        Genau is the exception, and the reason this is worth pinning: it shares
+        Nau's rect and is promoted last, so putting it back in the band puts it
+        ABOVE Nau's video.  Coming back from omnipause used to do exactly that.
+        """
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
@@ -739,6 +745,7 @@ class TestDispatchLoopRunner:
 
         assert runner.state.omni_paused is False
         assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS | {NAU_HWND}
+        assert GENAU_HWND not in {h for h, v in topmost_calls if v is True}
         assert activated == [NAU_HWND]
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
@@ -1457,7 +1464,7 @@ class TestModeDependentTopmost:
 
         calls = self._topmost_calls(runner, "_remove_all_topmost")
 
-        assert {h for h, v in calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
+        assert {h for h, v in calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_restore_all_topmost_floats_nau_in_nau_mode(self, tmp_path):
         """nau mode: Nau reclaims the topmost band, above the desktop."""
@@ -1532,7 +1539,7 @@ class TestHandleOpenFileDialog:
             runner._handle_open_file_dialog()
 
         removed = {h for h, v in topmost_calls if not v}
-        assert removed == TOPMOST_HWNDS | {NAU_HWND}
+        assert removed == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_shows_file_dialog_with_primary_sources_dir(self, tmp_path):
         """Shows our own file dialog with the first primary_sources directory."""
@@ -1632,7 +1639,7 @@ class TestHandleOpenFileDialog:
         # genau mode: Nau is hidden and never joins the topmost band — it is
         # explicitly held non-topmost, never promoted.
         restored = {h for h, v in topmost_calls if v}
-        assert restored == TOPMOST_HWNDS
+        assert restored == TOPMOST_HWNDS | {GENAU_HWND}
         assert (NAU_HWND, False) in topmost_calls
         assert NAU_HWND not in restored
 
@@ -1933,7 +1940,7 @@ class TestIdempotentVoiceCommands:
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_enter_omnipause_noop_when_already_paused(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)

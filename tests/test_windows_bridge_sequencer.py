@@ -262,11 +262,12 @@ class TestRunStartupSequence:
         moved_hwnds = {c[0] for c in move_calls}
         assert {3030, 4040} <= moved_hwnds
 
-        # nau startup mode: every managed window is promoted to topmost — Nau
-        # (2525) included, so it floats above the desktop like the primary
-        # player always has.
+        # nau startup mode: the windows that own a rect are promoted to topmost,
+        # Nau (2525) included so it floats above the desktop like the primary
+        # player always has.  Genau (6060) is the hidden slot-mate and stays out
+        # of the band — it is promoted last, so being in it puts it over Nau.
         promoted = {h for h, on in topmost_calls if on}
-        assert promoted == {3030, 4040, 6060, 2525}
+        assert promoted == {3030, 4040, 2525}
 
     def test_returns_layout_plan(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
