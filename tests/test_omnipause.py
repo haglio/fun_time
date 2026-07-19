@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fun_time.broker_control import RETRACT_CMD
 from fun_time.omnipause import build_omnipause_plan
 
 
@@ -30,6 +31,15 @@ def test_leave_nau_mode_resumes_nau():
     assert plan.action == "leave"
     assert plan.genau_branch is False
     assert plan.resume_nau_playback is True
+
+
+def test_relief_enters_omnipause_but_retracts_the_osr2():
+    """Relief is an enter in every respect but one: the OSR2 goes away rather
+    than home, because the point of it is getting the device off the user."""
+    plan = build_omnipause_plan("relief", omni_paused=False, primary_mode="nau")
+
+    assert plan.next_omni_paused is True
+    assert plan.broker_command == RETRACT_CMD
 
 
 def test_leave_hybrid_mode_resumes_nau():

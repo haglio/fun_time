@@ -61,6 +61,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Omnipause / resume", ("Esc",), ("omnipause_toggle", "pause", "play")),
             # Space and "pause" both enter Omnipause; "pause" is shown for parity.
             _Row("Omnipause", ("Space",), ("enter_omnipause",), ("pause",)),
+            _Row(
+                "Relief Omnipause — pause everything and retract the OSR2 away "
+                "from you, rather than parking it",
+                ("Shift+Esc",),
+                ("relief_omnipause",),
+            ),
             _Row("Toggle F-Mode", ("F",), ("fmode_toggle", "fmode_on", "fmode_off")),
             _Row("Latest — (re)load Portrait/Landscape newest-first", (), ("both_latest",)),
             _Row("Shuffle — reshuffle Portrait/Landscape (cancels Latest; keeps filters)", (), ("both_shuffle",)),
@@ -298,6 +304,10 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     # the two-word "un mute" and the reference shows "unmute".
     ("un mute", "unmute"),
     ("un pause", "unpause"),
+    # …nor "omnipause", though it has both halves, so the recognizer hears the
+    # split "omni pause" and the reference shows the single word.  Listed after
+    # "un pause" so that rewrite has already run and cannot re-split this one.
+    ("omni pause", "omnipause"),
 )
 
 

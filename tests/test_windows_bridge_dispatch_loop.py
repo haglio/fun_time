@@ -1960,6 +1960,42 @@ class TestIdempotentVoiceCommands:
 
         mock_d.assert_not_called()
 
+    # -- relief_omnipause (Shift+Esc) --
+
+    def test_relief_omnipause_still_dispatches_when_already_paused(self, tmp_path):
+        """Space is swallowed when the session is already paused; Shift+Esc is not.
+
+        A paused session can still have the device on the user — that is the case
+        relief exists for — so the retract must reach the broker rather than being
+        dropped as a redundant enter.
+        """
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(omni_paused=True)
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("relief_omnipause", encoding="utf-8")
+
+        with patch.object(runner, "_dispatch") as mock_d:
+            runner.tick()
+
+        assert [call.args[0] for call in mock_d.call_args_list] == ["relief_omnipause"]
+
+    def test_relief_omnipause_logs_the_topmost_state_like_any_other_entry(self, tmp_path):
+        """Relief drops every window out of the topmost band exactly as Space and
+        Esc do, so it owes the same post-enter record — that log is what pins a
+        window which re-asserted itself while the session was meant to be free."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner._last_sync = float("inf")
+        runner.state = BridgeState(omni_paused=False)
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("relief_omnipause", encoding="utf-8")
+
+        with patch.object(runner, "_dispatch"), \
+             patch.object(runner, "_log_topmost_state") as mock_log:
+            runner.tick()
+
+        mock_log.assert_called_once_with("post-enter")
+
     # -- lock portrait / lock landscape --
 
     def test_portrait_lock_on_dispatches_when_unlocked(self, tmp_path):

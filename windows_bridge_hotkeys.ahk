@@ -55,9 +55,16 @@ Log("Hotkey script started")
 
 ; -------------------- HOTKEYS --------------------
 
+; Exempt from the wholesale Suspend that omnipause applies: the way out
+; (Esc), the way to quit (Ctrl+Alt+Q), and the sensation emergency (Shift+Esc),
+; which has to work from INSIDE omnipause — a paused session can still have the
+; device on the user.  Shift+Esc is a hotkey in its own right: an unprefixed
+; hotkey does not fire while an extra modifier is held, so Esc and +Esc never
+; shadow each other (as Left/+Left and a/+a already do below).
 #SuspendExempt true
 ^!q::ExitApp()
 Esc::QueueCommand("omnipause_toggle")
++Esc::QueueCommand("relief_omnipause")
 #SuspendExempt false
 
 Space::QueueCommand("enter_omnipause")
