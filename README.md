@@ -240,7 +240,7 @@ Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the
 
 The same builder (`build_fmode_playlists`) writes all three playlist files at startup, so startup and the F-mode toggle share one playlist authority.
 
-Because the narrowing is invisible in the playlist itself, each satellite's status line says when it is on, carrying `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`).
+Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and Nau's mode HUD carries it beside the length mode or compilation — Nau is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other.
 
 ### Cycle action & cycle seed (satellites)
 
@@ -326,14 +326,21 @@ Genau (the `../genau` project) consumes and clears this file.
 
 Written by the Python dispatch loop when Nau control commands are dispatched; Nau consumes and clears it.
 
-Commands:
+Commands (the full set `nau/runtime.py` answers to):
 
 - `NEXT` / `PREV`
 - `SEEK_FWD` / `SEEK_BACK`
+- `SPEED_UP` / `SPEED_DOWN` / `SET_SPEED min|max|<rate>`
+- `SET_VOLUME 0-100`
 - `RECORD_DOWN` / `RECORD_UP` / `RECORD_TAP`
 - `LOOP_CANCEL`
+- `CYCLE_VERSION`
 - `PLAY_FILE video[TAB]funscript`
 - `RELOAD_PLAYLIST`
+- `TOGGLE_LENGTH_MODE` / `SET_LENGTH_MODE mixed|shorts|full`
+- `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_MONEY_SHOT`
+- `SET_TCODE_ENABLED 0|1`
+- `SET_HYBRID 0|1` / `SET_F_MODE 0|1` — state only the orchestrator holds and Nau cannot work out for itself; both drive what its HUD shows
 - `QUIT`
 
 ### `nau_paused.txt`
@@ -350,7 +357,7 @@ Per-video watch counts (`completions` / `skips` / `locks`) keyed by normalized p
 
 ### `nau_playlist.tsv`
 
-One video per line, with a TAB plus the funscript path when one exists. Written by `build_fmode_playlists` at startup and on every F-mode toggle (which also sends Nau `RELOAD_PLAYLIST`).
+One video per line, with a TAB plus the funscript path when one exists. Written by `build_fmode_playlists` at startup and on every F-mode toggle (which also sends Nau `RELOAD_PLAYLIST` and `SET_F_MODE`, on one write — the command file is overwritten, not appended).
 
 ### `event_log.jsonl`
 
