@@ -2527,5 +2527,36 @@ class TestHudPublishing:
 
         assert publish.call_count == 2, "one publish per side on the first tick only"
 
+    def test_a_status_that_cannot_be_read_keeps_the_clip_it_last_named(self, tmp_path):
+        """A satellite always has a clip, so a status file that reads blank means
+        the read lost — not that the player has nothing.
+
+        Believing the blank republishes an empty panel, which the player renders
+        as a HUD with nothing on it, and the next tick puts it back: the map
+        blinks.  It is most visible under OmniPause, where the picture is frozen
+        and the map is the only thing that can move.
+        """
+        runner = self._runner_with_hud(tmp_path)
+        status = tmp_path / "portrait_status.txt"
+        _write_satellite_status(status, "C:/v/p.mp4", fraction=0.1)
+        runner.tick()
+
+        status.write_text("", encoding="utf-8")  # caught mid-republish
+        runner._last_hud_publish -= 1  # past the publish throttle
+        runner.tick()
+
+        portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        assert portrait["corner"]["path"] == "C:/v/p.mp4"
+
+    def test_a_satellite_that_has_not_started_yet_publishes_an_empty_panel(self, tmp_path):
+        # The other side of it: before a satellite's first status there is no
+        # clip to hold onto, and an empty map is the truth.
+        runner = self._runner_with_hud(tmp_path)
+
+        runner.tick()
+
+        portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        assert portrait["corner"] is None
+
     def test_a_runner_without_a_hud_publisher_just_ticks(self, tmp_path):
         make_runner(tmp_path).tick()

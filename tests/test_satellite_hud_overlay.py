@@ -90,6 +90,34 @@ def test_the_overlay_is_removed_when_the_panel_goes_away(tmp_path: Path, panel: 
     assert player.overlays == {}
 
 
+def test_a_panel_that_cannot_be_read_this_frame_keeps_the_map_up(
+    tmp_path: Path, panel: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """fun_time replaces this file while the player polls it 60x/s, so a read can
+    lose that race and come back as a sharing violation.
+
+    That is not the panel going away — it is one frame that could not see it.
+    Tearing the overlay down for it, and rebuilding it on the next frame, is a
+    HUD that blinks.
+    """
+    player = FakeSatellitePlayer()
+    overlay = _overlay(tmp_path, panel, player)
+    overlay.tick()
+    drawn = player.overlays[overlay.overlay_id][2]
+
+    real_read_text = Path.read_text
+
+    def refuse(self, *args, **kwargs):
+        if self == panel:
+            raise PermissionError(32, "The process cannot access the file")
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", refuse)
+    overlay.tick()
+
+    assert player.overlays[overlay.overlay_id][2] is drawn
+
+
 def test_a_single_click_posts_the_switch_once_its_window_lapses(tmp_path: Path, panel: Path):
     """A click on a thumbnail could be the first half of a double-click, so the
     switch is posted by a later tick — not by the press itself."""

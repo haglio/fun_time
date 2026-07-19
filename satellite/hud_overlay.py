@@ -96,7 +96,7 @@ class HudOverlay:
     def tick(self) -> None:
         """Re-read the published panel, redraw if it moved, and post a due click."""
         text = self._read()
-        if text != self._published:
+        if text is not None and text != self._published:
             self._published = text
             model = parse_hud(text) if text else None
             if model is not None:
@@ -144,11 +144,22 @@ class HudOverlay:
         from the player window's top-left corner."""
         return x - MARGIN, y - MARGIN
 
-    def _read(self) -> str:
+    def _read(self) -> str | None:
+        """The published panel: its text, ``""`` when there is none to show, or
+        None when this frame could not see it.
+
+        Those last two are different answers and were once the same one.  The
+        file is replaced by fun_time while this polls it every frame, so a read
+        can lose that race and raise — and treating that as "no panel" takes the
+        whole map off the video for a frame, then puts it back on the next one.
+        Only the file actually being gone means there is nothing to draw.
+        """
         try:
             return self._hud_file.read_text(encoding="utf-8")
-        except OSError:
+        except FileNotFoundError:
             return ""
+        except OSError:
+            return None
 
     def _draw(self) -> None:
         if self._model is None or self._renderer is None:
