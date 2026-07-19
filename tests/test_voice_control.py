@@ -157,8 +157,9 @@ class TestVoiceCommands:
             # "end loop" is side-agnostic — it reaches Nau's own loop through the
             # active-side resolution, not by naming the player here.
             "end loop": "active_no_loop",
-            "cycle version": "nau_cycle_version",
-            "next version": "nau_cycle_version",
+            # The bare axis word is the literal one; "cycle / next / change
+            # version" are generated with the other cycle axes.
+            "version": "nau_cycle_version",
             "shorts": "nau_length_shorts",
             "full length": "nau_length_full",
             "browse": "open_file_dialog",
@@ -234,8 +235,13 @@ class TestVoiceCommands:
     def test_hybrid_activates_hybrid(self):
         assert VOICE_COMMANDS["hybrid"] == "hybrid_activate"
 
-    def test_nau_cycle_version_and_length_phrases(self):
-        assert VOICE_COMMANDS["cycle version"] == "nau_cycle_version"
+    def test_nau_version_is_spoken_like_every_other_cycle_axis(self):
+        """"version" is an axis like "action" and "seed": the bare word cycles
+        it, and so does an explicit verb up front."""
+        for phrase in ("version", "cycle version", "next version", "change version"):
+            assert VOICE_COMMANDS[phrase] == "nau_cycle_version"
+
+    def test_nau_length_phrases(self):
         assert VOICE_COMMANDS["shorts"] == "nau_length_shorts"
         assert VOICE_COMMANDS["full length"] == "nau_length_full"
         assert VOICE_COMMANDS["mixed"] == "nau_length_mixed"
