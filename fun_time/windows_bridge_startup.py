@@ -23,6 +23,7 @@ from .satellite_control import read_satellite_status
 from .session_resume import resume_playlists
 from .watch_stats import watch_stats_path
 from .orchestrator_broker import (
+    BROKER_LAUNCHER_PATTERN,
     BROKER_PROCESS_PATTERN,
     BROKER_TRAY_PATTERN,
     broker_launch_kwargs,
@@ -65,10 +66,10 @@ def stop_broker_processes() -> None:
     ps_command = (
         "$targets = Get-CimInstance Win32_Process | Where-Object { "
         "(($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $_.CommandLine -match '"
-        + BROKER_PROCESS_PATTERN
+        + BROKER_PROCESS_PATTERN + "|" + BROKER_TRAY_PATTERN
         + "') -or "
-        "(($_.Name -match '^powershell\\.exe$|^pwsh\\.exe$|^wscript\\.exe$') -and $_.CommandLine -match '"
-        + BROKER_TRAY_PATTERN
+        "(($_.Name -match '^wscript\\.exe$') -and $_.CommandLine -match '"
+        + BROKER_LAUNCHER_PATTERN
         + "') "
         "}; "
         "$targets | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
