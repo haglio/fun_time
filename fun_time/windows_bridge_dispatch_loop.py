@@ -22,6 +22,7 @@ from .command_dispatch import (
     command_side,
     dispatch_command,
 )
+from .dashboard_actions import HELP_REFERENCE_COMMANDS
 from .event_log import NOTICE, notice
 from .hud_transport import HudPublisher
 from .lock_hud import build_panels
@@ -539,7 +540,7 @@ class DispatchLoopRunner:
         if cmd == "quit":
             self.ahk_cmd_file.write_text("exit", encoding="utf-8")
             return
-        if cmd in ("help_reference", "help_reference_close"):
+        if cmd in HELP_REFERENCE_COMMANDS:
             # Pure dashboard-UI action: the press above tells the dashboard to
             # toggle/close the hotkeys/voice popup — nothing to dispatch here.
             return

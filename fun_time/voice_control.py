@@ -15,6 +15,7 @@ from pathlib import Path
 
 from fun_time.command_dispatch import command_side
 from fun_time.command_reference import friendly_voice
+from fun_time.dashboard_actions import HELP_REFERENCE_COMMANDS
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_PORTRAIT,
@@ -48,10 +49,14 @@ def _source_for_command(command: str) -> str:
 
 # Omnipause suspends the AHK hotkeys wholesale and exempts exactly two: Esc,
 # which resumes, and Ctrl+Alt+Q, which quits (``#SuspendExempt`` in
-# windows_bridge_hotkeys.ahk).  Voice is frozen the same way and exempts the
-# same two actions — "play" resumes, "quit"/"exit" quits.  Nothing else a
-# paused room says (or a paused room's noise says) reaches the dispatch loop.
-SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({"play", "quit"})
+# windows_bridge_hotkeys.ahk).  Voice mirrors those two — "play" resumes,
+# "quit"/"exit" quits — and adds the reference popup, which has no hotkey to
+# mirror: it opens a dashboard window and touches no player, so a paused room
+# has nothing to be protected from, while a pause is exactly when the user
+# stops to look a phrase up.  Nothing else a paused room says reaches the
+# dispatch loop; what keeps a paused room's NOISE out — the bug that first put
+# the popup behind this freeze — is the confidence gate on recognition.
+SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({"play", "quit"}) | HELP_REFERENCE_COMMANDS
 
 
 def build_grammar() -> str:
