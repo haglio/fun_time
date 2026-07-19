@@ -71,15 +71,16 @@ def _never_mutate_a_real_window(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _never_hold_the_live_loopback_port(monkeypatch):
-    """Keep the orchestrator tests off ``LOOPBACK_PORT``, which is machine-wide.
+    """Keep the orchestrator tests off the port a live session serves on.
 
     Every test that runs ``run_python_orchestrated_bridge`` reaches the real
     ``serve_loopback``, and a bound port is a bound port: for the length of the
-    run this pytest — not the user — owns 8770.  A Fun Time opened meanwhile
+    run this pytest — not the user — would own 8770.  A Fun Time opened meanwhile
     finds it busy, logs the warning, and comes up with no loopback server at
     all, so Tampermonkey stops auto-updating and the RFB tab pages never hear
-    about OmniPause.  The integration suite overrides this: its session is
-    supposed to serve, and the live-session guard keeps it alone on the machine.
+    about OmniPause.  The integration suite needs no override: it runs the
+    orchestrator as a subprocess, which never sees this patch, and gives that
+    subprocess a ``loopback_port`` of its own to serve on.
     """
     monkeypatch.setattr(windows_bridge_orchestrator, "serve_loopback", lambda **_kwargs: None)
 
