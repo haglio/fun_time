@@ -285,6 +285,7 @@ _NAU_CMD_MAP = {
     "nau_toggle_length": "TOGGLE_LENGTH_MODE",
     "nau_length_shorts": "SET_LENGTH_MODE shorts",
     "nau_length_full": "SET_LENGTH_MODE full",
+    "nau_length_mixed": "SET_LENGTH_MODE mixed",
     "nau_compilation": "PLAY_COMPILATION",
     "nau_full_vid": "PLAY_FULL_VID",
     "nau_money_shot": "PLAY_MONEY_SHOT",

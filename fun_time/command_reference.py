@@ -96,9 +96,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             ),
             _Row("Cycle through versions of the current video", ("V",), ("nau_cycle_version",)),
             _Row(
-                "Toggle viewing full-length vs short content",
+                "Length of what plays: \"mixed\" (the default, everything), "
+                "\"shorts\", or \"full length\"; \"primary reset\" also returns "
+                "to mixed, and leaves any compilation with it",
                 ("T",),
-                ("nau_toggle_length", "nau_length_shorts", "nau_length_full"),
+                ("nau_toggle_length", "nau_length_shorts", "nau_length_full",
+                 "nau_length_mixed"),
             ),
             _Row(
                 "Clip navigation: \"compilation\" plays the clip's compilation "

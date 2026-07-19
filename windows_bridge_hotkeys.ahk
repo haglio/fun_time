@@ -125,7 +125,7 @@ r up:: {
 ; Nau: cycle to another same-content version of the current video.
 v::QueueCommand("nau_cycle_version")
 
-; Nau: toggle full-length vs short content.
+; Nau: cycle the length of what plays — mixed (everything) / shorts / full-length.
 t::QueueCommand("nau_toggle_length")
 
 ; Genau direct control hotkeys

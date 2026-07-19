@@ -115,6 +115,9 @@ VOICE_COMMANDS: dict[str, str] = {
     "next version": "nau_cycle_version",
     "shorts": "nau_length_shorts",
     "full length": "nau_length_full",
+    # The unfiltered library Nau opens in, and so the way back out of either
+    # half — "primary reset" says the same thing (see the primary grid below).
+    "mixed": "nau_length_mixed",
     # Clip navigation (larkin-style clips carved from compilations). "vid" is
     # not in the vosk vocabulary, so "full video" is the reliable phrase; "full
     # vid" stays as a fallback the model uses only if it knows the word.
@@ -264,14 +267,19 @@ for _cycle_cmd, _cycle_phrases in _SATELLITE_CYCLE_PHRASES.items():
     for _cycle_phrase in _cycle_phrases:
         VOICE_COMMANDS[_cycle_phrase] = _cycle_cmd
 
-# The primary (Nau) player joins the grid for navigation ONLY — "primary next"
-# / "next primary" (either order) — since it has no lock/weird/cycle.  "main" is
-# a synonym for "primary".  Bare "next"/"previous" also reach it whenever it was
-# the last player navigated (the active side resolves to the primary then).
+# The primary (Nau) player joins the grid for navigation and reset — "primary
+# next" / "next primary" (either order) — since it has no lock/weird/cycle.
+# "main" is a synonym for "primary".  Bare "next"/"previous" also reach it
+# whenever it was the last player navigated (the active side resolves to the
+# primary then).  "reset" means here what it means for a satellite — drop
+# whatever is narrowing the playlist, back to the default browse — which for Nau
+# is leaving any compilation and any length filter for the mixed library.
 for _player_word in ("primary", "main"):
     for _nav_word, _nav in {"next": "next", "previous": "prev"}.items():
         VOICE_COMMANDS[f"{_player_word} {_nav_word}"] = f"primary_{_nav}"
         VOICE_COMMANDS[f"{_nav_word} {_player_word}"] = f"primary_{_nav}"
+    VOICE_COMMANDS[f"{_player_word} reset"] = "nau_length_mixed"
+    VOICE_COMMANDS[f"reset {_player_word}"] = "nau_length_mixed"
 
 # Mode-named navigation: a mode's name + next/previous (either order) navigates
 # that mode's player.  Nau and Hybrid drive the primary (Nau owns the primary

@@ -108,6 +108,33 @@ def test_nau_to_hybrid_keeps_nau_playing(flow_files):
     assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
 
 
+def _nau_cmds(files) -> list[str]:
+    path = files["nau_cmd_file"]
+    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+
+
+def test_every_mode_switch_tells_nau_whether_it_is_hybrid(flow_files):
+    """Genau's window is a transparent layer over Nau's in hybrid and its own
+    panel holds the top-left corner, so Nau has to move its own aside — and only
+    this knows which mode the primary slot is in."""
+    _mode_switch(flow_files, current="nau", target="hybrid")
+    assert "SET_HYBRID 1" in _nau_cmds(flow_files)
+
+    _mode_switch(flow_files, current="hybrid", target="nau")
+    assert "SET_HYBRID 0" in _nau_cmds(flow_files)
+
+    _mode_switch(flow_files, current="nau", target="genau")
+    assert "SET_HYBRID 0" in _nau_cmds(flow_files)
+
+
+def test_leaving_hybrid_keeps_both_nau_commands(flow_files):
+    """The command file is overwritten, not appended, so the hybrid signal must
+    ride along with the T-Code re-enable rather than replace it."""
+    _mode_switch(flow_files, current="hybrid", target="nau")
+
+    assert _nau_cmds(flow_files) == ["SET_HYBRID 0", "SET_TCODE_ENABLED 1"]
+
+
 def test_hybrid_to_nau_keeps_nau_playing(flow_files):
     result = _mode_switch(flow_files, current="hybrid", target="nau")
 
@@ -132,13 +159,15 @@ def test_leaving_hybrid_reenables_nau_tcode(flow_files):
     for target in ("nau", "genau"):
         flow_files["nau_cmd_file"].unlink(missing_ok=True)
         _mode_switch(flow_files, current="hybrid", target=target)
-        assert flow_files["nau_cmd_file"].read_text(encoding="utf-8") == "SET_TCODE_ENABLED 1"
+        assert "SET_TCODE_ENABLED 1" in _nau_cmds(flow_files)
 
 
-def test_non_hybrid_transition_leaves_nau_cmd_untouched(flow_files):
-    _mode_switch(flow_files, current="nau", target="genau")
+def test_entering_hybrid_does_not_reenable_nau_tcode(flow_files):
+    """The arbiter owns that lever inside hybrid; asserting it back on here would
+    fight it."""
+    _mode_switch(flow_files, current="nau", target="hybrid")
 
-    assert not flow_files["nau_cmd_file"].exists()
+    assert "SET_TCODE_ENABLED 1" not in _nau_cmds(flow_files)
 
 
 def test_genau_to_hybrid_starts_nau(flow_files):

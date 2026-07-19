@@ -238,6 +238,14 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["cycle version"] == "nau_cycle_version"
         assert VOICE_COMMANDS["shorts"] == "nau_length_shorts"
         assert VOICE_COMMANDS["full length"] == "nau_length_full"
+        assert VOICE_COMMANDS["mixed"] == "nau_length_mixed"
+
+    def test_primary_reset_returns_the_playlist_to_the_default_browse(self):
+        """"reset" means for the primary what it means for a satellite — drop
+        whatever is narrowing the playlist — and it is order-agnostic and takes
+        "main" for "primary" like the rest of that grid."""
+        for phrase in ("primary reset", "reset primary", "main reset", "reset main"):
+            assert VOICE_COMMANDS[phrase] == "nau_length_mixed"
 
     def test_satellite_grid_supports_both_orders(self):
         """Each satellite action works BARE (→ active side) and with a side word
