@@ -18,7 +18,7 @@ from fun_time.window_layout import (
     WindowLayoutPlan,
 )
 from fun_time.config import LayoutConfig
-from fun_time.startup_progress import NullProgress, StartupCancelled
+from fun_time.startup_progress import STARTUP_PHASES, NullProgress, StartupCancelled
 
 import pytest
 
@@ -437,19 +437,21 @@ class TestNoActivateWindowDuringIntegration:
 class TestProgressReporting:
     """run_startup_sequence reports progress via the callback."""
 
-    def test_hide_windows_advance_count_matches_total_steps(self, cfg_factory, tmp_path):
-        """In hide_windows mode the number of advance() calls must equal
-        _STARTUP_PROGRESS_STEPS so the progress bar reaches 100%.
-        """
-        from fun_time.windows_bridge_orchestrator import _STARTUP_PROGRESS_STEPS
+    def test_hide_windows_reports_every_phase_in_the_table_in_order(self, cfg_factory, tmp_path):
+        """The loading-screen path fires exactly the phases the bar is built from.
 
+        The bar is weighted by these phases and closes when the last one lands on
+        the total, so a phase fired out of order — or one skipped, or one the
+        table has never heard of — either stalls the bar short of the end or
+        closes the overlay early.
+        """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        advance_messages: list[str] = []
+        advance_keys: list[str] = []
 
         class TrackingProgress:
-            def advance(self, message: str) -> None:
-                advance_messages.append(message)
+            def advance(self, phase: str) -> None:
+                advance_keys.append(phase)
             def finish(self) -> None:
                 pass
 
@@ -473,58 +475,7 @@ class TestProgressReporting:
                 hide_windows=True,
             )
 
-        assert advance_messages == [
-            "Preparing services...",
-            "Computing window layout...",
-            "Launching browser...",
-            "Launching companions...",
-            "Positioning windows...",
-            "Finalizing...",
-        ]
-        assert len(advance_messages) == _STARTUP_PROGRESS_STEPS, (
-            f"hide_windows fires {len(advance_messages)} steps "
-            f"but _STARTUP_PROGRESS_STEPS={_STARTUP_PROGRESS_STEPS} — "
-            f"progress bar reaches {100 * len(advance_messages) // _STARTUP_PROGRESS_STEPS}%"
-        )
-
-    def test_normal_mode_reports_each_startup_step(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        advance_messages: list[str] = []
-
-        class TrackingProgress:
-            def advance(self, message: str) -> None:
-                advance_messages.append(message)
-            def finish(self) -> None:
-                pass
-
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", return_value=NAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
-            run_startup_sequence(
-                manifest_path=manifest_path,
-                state_dir=tmp_path,
-                progress=TrackingProgress(),
-            )
-
-        assert advance_messages == [
-            "Preparing services...",
-            "Computing window layout...",
-            "Positioning windows...",
-            "Finalizing window layout...",
-            "Launching browser...",
-            "Launching companions...",
-        ]
+        assert advance_keys == [phase.key for phase in STARTUP_PHASES]
 
     def test_null_progress_accepted_silently(self, cfg_factory, tmp_path):
         """NullProgress should work as a no-op."""

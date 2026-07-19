@@ -152,11 +152,6 @@ def kill_process_tree(pid: int) -> None:
         pass
 
 
-# Number of progress steps reported by run_startup_sequence in hide_windows
-# mode (the only mode with a loading screen).
-_STARTUP_PROGRESS_STEPS = 6
-
-
 def _shutdown_children(rfb_hwnd: int, children: dict[str, ChildProcess]) -> None:
     """Kill all child processes launched during startup."""
     close_window(rfb_hwnd)
@@ -381,9 +376,7 @@ def run_python_orchestrated_bridge(
     # this one before the user has touched anything.
     cancel_file.unlink(missing_ok=True)
     if show_loading:
-        progress = StartupProgress(
-            progress_file, total_steps=_STARTUP_PROGRESS_STEPS, cancel_file=cancel_file
-        )
+        progress = StartupProgress(progress_file, cancel_file=cancel_file)
         python_exe = sys.executable
         loading_proc = subprocess.Popen(
             [python_exe, "-m", "fun_time.loading_screen", str(progress_file)],
