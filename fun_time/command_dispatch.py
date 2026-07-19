@@ -556,11 +556,11 @@ def _dispatch_more_seeds(
     """Widen the seed row the HUD draws around the current clip — "more seeds".
 
     This does NOT change what is playing; it records that this clip's net is
-    widened, and the HUD redraws its seed row with the near-matches ranked in.  If
-    a seed loop is already running it is re-looped over that wider pool so the
-    satellite cycles exactly what the HUD now shows.  Only a library holding
-    nothing but this clip can fail to widen, so the dead end is a real "there is no
-    other video", not "nothing matched"."""
+    widened, and the HUD redraws its seed row with the near-matches ranked in.  It
+    then loops that pool — the point of a wider row is to cycle it — which also
+    re-shapes a seed loop that was already running onto exactly what the HUD now
+    shows.  Only a library holding nothing but this clip can fail to widen, so the
+    dead end is a real "there is no other video", not "nothing matched"."""
     source = _satellite_source(which)
     current = target_path or _satellite_current(config, which)
     if not current:
@@ -572,11 +572,11 @@ def _dispatch_more_seeds(
     if wide <= exact:
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
     state = _set_side_widen(state, which, current)
-    # If the row is already being looped, widen the loop too: rebuild its
-    # sub-playlist to the wider pool so the satellite cycles what the HUD now draws (the
-    # widen anchor now matches the clip on screen, so the loop picks it up).
-    if (state.portrait_loop if which == 2 else state.landscape_loop) == "seed":
-        state, _loop_ops = _dispatch_group_loop(which, "seed", state, config, target_path=current)
+    # Loop the pool that was just widened: the widen anchor now matches the clip on
+    # screen, so the loop gathers the wider row the HUD draws.  This starts a loop
+    # where none was running and re-shapes one that was.  Its notices are dropped —
+    # "More seeds" is the one thing that happened, from the user's side.
+    state, _loop_ops = _dispatch_group_loop(which, "seed", state, config, target_path=current)
     return state, [WindowOp(op="notice", key="More seeds", source=source)]
 
 

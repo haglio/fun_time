@@ -225,6 +225,9 @@ class GroupIndex:
     seed_members: dict[str, list[str]]
     path_by_key: dict[str, str]
     scene_tags_by_path: dict[str, frozenset[str]] = field(default_factory=dict)
+    # Which clips were animated from a generated image rather than from text
+    # alone.  The two look nothing alike, so the widen ranks its own kind first.
+    image_to_video_by_path: dict[str, bool] = field(default_factory=dict)
 
     def contains(self, path: str) -> bool:
         return normalize_path_key(path) in self.path_by_key
@@ -269,33 +272,47 @@ def widened_seed_members(
     """The widened seed row for *path* — "more seeds": its exact seed family plus
     the *additions* clips whose scene is closest to it.
 
-    Closeness is prompt-tag overlap (:func:`scene_tags`), with clips of the same
-    action ranked ahead of the rest — the seed axis means "the same act, another
-    subject", and a different act of this very subject is what the action column is
-    for.  Ranking rather than set-membership is what makes this always find
-    something: an exact-config family is often just this clip, and holding any
-    field fixed to widen (prompts, render settings) can match nothing at all,
-    but *nearest* is well defined as long as the library holds another video.
+    Candidates are ranked on three keys, in this order:
+
+    1. **Same generation kind.**  An image-to-video clip and a text-to-video one
+       look drastically different however alike their prompts read, so the widen
+       stays inside the kind it started in.
+    2. **Same action.**  The seed axis means "the same act, another subject", and a
+       different act of this very subject is what the action column is for.
+    3. **Prompt-tag overlap** (:func:`scene_tags`) — how alike the scenes are.
+
+    Each is a preference, not a filter, so a rare act (or kind) falls through to
+    the next-best thing rather than to nothing.  Ranking rather than
+    set-membership is what makes this always find something: an exact-config
+    family is often just this clip, and holding any field fixed to widen
+    (prompts, render settings) can match nothing at all, but *nearest* is well
+    defined as long as the library holds another video.
     """
     key = normalize_path_key(path)
     members = list(seed_family_members(index, path))
+    if not any(normalize_path_key(member) == key for member in members):
+        # A clip with no exact family of its own (no sidecar, no seed) is still
+        # the row it anchors, so the pool always opens with it.
+        members.insert(0, index.path_by_key.get(key, path))
     seen = {normalize_path_key(member) for member in members} | {key}
     action = index.action_by_path.get(key, "")
+    from_image = index.image_to_video_by_path.get(key, False)
     mine = index.scene_tags_by_path.get(key, frozenset())
     ranked = sorted(
         (
             (
+                index.image_to_video_by_path.get(other_key, False) == from_image,
                 index.action_by_path.get(other_key, "") == action,
                 _tag_overlap(mine, index.scene_tags_by_path.get(other_key, frozenset())),
                 other_key,
             )
-            for other_key, other in index.path_by_key.items()
+            for other_key in index.path_by_key
             if other_key not in seen
         ),
         # Nearest first; the path key only breaks ties, so the row is stable.
-        key=lambda scored: (-scored[0], -scored[1], scored[2]),
+        key=lambda scored: (-scored[0], -scored[1], -scored[2], scored[3]),
     )
-    members.extend(index.path_by_key[scored[2]] for scored in ranked[:max(additions, 0)])
+    members.extend(index.path_by_key[scored[-1]] for scored in ranked[:max(additions, 0)])
     return members
 
 
@@ -352,6 +369,7 @@ def build_group_index(
     seed_members: dict[str, list[str]] = {}
     path_by_key: dict[str, str] = {}
     scene_tags_by_path: dict[str, frozenset[str]] = {}
+    image_to_video_by_path: dict[str, bool] = {}
     for path in video_paths:
         path_by_key[normalize_path_key(path)] = path
         sidecar = metadata_path_for(path, metadata_root)
@@ -361,6 +379,7 @@ def build_group_index(
         action = str((metadata.get("video") or {}).get("action") or "").strip()
         if action:
             action_by_path[normalize_path_key(path)] = action
+        image_to_video_by_path[normalize_path_key(path)] = bool(metadata.get("source_image"))
         tags = scene_tags(metadata)
         if tags:
             scene_tags_by_path[normalize_path_key(path)] = tags
@@ -379,6 +398,7 @@ def build_group_index(
         seed_members=seed_members,
         path_by_key=path_by_key,
         scene_tags_by_path=scene_tags_by_path,
+        image_to_video_by_path=image_to_video_by_path,
     )
 
 

@@ -1264,9 +1264,10 @@ def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
     assert dead[0].level == FAILED_NOTICE_LEVEL
 
 
-def test_more_seeds_widens_the_display_without_changing_the_clip(tmp_path: Path):
-    """"more seeds" no longer switches the video — it records that this clip's
-    seed row is widened, which the HUD reads to grow the row in place."""
+def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Path):
+    """"more seeds" never jumps to another clip — it records that this clip's seed
+    row is widened (which the HUD reads to grow the row in place) and loops that
+    row, which reshapes the queue but leaves the clip on screen playing."""
     cur, other = tmp_path / "cur.mp4", tmp_path / "other.mp4"
     cur.write_text("x", encoding="utf-8")
     other.write_text("x", encoding="utf-8")
@@ -1286,7 +1287,8 @@ def test_more_seeds_widens_the_display_without_changing_the_clip(tmp_path: Path)
     with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert _cmds(config, 2) == []   # nothing switched
+    assert not any(cmd.startswith("PLAY_FILE") for cmd in _cmds(config, 2))  # no jump
+    assert _playlist(config, 2)[0] == c   # the clip on screen leads the looped queue
     assert state.portrait_widen_clip == c
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
@@ -1339,6 +1341,24 @@ def test_more_seeds_reports_widening_failed_only_when_the_library_holds_one_clip
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Widening net failed"]
     assert notices[0].level == FAILED_NOTICE_LEVEL
+
+
+def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
+    """Widening the row starts the seed loop too — the point of a wider row is to
+    cycle it, so the satellite plays the widened pool without a separate "loop
+    seeds" after it."""
+    config = _make_config(tmp_path)
+    index, a, a2, b = _widened_loop_index(tmp_path)
+
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+        state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)  # no loop running
+
+    assert sorted(_playlist(config, 2)) == sorted([a, a2, b])   # looping the widened pool
+    assert "RELOAD_PLAYLIST" in _cmds(config, 2)
+    assert state.portrait_loop == "seed"
+    assert state.portrait_widen_clip == a
+    assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
 def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):

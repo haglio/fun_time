@@ -468,6 +468,29 @@ def test_widened_seed_members_never_dead_end_on_a_one_of_a_kind_clip(tmp_path: P
     assert members == [paths["solo"], paths["near"]]
 
 
+def test_widened_seed_members_stay_within_the_clips_generation_kind(tmp_path: Path):
+    """An image-to-video clip and a text-to-video one look drastically different
+    even doing the same act, so the widen ranks its own kind above the action: a
+    t2v clip of this very act loses to an i2v clip of another one."""
+    def i2v(action: str, seed: str, prompt: str) -> dict:
+        return {
+            "video": {"prompt": f"do {action}", "action": action, "seed": seed},
+            "source_image": {"positive_prompt": prompt, "seed": seed},
+        }
+
+    media_root, metadata_root, paths = _write_library(tmp_path, {
+        "cur": i2v("Delta", "1", "a, b, c"),
+        "t2v_same_act": _t2v("Delta", "2", prompt="a, b, c"),  # every tag shared — but t2v
+        "i2v_other_act": i2v("Alpha", "3", "a, b, d"),            # own kind, another act
+    })
+    index = build_group_index(list(paths.values()), metadata_root)
+
+    members = widened_seed_members(index, paths["cur"], additions=1)
+
+    assert members == [paths["cur"], paths["i2v_other_act"]]
+    assert paths["t2v_same_act"] not in members
+
+
 def test_widened_seed_members_prefer_the_same_action_over_a_closer_scene(tmp_path: Path):
     """The seed axis is "the same act, another subject", so a same-act clip outranks
     a nearer-scened one doing something else — that other act is what the HUD's
