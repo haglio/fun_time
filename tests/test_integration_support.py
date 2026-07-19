@@ -22,7 +22,7 @@ from tests.integration.integration_support import (
     INTEGRATION_CONFIG_NAME,
     FunTimeIntegrationSession,
     close_udp_sinks,
-    isolate_shared_udp_ports,
+    isolate_shared_resources,
 )
 
 
@@ -31,9 +31,13 @@ GENAU_INBOUND_PORT = 50555
 AUDIO_COMPANION_PORT = 50556
 
 
-def _real_ports() -> tuple[dict, dict]:
-    """The two configs as the user's session has them, sharing the machine's ports."""
-    config = {"audio_companion": {"host": "127.0.0.1", "port": AUDIO_COMPANION_PORT}}
+def _the_users_config() -> tuple[dict, dict]:
+    """The two configs as the user's own session has them, naming what the machine shares."""
+    config = {
+        "audio_companion": {"host": "127.0.0.1", "port": AUDIO_COMPANION_PORT},
+        "paths": {"broker_tray_launcher": "../osr2_broker/launch_broker_tray.vbs"},
+        "voice_control": {"enabled": True, "device_name": "Brio"},
+    }
     genau_config = {
         "genau": {
             "udp_port": GENAU_INBOUND_PORT,
@@ -49,8 +53,8 @@ def _real_ports() -> tuple[dict, dict]:
 @pytest.fixture
 def isolated_ports():
     """The rewritten pair, with the run's sink ports released afterwards."""
-    config, genau_config = _real_ports()
-    isolate_shared_udp_ports(config, genau_config)
+    config, genau_config = _the_users_config()
+    isolate_shared_resources(config, genau_config)
     try:
         yield config, genau_config
     finally:
@@ -214,6 +218,39 @@ def test_the_runs_tcode_port_is_bound_so_the_stream_has_somewhere_to_land(isolat
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rival:
         with pytest.raises(OSError):
             rival.bind(("127.0.0.1", port))
+
+
+def test_a_run_never_starts_or_adopts_the_machines_broker(isolated_ports):
+    """The broker is a machine singleton holding the OSR2's serial port.
+
+    A session start launches its tray, and the dashboard's broker actions can
+    kill every broker on the machine — a sweep matched by command line, with
+    nothing for a working directory to scope.  Neither belongs to a test run:
+    the broker is not the run's to start, and is emphatically not the run's to
+    kill out from under the user.
+
+    Emptying the launcher is what makes all of it inert, without a second mode
+    in the production code: ``start_broker`` and ``launch_broker_tray`` both
+    do nothing without one, and the kill path is only ever reached through a
+    *fresh* heartbeat — which a run's own state dir, where no broker writes,
+    can never show.
+    """
+    config, _genau_config = isolated_ports
+
+    assert config["paths"]["broker_tray_launcher"] == ""
+
+
+def test_a_run_never_opens_the_microphone(isolated_ports):
+    """Voice control resolves its mic by name and opens the machine's one Brio.
+
+    Windows shares an input device between listeners rather than refusing the
+    second, so a run would not fail — it would quietly listen in on the user and
+    act on what they said to their own session.  There is one microphone and no
+    per-desktop version of it, so the only isolation is not opening it.
+    """
+    config, _genau_config = isolated_ports
+
+    assert config["voice_control"]["enabled"] is False
 
 
 def test_the_integration_config_never_shares_genaus_inbound_socket(isolated_ports):
