@@ -212,7 +212,7 @@ def _collapse_recent(
     *,
     by_seed_family: bool = False,
 ) -> list[str]:
-    """Newest-first, one slot per group — the premiere review order.
+    """Newest-first, one slot per group — the Recents review order.
 
     New arrivals stay the focus: each group is represented by its most recent
     member and sits at that member's position, so the freshest clip of a group
@@ -241,7 +241,7 @@ def build_satellite_playlist_paths(
         files = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
     # An attribute filter narrows to videos whose metadata matches; it needs the
     # metadata root to reach each sidecar, so without it the filter is a no-op.
-    # Applied before ordering, so it holds under both premiere and shuffle.
+    # Applied before ordering, so it holds under both Recents and Shuffle.
     filtered = bool(filter_query) and (
         library is not None and library.metadata_root is not None
     )
@@ -251,7 +251,7 @@ def build_satellite_playlist_paths(
             for full_path in files
             if path_matches_query(full_path, library.metadata_root, filter_query)
         ]
-    # With a library, both orders collapse to one slot per group: premiere
+    # With a library, both orders collapse to one slot per group: Recents
     # (recent) keeps newest-first, the shuffle build weighted-randomizes.  A
     # filtered view collapses seed families (one per param-set) rather than
     # action groups.  With no library there is nothing to group by, so just
@@ -323,7 +323,8 @@ def build_satellite_playlists(
     favs_file: Path,
     state_dir: Path,
     f_mode: bool,
-    recent: bool,
+    portrait_recent: bool = False,
+    landscape_recent: bool = False,
     portrait_filter: str = "",
     landscape_filter: str = "",
     rng: random.Random | None = None,
@@ -331,18 +332,19 @@ def build_satellite_playlists(
 ) -> None:
     """Build and write the Portrait/Landscape satellite playlists (the two satellites).
 
-    Ordering follows ``recent``: newest-first when set, otherwise shuffled
-    (with action-group collapse and watch weighting when *library* is given).
-    Each satellite honours its own ``*_filter`` independently.
+    Each satellite honours its own filter AND its own ordering — newest-first when
+    its ``*_recent`` is set, otherwise shuffled (with action-group collapse and
+    watch weighting when *library* is given) — since Recents and Shuffle are sided
+    commands and the two satellites can be in different orders.
     """
     build_one_satellite_playlist(
         sources=portrait_sources, name=PLAYLIST_PORTRAIT, favs_file=favs_file,
-        state_dir=state_dir, f_mode=f_mode, recent=recent,
+        state_dir=state_dir, f_mode=f_mode, recent=portrait_recent,
         filter_query=portrait_filter, rng=rng, library=library,
     )
     build_one_satellite_playlist(
         sources=landscape_sources, name=PLAYLIST_LANDSCAPE, favs_file=favs_file,
-        state_dir=state_dir, f_mode=f_mode, recent=recent,
+        state_dir=state_dir, f_mode=f_mode, recent=landscape_recent,
         filter_query=landscape_filter, rng=rng, library=library,
     )
 
@@ -355,7 +357,8 @@ def build_fmode_playlists(
     favs_file: Path,
     state_dir: Path,
     enabled: bool,
-    recent: bool = False,
+    portrait_recent: bool = False,
+    landscape_recent: bool = False,
     portrait_filter: str = "",
     landscape_filter: str = "",
     rng: random.Random | None = None,
@@ -368,7 +371,8 @@ def build_fmode_playlists(
         favs_file=favs_file,
         state_dir=state_dir,
         f_mode=enabled,
-        recent=recent,
+        portrait_recent=portrait_recent,
+        landscape_recent=landscape_recent,
         portrait_filter=portrait_filter,
         landscape_filter=landscape_filter,
         rng=rng,

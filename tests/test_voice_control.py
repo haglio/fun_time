@@ -648,8 +648,13 @@ def test_resume_and_unpause_are_synonyms_for_play():
     assert "unpause" not in VOICE_COMMANDS  # single OOV token — never a phrase
 
 
-def test_shuffle_is_a_standalone_command():
-    assert VOICE_COMMANDS["shuffle"] == "shuffle"
+def test_shuffle_joins_the_order_agnostic_satellite_grid():
+    """Shuffle is sided like its counterpart Recents, so a single satellite can be
+    reshuffled without disturbing the other."""
+    assert VOICE_COMMANDS["shuffle"] == "active_shuffle"
+    for side in ("portrait", "landscape", "both"):
+        assert VOICE_COMMANDS[f"{side} shuffle"] == f"{side}_shuffle"
+        assert VOICE_COMMANDS[f"shuffle {side}"] == f"{side}_shuffle"
 
 
 def test_reset_joins_the_order_agnostic_satellite_grid():

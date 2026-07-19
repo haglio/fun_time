@@ -2494,7 +2494,7 @@ class TestHudPublishing:
         landscape = json.loads((tmp_path / "landscape_hud.json").read_text(encoding="utf-8"))
         assert portrait["side"] == "portrait"
         assert portrait["locked"] is True
-        assert portrait["lock_label"] == "Locked"
+        assert portrait["lock_label"] == "Locked · Shuffle"
         assert portrait["filter_query"] == "alpha"
         assert portrait["corner"]["path"] == "C:/v/p.mp4"
         assert landscape["locked"] is False

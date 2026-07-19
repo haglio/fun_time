@@ -93,7 +93,6 @@ def _make_state(**overrides) -> BridgeState:
         primary_mode="nau",
         f_mode_enabled=False,
         omni_paused=False,
-        recency_order=False,
     )
     defaults.update(overrides)
     return BridgeState(**defaults)
@@ -675,9 +674,11 @@ def test_fmode_panel_click_dispatches_as_fmode_toggle(tmp_path: Path):
     assert new_state.locked3 is False
 
 
-def test_fmode_toggle_passes_current_recency_order(tmp_path: Path):
+def test_fmode_toggle_passes_each_sides_current_order(tmp_path: Path):
+    """F-mode rebuilds both satellites, and the two can be in different orders, so
+    each side's own ordering has to go with it."""
     config = _make_config(tmp_path)
-    state = _make_state(f_mode_enabled=False, recency_order=True)
+    state = _make_state(f_mode_enabled=False, portrait_recents=True, landscape_recents=False)
 
     with patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode:
         mock_fmode.return_value = type("R", (), {
@@ -689,7 +690,8 @@ def test_fmode_toggle_passes_current_recency_order(tmp_path: Path):
         })()
         dispatch_command("fmode_toggle", state, config)
 
-    assert mock_fmode.call_args.kwargs["recent"] is True
+    assert mock_fmode.call_args.kwargs["portrait_recent"] is True
+    assert mock_fmode.call_args.kwargs["landscape_recent"] is False
 
 
 def test_fmode_toggle_passes_provider_roots_for_group_collapse(tmp_path: Path):
@@ -963,7 +965,7 @@ def test_filter_command_both_scope_notices_each_satellite_under_its_own_source(t
 
 def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
     # A filter that matched nothing kept the current playlist, so it must not be
-    # recorded — otherwise a later premiere/F-mode rebuild would blank the satellite.
+    # recorded — otherwise a later reorder/F-mode rebuild would blank the satellite.
     config = _make_config(tmp_path)
     state = _make_state()
 
@@ -1003,7 +1005,7 @@ def test_fmode_toggle_passes_active_filters(tmp_path: Path):
     assert kwargs["landscape_filter"] == "kissing"
 
 
-def test_premiere_refresh_passes_active_filters_and_roots(tmp_path: Path):
+def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
     config = replace(
         _make_config(tmp_path),
         provider_media_root=tmp_path / "media",
@@ -1011,51 +1013,79 @@ def test_premiere_refresh_passes_active_filters_and_roots(tmp_path: Path):
     )
     state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
 
-    with patch("fun_time.command_dispatch.apply_reorder_satellites") as mock_recency:
-        mock_recency.return_value = type("R", (), {
-            "next_recency_order": True, "next_locked2": False,
-            "next_locked3": False, "log_message": "x",
-        })()
-        dispatch_command("recency_order_refresh", state, config)
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(applied=True)
+        dispatch_command("portrait_recents", state, config)
 
-    kwargs = mock_recency.call_args.kwargs
-    assert kwargs["recent"] is True  # Premiere = newest-first
-    assert kwargs["portrait_filter"] == "alpha"
-    assert kwargs["landscape_filter"] == "kissing"
+    kwargs = mock_filter.call_args.kwargs
+    assert kwargs["recent"] is True  # Recents = newest-first
+    assert kwargs["query"] == "alpha"  # its own filter is kept
     assert kwargs["provider_media_root"] == tmp_path / "media"
 
 
-def test_shuffle_reorders_both_satellites_without_recency(tmp_path: Path):
+def test_recents_reorders_only_the_side_it_names(tmp_path: Path):
+    """"portrait premiere" used not to parse at all — the ordering was global.  A
+    sided reorder reloads that satellite and leaves the other one alone."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_filter="alpha")
 
-    with patch("fun_time.command_dispatch.apply_reorder_satellites") as mock_reorder:
-        mock_reorder.return_value = type("R", (), {
-            "next_recency_order": False, "next_locked2": False,
-            "next_locked3": False, "log_message": "x",
-        })()
-        new_state, _ops = dispatch_command("shuffle", state, config)
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(applied=True)
+        state, ops = dispatch_command("portrait_recents", _make_state(), config)
 
-    kwargs = mock_reorder.call_args.kwargs
-    assert kwargs["recent"] is False  # Shuffle cancels Premiere's newest-first
-    assert kwargs["portrait_filter"] == "alpha"  # filters kept
-    assert new_state.recency_order is False
+    assert [call.kwargs["which"] for call in mock_filter.call_args_list] == [2]
+    assert state.portrait_recents is True
+    assert state.landscape_recents is False
+    assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
+
+
+def test_shuffle_puts_one_side_back_without_touching_the_other(tmp_path: Path):
+    """Recents' counterpart has to be sided too, or a side reloaded newest-first
+    could never be shuffled back on its own."""
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_recents=True, landscape_recents=True)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(applied=True)
+        new_state, _ops = dispatch_command("landscape_shuffle", state, config)
+
+    assert mock_filter.call_args.kwargs["recent"] is False
+    assert new_state.landscape_recents is False
+    assert new_state.portrait_recents is True  # the other side keeps its order
+
+
+def test_a_sided_reorder_drops_that_sides_lock_and_loop(tmp_path: Path):
+    """The rebuild replaces the queue, so whatever the side was holding — a lock, a
+    group loop, a widened row — goes with it."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=True, portrait_loop="seed",
+                        portrait_map_anchor="C:/v/a.mp4", portrait_widen_clip="C:/v/a.mp4")
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(applied=True)
+        new_state, _ops = dispatch_command("portrait_recents", state, config)
+
+    assert new_state.locked2 is False
+    assert new_state.portrait_loop == ""
+    assert new_state.portrait_map_anchor == ""
+    assert new_state.portrait_widen_clip == ""
 
 
 def test_reset_clears_the_filter_and_reshuffles(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(portrait_filter="alpha", landscape_filter="kissing", recency_order=True)
+    state = _make_state(portrait_filter="alpha", landscape_filter="kissing",
+                        portrait_recents=True, landscape_recents=True)
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_reset", state, config)
 
-    # Clears only its side's filter, drops premiere, and rebuilds (query="").
+    # Clears only its side's filter, drops that side's Recents order, and rebuilds.
+    assert new_state.portrait_recents is False
+    assert new_state.landscape_recents is True  # the other side is untouched
     assert mock_filter.call_args.kwargs["query"] == ""
     assert mock_filter.call_args.kwargs["recent"] is False
     assert new_state.portrait_filter == ""
     assert new_state.landscape_filter == "kissing"
-    assert new_state.recency_order is False
 
 
 # --- portrait/landscape cycle action & cycle seed ---
@@ -1435,35 +1465,27 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
     assert _cmds(config, 2) == []  # ...and never touches the portrait side.
 
 
-# --- recency_order_refresh ---
+# --- recents / shuffle ---
 
 
-def test_recency_order_refresh_keeps_recent_and_resets_locks(tmp_path: Path):
+def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     config = _make_config(tmp_path)
     config.provider_media_root = tmp_path / "media"
     config.provider_metadata_root = tmp_path / "metadata"
-    # Already in Premiere: pressing again must keep newest-first, never toggle off.
-    state = _make_state(recency_order=True, locked2=True, locked3=True)
+    # Already in Recents: asking again must keep newest-first, never toggle off.
+    state = _make_state(portrait_recents=True, locked2=True)
 
-    with patch("fun_time.command_dispatch.apply_reorder_satellites") as mock_recency:
-        mock_recency.return_value = type("R", (), {
-            "next_recency_order": True,
-            "next_locked2": False,
-            "next_locked3": False,
-            "log_message": "Premiere: Portrait/Landscape reloaded newest-first",
-        })()
-        new_state, ops = dispatch_command("recency_order_refresh", state, config)
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(applied=True)
+        new_state, _ops = dispatch_command("portrait_recents", state, config)
 
-    assert new_state.recency_order is True
+    assert new_state.portrait_recents is True
     assert new_state.locked2 is False
-    assert new_state.locked3 is False
-    kwargs = mock_recency.call_args.kwargs
-    # The refresh always targets newest-first, so it takes no prior-order input.
-    assert "recency_order" not in kwargs
+    kwargs = mock_filter.call_args.kwargs
+    assert kwargs["recent"] is True
     assert kwargs["f_mode_enabled"] is False
-    assert kwargs["portrait_cmd_file"] == config.portrait_cmd_file
-    assert kwargs["landscape_cmd_file"] == config.landscape_cmd_file
-    # Premiere must collapse action groups too, so the provider roots flow through.
+    assert kwargs["cmd_file"] == config.portrait_cmd_file
+    # Recents must collapse action groups too, so the provider roots flow through.
     assert kwargs["provider_media_root"] == config.provider_media_root
     assert kwargs["provider_metadata_root"] == config.provider_metadata_root
 
@@ -2495,23 +2517,22 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
-def test_premiere_clears_both_loops(tmp_path: Path):
+def test_a_reorder_clears_only_its_own_sides_loop(tmp_path: Path):
+    """A reorder rebuilds the side it names, so that side's loop goes — and the
+    other side, which was not rebuilt, keeps looping."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_reorder_satellites") as mock_reorder:
-        mock_reorder.return_value = type(
-            "R", (), {"next_recency_order": True, "next_locked2": False,
-                      "next_locked3": False, "log_message": ""}
-        )()
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(applied=True)
         state, _ops = dispatch_command(
-            "recency_order_refresh",
+            "portrait_recents",
             _make_state(portrait_loop="seed", landscape_loop="action",
                         portrait_widen_clip="C:/v/p.mp4", landscape_widen_clip="C:/v/l.mp4"),
             config,
         )
 
-    assert (state.portrait_loop, state.landscape_loop) == ("", "")
-    assert (state.portrait_widen_clip, state.landscape_widen_clip) == ("", "")
+    assert (state.portrait_loop, state.portrait_widen_clip) == ("", "")
+    assert (state.landscape_loop, state.landscape_widen_clip) == ("action", "C:/v/l.mp4")
 
 
 def test_fmode_toggle_clears_both_loops(tmp_path: Path):

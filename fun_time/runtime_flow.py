@@ -69,14 +69,6 @@ class FModeFlowResult:
     log_message: str
 
 
-@dataclass(frozen=True)
-class RecencyOrderFlowResult:
-    next_recency_order: bool
-    next_locked2: bool
-    next_locked3: bool
-    log_message: str
-
-
 def apply_mode_switch(
     *,
     current_mode: str,
@@ -120,7 +112,8 @@ def apply_mode_switch(
 def apply_toggle_fmode(
     *,
     f_mode_enabled: bool,
-    recent: bool,
+    portrait_recent: bool,
+    landscape_recent: bool,
     primary_sources: str,
     portrait_sources: str,
     landscape_sources: str,
@@ -144,7 +137,8 @@ def apply_toggle_fmode(
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         enabled=target_enabled,
-        recent=recent,
+        portrait_recent=portrait_recent,
+        landscape_recent=landscape_recent,
         portrait_filter=portrait_filter,
         landscape_filter=landscape_filter,
         library=_satellite_library(state_dir, provider_metadata_root),
@@ -161,55 +155,6 @@ def apply_toggle_fmode(
     )
 
 
-def apply_reorder_satellites(
-    *,
-    recent: bool,
-    f_mode_enabled: bool,
-    portrait_sources: str,
-    landscape_sources: str,
-    favs_file: str | Path,
-    state_dir: str | Path,
-    portrait_cmd_file: str | Path,
-    landscape_cmd_file: str | Path,
-    portrait_filter: str = "",
-    landscape_filter: str = "",
-    provider_media_root: Path | None = None,
-    provider_metadata_root: Path | None = None,
-) -> RecencyOrderFlowResult:
-    """Rebuild and reload the Portrait/Landscape playlists in a fresh order.
-
-    ``recent`` chooses the order: newest-first (Premiere) or reshuffled
-    (Shuffle, Premiere's counterpart).  Either rescans the satellite sources —
-    honouring the current F-mode and metadata filters — so newly-arrived files
-    are picked up, writes each satellite's playlist file, and tells the player to
-    re-read it (RELOAD_PLAYLIST keeps the clip on screen playing when it survives
-    the reorder, else restarts from the top).  Clips still collapse to one entry
-    per group when the provider roots are supplied.  The primary/Nau player is left
-    alone.  A rebuild drops any per-window lock, so the caller's lock flags reset.
-    """
-    build_satellite_playlists(
-        portrait_sources=portrait_sources,
-        landscape_sources=landscape_sources,
-        favs_file=Path(favs_file),
-        state_dir=Path(state_dir),
-        f_mode=f_mode_enabled,
-        recent=recent,
-        portrait_filter=portrait_filter,
-        landscape_filter=landscape_filter,
-        library=_satellite_library(state_dir, provider_metadata_root),
-    )
-    order = "newest-first" if recent else "reshuffled"
-    logger.info("Reordering satellites %s", order)
-    write_satellite_command(Path(portrait_cmd_file), RELOAD_PLAYLIST_CMD)
-    write_satellite_command(Path(landscape_cmd_file), RELOAD_PLAYLIST_CMD)
-    return RecencyOrderFlowResult(
-        next_recency_order=recent,
-        next_locked2=False,
-        next_locked3=False,
-        log_message=f"{'Premiere' if recent else 'Shuffle'}: Portrait/Landscape {order}",
-    )
-
-
 def satellite_browse_paths(
     *,
     which: int,
@@ -222,7 +167,7 @@ def satellite_browse_paths(
     provider_metadata_root: Path | None = None,
 ) -> list[str]:
     """The paths a satellite's default browse holds under *query* and the current
-    ordering — one clip per group, filter-honouring, premiere/shuffle-aware.
+    ordering — one clip per group, filter-honouring, Recents/Shuffle-aware.
 
     This is the list a filter rebuild loads into the satellite, and equally the
     target "no loop" reshapes the queue back to when a group loop ends.  ``which``
@@ -259,7 +204,7 @@ def apply_satellite_filter(
     """Rebuild and reload one satellite (2=portrait, 3=landscape) under *query*.
 
     Ordering follows the caller's ``recent``/``f_mode`` just like a full rebuild,
-    so the filtered playlist still honours premiere vs shuffle and F-mode.  A
+    so the filtered playlist still honours Recents vs Shuffle and F-mode.  A
     non-empty query that matches nothing leaves the current playlist in place
     rather than blanking the satellite; ``query == ""`` clears the filter.  The
     playlist file it writes is the one the satellite plays, so a RELOAD_PLAYLIST

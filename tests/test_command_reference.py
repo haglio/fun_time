@@ -112,7 +112,7 @@ def test_both_section_lists_combined_satellite_commands():
         "both_lock_on", "both_lock_off",
         "both_cycle_action", "both_cycle_seed", "both_more_seeds",
         "both_action_loop", "both_seed_loop", "both_no_loop", "both_lock_action",
-        "both_reset",
+        "both_shuffle", "both_reset",
     }
     # Voice phrases are derived from VOICE_COMMANDS, so each row surfaces one —
     # side word first ("both next", "both lock"), matching every satellite row.
@@ -215,14 +215,36 @@ def test_no_say_column_leaks_the_raw_un_mute_form():
             assert "un mute" not in phrase, phrase
 
 
-def test_premiere_row_uses_p_key_and_premiere_voice():
-    """The newest-first refresh is branded "Premiere": P key, spoken "premiere"."""
-    assert VOICE_COMMANDS["premiere"] == "recency_order_refresh"
-    rows = [r for r in _all_rows() if "recency_order_refresh" in r.commands]
-    assert len(rows) == 1, "expected exactly one Premiere row"
+def test_recents_row_uses_p_key_and_recents_voice():
+    """The newest-first refresh is branded "Recents": P key, spoken "both recents".
+    The old name, "premiere", is gone rather than kept as a synonym."""
+    rows = [r for r in _all_rows() if "both_recents" in r.commands]
+    assert len(rows) == 1, "expected exactly one both-sides Recents row"
     row = rows[0]
     assert row.hotkeys == ("P",)
-    assert "premiere" in row.voice
+    assert "both recents" in row.voice
+    assert "premiere" not in VOICE_COMMANDS
+
+
+def test_end_loop_ends_a_satellite_loop_only_when_a_side_is_named():
+    """"end loop" is what comes out when you say what you mean.  Bare it is already
+    Nau's phrase — the cancel for its A-B loop — so only the sided forms were given
+    to the satellites."""
+    assert VOICE_COMMANDS["portrait end loop"] == "portrait_no_loop"
+    assert VOICE_COMMANDS["end loop landscape"] == "landscape_no_loop"
+    assert VOICE_COMMANDS["both end loop"] == "both_no_loop"
+    assert VOICE_COMMANDS["end loop"] == "nau_loop_cancel"
+
+
+def test_recents_and_shuffle_reach_one_side_or_both():
+    """Both orderings were global-only, so "portrait premiere" parsed as nothing.
+    They join the side grid like every other satellite action — and shuffle has to
+    come too, or a side put in recents order could never be shuffled back alone."""
+    for word, action in (("recents", "recents"), ("shuffle", "shuffle")):
+        assert VOICE_COMMANDS[word] == f"active_{action}"
+        assert VOICE_COMMANDS[f"portrait {word}"] == f"portrait_{action}"
+        assert VOICE_COMMANDS[f"{word} landscape"] == f"landscape_{action}"
+        assert VOICE_COMMANDS[f"both {word}"] == f"both_{action}"
 
 
 def test_voice_phrases_are_derived_from_voice_commands():

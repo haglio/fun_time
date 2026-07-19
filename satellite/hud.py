@@ -67,6 +67,11 @@ class HudModel:
     current_action: str = ""
     filter_query: str = ""
     active_loop: str = ""
+    # How many clips each axis stands for, the clip on screen included.  The map
+    # draws only the cells that fit, so it prints these in its top-left corner —
+    # the only place the real size of each axis can be read.
+    seed_count: int = 0
+    action_count: int = 0
     # The map cell actually on screen — the corner normally, or another cell
     # while a loop plays a non-anchor member of the group.  Drawn bright; the
     # rest dim.
@@ -485,5 +490,7 @@ def parse_hud(text: str) -> HudModel | None:
         current_action=str(raw.get("current_action", "") or ""),
         filter_query=str(raw.get("filter_query", "") or ""),
         active_loop=str(raw.get("active_loop", "") or ""),
+        seed_count=int(raw.get("seed_count", 0) or 0),
+        action_count=int(raw.get("action_count", 0) or 0),
         playing=(str(playing[0]), int(playing[1])),
     )

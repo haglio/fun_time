@@ -52,7 +52,7 @@ def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
 
     assert panel.side == "portrait"
     assert panel.locked is True
-    assert panel.lock_label == "Locked"
+    assert panel.lock_label == "Locked · Shuffle"
     assert panel.current == CUR
     assert panel.action_siblings == sorted([A1, A2])
     assert panel.seed_siblings == [S1]
@@ -78,7 +78,7 @@ def test_panel_labels_an_unlocked_satellite():
     panel = build_hud_panel("landscape", locked=False, current=CUR, index=index)
 
     assert panel.locked is False
-    assert panel.lock_label == "Unlocked"
+    assert panel.lock_label == "Unlocked · Shuffle"
     assert panel.action_siblings == [A1]  # siblings show whether locked or not
 
 
@@ -87,7 +87,7 @@ def test_panel_folds_a_future_lock_type_into_the_label():
 
     panel = build_hud_panel("portrait", locked=True, current=CUR, index=index, lock_type="seed")
 
-    assert panel.lock_label == "Locked · seed"
+    assert panel.lock_label == "Locked · seed · Shuffle"
 
 
 def test_panel_without_a_current_video_has_no_siblings():
@@ -227,35 +227,44 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
     assert panel.seed_siblings == [near]  # still the widened row, not CUR's exact family
 
 
-def test_a_running_loop_says_how_many_clips_it_is_cycling():
-    """The status line is the only place the size of the looped set can be read: the
-    map draws just the cells that fit, so seeing three thumbnails says nothing about
-    whether the loop is cycling three clips or thirty."""
+def test_the_status_line_holds_every_state_the_side_is_in():
+    """One line to read the satellite off: the lock, whether a loop is running, and
+    which order its browse is in.  Anything the HUD knows about how the side is
+    behaving belongs up there, not spread around the panel."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    looping = build_hud_panel(
+        "portrait", locked=False, current=CUR, index=index,
+        loop_axis="seed", map_anchor=CUR, recents=True,
+    )
+    locked = build_hud_panel("portrait", locked=True, current=CUR, index=index)
+
+    assert looping.lock_label == "Unlocked · Looping · Recents"
+    assert locked.lock_label == "Locked · Shuffle"
+
+
+def test_the_status_line_says_looping_without_counting():
+    """The size of each axis is on the map itself now, so this line just says that a
+    loop is running."""
     index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"])
 
     panel = build_hud_panel(
         "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
-    assert panel.lock_label == "Looping 3 seeds"
+    assert "Looping" in panel.lock_label
+    assert "3" not in panel.lock_label
 
 
-def test_an_action_loop_counts_the_clips_it_cycles():
-    index = _index(current=CUR, action_sibs=[A1])
+def test_the_panel_counts_the_seeds_and_actions_the_map_stands_for():
+    """The map draws only the cells that fit, so the counts are the only thing that
+    says how big each axis really is — counted before any draw cap."""
+    index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"], action_sibs=[A1])
 
-    panel = build_hud_panel(
-        "portrait", locked=False, current=CUR, index=index, loop_axis="action", map_anchor=CUR,
-    )
+    panel = build_hud_panel("portrait", locked=False, current=CUR, index=index)
 
-    assert panel.lock_label == "Looping 2 actions"
-
-
-def test_the_status_line_returns_to_the_lock_state_once_the_loop_ends():
-    index = _index(current=CUR, seed_sibs=[S1])
-
-    panel = build_hud_panel("portrait", locked=True, current=CUR, index=index)
-
-    assert panel.lock_label == "Locked"
+    assert panel.seed_count == 3    # the whole family, the clip on screen included
+    assert panel.action_count == 2  # the distinct acts, its own included
 
 
 def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():

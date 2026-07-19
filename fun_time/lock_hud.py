@@ -39,15 +39,19 @@ def _lock_label(locked: bool, lock_type: str | None) -> str:
     return f"Locked · {lock_type}" if lock_type else "Locked"
 
 
-def _loop_label(axis: str, count: int) -> str:
-    """The status word for a satellite cycling a group — "Looping 7 seeds".
+def _status_label(locked: bool, lock_type: str | None, looping: bool, recents: bool) -> str:
+    """The HUD's one status line — everything the side is in, at a glance.
 
-    A loop displaces the lock state on that line, which would otherwise just read
-    "Unlocked" throughout.  The size has to be said here because the map draws only
-    the cells that fit: three thumbnails look the same whether the loop holds three
-    clips or thirty.
+    The lock, whether a loop is running, and which order the browse is in: a reader
+    should not have to look anywhere else to know how the satellite is behaving.
+    (The filter has the line below, since it can be any length.)  How big each axis
+    is belongs to the map, which prints its own counts.
     """
-    return f"Looping {count} {axis}s"
+    parts = [_lock_label(locked, lock_type)]
+    if looping:
+        parts.append("Looping")
+    parts.append("Recents" if recents else "Shuffle")
+    return " · ".join(parts)
 
 
 @dataclass(frozen=True)
@@ -69,6 +73,12 @@ class HudPanel:
     # columns are labelled by ordinal ("Seed 1", …) so need no data here.
     current_action: str = ""
     action_labels: tuple[str, ...] = ()
+    # How many clips each axis stands for, the clip on screen included: the seed
+    # family (widened when the row is) and the distinct acts of the subject.  The map
+    # draws only the cells that fit, so these are the only place the real size of
+    # each axis can be read.
+    seed_count: int = 0
+    action_count: int = 0
     filter_query: str = ""
     # Which axis this side is looping ("" none / "action" / "seed").  While a
     # loop runs, ``current`` is frozen to the group's anchor (so the map does not
@@ -257,6 +267,7 @@ def build_hud_panel(
     map_anchor: str = "",
     widen_clip: str = "",
     nav_anchor: str = "",
+    recents: bool = False,
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
@@ -285,7 +296,6 @@ def build_hud_panel(
     pool_keys = {normalize_path_key(member) for member in widened_pool}
     anchor = current
     active_loop = ""
-    loop_size = 0
     map_held = False
     nav_frozen = False
     if have_siblings and loop_axis in ("seed", "action"):
@@ -296,7 +306,6 @@ def build_hud_panel(
         else:
             group = seed_family_members(index, current)
         if len(group) >= 2:
-            loop_size = len(group)
             anchor = _map_anchor_in(group, map_anchor)
             active_loop = loop_axis
             map_held = True
@@ -341,14 +350,14 @@ def build_hud_panel(
     return HudPanel(
         side=side,
         locked=locked,
-        # A running loop owns this line — it displaces a state that would read only
-        # "Unlocked" with the one fact the map cannot show: how big the loop is.
-        lock_label=_loop_label(active_loop, loop_size) if active_loop else _lock_label(locked, lock_type),
+        lock_label=_status_label(locked, lock_type, bool(active_loop), recents),
         current=anchor,
         seed_siblings=seed,
         action_siblings=action,
         current_action=current_action,
         action_labels=action_labels,
+        seed_count=len(seed) + 1 if have_siblings else 0,
+        action_count=len(action) + 1 if have_siblings else 0,
         filter_query=filter_query,
         active_loop=active_loop,
         playing=playing,
@@ -358,6 +367,7 @@ def build_hud_panel(
 def _side_panel(
     side: str, sources: str, metadata_root: Path | None, current: str, locked: bool,
     filter_query: str, loop_axis: str, map_anchor: str, widen_clip: str, nav_anchor: str,
+    recents: bool,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if current:
@@ -373,7 +383,7 @@ def _side_panel(
     return build_hud_panel(
         side, locked=locked, current=current, index=index,
         filter_query=filter_query, loop_axis=loop_axis, map_anchor=map_anchor,
-        widen_clip=widen_clip, nav_anchor=nav_anchor,
+        widen_clip=widen_clip, nav_anchor=nav_anchor, recents=recents,
     )
 
 
@@ -381,7 +391,7 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
     """Build both satellites' group indexes up front — behind the loading screen,
     before the first clip is drawn — so the map is instant on the first refresh
     and no later refresh pays for a rebuild.  The library is fixed for the run,
-    so one build is enough (premiere is what would extend it)."""
+    so one build is enough (a Recents reload is what would extend it)."""
     for source in sources:
         if source:
             cached_group_index(
@@ -432,6 +442,8 @@ def build_panels(
     landscape_widen_clip: str = "",
     portrait_nav_anchor: str = "",
     landscape_nav_anchor: str = "",
+    portrait_recents: bool = False,
+    landscape_recents: bool = False,
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -446,12 +458,12 @@ def build_panels(
         _side_panel(
             "portrait", portrait_sources, metadata_root,
             portrait_current, portrait_locked, portrait_filter, portrait_loop,
-            portrait_map_anchor, portrait_widen_clip, portrait_nav_anchor,
+            portrait_map_anchor, portrait_widen_clip, portrait_nav_anchor, portrait_recents,
         ),
         _side_panel(
             "landscape", landscape_sources, metadata_root,
             landscape_current, landscape_locked, landscape_filter, landscape_loop,
-            landscape_map_anchor, landscape_widen_clip, landscape_nav_anchor,
+            landscape_map_anchor, landscape_widen_clip, landscape_nav_anchor, landscape_recents,
         ),
     )
 
