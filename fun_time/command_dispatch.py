@@ -94,6 +94,12 @@ class BridgeState:
     # while the clip auto-advances.
     portrait_loop: str = ""
     landscape_loop: str = ""
+    # The clip each satellite's loop started on — the head of the queue the loop
+    # wrote.  The HUD orders its map from it, so the group is drawn in the order
+    # the player actually plays it: the clip you pressed loop on in the corner,
+    # the rest walking away from it.  Persisted alongside the axis it belongs to.
+    portrait_loop_anchor: str = ""
+    landscape_loop_anchor: str = ""
     # The clip each satellite's seed row has been widened around ("more seeds").
     # While it equals the clip on screen the HUD shows the near-matches ranked in
     # alongside the family; navigating to another clip leaves it behind, so the
@@ -528,9 +534,12 @@ _NO_LOOP_SIDES: dict[str, str] = {
 }
 
 
-def _set_side_loop(state: BridgeState, which: int, axis: str) -> BridgeState:
-    """Record that *which* satellite is now running *axis*'s group loop."""
-    return replace(state, portrait_loop=axis) if which == 2 else replace(state, landscape_loop=axis)
+def _set_side_loop(state: BridgeState, which: int, axis: str, anchor: str) -> BridgeState:
+    """Record that *which* satellite is running *axis*'s group loop, started on
+    *anchor* — the clip that heads the queue the loop just wrote."""
+    if which == 2:
+        return replace(state, portrait_loop=axis, portrait_loop_anchor=anchor)
+    return replace(state, landscape_loop=axis, landscape_loop_anchor=anchor)
 
 
 def _clear_side_grouping(state: BridgeState, which: int) -> BridgeState:
@@ -539,8 +548,8 @@ def _clear_side_grouping(state: BridgeState, which: int) -> BridgeState:
     was set.  The widen only ever means something in the context of the clip/loop
     it was taken around, so a rebuild that drops the loop drops the widen with it."""
     if which == 2:
-        return replace(state, portrait_loop="", portrait_widen_clip="")
-    return replace(state, landscape_loop="", landscape_widen_clip="")
+        return replace(state, portrait_loop="", portrait_loop_anchor="", portrait_widen_clip="")
+    return replace(state, landscape_loop="", landscape_loop_anchor="", landscape_widen_clip="")
 
 
 def _set_side_widen(state: BridgeState, which: int, clip: str) -> BridgeState:
@@ -619,7 +628,7 @@ def _dispatch_group_loop(
     label = "portrait" if which == 2 else "landscape"
     message = f"Loop {label}: {len(members)} {axis}s"
     logger.info(message)
-    state = _set_side_loop(state, which, axis)
+    state = _set_side_loop(state, which, axis, current)
     # Anchor the widen on the loop iff it is the loose family being looped, so the
     # HUD reads a running seed loop as widened exactly when it truly is — and a
     # plain exact-family loop drops any stale anchor.

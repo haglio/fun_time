@@ -2316,6 +2316,25 @@ def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
     assert state.portrait_loop == ""
 
 
+def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
+    """A loop's queue is written clip-on-screen-first, so the HUD has to order its
+    map the same way — from the clip the loop started on.
+
+    Anchoring the map on some other member (the group's lowest-keyed one) drew the
+    clip on screen somewhere in the middle of the row the instant the loop began,
+    and made the action column light up bottom-to-top as the group played.
+    """
+    config = _make_config(tmp_path)
+    index, a, b = _loop_index(tmp_path, axis="seed")
+
+    _set_current(config, 2, b)  # the loop starts on the group's *second* member
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+        state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
+
+    assert state.portrait_loop_anchor == b
+    assert _playlist(config, 2) == [b, a]  # the map's order is the queue's order
+
+
 def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
     """The one-member "loop" is really a lock, so it must drop any loop the side
     was running instead of leaving a stale flag."""

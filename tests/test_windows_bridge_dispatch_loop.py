@@ -364,6 +364,18 @@ class TestSharedState:
         assert loaded.portrait_loop == "seed"
         assert loaded.landscape_loop == "action"
 
+    def test_roundtrip_preserves_the_loop_anchor(self, tmp_path):
+        """The HUD orders a running loop's map from the clip the loop started on,
+        which it reads from this file, so it must survive the round-trip."""
+        state_file = tmp_path / "shared_state.ini"
+        state = BridgeState(portrait_loop_anchor="C:/v/a.mp4", landscape_loop_anchor="C:/v/b.mp4")
+
+        write_shared_state(state_file, state)
+        loaded = read_shared_state(state_file)
+
+        assert loaded.portrait_loop_anchor == "C:/v/a.mp4"
+        assert loaded.landscape_loop_anchor == "C:/v/b.mp4"
+
     def test_roundtrip_preserves_the_widen_clip(self, tmp_path):
         """The HUD reads which clip each side's seed row is widened around from
         this file, so it must survive the round-trip."""

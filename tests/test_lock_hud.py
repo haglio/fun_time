@@ -120,32 +120,100 @@ def test_without_a_loop_the_map_anchors_on_the_live_clip():
     assert panel.playing == CUR  # the corner is what's on
 
 
-def test_a_seed_loop_freezes_the_map_on_the_family_anchor():
-    """While the seed row loops, the map anchors on the family's fixed member
-    (its lowest-keyed clip) so it holds still, and ``playing`` follows the clip
-    actually on screen so the overlay can light it up."""
+def test_a_seed_loop_freezes_the_map_on_the_clip_the_loop_started_on():
+    """While the seed row loops, the map anchors on the clip the loop started on —
+    the clip that heads the queue the loop wrote — so the map holds still and reads
+    in the order the player plays it: that clip in the corner, the rest running
+    right from it.  ``playing`` follows the clip actually on screen.
+    """
     index = _index(current=CUR, seed_sibs=[S1])
 
-    # S1 is on screen, but CUR sorts first, so the map anchors on CUR.
-    panel = build_hud_panel("portrait", locked=False, current=S1, index=index, loop_axis="seed")
+    # The loop started on S1, so S1 is the corner even though CUR sorts first.
+    panel = build_hud_panel(
+        "portrait", locked=False, current=S1, index=index, loop_axis="seed", loop_anchor=S1,
+    )
 
     assert panel.active_loop == "seed"
-    assert panel.current == CUR       # frozen anchor, not the live clip
-    assert panel.playing == S1        # the seed actually playing
-    assert panel.seed_siblings == [S1]
+    assert panel.current == S1        # the clip the loop started on — the corner
+    assert panel.playing == S1        # …and, at the start, what is on screen
+    assert panel.seed_siblings == [CUR]   # the rest of the family runs right from it
 
 
-def test_an_action_loop_freezes_the_map_and_marks_the_playing_action():
+def test_a_seed_loop_keeps_its_anchor_as_the_loop_advances():
+    """The anchor is the loop's fixed head, not the live clip: once the loop rolls
+    on, the map stays put and only ``playing`` moves."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    # Started on S1; the loop has since advanced to CUR.
+    panel = build_hud_panel(
+        "portrait", locked=False, current=CUR, index=index, loop_axis="seed", loop_anchor=S1,
+    )
+
+    assert panel.current == S1        # frozen on the loop's head
+    assert panel.playing == CUR       # the seed actually on screen
+    assert panel.seed_siblings == [CUR]
+
+
+def test_an_action_loop_anchors_on_its_start_clip_and_marks_the_playing_action():
+    """The action column runs down from the clip the loop started on, in the queue's
+    own order — so the lit row walks top-to-bottom as the group plays, not upwards
+    from wherever the group's lowest-keyed member happened to sit."""
     index = _index(current=CUR, action_sibs=[A1])
 
-    # CUR is on screen; A1 sorts first, so the column anchors on A1 and the
-    # playing cell is the sibling that carries CUR's action.
-    panel = build_hud_panel("portrait", locked=False, current=CUR, index=index, loop_axis="action")
+    panel = build_hud_panel(
+        "portrait", locked=False, current=CUR, index=index, loop_axis="action", loop_anchor=CUR,
+    )
 
     assert panel.active_loop == "action"
-    assert panel.current == A1
+    assert panel.current == CUR       # the corner is where the loop started
     assert panel.playing == CUR
-    assert panel.action_siblings == [CUR]
+    assert panel.action_siblings == [A1]   # the other act runs down from it
+
+
+def test_a_running_loop_says_how_many_clips_it_is_cycling():
+    """The status line is the only place the size of the looped set can be read: the
+    map draws just the cells that fit, so seeing three thumbnails says nothing about
+    whether the loop is cycling three clips or thirty."""
+    index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"])
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=CUR, index=index, loop_axis="seed", loop_anchor=CUR,
+    )
+
+    assert panel.lock_label == "Looping 3 seeds"
+
+
+def test_an_action_loop_counts_the_clips_it_cycles():
+    index = _index(current=CUR, action_sibs=[A1])
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=CUR, index=index, loop_axis="action", loop_anchor=CUR,
+    )
+
+    assert panel.lock_label == "Looping 2 actions"
+
+
+def test_the_status_line_returns_to_the_lock_state_once_the_loop_ends():
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    panel = build_hud_panel("portrait", locked=True, current=CUR, index=index)
+
+    assert panel.lock_label == "Locked"
+
+
+def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():
+    """A loop with no anchor to read — state written before a session restart, or an
+    anchor clip since trashed — must still hold the map still, so it falls back to
+    the group's lowest-keyed member instead of re-orienting on every auto-advance."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=S1, index=index, loop_axis="seed", loop_anchor="",
+    )
+
+    assert panel.active_loop == "seed"
+    assert panel.current == CUR       # lowest-keyed member, stable across advances
+    assert panel.playing == S1
 
 
 def test_widen_grows_the_seed_row_with_the_nearest_clips():
