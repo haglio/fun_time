@@ -93,22 +93,34 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
+# The side-agnostic actions the primary (Nau) answers, and what it answers with.
+# Navigation is the same gesture on every player; "end loop" is the same *word* for
+# a different loop — Nau's A-B loop rather than a satellite's group loop.
+_PRIMARY_EQUIVALENTS = {
+    "next": "primary_next",
+    "prev": "primary_prev",
+    "no_loop": "nau_loop_cancel",
+}
+
+
 def resolve_active_side_command(command: str, active_side: int) -> str:
     """Rewrite a side-agnostic ``active_*`` command onto the active player.
 
     ``active_next``/``active_prev`` follow the last player navigated — primary
-    (Nau, slot 1), portrait (2), or landscape (3).  The other actions (lock,
-    weird, cycle) exist only on the satellites, so while the primary is active
-    they resolve to nothing — returned unchanged, which is a no-op downstream.
-    Every non-``active_`` command passes through unchanged.
+    (Nau, slot 1), portrait (2), or landscape (3).  ``active_no_loop`` reaches the
+    primary too, meaning the loop *it* has: Nau's A-B loop, where on a satellite the
+    same phrase ends a group loop.  The rest (lock, weird, cycle) exist only on the
+    satellites, so while the primary is active they resolve to nothing — returned
+    unchanged, which is a no-op downstream.  Every non-``active_`` command passes
+    through unchanged.
     """
     if not command.startswith("active_"):
         return command
     action = command[len("active_"):]
-    if active_side == 1:  # primary (Nau) participates in navigation only
-        if action in ("next", "prev"):
-            return f"primary_{action}"
-        return command
+    if active_side == 1:
+        # What each side-agnostic action means on the primary; anything absent
+        # here simply has no primary equivalent.
+        return _PRIMARY_EQUIVALENTS.get(action, command)
     prefix = "portrait_" if active_side == 2 else "landscape_"
     return prefix + action
 
@@ -140,8 +152,8 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         "active_side": str(state.active_side),
         "portrait_filter": state.portrait_filter,
         "landscape_filter": state.landscape_filter,
-        "portrait_recents": "1" if state.portrait_recents else "0",
-        "landscape_recents": "1" if state.landscape_recents else "0",
+        "portrait_latest": "1" if state.portrait_latest else "0",
+        "landscape_latest": "1" if state.landscape_latest else "0",
         "portrait_loop": state.portrait_loop,
         "landscape_loop": state.landscape_loop,
         "portrait_map_anchor": state.portrait_map_anchor,
@@ -187,8 +199,8 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         active_side=_int_or(s, "active_side", 2),
         portrait_filter=s.get("portrait_filter", ""),
         landscape_filter=s.get("landscape_filter", ""),
-        portrait_recents=s.get("portrait_recents", "0") == "1",
-        landscape_recents=s.get("landscape_recents", "0") == "1",
+        portrait_latest=s.get("portrait_latest", "0") == "1",
+        landscape_latest=s.get("landscape_latest", "0") == "1",
         portrait_loop=s.get("portrait_loop", ""),
         landscape_loop=s.get("landscape_loop", ""),
         portrait_map_anchor=s.get("portrait_map_anchor", ""),
@@ -415,8 +427,8 @@ class DispatchLoopRunner:
             landscape_widen_clip=state.landscape_widen_clip,
             portrait_nav_anchor=state.portrait_nav_anchor,
             landscape_nav_anchor=state.landscape_nav_anchor,
-            portrait_recents=state.portrait_recents,
-            landscape_recents=state.landscape_recents,
+            portrait_latest=state.portrait_latest,
+            landscape_latest=state.landscape_latest,
         )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)

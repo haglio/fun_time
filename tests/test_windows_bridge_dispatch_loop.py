@@ -459,9 +459,17 @@ class TestResolveActiveSideCommand:
         assert resolve_active_side_command("portrait_lock", 3) == "portrait_lock"
 
     def test_active_nav_targets_primary_when_primary_is_active(self):
-        """The primary (slot 1) joins the active-side feature for nav only."""
+        """The primary (slot 1) joins the active-side feature for nav."""
         assert resolve_active_side_command("active_next", 1) == "primary_next"
         assert resolve_active_side_command("active_prev", 1) == "primary_prev"
+
+    def test_end_loop_on_the_primary_means_naus_own_loop(self):
+        """A side-agnostic phrase may mean a different thing on each player: on a
+        satellite "end loop" ends a group loop, on the primary it cancels Nau's A-B
+        loop.  The resolution is where that translation belongs."""
+        assert resolve_active_side_command("active_no_loop", 1) == "nau_loop_cancel"
+        assert resolve_active_side_command("active_no_loop", 2) == "portrait_no_loop"
+        assert resolve_active_side_command("active_no_loop", 3) == "landscape_no_loop"
 
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
         """Primary has no lock/weird/cycle, so a bare satellite-only command
@@ -2494,8 +2502,8 @@ class TestHudPublishing:
         landscape = json.loads((tmp_path / "landscape_hud.json").read_text(encoding="utf-8"))
         assert portrait["side"] == "portrait"
         assert portrait["locked"] is True
-        assert portrait["lock_label"] == "Locked · Shuffle"
-        assert portrait["filter_query"] == "alpha"
+        # The status line composes the lot — lock, order, and the filter unlabelled.
+        assert portrait["lock_label"] == "Locked · Shuffle · alpha"
         assert portrait["corner"]["path"] == "C:/v/p.mp4"
         assert landscape["locked"] is False
         assert landscape["corner"]["path"] == "C:/v/l.mp4"

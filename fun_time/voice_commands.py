@@ -191,10 +191,10 @@ _SATELLITE_ACTIONS: dict[str, str] = {
     # order (all clips, one per subject).
     "reset": "reset",
     # The two browse orderings, each rescanning the sources so new files are picked
-    # up: "recents" reloads newest-first, "shuffle" reshuffles.  Both are sided like
-    # every other satellite action — a side put in recents order has to be
-    # shuffleable on its own — and "both recents" is what the P key sends.
-    "recents": "recents",
+    # up: "latest" reloads newest-first, "shuffle" reshuffles.  Both are sided like
+    # every other satellite action — a side put in latest order has to be
+    # shuffleable on its own — and "both latest" is what the P key sends.
+    "latest": "latest",
     "shuffle": "shuffle",
 }
 for _act_word, _act in _SATELLITE_ACTIONS.items():
@@ -240,8 +240,11 @@ for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
             VOICE_COMMANDS[f"{_side} {_group_word}"] = _sided
             VOICE_COMMANDS[f"{_group_word} {_side}"] = _sided
 
-# "end loop" ends a satellite's group loop when a side is named, but bare it is
-# Nau's own phrase — its A-B loop's cancel — so only the sided forms are taken.
+# "end loop" is side-agnostic like the rest of the grid: bare, it reaches the
+# player last addressed and means that player's own kind of loop — the dispatch
+# loop resolves ``active_no_loop`` to Nau's A-B loop cancel on the primary, and to
+# a satellite's group loop on portrait/landscape.
+VOICE_COMMANDS["end loop"] = "active_no_loop"
 for _side in ("portrait", "landscape", "both"):
     VOICE_COMMANDS[f"{_side} end loop"] = f"{_side}_no_loop"
     VOICE_COMMANDS[f"end loop {_side}"] = f"{_side}_no_loop"

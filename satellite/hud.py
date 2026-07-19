@@ -30,7 +30,6 @@ MAP_GAP = 5
 ROW_GAP = 12        # vertical gap between action rows — roomier than the seed gap
 ACT_GAP = 6         # gap between two acts stacked in one row label
 LOCK_BAND_H = 24
-STATUS_LINE_H = 15
 COL_LABEL_H = 13    # header strip above the map for the "Seed N" column labels
 COL_LABEL_GAP = 4   # breathing room between a column label and its thumbnail
 MIN_GUTTER = 30     # row-label gutter: never narrower than this
@@ -65,7 +64,6 @@ class HudModel:
     seeds: tuple[HudCell, ...] = ()
     actions: tuple[HudCell, ...] = ()
     current_action: str = ""
-    filter_query: str = ""
     active_loop: str = ""
     # How many clips each axis stands for, the clip on screen included.  The map
     # draws only the cells that fit, so it prints these in its top-left corner —
@@ -488,7 +486,6 @@ def parse_hud(text: str) -> HudModel | None:
         seeds=tuple(cell for cell in seeds if cell is not None),
         actions=tuple(cell for cell in actions if cell is not None),
         current_action=str(raw.get("current_action", "") or ""),
-        filter_query=str(raw.get("filter_query", "") or ""),
         active_loop=str(raw.get("active_loop", "") or ""),
         seed_count=int(raw.get("seed_count", 0) or 0),
         action_count=int(raw.get("action_count", 0) or 0),

@@ -43,7 +43,6 @@ from .hud import (
     PAD,
     PANEL_SIZE,
     ROW_GAP,
-    STATUS_LINE_H,
     HudCell,
     HudModel,
     HudTargets,
@@ -178,16 +177,14 @@ class HudRenderer:
         image, draw = panel.image, panel.draw
 
         x, y = PAD, PAD
+        # One status line, composed by fun_time: it already holds the lock, what is
+        # looping, the browse order and the filter, so there is nothing to lay out
+        # here beyond the lock dot beside it.
         lock_color = GREEN if model.locked else TEXT_MUTED
         draw.ellipse([x, y + 2, x + 10, y + 12], fill=(*lock_color, 255))
         draw.text((x + 18, y + 11), model.lock_label, font=self._body, anchor="ls",
                   fill=(*(TEXT_PRIMARY if model.locked else TEXT_MUTED), 255))
         y += LOCK_BAND_H
-
-        if model.filter_query:
-            draw.text((x, y + 10), f"FILTER · {model.filter_query}", font=self._tiny,
-                      anchor="ls", fill=(*TEXT_PRIMARY, 255))
-            y += STATUS_LINE_H
 
         if model.corner is None:
             return RenderedHud(panel.to_bgra(),

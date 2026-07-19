@@ -212,7 +212,7 @@ def _collapse_recent(
     *,
     by_seed_family: bool = False,
 ) -> list[str]:
-    """Newest-first, one slot per group — the Recents review order.
+    """Newest-first, one slot per group — the Latest review order.
 
     New arrivals stay the focus: each group is represented by its most recent
     member and sits at that member's position, so the freshest clip of a group
@@ -241,7 +241,7 @@ def build_satellite_playlist_paths(
         files = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
     # An attribute filter narrows to videos whose metadata matches; it needs the
     # metadata root to reach each sidecar, so without it the filter is a no-op.
-    # Applied before ordering, so it holds under both Recents and Shuffle.
+    # Applied before ordering, so it holds under both Latest and Shuffle.
     filtered = bool(filter_query) and (
         library is not None and library.metadata_root is not None
     )
@@ -251,7 +251,7 @@ def build_satellite_playlist_paths(
             for full_path in files
             if path_matches_query(full_path, library.metadata_root, filter_query)
         ]
-    # With a library, both orders collapse to one slot per group: Recents
+    # With a library, both orders collapse to one slot per group: Latest
     # (recent) keeps newest-first, the shuffle build weighted-randomizes.  A
     # filtered view collapses seed families (one per param-set) rather than
     # action groups.  With no library there is nothing to group by, so just
@@ -334,7 +334,7 @@ def build_satellite_playlists(
 
     Each satellite honours its own filter AND its own ordering — newest-first when
     its ``*_recent`` is set, otherwise shuffled (with action-group collapse and
-    watch weighting when *library* is given) — since Recents and Shuffle are sided
+    watch weighting when *library* is given) — since Latest and Shuffle are sided
     commands and the two satellites can be in different orders.
     """
     build_one_satellite_playlist(
