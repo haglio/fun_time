@@ -75,22 +75,6 @@ class LayoutConfig:
 
 
 @dataclass(frozen=True)
-class GenauConfig:
-    shuffle_on_load: bool
-    beats_per_loop: float
-    clip_cache_size: int
-    render_batch: int
-    bpm_smoothing: float
-    sync_strength: float
-    udp_host: str
-    udp_port: int
-    notify_host: str
-    notify_port: int
-    status_hide_ms: int
-    resize_debounce_ms: int
-
-
-@dataclass(frozen=True)
 class AudioCompanionConfig:
     host: str
     port: int
@@ -129,7 +113,6 @@ class ProjectConfig:
     config_path: Path
     paths: PathsConfig
     layout: LayoutConfig
-    genau: GenauConfig
     audio_companion: AudioCompanionConfig
     random_favs_browser: RandomFavsBrowserConfig
     voice_control: VoiceControlConfig
@@ -260,23 +243,6 @@ def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> Layout
     )
 
 
-def _load_genau_config(genau_raw: dict[str, Any], source_path: Path) -> GenauConfig:
-    return GenauConfig(
-        shuffle_on_load=_require_typed_value(genau_raw, "shuffle_on_load", source_path, "config.genau", bool),
-        beats_per_loop=_require_typed_value(genau_raw, "beats_per_loop", source_path, "config.genau", float),
-        clip_cache_size=_require_typed_value(genau_raw, "clip_cache_size", source_path, "config.genau", int),
-        render_batch=_require_typed_value(genau_raw, "render_batch", source_path, "config.genau", int),
-        bpm_smoothing=_require_typed_value(genau_raw, "bpm_smoothing", source_path, "config.genau", float),
-        sync_strength=_require_typed_value(genau_raw, "sync_strength", source_path, "config.genau", float),
-        udp_host=_require_typed_value(genau_raw, "udp_host", source_path, "config.genau", str),
-        udp_port=_require_typed_value(genau_raw, "udp_port", source_path, "config.genau", int),
-        notify_host=_require_typed_value(genau_raw, "notify_host", source_path, "config.genau", str),
-        notify_port=_require_typed_value(genau_raw, "notify_port", source_path, "config.genau", int),
-        status_hide_ms=_require_typed_value(genau_raw, "status_hide_ms", source_path, "config.genau", int),
-        resize_debounce_ms=_require_typed_value(genau_raw, "resize_debounce_ms", source_path, "config.genau", int),
-    )
-
-
 def _load_audio_companion_config(audio_raw: dict[str, Any], source_path: Path) -> AudioCompanionConfig:
     return AudioCompanionConfig(
         host=_require_typed_value(audio_raw, "host", source_path, "config.audio_companion", str),
@@ -329,7 +295,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
 
     paths_raw = _require_dict(raw, "paths", path)
     layout_raw = _require_dict(raw, "layout", path)
-    genau_raw = _require_dict(raw, "genau", path)
     audio_raw = _require_dict(raw, "audio_companion", path)
     browser_raw = _require_optional_dict(raw, "random_favs_browser", path)
     if browser_raw is None:
@@ -342,7 +307,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         config_path=path,
         paths=_load_paths_config(paths_raw, path),
         layout=_load_layout_config(layout_raw, path),
-        genau=_load_genau_config(genau_raw, path),
         audio_companion=_load_audio_companion_config(audio_raw, path),
         random_favs_browser=_load_random_favs_browser_config(browser_raw),
         voice_control=_load_voice_control_config(voice_raw),

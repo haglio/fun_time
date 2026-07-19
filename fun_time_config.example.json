@@ -26,20 +26,6 @@
     "primary_top_ratio": 0.7272727273,
     "landscape_width_ratio": 0.6666666667
   },
-  "genau": {
-    "shuffle_on_load": true,
-    "beats_per_loop": 1.0,
-    "clip_cache_size": 10,
-    "render_batch": 6,
-    "bpm_smoothing": 0.14,
-    "sync_strength": 0.35,
-    "udp_host": "127.0.0.1",
-    "udp_port": 50555,
-    "notify_host": "127.0.0.1",
-    "notify_port": 50556,
-    "status_hide_ms": 1200,
-    "resize_debounce_ms": 120
-  },
   "audio_companion": {
     "host": "127.0.0.1",
     "port": 50556
