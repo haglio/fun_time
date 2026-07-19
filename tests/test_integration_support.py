@@ -39,6 +39,11 @@ def _the_users_config() -> tuple[dict, dict]:
         "paths": {"broker_tray_launcher": "../osr2_broker/launch_broker_tray.vbs"},
         "voice_control": {"enabled": True, "device_name": "Brio"},
         "loopback_port": LOOPBACK_PORT,
+        # Vestigial: fun_time stopped parsing this when Genau moved to its own
+        # repo, but the section is still sitting in every config file written
+        # before then — including the one a run copies.
+        "genau": {"udp_host": "127.0.0.1", "udp_port": GENAU_INBOUND_PORT,
+                  "notify_port": AUDIO_COMPANION_PORT, "status_hide_ms": 1200},
     }
     genau_config = {
         "genau": {
