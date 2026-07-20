@@ -196,7 +196,7 @@ class HudRenderer:
         # hidden — an absent dot and an idle dot look the same, and then only the
         # player that *has* the floor says anything, which is half an answer.
         draw.ellipse([x, y + 2, x + STATUS_DOT, y + 2 + STATUS_DOT],
-                     fill=(*(GREEN if model.active else TEXT_MUTED), 255))
+                     fill=(*(WHITE if model.active else TEXT_MUTED), 255))
         # The status itself, composed by fun_time: it already holds the lock, what is
         # looping, the browse order, F-mode and the filter, so there is nothing else
         # to lay out up here.  Drawn full-strength whatever it says — dimming it when

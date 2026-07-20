@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from player_core.hud_panel import GREEN, TEXT_MUTED
+from player_core.hud_panel import TEXT_MUTED, WHITE
 
 from satellite.hud import (
     CTRL_BAND_H,
@@ -85,7 +85,7 @@ def test_render_without_a_corner_still_draws_the_shell():
 
 def test_the_dot_lights_up_only_on_the_active_side(thumb):
     """The dot beside the status line says whether a bare "lock" or "next" would
-    land here.  Lit is green, idle is the palette's grey — never absent, because a
+    land here.  Lit is white, idle is the palette's grey — never absent, because a
     missing dot could not be told from an idle one, and then the lit one on the
     other player would be the only readable state."""
     def dot(active: bool) -> np.ndarray:
@@ -95,7 +95,7 @@ def test_the_dot_lights_up_only_on_the_active_side(thumb):
         # The dot's own square, left of where the status text starts.
         return _rgb(rendered.bgra)[PAD + 2:PAD + 12, PAD:PAD + 10]
 
-    assert np.allclose(dot(True).reshape(-1, 3).mean(axis=0), GREEN, atol=40)
+    assert np.allclose(dot(True).reshape(-1, 3).mean(axis=0), WHITE, atol=40)
     assert np.allclose(dot(False).reshape(-1, 3).mean(axis=0), TEXT_MUTED, atol=40)
 
 
@@ -106,9 +106,11 @@ def test_the_status_text_starts_clear_of_the_dot(thumb):
         _model(active=True, lock_label="Unlocked", corner=HudCell(path="c.mp4", thumb=thumb)))
     rgb = _rgb(rendered.bgra)
 
-    # STATUS_TEXT_X is absolute, so the gap runs from the dot's right edge to it.
-    gap = rgb[PAD:PAD + 14, PAD + STATUS_DOT:STATUS_TEXT_X]
-    assert (gap > 200).all(axis=2).sum() == 0, "text or dot ink in the gap between them"
+    # STATUS_TEXT_X is absolute, so the gap runs from the dot's right edge to it —
+    # skipping the 2px where the round dot's antialiased edge feathers out, which
+    # is the dot, not text starting early.
+    gap = rgb[PAD:PAD + 14, PAD + STATUS_DOT + 2:STATUS_TEXT_X]
+    assert (gap > 200).all(axis=2).sum() == 0, "text ink in the gap before the text starts"
 
 
 def test_a_status_too_wide_for_the_panel_is_drawn_wrapped_not_clipped(thumb):
