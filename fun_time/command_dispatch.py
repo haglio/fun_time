@@ -232,6 +232,12 @@ _SPEED_RELATIVE = {
     "genau_speed_down": "SPEED_DOWN",
     "genau_speed_up": "SPEED_UP",
 }
+# The video's own playback rate, as opposed to the stroke's — always Nau's, never
+# Genau's, so it has no per-stretch handoff.
+_SPEED_NAU_RELATIVE = {
+    "nau_speed_down": "SPEED_DOWN",
+    "nau_speed_up": "SPEED_UP",
+}
 _SPEED_EXTREMES = {
     # command -> (nau command, genau command)
     "speed_min": ("SET_SPEED min", "SPEED 0"),
@@ -261,6 +267,11 @@ def _speed_engine_commands(command: str) -> tuple[str | None, str | None, bool] 
     if command in _SPEED_RELATIVE:
         keyword = _SPEED_RELATIVE[command]
         return keyword, keyword, True
+    if command in _SPEED_NAU_RELATIVE:
+        # The video playback rate — Nau's alone, so no Genau equivalent and no
+        # per-stretch handoff.  It reaches Nau in nau and hybrid (where Nau is on
+        # screen) and is ignored in genau, where Genau's clips have no such rate.
+        return _SPEED_NAU_RELATIVE[command], None, False
     if command in _SPEED_EXTREMES:
         nau_cmd, genau_cmd = _SPEED_EXTREMES[command]
         return nau_cmd, genau_cmd, False
