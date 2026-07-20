@@ -343,6 +343,7 @@ def _run_startup_phases(
         nau_width=primary_media_rect.width,
         nau_height=primary_media_rect.height,
         metadata_dir=regen_metadata_raw or None,
+        dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
     )
     launched.pids.extend([genau_pid, nau_pid])
 

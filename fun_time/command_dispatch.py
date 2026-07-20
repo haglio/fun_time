@@ -1013,6 +1013,9 @@ def dispatch_command(
     if step is not None:
         return _dispatch_audio(_step_volume(state, step), config)
 
+    if command.startswith(f"{SET_VOLUME_COMMAND}|"):
+        return _dispatch_set_volume(command.partition("|")[2], state, config)
+
     if command == "quarter_button":
         config.genau_cmd_file.write_text("OFFSET_QUARTER_CYCLE", encoding="utf-8")
         return state, ops
@@ -1093,6 +1096,29 @@ def dispatch_command(
 
 _VOLUME_STEPS = {"audio_volume_down": -VOLUME_STEP, "audio_volume_up": VOLUME_STEP}
 
+# ``audio_set_volume|<0-100>`` — an absolute level, which is what a slider asks
+# for where every other audio command asks for a step or a state.  Nau's volume
+# control is the one that sends it.
+SET_VOLUME_COMMAND = "audio_set_volume"
+
+
+def _dispatch_set_volume(
+    argument: str, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Set the sound level outright, lifting any mute.
+
+    The level crosses a text channel from another process, so it is not trusted:
+    out of range is clamped and unparseable is ignored, rather than raising into
+    the dispatch loop over a dragged slider.  It lifts a mute for the reason a
+    step does — reaching for the volume is asking to hear something.
+    """
+    try:
+        level = int(argument)
+    except ValueError:
+        return state, []
+    volume = max(MIN_VOLUME, min(MAX_VOLUME, level))
+    return _dispatch_audio(replace(state, volume=volume, muted=False), config)
+
 # Mute and unmute each assert a state rather than toggling one, so a phrase
 # misheard twice cannot leave the sound the opposite of what was asked for.
 _MUTE_COMMANDS = {"audio_mute": True, "audio_unmute": False}
@@ -1117,11 +1143,15 @@ def _dispatch_audio(
     Nau's mpv carries the video's sound; the Genau audio companion carries the
     clip music.  Which one is audible depends on the mode, so both are told the
     same level every time and the bridge alone holds the authoritative value.
-    A mute is published as a level of zero rather than as a flag of its own —
-    the sinks stay dumb, and the level the speaker chose survives underneath.
+
+    The companion is only ever asked to be quiet, so a mute reaches it as a level
+    of zero and it stays dumb.  Nau also *draws* the level, and zero cannot tell
+    it muted from turned all the way down, nor what unmuting should return to —
+    so it gets the level and the mute, and works the audible loudness out itself.
     """
     level = MIN_VOLUME if state.muted else state.volume
-    config.nau_cmd_file.write_text(f"SET_VOLUME {level}", encoding="utf-8")
+    config.nau_cmd_file.write_text(
+        f"SET_VOLUME {state.volume} {int(state.muted)}", encoding="utf-8")
     write_volume(config.audio_volume_file, level)
     message = "Muted" if state.muted else f"Volume {state.volume}%"
     return state, [WindowOp(op="notice", key=message, source=SOURCE_PRIMARY)]

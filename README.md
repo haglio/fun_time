@@ -228,6 +228,14 @@ The Nau-mode voice trigger is spoken as "now now" (the reference displays it as 
 
 Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (amber loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows Nau's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".
 
+### Sound
+
+One level covers the whole primary display, because it has two audio sinks — Nau's video and the Genau audio companion — and which is audible depends on the mode. The bridge holds the level and the mute; the keys and voice step it, and Nau draws a **volume control** at the right-hand end of the row above its timeline: click the speaker to mute, click or drag the slider to set the level.
+
+A press there posts to the dashboard command file (`audio_set_volume|<0-100>`, `audio_mute`, `audio_unmute`) and the bridge answers on Nau's own channel, so the slider is never the authority — it shows what it asked for straight away, and the answer confirms or corrects it a tick later.
+
+The mute reaches the two sinks differently, which is why `SET_VOLUME` carries two numbers. The audio companion only has to be quiet, so it gets a plain zero. Nau also has to *draw* the level, and a zero cannot say whether you are muted or merely turned all the way down, nor what unmuting should return to — so it gets `SET_VOLUME <level> <muted>` and works the audible loudness out itself. That is why a muted control still shows its fill.
+
 ### OmniPause
 
 - `Esc` toggles OmniPause; `Space` enters it.
@@ -333,7 +341,7 @@ Commands (the full set `nau/runtime.py` answers to):
 - `NEXT` / `PREV`
 - `SEEK_FWD` / `SEEK_BACK`
 - `SPEED_UP` / `SPEED_DOWN` / `SET_SPEED min|max|<rate>`
-- `SET_VOLUME 0-100`
+- `SET_VOLUME <0-100> [muted]` — the level to *show* plus whether it is muted; Nau derives the audible loudness (see "Sound")
 - `RECORD_DOWN` / `RECORD_UP` / `RECORD_TAP`
 - `LOOP_CANCEL`
 - `CYCLE_VERSION`
