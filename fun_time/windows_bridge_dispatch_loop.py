@@ -209,7 +209,7 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         primary_mode=s.get("primary_mode", "nau"),
         f_mode_enabled=s.get("f_mode_enabled", "0") == "1",
         omni_paused=s.get("omni_paused", "0") == "1",
-        active_side=_int_or(s, "active_side", 2),
+        active_side=_int_or(s, "active_side", 1),
         portrait_filter=s.get("portrait_filter", ""),
         landscape_filter=s.get("landscape_filter", ""),
         portrait_latest=s.get("portrait_latest", "0") == "1",

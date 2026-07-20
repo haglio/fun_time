@@ -577,6 +577,15 @@ def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
 # --- active side tracking ---
 
 
+def test_a_fresh_session_starts_with_the_primary_active():
+    """The primary is the display the eye opens on, so it holds the floor at
+    startup — a bare 'next' or 'lock' goes there, not to a satellite, until one is
+    addressed."""
+    from fun_time.command_dispatch import BridgeState
+
+    assert BridgeState().active_side == 1
+
+
 def test_portrait_command_sets_active_side_to_portrait(tmp_path: Path):
     """A portrait command marks portrait as the active side, so a later
     side-agnostic command ('lock', 'next', ...) knows which player to hit."""
