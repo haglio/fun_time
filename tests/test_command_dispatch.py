@@ -1787,7 +1787,7 @@ def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
     new_state, ops = dispatch_command("audio_volume_down", _make_state(), config)
 
     assert new_state.volume == 90
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 90"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 90 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "90"
     assert ops == [WindowOp(op="notice", key="Volume 90%", source="primary")]
 
@@ -1798,7 +1798,7 @@ def test_volume_up_steps_both_audio_sinks_up(tmp_path: Path):
     new_state, _ops = dispatch_command("audio_volume_up", _make_state(volume=40), config)
 
     assert new_state.volume == 50
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 50"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 50 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "50"
 
 
@@ -1812,6 +1812,43 @@ def test_volume_clamps_at_silent_and_at_full(tmp_path: Path):
     assert ceilinged.volume == 100
 
 
+def test_the_primary_is_told_the_mute_as_well_as_the_level(tmp_path: Path):
+    """The audio companion is a sink and a level of zero is all it needs.  Nau
+    also *draws* the level, and from zero alone it cannot tell muted from turned
+    all the way down — nor what unmuting should return to."""
+    config = _make_config(tmp_path)
+
+    dispatch_command("audio_mute", _make_state(volume=70), config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 70 1"
+    assert config.audio_volume_file.read_text(encoding="utf-8") == "0", "the sink stays dumb"
+
+
+def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
+    """What Nau's slider asks for: an absolute level, not a step.  It lifts a mute
+    for the same reason reaching for the volume does in the Windows mixer."""
+    config = _make_config(tmp_path)
+
+    new_state, ops = dispatch_command(
+        "audio_set_volume|35", _make_state(volume=70, muted=True), config)
+
+    assert (new_state.volume, new_state.muted) == (35, False)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 35 0"
+    assert config.audio_volume_file.read_text(encoding="utf-8") == "35"
+    assert ops == [WindowOp(op="notice", key="Volume 35%", source="primary")]
+
+
+def test_setting_the_volume_clamps_and_ignores_nonsense(tmp_path: Path):
+    """The level arrives over a text channel from another process, so it is not
+    trusted: out of range is clamped, unparseable is dropped rather than raised."""
+    config = _make_config(tmp_path)
+
+    assert dispatch_command("audio_set_volume|400", _make_state(), config)[0].volume == 100
+    assert dispatch_command("audio_set_volume|-5", _make_state(), config)[0].volume == 0
+    unchanged, _ops = dispatch_command("audio_set_volume|loud", _make_state(volume=70), config)
+    assert unchanged.volume == 70
+
+
 def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
     config = _make_config(tmp_path)
 
@@ -1819,7 +1856,8 @@ def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
 
     assert new_state.muted is True
     assert new_state.volume == 70  # remembered, so unmuting restores it
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 0"
+    # What Nau is told is its own test; here the companion, which only has to
+    # be quiet, gets the plain zero.
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0"
     assert ops == [WindowOp(op="notice", key="Muted", source="primary")]
 
@@ -1832,7 +1870,7 @@ def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
     )
 
     assert new_state.muted is False
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 70"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 70 0"
     assert ops == [WindowOp(op="notice", key="Volume 70%", source="primary")]
 
 
@@ -1858,7 +1896,7 @@ def test_stepping_the_volume_lifts_a_mute(tmp_path: Path):
 
     assert new_state.muted is False
     assert new_state.volume == 80
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 80"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 80 0"
 
 
 def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):

@@ -229,6 +229,9 @@ class TestRunStartupSequence:
             # group by name; launch_nau's --metadata-dir wiring is covered in
             # test_windows_bridge_startup.
             "metadata_dir": None,
+            # Where a press on Nau's volume control posts its command — the same
+            # file the dashboard and each satellite's HUD write to.
+            "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
         }
 
     def test_positions_satellite_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
