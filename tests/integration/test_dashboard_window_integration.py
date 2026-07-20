@@ -109,38 +109,44 @@ def _build_merged_dashboard(cfg_path: Path):
 
 
 def test_log_stream_fills_the_window_under_the_control_bar(cfg_path: Path):
-    """The bar runs along the top and the log takes everything beneath it, full
-    width — where it used to be a strip beside a drawing of the monitors."""
+    """The top row runs along the top and the log takes everything beneath it,
+    full width — where it used to be a strip beside a drawing of the monitors."""
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
-        bar = window._widget
+        top_row = window._widget.parentWidget()
         log = window._log_widget
-        # The log starts at the bar's bottom edge ...
-        assert log.y() == bar.y() + bar.height()
+        central = window.centralWidget()
+        # The log stream and the log's filter controls are separate now: the
+        # controls rode up into the top row beside the bar, so the Dash is a row
+        # shorter and only the stream sits below.
+        assert window._log_widget.controls.parentWidget() is top_row
+        # The log starts at the top row's bottom edge ...
+        assert log.y() == top_row.y() + top_row.height()
         # ... spans the window rather than a strip of it ...
-        assert log.width() == window.centralWidget().width()
+        assert log.width() == central.width()
         # ... and the two together fill the window's client height.
-        assert bar.height() + log.height() == window.centralWidget().height()
-        assert log.height() > bar.height()
+        assert top_row.height() + log.height() == central.height()
+        assert log.height() > top_row.height()
     finally:
         window.close()
 
 
-def test_log_controls_fit_one_row_and_lines_word_wrap(cfg_path: Path):
-    """The controls share a single row that fits inside the embedded strip (real
-    font metrics enforce a minimum the offscreen platform never does), and long
-    log lines wrap instead of being cut off with an ellipsis."""
+def test_log_controls_fit_one_row_beside_the_bar_and_lines_word_wrap(cfg_path: Path):
+    """The verbosity dial and source toggles share a single row that fits inside
+    the space the top bar leaves them (real font metrics enforce a minimum the
+    offscreen platform never does), and long log lines wrap instead of being cut
+    off with an ellipsis."""
     from PyQt6.QtCore import Qt
 
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
         panel = window._log_widget
-        strip_width = panel.width()
-        # The last source toggle's right edge stays inside the strip: nothing is
-        # pushed off it, so it is genuinely one row that fits.
+        controls_width = panel.controls.width()
+        # The last source toggle's right edge stays inside the controls' own
+        # width: nothing is pushed off it, so it is genuinely one row that fits.
         last = panel._source_boxes["system"]
-        assert last.x() + last.width() <= strip_width
-        assert panel.minimumSizeHint().width() <= strip_width
+        assert last.x() + last.width() <= controls_width
+        assert panel.controls.minimumSizeHint().width() <= controls_width
         # Long lines wrap rather than elide.
         assert panel._list.wordWrap()
         assert panel._list.textElideMode() == Qt.TextElideMode.ElideNone

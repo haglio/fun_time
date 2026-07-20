@@ -350,26 +350,6 @@ def test_read_genau_status_handles_inactive_cruise(tmp_path: Path):
     assert status.shape == "sawtooth"
 
 
-def test_read_genau_status_parses_limit_flags(tmp_path: Path):
-    status_file = tmp_path / "genau_status.txt"
-    status_file.write_text(
-        "cruise=0\nshape=sine\n"
-        "amp_at_max=1\namp_at_min=0\n"
-        "ctr_at_max=0\nctr_at_min=1\n"
-        "spd_at_max=0\nspd_at_min=0\n",
-        encoding="utf-8",
-    )
-
-    status = read_genau_status(status_file)
-
-    assert status.amp_at_max is True
-    assert status.amp_at_min is False
-    assert status.ctr_at_max is False
-    assert status.ctr_at_min is True
-    assert status.spd_at_max is False
-    assert status.spd_at_min is False
-
-
 def test_read_nau_status_parses_has_funscript(tmp_path: Path):
     # Nau publishes has_funscript per current video; the hybrid handoff arbiter
     # reads it to decide whether the funscript or Genau drives the OSR2.

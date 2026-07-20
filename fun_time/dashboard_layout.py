@@ -46,7 +46,9 @@ def client_rect_filling_frame(
 # carrying that player's buttons and a cable running to the OSR2.  Every player
 # draws its own HUD now and those buttons are on it, so what is left is the
 # handful that belong to no player: quit, pause everything, the reference popup,
-# and the three status chips.  They do not need to be arranged like the room.
+# and the F-mode and voice lights.  (The broker light went to the primary's HUD
+# with the rest of the OSR2 status — it is the primary's concern, not the room's.)
+# They do not need to be arranged like the room.
 
 BUTTON = 26          # a control in the bar
 CHIP = 22            # a status light — smaller, since it is read not pressed
@@ -55,7 +57,10 @@ GROUP_GAP = 22       # between the buttons and the chips
 PAD = 10             # inset from the bar's edges
 APP_ICON = 24
 APP_TITLE_W = 108
-LOG_HEIGHT = 200     # the log stream below the bar
+# The log stream below the bar.  Shorter than it was: the filter controls moved up
+# into the bar's row, so this is the list alone, and the Dash is that much shorter
+# and the browser below it that much taller.
+LOG_HEIGHT = 160
 
 
 @dataclass(frozen=True)
@@ -72,9 +77,14 @@ class DashboardBarLayout:
     quit_button: Rect
     omnipause_button: Rect
     help_button: Rect
-    broker_panel: Rect
     fmode_panel: Rect
     voice_panel: Rect
+
+    @property
+    def content_width(self) -> int:
+        """How wide the bar's own buttons run — the width it takes in its row,
+        leaving the rest to the log's filter controls beside it."""
+        return self.voice_panel.x + self.voice_panel.width + PAD
 
 
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
@@ -100,7 +110,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
     x += GROUP_GAP - GAP
 
     chips = []
-    for _ in range(3):
+    for _ in range(2):
         chips.append(Rect(x, mid(CHIP), CHIP, CHIP))
         x += CHIP + GAP
 
@@ -111,9 +121,8 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
         quit_button=buttons[0],
         omnipause_button=buttons[1],
         help_button=buttons[2],
-        broker_panel=chips[0],
-        fmode_panel=chips[1],
-        voice_panel=chips[2],
+        fmode_panel=chips[0],
+        voice_panel=chips[1],
     )
 
 
