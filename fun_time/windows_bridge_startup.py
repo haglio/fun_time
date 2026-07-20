@@ -423,6 +423,8 @@ def launch_genau(
     genau_height: int,
     command_file: str | Path | None = None,
     paused_file: str | Path | None = None,
+    console_file: str | Path | None = None,
+    dashboard_cmd_file: str | Path | None = None,
 ) -> int:
     """Launch Genau subprocess, returning its PID."""
     cmd = [
@@ -447,6 +449,13 @@ def launch_genau(
         cmd.extend(["--command-file", str(command_file)])
     if paused_file is not None:
         cmd.extend(["--paused-file", str(paused_file)])
+    # In genau mode Genau draws the primary console — the same panel Nau draws in
+    # the other modes — so it reads the console Fun Time publishes and posts a
+    # press back on the dashboard command file, exactly as Nau does.
+    if console_file is not None:
+        cmd.extend(["--console-file", str(console_file)])
+    if dashboard_cmd_file is not None:
+        cmd.extend(["--dashboard-cmd-file", str(dashboard_cmd_file)])
     proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
     return proc.pid
 

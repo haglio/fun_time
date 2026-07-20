@@ -321,6 +321,8 @@ def _run_startup_phases(
         genau_height=primary_media_rect.height,
         command_file=m["commands"]["genau_cmd_file"],
         paused_file=m["commands"]["genau_paused_file"],
+        console_file=m["commands"]["nau_console_file"],
+        dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
     )
     # Nau's status file is how startup learns Nau has finished loading, and it
     # can only say that once last session's copy is gone.  start_core_session
