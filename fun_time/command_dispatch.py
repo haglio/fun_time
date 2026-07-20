@@ -28,7 +28,7 @@ from .media_metadata import (
 )
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
-from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
+from .lock_hud import F_MODE_LABEL, cell_path, hud_map_cells, locate_cell, navigate_cell
 from .modes import collect_video_files, write_playlist_file
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
@@ -1288,6 +1288,19 @@ def _dispatch_fmode_toggle(
     )
     if result.log_message:
         logger.info(result.log_message)
+    # Flash which way it went, on whichever display the eye is on (system → the
+    # primary).  The dispatch owns this rather than the voice echo, so the F key
+    # and the dashboard button flash it too, not just a spoken "F mode" — which is
+    # why fmode is self-reporting (see SELF_REPORTING_COMMANDS).  Enabling is the
+    # quiet green confirmation; disabling is the loud one — the whole library just
+    # came back, so it flashes red the way the other "this is now off" notices do.
+    enabled = result.next_f_mode_enabled
+    notice_op = WindowOp(
+        op="notice",
+        key=f"{F_MODE_LABEL} enabled" if enabled else f"{F_MODE_LABEL} disabled",
+        source=SOURCE_SYSTEM,
+        level=NOTICE if enabled else FAILED_NOTICE_LEVEL,
+    )
     # F-mode rebuilds both satellites' playlists, dropping any group loops and the
     # widened seed rows that rode on them.
     return replace(
@@ -1299,7 +1312,7 @@ def _dispatch_fmode_toggle(
         landscape_loop="",
         portrait_widen_clip="",
         landscape_widen_clip="",
-    ), []
+    ), [notice_op]
 
 
 def _dispatch_reorder(
