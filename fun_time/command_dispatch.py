@@ -203,9 +203,18 @@ _GENAU_CMD_MAP = {
     "genau_center_up": "CENTER_UP",
     "genau_cycle_shape": "CYCLE_SHAPE",
     "genau_cycle_shape_prev": "CYCLE_SHAPE_PREV",
+    # Cruise varies the stroke; auto-advance moves on to the next clip.  They
+    # used to be one switch, and are armed separately now.
     "genau_toggle_cruise": "TOGGLE_CRUISE",
     "genau_cruise_on": "CRUISE_ON",
     "genau_cruise_off": "CRUISE_OFF",
+    "genau_toggle_auto_advance": "TOGGLE_AUTO_ADVANCE",
+    "genau_auto_advance_on": "AUTO_ADVANCE_ON",
+    "genau_auto_advance_off": "AUTO_ADVANCE_OFF",
+    # Holding a clip against auto-advance, and condemning one outright — the
+    # Genau counterparts of a satellite's lock and weird.
+    "genau_toggle_clip_lock": "TOGGLE_CLIP_LOCK",
+    "genau_weird_clip": "WEIRD",
     "genau_prev_clip": "PREV",
     "genau_next_clip": "NEXT",
 }
@@ -297,6 +306,8 @@ _GENAU_NUMERIC_PREFIXES = {
     "genau_amp_": "AMP",
     "genau_center_": "CENTER",
     "genau_speed_": "SPEED",
+    # Seconds between auto-advances, unlike the 0-100 axes above.
+    "genau_advance_": "ADVANCE",
 }
 
 

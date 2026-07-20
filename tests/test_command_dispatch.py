@@ -1977,6 +1977,31 @@ def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
     assert ops == []
 
 
+def test_genau_auto_advance_commands_write_cmd_file(tmp_path: Path):
+    """Auto-advance is its own switch now — cruise no longer carries it."""
+    for command, verb in (
+        ("genau_toggle_auto_advance", "TOGGLE_AUTO_ADVANCE"),
+        ("genau_auto_advance_on", "AUTO_ADVANCE_ON"),
+        ("genau_auto_advance_off", "AUTO_ADVANCE_OFF"),
+        ("genau_toggle_clip_lock", "TOGGLE_CLIP_LOCK"),
+        ("genau_weird_clip", "WEIRD"),
+    ):
+        config = _make_config(tmp_path / command)
+        new_state, ops = dispatch_command(command, _make_state(primary_mode="genau"), config)
+
+        assert config.genau_cmd_file.read_text(encoding="utf-8") == verb
+        assert ops == []
+
+
+def test_genau_advance_seconds_writes_a_numeric_cmd(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="genau")
+
+    dispatch_command("genau_advance_30", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "ADVANCE 30"
+
+
 def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="nau")

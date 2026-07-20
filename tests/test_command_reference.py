@@ -14,7 +14,7 @@ from fun_time.command_reference import (
 from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS, VOICE_COMMANDS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_NUMERIC_RE = re.compile(r"^genau_(amp|center|speed)_\d+$")
+_NUMERIC_RE = re.compile(r"^genau_(amp|center|speed|advance)_\d+$")
 _QUEUED_RE = re.compile(r'QueueCommand\("([^"]+)"\)')
 
 
@@ -347,8 +347,8 @@ def test_previous_shape_is_a_separate_keyless_line():
     rows = _all_rows()
     next_rows = [r for r in rows if "genau_cycle_shape" in r.commands]
     prev_rows = [r for r in rows if "genau_cycle_shape_prev" in r.commands]
-    assert next_rows and next_rows[0].hotkeys == (",",)
-    # The "," key does next only — it must not claim previous.
+    assert next_rows and next_rows[0].hotkeys == ("I",)
+    # The "I" key does next only — it must not claim previous.
     assert "genau_cycle_shape_prev" not in next_rows[0].commands
     assert prev_rows and prev_rows[0].hotkeys == ()
     assert "previous shape" in prev_rows[0].voice
@@ -394,8 +394,10 @@ def test_offset_voice_on_genau_backslash_row():
 
 
 def test_corrected_descriptions():
+    """Rows say what the key does to the room, not just what it is called."""
     descs = {r.description for r in _all_rows()}
-    assert {"Disable voice control", "Enable / disable cruise control", "Start / stop broker"} <= descs
+    assert {"Disable voice control", "Start / stop broker"} <= descs
+    assert any(d.startswith("Enable / disable cruise control") for d in descs)
     assert "Mute voice control" not in descs
     assert "Cruise control" not in descs
     assert "Broker start / stop" not in descs

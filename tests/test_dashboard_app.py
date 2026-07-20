@@ -1695,6 +1695,38 @@ def test_genau_cruise_button_neutral_when_inactive(cfg_path: Path):
     assert fills[layout.genau_cruise] == COLOR_PANEL
 
 
+def test_genau_auto_advance_button_sits_beside_cruise_in_both_modes(cfg_path: Path):
+    """Cruise varies the stroke, auto advance moves on — one button each."""
+    layout = _make_layout(cfg_path)
+
+    genau = build_dashboard_scene(layout, _make_snapshot(primary_mode="genau"))
+    g_actions = {a: r for a, r in genau.actions}
+    assert g_actions.get("genau_toggle_auto_advance") == layout.genau_advance
+    assert {i.rect: i.text for i in genau.texts}[layout.genau_advance] == "aa"
+
+    hybrid = build_dashboard_scene(layout, _make_snapshot(primary_mode="hybrid"))
+    h_actions = {a: r for a, r in hybrid.actions}
+    assert h_actions.get("genau_toggle_auto_advance") == layout.hybrid_advance
+
+
+def test_genau_auto_advance_button_lights_when_armed_and_when_held(cfg_path: Path):
+    """A held clip is still armed, so the button stays lit — in another colour,
+    the way the Genau HUD's own AA badge does."""
+    from fun_time.dashboard_runtime import GenauStatus
+    from shared_ui.colors import BLUE
+    layout = _make_layout(cfg_path)
+    snapshot = _make_snapshot(primary_mode="genau")
+
+    def _fill(status):
+        scene = build_dashboard_scene(layout, snapshot, genau_status=status)
+        return {item.rect: item.fill for item in scene.rects}[layout.genau_advance]
+
+    assert _fill(GenauStatus()) == COLOR_PANEL
+    assert _fill(GenauStatus(auto_advance_active=True)) == BLUE
+    held = _fill(GenauStatus(auto_advance_active=True, clip_locked=True))
+    assert held not in (COLOR_PANEL, BLUE)
+
+
 def test_takeover_toggle_in_nau_and_hybrid_not_genau(cfg_path: Path):
     """The takeover toggle belongs where Genau isn't the primary: Nau and Hybrid."""
     layout = _make_layout(cfg_path)

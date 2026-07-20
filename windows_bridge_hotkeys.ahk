@@ -135,18 +135,28 @@ v::QueueCommand("nau_cycle_version")
 ; Nau: cycle the length of what plays — mixed (everything) / shorts / full-length.
 t::QueueCommand("nau_toggle_length")
 
-; Genau direct control hotkeys
+; Genau direct control hotkeys.  Each pair reads left-down / right-up: 7/9 sit
+; above u/o for amplitude, the way u/o and j/l already work for centre and speed.
+7::QueueCommand("genau_amplitude_down")
+9::QueueCommand("genau_amplitude_up")
 u::QueueCommand("genau_center_down")
-i::QueueCommand("genau_amplitude_up")
+i::QueueCommand("genau_cycle_shape")
 o::QueueCommand("genau_center_up")
 j::QueueCommand("genau_speed_down")
-k::QueueCommand("genau_amplitude_down")
 l::QueueCommand("genau_speed_up")
+; Cruise varies the stroke, auto advance moves on to the next clip — one switch
+; each, side by side on the bottom row.
 c::QueueCommand("genau_toggle_cruise")
-m::QueueCommand("genau_prev_clip")
-SC033::QueueCommand("genau_cycle_shape")
-SC034::QueueCommand("genau_next_clip")
+x::QueueCommand("genau_toggle_auto_advance")
 SC035::QueueCommand("genau_toggle_auto")
+
+; Genau's clip cluster, laid out like the arrow keys are for the portrait side:
+; K above to condemn the clip, M and . either side for previous and next, and
+; , below K to hold the clip against auto advance.
+k::QueueCommand("genau_weird_clip")
+m::QueueCommand("genau_prev_clip")
+SC033::QueueCommand("genau_toggle_clip_lock")
+SC034::QueueCommand("genau_next_clip")
 
 ; -------------------- CORE FUNCTIONS --------------------
 

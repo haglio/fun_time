@@ -125,6 +125,11 @@ def read_nau_status(path: Path) -> NauStatus:
 @dataclass(frozen=True)
 class GenauStatus:
     cruise_active: bool = False
+    # Auto-advance is armed separately from cruise: cruise varies the stroke,
+    # auto-advance moves on to the next clip, and a held clip stays put while
+    # auto-advance is still armed around it.
+    auto_advance_active: bool = False
+    clip_locked: bool = False
     shape: str = "sine"
     amp_at_max: bool = False
     amp_at_min: bool = False
@@ -148,6 +153,8 @@ def read_genau_status(path: Path) -> GenauStatus:
         )
         return GenauStatus(
             cruise_active=_status_bool(values, "cruise"),
+            auto_advance_active=_status_bool(values, "advance"),
+            clip_locked=_status_bool(values, "clip_locked"),
             shape=values.get("shape", "sine").strip(),
             amp_at_max=_status_bool(values, "amp_at_max"),
             amp_at_min=_status_bool(values, "amp_at_min"),

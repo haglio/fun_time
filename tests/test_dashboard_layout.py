@@ -342,6 +342,57 @@ def test_genau_takeover_bottom_left_and_hybrid_cruise_to_its_right():
     assert takeover.x + takeover.width <= hybrid_cruise.x
 
 
+def test_auto_advance_sits_directly_above_cruise_in_both_modes():
+    """Cruise and auto advance are separate switches, so each needs a button.
+
+    Auto advance goes above cruise rather than beside it: the bottom row is
+    already full in Hybrid, so a fourth slot there would land under the centred
+    shape button.
+    """
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    for cruise, advance in (
+        (layout.genau_cruise, layout.genau_advance),
+        (layout.hybrid_cruise, layout.hybrid_advance),
+    ):
+        assert _inside(advance, layout.primary_panel)
+        assert advance.x == cruise.x and advance.width == cruise.width
+        assert advance.y + advance.height <= cruise.y
+
+    # Nothing else on the bottom row moved, so Hybrid still reads takeover, cc.
+    assert layout.genau_takeover.x + layout.genau_takeover.width <= layout.hybrid_cruise.x
+    assert layout.hybrid_cruise.x + layout.hybrid_cruise.width <= layout.genau_shape.x
+
+
+def test_auto_advance_clears_the_buttons_on_its_own_row():
+    """Its row carries clipper_save in Nau/Hybrid, and the hybrid quarter and
+    file-dialog buttons sit a row above."""
+    layout = compute_dashboard_preview_layout(
+        Size(width=2560, height=1392),
+        Size(width=1440, height=3440),
+        _layout_config(),
+    )
+
+    def _overlaps(a, b) -> bool:
+        return (
+            a.x < b.x + b.width and b.x < a.x + a.width
+            and a.y < b.y + b.height and b.y < a.y + a.height
+        )
+
+    for advance in (layout.genau_advance, layout.hybrid_advance):
+        for other in (
+            layout.clipper_save, layout.nau_record,
+            layout.hybrid_quarter_button, layout.hybrid_open_file_dialog,
+            layout.quarter_button, layout.open_file_dialog,
+            layout.genau_shape, layout.genau_cruise, layout.genau_takeover,
+        ):
+            assert not _overlaps(advance, other), f"{advance} overlaps {other}"
+
+
 def test_genau_shape_does_not_overlap_mode_toggle():
     layout = compute_dashboard_preview_layout(
         Size(width=2560, height=1392),

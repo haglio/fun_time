@@ -327,8 +327,20 @@ Values:
 - `PREV`
 - `NEXT`
 - `OFFSET_QUARTER_CYCLE`
+- `WEIRD`
+- `TOGGLE_CLIP_LOCK`
+- `TOGGLE_AUTO_ADVANCE` / `AUTO_ADVANCE_ON` / `AUTO_ADVANCE_OFF` / `ADVANCE <seconds>`
+- `TOGGLE_CRUISE` / `CRUISE_ON` / `CRUISE_OFF`
 
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
+
+Cruise control and auto advance are separate switches: cruise wanders the
+stroke's amplitude, centre, speed and waveform, while auto advance moves on to
+the next clip — every 8–12 seconds unless `ADVANCE <seconds>` names a pace.
+Auto advance holds while the room is paused, so OmniPause leaves the clip on
+screen where the user left it. `TOGGLE_CLIP_LOCK` pins the current clip while
+auto advance stays armed around it; `WEIRD` condemns the clip, moving the file
+to `videos/genau/weird/` and taking up its successor.
 
 Genau (the `../genau` project) consumes and clears this file.
 
