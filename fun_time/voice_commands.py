@@ -397,11 +397,14 @@ if _shadowed:
 VOICE_COMMANDS.update(_filter_commands)
 
 
-# Commands whose outcome only Nau knows: it flashes the result itself (the clip
-# it jumped to, or "full video not available"), so confirming recognition here
-# too would stack a green toast under a red correction.
+# Commands that flash their own outcome, so the generic "I heard you" green echo
+# must not stack a second toast on top.  The clip jumps report from Nau (the clip
+# it reached, or "full video not available"); F-mode reports from the dispatch,
+# which alone knows whether the toggle turned it on (green) or off (red) — and by
+# owning the toast there, the F key and the dashboard flash it too, not just voice.
 SELF_REPORTING_COMMANDS = frozenset({
     "nau_compilation",
     "nau_full_vid",
     "nau_money_shot",
+    "fmode_toggle",
 })

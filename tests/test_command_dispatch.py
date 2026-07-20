@@ -706,6 +706,45 @@ def test_fmode_panel_click_dispatches_as_fmode_toggle(tmp_path: Path):
     assert new_state.locked3 is False
 
 
+def _fmode_result(*, enabled: bool):
+    return type("R", (), {
+        "success": True, "next_f_mode_enabled": enabled,
+        "next_locked2": False, "next_locked3": False,
+        "log_message": f"F-mode hotkey: {'enabled' if enabled else 'disabled'}",
+    })()
+
+
+def test_fmode_toggle_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
+    """Every path into F-mode — the F key, the dashboard, a spoken "F mode" — now
+    flashes the same confirmation, since the dispatch owns it rather than the voice
+    layer echoing the phrase it heard."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_toggle_fmode",
+               return_value=_fmode_result(enabled=True)):
+        _new_state, ops = dispatch_command(
+            "fmode_toggle", _make_state(f_mode_enabled=False), config)
+
+    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="system")]
+
+
+def test_fmode_toggle_flashes_a_red_notice_when_it_turns_off(tmp_path: Path):
+    """The reported bug: disabling F-mode still flashed a green "F mode", which
+    reads as "turned on".  Off is the loud state here — the library just went back
+    to its full self — so it flashes red and says which way it went."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_toggle_fmode",
+               return_value=_fmode_result(enabled=False)):
+        _new_state, ops = dispatch_command(
+            "fmode_toggle", _make_state(f_mode_enabled=True), config)
+
+    assert ops == [
+        WindowOp(op="notice", key="F-Mode disabled", source="system",
+                 level=FAILED_NOTICE_LEVEL),
+    ]
+
+
 def test_fmode_toggle_passes_each_sides_current_order(tmp_path: Path):
     """F-mode rebuilds both satellites, and the two can be in different orders, so
     each side's own ordering has to go with it."""
