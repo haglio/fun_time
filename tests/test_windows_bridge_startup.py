@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import configparser
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlparse
@@ -13,6 +14,7 @@ from fun_time.modes import SatelliteLibraryContext
 from fun_time.window_layout import WindowRect
 from fun_time.windows_bridge_startup import (
     _build_satellite_launch_command,
+    broker_source_mtime,
     launch_satellite,
     ensure_broker,
     launch_core_apps,
@@ -116,11 +118,84 @@ def test_ensure_broker_does_not_kill_on_a_merely_stale_heartbeat(tmp_path: Path)
     popen.assert_called_once_with(["wscript.exe", str(launcher)], cwd=launcher.parent)
 
 
+def test_ensure_broker_restarts_a_broker_older_than_its_own_code(tmp_path: Path):
+    """The one case that earns a kill: the running broker predates the code it
+    should be running, so fun_time's vocabulary is ahead of what it understands
+    and any newer verb is dropped without a word.  That is a fact about two
+    timestamps, unlike the stale heartbeat above, which is only a guess — so it
+    overrides even a perfectly fresh heartbeat.
+    """
+    launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
+    launcher.parent.mkdir()
+    launcher.touch()
+    heartbeat = tmp_path / "broker_heartbeat.txt"
+
+    with patch("fun_time.windows_bridge_startup.broker_source_mtime", return_value=2000.0), \
+         patch("fun_time.windows_bridge_startup.broker_process_started_at", return_value=1000.0), \
+         patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True), \
+         patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop, \
+         patch("fun_time.windows_bridge_startup.launch_broker_tray") as launch:
+        ensure_broker(heartbeat, launcher)
+
+    stop.assert_called_once()
+    launch.assert_called_once_with(launcher)
+
+
+def test_ensure_broker_does_not_kill_a_broker_newer_than_its_code(tmp_path: Path):
+    """The usual case, and the one that must never kill: the running broker was
+    started after the last time its sources changed, so it understands everything
+    we can say to it."""
+    launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
+    launcher.parent.mkdir()
+    launcher.touch()
+
+    with patch("fun_time.windows_bridge_startup.broker_source_mtime", return_value=1000.0), \
+         patch("fun_time.windows_bridge_startup.broker_process_started_at", return_value=2000.0), \
+         patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True), \
+         patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop:
+        ensure_broker(tmp_path / "broker_heartbeat.txt", launcher)
+
+    stop.assert_not_called()
+
+
+def test_ensure_broker_does_not_ask_about_the_process_when_it_cannot_read_the_code(
+    tmp_path: Path,
+):
+    """No readable broker package means no answer, and no answer is not permission
+    to kill.  It also fixes the order: the directory read comes first, so an
+    ordinary startup never spawns a PowerShell process to ask a question the
+    cheap half has already settled."""
+    with patch("fun_time.windows_bridge_startup.broker_process_started_at") as started, \
+         patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True), \
+         patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop:
+        ensure_broker(tmp_path / "broker_heartbeat.txt", tmp_path / "nowhere" / "launch.vbs")
+
+    started.assert_not_called()
+    stop.assert_not_called()
+
+
+def test_broker_source_mtime_is_the_newest_python_file_in_the_package(tmp_path: Path):
+    """What the running process actually loaded is the package's .py files, so a
+    log or config written beside them must not read as a code change — that would
+    restart the broker on every startup."""
+    launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
+    package = launcher.parent / "osr2_broker"
+    package.mkdir(parents=True)
+    (package / "session.py").touch()
+    os.utime(package / "session.py", (1000.0, 1000.0))
+    (package / "app.py").touch()
+    os.utime(package / "app.py", (3000.0, 3000.0))
+    (package / "osr2_broker.log").touch()
+    os.utime(package / "osr2_broker.log", (9000.0, 9000.0))
+
+    assert broker_source_mtime(launcher) == 3000.0
+
+
 def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):
     """A fresh heartbeat means a healthy broker is already running — a previous
-    session's, or the one osr2_broker's self-healing task keeps up.  Startup must
-    not kill it: harem and the user's own tools keep talking to it, and
-    tearing it down would drop every client mid-stream."""
+    session's, or the one osr2_broker's self-healing task keeps up.  With nothing
+    saying its code has moved on, startup leaves it be: the user's own tools keep
+    talking to it, and tearing it down would drop every client mid-stream."""
     heartbeat = tmp_path / "broker_heartbeat.txt"
     with patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True) as fresh, \
          patch("fun_time.windows_bridge_startup.launch_broker_tray") as launch:
