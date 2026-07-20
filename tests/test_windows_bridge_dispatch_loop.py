@@ -314,8 +314,9 @@ class TestSharedState:
         assert loaded is not None
         assert loaded.active_side == 3
 
-    def test_active_side_defaults_to_portrait_for_legacy_files(self, tmp_path):
-        """An INI written before active_side existed loads as portrait (2)."""
+    def test_active_side_defaults_to_the_primary_for_legacy_files(self, tmp_path):
+        """An INI written before active_side existed loads as the primary (1) —
+        the same floor a fresh session opens on."""
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
             "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
@@ -326,7 +327,7 @@ class TestSharedState:
         loaded = read_shared_state(state_file)
 
         assert loaded is not None
-        assert loaded.active_side == 2
+        assert loaded.active_side == 1
 
     def test_roundtrip_preserves_the_sound_level(self, tmp_path):
         """volume/muted must persist: tick() reloads state from this file every

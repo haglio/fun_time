@@ -84,7 +84,9 @@ class BridgeState:
     # 3=landscape). Any portrait_/landscape_ command, or a primary next/prev,
     # updates it; the side-agnostic "active_*" commands resolve against it —
     # nav (next/prev) reaches all three, the satellite-only actions only 2/3.
-    active_side: int = 2
+    # Starts on the primary: it is the display the eye opens on, so it holds the
+    # floor until a satellite is addressed.
+    active_side: int = 1
     # Per-satellite metadata filter queries ("" = no filter). Persisted in the shared
     # state file so they survive the dispatch loop's per-tick state resync and
     # are honoured by later F-mode / reorder rebuilds.
