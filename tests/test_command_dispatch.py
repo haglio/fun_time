@@ -1794,6 +1794,22 @@ def test_nau_multiplier_sets_nau_speed(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5"
 
 
+def test_nau_speed_up_down_nudge_the_video_rate_where_nau_is_on_screen(tmp_path: Path):
+    """The console's playback-rate arrows.  They tune Nau's video — never the
+    stroke — so they reach Nau in nau and hybrid and are a no-op in genau, where
+    Nau is off screen and its clips have no such rate."""
+    for mode in ("nau", "hybrid"):
+        config = _make_config(tmp_path / mode)
+        dispatch_command("nau_speed_up", _make_state(primary_mode=mode), config)
+        assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP"
+        assert not config.genau_cmd_file.exists()
+
+    config = _make_config(tmp_path / "genau")
+    dispatch_command("nau_speed_down", _make_state(primary_mode="genau"), config)
+    assert not config.nau_cmd_file.exists()
+    assert not config.genau_cmd_file.exists()
+
+
 def test_nau_multiplier_is_a_noop_when_genau_drives(tmp_path: Path):
     # An absolute multiplier is a Nau-video concept; in genau mode Nau is hidden,
     # so it is a no-op (the speaker uses Genau's own 0-100 grammar there).
