@@ -508,6 +508,9 @@ def launch_nau(
         str(nau_width),
         "--height",
         str(nau_height),
+        # Fun Time owns the slot's geometry, so Nau drops its title bar here — the
+        # satellites and Genau do the same.  Run standalone it keeps its chrome.
+        "--borderless",
     ]
     # Lets Nau group a video's versions from Evolver's metadata sidecars rather
     # than guessing from clip names.
