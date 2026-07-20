@@ -316,12 +316,38 @@ for _word, _value in _NUMBER_WORDS.items():
     for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
         VOICE_COMMANDS[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
 
-# "auto advance thirty" -> genau_advance_30.  Kept out of the loop above: these
-# are seconds, not a 0-100 axis, so neither zero nor the min/max forms mean
-# anything — a nought-second interval would step the clip every frame.
-for _word, _value in _NUMBER_WORDS.items():
-    if 10 <= _value <= 60:
-        VOICE_COMMANDS[f"auto advance {_word}"] = f"genau_advance_{_value}"
+# "auto advance five" -> genau_advance_5.  These are seconds, not a 0-100 axis,
+# so they need finer granularity than the tens-only _NUMBER_WORDS above: a spoken
+# integer 1-60, single digits and compounds ("twenty five" -> 25) alike.  Zero is
+# omitted — a nought-second interval would step the clip every frame.  Naming a
+# small number was the whole point of auto-advance, and its absence from the
+# grammar was why the recognizer fell back to free capture ("otto advance five").
+_SPOKEN_ONES: dict[str, int] = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9,
+}
+_SPOKEN_TEENS: dict[str, int] = {
+    "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
+    "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19,
+}
+_SPOKEN_TENS: dict[str, int] = {
+    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+}
+
+
+def _spoken_seconds() -> dict[str, int]:
+    """Spoken integers 1-60, e.g. {"five": 5, "twenty five": 25, "sixty": 60}."""
+    words = {**_SPOKEN_ONES, **_SPOKEN_TEENS}
+    for _tens_word, _tens in _SPOKEN_TENS.items():
+        words[_tens_word] = _tens
+        if _tens < 60:
+            for _ones_word, _ones in _SPOKEN_ONES.items():
+                words[f"{_tens_word} {_ones_word}"] = _tens + _ones
+    return words
+
+
+for _word, _value in _spoken_seconds().items():
+    VOICE_COMMANDS[f"auto advance {_word}"] = f"genau_advance_{_value}"
 
 # "min amp" -> genau_amp_0, "max speed" -> genau_speed_100, etc.
 _EXTREMES: dict[str, int] = {"min": 0, "max": 100}
