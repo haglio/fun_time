@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.dashboard_layout import Size, compute_dashboard_preview_layout
+from fun_time.dashboard_layout import dashboard_window_height
 from fun_time.window_layout import (
     MonitorRect,
-    compute_dashboard_size,
     compute_primary_media_rect,
     compute_window_layout,
 )
@@ -131,30 +130,22 @@ def test_primary_media_rect_is_the_secondary_below_the_portrait_satellite(cfg_pa
     assert primary.y + primary.height == secondary.y + secondary.height
 
 
-def test_dashboard_scene_keeps_its_natural_size(cfg_path: Path):
-    """``compute_dashboard_size`` returns the schematic's natural (fixed-scale)
-    scene size — the shape the schematic has always had.  The window is wider
-    than this (it spans the column, with the log stream filling the remainder),
-    so the schematic must be strictly narrower than the column."""
+def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_path: Path):
+    """The dashboard used to stand as tall as a scale drawing of the taller
+    monitor.  It is a control bar over a log now, so the browser under it gets
+    the height the drawing was using."""
     config = load_config(cfg_path)
     main = MonitorRect(0, 0, 2560, 1392)
-    secondary = MonitorRect(2560, 0, 1440, 3440)
 
-    size = compute_dashboard_size(
+    plan = compute_window_layout(
         main_monitor=main,
-        secondary_monitor=secondary,
+        secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
     )
 
-    natural = compute_dashboard_preview_layout(
-        Size(main.width, main.height),
-        Size(secondary.width, secondary.height),
-        config.layout,
-    )
-    assert size.width == natural.dashboard_width
-    assert size.height == natural.dashboard_height
+    assert plan.dashboard.height == dashboard_window_height()
+    # It spans the whole left column — there is no schematic beside the log now.
+    assert plan.dashboard.width == plan.random_favs_browser.width
+    assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
+    assert plan.random_favs_browser.height > plan.dashboard.height
 
-    # The schematic is narrower than the column, leaving room for the log strip.
-    landscape_w = int(2560 * config.layout.landscape_width_ratio)
-    left_width = 2560 - landscape_w
-    assert size.width < left_width

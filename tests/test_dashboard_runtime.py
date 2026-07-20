@@ -54,7 +54,6 @@ def test_load_dashboard_snapshot_parses_bridge_export(tmp_path: Path):
                 "[osr2]",
                 "mode=auto",
                 "[primary]",
-                "responsive=1",
                 "mode=nau",
                 "path=demo-primary.mp4",
                 "locked=0",
@@ -77,7 +76,6 @@ def test_load_dashboard_snapshot_parses_bridge_export(tmp_path: Path):
     snapshot = load_dashboard_snapshot(snapshot_file)
 
     assert snapshot is not None
-    assert snapshot.primary_responsive is True
     assert snapshot.osr2_mode == "auto"
     assert snapshot.primary_mode == "nau"
     assert snapshot.primary.path == "demo-primary.mp4"
@@ -99,7 +97,6 @@ def test_load_dashboard_snapshot_supports_utf16_ini_exports(tmp_path: Path):
                 "[osr2]",
                 "mode=auto",
                 "[primary]",
-                "responsive=1",
                 "mode=genau",
                 "path=primary.mp4",
                 "locked=0",
@@ -154,7 +151,6 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
     assert snapshot is not None
     assert snapshot.f_mode_enabled is True
     assert snapshot.primary.path == ""
-    assert snapshot.primary_responsive is False
     assert snapshot.portrait.locked is True
     assert snapshot.window.width == 0
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fun_time.config import LayoutConfig
-from fun_time.dashboard_layout import Size, compute_dashboard_preview_layout
+from fun_time.dashboard_layout import dashboard_window_height
 
 
 def clamp01(value: float) -> float:
@@ -40,11 +40,7 @@ def compute_window_layout(
     secondary_monitor: MonitorRect,
     layout_config: LayoutConfig,
 ) -> WindowLayoutPlan:
-    dashboard_size = compute_dashboard_size(
-        main_monitor=main_monitor,
-        secondary_monitor=secondary_monitor,
-        layout_config=layout_config,
-    )
+    dashboard_height = dashboard_window_height()
     portrait_height = int(secondary_monitor.height * clamp01(layout_config.primary_top_ratio))
 
     portrait = WindowRect(
@@ -63,8 +59,8 @@ def compute_window_layout(
     )
 
     # The left column stacks the dashboard above the RFB.  The dashboard spans
-    # the full column width — its schematic on the left and the embedded log
-    # stream filling the strip beside it — at its natural height.  The RFB then
+    # the full column width — its control bar across the top and the embedded log
+    # stream filling everything under it — at its natural height.  The RFB then
     # fills the whole rectangle from the dashboard's bottom edge down to the
     # monitor's bottom edge.
     left_width = main_monitor.width - landscape_width
@@ -72,13 +68,13 @@ def compute_window_layout(
         x=main_monitor.x,
         y=main_monitor.y,
         width=left_width,
-        height=dashboard_size.height,
+        height=dashboard_height,
     )
     random_favs_browser = WindowRect(
         x=main_monitor.x,
-        y=main_monitor.y + dashboard_size.height,
+        y=main_monitor.y + dashboard_height,
         width=left_width,
-        height=main_monitor.height - dashboard_size.height,
+        height=main_monitor.height - dashboard_height,
     )
 
     return WindowLayoutPlan(
@@ -108,23 +104,3 @@ def compute_primary_media_rect(
         width=secondary_monitor.width,
         height=secondary_monitor.height - portrait_height,
     )
-
-
-def compute_dashboard_size(
-    *,
-    main_monitor: MonitorRect,
-    secondary_monitor: MonitorRect,
-    layout_config: LayoutConfig,
-) -> Size:
-    """The dashboard's natural (fixed-scale) scene size.
-
-    Must match the scene ``build_dashboard_window`` renders, so both derive it
-    from the same :func:`compute_dashboard_preview_layout`.
-    """
-    preview = compute_dashboard_preview_layout(
-        Size(main_monitor.width, main_monitor.height),
-        Size(secondary_monitor.width, secondary_monitor.height),
-        layout_config,
-    )
-    return Size(preview.dashboard_width, preview.dashboard_height)
-

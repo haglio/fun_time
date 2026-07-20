@@ -469,7 +469,6 @@ def launch_nau(
     nau_width: int,
     nau_height: int,
     metadata_dir: str | Path | None = None,
-    dashboard_cmd_file: str | Path | None = None,
 ) -> int:
     """Launch Nau subprocess, returning its PID.
 
@@ -493,7 +492,8 @@ def launch_nau(
         str(status_file),
         # Nau's HUD is the console the dashboard used to be: it reads the panel we
         # publish, reads Genau's readout for the section under it, and posts a
-        # press back onto the same command file the dashboard wrote.
+        # press — on a button or on the volume control — back onto the same
+        # command file the dashboard wrote.
         "--console-file",
         str(console_file),
         "--drive-file",
@@ -513,10 +513,6 @@ def launch_nau(
     # than guessing from clip names.
     if metadata_dir:
         cmd += ["--metadata-dir", str(metadata_dir)]
-    # Where a press on Nau's volume control posts its command — the same channel
-    # the dashboard and each satellite's HUD write to.
-    if dashboard_cmd_file:
-        cmd += ["--dashboard-cmd-file", str(dashboard_cmd_file)]
     with open_child_log(log_file, cmd) as log:
         proc = subprocess.Popen(cmd, stdout=log, stderr=log, **subprocess_window_kwargs())
     return proc.pid
