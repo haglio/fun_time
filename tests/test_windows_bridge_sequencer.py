@@ -8,6 +8,7 @@ from fun_time.config import load_config
 from fun_time.dashboard_runtime import read_nau_status
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
+from fun_time.nau_console import nau_console_path
 from fun_time import windows_bridge_sequencer
 from fun_time.windows_bridge_sequencer import (
     NAU_LOAD_TIMEOUT_S,
@@ -219,6 +220,11 @@ class TestRunStartupSequence:
             "command_file": str(cfg.nau_cmd_file),
             "paused_file": str(cfg.nau_paused_file),
             "status_file": str(cfg.nau_status_file),
+            # The console: the panel Fun Time publishes for Nau's HUD, Genau's
+            # readout for the section under it, and where a press goes back.
+            "console_file": str(nau_console_path(cfg.paths.state_dir)),
+            "drive_file": Path(cfg.genau_cmd_file).parent / "genau_drive.txt",
+            "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
             # Nau is the satellites' twin and gets the same crash log.
             "log_file": tmp_path / "nau.log",
             "nau_x": PRIMARY_MEDIA_RECT["x"],

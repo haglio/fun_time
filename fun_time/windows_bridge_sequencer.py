@@ -337,6 +337,12 @@ def _run_startup_phases(
         command_file=m["commands"]["nau_cmd_file"],
         paused_file=m["commands"]["nau_paused_file"],
         status_file=m["commands"]["nau_status_file"],
+        console_file=m["commands"]["nau_console_file"],
+        # Genau's readout, which Nau draws in Hybrid.  Derived from Genau's own
+        # command file rather than our state dir: Genau resolves it from its own
+        # config, and the two directories are not guaranteed to be the same one.
+        drive_file=Path(m["commands"]["genau_cmd_file"]).parent / "genau_drive.txt",
+        dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
         log_file=state_dir / "nau.log",
         nau_x=primary_media_rect.x,
         nau_y=primary_media_rect.y,

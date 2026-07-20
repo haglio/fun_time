@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from .hud_transport import HUD_FILENAME
+from .nau_console import nau_console_path
 
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 
@@ -49,6 +50,7 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             "nau_cmd_file": str(config.nau_cmd_file),
             "nau_paused_file": str(config.nau_paused_file),
             "nau_status_file": str(config.nau_status_file),
+            "nau_console_file": str(nau_console_path(config.paths.state_dir)),
             "nau_playlist_file": str(config.nau_playlist_file),
             "portrait_cmd_file": str(config.paths.state_dir / "portrait_cmd.txt"),
             "portrait_paused_file": str(config.paths.state_dir / "portrait_paused.txt"),

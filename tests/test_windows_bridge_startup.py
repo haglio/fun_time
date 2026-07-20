@@ -641,7 +641,9 @@ def test_launch_nau_forwards_metadata_dir_when_given(tmp_path: Path):
         launch_nau(
             python_exe="python.exe", nau_module="nau", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", log_file=tmp_path / "nau.log",
+            status_file="status", console_file="console.json",
+            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "nau.log",
             nau_x=0, nau_y=0, nau_width=100, nau_height=100,
             metadata_dir="C:/videos/metadata",
         )
@@ -662,7 +664,9 @@ def test_launch_nau_omits_metadata_dir_when_absent(tmp_path: Path):
         launch_nau(
             python_exe="python.exe", nau_module="nau", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", log_file=tmp_path / "nau.log",
+            status_file="status", console_file="console.json",
+            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "nau.log",
             nau_x=0, nau_y=0, nau_width=100, nau_height=100,
         )
 
@@ -710,6 +714,9 @@ def test_launch_nau_sends_child_output_to_its_own_log(tmp_path: Path):
             command_file="state/nau_cmd.txt",
             paused_file="state/nau_paused.txt",
             status_file="state/nau_status.txt",
+            console_file="state/nau_console.json",
+            drive_file="state/genau_drive.txt",
+            dashboard_cmd_file="state/dashboard_cmd.txt",
             log_file=log_file,
             nau_x=100, nau_y=200, nau_width=300, nau_height=400,
         )
@@ -737,6 +744,9 @@ def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
             command_file="state/nau_cmd.txt",
             paused_file="state/nau_paused.txt",
             status_file="state/nau_status.txt",
+            console_file="state/nau_console.json",
+            drive_file="state/genau_drive.txt",
+            dashboard_cmd_file="state/dashboard_cmd.txt",
             log_file=tmp_path / "nau.log",
             nau_x=100,
             nau_y=200,
@@ -760,6 +770,12 @@ def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
         "state/nau_paused.txt",
         "--status-file",
         "state/nau_status.txt",
+        "--console-file",
+        "state/nau_console.json",
+        "--drive-file",
+        "state/genau_drive.txt",
+        "--dashboard-cmd-file",
+        "state/dashboard_cmd.txt",
         "--x",
         "100",
         "--y",
