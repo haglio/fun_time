@@ -354,7 +354,7 @@ def test_write_dashboard_command_retries_past_a_transient_file_lock(
         return real_open(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", flaky_open)
-    monkeypatch.setattr("fun_time.voice_commands.time.sleep", lambda _s: None)
+    monkeypatch.setattr("player_core.file_channel.time.sleep", lambda _s: None)
 
     write_dashboard_command(command_file, "quit")  # must not raise
 
@@ -377,7 +377,7 @@ def test_write_dashboard_command_drops_rather_than_raises_when_locked(
         raise AssertionError("unexpected open")
 
     monkeypatch.setattr(Path, "open", always_locked)
-    monkeypatch.setattr("fun_time.voice_commands.time.sleep", lambda _s: None)
+    monkeypatch.setattr("player_core.file_channel.time.sleep", lambda _s: None)
 
     write_dashboard_command(command_file, "quit")  # must not raise
 

@@ -211,7 +211,7 @@ This README deliberately does not repeat the key table — open the **?** popup 
 
 The satellite voice commands can be spoken with or without naming a side. The side word always comes first, so naming one — "portrait lock", "landscape next" — acts on that player as always. Said **bare** — "lock", "unlock", "next", "previous", "weird", "action", "seed" — the command acts on the **active side**: whichever satellite you most recently touched, by voice *or* by keyboard. So if you were just navigating the portrait with `←`/`→`, a plain "lock" locks the portrait; switch to the landscape with `A`/`D` and "lock" now locks the landscape. The active side is remembered (persisted in the bridge's shared state) until the other side is addressed. Bare commands are voice-only — the keys stay side-specific.
 
-Each satellite says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active side and grey otherwise. It is always drawn — an absent dot could not be told from an idle one.
+Every player says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active player and grey on the others. It is always drawn — an absent dot could not be told from an idle one — so exactly one dot is lit at any moment. Each satellite reads its own off the panel the dispatch loop publishes; Nau is told over `SET_ACTIVE`, appended to its command file so the message cannot displace a queued verb.
 
 ### Modes
 
@@ -342,7 +342,7 @@ Commands (the full set `nau/runtime.py` answers to):
 - `TOGGLE_LENGTH_MODE` / `SET_LENGTH_MODE mixed|shorts|full`
 - `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_MONEY_SHOT`
 - `SET_TCODE_ENABLED 0|1`
-- `SET_HYBRID 0|1` / `SET_F_MODE 0|1` — state only the orchestrator holds and Nau cannot work out for itself; both drive what its HUD shows
+- `SET_HYBRID 0|1` / `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and Nau cannot work out for itself; all three drive what its HUD shows
 - `QUIT`
 
 ### `nau_paused.txt`

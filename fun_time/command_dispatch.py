@@ -844,7 +844,8 @@ def _cycle_variant(
 # The dispatcher counts players in slots; everything that *draws* them names them
 # instead (the HUD panels, the publisher's filenames, each player's own side).  This
 # is the one crossing between the two, so a slot never reaches a player as a number.
-SIDE_NAMES = {1: "primary", 2: "portrait", 3: "landscape"}
+PRIMARY_SIDE = 1
+SIDE_NAMES = {PRIMARY_SIDE: "primary", 2: "portrait", 3: "landscape"}
 
 
 def side_name(slot: int) -> str:
