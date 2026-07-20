@@ -334,6 +334,16 @@ def test_read_genau_status_parses_active_cruise_and_shape(tmp_path: Path):
     assert status.shape == "triangle"
 
 
+def test_read_genau_status_parses_auto_advance_and_its_lock(tmp_path: Path):
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("advance=1\nclip_locked=1\n", encoding="utf-8")
+
+    status = read_genau_status(status_file)
+
+    assert status.auto_advance_active is True
+    assert status.clip_locked is True
+
+
 def test_read_genau_status_handles_inactive_cruise(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
     status_file.write_text("cruise=0\nshape=sawtooth\n", encoding="utf-8")

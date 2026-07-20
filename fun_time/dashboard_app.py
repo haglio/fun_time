@@ -50,6 +50,7 @@ from fun_time.dashboard_actions import (
     CLIPPER_SAVE,
     GENAU_AMP_DOWN,
     GENAU_AMP_UP,
+    GENAU_AUTO_ADVANCE,
     GENAU_CRUISE,
     GENAU_TOGGLE_AUTO,
     GENAU_CTR_DOWN,
@@ -508,6 +509,7 @@ _ACTION_TOOLTIPS: dict[str, str] = {
     GENAU_SPD_UP: "Speed up",
     GENAU_SPD_DOWN: "Speed down",
     GENAU_CRUISE: "Cruise control",
+    GENAU_AUTO_ADVANCE: "Auto advance",
     GENAU_SHAPE: "Cycle waveform shape",
     GENAU_TOGGLE_AUTO: "Genau takeover",
     HYBRID_ACTIVATE: "Hybrid mode",
@@ -606,6 +608,14 @@ def build_dashboard_scene(
 
     _genau = genau_status or GenauStatus()
     cruise_fill = BLUE if _genau.cruise_active else COLOR_PANEL
+    # A held clip is still armed, so the button stays lit — in the hold's own
+    # colour, matching the Genau HUD's AA badge.
+    if not _genau.auto_advance_active:
+        advance_fill = COLOR_PANEL
+    elif _genau.clip_locked:
+        advance_fill = COLOR_GREEN
+    else:
+        advance_fill = BLUE
 
     def _press_fill(fill: QColor, action_id: str) -> QColor:
         return lighten_color(fill) if action_id in pressed_actions else fill
@@ -649,6 +659,7 @@ def build_dashboard_scene(
                 DashboardRectItem(layout.genau_spd_up, fill=_press_fill(COLOR_PANEL, GENAU_SPD_UP)),
                 DashboardRectItem(layout.genau_spd_down, fill=_press_fill(COLOR_PANEL, GENAU_SPD_DOWN)),
                 DashboardRectItem(layout.genau_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
+                DashboardRectItem(layout.genau_advance, fill=_press_fill(advance_fill, GENAU_AUTO_ADVANCE)),
                 DashboardRectItem(layout.genau_shape, fill=_press_fill(COLOR_PANEL, GENAU_SHAPE)),
                 DashboardRectItem(layout.hybrid_mode_button, fill=_press_fill(COLOR_PANEL, HYBRID_ACTIVATE)),
             )
@@ -666,6 +677,7 @@ def build_dashboard_scene(
                 DashboardRectItem(layout.hybrid_genau_spd_down, fill=_press_fill(COLOR_PANEL, GENAU_SPD_DOWN)),
                 DashboardRectItem(layout.genau_takeover, fill=_press_fill(takeover_fill, GENAU_TOGGLE_AUTO)),
                 DashboardRectItem(layout.hybrid_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
+                DashboardRectItem(layout.hybrid_advance, fill=_press_fill(advance_fill, GENAU_AUTO_ADVANCE)),
                 DashboardRectItem(layout.genau_shape, fill=_press_fill(COLOR_PANEL, GENAU_SHAPE)),
             )
             if _is_hybrid else (
@@ -728,6 +740,7 @@ def build_dashboard_scene(
                 DashboardTextItem("CTR", layout.genau_ctr_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("SPD", layout.genau_spd_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("cc", layout.genau_cruise, font=_font_ui_tiny),
+                DashboardTextItem("aa", layout.genau_advance, font=_font_ui_tiny),
                 DashboardTextItem("h", layout.hybrid_mode_button, font=_font_ui_tiny),
             )
             if _is_genau else (
@@ -748,6 +761,7 @@ def build_dashboard_scene(
                 DashboardTextItem("SPD", layout.hybrid_genau_spd_label, font=_font_ui_tiny, rotation=90),
                 DashboardTextItem("GA", layout.genau_takeover, font=_font_ui_tiny),
                 DashboardTextItem("cc", layout.hybrid_cruise, font=_font_ui_tiny),
+                DashboardTextItem("aa", layout.hybrid_advance, font=_font_ui_tiny),
                 DashboardTextItem("Nau", layout.hybrid_mode_button, font=_font_ui_tiny),
             )
             if _is_hybrid else (
@@ -874,6 +888,7 @@ def build_dashboard_scene(
                     *(() if _genau.spd_at_max else ((GENAU_SPD_UP, layout.genau_spd_up),)),
                     *(() if _genau.spd_at_min else ((GENAU_SPD_DOWN, layout.genau_spd_down),)),
                     (GENAU_CRUISE, layout.genau_cruise),
+                    (GENAU_AUTO_ADVANCE, layout.genau_advance),
                     (GENAU_SHAPE, layout.genau_shape),
                     (HYBRID_ACTIVATE, layout.hybrid_mode_button),
                     (NAU_ACTIVATE, layout.genau_mode_toggle),
@@ -896,6 +911,7 @@ def build_dashboard_scene(
                     (GENAU_SPD_DOWN, layout.hybrid_genau_spd_down),
                     (GENAU_TOGGLE_AUTO, layout.genau_takeover),
                     (GENAU_CRUISE, layout.hybrid_cruise),
+                    (GENAU_AUTO_ADVANCE, layout.hybrid_advance),
                     (GENAU_SHAPE, layout.genau_shape),
                     (NAU_ACTIVATE, layout.hybrid_mode_button),
                     (GENAU_ACTIVATE, layout.genau_mode_toggle),

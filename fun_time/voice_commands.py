@@ -129,8 +129,17 @@ VOICE_COMMANDS: dict[str, str] = {
     "cruise control": "genau_toggle_cruise",
     "cruise on": "genau_cruise_on",
     "cruise off": "genau_cruise_off",
+    # Cruise's other half, split out: cruise varies the stroke, auto advance
+    # moves on to the next clip.
+    "auto advance": "genau_toggle_auto_advance",
+    "advance on": "genau_auto_advance_on",
+    "advance off": "genau_auto_advance_off",
     "previous clip": "genau_prev_clip",
     "next clip": "genau_next_clip",
+    # Bare "weird" and "lock" already address the active satellite, so Genau's
+    # own clip actions name the clip.
+    "weird clip": "genau_weird_clip",
+    "lock clip": "genau_toggle_clip_lock",
     "offset": "quarter_button",
     # "voice off" / "mic off" both mute voice control (there is no spoken way
     # back — a muted recognizer hears nothing; the dashboard mic button or a
@@ -306,6 +315,13 @@ _NUMERIC_PREFIXES: dict[str, str] = {
 for _word, _value in _NUMBER_WORDS.items():
     for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
         VOICE_COMMANDS[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
+
+# "auto advance thirty" -> genau_advance_30.  Kept out of the loop above: these
+# are seconds, not a 0-100 axis, so neither zero nor the min/max forms mean
+# anything — a nought-second interval would step the clip every frame.
+for _word, _value in _NUMBER_WORDS.items():
+    if 10 <= _value <= 60:
+        VOICE_COMMANDS[f"auto advance {_word}"] = f"genau_advance_{_value}"
 
 # "min amp" -> genau_amp_0, "max speed" -> genau_speed_100, etc.
 _EXTREMES: dict[str, int] = {"min": 0, "max": 100}

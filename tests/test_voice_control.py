@@ -187,6 +187,24 @@ class TestVoiceCommands:
         for phrase, cmd in static_phrases.items():
             assert VOICE_COMMANDS[phrase] == cmd
 
+    def test_genau_clip_phrases_are_distinct_from_the_satellite_ones(self):
+        """Bare "weird" and "lock" already mean the active satellite, so Genau's
+        clip actions have to name the clip."""
+        assert VOICE_COMMANDS["weird clip"] == "genau_weird_clip"
+        assert VOICE_COMMANDS["lock clip"] == "genau_toggle_clip_lock"
+        assert VOICE_COMMANDS["weird"] == "active_trash"
+
+    def test_auto_advance_phrases_arm_and_pace_it(self):
+        assert VOICE_COMMANDS["auto advance"] == "genau_toggle_auto_advance"
+        assert VOICE_COMMANDS["advance on"] == "genau_auto_advance_on"
+        assert VOICE_COMMANDS["advance off"] == "genau_auto_advance_off"
+        for word, seconds in (("ten", 10), ("thirty", 30), ("sixty", 60)):
+            assert VOICE_COMMANDS[f"auto advance {word}"] == f"genau_advance_{seconds}"
+
+    def test_no_spoken_advance_interval_is_zero_seconds(self):
+        """A zero-second interval would step the clip every frame."""
+        assert not any(cmd == "genau_advance_0" for cmd in VOICE_COMMANDS.values())
+
     def test_audio_phrases_mute_and_step_the_volume(self):
         """Both words of each pair mean the same thing, so a speaker never has to
         pick between "quiet" and "quieter"."""
