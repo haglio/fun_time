@@ -286,10 +286,6 @@ class DispatchLoopRunner:
         # The clip each satellite last named, so a status read that loses the
         # race with the player's own republish does not blank its map.
         self._last_satellite_clip: dict[str, str] = {}
-        # What the primary was last told about holding the floor.  False rather
-        # than None because that is Nau's own starting value, so a session where
-        # the floor never reaches it never has to say so.
-        self._nau_active = False
         self.rfb_hwnd = rfb_hwnd
         self.rfb_shortcut_target = rfb_shortcut_target
         self.rfb_shortcut_work_dir = rfb_shortcut_work_dir
@@ -423,27 +419,6 @@ class DispatchLoopRunner:
         if now - self._last_hud_publish >= self._HUD_PUBLISH_INTERVAL_S:
             self._last_hud_publish = now
             self._publish_huds()
-        self._sync_nau_active()
-
-    def _sync_nau_active(self) -> None:
-        """Tell the primary when the floor moves to or from it.
-
-        Each satellite reads its own dot off the panel this loop publishes; the
-        primary has no such panel, so it is told outright — the same way it is told
-        about hybrid and F-mode.  Edge-triggered, because this is settled state and
-        the command file is drained a tick at a time: re-sending it every tick would
-        queue twenty verbs a second behind one that matters.
-
-        Appended, not written whole.  Every other writer here replaces the file, and
-        an active-side change is far more frequent than any of them — replacing would
-        make it the thing that eats a T-Code handoff, which fires once and is never
-        re-asserted.
-        """
-        active = self.state.active_side == PRIMARY_SIDE
-        if active == self._nau_active:
-            return
-        self._nau_active = active
-        append_command(self.config.nau_cmd_file, f"SET_ACTIVE {int(active)}")
 
     def _publish_huds(self) -> None:
         """Rebuild both satellites' HUD panels and publish the ones that changed.
@@ -480,13 +455,18 @@ class DispatchLoopRunner:
         )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)
-        # Nau's console: the controls the dashboard used to hold for whichever
-        # player owns the primary slot, plus what has the OSR2 — none of which
-        # Nau can see for itself.
+        # The primary console: the controls the dashboard used to hold for
+        # whichever player owns the slot, what has the OSR2, whether the broker is
+        # up, and which player a bare command reaches — none of which the player
+        # can see for itself.
+        nau = read_nau_status(self.config.nau_status_file)
         self._hud_publisher.publish_payload("nau", console_payload(
             mode=state.primary_mode,
+            active=state.active_side == PRIMARY_SIDE,
             osr2_mode=self._osr2_mode(),
-            primary_path=read_nau_status(self.config.nau_status_file).video,
+            funscript_driving=nau.funscript_driving,
+            broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
+            if self.config.broker_heartbeat_file else False,
             takeover_allowed=read_genau_enabled(genau_enabled_path(self.config.state_dir)),
             genau=read_genau_status(self.config.state_dir / "genau_status.txt"),
         ))

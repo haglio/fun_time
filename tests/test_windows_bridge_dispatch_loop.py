@@ -2535,7 +2535,8 @@ class TestHudPublishing:
     def _runner_with_hud(self, tmp_path):
         publisher = HudPublisher(
             {"portrait": tmp_path / "portrait_hud.json",
-             "landscape": tmp_path / "landscape_hud.json"},
+             "landscape": tmp_path / "landscape_hud.json",
+             "nau": tmp_path / "nau_console.json"},
             tmp_path / "thumbs",
         )
         return make_runner(tmp_path, hud_publisher=publisher)
@@ -2592,49 +2593,37 @@ class TestHudPublishing:
         assert actives(3) == (False, True)
         assert actives(1) == (False, False)
 
-    def _nau_cmds(self, tmp_path) -> list[str]:
-        path = tmp_path / "nau_cmd.txt"
-        return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    def _console(self, tmp_path) -> dict:
+        return json.loads((tmp_path / "nau_console.json").read_text(encoding="utf-8"))
 
-    def test_the_primary_is_told_when_the_floor_moves_to_or_from_it(self, tmp_path):
-        """Nau draws the same dot as the satellites, and cannot work out on its own
-        which player was addressed last."""
+    def test_the_console_says_when_the_primary_has_the_floor(self, tmp_path):
+        """The primary's dot rides the console file, the same file that carries the
+        rest of its panel — one source for both players, in place of the separate
+        command it used to be sent."""
         runner = self._runner_with_hud(tmp_path)
-        runner.state = replace(runner.state, active_side=1)
-        runner.tick()
 
-        assert "SET_ACTIVE 1" in self._nau_cmds(tmp_path)
+        def active(slot: int) -> bool:
+            runner.state = replace(runner.state, active_side=slot)
+            runner._last_hud_publish -= 1  # past the publish throttle
+            runner.tick()
+            return self._console(tmp_path)["active"]
 
-        (tmp_path / "nau_cmd.txt").write_text("", encoding="utf-8")
-        runner.state = replace(runner.state, active_side=3)
-        runner.tick()
+        assert active(1) is True   # the primary holds it
+        assert active(2) is False  # a satellite does
 
-        assert "SET_ACTIVE 0" in self._nau_cmds(tmp_path)
-
-    def test_the_primary_is_told_only_when_the_floor_actually_moves(self, tmp_path):
-        """It is settled state, not an event: re-sending it every tick would put
-        20 verbs a second on a channel the player drains one tick at a time."""
+    def test_the_console_says_what_has_the_osr2_and_whether_the_broker_is_up(self, tmp_path):
+        """Broker status is the primary's alone — it moved off the dashboard onto
+        this panel — and the OSR2 state comes down as one word for the console to
+        box."""
         runner = self._runner_with_hud(tmp_path)
-        runner.state = replace(runner.state, active_side=1)
-        runner.tick()
-        (tmp_path / "nau_cmd.txt").write_text("", encoding="utf-8")
+        (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
 
-        runner.tick()
+        runner._last_hud_publish -= 1
         runner.tick()
 
-        assert self._nau_cmds(tmp_path) == []
-
-    def test_telling_the_primary_does_not_eat_a_verb_already_queued(self, tmp_path):
-        """The command file is a queue.  Writing it whole — which every other
-        writer here does — would drop a T-Code handoff that fired in the same tick
-        and is never re-asserted."""
-        runner = self._runner_with_hud(tmp_path)
-        (tmp_path / "nau_cmd.txt").write_text("SET_TCODE_ENABLED 0\n", encoding="utf-8")
-        runner.state = replace(runner.state, active_side=1)
-
-        runner.tick()
-
-        assert self._nau_cmds(tmp_path) == ["SET_TCODE_ENABLED 0", "SET_ACTIVE 1"]
+        console = self._console(tmp_path)
+        assert console["broker"] is True
+        assert console["osr2"] in ("off", "auto", "funscript", "genau", "idle")
 
     def test_each_sides_panel_says_whether_its_own_clip_is_a_favourite(self, tmp_path):
         """The dashboard's panel used to say this by turning green; the HUD marks

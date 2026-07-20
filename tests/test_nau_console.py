@@ -1,8 +1,5 @@
-"""The console panel Fun Time publishes for Nau's HUD to draw."""
+"""The console panel Fun Time publishes for the primary player's HUD to draw."""
 from __future__ import annotations
-
-from pathlib import Path
-from unittest.mock import patch
 
 from fun_time.dashboard_runtime import GenauStatus
 from fun_time.nau_console import (
@@ -12,55 +9,54 @@ from fun_time.nau_console import (
     OSR2_IDLE,
     OSR2_OFF,
     console_payload,
-    osr2_label,
+    osr2_state,
 )
 
 
 def _payload(**overrides) -> dict:
-    base = dict(mode="nau", osr2_mode="controlled", primary_path="",
-                takeover_allowed=True, genau=GenauStatus())
+    base = dict(mode="nau", active=False, osr2_mode="controlled",
+                funscript_driving=False, broker=False, takeover_allowed=True,
+                genau=GenauStatus())
     base.update(overrides)
     return console_payload(**base)
 
 
-class TestOsr2Label:
-    """The dashboard drew this as a box with a cable to the primary player; the
-    console says it in a line, because a cable between two things in the same
-    panel says nothing."""
+class TestOsr2State:
+    """What has the device, as one compact word — the console boxes it."""
 
     def test_the_devices_own_modes_answer_whatever_is_playing(self):
         for osr2_mode, expected in (("off", OSR2_OFF), ("auto", OSR2_AUTO)):
-            assert osr2_label(mode="hybrid", osr2_mode=osr2_mode,
-                              primary_path="C:/v/scripted.mp4") == expected
+            assert osr2_state(mode="hybrid", osr2_mode=osr2_mode,
+                              funscript_driving=True) == expected
 
-    def test_a_scripted_video_drives_the_device_itself(self):
-        with patch("fun_time.nau_console.has_matching_funscript", return_value=True):
-            assert osr2_label(mode="hybrid", osr2_mode="controlled",
-                              primary_path="C:/v/a.mp4") == OSR2_FUNSCRIPT
+    def test_a_funscript_that_is_actually_driving_says_so(self):
+        assert osr2_state(mode="hybrid", osr2_mode="controlled",
+                          funscript_driving=True) == OSR2_FUNSCRIPT
 
-    def test_without_a_funscript_genau_has_it_if_genau_is_there(self):
-        """The difference between "idle" and "Genau has it" is whether a waveform
-        is running at all — which is the mode, not the video."""
-        with patch("fun_time.nau_console.has_matching_funscript", return_value=False):
-            assert osr2_label(mode="hybrid", osr2_mode="controlled",
-                              primary_path="C:/v/a.mp4") == OSR2_GENAU
-            assert osr2_label(mode="nau", osr2_mode="controlled",
-                              primary_path="C:/v/a.mp4") == OSR2_IDLE
+    def test_a_scripted_videos_quiet_stretch_reads_as_genau_not_funscript(self):
+        """The reported hole: on a rest gap of a scripted video Genau drives, but
+        it said funscript because a funscript merely *existed*.  It is the driving
+        state that decides now, not the file's presence."""
+        assert osr2_state(mode="hybrid", osr2_mode="controlled",
+                          funscript_driving=False) == OSR2_GENAU
+
+    def test_without_a_driver_it_is_idle_unless_genau_is_there(self):
+        assert osr2_state(mode="nau", osr2_mode="controlled",
+                          funscript_driving=False) == OSR2_IDLE
+        assert osr2_state(mode="genau", osr2_mode="controlled",
+                          funscript_driving=False) == OSR2_GENAU
 
 
 class TestPayload:
-    def test_carries_the_mode_the_console_lights_a_button_for(self):
-        assert _payload(mode="hybrid")["mode"] == "hybrid"
+    def test_carries_the_room_the_player_cannot_see(self):
+        payload = _payload(mode="hybrid", active=True, broker=True, osr2_mode="auto")
 
-    def test_names_the_limits_genau_has_run_into(self):
-        """The console greys a control out at the end of its range, so it needs
-        the ends by name — a flag per control end, exactly as Genau reports them."""
-        payload = _payload(genau=GenauStatus(amp_at_max=True, spd_at_min=True))
+        assert payload["mode"] == "hybrid"
+        assert payload["active"] is True
+        assert payload["broker"] is True
+        assert payload["osr2"] == OSR2_AUTO
 
-        assert payload["limits"] == ["amp_max", "spd_min"]
-        assert _payload()["limits"] == []
-
-    def test_carries_genaus_own_state_for_the_controls_that_show_it(self):
+    def test_carries_genaus_own_switches_for_the_control_row(self):
         payload = _payload(genau=GenauStatus(cruise_active=True, shape="sawtooth"),
                            takeover_allowed=False)
 
@@ -69,8 +65,6 @@ class TestPayload:
         assert payload["takeover_allowed"] is False
 
     def test_a_held_clip_is_reported_apart_from_the_arming(self):
-        """Auto-advance armed around a held clip is not the same as auto-advance
-        off, so the console can light it differently — which needs both facts."""
         payload = _payload(genau=GenauStatus(auto_advance_active=True, clip_locked=True))
 
         assert payload["auto_advance"] is True
