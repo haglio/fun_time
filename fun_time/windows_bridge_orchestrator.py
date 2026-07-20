@@ -326,7 +326,11 @@ def _start_hud_priming(
     sources = (bridge_config.portrait_sources, bridge_config.landscape_sources)
     cache_dir = bridge_config.state_dir / THUMBNAIL_CACHE_DIRNAME
     publisher = HudPublisher(
-        {side: Path(manifest["commands"][f"{side}_hud_file"]) for side in HUD_FILENAME},
+        {
+            **{side: Path(manifest["commands"][f"{side}_hud_file"]) for side in HUD_FILENAME},
+            # Nau's console rides the same publisher as the satellites' maps.
+            "nau": Path(manifest["commands"]["nau_console_file"]),
+        },
         cache_dir,
     )
 

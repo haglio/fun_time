@@ -31,6 +31,7 @@ from .event_log import NOTICE, notice
 from .hud_transport import HudPublisher
 from .lock_hud import SideInputs, build_panels
 from .mode_plan import genau_active
+from .nau_console import console_payload
 from .modes import build_mirrored_funscript_path, is_favorite_path, read_favs_content
 from .satellite_control import read_satellite_status
 from .video_timeline import VideoTimeline
@@ -39,7 +40,14 @@ from .watch_stats import WatchTracker, record_watch_event, watch_stats_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
-from .dashboard_runtime import is_broker_heartbeat_fresh, is_osr2_device_on, read_nau_status
+from .dashboard_runtime import (
+    genau_enabled_path,
+    is_broker_heartbeat_fresh,
+    is_osr2_device_on,
+    read_genau_enabled,
+    read_genau_status,
+    read_nau_status,
+)
 from .runtime_flow import read_flag_file
 from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 from .window_roles import (
@@ -472,6 +480,16 @@ class DispatchLoopRunner:
         )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)
+        # Nau's console: the controls the dashboard used to hold for whichever
+        # player owns the primary slot, plus what has the OSR2 — none of which
+        # Nau can see for itself.
+        self._hud_publisher.publish_payload("nau", console_payload(
+            mode=state.primary_mode,
+            osr2_mode=self._osr2_mode(),
+            primary_path=read_nau_status(self.config.nau_status_file).video,
+            takeover_allowed=read_genau_enabled(genau_enabled_path(self.config.state_dir)),
+            genau=read_genau_status(self.config.state_dir / "genau_status.txt"),
+        ))
 
     def _favs_content(self) -> str:
         """The favourites file, re-read only when it has actually changed.
@@ -806,16 +824,20 @@ class DispatchLoopRunner:
         except (OSError, ValueError):
             pass
 
+    def _osr2_mode(self) -> str:
+        """What the device is doing: "off" when nothing is answering on the wire,
+        "auto" while Genau has claimed it, "controlled" otherwise.
+
+        Read by the dashboard's snapshot and by Nau's console — one rule, so the
+        two cannot disagree about what has the OSR2.
+        """
+        if not is_osr2_device_on(self.config.state_dir / "osr2_serial_rx.txt"):
+            return "off"
+        return "auto" if read_flag_file(self.config.genau_mode_file, False) else "controlled"
+
     def _update_dashboard(self) -> None:
         try:
-            genau_mode_on = read_flag_file(self.config.genau_mode_file, False)
-            device_on = is_osr2_device_on(self.config.state_dir / "osr2_serial_rx.txt")
-            if not device_on:
-                osr2_mode = "off"
-            elif genau_mode_on:
-                osr2_mode = "auto"
-            else:
-                osr2_mode = "controlled"
+            osr2_mode = self._osr2_mode()
             voice_active = self.voice_controller is not None and not self.voice_controller.is_muted
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),

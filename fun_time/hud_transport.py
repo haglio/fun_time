@@ -1,4 +1,4 @@
-"""Publish each satellite's HUD to the file its player renders from.
+"""Publish each player's HUD to the file that player renders from.
 
 The HUD's *model* has to live here: only fun_time knows the library's seed
 families, action groups and thumbnails.  The *drawing* lives in the satellite
@@ -8,7 +8,8 @@ window of its own and no z-order to fight (see :mod:`satellite.hud`).
 This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.HudPanel`
 into the small JSON payload the player parses, and writes it only when it
 actually changed, so a player polling the file re-renders per clip change rather
-than per tick.
+than per tick.  Nau's console (:mod:`fun_time.nau_console`) rides the same
+publisher — a different panel, the same "write it whole, and only when it moved".
 """
 from __future__ import annotations
 
@@ -109,7 +110,12 @@ def hud_payload(panel: HudPanel, cache_dir: Path) -> dict:
 
 
 class HudPublisher:
-    """Writes both satellites' HUD files, skipping unchanged panels."""
+    """Writes each player's HUD file, skipping unchanged panels.
+
+    Named for what it publishes to rather than what it publishes: the satellites
+    take a map of clips and Nau takes its console, and both want the same
+    write-only-on-change, publish-whole treatment.
+    """
 
     def __init__(self, files: dict[str, Path], cache_dir: Path) -> None:
         self._files = files
@@ -117,12 +123,16 @@ class HudPublisher:
         self._last: dict[str, str] = {}
 
     def publish(self, side: str, panel: HudPanel) -> bool:
-        """Write *side*'s HUD file if the panel changed; return whether it wrote."""
-        path = self._files.get(side)
+        """Write *side*'s map if the panel changed; return whether it wrote."""
+        return self.publish_payload(side, hud_payload(panel, self._cache_dir))
+
+    def publish_payload(self, name: str, payload: dict) -> bool:
+        """Write *name*'s HUD file if *payload* changed; return whether it wrote."""
+        path = self._files.get(name)
         if path is None:
             return False
-        text = json.dumps(hud_payload(panel, self._cache_dir))
-        if text == self._last.get(side):
+        text = json.dumps(payload)
+        if text == self._last.get(name):
             return False
         # Published whole: the player polls this file every frame, so a panel
         # written in place would sometimes be read half-drawn.
@@ -130,5 +140,5 @@ class HudPublisher:
             return False
         # Remembered only once the panel is actually on disk: a write that never
         # landed must be retried on the next tick, not treated as published.
-        self._last[side] = text
+        self._last[name] = text
         return True

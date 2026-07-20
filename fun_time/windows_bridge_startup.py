@@ -460,6 +460,9 @@ def launch_nau(
     command_file: str | Path,
     paused_file: str | Path,
     status_file: str | Path,
+    console_file: str | Path,
+    drive_file: str | Path,
+    dashboard_cmd_file: str | Path,
     log_file: str | Path,
     nau_x: int,
     nau_y: int,
@@ -488,6 +491,15 @@ def launch_nau(
         str(paused_file),
         "--status-file",
         str(status_file),
+        # Nau's HUD is the console the dashboard used to be: it reads the panel we
+        # publish, reads Genau's readout for the section under it, and posts a
+        # press back onto the same command file the dashboard wrote.
+        "--console-file",
+        str(console_file),
+        "--drive-file",
+        str(drive_file),
+        "--dashboard-cmd-file",
+        str(dashboard_cmd_file),
         "--x",
         str(nau_x),
         "--y",
