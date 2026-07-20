@@ -143,23 +143,85 @@ def launch_broker_tray(broker_tray_launcher: Path | None) -> None:
         )
 
 
+def broker_source_mtime(broker_tray_launcher: Path | None) -> float | None:
+    """When osr2_broker's own sources were last written, or None if unreadable.
+
+    The launcher sits in the broker's repo root, so its package is the sibling
+    directory.  Only that package counts: the config, logs and state files beside
+    it change constantly without changing what the process runs, and the shared
+    siblings it imports (``app_support``, ``shared_ui``) belong to four apps, so
+    neither should be able to order a restart here.
+    """
+    if broker_tray_launcher is None:
+        return None
+    package = broker_tray_launcher.parent / "osr2_broker"
+    try:
+        return max((source.stat().st_mtime for source in package.rglob("*.py")), default=None)
+    except OSError:
+        return None
+
+
+def broker_process_started_at() -> float | None:
+    """When the running broker started, in Unix seconds — None if none is up.
+
+    Matched on the command line like every other process lookup here: the broker
+    runs under a bare ``pythonw``, so its image name says nothing.  The oldest is
+    the one reported, because that is the one at risk of being stale.
+    """
+    ps_command = (
+        "Get-CimInstance Win32_Process | Where-Object { "
+        "($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $_.CommandLine -match '"
+        + BROKER_PROCESS_PATTERN
+        + "' } | ForEach-Object { "
+        "[int64]($_.CreationDate.ToUniversalTime() - [datetime]'1970-01-01').TotalSeconds "
+        "} | Sort-Object | Select-Object -First 1"
+    )
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
+        check=False, capture_output=True, text=True, **subprocess_window_kwargs(),
+    )
+    try:
+        return float(result.stdout.strip())
+    except (AttributeError, ValueError):
+        return None
+
+
 def ensure_broker(
     broker_heartbeat_file: str | Path | None,
     broker_tray_launcher: Path | None = None,
 ) -> None:
-    """Start the broker only if one is not already running.
+    """Start the broker if one is not already running, or replace a stale one.
 
-    A healthy broker outlives the session that launched it: harem and the user's
-    own tools keep talking to it over the shared UDP inlet, and osr2_broker
-    installs a self-healing scheduled task that keeps one alive.  Killing a live
-    broker to relaunch our own would drop every client mid-stream.
+    A healthy broker outlives the session that launched it: the user's own tools
+    keep talking to it over the shared UDP inlet, and osr2_broker installs a
+    self-healing scheduled task that keeps one alive.  Killing a live broker to
+    relaunch our own would drop every client mid-stream.
 
-    A stale heartbeat is not permission to kill, either.  osr2_broker only ticks
-    it while it holds the serial port, so a powered-off OSR2 makes a healthy
-    broker look gone — and a session start is exactly when the device tends to
-    be off.  So we never kill here: launching over a live pair is a no-op the
-    mutexes absorb, and that is the cheap half of the trade.
+    A stale heartbeat is not permission to kill.  osr2_broker only ticks it while
+    it holds the serial port, so a powered-off OSR2 makes a healthy broker look
+    gone — and a session start is exactly when the device tends to be off.  So we
+    launch over it instead and let the single-instance mutexes absorb it.
+
+    A broker older than its own sources IS permission, and is the one case that
+    gets one.  That is two timestamps rather than a guess, and what it means is
+    that our command vocabulary has moved past what that process can understand —
+    an unrecognised verb is dropped with no log line and no error, so the feature
+    that added it simply appears dead.  RETRACT shipped into exactly that gap.
+    Startup is when to spend the restart: the session is coming up around it
+    anyway, and either timestamp being unreadable means we cannot tell, which is
+    not permission.
     """
+    source_mtime = broker_source_mtime(broker_tray_launcher)
+    if source_mtime is not None:
+        started_at = broker_process_started_at()
+        if started_at is not None and source_mtime > started_at:
+            logger.info(
+                "Broker started %.0fs before its own code was last written; restarting it",
+                source_mtime - started_at,
+            )
+            stop_broker_processes()
+            launch_broker_tray(broker_tray_launcher)
+            return
     if broker_heartbeat_file is not None and is_broker_heartbeat_fresh(Path(broker_heartbeat_file)):
         return
     launch_broker_tray(broker_tray_launcher)
