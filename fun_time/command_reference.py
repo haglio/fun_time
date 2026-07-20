@@ -289,7 +289,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("X",),
                 ("genau_toggle_auto_advance", "genau_auto_advance_on", "genau_auto_advance_off"),
             ),
-            _Row("Set the seconds between auto advances", (), (), ("auto advance 10–60",)),
+            _Row("Set the seconds between auto advances", (), (), ("auto advance 1–60",)),
             _Row("Offset ¼ cycle", ("\\",), ("backslash_key", "quarter_button")),
         ),
     ),

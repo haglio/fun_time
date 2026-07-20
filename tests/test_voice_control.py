@@ -198,7 +198,12 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["auto advance"] == "genau_toggle_auto_advance"
         assert VOICE_COMMANDS["advance on"] == "genau_auto_advance_on"
         assert VOICE_COMMANDS["advance off"] == "genau_auto_advance_off"
-        for word, seconds in (("ten", 10), ("thirty", 30), ("sixty", 60)):
+        # A spoken interval covers 1-60 seconds, single digits and compounds
+        # included — the tens-only vocabulary could not hear "advance five".
+        for word, seconds in (
+            ("one", 1), ("five", 5), ("nine", 9), ("fifteen", 15),
+            ("thirty", 30), ("forty five", 45), ("sixty", 60),
+        ):
             assert VOICE_COMMANDS[f"auto advance {word}"] == f"genau_advance_{seconds}"
 
     def test_no_spoken_advance_interval_is_zero_seconds(self):
