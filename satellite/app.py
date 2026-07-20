@@ -23,6 +23,8 @@ import pygame
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.status import StatusWriter
+from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
+from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
 from .cli import audio_muted, build_parser, resolve_playlist
 from .hud_overlay import HudOverlay
@@ -31,6 +33,14 @@ from .session import SatelliteSession
 from .status import status_fields
 
 logger = logging.getLogger(__name__)
+
+# Overlay ids the satellite composites, distinct from the lock HUD's (10).
+_OV_SCRUBBER = 11
+_OV_VOLUME = 12
+
+# A satellite carries no audio, so its volume control is a fixed indicator: a
+# muted speaker over an empty track, the same chip Nau draws so the players match.
+_MUTED_INDICATOR = VolumeHud(volume=0, muted=True)
 
 # Fun Time's own icon, so a satellite's Alt-Tab entry and taskbar button say
 # which application it belongs to.  Without one, pygame supplies its own logo and
@@ -111,6 +121,12 @@ def _run(args, playlist: list[Path]) -> int:
         if args.hud_file and args.dashboard_cmd_file
         else None
     )
+    # The scrubber and volume indicator, drawn like Nau's from the shared engine —
+    # a progress bar along the bottom and a muted volume chip at its right end.
+    # The satellite has no funscript heatmap, no seek and no sound, so the bar is a
+    # plain progress readout and the chip is a fixed muted indicator; both are here
+    # so a satellite reads like the primary rather than as a bare video.
+    volume_painter = VolumeHudPainter()
     stop_event = threading.Event()
 
     def _reload_playlist() -> None:
@@ -141,6 +157,16 @@ def _run(args, playlist: list[Path]) -> int:
             status_writer.write(session)
         if hud is not None:
             hud.tick()
+
+        # The scrubber (full window width, along the bottom) and the muted volume
+        # indicator at its right end.  get_window_size reflects the slot the
+        # sequencer moved this window into, so both track the real geometry.
+        win_w, win_h = pygame.display.get_window_size()
+        scrubber = progress_bar_bgra(
+            session.position_ms, session.duration_ms, None, win_w)
+        player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
+        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
+        player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(_MUTED_INDICATOR))
 
         clock.tick(60)
 
