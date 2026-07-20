@@ -24,10 +24,11 @@ from fun_time.event_log import (
     notice,
 )
 from fun_time.mic_selection import resolve_input_device
+from player_core.file_channel import append_command
+
 from fun_time.voice_commands import (
     SELF_REPORTING_COMMANDS,
     VOICE_COMMANDS,
-    append_command_line,
     format_spoken_command,
 )
 
@@ -230,7 +231,7 @@ class VoiceController:
         if self._suspended.is_set() and command not in SUSPEND_EXEMPT_COMMANDS:
             logger.debug("Voice suspended by omnipause: ignored %s", command)
             return False
-        return append_command_line(self.cmd_file, format_spoken_command(command, spoken_at=spoken_at))
+        return append_command(self.cmd_file, format_spoken_command(command, spoken_at=spoken_at))
 
     def _handle_recognition(self, interp: Recognition, *, spoken_at: float) -> None:
         """Act on one interpreted utterance: dispatch, confirm, or report.

@@ -14,6 +14,8 @@ import logging
 import time
 from pathlib import Path
 
+from player_core.file_channel import append_command
+
 from .hud import (
     MARGIN,
     HudClicks,
@@ -31,30 +33,6 @@ logger = logging.getLogger(__name__)
 HUD_OVERLAY_ID = 10
 
 _EMPTY_TARGETS = HudTargets(click=[], loop=[], label=[], expand=None)
-
-
-def append_command(path: Path, line: str, *, attempts: int = 5, delay_s: float = 0.005) -> bool:
-    """Append one command for fun_time's dispatch loop, retrying past its drain.
-
-    The dispatch loop drains this file ~20x/s by renaming it, so a write that
-    overlaps a drain hits a transient Windows sharing violation.  Retrying briefly
-    turns that into a millisecond delay instead of a lost click; a persistently
-    locked file drops the line (the next click lands) rather than raising into the
-    run loop.
-    """
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        return False
-    for attempt in range(attempts):
-        try:
-            with path.open("a", encoding="utf-8") as handle:
-                handle.write(line + "\n")
-            return True
-        except OSError:
-            if attempt < attempts - 1:
-                time.sleep(delay_s)
-    return False
 
 
 class HudOverlay:

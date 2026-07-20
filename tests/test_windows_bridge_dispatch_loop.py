@@ -2591,6 +2591,50 @@ class TestHudPublishing:
         assert actives(3) == (False, True)
         assert actives(1) == (False, False)
 
+    def _nau_cmds(self, tmp_path) -> list[str]:
+        path = tmp_path / "nau_cmd.txt"
+        return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+
+    def test_the_primary_is_told_when_the_floor_moves_to_or_from_it(self, tmp_path):
+        """Nau draws the same dot as the satellites, and cannot work out on its own
+        which player was addressed last."""
+        runner = self._runner_with_hud(tmp_path)
+        runner.state = replace(runner.state, active_side=1)
+        runner.tick()
+
+        assert "SET_ACTIVE 1" in self._nau_cmds(tmp_path)
+
+        (tmp_path / "nau_cmd.txt").write_text("", encoding="utf-8")
+        runner.state = replace(runner.state, active_side=3)
+        runner.tick()
+
+        assert "SET_ACTIVE 0" in self._nau_cmds(tmp_path)
+
+    def test_the_primary_is_told_only_when_the_floor_actually_moves(self, tmp_path):
+        """It is settled state, not an event: re-sending it every tick would put
+        20 verbs a second on a channel the player drains one tick at a time."""
+        runner = self._runner_with_hud(tmp_path)
+        runner.state = replace(runner.state, active_side=1)
+        runner.tick()
+        (tmp_path / "nau_cmd.txt").write_text("", encoding="utf-8")
+
+        runner.tick()
+        runner.tick()
+
+        assert self._nau_cmds(tmp_path) == []
+
+    def test_telling_the_primary_does_not_eat_a_verb_already_queued(self, tmp_path):
+        """The command file is a queue.  Writing it whole — which every other
+        writer here does — would drop a T-Code handoff that fired in the same tick
+        and is never re-asserted."""
+        runner = self._runner_with_hud(tmp_path)
+        (tmp_path / "nau_cmd.txt").write_text("SET_TCODE_ENABLED 0\n", encoding="utf-8")
+        runner.state = replace(runner.state, active_side=1)
+
+        runner.tick()
+
+        assert self._nau_cmds(tmp_path) == ["SET_TCODE_ENABLED 0", "SET_ACTIVE 1"]
+
     def test_publishing_is_throttled_below_the_tick_rate(self, tmp_path):
         """The loop ticks 20x/s; rebuilding and rewriting both panels that often
         is waste the map never shows, so publishing runs on its own cadence."""
