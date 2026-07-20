@@ -1,7 +1,6 @@
 """What a satellite window calls itself, and whose icon it wears."""
 from __future__ import annotations
 
-from fun_time.dashboard_state import LABEL_LANDSCAPE, LABEL_PORTRAIT
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
@@ -26,10 +25,3 @@ def test_the_icon_loads_as_a_surface():
 def test_each_side_names_the_player_it_is():
     assert SATELLITE_PORTRAIT_TITLE == "Portrait AI Player"
     assert SATELLITE_LANDSCAPE_TITLE == "Landscape AI Player"
-
-
-def test_the_dash_panels_carry_the_same_names_as_the_windows():
-    """A panel and its window are the same player, so reading one name off the
-    Dash and looking for it in Alt-Tab has to find it."""
-    assert LABEL_PORTRAIT.replace("\n", " ") == SATELLITE_PORTRAIT_TITLE
-    assert LABEL_LANDSCAPE.replace("\n", " ") == SATELLITE_LANDSCAPE_TITLE

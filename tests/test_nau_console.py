@@ -67,3 +67,12 @@ class TestPayload:
         assert payload["cruise"] is True
         assert payload["shape"] == "sawtooth"
         assert payload["takeover_allowed"] is False
+
+    def test_a_held_clip_is_reported_apart_from_the_arming(self):
+        """Auto-advance armed around a held clip is not the same as auto-advance
+        off, so the console can light it differently — which needs both facts."""
+        payload = _payload(genau=GenauStatus(auto_advance_active=True, clip_locked=True))
+
+        assert payload["auto_advance"] is True
+        assert payload["clip_locked"] is True
+        assert _payload()["auto_advance"] is False

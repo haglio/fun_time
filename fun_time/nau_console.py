@@ -29,15 +29,6 @@ OSR2_FUNSCRIPT = "OSR2 · funscript control"
 OSR2_GENAU = "OSR2 · Genau"
 OSR2_IDLE = "OSR2 · idle, no funscript"
 
-# Genau's controls, and the status flag that says each end of each range is
-# reached.  The console greys a control out at its limit, so these are the names
-# it greys them out by.
-_LIMITS = (
-    ("amp_max", "amp_at_max"), ("amp_min", "amp_at_min"),
-    ("ctr_max", "ctr_at_max"), ("ctr_min", "ctr_at_min"),
-    ("spd_max", "spd_at_max"), ("spd_min", "spd_at_min"),
-)
-
 
 def osr2_label(*, mode: str, osr2_mode: str, primary_path: str) -> str:
     """What has the device, in the words the console prints.
@@ -70,8 +61,14 @@ def console_payload(
         "osr2": osr2_label(mode=mode, osr2_mode=osr2_mode, primary_path=primary_path),
         "takeover_allowed": takeover_allowed,
         "cruise": genau.cruise_active,
+        # Auto-advance is armed separately from cruise — cruise varies the
+        # stroke, auto-advance moves on to the next clip — and a held clip stays
+        # put while it is still armed around it, which the console shows as a
+        # third state rather than as off.
+        "auto_advance": genau.auto_advance_active,
+        "clip_locked": genau.clip_locked,
         "shape": genau.shape,
-        "limits": sorted(name for name, flag in _LIMITS if getattr(genau, flag)),
+        "limits": genau.limits,
     }
 
 

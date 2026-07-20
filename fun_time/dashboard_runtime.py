@@ -40,7 +40,6 @@ class DashboardSnapshot:
     f_mode_enabled: bool
     primary_mode: str
     osr2_mode: str
-    primary_responsive: bool
     omni_paused: bool
     primary: DashboardPanelSnapshot
     portrait: DashboardPanelSnapshot
@@ -63,7 +62,6 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         f_mode_enabled=_read_bool(parser, "fmode", "enabled"),
         primary_mode=parser.get("primary", "mode", fallback="nau"),
         osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
-        primary_responsive=_read_bool(parser, "primary", "responsive"),
         omni_paused=_read_bool(parser, "omnipause", "active"),
         voice_active=_read_bool(parser, "voice", "active") if parser.has_section("voice") else True,
         primary=_read_panel(parser, "primary"),
@@ -137,6 +135,22 @@ class GenauStatus:
     ctr_at_min: bool = False
     spd_at_max: bool = False
     spd_at_min: bool = False
+
+    @property
+    def limits(self) -> list[str]:
+        """Which of Genau's controls have run out of range, by name.
+
+        Nau's console greys a control out at the end of its range, so it needs
+        the ends named rather than a flag per end — and naming them here keeps
+        the reading beside the writing.
+        """
+        return [
+            name for name, reached in (
+                ("amp_max", self.amp_at_max), ("amp_min", self.amp_at_min),
+                ("ctr_max", self.ctr_at_max), ("ctr_min", self.ctr_at_min),
+                ("spd_max", self.spd_at_max), ("spd_min", self.spd_at_min),
+            ) if reached
+        ]
 
 
 def _status_bool(values: dict[str, str], key: str) -> bool:

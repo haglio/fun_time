@@ -24,7 +24,6 @@ from fun_time.dashboard_app import (
     build_dashboard_window,
     load_dashboard_app_config,
 )
-from fun_time.dashboard_layout import Size
 from fun_time.event_log import NOTICE, event_log_path, notice
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.window_layout import MonitorRect, compute_window_layout
@@ -46,8 +45,7 @@ def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
-        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
 
     try:
         # Window decorations: visible on taskbar via WS_EX_APPWINDOW.
@@ -73,8 +71,7 @@ def test_dashboard_window_shows_native_minimize_and_close_buttons(cfg_path: Path
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
-        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
 
     try:
         hwnd = int(window.winId())
@@ -88,7 +85,7 @@ def test_dashboard_window_shows_native_minimize_and_close_buttons(cfg_path: Path
 
 def _build_merged_dashboard(cfg_path: Path):
     """Build the real dashboard at the rect production computes — one window that
-    spans the whole left column, with the log stream embedded beside the schematic.
+    spans the whole left column, with the log stream embedded under the control bar.
     """
     from PyQt6.QtWidgets import QApplication
 
@@ -104,27 +101,27 @@ def _build_merged_dashboard(cfg_path: Path):
     launch_geo = DashboardLaunchGeometry(
         plan.dashboard.x, plan.dashboard.y, plan.dashboard.width, plan.dashboard.height,
     )
-    with patch("fun_time.dashboard_app.get_preview_monitor_sizes", return_value=(Size(2560, 1392), Size(1440, 3440))):
-        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
     # Let the central layout distribute the strip to the embedded log widget so
     # its geometry is final before the tests read it.
     QApplication.processEvents()
     return window, manifest_path.parent
 
 
-def test_log_stream_fills_the_strip_beside_the_schematic(cfg_path: Path):
-    """The log stream is embedded to the schematic's right and the two together
-    fill the window — the same strip the separate log window used to occupy."""
+def test_log_stream_fills_the_window_under_the_control_bar(cfg_path: Path):
+    """The bar runs along the top and the log takes everything beneath it, full
+    width — where it used to be a strip beside a drawing of the monitors."""
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
-        schematic = window._widget
+        bar = window._widget
         log = window._log_widget
-        # The log sits immediately to the right of the schematic ...
-        assert log.x() == schematic.x() + schematic.width()
-        # ... is genuinely wide ...
-        assert log.width() > 0
-        # ... and the two together span the window's client width.
-        assert schematic.width() + log.width() == window.centralWidget().width()
+        # The log starts at the bar's bottom edge ...
+        assert log.y() == bar.y() + bar.height()
+        # ... spans the window rather than a strip of it ...
+        assert log.width() == window.centralWidget().width()
+        # ... and the two together fill the window's client height.
+        assert bar.height() + log.height() == window.centralWidget().height()
+        assert log.height() > bar.height()
     finally:
         window.close()
 

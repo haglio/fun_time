@@ -3,11 +3,8 @@ from __future__ import annotations
 import argparse
 import configparser
 import ctypes
-from ctypes import wintypes
 from dataclasses import dataclass, field
 from dataclasses import replace
-import math
-import os
 from pathlib import Path
 import queue
 import socket
@@ -15,73 +12,31 @@ import threading
 import time
 
 from PyQt6.QtGui import QColor, QFont
+from player_core.file_channel import append_command
 
 from shared_ui.colors import (
-    AMBER,
     BG_PRIMARY,
     BG_SECONDARY,
     BLUE,
     BORDER_PANEL,
-    CABLE_ACTIVE,
-    CABLE_INACTIVE,
     GREEN,
-    PINK,
     RED,
-    TEXT_MUTED,
     TEXT_PRIMARY,
 )
-from shared_ui.fonts import (
-    FONT_EMOJI,
-    FONT_SYMBOL,
-    FONT_UI,
-    SIZE_BODY,
-    SIZE_SMALL,
-    SIZE_TINY,
-    make_font,
-)
+from shared_ui.fonts import FONT_SYMBOL, FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
 
 from fun_time.config import LayoutConfig
 from fun_time.startup_progress import loading_screen_active
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.satellite_control import read_satellite_status
 from fun_time.win32 import is_window_topmost, set_always_on_top
 from fun_time.dashboard_actions import (
     BROKER_PANEL,
-    CLIPPER_SAVE,
-    GENAU_AMP_DOWN,
-    GENAU_AMP_UP,
-    GENAU_AUTO_ADVANCE,
-    GENAU_CRUISE,
-    GENAU_TOGGLE_AUTO,
-    GENAU_CTR_DOWN,
-    GENAU_CTR_UP,
-    GENAU_SHAPE,
-    GENAU_SPD_DOWN,
-    GENAU_SPD_UP,
-    LANDSCAPE_LOCK,
-    LANDSCAPE_NEXT,
-    LANDSCAPE_PREV,
-    LANDSCAPE_TRASH,
     FMODE_PANEL,
-    GENAU_ACTIVATE,
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
-    HYBRID_ACTIVATE,
     OMNIMINIMIZE,
     OMNIRESTORE,
     OMNIPAUSE_TOGGLE,
-    OPEN_FILE_DIALOG,
-    PORTRAIT_LOCK,
-    PORTRAIT_NEXT,
-    PORTRAIT_PREV,
-    PORTRAIT_TRASH,
-    NAU_ACTIVATE,
-    NAU_RECORD,
-    PRIMARY_NEXT,
-    PRIMARY_NUDGE_NEXT,
-    PRIMARY_NUDGE_PREV,
-    PRIMARY_PREV,
-    QUARTER_BUTTON,
     QUIT_BUTTON,
     VOICE_TOGGLE,
 )
@@ -98,40 +53,19 @@ from fun_time.notice_overlay import (
 )
 from fun_time.window_layout import compute_primary_media_rect, compute_window_layout
 from fun_time.dashboard_layout import (
-    DashboardPreviewLayout,
+    DashboardBarLayout,
     Rect,
-    Size,
     client_rect_filling_frame,
-    compute_dashboard_preview_layout,
+    compute_dashboard_bar_layout,
 )
-from fun_time.dashboard_runtime import DashboardSnapshot, GenauStatus, genau_enabled_path, is_broker_heartbeat_fresh, load_dashboard_snapshot, read_genau_enabled, read_genau_status, read_nau_status
-from fun_time.dashboard_state import (
-    LABEL_LANDSCAPE,
-    LABEL_OSR2,
-    LABEL_PORTRAIT,
-    LABEL_PRIMARY_GENAU,
-    LABEL_PRIMARY_HYBRID,
-    LABEL_PRIMARY_NAU,
-)
-from fun_time.modes import has_matching_funscript, is_favorite_path, read_favs_content
+from fun_time.dashboard_runtime import DashboardSnapshot, is_broker_heartbeat_fresh, load_dashboard_snapshot
 
-# Semantic aliases — map old Dashboard names to shared_ui tokens.
 COLOR_BG = BG_PRIMARY
 COLOR_PANEL = BG_SECONDARY
 COLOR_TEXT = TEXT_PRIMARY
-COLOR_CABLE = CABLE_ACTIVE
-COLOR_CABLE_DIM = CABLE_INACTIVE
-COLOR_BLUE = BLUE
-COLOR_GREEN = GREEN
-COLOR_PINK = PINK
-COLOR_RED = RED
-COLOR_YELLOW = AMBER
 # The "Fun Time" wordmark matches the loading screen's redder pink text, NOT the
-# logo's magenta-pink (COLOR_PINK) — they are deliberately different hues.
+# logo's magenta-pink — they are deliberately different hues.
 COLOR_APP_TITLE = QColor("#e94560")
-
-ICON_LOCK = "\U0001F512"
-ICON_TRASH = "\U0001F5D1"
 
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
@@ -146,10 +80,6 @@ def lighten_color(color: QColor, amount: int = 50) -> QColor:
 class DashboardAppConfig:
     layout: LayoutConfig
     manifest_path: Path
-    favs_file: Path
-    nau_status_file: Path
-    portrait_status_file: Path
-    landscape_status_file: Path
     broker_heartbeat_file: Path
     dashboard_state_file: Path
     dashboard_cmd_file: Path
@@ -164,42 +94,12 @@ class DashboardLaunchGeometry:
 
 
 @dataclass(frozen=True)
-class DashboardLineItem:
-    points: tuple[tuple[int, int], ...]
-    color: QColor
-    width: int = 2
-    smooth: bool = False
-
-
-@dataclass(frozen=True)
-class DashboardOvalItem:
-    cx: int
-    cy: int
-    r: int
-    fill: QColor
-    outline: QColor | None = None
-    outline_width: int = 1
-
-
-@dataclass(frozen=True)
-class DashboardArcItem:
-    cx: int
-    cy: int
-    r: int
-    start: float
-    extent: float
-    outline: QColor
-    width: int = 1
-
-
-@dataclass(frozen=True)
 class DashboardTextItem:
     text: str
     rect: Rect
     color: QColor = field(default_factory=lambda: COLOR_TEXT)
     anchor: str = "center"
     font: QFont | None = None
-    rotation: int = 0
 
 
 @dataclass(frozen=True)
@@ -224,9 +124,6 @@ class DashboardScene:
     actions: tuple[tuple[str, Rect], ...]
     hover_texts: tuple[tuple[Rect, str], ...] = ()
     images: tuple[DashboardImageItem, ...] = ()
-    lines: tuple[DashboardLineItem, ...] = ()
-    ovals: tuple[DashboardOvalItem, ...] = ()
-    arcs: tuple[DashboardArcItem, ...] = ()
 
 
 def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
@@ -243,127 +140,10 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
     return DashboardAppConfig(
         layout=layout,
         manifest_path=manifest_path,
-        favs_file=Path(parser.get("media", "favs_file", fallback="favs.csv")),
-        nau_status_file=Path(parser.get("commands", "nau_status_file", fallback="nau_status.txt")),
-        portrait_status_file=Path(parser.get("commands", "portrait_status_file", fallback="portrait_status.txt")),
-        landscape_status_file=Path(parser.get("commands", "landscape_status_file", fallback="landscape_status.txt")),
         broker_heartbeat_file=Path(parser.get("commands", "broker_heartbeat_file", fallback="broker_heartbeat.txt")),
         dashboard_state_file=Path(parser.get("commands", "dashboard_state_file", fallback="dashboard_state.ini")),
         dashboard_cmd_file=Path(parser.get("commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt")),
     )
-
-
-@dataclass(frozen=True)
-class PlayerHydration:
-    primary_path: str = ""
-    portrait_path: str = ""
-    landscape_path: str = ""
-    primary_responsive: bool = False
-
-
-def poll_players(app_config: DashboardAppConfig) -> PlayerHydration:
-    # Every player publishes a status file now: Nau for the primary panel, and each
-    # native satellite for the portrait/landscape panels.
-    nau = read_nau_status(app_config.nau_status_file)
-    portrait_path = read_satellite_status(app_config.portrait_status_file).video
-    landscape_path = read_satellite_status(app_config.landscape_status_file).video
-    return PlayerHydration(
-        primary_path=nau.video,
-        portrait_path=portrait_path,
-        landscape_path=landscape_path,
-        primary_responsive=bool(nau.video),
-    )
-
-
-def hydrate_dashboard_snapshot(snapshot: DashboardSnapshot, players: PlayerHydration) -> DashboardSnapshot:
-    return replace(
-        snapshot,
-        primary_responsive=players.primary_responsive,
-        primary=replace(snapshot.primary, path=players.primary_path),
-        portrait=replace(snapshot.portrait, path=players.portrait_path),
-        landscape=replace(snapshot.landscape, path=players.landscape_path),
-    )
-
-
-def resolve_logical_monitor_sizes(
-    monitor_sizes: list[Size],
-    *,
-    main_monitor_index: int,
-    secondary_monitor_index: int,
-) -> tuple[Size, Size]:
-    if len(monitor_sizes) < 2:
-        raise ValueError("Expected at least two monitor sizes for dashboard preview")
-
-    configured_main = monitor_sizes[max(0, min(len(monitor_sizes) - 1, main_monitor_index - 1))]
-    configured_secondary = monitor_sizes[max(0, min(len(monitor_sizes) - 1, secondary_monitor_index - 1))]
-
-    main_landscape = configured_main.width >= configured_main.height
-    secondary_landscape = configured_secondary.width >= configured_secondary.height
-
-    if main_landscape and not secondary_landscape:
-        return configured_main, configured_secondary
-    if secondary_landscape and not main_landscape:
-        return configured_secondary, configured_main
-    if configured_main.width >= configured_secondary.width:
-        return configured_main, configured_secondary
-    return configured_secondary, configured_main
-
-
-def get_windows_monitor_work_areas() -> list[Size]:
-    if not hasattr(ctypes, "WINFUNCTYPE"):
-        return []
-
-    user32 = ctypes.windll.user32
-
-    class RECT(ctypes.Structure):
-        _fields_ = [
-            ("left", wintypes.LONG),
-            ("top", wintypes.LONG),
-            ("right", wintypes.LONG),
-            ("bottom", wintypes.LONG),
-        ]
-
-    class MONITORINFO(ctypes.Structure):
-        _fields_ = [
-            ("cbSize", wintypes.DWORD),
-            ("rcMonitor", RECT),
-            ("rcWork", RECT),
-            ("dwFlags", wintypes.DWORD),
-        ]
-
-    monitors: list[Size] = []
-    monitor_enum_proc = ctypes.WINFUNCTYPE(
-        wintypes.BOOL,
-        wintypes.HMONITOR,
-        wintypes.HDC,
-        ctypes.POINTER(RECT),
-        wintypes.LPARAM,
-    )
-
-    def _callback(hmonitor, _hdc, _rect_ptr, _lparam):
-        info = MONITORINFO()
-        info.cbSize = ctypes.sizeof(MONITORINFO)
-        if user32.GetMonitorInfoW(hmonitor, ctypes.byref(info)):
-            width = int(info.rcWork.right - info.rcWork.left)
-            height = int(info.rcWork.bottom - info.rcWork.top)
-            if width > 0 and height > 0:
-                monitors.append(Size(width=width, height=height))
-        return True
-
-    user32.EnumDisplayMonitors(0, 0, monitor_enum_proc(_callback), 0)
-    return monitors
-
-
-def get_preview_monitor_sizes(app_config: DashboardAppConfig) -> tuple[Size, Size]:
-    monitor_sizes = get_windows_monitor_work_areas()
-    if len(monitor_sizes) >= 2:
-        return resolve_logical_monitor_sizes(
-            monitor_sizes,
-            main_monitor_index=app_config.layout.main_monitor,
-            secondary_monitor_index=app_config.layout.secondary_monitor,
-        )
-
-    return Size(2560, 1392), Size(1440, 3440)
 
 
 _dashboard_pixmap_cache: dict[tuple[str, int], QPixmap] = {}
@@ -383,60 +163,6 @@ def _load_icon_pixmap(filename: str, height: int) -> QPixmap:
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
-        _dashboard_pixmap_cache[key] = pm
-    return _dashboard_pixmap_cache[key]
-
-
-def _waveform_points(shape: str, w: int, h: int) -> list[tuple[int, int]]:
-    """Return iconic pixel coordinates for a waveform shape.
-
-    At dashboard icon sizes (~20x16), mathematically accurate full-cycle
-    waveforms are indistinguishable.  Instead, draw a single arch/peak
-    so the *character* of each shape is obvious: round top vs sharp peak
-    vs flat top vs ramp.
-    """
-    mx, my = 2, 3
-    dw = w - mx * 2
-    dh = h - my * 2
-    top = my
-    bot = my + dh
-    if shape == "triangle":
-        # Sharp peak — two straight lines meeting at a point
-        return [(mx, bot), (mx + dw // 2, top), (mx + dw, bot)]
-    if shape == "rounded_square":
-        # Flat top — clearly rectangular
-        return [
-            (mx, bot), (mx, top),
-            (mx + dw, top), (mx + dw, bot),
-        ]
-    if shape == "sawtooth":
-        # Ramp up, vertical drop
-        return [(mx, bot), (mx + dw, top), (mx + dw, bot)]
-    # Sine — smooth arch, obviously rounded at the peak
-    steps = max(8, dw)
-    points: list[tuple[int, int]] = []
-    for i in range(steps + 1):
-        t = (i / steps) * math.pi  # half-cycle: 0 to pi
-        y = bot - int(math.sin(t) * dh)
-        points.append((mx + round(i * dw / steps), y))
-    return points
-
-
-def _draw_waveform_pixmap(shape: str, w: int, h: int) -> QPixmap:
-    """Draw a waveform icon as a QPixmap, cached."""
-    key = (f"waveform_{shape}", w, h)
-    if key not in _dashboard_pixmap_cache:
-        from PyQt6.QtCore import Qt
-
-        pm = QPixmap(w, h)
-        pm.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pm)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(BLUE, 1))
-        pts = _waveform_points(shape, w, h)
-        for i in range(len(pts) - 1):
-            painter.drawLine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
-        painter.end()
         _dashboard_pixmap_cache[key] = pm
     return _dashboard_pixmap_cache[key]
 
@@ -484,226 +210,59 @@ def _draw_mic_pixmap(w: int, h: int) -> QPixmap:
     return _dashboard_pixmap_cache[key]
 
 
-# Short hover labels for every clickable dashboard action, so no button is
-# left without a tooltip. GENAU_TOGGLE_AUTO is overridden at build time with
-# its live allowed/suppressed state.
+# Every control in the bar names itself on hover.  The three chips are readouts
+# rather than switches for two of the three, so each says what it is reporting.
 _ACTION_TOOLTIPS: dict[str, str] = {
     QUIT_BUTTON: "Quit",
-    OMNIPAUSE_TOGGLE: "Pause all",
+    OMNIPAUSE_TOGGLE: "Pause everything",
     HELP_REFERENCE: "Hotkeys & Voice Commands Reference",
-    PORTRAIT_PREV: "Previous portrait clip",
-    PORTRAIT_NEXT: "Next portrait clip",
-    PORTRAIT_LOCK: "Lock / unlock portrait",
-    PORTRAIT_TRASH: "Mark portrait weird",
-    PRIMARY_PREV: "Previous video",
-    PRIMARY_NEXT: "Next video",
-    PRIMARY_NUDGE_PREV: "Nudge back 10s",
-    PRIMARY_NUDGE_NEXT: "Nudge forward 10s",
-    QUARTER_BUTTON: "Offset ¼ cycle",
-    GENAU_AMP_UP: "Amplitude up",
-    GENAU_AMP_DOWN: "Amplitude down",
-    GENAU_CTR_UP: "Center up",
-    GENAU_CTR_DOWN: "Center down",
-    GENAU_SPD_UP: "Speed up",
-    GENAU_SPD_DOWN: "Speed down",
-    GENAU_CRUISE: "Cruise control",
-    GENAU_AUTO_ADVANCE: "Auto advance",
-    GENAU_SHAPE: "Cycle waveform shape",
-    GENAU_TOGGLE_AUTO: "Genau takeover",
-    HYBRID_ACTIVATE: "Hybrid mode",
-    NAU_ACTIVATE: "Nau mode",
-    GENAU_ACTIVATE: "Genau mode",
-    OPEN_FILE_DIALOG: "Open file browser",
-    CLIPPER_SAVE: "Save clip",
-    NAU_RECORD: "Record loop",
-    LANDSCAPE_PREV: "Previous landscape clip",
-    LANDSCAPE_NEXT: "Next landscape clip",
-    LANDSCAPE_LOCK: "Lock / unlock landscape",
-    LANDSCAPE_TRASH: "Mark landscape weird",
     BROKER_PANEL: "Broker",
     FMODE_PANEL: "F-Mode",
     VOICE_TOGGLE: "Voice",
 }
 
 
-def _action_tooltip(action_id: str, takeover_hover: str) -> str:
-    if action_id == GENAU_TOGGLE_AUTO:
-        return takeover_hover  # live allowed/suppressed state
-    return _ACTION_TOOLTIPS.get(action_id, "")
-
-
 def build_dashboard_scene(
-    layout: DashboardPreviewLayout,
+    layout: DashboardBarLayout,
     snapshot: DashboardSnapshot | None = None,
     *,
-    favs_file: Path | None = None,
+    width: int,
     broker_heartbeat_file: Path | None = None,
-    genau_status: GenauStatus | None = None,
-    genau_takeover_allowed: bool = True,
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
-    primary_label = LABEL_PRIMARY_NAU
-    portrait_label = LABEL_PORTRAIT
-    landscape_label = LABEL_LANDSCAPE
-    osr2_label = LABEL_OSR2
-    primary_fill = COLOR_PANEL
-    portrait_fill = COLOR_PANEL
-    landscape_fill = COLOR_PANEL
-    osr2_fill = COLOR_PANEL
-    broker_fill = COLOR_PANEL
-    fmode_fill = COLOR_PANEL
-    voice_fill = COLOR_PANEL
-    portrait_lock_fill = COLOR_PANEL
-    landscape_lock_fill = COLOR_PANEL
+    """The control bar: the app's mark, the three buttons, the three chips.
 
-    if snapshot is not None:
-        favs_content = read_favs_content(favs_file) if favs_file is not None else ""
-        broker_running = is_broker_heartbeat_fresh(broker_heartbeat_file) if broker_heartbeat_file is not None else False
-        _mode_labels = {"nau": LABEL_PRIMARY_NAU, "genau": LABEL_PRIMARY_GENAU, "hybrid": LABEL_PRIMARY_HYBRID}
-        primary_label_name = _mode_labels.get(snapshot.primary_mode, LABEL_PRIMARY_NAU)
-        primary_label = primary_label_name
-        primary_funscript_exists = has_matching_funscript(snapshot.primary.path)
-        funscript_active = bool(snapshot.primary.path) and primary_funscript_exists
-        if snapshot.osr2_mode == "off":
-            osr2_label = f"{LABEL_OSR2}\n(off)"
-        elif snapshot.osr2_mode == "auto":
-            osr2_label = f"{LABEL_OSR2}\n(auto)"
-        elif funscript_active:
-            osr2_label = f"{LABEL_OSR2}\n(funscript\ncontrol)"
-        else:
-            osr2_label = f"{LABEL_OSR2}\n(idle; no\nfunscript)"
-        # Each panel reflects the ACTUAL current video, never F-mode on faith:
-        # green means "this video has a funscript / is a favorite".  Under a
-        # working F-mode every video qualifies, so the panels are green anyway —
-        # and a video that slips past the filter correctly shows neutral.
-        if snapshot.osr2_mode == "auto":
-            primary_fill = COLOR_PINK
-        elif snapshot.primary_mode == "genau":
-            primary_fill = COLOR_PANEL
-        elif funscript_active:
-            primary_fill = COLOR_GREEN
-        else:
-            primary_fill = COLOR_PANEL
-        portrait_fill = COLOR_GREEN if is_favorite_path(snapshot.portrait.path, favs_content) else COLOR_PANEL
-        landscape_fill = COLOR_GREEN if is_favorite_path(snapshot.landscape.path, favs_content) else COLOR_PANEL
-        if snapshot.osr2_mode == "off":
-            osr2_fill = COLOR_PANEL
-        elif snapshot.osr2_mode == "auto":
-            osr2_fill = COLOR_PINK
-        elif funscript_active:
-            osr2_fill = COLOR_GREEN
-        else:
-            osr2_fill = COLOR_PANEL
-        broker_fill = COLOR_BLUE if broker_running else COLOR_RED
-        fmode_fill = COLOR_GREEN if snapshot.f_mode_enabled else COLOR_PANEL
-        voice_fill = COLOR_BLUE if snapshot.voice_active else COLOR_PANEL
-        portrait_lock_fill = COLOR_GREEN if snapshot.portrait.locked else COLOR_PANEL
-        landscape_lock_fill = COLOR_GREEN if snapshot.landscape.locked else COLOR_PANEL
+    What each player is doing is on that player's own HUD now, so nothing here
+    stands for a player — which is why the bar has no shape to keep and simply
+    runs along the top of the window.
+    """
+    broker_running = (
+        is_broker_heartbeat_fresh(broker_heartbeat_file)
+        if broker_heartbeat_file is not None else False
+    )
+    broker_fill = BLUE if broker_running else RED
+    fmode_fill = GREEN if snapshot is not None and snapshot.f_mode_enabled else COLOR_PANEL
+    voice_fill = BLUE if snapshot is not None and snapshot.voice_active else COLOR_PANEL
 
     omni_paused = snapshot is not None and snapshot.omni_paused
     omnipause_icon = "\u25B6" if omni_paused else "\u23F8"
-    omnipause_fill = COLOR_PANEL
-
-    _genau = genau_status or GenauStatus()
-    cruise_fill = BLUE if _genau.cruise_active else COLOR_PANEL
-    # A held clip is still armed, so the button stays lit — in the hold's own
-    # colour, matching the Genau HUD's AA badge.
-    if not _genau.auto_advance_active:
-        advance_fill = COLOR_PANEL
-    elif _genau.clip_locked:
-        advance_fill = COLOR_GREEN
-    else:
-        advance_fill = BLUE
 
     def _press_fill(fill: QColor, action_id: str) -> QColor:
         return lighten_color(fill) if action_id in pressed_actions else fill
 
-    _is_genau = snapshot is not None and snapshot.primary_mode == "genau"
-    _is_hybrid = snapshot is not None and snapshot.primary_mode == "hybrid"
-
-    # Genau takeover allow/suppress toggle — owns the bottom-left of the primary
-    # panel in Nau/Hybrid mode (where Genau hasn't claimed the primary, so the
-    # takeover is a live choice): green when allowed, red when suppressed.
-    takeover_fill = COLOR_GREEN if genau_takeover_allowed else COLOR_RED
-    takeover_hover = "Genau takeover: allowed" if genau_takeover_allowed else "Genau takeover: suppressed"
-
     rects = (
-        DashboardRectItem(layout.main_monitor, fill=COLOR_PANEL),
-        DashboardRectItem(layout.secondary_monitor, fill=COLOR_PANEL),
-        DashboardRectItem(layout.rfb_panel, fill=COLOR_PANEL),
-        DashboardRectItem(layout.dash_panel, fill=COLOR_PANEL),
-        DashboardRectItem(layout.log_panel, fill=COLOR_PANEL),
         DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
-        DashboardRectItem(layout.omnipause_button, fill=_press_fill(omnipause_fill, OMNIPAUSE_TOGGLE)),
-        DashboardRectItem(layout.help_button, fill=COLOR_PANEL),
-        DashboardRectItem(layout.landscape_panel, fill=landscape_fill),
-        DashboardRectItem(layout.portrait_panel, fill=portrait_fill),
-        DashboardRectItem(layout.primary_shadow, outline=COLOR_CABLE_DIM, fill=COLOR_PANEL),
-        DashboardRectItem(layout.primary_panel, fill=primary_fill),
-        DashboardRectItem(layout.osr2_panel, fill=osr2_fill),
-        DashboardRectItem(layout.portrait_prev, fill=_press_fill(COLOR_PANEL, PORTRAIT_PREV)),
-        DashboardRectItem(layout.portrait_next, fill=_press_fill(COLOR_PANEL, PORTRAIT_NEXT)),
-        DashboardRectItem(layout.portrait_lock, fill=_press_fill(portrait_lock_fill, PORTRAIT_LOCK)),
-        DashboardRectItem(layout.portrait_trash, fill=_press_fill(COLOR_PANEL, PORTRAIT_TRASH)),
-        DashboardRectItem(layout.primary_prev, fill=_press_fill(COLOR_PANEL, PRIMARY_PREV)),
-        DashboardRectItem(layout.primary_next, fill=_press_fill(COLOR_PANEL, PRIMARY_NEXT)),
-        *(
-            (
-                DashboardRectItem(layout.quarter_button, fill=_press_fill(COLOR_PANEL, QUARTER_BUTTON)),
-                DashboardRectItem(layout.genau_amp_up, fill=_press_fill(COLOR_PANEL, GENAU_AMP_UP)),
-                DashboardRectItem(layout.genau_amp_down, fill=_press_fill(COLOR_PANEL, GENAU_AMP_DOWN)),
-                DashboardRectItem(layout.genau_ctr_up, fill=_press_fill(COLOR_PANEL, GENAU_CTR_UP)),
-                DashboardRectItem(layout.genau_ctr_down, fill=_press_fill(COLOR_PANEL, GENAU_CTR_DOWN)),
-                DashboardRectItem(layout.genau_spd_up, fill=_press_fill(COLOR_PANEL, GENAU_SPD_UP)),
-                DashboardRectItem(layout.genau_spd_down, fill=_press_fill(COLOR_PANEL, GENAU_SPD_DOWN)),
-                DashboardRectItem(layout.genau_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
-                DashboardRectItem(layout.genau_advance, fill=_press_fill(advance_fill, GENAU_AUTO_ADVANCE)),
-                DashboardRectItem(layout.genau_shape, fill=_press_fill(COLOR_PANEL, GENAU_SHAPE)),
-                DashboardRectItem(layout.hybrid_mode_button, fill=_press_fill(COLOR_PANEL, HYBRID_ACTIVATE)),
-            )
-            if _is_genau else (
-                DashboardRectItem(layout.primary_nudge_prev, fill=_press_fill(COLOR_PANEL, PRIMARY_NUDGE_PREV)),
-                DashboardRectItem(layout.primary_nudge_next, fill=_press_fill(COLOR_PANEL, PRIMARY_NUDGE_NEXT)),
-                DashboardRectItem(layout.hybrid_quarter_button, fill=_press_fill(COLOR_PANEL, QUARTER_BUTTON)),
-                DashboardRectItem(layout.hybrid_open_file_dialog, fill=_press_fill(COLOR_PANEL, OPEN_FILE_DIALOG)),
-                DashboardRectItem(layout.clipper_save, fill=_press_fill(COLOR_PANEL, CLIPPER_SAVE)),
-                DashboardRectItem(layout.hybrid_genau_amp_up, fill=_press_fill(COLOR_PANEL, GENAU_AMP_UP)),
-                DashboardRectItem(layout.hybrid_genau_amp_down, fill=_press_fill(COLOR_PANEL, GENAU_AMP_DOWN)),
-                DashboardRectItem(layout.hybrid_genau_ctr_up, fill=_press_fill(COLOR_PANEL, GENAU_CTR_UP)),
-                DashboardRectItem(layout.hybrid_genau_ctr_down, fill=_press_fill(COLOR_PANEL, GENAU_CTR_DOWN)),
-                DashboardRectItem(layout.hybrid_genau_spd_up, fill=_press_fill(COLOR_PANEL, GENAU_SPD_UP)),
-                DashboardRectItem(layout.hybrid_genau_spd_down, fill=_press_fill(COLOR_PANEL, GENAU_SPD_DOWN)),
-                DashboardRectItem(layout.genau_takeover, fill=_press_fill(takeover_fill, GENAU_TOGGLE_AUTO)),
-                DashboardRectItem(layout.hybrid_cruise, fill=_press_fill(cruise_fill, GENAU_CRUISE)),
-                DashboardRectItem(layout.hybrid_advance, fill=_press_fill(advance_fill, GENAU_AUTO_ADVANCE)),
-                DashboardRectItem(layout.genau_shape, fill=_press_fill(COLOR_PANEL, GENAU_SHAPE)),
-            )
-            if _is_hybrid else (
-                DashboardRectItem(layout.primary_nudge_prev, fill=_press_fill(COLOR_PANEL, PRIMARY_NUDGE_PREV)),
-                DashboardRectItem(layout.primary_nudge_next, fill=_press_fill(COLOR_PANEL, PRIMARY_NUDGE_NEXT)),
-                DashboardRectItem(layout.open_file_dialog, fill=_press_fill(COLOR_PANEL, OPEN_FILE_DIALOG)),
-                DashboardRectItem(layout.clipper_save, fill=_press_fill(COLOR_PANEL, CLIPPER_SAVE)),
-                DashboardRectItem(layout.nau_record, fill=_press_fill(COLOR_PANEL, NAU_RECORD)),
-                DashboardRectItem(layout.genau_takeover, fill=_press_fill(takeover_fill, GENAU_TOGGLE_AUTO)),
-                DashboardRectItem(layout.hybrid_mode_button, fill=_press_fill(COLOR_PANEL, HYBRID_ACTIVATE)),
-            )
-        ),
-        DashboardRectItem(layout.landscape_prev, fill=_press_fill(COLOR_PANEL, LANDSCAPE_PREV)),
-        DashboardRectItem(layout.landscape_next, fill=_press_fill(COLOR_PANEL, LANDSCAPE_NEXT)),
-        DashboardRectItem(layout.landscape_lock, fill=_press_fill(landscape_lock_fill, LANDSCAPE_LOCK)),
-        DashboardRectItem(layout.landscape_trash, fill=_press_fill(COLOR_PANEL, LANDSCAPE_TRASH)),
+        DashboardRectItem(layout.omnipause_button, fill=_press_fill(COLOR_PANEL, OMNIPAUSE_TOGGLE)),
+        DashboardRectItem(layout.help_button, fill=_press_fill(COLOR_PANEL, HELP_REFERENCE)),
         DashboardRectItem(layout.broker_panel, fill=_press_fill(broker_fill, BROKER_PANEL)),
         DashboardRectItem(layout.fmode_panel, fill=_press_fill(fmode_fill, FMODE_PANEL)),
         DashboardRectItem(layout.voice_panel, fill=_press_fill(voice_fill, VOICE_TOGGLE)),
-        DashboardRectItem(layout.genau_mode_toggle, fill=_press_fill(COLOR_PANEL, GENAU_ACTIVATE)),
     )
-    _font_symbol = make_font(FONT_SYMBOL, 10, bold=True)
-    _font_ui_sm = make_font(FONT_UI, SIZE_SMALL, bold=True)
-    _font_emoji = make_font(FONT_EMOJI, SIZE_SMALL)
-    _font_ui_tiny = make_font(FONT_UI, SIZE_TINY, bold=True)
-    # The app-name lockup, styled like the loading screen: pink, bold italic, a
-    # step larger than the box titles.  Built fresh (not via the cached make_font)
-    # so setItalic can't leak into every other user of a shared QFont.
+    _font_symbol = make_font(FONT_SYMBOL, 13, bold=True)
+    _font_ui = make_font(FONT_UI, SIZE_SMALL, bold=True)
+    # The app-name lockup, styled like the loading screen: pink, bold italic.
+    # Built fresh (not via the cached make_font) so setItalic cannot leak into
+    # every other user of a shared QFont.
     _font_app = QFont(FONT_UI, SIZE_BODY)
     _font_app.setBold(True)
     _font_app.setItalic(True)
@@ -711,235 +270,39 @@ def build_dashboard_scene(
     texts = (
         DashboardTextItem("\u23FB", layout.quit_button, font=_font_symbol),
         DashboardTextItem(omnipause_icon, layout.omnipause_button, font=_font_symbol),
-        DashboardTextItem("?", layout.help_button, font=_font_ui_sm),
-        DashboardTextItem(landscape_label, layout.landscape_panel, anchor="n"),
-        DashboardTextItem(portrait_label, layout.portrait_panel, anchor="n"),
-        DashboardTextItem(primary_label, layout.primary_panel, anchor="n"),
-        DashboardTextItem(osr2_label, layout.osr2_panel, anchor="n"),
-        DashboardTextItem("Favs Browser", layout.rfb_panel, anchor="n"),
-        DashboardTextItem("Logs", layout.log_panel, anchor="n"),
-        DashboardTextItem("Fun Time", layout.app_title, color=COLOR_APP_TITLE, anchor="w", font=_font_app),
-        DashboardTextItem("<", layout.portrait_prev, font=_font_ui_sm),
-        DashboardTextItem(">", layout.portrait_next, font=_font_ui_sm),
-        DashboardTextItem(ICON_LOCK, layout.portrait_lock, font=_font_emoji),
-        DashboardTextItem(ICON_TRASH, layout.portrait_trash, font=_font_emoji),
-        DashboardTextItem("<", layout.primary_prev, font=_font_ui_sm),
-        DashboardTextItem(">", layout.primary_next, font=_font_ui_sm),
-        *(
-            (
-                DashboardTextItem("1/4", layout.quarter_button, font=_font_ui_tiny),
-                DashboardTextItem("^", layout.genau_amp_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.amp_at_max else COLOR_TEXT),
-                DashboardTextItem("v", layout.genau_amp_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.amp_at_min else COLOR_TEXT),
-                DashboardTextItem("^", layout.genau_ctr_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.ctr_at_max else COLOR_TEXT),
-                DashboardTextItem("v", layout.genau_ctr_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.ctr_at_min else COLOR_TEXT),
-                DashboardTextItem("^", layout.genau_spd_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.spd_at_max else COLOR_TEXT),
-                DashboardTextItem("v", layout.genau_spd_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.spd_at_min else COLOR_TEXT),
-                DashboardTextItem("AMP", layout.genau_amp_label, font=_font_ui_tiny, rotation=90),
-                DashboardTextItem("CTR", layout.genau_ctr_label, font=_font_ui_tiny, rotation=90),
-                DashboardTextItem("SPD", layout.genau_spd_label, font=_font_ui_tiny, rotation=90),
-                DashboardTextItem("cc", layout.genau_cruise, font=_font_ui_tiny),
-                DashboardTextItem("aa", layout.genau_advance, font=_font_ui_tiny),
-                DashboardTextItem("h", layout.hybrid_mode_button, font=_font_ui_tiny),
-            )
-            if _is_genau else (
-                DashboardTextItem("\u2212", layout.primary_nudge_prev, font=_font_ui_sm),
-                DashboardTextItem("+", layout.primary_nudge_next, font=_font_ui_sm),
-                DashboardTextItem("1/4", layout.hybrid_quarter_button, font=_font_ui_tiny),
-                DashboardTextItem("\U0001F4C2", layout.hybrid_open_file_dialog, font=_font_emoji),
-                DashboardTextItem("^", layout.hybrid_genau_amp_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.amp_at_max else COLOR_TEXT),
-                DashboardTextItem("v", layout.hybrid_genau_amp_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.amp_at_min else COLOR_TEXT),
-                DashboardTextItem("^", layout.hybrid_genau_ctr_up, font=_font_ui_tiny, color=TEXT_MUTED if _genau.ctr_at_max else COLOR_TEXT),
-                DashboardTextItem("v", layout.hybrid_genau_ctr_down, font=_font_ui_tiny, color=TEXT_MUTED if _genau.ctr_at_min else COLOR_TEXT),
-                # Hybrid SPD drives Nau's video or Genau per-stretch, so it is
-                # never greyed by Genau's own limits (unlike amp/center above).
-                DashboardTextItem("^", layout.hybrid_genau_spd_up, font=_font_ui_tiny, color=COLOR_TEXT),
-                DashboardTextItem("v", layout.hybrid_genau_spd_down, font=_font_ui_tiny, color=COLOR_TEXT),
-                DashboardTextItem("AMP", layout.hybrid_genau_amp_label, font=_font_ui_tiny, rotation=90),
-                DashboardTextItem("CTR", layout.hybrid_genau_ctr_label, font=_font_ui_tiny, rotation=90),
-                DashboardTextItem("SPD", layout.hybrid_genau_spd_label, font=_font_ui_tiny, rotation=90),
-                DashboardTextItem("GA", layout.genau_takeover, font=_font_ui_tiny),
-                DashboardTextItem("cc", layout.hybrid_cruise, font=_font_ui_tiny),
-                DashboardTextItem("aa", layout.hybrid_advance, font=_font_ui_tiny),
-                DashboardTextItem("Nau", layout.hybrid_mode_button, font=_font_ui_tiny),
-            )
-            if _is_hybrid else (
-                DashboardTextItem("\u2212", layout.primary_nudge_prev, font=_font_ui_sm),
-                DashboardTextItem("+", layout.primary_nudge_next, font=_font_ui_sm),
-                DashboardTextItem("\U0001F4C2", layout.open_file_dialog, font=_font_emoji),
-                DashboardTextItem("\u23fa", layout.nau_record, font=_font_symbol),
-                DashboardTextItem("GA", layout.genau_takeover, font=_font_ui_tiny),
-                DashboardTextItem("h", layout.hybrid_mode_button, font=_font_ui_tiny),
-            )
-        ),
-        DashboardTextItem("<", layout.landscape_prev, font=_font_ui_sm),
-        DashboardTextItem(">", layout.landscape_next, font=_font_ui_sm),
-        DashboardTextItem(ICON_LOCK, layout.landscape_lock, font=_font_emoji),
-        DashboardTextItem(ICON_TRASH, layout.landscape_trash, font=_font_emoji),
-        *(
-            (DashboardTextItem("Nau", layout.genau_mode_toggle, font=_font_ui_tiny),)
-            if _is_genau else ()
-        ),
+        DashboardTextItem("?", layout.help_button, font=_font_ui),
+        DashboardTextItem("Fun Time", layout.app_title, color=COLOR_APP_TITLE,
+                          anchor="w", font=_font_app),
     )
-    _icon_h = layout.broker_panel.height
+    _chip_h = layout.broker_panel.height
     images = (
         DashboardImageItem(_load_icon_pixmap("icon.ico", layout.app_icon.height), layout.app_icon),
-        DashboardImageItem(_load_icon_pixmap("broker_icon.ico", _icon_h), layout.broker_panel),
-        DashboardImageItem(_load_icon_pixmap("fmode_icon.ico", _icon_h), layout.fmode_panel),
+        DashboardImageItem(_load_icon_pixmap("broker_icon.ico", _chip_h), layout.broker_panel),
+        DashboardImageItem(_load_icon_pixmap("fmode_icon.ico", _chip_h), layout.fmode_panel),
         DashboardImageItem(
             _draw_mic_pixmap(layout.voice_panel.width, layout.voice_panel.height),
             layout.voice_panel,
         ),
-        *(
-            (
-                DashboardImageItem(
-                    _draw_waveform_pixmap(_genau.shape, layout.genau_shape.width, layout.genau_shape.height),
-                    layout.genau_shape,
-                ),
-            )
-            if _is_genau else (
-                DashboardImageItem(
-                    _draw_waveform_pixmap(_genau.shape, layout.genau_shape.width, layout.genau_shape.height),
-                    layout.genau_shape,
-                ),
-                DashboardImageItem(
-                    _load_icon_pixmap("clipper_icon.ico", layout.clipper_save.height),
-                    layout.clipper_save,
-                ),
-                DashboardImageItem(
-                    _load_icon_pixmap("genau_icon.ico", layout.genau_mode_toggle.height),
-                    layout.genau_mode_toggle,
-                ),
-            )
-            if _is_hybrid else (
-                DashboardImageItem(
-                    _load_icon_pixmap("clipper_icon.ico", layout.clipper_save.height),
-                    layout.clipper_save,
-                ),
-                DashboardImageItem(
-                    _load_icon_pixmap("genau_icon.ico", layout.genau_mode_toggle.height),
-                    layout.genau_mode_toggle,
-                ),
-            )
-        ),
     )
-    # Cable visual connecting OSR2 to Primary panel (simple straight line)
-    cable_start_x = layout.osr2_panel.x + layout.osr2_panel.width
-    cable_end_x = layout.primary_panel.x
-    cable_y = layout.osr2_panel.y + layout.osr2_panel.height // 2
-    cable_color = COLOR_CABLE
-    cable_w = 2
-    socket_r = 3
-    cable_lines: tuple[DashboardLineItem, ...] = (
-        DashboardLineItem(
-            points=((cable_start_x, cable_y), (cable_end_x, cable_y)),
-            color=cable_color, width=cable_w,
-        ),
+    actions = (
+        (QUIT_BUTTON, layout.quit_button),
+        (OMNIPAUSE_TOGGLE, layout.omnipause_button),
+        (HELP_REFERENCE, layout.help_button),
+        (BROKER_PANEL, layout.broker_panel),
+        (FMODE_PANEL, layout.fmode_panel),
+        (VOICE_TOGGLE, layout.voice_panel),
     )
-    cable_ovals: tuple[DashboardOvalItem, ...] = (
-        DashboardOvalItem(cx=cable_start_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
-        DashboardOvalItem(cx=cable_end_x, cy=cable_y, r=socket_r, fill=COLOR_BG, outline=cable_color),
-    )
-    cable_arcs: tuple[DashboardArcItem, ...] = ()
-
-    # The log box carries a "Logs" title (in texts) with ruled lines below
-    # standing in for the stream.  The lines start below the title — the top one
-    # made way for it.
-    log_lines: tuple[DashboardLineItem, ...] = tuple(
-        DashboardLineItem(
-            points=(
-                (layout.log_panel.x + 4, y),
-                (layout.log_panel.x + layout.log_panel.width - 4, y),
-            ),
-            color=TEXT_MUTED,
-            width=1,
-        )
-        for y in range(layout.log_panel.y + 16, layout.log_panel.y + layout.log_panel.height - 4, 8)
-    )
-
-    scene = DashboardScene(
-        width=layout.dashboard_width,
-        height=layout.dashboard_height,
+    return DashboardScene(
+        width=width,
+        height=layout.height,
         rects=rects,
         texts=texts,
         images=images,
-        hover_texts=(),  # derived from actions below so every button has one
-        lines=cable_lines + log_lines,
-        ovals=cable_ovals,
-        arcs=cable_arcs,
-        actions=(
-            (QUIT_BUTTON, layout.quit_button),
-            (OMNIPAUSE_TOGGLE, layout.omnipause_button),
-            (HELP_REFERENCE, layout.help_button),
-            (PORTRAIT_PREV, layout.portrait_prev),
-            (PORTRAIT_NEXT, layout.portrait_next),
-            (PORTRAIT_LOCK, layout.portrait_lock),
-            (PORTRAIT_TRASH, layout.portrait_trash),
-            (PRIMARY_PREV, layout.primary_prev),
-            (PRIMARY_NEXT, layout.primary_next),
-            *(
-                (
-                    (QUARTER_BUTTON, layout.quarter_button),
-                    *(() if _genau.amp_at_max else ((GENAU_AMP_UP, layout.genau_amp_up),)),
-                    *(() if _genau.amp_at_min else ((GENAU_AMP_DOWN, layout.genau_amp_down),)),
-                    *(() if _genau.ctr_at_max else ((GENAU_CTR_UP, layout.genau_ctr_up),)),
-                    *(() if _genau.ctr_at_min else ((GENAU_CTR_DOWN, layout.genau_ctr_down),)),
-                    *(() if _genau.spd_at_max else ((GENAU_SPD_UP, layout.genau_spd_up),)),
-                    *(() if _genau.spd_at_min else ((GENAU_SPD_DOWN, layout.genau_spd_down),)),
-                    (GENAU_CRUISE, layout.genau_cruise),
-                    (GENAU_AUTO_ADVANCE, layout.genau_advance),
-                    (GENAU_SHAPE, layout.genau_shape),
-                    (HYBRID_ACTIVATE, layout.hybrid_mode_button),
-                    (NAU_ACTIVATE, layout.genau_mode_toggle),
-                )
-                if _is_genau else (
-                    (PRIMARY_NUDGE_PREV, layout.primary_nudge_prev),
-                    (PRIMARY_NUDGE_NEXT, layout.primary_nudge_next),
-                    (QUARTER_BUTTON, layout.hybrid_quarter_button),
-                    (OPEN_FILE_DIALOG, layout.hybrid_open_file_dialog),
-                    (CLIPPER_SAVE, layout.clipper_save),
-                    *(() if _genau.amp_at_max else ((GENAU_AMP_UP, layout.hybrid_genau_amp_up),)),
-                    *(() if _genau.amp_at_min else ((GENAU_AMP_DOWN, layout.hybrid_genau_amp_down),)),
-                    *(() if _genau.ctr_at_max else ((GENAU_CTR_UP, layout.hybrid_genau_ctr_up),)),
-                    *(() if _genau.ctr_at_min else ((GENAU_CTR_DOWN, layout.hybrid_genau_ctr_down),)),
-                    # Speed routes per-stretch in hybrid — to Nau's video on a
-                    # scripted stretch, to Genau otherwise — so these stay live
-                    # regardless of Genau's own limits (unlike amp/center, which
-                    # only ever drive Genau).
-                    (GENAU_SPD_UP, layout.hybrid_genau_spd_up),
-                    (GENAU_SPD_DOWN, layout.hybrid_genau_spd_down),
-                    (GENAU_TOGGLE_AUTO, layout.genau_takeover),
-                    (GENAU_CRUISE, layout.hybrid_cruise),
-                    (GENAU_AUTO_ADVANCE, layout.hybrid_advance),
-                    (GENAU_SHAPE, layout.genau_shape),
-                    (NAU_ACTIVATE, layout.hybrid_mode_button),
-                    (GENAU_ACTIVATE, layout.genau_mode_toggle),
-                )
-                if _is_hybrid else (
-                    (PRIMARY_NUDGE_PREV, layout.primary_nudge_prev),
-                    (PRIMARY_NUDGE_NEXT, layout.primary_nudge_next),
-                    (OPEN_FILE_DIALOG, layout.open_file_dialog),
-                    (CLIPPER_SAVE, layout.clipper_save),
-                    (NAU_RECORD, layout.nau_record),
-                    (GENAU_TOGGLE_AUTO, layout.genau_takeover),
-                    (HYBRID_ACTIVATE, layout.hybrid_mode_button),
-                    (GENAU_ACTIVATE, layout.genau_mode_toggle),
-                )
-            ),
-            (LANDSCAPE_PREV, layout.landscape_prev),
-            (LANDSCAPE_NEXT, layout.landscape_next),
-            (LANDSCAPE_LOCK, layout.landscape_lock),
-            (LANDSCAPE_TRASH, layout.landscape_trash),
-            (BROKER_PANEL, layout.broker_panel),
-            (FMODE_PANEL, layout.fmode_panel),
-            (VOICE_TOGGLE, layout.voice_panel),
+        actions=actions,
+        hover_texts=tuple(
+            (rect, _ACTION_TOOLTIPS[action_id]) for action_id, rect in actions
         ),
     )
-    hover_texts = tuple(
-        (rect, text)
-        for action_id, rect in scene.actions
-        if (text := _action_tooltip(action_id, takeover_hover))
-    )
-    return replace(scene, hover_texts=hover_texts)
 
 
 # ---------------------------------------------------------------------------
@@ -947,7 +310,7 @@ def build_dashboard_scene(
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import Qt, QEvent, QRectF, QPointF, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QToolTip, QDialog, QHBoxLayout, QVBoxLayout, QTextBrowser
-from PyQt6.QtGui import QPainter, QPen, QBrush, QPainterPath, QPixmap
+from PyQt6.QtGui import QPainter, QPen, QBrush, QPixmap
 
 
 class DashboardWidget(QWidget):
@@ -962,7 +325,7 @@ class DashboardWidget(QWidget):
 
     def set_scene(self, scene: DashboardScene) -> None:
         self._scene = scene
-        self.setFixedSize(scene.width, scene.height)
+        self.setFixedHeight(scene.height)
         self.update()
 
     def paintEvent(self, event: object) -> None:  # noqa: N802
@@ -980,38 +343,6 @@ class DashboardWidget(QWidget):
             p.setBrush(QBrush(item.fill))
             p.drawRect(item.rect.x, item.rect.y, item.rect.width, item.rect.height)
 
-        for item in scene.lines:
-            if len(item.points) < 2:
-                continue
-            pen = QPen(item.color, item.width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
-            p.setPen(pen)
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            if item.smooth and len(item.points) > 2:
-                path = QPainterPath(QPointF(*item.points[0]))
-                for pt in item.points[1:]:
-                    path.lineTo(QPointF(*pt))
-                p.drawPath(path)
-            else:
-                for i in range(len(item.points) - 1):
-                    x1, y1 = item.points[i]
-                    x2, y2 = item.points[i + 1]
-                    p.drawLine(x1, y1, x2, y2)
-
-        for item in scene.ovals:
-            outline = item.outline if item.outline is not None else item.fill
-            p.setPen(QPen(outline, item.outline_width))
-            p.setBrush(QBrush(item.fill))
-            p.drawEllipse(item.cx - item.r, item.cy - item.r, item.r * 2, item.r * 2)
-
-        for item in scene.arcs:
-            p.setPen(QPen(item.outline, item.width))
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            # Qt arcs: angles in 1/16th of a degree, starting from 3 o'clock CCW
-            p.drawArc(
-                item.cx - item.r, item.cy - item.r, item.r * 2, item.r * 2,
-                int(item.start * 16), int(item.extent * 16),
-            )
-
         for item in scene.texts:
             if item.rect.width == 0 and item.rect.height == 0:
                 continue
@@ -1023,17 +354,7 @@ class DashboardWidget(QWidget):
                 flags = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
             elif item.anchor == "n":
                 flags = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop
-            if item.rotation:
-                p.save()
-                cx = rect.x() + rect.width() / 2
-                cy = rect.y() + rect.height() / 2
-                p.translate(cx, cy)
-                p.rotate(item.rotation)
-                rotated = QRectF(-rect.height() / 2, -rect.width() / 2, rect.height(), rect.width())
-                p.drawText(rotated, flags, item.text)
-                p.restore()
-            else:
-                p.drawText(rect, flags, item.text)
+            p.drawText(rect, flags, item.text)
 
         for item in scene.images:
             if item.pixmap.isNull():
@@ -1148,7 +469,7 @@ class DashboardWindow(QMainWindow):
     def __init__(
         self,
         app_config: DashboardAppConfig,
-        preview_layout: DashboardPreviewLayout,
+        bar_layout: DashboardBarLayout,
         *,
         launch_geometry: DashboardLaunchGeometry | None = None,
         rfb_rect: Rect | None = None,
@@ -1156,7 +477,7 @@ class DashboardWindow(QMainWindow):
     ) -> None:
         super().__init__()
         self._app_config = app_config
-        self._preview_layout = preview_layout
+        self._bar_layout = bar_layout
         self._launch_geometry = launch_geometry
         # The Random Favs Browser's screen rect; the reference popup opens over it.
         self._rfb_rect = rfb_rect
@@ -1179,9 +500,7 @@ class DashboardWindow(QMainWindow):
         self._pressed: dict[str, float] = {}
         self._reference_dialog: ReferenceDialog | None = None
         self._last_snapshot: DashboardSnapshot | None = None
-        self._last_genau_status: GenauStatus | None = None
         self._press_queue: queue.Queue[str] = queue.Queue()
-        self._player_cache: list[PlayerHydration] = [PlayerHydration()]
 
         self.setWindowTitle("Fun Time")
         icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
@@ -1205,7 +524,7 @@ class DashboardWindow(QMainWindow):
         state_dir = app_config.manifest_path.parent
         self._log_widget = LogPanelWidget(event_log_path(state_dir), prefs_path(state_dir))
         central = QWidget(self)
-        central_layout = QHBoxLayout(central)
+        central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(0, 0, 0, 0)
         central_layout.setSpacing(0)
         central_layout.addWidget(self._widget)
@@ -1263,9 +582,6 @@ class DashboardWindow(QMainWindow):
         port_file.parent.mkdir(parents=True, exist_ok=True)
         port_file.write_text(str(press_port), encoding="utf-8")
         threading.Thread(target=self._press_listener, daemon=True, name="press-listener").start()
-
-        # Player status poller thread
-        threading.Thread(target=self._player_poller, daemon=True, name="player-poller").start()
 
         # Notice overlays: flash each new event-log notice over the player it is
         # about.  A dedicated tail (its own offset) polls the shared file a touch
@@ -1392,10 +708,8 @@ class DashboardWindow(QMainWindow):
         self,
         snapshot: DashboardSnapshot | None,
         pressed_actions: frozenset[str],
-        genau_status: GenauStatus | None = None,
     ) -> None:
         self._last_snapshot = snapshot
-        self._last_genau_status = genau_status
         # OmniPause must free the desktop; drop our own topmost while paused
         # (the orchestrator's drop of this window is unreliable) and restore it
         # after.  See _sync_own_topmost.  The log strip is a child widget, so it
@@ -1404,12 +718,10 @@ class DashboardWindow(QMainWindow):
         self._sync_own_topmost(omni_paused)
         state_dir = self._app_config.dashboard_state_file.parent
         scene = build_dashboard_scene(
-            self._preview_layout,
+            self._bar_layout,
             snapshot,
-            favs_file=self._app_config.favs_file,
+            width=max(self.width(), 1),
             broker_heartbeat_file=self._app_config.broker_heartbeat_file,
-            genau_status=genau_status,
-            genau_takeover_allowed=read_genau_enabled(genau_enabled_path(state_dir)),
             pressed_actions=pressed_actions,
         )
         # While minimized, re-asserting geometry would restore the window and
@@ -1425,14 +737,11 @@ class DashboardWindow(QMainWindow):
             return
         self._pressed[action_id] = time.monotonic()
         write_dashboard_command(self._app_config.dashboard_cmd_file, action_id)
-        gs = self._last_genau_status
-        self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs)
+        self._do_render(self._last_snapshot, self._compute_pressed())
         QTimer.singleShot(
             int(PRESS_FLASH_S * 1000) + 10,
-            lambda: self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs),
+            lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
         )
-        if action_id.startswith("genau_"):
-            QTimer.singleShot(100, self._refresh)
 
     def _toggle_reference_dialog(self) -> None:
         """Open the reference popup, or close it if it is already showing.
@@ -1505,11 +814,10 @@ class DashboardWindow(QMainWindow):
             self._close_reference_dialog()
         if toggle_reference:
             self._toggle_reference_dialog()
-        gs = self._last_genau_status
-        self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs)
+        self._do_render(self._last_snapshot, self._compute_pressed())
         QTimer.singleShot(
             int(PRESS_FLASH_S * 1000) + 10,
-            lambda: self._do_render(self._last_snapshot, self._compute_pressed(), genau_status=gs),
+            lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
         )
 
     def _press_listener(self) -> None:
@@ -1520,11 +828,6 @@ class DashboardWindow(QMainWindow):
                 self._press_received.emit()
             except OSError:
                 break
-
-    def _player_poller(self) -> None:
-        while not self._stopping.is_set():
-            self._player_cache[0] = poll_players(self._app_config)
-            self._stopping.wait(0.5)
 
     def _compute_player_rects(self) -> PlayerRects | None:
         """Where each notice-bearing window sits, in real screen coordinates.
@@ -1576,12 +879,10 @@ class DashboardWindow(QMainWindow):
 
     def _refresh(self) -> None:
         self._maybe_reveal_after_loading()
-        snapshot = load_dashboard_snapshot(self._app_config.dashboard_state_file)
-        if snapshot is not None:
-            snapshot = hydrate_dashboard_snapshot(snapshot, self._player_cache[0])
-        genau_status_path = self._app_config.dashboard_state_file.parent / "genau_status.txt"
-        genau_status = read_genau_status(genau_status_path)
-        self._do_render(snapshot, self._compute_pressed(), genau_status=genau_status)
+        self._do_render(
+            load_dashboard_snapshot(self._app_config.dashboard_state_file),
+            self._compute_pressed(),
+        )
 
 
 def build_dashboard_window(
@@ -1590,12 +891,8 @@ def build_dashboard_window(
     launch_geometry: DashboardLaunchGeometry | None = None,
     rfb_rect: Rect | None = None,
 ) -> DashboardWindow:
-    main_monitor, secondary_monitor = get_preview_monitor_sizes(app_config)
-    preview_layout = compute_dashboard_preview_layout(
-        main_monitor, secondary_monitor, app_config.layout,
-    )
     return DashboardWindow(
-        app_config, preview_layout,
+        app_config, compute_dashboard_bar_layout(),
         launch_geometry=launch_geometry,
         rfb_rect=rfb_rect,
     )

@@ -1,37 +1,15 @@
+"""The dashboard's own actions — the names it writes into the command file.
+
+Only the handful the control bar still carries.  Every other command the bar
+used to write is now posted by the player it belongs to, straight off that
+player's own HUD, as a literal string in the player's own repo; the dispatch
+loop matches on the string either way.
+"""
 from __future__ import annotations
 
 
 BROKER_PANEL = "broker_panel"
 FMODE_PANEL = "fmode_panel"
-PORTRAIT_PREV = "portrait_prev"
-PORTRAIT_NEXT = "portrait_next"
-PORTRAIT_LOCK = "portrait_lock"
-PORTRAIT_TRASH = "portrait_trash"
-PRIMARY_PREV = "primary_prev"
-PRIMARY_NEXT = "primary_next"
-QUARTER_BUTTON = "quarter_button"
-LANDSCAPE_PREV = "landscape_prev"
-LANDSCAPE_NEXT = "landscape_next"
-LANDSCAPE_LOCK = "landscape_lock"
-LANDSCAPE_TRASH = "landscape_trash"
-OPEN_FILE_DIALOG = "open_file_dialog"
-CLIPPER_SAVE = "clipper_save"
-PRIMARY_NUDGE_PREV = "primary_nudge_prev"
-PRIMARY_NUDGE_NEXT = "primary_nudge_next"
-NAU_RECORD = "nau_record_tap"
-GENAU_ACTIVATE = "genau_activate"
-NAU_ACTIVATE = "nau_activate"
-HYBRID_ACTIVATE = "hybrid_activate"
-GENAU_AMP_UP = "genau_amplitude_up"
-GENAU_AMP_DOWN = "genau_amplitude_down"
-GENAU_CTR_UP = "genau_center_up"
-GENAU_CTR_DOWN = "genau_center_down"
-GENAU_SPD_UP = "genau_speed_up"
-GENAU_SPD_DOWN = "genau_speed_down"
-GENAU_CRUISE = "genau_toggle_cruise"
-GENAU_AUTO_ADVANCE = "genau_toggle_auto_advance"
-GENAU_TOGGLE_AUTO = "genau_toggle_auto"
-GENAU_SHAPE = "genau_cycle_shape"
 QUIT_BUTTON = "quit"
 OMNIMINIMIZE = "omniminimize"
 OMNIRESTORE = "omnirestore"
