@@ -673,6 +673,29 @@ def test_launch_nau_omits_metadata_dir_when_absent(tmp_path: Path):
     assert "--metadata-dir" not in popen.call_args.args[0]
 
 
+def test_launch_nau_makes_it_borderless(tmp_path: Path):
+    """Under Fun Time Nau drops its title bar, like the satellites; standalone it
+    keeps its chrome, so the flag has to come from the launcher, not be Nau's
+    default."""
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        launch_nau(
+            python_exe="python.exe", nau_module="nau", config_path="cfg.json",
+            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+            status_file="status", console_file="console.json",
+            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "nau.log",
+            nau_x=0, nau_y=0, nau_width=100, nau_height=100,
+        )
+
+    assert "--borderless" in popen.call_args.args[0]
+
+
 def test_launch_genau_passes_fun_time_flag(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
@@ -784,6 +807,7 @@ def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
         "300",
         "--height",
         "400",
+        "--borderless",
     ]
 
 
