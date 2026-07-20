@@ -129,28 +129,6 @@ class GenauStatus:
     auto_advance_active: bool = False
     clip_locked: bool = False
     shape: str = "sine"
-    amp_at_max: bool = False
-    amp_at_min: bool = False
-    ctr_at_max: bool = False
-    ctr_at_min: bool = False
-    spd_at_max: bool = False
-    spd_at_min: bool = False
-
-    @property
-    def limits(self) -> list[str]:
-        """Which of Genau's controls have run out of range, by name.
-
-        Nau's console greys a control out at the end of its range, so it needs
-        the ends named rather than a flag per end — and naming them here keeps
-        the reading beside the writing.
-        """
-        return [
-            name for name, reached in (
-                ("amp_max", self.amp_at_max), ("amp_min", self.amp_at_min),
-                ("ctr_max", self.ctr_at_max), ("ctr_min", self.ctr_at_min),
-                ("spd_max", self.spd_at_max), ("spd_min", self.spd_at_min),
-            ) if reached
-        ]
 
 
 def _status_bool(values: dict[str, str], key: str) -> bool:
@@ -170,12 +148,6 @@ def read_genau_status(path: Path) -> GenauStatus:
             auto_advance_active=_status_bool(values, "advance"),
             clip_locked=_status_bool(values, "clip_locked"),
             shape=values.get("shape", "sine").strip(),
-            amp_at_max=_status_bool(values, "amp_at_max"),
-            amp_at_min=_status_bool(values, "amp_at_min"),
-            ctr_at_max=_status_bool(values, "ctr_at_max"),
-            ctr_at_min=_status_bool(values, "ctr_at_min"),
-            spd_at_max=_status_bool(values, "spd_at_max"),
-            spd_at_min=_status_bool(values, "spd_at_min"),
         )
     except (OSError, ValueError):
         return GenauStatus()

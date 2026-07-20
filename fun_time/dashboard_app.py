@@ -20,7 +20,6 @@ from shared_ui.colors import (
     BLUE,
     BORDER_PANEL,
     GREEN,
-    RED,
     TEXT_PRIMARY,
 )
 from shared_ui.fonts import FONT_SYMBOL, FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
@@ -30,7 +29,6 @@ from fun_time.startup_progress import loading_screen_active
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.win32 import is_window_topmost, set_always_on_top
 from fun_time.dashboard_actions import (
-    BROKER_PANEL,
     FMODE_PANEL,
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
@@ -41,7 +39,6 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.command_reference import render_reference_html
-from player_core.file_channel import append_command
 from fun_time.event_log import EVENT_LOG_FILENAME, event_log_path, read_events
 from fun_time.log_panel import LogPanelWidget, prefs_path
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
@@ -58,7 +55,7 @@ from fun_time.dashboard_layout import (
     client_rect_filling_frame,
     compute_dashboard_bar_layout,
 )
-from fun_time.dashboard_runtime import DashboardSnapshot, is_broker_heartbeat_fresh, load_dashboard_snapshot
+from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
 
 COLOR_BG = BG_PRIMARY
 COLOR_PANEL = BG_SECONDARY
@@ -80,7 +77,6 @@ def lighten_color(color: QColor, amount: int = 50) -> QColor:
 class DashboardAppConfig:
     layout: LayoutConfig
     manifest_path: Path
-    broker_heartbeat_file: Path
     dashboard_state_file: Path
     dashboard_cmd_file: Path
 
@@ -140,7 +136,6 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
     return DashboardAppConfig(
         layout=layout,
         manifest_path=manifest_path,
-        broker_heartbeat_file=Path(parser.get("commands", "broker_heartbeat_file", fallback="broker_heartbeat.txt")),
         dashboard_state_file=Path(parser.get("commands", "dashboard_state_file", fallback="dashboard_state.ini")),
         dashboard_cmd_file=Path(parser.get("commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt")),
     )
@@ -210,13 +205,11 @@ def _draw_mic_pixmap(w: int, h: int) -> QPixmap:
     return _dashboard_pixmap_cache[key]
 
 
-# Every control in the bar names itself on hover.  The three chips are readouts
-# rather than switches for two of the three, so each says what it is reporting.
+# Every control in the bar names itself on hover.
 _ACTION_TOOLTIPS: dict[str, str] = {
     QUIT_BUTTON: "Quit",
     OMNIPAUSE_TOGGLE: "Pause everything",
     HELP_REFERENCE: "Hotkeys & Voice Commands Reference",
-    BROKER_PANEL: "Broker",
     FMODE_PANEL: "F-Mode",
     VOICE_TOGGLE: "Voice",
 }
@@ -227,20 +220,15 @@ def build_dashboard_scene(
     snapshot: DashboardSnapshot | None = None,
     *,
     width: int,
-    broker_heartbeat_file: Path | None = None,
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
-    """The control bar: the app's mark, the three buttons, the three chips.
+    """The control bar: the app's mark, the three buttons, the two lights.
 
     What each player is doing is on that player's own HUD now, so nothing here
     stands for a player — which is why the bar has no shape to keep and simply
-    runs along the top of the window.
+    runs along the top of the window.  The OSR2 broker light went to the primary's
+    HUD with the rest of the device status; it is the primary's, not the room's.
     """
-    broker_running = (
-        is_broker_heartbeat_fresh(broker_heartbeat_file)
-        if broker_heartbeat_file is not None else False
-    )
-    broker_fill = BLUE if broker_running else RED
     fmode_fill = GREEN if snapshot is not None and snapshot.f_mode_enabled else COLOR_PANEL
     voice_fill = BLUE if snapshot is not None and snapshot.voice_active else COLOR_PANEL
 
@@ -254,7 +242,6 @@ def build_dashboard_scene(
         DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
         DashboardRectItem(layout.omnipause_button, fill=_press_fill(COLOR_PANEL, OMNIPAUSE_TOGGLE)),
         DashboardRectItem(layout.help_button, fill=_press_fill(COLOR_PANEL, HELP_REFERENCE)),
-        DashboardRectItem(layout.broker_panel, fill=_press_fill(broker_fill, BROKER_PANEL)),
         DashboardRectItem(layout.fmode_panel, fill=_press_fill(fmode_fill, FMODE_PANEL)),
         DashboardRectItem(layout.voice_panel, fill=_press_fill(voice_fill, VOICE_TOGGLE)),
     )
@@ -274,10 +261,9 @@ def build_dashboard_scene(
         DashboardTextItem("Fun Time", layout.app_title, color=COLOR_APP_TITLE,
                           anchor="w", font=_font_app),
     )
-    _chip_h = layout.broker_panel.height
+    _chip_h = layout.fmode_panel.height
     images = (
         DashboardImageItem(_load_icon_pixmap("icon.ico", layout.app_icon.height), layout.app_icon),
-        DashboardImageItem(_load_icon_pixmap("broker_icon.ico", _chip_h), layout.broker_panel),
         DashboardImageItem(_load_icon_pixmap("fmode_icon.ico", _chip_h), layout.fmode_panel),
         DashboardImageItem(
             _draw_mic_pixmap(layout.voice_panel.width, layout.voice_panel.height),
@@ -288,7 +274,6 @@ def build_dashboard_scene(
         (QUIT_BUTTON, layout.quit_button),
         (OMNIPAUSE_TOGGLE, layout.omnipause_button),
         (HELP_REFERENCE, layout.help_button),
-        (BROKER_PANEL, layout.broker_panel),
         (FMODE_PANEL, layout.fmode_panel),
         (VOICE_TOGGLE, layout.voice_panel),
     )
@@ -325,7 +310,10 @@ class DashboardWidget(QWidget):
 
     def set_scene(self, scene: DashboardScene) -> None:
         self._scene = scene
-        self.setFixedHeight(scene.height)
+        # Sized to its contents: the bar shares its row with the log's filter
+        # controls now, so it takes only the width its own buttons need and leaves
+        # the rest of the row to them.
+        self.setFixedSize(scene.width, scene.height)
         self.update()
 
     def paintEvent(self, event: object) -> None:  # noqa: N802
@@ -523,11 +511,21 @@ class DashboardWindow(QMainWindow):
         self._widget.action_triggered.connect(self._on_action)
         state_dir = app_config.manifest_path.parent
         self._log_widget = LogPanelWidget(event_log_path(state_dir), prefs_path(state_dir))
+        # The top bar and the log's filter controls share one row — the bar's own
+        # buttons on the left, the log controls filling the rest — so the Dash is a
+        # row shorter than when the controls sat above the log, and the Random Favs
+        # Browser below it that much taller.  The log stream fills the rest.
+        top_row = QWidget(self)
+        top_layout = QHBoxLayout(top_row)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(0)
+        top_layout.addWidget(self._widget)
+        top_layout.addWidget(self._log_widget.controls, 1)
         central = QWidget(self)
         central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(0, 0, 0, 0)
         central_layout.setSpacing(0)
-        central_layout.addWidget(self._widget)
+        central_layout.addWidget(top_row)
         central_layout.addWidget(self._log_widget, 1)
         self.setCentralWidget(central)
 
@@ -720,8 +718,7 @@ class DashboardWindow(QMainWindow):
         scene = build_dashboard_scene(
             self._bar_layout,
             snapshot,
-            width=max(self.width(), 1),
-            broker_heartbeat_file=self._app_config.broker_heartbeat_file,
+            width=self._bar_layout.content_width,
             pressed_actions=pressed_actions,
         )
         # While minimized, re-asserting geometry would restore the window and

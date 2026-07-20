@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from PyQt6.QtGui import QColor
 
-from shared_ui.colors import BLUE, GREEN, RED
+from shared_ui.colors import BLUE, GREEN
 
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.dashboard_app import (
@@ -21,7 +21,6 @@ from fun_time.dashboard_app import (
     write_dashboard_command,
 )
 from fun_time.dashboard_actions import (
-    BROKER_PANEL,
     FMODE_PANEL,
     HELP_REFERENCE,
     OMNIPAUSE_TOGGLE,
@@ -32,12 +31,9 @@ from fun_time.dashboard_runtime import DashboardPanelSnapshot, DashboardSnapshot
 from fun_time.dashboard_layout import compute_dashboard_bar_layout, dashboard_window_height
 from fun_time import load_config
 
-BAR_WIDTH = 900  # a plausible left-column width; the bar spans whatever it is given
-
-
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
-    return build_dashboard_scene(
-        compute_dashboard_bar_layout(), snapshot, width=BAR_WIDTH, **kwargs)
+    layout = compute_dashboard_bar_layout()
+    return build_dashboard_scene(layout, snapshot, width=layout.content_width, **kwargs)
 
 
 def _snapshot(**overrides) -> DashboardSnapshot:
@@ -63,22 +59,22 @@ def _fill(scene, rect):
 
 
 def test_the_bar_carries_only_what_belongs_to_no_player():
-    """Quit, pause everything, the reference popup, and the three status lights.
-    Anything about a particular player is on that player's HUD."""
+    """Quit, pause everything, the reference popup, and the F-mode and voice
+    lights.  Anything about a particular player — the broker included — is on that
+    player's HUD."""
     scene = _scene()
 
     assert [action for action, _rect in scene.actions] == [
-        QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE,
-        BROKER_PANEL, FMODE_PANEL, VOICE_TOGGLE,
+        QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, FMODE_PANEL, VOICE_TOGGLE,
     ]
 
 
-def test_the_bar_spans_the_window_it_is_given():
-    """It has no shape of its own to keep — it runs along the top of whatever
-    width the left column turns out to be."""
+def test_the_bar_is_only_as_wide_as_its_own_buttons():
+    """It shares its row with the log's filter controls now, so it takes the width
+    its buttons need and leaves the rest to them."""
     layout = compute_dashboard_bar_layout()
 
-    assert _scene().width == BAR_WIDTH
+    assert _scene().width == layout.content_width
     assert _scene().height == layout.height
 
 
@@ -124,17 +120,6 @@ def test_pausing_everything_does_not_paint_the_button_a_state_colour():
     assert _fill(_scene(), layout.quit_button) == COLOR_PANEL
 
 
-def test_the_broker_light_is_red_until_its_heartbeat_arrives(tmp_path: Path):
-    layout = compute_dashboard_bar_layout()
-    heartbeat = tmp_path / "broker_heartbeat.txt"
-
-    assert _fill(_scene(broker_heartbeat_file=heartbeat), layout.broker_panel) == RED
-
-    import time
-    heartbeat.write_text(str(time.time()), encoding="utf-8")
-    assert _fill(_scene(broker_heartbeat_file=heartbeat), layout.broker_panel) == BLUE
-
-
 def test_the_f_mode_and_voice_lights_come_on_with_what_they_report():
     layout = compute_dashboard_bar_layout()
 
@@ -149,7 +134,7 @@ def test_the_lights_carry_their_own_marks():
     layout = compute_dashboard_bar_layout()
     drawn = {item.rect for item in _scene().images}
 
-    assert {layout.broker_panel, layout.fmode_panel, layout.voice_panel} <= drawn
+    assert {layout.fmode_panel, layout.voice_panel} <= drawn
 
 
 def test_every_control_names_itself_on_hover():
@@ -675,7 +660,7 @@ def test_dashboard_widget_emits_action_on_click(cfg_path: Path):
     from fun_time.dashboard_app import DashboardWidget
 
     layout = _make_layout(cfg_path)
-    scene = build_dashboard_scene(layout, width=BAR_WIDTH)
+    scene = build_dashboard_scene(layout, width=layout.content_width)
 
     widget = DashboardWidget()
     widget.set_scene(scene)
@@ -707,7 +692,7 @@ def test_dashboard_widget_ignores_click_outside_actions(cfg_path: Path):
     from fun_time.dashboard_app import DashboardWidget
 
     layout = _make_layout(cfg_path)
-    scene = build_dashboard_scene(layout, width=BAR_WIDTH)
+    scene = build_dashboard_scene(layout, width=layout.content_width)
 
     widget = DashboardWidget()
     widget.set_scene(scene)

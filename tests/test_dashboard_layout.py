@@ -16,7 +16,7 @@ def _rects(layout) -> list[Rect]:
     return [
         layout.app_icon, layout.app_title,
         layout.quit_button, layout.omnipause_button, layout.help_button,
-        layout.broker_panel, layout.fmode_panel, layout.voice_panel,
+        layout.fmode_panel, layout.voice_panel,
     ]
 
 
@@ -46,7 +46,7 @@ def test_the_buttons_are_pressable_and_the_lights_are_smaller():
     layout = compute_dashboard_bar_layout()
 
     assert layout.quit_button.height == BUTTON
-    assert layout.broker_panel.height == CHIP < BUTTON
+    assert layout.fmode_panel.height == CHIP < BUTTON
 
 
 def test_everything_sits_on_one_line_inside_the_bars_height():
