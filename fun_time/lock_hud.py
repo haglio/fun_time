@@ -91,6 +91,10 @@ class HudPanel:
     seed_count: int = 0
     action_count: int = 0
     filter_query: str = ""
+    # Whether this side is the one a bare, side-less command reaches — the player
+    # addressed most recently.  Global state, published per side so each panel can
+    # answer "is it me?" without knowing what the others are.
+    active: bool = False
     # Which axis this side is looping ("" none / "action" / "seed").  While a
     # loop runs, ``current`` is frozen to the group's anchor (so the map does not
     # re-orient as the clip auto-advances) and ``playing`` names the map cell
@@ -279,6 +283,7 @@ def build_hud_panel(
     nav_anchor: str = "",
     latest: bool = False,
     f_mode: bool = False,
+    active: bool = False,
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
@@ -370,6 +375,7 @@ def build_hud_panel(
         seed_count=len(seed) + 1 if have_siblings else 0,
         action_count=len(action) + 1 if have_siblings else 0,
         filter_query=filter_query,
+        active=active,
         active_loop=active_loop,
         playing=playing,
     )
@@ -389,6 +395,7 @@ def _side_panel(
     nav_anchor: str,
     latest: bool,
     f_mode: bool,
+    active: bool,
 ) -> HudPanel:
     # Keyword-only: every argument past *side* is a bare string or flag, so a
     # positional call site says nothing about which is which and two of them
@@ -408,6 +415,7 @@ def _side_panel(
         side, locked=locked, current=current, index=index,
         filter_query=filter_query, loop_axis=loop_axis, map_anchor=map_anchor,
         widen_clip=widen_clip, nav_anchor=nav_anchor, latest=latest, f_mode=f_mode,
+        active=active,
     )
 
 
@@ -469,6 +477,7 @@ def build_panels(
     portrait_latest: bool = False,
     landscape_latest: bool = False,
     f_mode: bool = False,
+    active_side: str = "",
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -480,7 +489,11 @@ def build_panels(
     is still one of its map cells.
 
     ``f_mode`` is unsided on purpose: one key narrows every player at once, so it
-    goes to both panels or to neither.
+    goes to both panels or to neither.  ``active_side`` is unsided for the opposite
+    reason — it *names* exactly one player, so at most one of these two panels can
+    claim it, and neither does while the primary holds it.  A name rather than the
+    dispatcher's slot number, because that is what a side is called everywhere else
+    in here; the one translation lives where the number does.
     """
     return (
         _side_panel(
@@ -490,6 +503,7 @@ def build_panels(
             filter_query=portrait_filter, loop_axis=portrait_loop,
             map_anchor=portrait_map_anchor, widen_clip=portrait_widen_clip,
             nav_anchor=portrait_nav_anchor, latest=portrait_latest, f_mode=f_mode,
+            active=active_side == "portrait",
         ),
         _side_panel(
             "landscape",
@@ -498,6 +512,7 @@ def build_panels(
             filter_query=landscape_filter, loop_axis=landscape_loop,
             map_anchor=landscape_map_anchor, widen_clip=landscape_widen_clip,
             nav_anchor=landscape_nav_anchor, latest=landscape_latest, f_mode=f_mode,
+            active=active_side == "landscape",
         ),
     )
 

@@ -21,6 +21,7 @@ from .command_dispatch import (
     WindowOp,
     command_side,
     dispatch_command,
+    side_name,
 )
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
 from .event_log import NOTICE, notice
@@ -434,6 +435,7 @@ class DispatchLoopRunner:
             portrait_latest=state.portrait_latest,
             landscape_latest=state.landscape_latest,
             f_mode=state.f_mode_enabled,
+            active_side=side_name(state.active_side),
         )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)

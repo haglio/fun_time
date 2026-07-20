@@ -39,6 +39,8 @@ LOOP_BTN = 18       # loop-button thickness: below the action column, right of t
 
 STATUS_SEPARATOR = " · "  # what fun_time joins the status line's parts with
 STATUS_LINE_H = 14        # what each line past the first adds to the band
+STATUS_DOT = 10           # the active-side dot at the head of the band
+STATUS_TEXT_X = PAD + STATUS_DOT + 8  # where the status text starts, clear of it
 
 Rect = tuple[int, int, int, int]  # (x, y, w, h)
 Cell = tuple[str, int]            # ("corner", 0) | ("seed", i) | ("action", i)
@@ -104,6 +106,10 @@ class HudModel:
     side: str
     locked: bool = False
     lock_label: str = ""
+    # Whether a bare, side-less command lands here — the player addressed most
+    # recently.  Drawn as the dot beside the status line, and the only thing on
+    # any HUD that says where those words are going.
+    active: bool = False
     corner: HudCell | None = None
     seeds: tuple[HudCell, ...] = ()
     actions: tuple[HudCell, ...] = ()
@@ -546,6 +552,7 @@ def parse_hud(text: str) -> HudModel | None:
         side=str(raw.get("side", "")),
         locked=bool(raw.get("locked", False)),
         lock_label=str(raw.get("lock_label", "") or ""),
+        active=bool(raw.get("active", False)),
         corner=_cell(raw.get("corner")),
         seeds=tuple(cell for cell in seeds if cell is not None),
         actions=tuple(cell for cell in actions if cell is not None),

@@ -2569,6 +2569,28 @@ class TestHudPublishing:
         portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
         assert portrait["lock_label"] == "Unlocked · Shuffle · F-Mode"
 
+    def test_the_published_panel_says_which_side_has_the_floor(self, tmp_path):
+        """The active side is a slot number in the state and a side *name* on the
+        panel, so exactly one satellite can claim it — and neither does while the
+        primary holds it."""
+        runner = self._runner_with_hud(tmp_path)
+        for side in ("portrait", "landscape"):
+            _write_satellite_status(tmp_path / f"{side}_status.txt", f"C:/v/{side}.mp4",
+                                    fraction=0.1)
+
+        def actives(slot: int) -> tuple[bool, bool]:
+            runner.state = replace(runner.state, active_side=slot)
+            runner._last_hud_publish -= 1  # past the publish throttle
+            runner.tick()
+            return tuple(
+                json.loads((tmp_path / f"{side}_hud.json").read_text(encoding="utf-8"))["active"]
+                for side in ("portrait", "landscape")
+            )
+
+        assert actives(2) == (True, False)
+        assert actives(3) == (False, True)
+        assert actives(1) == (False, False)
+
     def test_publishing_is_throttled_below_the_tick_rate(self, tmp_path):
         """The loop ticks 20x/s; rebuilding and rewriting both panels that often
         is waste the map never shows, so publishing runs on its own cadence."""

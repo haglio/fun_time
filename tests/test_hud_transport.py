@@ -39,6 +39,16 @@ def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
     ]
 
 
+def test_hud_payload_carries_whether_this_side_is_the_active_one():
+    """The player draws the dot; only fun_time knows which side has the floor."""
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+        active = hud_payload(_panel(active=True), Path("C:/state/thumbs"))
+        idle = hud_payload(_panel(active=False), Path("C:/state/thumbs"))
+
+    assert active["active"] is True
+    assert idle["active"] is False
+
+
 def test_hud_payload_keeps_the_corner_without_a_thumbnail_but_drops_siblings():
     """The corner is the clip on screen, so it stays (the player draws a
     placeholder); a sibling whose frame the prewarm hasn't produced simply isn't

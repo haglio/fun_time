@@ -42,7 +42,9 @@ from .hud import (
     PAD,
     PANEL_SIZE,
     ROW_GAP,
+    STATUS_DOT,
     STATUS_LINE_H,
+    STATUS_TEXT_X,
     HudCell,
     HudModel,
     HudTargets,
@@ -180,17 +182,24 @@ class HudRenderer:
         image, draw = panel.image, panel.draw
 
         x, y = PAD, PAD
-        # The status, composed by fun_time: it already holds the lock, what is
+        # The dot at the head of the band: green while a bare "lock" or "next" would
+        # land on this side, the palette's grey otherwise.  Always drawn, never
+        # hidden — an absent dot and an idle dot look the same, and then only the
+        # player that *has* the floor says anything, which is half an answer.
+        draw.ellipse([x, y + 2, x + STATUS_DOT, y + 2 + STATUS_DOT],
+                     fill=(*(GREEN if model.active else TEXT_MUTED), 255))
+        # The status itself, composed by fun_time: it already holds the lock, what is
         # looping, the browse order, F-mode and the filter, so there is nothing else
         # to lay out up here.  Drawn full-strength whatever it says — dimming it when
         # the side happened to be unlocked hid it in the case where it carries most —
-        # and wrapped, because all five at once outruns the narrow portrait panel and
-        # Pillow's answer to that is to clip the tail away in silence.
+        # and wrapped against the room the dot leaves, because all five at once
+        # outruns the narrow portrait panel and Pillow clips the tail away in silence.
         lines = wrap_status_line(
-            model.lock_label, width - 2 * PAD, lambda text: text_width(self._body, text))
+            model.lock_label, width - PAD - STATUS_TEXT_X,
+            lambda text: text_width(self._body, text))
         for line_no, line in enumerate(lines):
-            draw.text((x, y + 11 + line_no * STATUS_LINE_H), line, font=self._body,
-                      anchor="ls", fill=(*TEXT_PRIMARY, 255))
+            draw.text((STATUS_TEXT_X, y + 11 + line_no * STATUS_LINE_H), line,
+                      font=self._body, anchor="ls", fill=(*TEXT_PRIMARY, 255))
         y += status_band_height(len(lines))
 
         if model.corner is None:
