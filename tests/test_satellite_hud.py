@@ -80,6 +80,14 @@ def test_a_panel_with_nothing_to_say_keeps_the_band_it_always_had():
     assert status_band_height(0) == LOCK_BAND_H
 
 
+def test_parse_hud_reads_whether_this_side_has_the_floor():
+    """Absent means idle: a satellite reading a panel written before the flag
+    existed must not light its dot on a missing key."""
+    assert parse_hud(json.dumps({"side": "portrait", "active": True})).active is True
+    assert parse_hud(json.dumps({"side": "portrait", "active": False})).active is False
+    assert parse_hud(json.dumps({"side": "portrait"})).active is False
+
+
 def test_parse_hud_reads_the_panel_fun_time_published():
     text = json.dumps({
         "side": "portrait",

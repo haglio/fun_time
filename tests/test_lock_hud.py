@@ -697,6 +697,30 @@ def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
     assert landscape.filter_query == ""
 
 
+def test_build_panels_marks_only_the_active_side_active(tmp_path: Path):
+    """A bare "lock" or "next" goes to whichever player was addressed last, and
+    nothing on screen said which that was — so each panel carries whether it is
+    the one those words would reach.  Exactly one side can be it."""
+    reset_group_index_cache()
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+    current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
+    sources = str(media_root / "portrait")
+
+    def actives(active_side: str) -> tuple[bool, bool]:
+        portrait, landscape = build_panels(
+            portrait_sources=sources, landscape_sources=sources,
+            metadata_root=metadata_root,
+            portrait_current=current, landscape_current=current,
+            portrait_locked=False, landscape_locked=False,
+            active_side=active_side,
+        )
+        return portrait.active, landscape.active
+
+    assert actives("portrait") == (True, False)
+    assert actives("landscape") == (False, True)
+    assert actives("primary") == (False, False)  # the primary has it; neither satellite does
+
+
 def test_build_panels_puts_f_mode_on_both_sides(tmp_path: Path):
     """F-mode is one global flag, not a sided one — the F key narrows both
     satellites at once — so both status lines say it or neither does."""

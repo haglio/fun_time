@@ -841,9 +841,21 @@ def _cycle_variant(
     return state, ops
 
 
+# The dispatcher counts players in slots; everything that *draws* them names them
+# instead (the HUD panels, the publisher's filenames, each player's own side).  This
+# is the one crossing between the two, so a slot never reaches a player as a number.
+SIDE_NAMES = {1: "primary", 2: "portrait", 3: "landscape"}
+
+
+def side_name(slot: int) -> str:
+    """The name of the player in *slot*, or "" for no player — the inverse of
+    :func:`command_side`'s numbering."""
+    return SIDE_NAMES.get(slot, "")
+
+
 def command_side(command: str) -> int | None:
     """The player slot a command addresses: 1=primary, 2=portrait, 3=landscape —
-    or None if it addresses no player.
+    or None if it addresses no player.  :data:`SIDE_NAMES` is the inverse.
 
     The primary (Nau) player only becomes active through its own next/prev
     navigation; it has no lock/weird/cycle, so nothing else selects it.
