@@ -467,7 +467,6 @@ class DispatchLoopRunner:
             funscript_driving=nau.funscript_driving,
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
             if self.config.broker_heartbeat_file else False,
-            takeover_allowed=read_genau_enabled(genau_enabled_path(self.config.state_dir)),
             genau=read_genau_status(self.config.state_dir / "genau_status.txt"),
         ))
 
