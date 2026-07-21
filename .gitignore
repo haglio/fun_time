@@ -33,3 +33,6 @@ pytest-cache-files-*/
 # Internal dev logs — explicit project history, kept local, not published
 /docs/refactor-log.md
 /playnav_HUDs_logs_toasts.md
+
+# Windows shortcuts are machine-specific and embed the real install path.
+*.lnk
