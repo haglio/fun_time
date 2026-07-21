@@ -482,7 +482,7 @@ def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
 def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root, landscape_root = media_root / "portrait", media_root / "landscape"
-    p_cum = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
+    p_clip = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
     l_kiss = _make_action_video(landscape_root, media_root, metadata_root, "lk", "Kissing")
     _make_action_video(landscape_root, media_root, metadata_root, "lc", "Alpha")
@@ -507,7 +507,7 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
 
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
     landscape = "\n".join(_satellite_lines(tmp_path / "state", "landscape"))
-    assert p_cum in portrait and "pk.mp4" not in portrait
+    assert p_clip in portrait and "pk.mp4" not in portrait
     assert l_kiss in landscape and "lc.mp4" not in landscape
 
 
@@ -531,7 +531,7 @@ def test_recents_honours_the_sides_filter_and_orders_newest_first(tmp_path: Path
 def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
-    p_cum = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
+    p_clip = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
     portrait_cmd_file = tmp_path / "portrait_cmd.txt"
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
@@ -555,7 +555,7 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     assert _reloaded(portrait_cmd_file)
     assert not landscape_cmd_file.exists()
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
-    assert p_cum in portrait and "pk.mp4" not in portrait
+    assert p_clip in portrait and "pk.mp4" not in portrait
 
 
 def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path: Path):
@@ -615,7 +615,7 @@ def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
     the satellite's filter and returns the paths, with no file to touch."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
-    redacted = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
+    clip = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
 
     paths = satellite_browse_paths(
@@ -629,7 +629,7 @@ def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
         regen_metadata_root=metadata_root,
     )
 
-    assert redacted in paths
+    assert clip in paths
     assert not any("pk.mp4" in p for p in paths)
 
 

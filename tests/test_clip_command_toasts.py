@@ -8,7 +8,7 @@ def test_the_self_reporting_commands_flash_their_own_outcome():
     (green on, red off).  Fun Time must not also echo a green "I heard you" on top —
     that stacked a confirmation under a red correction."""
     assert SELF_REPORTING_COMMANDS == {
-        "nau_compilation", "nau_full_vid", "nau_money_shot", "fmode_toggle",
+        "nau_compilation", "nau_full_vid", "nau_clip_jump", "fmode_toggle",
     }
 
 

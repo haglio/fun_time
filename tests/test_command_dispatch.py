@@ -540,10 +540,10 @@ def test_full_vid_writes_play_full_vid(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID"
 
 
-def test_money_shot_writes_play_money_shot(tmp_path: Path):
+def test_clip_jump_writes_play_clip_jump(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_money_shot", _make_state(primary_mode="nau"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_MONEY_SHOT"
+    dispatch_command("nau_clip_jump", _make_state(primary_mode="nau"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP"
 
 
 def test_clip_nav_inert_in_genau_mode(tmp_path: Path):
@@ -557,8 +557,12 @@ def test_clip_nav_voice_phrases():
 
     assert VOICE_COMMANDS["compilation"] == "nau_compilation"
     assert VOICE_COMMANDS["full video"] == "nau_full_vid"
-    assert VOICE_COMMANDS["money shot"] == "nau_money_shot"
-    assert VOICE_COMMANDS["redacted"] == "nau_money_shot"
+    # The clip-jump phrases are overlay content, so take them from whichever
+    # overlay is loaded rather than naming one.
+    from fun_time.content import load_content
+
+    for phrase in load_content()["clip_jump_phrases"]:
+        assert VOICE_COMMANDS[phrase] == "nau_clip_jump"
 
 
 # --- landscape_prev / landscape_next ---

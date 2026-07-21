@@ -679,7 +679,7 @@ def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
     reset_group_index_cache()
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
-    sibling = _clip(media_root, metadata_root, "b", _i2v("redacted", "2"))
+    sibling = _clip(media_root, metadata_root, "b", _i2v("Beta", "2"))
     sources = str(media_root / "portrait")
 
     portrait, landscape = build_panels(

@@ -12,6 +12,8 @@ neither may import the other.
 """
 from __future__ import annotations
 
+from .content import load_content
+
 from fun_time.filter_vocab import filter_voice_commands
 
 # A spoken command carries when the *utterance began*, appended after " @".  A
@@ -112,8 +114,8 @@ VOICE_COMMANDS: dict[str, str] = {
     "end compilation": "nau_end_compilation",
     "full video": "nau_full_vid",
     "full vid": "nau_full_vid",
-    "money shot": "nau_money_shot",
-    "redacted": "nau_money_shot",
+    # The phrases for the clip jump are library vocabulary, so they come from
+    # the content overlay and are merged in below rather than written here.
     "slow down": "genau_speed_down",
     "speed down": "genau_speed_down",
     "speed up": "genau_speed_up",
@@ -158,6 +160,12 @@ VOICE_COMMANDS: dict[str, str] = {
     "loud": "audio_volume_up",
     "louder": "audio_volume_up",
 }
+
+# The spoken phrases for the clip jump describe the library, not the app, so
+# they live in the content overlay (content.example.json documents the shape).
+VOICE_COMMANDS.update(
+    {phrase: "nau_clip_jump" for phrase in load_content()["clip_jump_phrases"]}
+)
 
 # The hotkeys & voice reference popup toggles from several spoken names, and
 # closes from any of them prefixed with "close".  vosk has no "hotkeys" token,
@@ -405,6 +413,6 @@ VOICE_COMMANDS.update(_filter_commands)
 SELF_REPORTING_COMMANDS = frozenset({
     "nau_compilation",
     "nau_full_vid",
-    "nau_money_shot",
+    "nau_clip_jump",
     "fmode_toggle",
 })

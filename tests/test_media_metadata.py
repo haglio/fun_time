@@ -282,12 +282,12 @@ def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Pa
 def test_search_haystack_combines_action_and_positive_prompts_lowercased():
     meta = {
         "video": {"action": "Beta Gamma", "prompt": "A Subject LAYING prone"},
-        "source_image": {"positive_prompt": "redacted by the Pool"},
+        "source_image": {"positive_prompt": "Subject by the Pool"},
     }
     hay = search_haystack(meta)
     assert "beta gamma" in hay  # from action
     assert "laying prone" in hay  # from video prompt
-    assert "redacted" in hay and "pool" in hay  # from positive_prompt
+    assert "subject" in hay and "pool" in hay  # from positive_prompt
 
 
 def test_search_haystack_excludes_the_negative_prompt():
@@ -308,12 +308,12 @@ def test_search_haystack_tolerates_missing_blocks():
 
 def test_matches_query_is_case_insensitive_substring_across_fields():
     meta = {
-        "video": {"action": "Pov Epsilon", "prompt": "redacted subject"},
+        "video": {"action": "Pov Epsilon", "prompt": "subject subject"},
         "source_image": {"positive_prompt": "pool party"},
     }
     assert matches_query(meta, "epsilon")  # substring of the action
     assert matches_query(meta, "Epsilon")  # case-insensitive
-    assert matches_query(meta, "redacted")  # from the video prompt
+    assert matches_query(meta, "subject")  # from the video prompt
     assert matches_query(meta, "pool")  # from the positive prompt
     assert not matches_query(meta, "delta")
 
