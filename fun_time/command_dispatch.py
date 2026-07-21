@@ -299,7 +299,7 @@ _NAU_CMD_MAP = {
     "nau_compilation": "PLAY_COMPILATION",
     "nau_end_compilation": "END_COMPILATION",
     "nau_full_vid": "PLAY_FULL_VID",
-    "nau_money_shot": "PLAY_MONEY_SHOT",
+    "nau_clip_jump": "PLAY_CLIP_JUMP",
 }
 
 
