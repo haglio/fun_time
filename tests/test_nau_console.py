@@ -15,7 +15,7 @@ from fun_time.nau_console import (
 
 def _payload(**overrides) -> dict:
     base = dict(mode="nau", active=False, osr2_mode="controlled",
-                funscript_driving=False, broker=False, takeover_allowed=True,
+                funscript_driving=False, broker=False,
                 genau=GenauStatus())
     base.update(overrides)
     return console_payload(**base)
@@ -58,11 +58,10 @@ class TestPayload:
 
     def test_carries_genaus_own_switches_for_the_control_row(self):
         payload = _payload(genau=GenauStatus(cruise_active=True, shape="sawtooth"),
-                           takeover_allowed=False)
+                           )
 
         assert payload["cruise"] is True
         assert payload["shape"] == "sawtooth"
-        assert payload["takeover_allowed"] is False
 
     def test_a_held_clip_is_reported_apart_from_the_arming(self):
         payload = _payload(genau=GenauStatus(auto_advance_active=True, clip_locked=True))

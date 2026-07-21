@@ -46,7 +46,6 @@ def console_payload(
     osr2_mode: str,
     funscript_driving: bool,
     broker: bool,
-    takeover_allowed: bool,
     genau: GenauStatus,
 ) -> dict:
     """The console panel as the primary player parses it.
@@ -61,7 +60,6 @@ def console_payload(
         "osr2": osr2_state(mode=mode, osr2_mode=osr2_mode,
                            funscript_driving=funscript_driving),
         "broker": broker,
-        "takeover_allowed": takeover_allowed,
         "cruise": genau.cruise_active,
         # Auto advance is armed apart from cruise — cruise varies the stroke, auto
         # advance moves on to the next clip — and a held clip is it armed but
