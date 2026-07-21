@@ -716,7 +716,11 @@ def test_apply_leave_omnipause_in_nau_mode_resumes_nau(flow_files):
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
 
-def test_apply_leave_omnipause_in_hybrid_mode_resumes_nau_and_genau(flow_files):
+def test_apply_leave_omnipause_in_hybrid_leaves_genaus_stroke_to_the_arbiter(flow_files):
+    """Hybrid hands the OSR2 between the funscript and Genau per stretch, and the
+    arbiter re-asserts that on its next tick.  Resuming Genau's stroke here too
+    started it against a funscript that was still driving — both on the device at
+    once, which the user felt as the OSR2 fighting itself."""
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
     flow_files["nau_paused_file"].write_text("1", encoding="utf-8")
@@ -724,7 +728,7 @@ def test_apply_leave_omnipause_in_hybrid_mode_resumes_nau_and_genau(flow_files):
     _leave_omnipause(flow_files, primary_mode="hybrid")
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME"
+    assert not flow_files["genau_cmd_file"].exists()
     # Hybrid displays Nau, so Nau resumes too (Genau just drives the OSR2).
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"

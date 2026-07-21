@@ -321,6 +321,7 @@ def apply_leave_omnipause(
     if plan.genau_branch:
         write_flag_file(genau_paused_file, False)
         write_flag_file(audio_paused_file, False)
+    if plan.resume_genau_playback:
         Path(genau_cmd_file).write_text("RESUME", encoding="utf-8")
     if plan.resume_nau_playback:
         write_flag_file(nau_paused_file, False)
