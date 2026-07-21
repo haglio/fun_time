@@ -25,6 +25,7 @@ from player_core.hud_panel import (
     TEXT_PRIMARY,
     WHITE,
     HudPanel,
+    draw_glyph,
     load_font,
     text_width,
 )
@@ -457,7 +458,10 @@ class HudRenderer:
         control on this HUD is drawn with, so a new one cannot invent its own look.
 
         Off it is an outline in the muted grey the rest of the chrome uses; on it
-        fills green and the glyph reverses out of it.
+        fills green and the glyph reverses out of it.  The glyph is centred on its
+        own ink: the padlock, the bin and the transport arrows all sit high in a
+        box that runs to the descender, so the font's own centring dropped every
+        one of them toward the bottom of its button.
         """
         bx, by, bw, bh = rect
         draw.rounded_rectangle(
@@ -465,8 +469,8 @@ class HudRenderer:
             fill=(*GREEN, 255) if on else None,
             outline=(*(GREEN if on else TEXT_MUTED), 255), width=1,
         )
-        draw.text((bx + bw / 2, by + bh / 2), glyph, font=self._glyph,
-                  anchor="mm", fill=(*(BG_PRIMARY if on else TEXT_MUTED), 255))
+        draw_glyph(draw, bx + bw / 2, by + bh / 2, glyph, self._glyph,
+                   (*(BG_PRIMARY if on else TEXT_MUTED), 255))
 
     def _draw_controls(self, draw, controls: list[tuple[Rect, str]], favorite: Rect,
                        model: HudModel) -> None:
