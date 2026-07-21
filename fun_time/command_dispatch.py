@@ -219,21 +219,22 @@ _GENAU_CMD_MAP = {
     "genau_weird_clip": "WEIRD",
     "genau_prev_clip": "PREV",
     "genau_next_clip": "NEXT",
-}
-
-
-# Speed control splits by kind.  A relative nudge (up/down) follows whichever
-# engine currently drives the OSR2 — Genau's stroke rate, or Nau's video (whose
-# mpv clock scales the funscript with it).  An absolute video-speed set (min /
-# max / a spoken multiplier) tunes whatever Nau is showing — the video on
-# screen — so it lands even during a Genau-driven stretch; Genau has no
-# multiplier, so that side is a no-op there.
-_SPEED_RELATIVE = {
+    # The stroke's rate.  Genau's alone — the console has its own pair for the
+    # video's playback rate, so these no longer hand off between the two.
     "genau_speed_down": "SPEED_DOWN",
     "genau_speed_up": "SPEED_UP",
 }
-# The video's own playback rate, as opposed to the stroke's — always Nau's, never
-# Genau's, so it has no per-stretch handoff.
+
+
+# Speed control splits by kind, and the two kinds no longer share a control.  The
+# stroke's rate is Genau's (see _GENAU_CMD_MAP); the video's is Nau's.  They used
+# to share one relative pair that followed whichever engine held the OSR2, from
+# when the dashboard offered a single speed nudge — so on the console, where each
+# has its own buttons, pressing Genau's pair moved the video's rate instead.
+# An absolute video-speed set (min / max / a spoken multiplier) tunes whatever Nau
+# is showing, so it lands even during a Genau-driven stretch; Genau has no
+# multiplier, so that side is a no-op there.
+# The video's own playback rate, as opposed to the stroke's — always Nau's.
 _SPEED_NAU_RELATIVE = {
     "nau_speed_down": "SPEED_DOWN",
     "nau_speed_up": "SPEED_UP",
@@ -257,45 +258,32 @@ def _parse_nau_speed(command: str) -> str | None:
     return f"SET_SPEED {pct / 100:g}"
 
 
-def _speed_engine_commands(command: str) -> tuple[str | None, str | None, bool] | None:
-    """Map a speed command to (nau_cmd, genau_cmd, per_stretch), or None.
+def _speed_engine_commands(command: str) -> tuple[str | None, str | None] | None:
+    """Map a speed command to (nau_cmd, genau_cmd), or None.
 
-    ``per_stretch`` True marks a relative nudge that follows the OSR2 driver;
-    False marks an absolute video-speed set that tunes whatever Nau shows.  A
-    ``None`` side means that engine has no equivalent and ignores the command.
+    A ``None`` side means that engine has no equivalent and ignores the command.
     """
-    if command in _SPEED_RELATIVE:
-        keyword = _SPEED_RELATIVE[command]
-        return keyword, keyword, True
     if command in _SPEED_NAU_RELATIVE:
-        # The video playback rate — Nau's alone, so no Genau equivalent and no
-        # per-stretch handoff.  It reaches Nau in nau and hybrid (where Nau is on
-        # screen) and is ignored in genau, where Genau's clips have no such rate.
-        return _SPEED_NAU_RELATIVE[command], None, False
+        # The video playback rate — Nau's alone.  It reaches Nau in nau and hybrid
+        # (where Nau is on screen) and is ignored in genau, where Genau's clips
+        # have no such rate.
+        return _SPEED_NAU_RELATIVE[command], None
     if command in _SPEED_EXTREMES:
-        nau_cmd, genau_cmd = _SPEED_EXTREMES[command]
-        return nau_cmd, genau_cmd, False
+        return _SPEED_EXTREMES[command]
     nau_cmd = _parse_nau_speed(command)
     if nau_cmd is not None:
-        return nau_cmd, None, False
+        return nau_cmd, None
     return None
 
 
-def _speed_target(state: BridgeState, config: BridgeConfig, *, per_stretch: bool) -> str:
-    """Which engine a speed command drives.
+def _speed_target(state: BridgeState) -> str:
+    """Which engine a speed command drives: genau mode -> 'genau', else 'nau'.
 
-    genau mode -> 'genau'; nau mode -> 'nau'.  In hybrid a relative nudge
-    (``per_stretch``) follows the current OSR2 driver — Nau's funscript while it
-    is active, else Genau — while an absolute video-speed set tunes Nau's video,
-    the thing on screen, no matter which is driving.
+    In hybrid it is Nau's, because what is left here is the video's own rate and
+    Nau is the one on screen.  The stroke's rate is not routed through this at
+    all any more — it goes straight to Genau with the rest of its controls.
     """
-    if not genau_active(state.primary_mode):
-        return "nau"
-    if not nau_displays(state.primary_mode):
-        return "genau"
-    if not per_stretch:
-        return "nau"
-    return "nau" if read_nau_status(config.nau_status_file).funscript_driving else "genau"
+    return "genau" if not nau_displays(state.primary_mode) else "nau"
 
 
 _NAU_CMD_MAP = {
@@ -1089,8 +1077,8 @@ def dispatch_command(
 
     speed = _speed_engine_commands(command)
     if speed is not None:
-        nau_cmd, genau_cmd, per_stretch = speed
-        target = _speed_target(state, config, per_stretch=per_stretch)
+        nau_cmd, genau_cmd = speed
+        target = _speed_target(state)
         if target == "nau" and nau_cmd is not None:
             config.nau_cmd_file.write_text(nau_cmd, encoding="utf-8")
         elif target == "genau" and genau_cmd is not None:
