@@ -1719,28 +1719,18 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     assert ops == []
 
 
-def test_speed_up_routes_to_nau_in_nau_mode(tmp_path: Path):
-    # In nau mode Nau drives the OSR2, so the speed keys steer its video rate;
-    # Nau's mpv clock drives the funscript, so it scales along.
+def test_the_stroke_rate_reaches_nothing_where_genau_is_not_running(tmp_path: Path):
+    """In nau mode there is no stroke to rate.  These used to land on Nau's video
+    rate, from when one pair of speed keys was shared between the two engines."""
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="nau")
 
     new_state, ops = dispatch_command("genau_speed_up", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP"
+    assert not config.nau_cmd_file.exists()
     assert not config.genau_cmd_file.exists()
     assert new_state == state
     assert ops == []
-
-
-def test_speed_down_routes_to_nau_in_nau_mode(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
-
-    dispatch_command("genau_speed_down", state, config)
-
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN"
-    assert not config.genau_cmd_file.exists()
 
 
 def _set_nau_driving(config, *, driving: bool) -> None:
@@ -1752,17 +1742,18 @@ def _set_nau_driving(config, *, driving: bool) -> None:
     )
 
 
-def test_speed_routes_to_nau_in_hybrid_while_funscript_drives(tmp_path: Path):
-    # Hybrid, actively scripted stretch: the funscript (Nau) drives the OSR2, so
-    # speed tunes Nau's video, which scales the driving script.
+def test_the_stroke_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
+    """The two are separate controls on the console now, so the stroke's pair must
+    stay on the stroke: it used to follow whichever engine held the OSR2, which
+    made pressing Genau's − move the playback rate across the panel instead."""
     config = _make_config(tmp_path)
     _set_nau_driving(config, driving=True)
     state = _make_state(primary_mode="hybrid")
 
     dispatch_command("genau_speed_up", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP"
-    assert not config.genau_cmd_file.exists()
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP"
+    assert not config.nau_cmd_file.exists()
 
 
 def test_speed_routes_to_genau_in_hybrid_while_genau_drives(tmp_path: Path):
