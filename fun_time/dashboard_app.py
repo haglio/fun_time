@@ -50,6 +50,7 @@ from fun_time.notice_overlay import (
 )
 from fun_time.window_layout import compute_primary_media_rect, compute_window_layout
 from fun_time.dashboard_layout import (
+    PAD as BAR_PAD,
     DashboardBarLayout,
     Rect,
     client_rect_filling_frame,
@@ -517,7 +518,9 @@ class DashboardWindow(QMainWindow):
         # Browser below it that much taller.  The log stream fills the rest.
         top_row = QWidget(self)
         top_layout = QHBoxLayout(top_row)
-        top_layout.setContentsMargins(0, 0, 0, 0)
+        # The bar insets its own contents by PAD; the filters at the far end get
+        # the same margin, so the row is even about its two edges.
+        top_layout.setContentsMargins(0, 0, BAR_PAD, 0)
         top_layout.setSpacing(0)
         top_layout.addWidget(self._widget)
         # Right-justified: the log's filters and the bar's own buttons do
