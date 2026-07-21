@@ -207,6 +207,10 @@ class TestRunStartupSequence:
         assert genau_kwargs["command_file"] == str(cfg.genau_cmd_file)
         assert genau_kwargs["paused_file"] == str(cfg.genau_paused_file)
         assert genau_kwargs["clips_folder"] == str(cfg.paths.clips_dir)
+        # The drive readout is a channel between the two of them, so both are told
+        # the same path.  Each resolving it for itself is how Hybrid ended up with
+        # no readout at all: Genau wrote it beside its own config, Nau read ours.
+        assert genau_kwargs["drive_file"] == nau_kwargs["drive_file"]
         assert {key: genau_kwargs[key] for key in ("genau_x", "genau_y", "genau_width", "genau_height")} == {
             f"genau_{axis}": value for axis, value in zip(("x", "y", "width", "height"), PRIMARY_MEDIA_RECT.values())
         }

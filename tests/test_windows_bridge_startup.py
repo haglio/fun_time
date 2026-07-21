@@ -618,6 +618,7 @@ def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
             genau_height=400,
             command_file="state/genau_cmd.txt",
             paused_file="state/genau_paused.txt",
+            drive_file="state/genau_drive.txt",
         )
 
     assert pid == 42
@@ -628,6 +629,11 @@ def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
     assert "--paused-file" in command
     idx = command.index("--paused-file")
     assert command[idx + 1] == "state/genau_paused.txt"
+    # Where Genau publishes the readout Nau draws in Hybrid.  Named by us, because
+    # Genau resolving it from its own config put it in a directory Nau never read.
+    assert "--drive-file" in command
+    idx = command.index("--drive-file")
+    assert command[idx + 1] == "state/genau_drive.txt"
 
 
 def test_launch_nau_forwards_metadata_dir_when_given(tmp_path: Path):
