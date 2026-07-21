@@ -330,9 +330,10 @@ class LogPanelWidget(QWidget):
             button.toggled.connect(self._on_sources_changed)
             controls.addWidget(button)
             self._source_boxes[source] = button
-        controls.addStretch(1)
-        # `self.controls` is placed by the dashboard, up in the top bar — not
-        # added to this widget's own layout, which now holds only the list.
+        # No trailing stretch: `self.controls` is placed by the dashboard, up in
+        # the top bar and right-justified there, so it must be exactly as wide as
+        # its own row — not added to this widget's own layout, which now holds
+        # only the list.
 
         self._list = QListWidget(self)
         self._list.setFont(make_font(FONT_UI, SIZE_SMALL))

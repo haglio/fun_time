@@ -520,7 +520,10 @@ class DashboardWindow(QMainWindow):
         top_layout.setContentsMargins(0, 0, 0, 0)
         top_layout.setSpacing(0)
         top_layout.addWidget(self._widget)
-        top_layout.addWidget(self._log_widget.controls, 1)
+        # Right-justified: the log's filters and the bar's own buttons do
+        # different jobs, and run together at the left they read as one strip.
+        top_layout.addStretch(1)
+        top_layout.addWidget(self._log_widget.controls)
         central = QWidget(self)
         central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(0, 0, 0, 0)
