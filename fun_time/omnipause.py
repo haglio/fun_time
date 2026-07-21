@@ -16,6 +16,11 @@ class OmniPausePlan:
     # on a relief enter, back on the script feed on a leave.
     broker_command: str
     log_message: str
+    # Whether leaving may resume Genau's stroke outright.  Not in hybrid: there
+    # the per-video arbiter owns which of Genau and the funscript has the device,
+    # and a blanket resume here started Genau against a funscript that was still
+    # driving — two drivers on the OSR2 at once until the next arbiter tick.
+    resume_genau_playback: bool = False
 
 
 def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str) -> OmniPausePlan:
@@ -52,6 +57,10 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str) -
             # Nau owns the display in nau and hybrid, so leaving omnipause
             # resumes its playback there (in genau mode Genau owns the display).
             resume_nau_playback=nau_displays(primary_mode),
+            # Only genau mode, where Genau always has the device.  In hybrid the
+            # arbiter re-asserts the driver on its next tick, and resuming Genau
+            # here would race it onto a funscript's stretch.
+            resume_genau_playback=primary_mode == "genau",
             broker_command=RESUME_CMD,
             log_message="OmniPause: leaving",
         )
