@@ -424,6 +424,7 @@ def launch_genau(
     command_file: str | Path | None = None,
     paused_file: str | Path | None = None,
     console_file: str | Path | None = None,
+    drive_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
 ) -> int:
     """Launch Genau subprocess, returning its PID."""
@@ -454,6 +455,11 @@ def launch_genau(
     # press back on the dashboard command file, exactly as Nau does.
     if console_file is not None:
         cmd.extend(["--console-file", str(console_file)])
+    # Where Genau publishes its drive readout for Nau to draw in Hybrid.  Named by
+    # us so both players name the same file; Genau resolving it from its own
+    # config wrote it into the Genau repo, where Nau was never looking.
+    if drive_file is not None:
+        cmd.extend(["--drive-file", str(drive_file)])
     if dashboard_cmd_file is not None:
         cmd.extend(["--dashboard-cmd-file", str(dashboard_cmd_file)])
     proc = subprocess.Popen(cmd, **subprocess_window_kwargs())

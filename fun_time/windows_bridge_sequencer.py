@@ -310,6 +310,12 @@ def _run_startup_phases(
     primary_media_rect = compute_primary_media_rect(
         secondary_monitor=secondary_rect, layout_config=layout_cfg,
     )
+    # Genau's drive readout, which Nau draws inside its console in Hybrid.  Named
+    # here and handed to BOTH players, because each resolving it for itself is how
+    # it went wrong: Genau derived it from its own config's state dir and wrote it
+    # into the Genau repo, while Nau was told to read it out of Fun Time's — so
+    # Hybrid showed a console with the Genau half missing.
+    genau_drive_file = Path(m["commands"]["genau_cmd_file"]).parent / "genau_drive.txt"
     genau_pid = launch_genau(
         python_exe=m["executables"]["genau_python_exe"],
         genau_module=m["modules"]["genau_module"],
@@ -322,6 +328,7 @@ def _run_startup_phases(
         command_file=m["commands"]["genau_cmd_file"],
         paused_file=m["commands"]["genau_paused_file"],
         console_file=m["commands"]["nau_console_file"],
+        drive_file=genau_drive_file,
         dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
     )
     # Nau's status file is how startup learns Nau has finished loading, and it
@@ -340,10 +347,7 @@ def _run_startup_phases(
         paused_file=m["commands"]["nau_paused_file"],
         status_file=m["commands"]["nau_status_file"],
         console_file=m["commands"]["nau_console_file"],
-        # Genau's readout, which Nau draws in Hybrid.  Derived from Genau's own
-        # command file rather than our state dir: Genau resolves it from its own
-        # config, and the two directories are not guaranteed to be the same one.
-        drive_file=Path(m["commands"]["genau_cmd_file"]).parent / "genau_drive.txt",
+        drive_file=genau_drive_file,
         dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
         log_file=state_dir / "nau.log",
         nau_x=primary_media_rect.x,
