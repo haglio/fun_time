@@ -8,7 +8,7 @@ Fun Time is a Windows desktop setup that launches and coordinates:
 - a Genau audio companion
 - a minimal AutoHotkey hotkey shell (window placement and command dispatch run in Python)
 
-It uses a serial broker for the OSR2 — the separate `../osr2_broker` project — that is intended to run continuously in the background.
+It uses a serial broker for the OSR2 — the separate `../broker` project — that is intended to run continuously in the background.
 
 The primary stack runs in one of three modes (startup mode is **nau**):
 
@@ -121,7 +121,7 @@ Monitor naming under `layout` now uses:
 
 Serial / mode control:
 
-- the real OSR2 is on `COM4`; the **broker** — the separate `../osr2_broker` project — is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/genau_mode.txt`.
+- the real OSR2 is on `COM4`; the **broker** — the separate `../broker` project — is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/genau_mode.txt`.
 - **Nau** — a funscript video player in the `../genau` project — never opens `COM4`. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/nau_cmd.txt`, and publishes playback status to `state/nau_status.txt`.
 - **Genau** — the separate `../genau` project — never opens `COM4` either. It follows the broker-fed state, shows itself only in Genau/Hybrid mode, and reads clip/offset commands from `state/genau_cmd.txt`.
 
@@ -156,7 +156,7 @@ Install the declared dependencies into the project venv before first use.
 
 ### Broker startup task (one-time setup)
 
-The broker runs as its own background service from the `../osr2_broker` project — see that project for its one-time startup-task setup (it can autostart at Windows logon). Launching Fun Time also starts the broker tray if it is not already running.
+The broker runs as its own background service from the `../broker` project — see that project for its one-time startup-task setup (it can autostart at Windows logon). Launching Fun Time also starts the broker tray if it is not already running.
 
 ### Normal way
 
@@ -309,7 +309,7 @@ If an item is later discarded, it is removed from `favs.csv`.
 
 ### `genau_mode.txt`
 
-Written by the broker (the `../osr2_broker` project).
+Written by the broker (the `../broker` project).
 
 Values:
 
@@ -401,7 +401,7 @@ The Python entry points also write rotating logs in `state/`:
 - `state/windows_bridge.log`
 - `state/genau_audio.log`
 
-The broker and Genau write their own logs (e.g. `broker.log`, `genau_listener.log`, `genau_crash.log`) from the `../osr2_broker` and `../genau` projects.
+The broker and Genau write their own logs (e.g. `broker.log`, `genau_listener.log`, `genau_crash.log`) from the `../broker` and `../genau` projects.
 
 ## Notes on design
 
@@ -465,7 +465,7 @@ Check:
 - scheduled task `FunTime Genau Broker` is present and running (`Get-ScheduledTask -TaskName "FunTime Genau Broker"`)
 - OSR2 is still on `COM4`
 - the current video actually has a funscript (`state/nau_status.txt` shows `has_funscript`) — videos without one play with no OSR2 output by design
-- the broker's log (in `../osr2_broker`) for serial/COM-port errors
+- the broker's log (in `../broker`) for serial/COM-port errors
 
 ### Genau never appears
 
@@ -474,12 +474,12 @@ Check:
 - broker is running
 - OSR2 is actually entering auto/free mode
 - `state/genau_mode.txt` changes to `1`
-- the broker's log (in `../osr2_broker`) for serial parsing / mode transitions
+- the broker's log (in `../broker`) for serial parsing / mode transitions
 - Genau's log (in `../genau`) for UI/runtime errors
 
 ### Broker will not start
 
-The broker is the `../osr2_broker` project — check its logs and config there. Also confirm that current serial ports still include the real OSR2 on `COM4`.
+The broker is the `../broker` project — check its logs and config there. Also confirm that current serial ports still include the real OSR2 on `COM4`.
 
 ### `M` and `.` do not switch Genau clips
 
@@ -518,7 +518,7 @@ These are the files that define the working system:
 - `fun_time/dashboard_app.py`
 - `fun_time/audio_companion_app.py`
 
-The broker, Genau/Nau, and Clipper are separate projects: `../osr2_broker`, `../genau`, `../clipper`.
+The broker, Genau/Nau, and Clipper are separate projects: `../broker`, `../genau`, `../clipper`.
 
 ## Refactors completed
 
@@ -526,7 +526,7 @@ Completed from the earlier cleanup list:
 
 - orchestration now lives in `fun_time/orchestrator.py`, with `main.sh` kept as a thin wrapper
 - config is centralized in `fun_time_config.json`
-- Genau, the broker, and Clipper have been extracted to their own sibling projects (`../genau`, `../osr2_broker`, `../clipper`)
+- Genau, the broker, and Clipper have been extracted to their own sibling projects (`../genau`, `../broker`, `../clipper`)
 - window/layout constants are configurable through `layout`
 - runtime logging and diagnostics are written to `state/*.log`
 
