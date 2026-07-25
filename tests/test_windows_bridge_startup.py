@@ -57,9 +57,9 @@ def test_the_sweep_reaches_the_tray_now_that_it_is_a_python_process():
     from fun_time.orchestrator_broker import BROKER_TRAY_PATTERN
 
     tray_command_line = (
-        r'"C:\path\to\osr2_broker\.venv\Scripts\pythonw.exe" '
+        r'"C:\path\to\broker\.venv\Scripts\pythonw.exe" '
         r'-m osr2_broker.tray --config '
-        r'C:\path\to\osr2_broker\osr2_broker_config.json'
+        r'C:\path\to\broker\osr2_broker_config.json'
     )
     assert re.search(BROKER_TRAY_PATTERN, tray_command_line)
 
