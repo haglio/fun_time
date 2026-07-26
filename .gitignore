@@ -4,7 +4,6 @@ state/
 favs.csv
 
 # Claude Code local config
-.claude/
 
 .venv/
 __pycache__/
