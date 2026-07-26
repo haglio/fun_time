@@ -20,7 +20,9 @@ from fun_time.orchestrator import (
     require_dir,
     require_file,
     run_windows_bridge,
+    signal_startup_resolved,
     start_broker,
+    startup_marker_path,
     validate_config,
 )
 from fun_time.config import load_config
@@ -493,4 +495,96 @@ class TestOrchestratorSingleInstance:
         show_msg.assert_called_once()
         assert "already running" in show_msg.call_args[0][0]
         run_bridge.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# startup marker — what tells launch.vbs a hidden launch got off the ground
+# ---------------------------------------------------------------------------
+
+
+class TestStartupMarker:
+    """``launch.vbs`` runs the orchestrator hidden and can only tell a good
+    launch from a silent crash by whether this marker appears.  The contract:
+    the app writes it once startup has resolved, and every silent failure the
+    launcher exists to surface leaves it absent."""
+
+    def test_marker_lives_in_the_state_dir(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        assert startup_marker_path(cfg) == cfg.paths.state_dir / "launcher.ready"
+
+    def test_signal_writes_the_marker(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+
+        signal_startup_resolved(cfg)
+
+        assert startup_marker_path(cfg).is_file()
+
+    def test_signal_creates_the_state_dir_if_absent(self, cfg_factory, tmp_path: Path):
+        # The already-running branch signals before ensure_runtime_files runs,
+        # so the state dir may not exist yet.
+        cfg = load_config(cfg_factory({"paths": {"state_dir": str(tmp_path / "not_yet")}}))
+
+        signal_startup_resolved(cfg)
+
+        assert startup_marker_path(cfg).is_file()
+
+    def test_signal_swallows_write_failure(self, cfg_path: Path):
+        """A launcher that can't write its own marker must still launch."""
+        cfg = load_config(cfg_path)
+
+        with patch.object(Path, "write_text", side_effect=OSError("read-only")):
+            signal_startup_resolved(cfg)  # must not raise
+
+        assert not startup_marker_path(cfg).exists()
+
+    def test_successful_launch_leaves_the_marker(self, cfg_path: Path):
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.ensure_runtime_files"), \
+             patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.ensure_broker_running"), \
+             patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
+            result = main(["--config", str(cfg_path)])
+
+        assert result == 0
+        assert startup_marker_path(load_config(cfg_path)).is_file()
+
+    def test_already_running_leaves_the_marker(self, cfg_path: Path):
+        """The user got our own message; the marker keeps the launcher from
+        stacking a misleading "failed to start" dialog on top of it."""
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=None), \
+             patch("fun_time.single_instance.show_already_running_message"):
+            result = main(["--config", str(cfg_path)])
+
+        assert result == 1
+        assert startup_marker_path(load_config(cfg_path)).is_file()
+
+    def test_validation_failure_leaves_no_marker(self, cfg_path: Path):
+        """A missing library dir (or any validation failure) must leave the
+        marker absent so the launcher surfaces the log."""
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.ensure_runtime_files"), \
+             patch("fun_time.orchestrator.validate_config", side_effect=FileNotFoundError("missing dir")):
+            with pytest.raises(FileNotFoundError):
+                main(["--config", str(cfg_path)])
+
+        assert not startup_marker_path(load_config(cfg_path)).exists()
+
+    def test_check_only_run_leaves_no_marker(self, cfg_path: Path):
+        """``--check`` validates and exits without launching, so it is not a
+        started session and must not claim to be one."""
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.ensure_runtime_files"), \
+             patch("fun_time.orchestrator.validate_config"):
+            result = main(["--config", str(cfg_path), "--check"])
+
+        assert result == 0
+        assert not startup_marker_path(load_config(cfg_path)).exists()
 

@@ -175,6 +175,36 @@ def stamp_shortcut_aumid() -> None:
             _log.warning("Could not stamp AppUserModelID on %s: %s", lnk, exc)
 
 
+STARTUP_MARKER_NAME = "launcher.ready"
+
+
+def startup_marker_path(config) -> Path:
+    """Where ``launch.vbs`` looks to decide whether the launch succeeded."""
+    return config.paths.state_dir / STARTUP_MARKER_NAME
+
+
+def signal_startup_resolved(config) -> None:
+    """Tell ``launch.vbs`` that startup reached a resolved state.
+
+    The launcher runs the orchestrator hidden, so it can only tell a good
+    launch from a silent crash by watching for this marker.  We drop it once
+    config has validated and we are committing to run -- or once we have shown
+    the user our own "already running" message.  Every silent failure the
+    launcher exists to surface (an import-time crash, a bad config, a missing
+    library dir) happens *before* this point and leaves the marker absent,
+    which is the launcher's cue to pop the log.  A failure to write it must
+    never take the launch down with it, so it is only logged.
+    """
+    marker = startup_marker_path(config)
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("ready\n", encoding="utf-8")
+    except OSError:
+        logging.getLogger(__name__).warning(
+            "Could not write startup marker %s", marker, exc_info=True
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = load_config(args.config)
@@ -185,6 +215,9 @@ def main(argv: list[str] | None = None) -> int:
     _mutex_handle = try_acquire_mutex(mutex_name_for_config(MUTEX_ORCHESTRATOR, config.config_path))
     if _mutex_handle is None:
         logger.warning("Another Fun Time instance is already running; exiting")
+        # The user got a message of our own; keep the launcher from adding a
+        # second, misleading "failed to start" dialog on top of it.
+        signal_startup_resolved(config)
         show_already_running_message("Another copy of Fun Time is already running.")
         return 1
 
@@ -203,6 +236,10 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Config validation succeeded")
         return 0
 
+    # Config validated and we are committing to launch the stack: past here any
+    # crash is logged through the excepthook installed above, so the launcher's
+    # silent-failure watch has done its job.
+    signal_startup_resolved(config)
     ensure_broker_running(config, logger)
     return run_windows_bridge(config, logger)
 
