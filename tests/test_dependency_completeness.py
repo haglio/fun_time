@@ -8,10 +8,14 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-# Both top-level packages ship from this repo, so both must be covered: the
+# Every top-level package ships from this repo, so all must be covered: the
 # satellite player pulls in numpy and Pillow that the orchestrator alone would
-# not have justified.
-PACKAGE_DIRS = (PROJECT_ROOT / "fun_time", PROJECT_ROOT / "satellite")
+# not have justified, and fun_time_vr brings the OpenXR/GL stack.
+PACKAGE_DIRS = (
+    PROJECT_ROOT / "fun_time",
+    PROJECT_ROOT / "satellite",
+    PROJECT_ROOT / "fun_time_vr",
+)
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 
 # Map import name -> pyproject.toml dependency name when they differ.
@@ -21,6 +25,9 @@ IMPORT_TO_DIST: dict[str, str] = {
     "PIL": "pillow",
     "pygame": "pygame-ce",
     "PyQt6": "PyQt6",
+    "xr": "pyopenxr",
+    "OpenGL": "PyOpenGL",
+    "glfw": "glfw",
 }
 
 # Standard library modules that should never be flagged.

@@ -110,6 +110,23 @@ class VoiceControlConfig:
 
 
 @dataclass(frozen=True)
+class VrConfig:
+    """What FunTimeVR needs beyond the desktop session's own config.
+
+    ``library_dirs`` joins the primary rotation alongside ``nau_library_dirs``
+    (the VR-mastered videos live in their own branch of the library);
+    ``audio_device`` routes the primary's sound to the headset by substring
+    match; the T-Code endpoint is the broker's UDP inlet, the same one Nau and
+    Genau send to.
+    """
+
+    library_dirs: tuple[Path, ...] = ()
+    audio_device: str | None = None
+    tcode_udp_host: str = "127.0.0.1"
+    tcode_udp_port: int = 50557
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     project_dir: Path
     config_path: Path
@@ -123,6 +140,8 @@ class ProjectConfig:
     # Named here so a second session can be given one of its own; the default is
     # what the userscript's @updateURL is pinned to.
     loopback_port: int = LOOPBACK_PORT
+    # FunTimeVR's additions; the desktop session never reads them.
+    vr: VrConfig = VrConfig()
 
     @property
     def genau_mode_file(self) -> Path:
@@ -288,6 +307,20 @@ def _load_voice_control_config(voice_raw: dict[str, Any] | None) -> VoiceControl
     )
 
 
+def _load_vr_config(raw: dict[str, Any] | None) -> VrConfig:
+    values = raw or {}
+    library_dirs_raw = values.get("library_dirs", [])
+    if not isinstance(library_dirs_raw, list):
+        raise TypeError("vr.library_dirs must be a list of folder paths")
+    audio_device = values.get("audio_device")
+    return VrConfig(
+        library_dirs=tuple(_resolve_path(PROJECT_DIR, str(value)) for value in library_dirs_raw),
+        audio_device=str(audio_device) if audio_device else None,
+        tcode_udp_host=str(values.get("tcode_udp_host", "127.0.0.1")),
+        tcode_udp_port=int(values.get("tcode_udp_port", 50557)),
+    )
+
+
 def _raise_for_missing_config(path: Path) -> None:
     """Fail a missing config clearly, seeding the default one from the example.
 
@@ -328,6 +361,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         browser_raw = _require_optional_dict(raw, "chrome_overlay", path)
     voice_raw = _require_optional_dict(raw, "voice_control", path)
     regen_raw = _require_optional_dict(raw, "regen", path)
+    vr_raw = _require_optional_dict(raw, "vr", path)
 
     return ProjectConfig(
         project_dir=PROJECT_DIR,
@@ -339,6 +373,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         voice_control=_load_voice_control_config(voice_raw),
         regen=_load_regen_config(regen_raw),
         loopback_port=int(raw.get("loopback_port", LOOPBACK_PORT)),
+        vr=_load_vr_config(vr_raw),
     )
 
 

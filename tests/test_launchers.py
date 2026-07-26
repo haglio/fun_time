@@ -81,3 +81,26 @@ def test_shell_wrapper_starts_the_orchestrator_on_the_project_venv():
     assert ".venv/Scripts/python.exe" in text
     assert "command -v python" not in text
     assert "py -3" not in text
+
+
+def test_vr_launcher_holds_the_same_invariants_with_its_own_sentinels():
+    """launch_vr.vbs is launch.vbs aimed at fun_time_vr.orchestrator.  It keeps
+    every hidden-launch safeguard — the venv pin, the console log, the
+    ready/exited sentinel pair, the failure dialog with the log tail — under
+    VR-specific names, so a desktop launch's leftovers can never vouch for a
+    VR launch or the other way around."""
+    text = _text("launch_vr.vbs")
+
+    assert ".venv\\Scripts\\python.exe" in text
+    assert "where " not in text
+    assert "-m fun_time_vr.orchestrator" in text
+    assert "vr_launcher.log" in text
+    assert "2>&1 & type nul >" in text
+    assert "vr_launcher.ready" in text
+    assert "vr_launcher.exited" in text
+    assert "failed to start" in text
+    assert text.count("MsgBox") >= 2
+    assert "vbCritical" in text
+    # The sentinel names must not collide with the desktop launcher's.
+    desktop = _text("launch.vbs")
+    assert "vr_launcher.ready" not in desktop

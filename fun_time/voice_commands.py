@@ -90,6 +90,9 @@ VOICE_COMMANDS: dict[str, str] = {
     # below (the primary joins the active-side feature for navigation).
     "skip": "primary_nudge_next",
     "back": "primary_nudge_prev",
+    # FunTimeVR: walk the primary video's projection (flat / 180 / fisheye /
+    # MKX200 / 360); the pick is remembered per video in its sidecar.
+    "projection": "projection_cycle",
     "browse": "open_file_dialog",
     "clip": "clipper_save",
     "save clip": "clipper_save",

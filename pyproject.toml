@@ -17,6 +17,13 @@ dependencies = [
     "pillow",
     "pygame-ce",
     "PyQt6",
+    # The FunTimeVR stack: OpenXR loader bindings, GL, and the hidden window
+    # that carries the GL context.  Imported only on VR code paths, but listed
+    # here (not as an extra) so one venv serves both apps and CI's import
+    # completeness check stays simple.
+    "pyopenxr",
+    "PyOpenGL",
+    "glfw",
 ]
 
 [project.optional-dependencies]
@@ -31,8 +38,9 @@ voice = [
     "sounddevice",
 ]
 
-# Two top-level packages share this repo — the orchestrator and the satellite
-# player it launches as `python -m satellite`. Setuptools' automatic flat-layout
-# discovery refuses more than one, so declare them explicitly.
+# Three top-level packages share this repo — the orchestrator, the satellite
+# player it launches as `python -m satellite`, and the FunTimeVR variant.
+# Setuptools' automatic flat-layout discovery refuses more than one, so
+# declare them explicitly.
 [tool.setuptools.packages.find]
-include = ["fun_time*", "satellite*"]
+include = ["fun_time*", "satellite*", "fun_time_vr*"]

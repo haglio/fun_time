@@ -96,13 +96,21 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
     }
 
 
-def write_windows_bridge_manifest(config, destination: Path | None = None) -> Path:
-    manifest_path = destination or (config.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME)
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+def write_manifest_data(data: dict[str, dict[str, str]], destination: Path) -> Path:
+    """Write a manifest dict as the INI every child process reads back.
 
+    Split from :func:`write_windows_bridge_manifest` so a variant session
+    (FunTimeVR) can amend the built dict before it hits disk.
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
     parser = configparser.ConfigParser()
     parser.optionxform = str
-    parser.read_dict(build_windows_bridge_manifest(config))
-    with manifest_path.open("w", encoding="utf-8") as fp:
+    parser.read_dict(data)
+    with destination.open("w", encoding="utf-8") as fp:
         parser.write(fp)
-    return manifest_path
+    return destination
+
+
+def write_windows_bridge_manifest(config, destination: Path | None = None) -> Path:
+    manifest_path = destination or (config.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+    return write_manifest_data(build_windows_bridge_manifest(config), manifest_path)
