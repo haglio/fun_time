@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from .loopback_server import LOOPBACK_PORT
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "fun_time_config.json"
+EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
 
 
 def _resolve_path(project_dir: Path, raw_path: str) -> Path:
@@ -286,10 +288,35 @@ def _load_voice_control_config(voice_raw: dict[str, Any] | None) -> VoiceControl
     )
 
 
+def _raise_for_missing_config(path: Path) -> None:
+    """Fail a missing config clearly, seeding the default one from the example.
+
+    A missing *default* ``fun_time_config.json`` is usually a fresh/public
+    checkout or an overlay that got swept away, so a starter copy is written
+    from the committed ``fun_time_config.example.json`` for the user to fill in.
+    Startup still stops — the example's paths are placeholders that must never be
+    mistaken for a real library — but with a message naming the exact file to
+    edit, not an opaque ``FileNotFoundError`` deep in startup.  Any other
+    explicitly-named path is simply reported as missing, without regeneration.
+    """
+    if path == DEFAULT_CONFIG_PATH and EXAMPLE_CONFIG_PATH.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(EXAMPLE_CONFIG_PATH, path)
+        raise FileNotFoundError(
+            f"No config found, so a starter copy was written from "
+            f"{EXAMPLE_CONFIG_PATH.name} to {path}. Fill in your real paths "
+            f"(library folders, python_exe, ...) and run again."
+        )
+    raise FileNotFoundError(
+        f"Config file not found: {path}. Copy {EXAMPLE_CONFIG_PATH.name} to it "
+        f"and fill in your real paths."
+    )
+
+
 def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     path = _resolve_config_path(config_path)
     if not path.exists():
-        raise FileNotFoundError(f"Config file not found: {path}")
+        _raise_for_missing_config(path)
     with path.open("r", encoding="utf-8") as fp:
         raw: dict[str, Any] = json.load(fp)
 

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from fun_time.loopback_server import LOOPBACK_PORT
+import fun_time.config as config
 from fun_time.config import (
     ProjectConfig,
     _require_dict,
@@ -89,6 +90,53 @@ class TestLoadConfig:
     def test_raises_on_missing_file(self, tmp_path: Path):
         with pytest.raises(FileNotFoundError):
             load_config(tmp_path / "nonexistent.json")
+
+    def test_missing_default_regenerates_from_example_then_raises(self, tmp_path: Path, monkeypatch):
+        # Root cause #1: the git-ignored fun_time_config.json got swept away and
+        # startup died on an opaque FileNotFoundError.  A missing *default*
+        # config now writes a starter copy from the committed example (so there
+        # is a file to fill in) and still stops — the example's paths are
+        # placeholders that must not be taken for a real library — with a clear
+        # message naming the file.  Expectation derived from the committed
+        # example so this holds on a public checkout.
+        example_text = config.EXAMPLE_CONFIG_PATH.read_text(encoding="utf-8")
+        example = tmp_path / "fun_time_config.example.json"
+        example.write_text(example_text, encoding="utf-8")
+        target = tmp_path / "fun_time_config.json"
+        monkeypatch.setattr(config, "DEFAULT_CONFIG_PATH", target)
+        monkeypatch.setattr(config, "EXAMPLE_CONFIG_PATH", example)
+
+        assert not target.exists()
+        with pytest.raises(FileNotFoundError, match="fun_time_config"):
+            load_config()
+        assert target.exists()
+        assert json.loads(target.read_text(encoding="utf-8")) == json.loads(example_text)
+
+    def test_missing_default_without_example_raises_naming_both(self, tmp_path: Path, monkeypatch):
+        target = tmp_path / "fun_time_config.json"
+        example = tmp_path / "fun_time_config.example.json"  # deliberately absent
+        monkeypatch.setattr(config, "DEFAULT_CONFIG_PATH", target)
+        monkeypatch.setattr(config, "EXAMPLE_CONFIG_PATH", example)
+
+        with pytest.raises(FileNotFoundError, match="fun_time_config.example.json"):
+            load_config()
+        assert not target.exists()
+
+    def test_missing_explicit_path_raises_without_regenerating(self, tmp_path: Path, monkeypatch):
+        # A caller naming a specific file that isn't there gets a clear error,
+        # and nothing is written in its place — regeneration is only for the
+        # default config.
+        default = tmp_path / "fun_time_config.json"
+        example = tmp_path / "fun_time_config.example.json"
+        example.write_text(config.EXAMPLE_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+        monkeypatch.setattr(config, "DEFAULT_CONFIG_PATH", default)
+        monkeypatch.setattr(config, "EXAMPLE_CONFIG_PATH", example)
+
+        missing = tmp_path / "somewhere-else.json"
+        with pytest.raises(FileNotFoundError, match="somewhere-else.json"):
+            load_config(missing)
+        assert not missing.exists()
+        assert not default.exists()
 
     def test_raises_on_missing_section(self, tmp_path: Path):
         cfg_file = tmp_path / "bad.json"

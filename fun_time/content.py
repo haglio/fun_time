@@ -18,14 +18,42 @@ _PROJECT_DIR = Path(__file__).resolve().parent.parent
 LOCAL_CONTENT = _PROJECT_DIR / "content.local.json"
 EXAMPLE_CONTENT = _PROJECT_DIR / "content.example.json"
 
+# Documented keys whose example value is a placeholder that must never stand in
+# for real data.  ``web_providers`` holds gallery-URL templates that get written
+# verbatim into the favourites file, so an overlay that omits it defaults to
+# *none* (an empty list) rather than to the example's ``example.com`` markers.
+# Every other documented key is a vocabulary/phrase list whose example value is
+# a usable fallback, so it is backfilled from the example instead.
+_EMPTY_WHEN_ABSENT: dict[str, Any] = {"web_providers": []}
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
 
 def load_content(
     local_path: Path = LOCAL_CONTENT,
     example_path: Path = EXAMPLE_CONTENT,
 ) -> dict[str, Any]:
-    """The content overlay dict — the local override if present, else the example."""
-    path = local_path if local_path.exists() else example_path
-    return json.loads(path.read_text(encoding="utf-8"))
+    """The content overlay dict, with every documented key guaranteed present.
+
+    The real copy is the git-ignored ``content.local.json``; the committed
+    ``content.example.json`` is the placeholder used whenever it is absent (a
+    fresh or public checkout).  A *partial* local overlay — one that exists but
+    omits a documented key — no longer trips a downstream ``data[key]`` far from
+    here: each missing key is backfilled from the example, except the ones in
+    :data:`_EMPTY_WHEN_ABSENT`, which default to empty so the example's
+    placeholder never masquerades as real data.
+    """
+    example = _read_json(example_path)
+    if not local_path.exists():
+        return example
+    data = _read_json(local_path)
+    for key, example_value in example.items():
+        if key.startswith("_") or key in data:
+            continue
+        data[key] = _EMPTY_WHEN_ABSENT.get(key, example_value)
+    return data
 
 
 @dataclass(frozen=True)
