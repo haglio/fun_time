@@ -17,17 +17,11 @@ name: merge gate (full suite)
 # cannot even collect it.
 #
 # fun_time leans on sibling packages that are never published to PyPI. Three are
-# imported directly -- app_support, player_core, shared_ui -- and are cloned onto
-# the runner (the osr2_broker sibling is referenced only as launch strings, never
-# imported, so it is not installed). app_support and player_core use a subdir
-# layout (package under the repo root), so they are editable-installed in compat
-# mode -- default editable mode would let the repo dir win as a namespace shadow
-# of the same-named package. shared_ui instead is a flat layout: its modules sit
-# at the repo root and the repo dir itself IS the `shared_ui` package, so
-# `import shared_ui` needs the *parent* of a dir named shared_ui on sys.path --
-# which editable-compat does not provide (it puts the repo root on the path, so
-# only shared_ui's modules import, as bare top-level names). So shared_ui is
-# cloned under an isolated parent dir that is put on PYTHONPATH, and nothing else.
+# imported directly -- app_support, player_core, shared_ui -- so they are cloned
+# onto the runner and editable-installed in compat mode (app_support first).
+# Compat mode is required: default editable mode would let a repo dir win as a
+# namespace shadow of the same-named package. The osr2_broker sibling is
+# referenced only as launch strings, never imported, so it is not installed.
 # player_core depends on python-mpv, whose `import mpv` loads libmpv at import
 # time; tests/test_satellite_identity.py imports the satellite app
 # (-> player_core.mpv_player -> mpv), so it fails to *collect* without the DLL --
@@ -62,16 +56,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Subdir-layout siblings: the repo root goes on sys.path via the
-          # editable-compat install in the next step.
-          for repo in app_support player_core; do
+          for repo in app_support player_core shared_ui; do
             git clone --depth 1 "https://github.com/haglio/$repo.git" "$RUNNER_TEMP/$repo"
           done
-          # shared_ui is a flat "repo root IS the package" layout: put its parent
-          # -- and only its parent -- on PYTHONPATH so `import shared_ui` resolves
-          # to the repo dir without shadowing the two subdir-layout siblings.
-          git clone --depth 1 https://github.com/haglio/shared_ui.git "$RUNNER_TEMP/su/shared_ui"
-          echo "PYTHONPATH=$RUNNER_TEMP/su" >> "$GITHUB_ENV"
 
       - name: Fetch libmpv (player_core's `import mpv` loads it at import time)
         shell: bash
@@ -104,12 +91,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install pywin32   # win32com.client, imported lazily by the windows bridge
           pip install -e "$RUNNER_TEMP/app_support" --config-settings editable_mode=compat
+          pip install -e "$RUNNER_TEMP/shared_ui"   --config-settings editable_mode=compat
           pip install -e "$RUNNER_TEMP/player_core" --config-settings editable_mode=compat
           pip install -e ".[dev]" --config-settings editable_mode=compat
           # Smoke-check every import the suite needs at collection time, so a
           # missing sibling / DLL fails here with a clear message rather than as a
-          # wall of collection errors. shared_ui rides in on PYTHONPATH (set in
-          # the checkout step); PyQt6 arrives with fun_time above.
+          # wall of collection errors.
           python -c "import app_support, player_core, shared_ui, mpv; print('imports OK')"
 
       - name: Run the unit suite
