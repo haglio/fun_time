@@ -51,8 +51,10 @@ _SIDECAR_BLOCK = "vr"
 _PROJECTION_FIELD = "projection"
 
 
-def _is_under(path: Path, roots: Sequence[Path | str]) -> bool:
-    for root in roots:
+def is_vr_video(video_path: str | Path, vr_dirs: Sequence[Path | str]) -> bool:
+    """Whether a video lives in one of the configured VR library dirs."""
+    path = Path(video_path)
+    for root in vr_dirs:
         try:
             path.relative_to(Path(root))
         except ValueError:
@@ -73,7 +75,7 @@ def default_projection(video_path: str, vr_dirs: Sequence[Path | str]) -> str:
     for token, projection in _FILENAME_HINTS:
         if token in name:
             return projection
-    if _is_under(Path(video_path), vr_dirs):
+    if is_vr_video(video_path, vr_dirs):
         return EQUIRECT_180_SBS
     return FLAT
 
