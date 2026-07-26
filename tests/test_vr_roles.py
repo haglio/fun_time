@@ -1,0 +1,312 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from fun_time.dashboard_runtime import read_nau_status
+from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
+from fun_time_vr.roles import MAX_SPEED, MIN_SPEED, PrimaryRole
+
+
+class FakePlayer:
+    """The _MpvControl surface, recorded — mirrors tests/satellite_fakes.py's idea."""
+
+    def __init__(self):
+        self.loaded: list[Path] = []
+        self.paused: bool | None = None
+        self.speed = 1.0
+        self.volume: int | None = None
+        self.muted: bool | None = None
+        self.seeks: list[float] = []
+        self.position_ms = 0.0
+        self.duration_ms = 60_000.0
+        self.closed = False
+
+    def load(self, path: Path) -> None:
+        self.loaded.append(Path(path))
+
+    def set_paused(self, paused: bool) -> None:
+        self.paused = paused
+
+    def set_speed(self, speed: float) -> None:
+        self.speed = speed
+
+    def set_volume(self, volume: int) -> None:
+        self.volume = volume
+
+    def set_muted(self, muted: bool) -> None:
+        self.muted = muted
+
+    def seek_ms(self, ms: float) -> None:
+        self.seeks.append(ms)
+        self.position_ms = ms
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class FakeDriver:
+    def __init__(self):
+        self.updates: list[tuple[int, float]] = []
+        self.parks = 0
+        self.resets = 0
+        self.closed = False
+
+    def update(self, position_ms, fs, *, now=None, speed=1.0):
+        self.updates.append((position_ms, speed))
+
+    def park(self, *, now=None):
+        self.parks += 1
+
+    def reset(self):
+        self.resets += 1
+
+    def close(self):
+        self.closed = True
+
+
+def _write_funscript(path: Path) -> None:
+    path.write_text(json.dumps({"actions": [
+        {"at": 0, "pos": 0}, {"at": 400, "pos": 100}, {"at": 800, "pos": 0},
+    ]}), encoding="utf-8")
+
+
+@pytest.fixture
+def role_parts(tmp_path):
+    videos = tmp_path / "videos" / "videos"
+    metadata = tmp_path / "videos" / "metadata"
+    vr_dir = videos / "VR" / "finished"
+    flat_dir = videos / "2D" / "non_AI"
+    vr_dir.mkdir(parents=True)
+    flat_dir.mkdir(parents=True)
+    metadata.mkdir(parents=True)
+
+    one = vr_dir / "scene one.mp4"
+    two = flat_dir / "scene two.mp4"
+    three = vr_dir / "scene three.mp4"
+    for video in (one, two, three):
+        video.write_bytes(b"")
+    script = tmp_path / "scene one.funscript"
+    _write_funscript(script)
+
+    playlist = tmp_path / "nau_playlist.tsv"
+    playlist.write_text(f"{one}\t{script}\n{two}\n{three}\n", encoding="utf-8")
+
+    player, driver = FakePlayer(), FakeDriver()
+    role = PrimaryRole(
+        player=player,
+        driver=driver,
+        playlist_file=playlist,
+        metadata_root=metadata,
+        vr_dirs=(vr_dir,),
+    )
+    return role, player, driver, playlist, metadata, (one, two, three, script)
+
+
+class TestPlaybackVerbs:
+    def test_opens_on_the_first_entry_with_its_funscript_and_projection(self, role_parts):
+        role, player, driver, *_ , files = role_parts
+        one, *_ = files
+        assert player.loaded == [one]
+        assert role.has_funscript is True
+        assert role.projection == EQUIRECT_180_SBS
+
+    def test_next_wraps_and_reresolves_funscript_and_projection(self, role_parts):
+        role, player, *_ , files = role_parts
+        one, two, three, script = files
+
+        role.apply_command("NEXT")
+        assert player.loaded[-1] == two
+        assert role.has_funscript is False
+        assert role.projection == FLAT
+
+        role.apply_command("NEXT")
+        role.apply_command("NEXT")
+        assert player.loaded[-1] == one  # wrapped
+
+    def test_prev_steps_back(self, role_parts):
+        role, player, *_ , files = role_parts
+        one, two, three, script = files
+        role.apply_command("PREV")
+        assert player.loaded[-1] == three
+
+    def test_seek_verbs_step_ten_seconds(self, role_parts):
+        role, player, *_ = role_parts
+        player.position_ms = 15_000
+        role.apply_command("SEEK_FWD")
+        assert player.seeks[-1] == 25_000
+        role.apply_command("SEEK_BACK")
+        assert player.seeks[-1] == 15_000
+
+    def test_speed_verbs_step_and_clamp(self, role_parts):
+        role, player, *_ = role_parts
+        role.apply_command("SPEED_UP")
+        assert player.speed == 1.25
+        for _ in range(10):
+            role.apply_command("SPEED_UP")
+        assert player.speed == MAX_SPEED
+        for _ in range(20):
+            role.apply_command("SPEED_DOWN")
+        assert player.speed == MIN_SPEED
+
+    def test_set_speed_takes_min_max_and_numbers(self, role_parts):
+        role, player, *_ = role_parts
+        role.apply_command("SET_SPEED max")
+        assert player.speed == MAX_SPEED
+        role.apply_command("SET_SPEED min")
+        assert player.speed == MIN_SPEED
+        role.apply_command("SET_SPEED 1.5")
+        assert player.speed == 1.5
+
+    def test_set_volume_carries_level_and_mute(self, role_parts):
+        role, player, *_ = role_parts
+        role.apply_command("SET_VOLUME 40 1")
+        assert player.volume == 40
+        assert player.muted is True
+        role.apply_command("SET_VOLUME 70 0")
+        assert player.muted is False
+
+    def test_play_file_jumps_to_a_playlist_member(self, role_parts):
+        role, player, *_ , files = role_parts
+        one, two, three, script = files
+        role.apply_command(f"PLAY_FILE {two}")
+        assert player.loaded[-1] == two
+        role.apply_command("NEXT")
+        assert player.loaded[-1] == three  # resumed from two's slot, not spliced anew
+
+    def test_play_file_splices_a_newcomer_with_its_funscript(self, role_parts, tmp_path):
+        role, player, *_ , files = role_parts
+        newcomer = tmp_path / "videos" / "videos" / "VR" / "finished" / "scene four.mp4"
+        newcomer.write_bytes(b"")
+        script = tmp_path / "scene four.funscript"
+        _write_funscript(script)
+
+        role.apply_command(f"PLAY_FILE {newcomer}\t{script}")
+
+        assert player.loaded[-1] == newcomer
+        assert role.has_funscript is True
+
+    def test_reload_playlist_keeps_the_playing_video_when_it_survives(self, role_parts):
+        role, player, *_ , playlist, metadata, files = (
+            role_parts[0], role_parts[1], role_parts[2], role_parts[3], role_parts[4], role_parts[5],
+        )
+        one, two, three, script = files
+        playlist.write_text(f"{three}\n{one}\t{script}\n", encoding="utf-8")
+
+        role.apply_command("RELOAD_PLAYLIST")
+
+        assert player.loaded == [one]  # never reloaded — still playing
+        role.apply_command("NEXT")
+        assert player.loaded[-1] == three  # wrapped within the new list
+
+    def test_reload_playlist_restarts_at_the_top_when_current_is_gone(self, role_parts):
+        role, player, *_ , playlist, metadata, files = (
+            role_parts[0], role_parts[1], role_parts[2], role_parts[3], role_parts[4], role_parts[5],
+        )
+        one, two, three, script = files
+        playlist.write_text(f"{two}\n{three}\n", encoding="utf-8")
+
+        role.apply_command("RELOAD_PLAYLIST")
+
+        assert player.loaded[-1] == two
+
+    def test_quit_sets_the_stop_flag(self, role_parts):
+        role, *_ = role_parts
+        fired = []
+        role.apply_command("QUIT", on_quit=lambda: fired.append(True))
+        assert fired == [True]
+
+    def test_unknown_verb_reports_unhandled(self, role_parts):
+        role, *_ = role_parts
+        assert role.apply_command("RECORD_DOWN") is False
+
+
+class TestProjectionCycling:
+    def test_cycle_advances_and_persists_to_the_sidecar(self, role_parts):
+        role, _, _, _, metadata, files = role_parts
+        one, *_ = files
+
+        role.apply_command("CYCLE_PROJECTION")
+
+        assert role.projection == FISHEYE_190_SBS
+        sidecar = metadata / "VR" / "finished" / "scene one.json"
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+        assert payload["vr"]["projection"] == "fisheye_190_sbs"
+
+    def test_the_persisted_choice_holds_when_the_video_comes_back(self, role_parts):
+        role, player, *_ , files = role_parts
+        role.apply_command("CYCLE_PROJECTION")
+        role.apply_command("NEXT")
+        role.apply_command("PREV")
+        assert role.projection == FISHEYE_190_SBS
+
+
+class TestTCode:
+    def test_scripted_video_drives_waypoints_at_the_current_speed(self, role_parts):
+        role, player, driver, *_ = role_parts
+        player.position_ms = 5_000
+        role.apply_command("SET_SPEED 1.5")
+
+        role.tick(now=1.0)
+
+        assert driver.updates == [(5_000, 1.5)]
+
+    def test_unscripted_video_parks(self, role_parts):
+        role, player, driver, *_ = role_parts
+        role.apply_command("NEXT")  # scene two: no funscript
+
+        role.tick(now=1.0)
+
+        assert driver.parks == 1
+        assert driver.updates == []
+
+    def test_disabled_tcode_sends_nothing(self, role_parts):
+        role, player, driver, *_ = role_parts
+        role.apply_command("SET_TCODE_ENABLED 0")
+
+        role.tick(now=1.0)
+
+        assert driver.updates == []
+        assert driver.parks == 0
+
+    def test_paused_sends_nothing(self, role_parts):
+        role, player, driver, *_ = role_parts
+        role.set_paused(True)
+
+        role.tick(now=1.0)
+
+        assert driver.updates == []
+        assert driver.parks == 0
+
+    def test_navigation_resets_the_driver_edge_gate(self, role_parts):
+        role, _, driver, *_ = role_parts
+        resets_at_start = driver.resets
+        role.apply_command("NEXT")
+        assert driver.resets == resets_at_start + 1
+
+
+class TestStatus:
+    def test_status_fields_read_back_through_the_orchestrators_own_parser(self, role_parts, tmp_path):
+        role, player, *_ = role_parts
+        player.position_ms = 1_000.0
+        status_file = tmp_path / "nau_status.txt"
+
+        text = "".join(f"{k}={v}\n" for k, v in role.status_fields().items())
+        status_file.write_text(text, encoding="utf-8")
+        status = read_nau_status(status_file)
+
+        assert status.video.endswith("scene one.mp4")
+        assert status.has_funscript is True
+        assert status.paused is False
+        assert status.state == "normal"
+        # position 1s sits inside the fabricated script's dense cluster
+        assert status.funscript_resting is False
+        assert status.funscript_driving is True
+
+    def test_resting_is_reported_in_a_quiet_stretch(self, role_parts):
+        role, player, *_ = role_parts
+        player.position_ms = 40_000.0  # far past the last action at 800ms
+        fields = role.status_fields()
+        assert fields["funscript_resting"] == "1"
