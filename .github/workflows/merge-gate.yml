@@ -1,0 +1,117 @@
+name: merge gate (full suite)
+
+# The merge queue's required check. The queue builds the candidate merge of a PR
+# onto current main, runs the suite on that candidate, and fast-forwards main only
+# when this is green -- so a red tree can never land. Also runs on PRs for early
+# feedback and on push to main as a visible post-merge backstop.
+#
+# Scope: the DEFAULT `pytest` runs the UNIT suite only. Fun Time's integration
+# tests live in tests/integration/ (pytest.ini keeps them out of default
+# collection) and CANNOT run here anyway -- they drive real windows on a Win32
+# hidden desktop, the AHK bridge, and a GPU video decoder. So this gate is the
+# unit suite, nothing more.
+#
+# Runs on windows-latest: the suite is Win32 through and through -- ctypes user32
+# window management, AUMID, the windows bridge -- and every test module is
+# imported at collection, pulling in PyQt6 and pygame, so an off-Windows runner
+# cannot even collect it.
+#
+# fun_time leans on sibling packages that are never published to PyPI. Three are
+# imported directly -- app_support, player_core, shared_ui -- and are cloned onto
+# the runner (the osr2_broker sibling is referenced only as launch strings, never
+# imported, so it is not installed). app_support and player_core use a subdir
+# layout (package under the repo root), so they are editable-installed in compat
+# mode -- default editable mode would let the repo dir win as a namespace shadow
+# of the same-named package. shared_ui instead is a flat layout: its modules sit
+# at the repo root and the repo dir itself IS the `shared_ui` package, so
+# `import shared_ui` needs the *parent* of a dir named shared_ui on sys.path --
+# which editable-compat does not provide (it puts the repo root on the path, so
+# only shared_ui's modules import, as bare top-level names). So shared_ui is
+# cloned under an isolated parent dir that is put on PYTHONPATH, and nothing else.
+# player_core depends on python-mpv, whose `import mpv` loads libmpv at import
+# time; tests/test_satellite_identity.py imports the satellite app
+# (-> player_core.mpv_player -> mpv), so it fails to *collect* without the DLL --
+# hence the libmpv step.
+
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+  push:
+    branches: [main]
+
+concurrency:
+  group: merge-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  full-suite:
+    runs-on: windows-latest
+    env:
+      QT_QPA_PLATFORM: offscreen   # render Qt headless -- no real windows
+      SDL_VIDEODRIVER: dummy       # pygame-ce: no display
+      SDL_AUDIODRIVER: dummy       # pygame-ce: no audio device
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check out the sibling packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Subdir-layout siblings: the repo root goes on sys.path via the
+          # editable-compat install in the next step.
+          for repo in app_support player_core; do
+            git clone --depth 1 "https://github.com/haglio/$repo.git" "$RUNNER_TEMP/$repo"
+          done
+          # shared_ui is a flat "repo root IS the package" layout: put its parent
+          # -- and only its parent -- on PYTHONPATH so `import shared_ui` resolves
+          # to the repo dir without shadowing the two subdir-layout siblings.
+          git clone --depth 1 https://github.com/haglio/shared_ui.git "$RUNNER_TEMP/su/shared_ui"
+          echo "PYTHONPATH=$RUNNER_TEMP/su" >> "$GITHUB_ENV"
+
+      - name: Fetch libmpv (player_core's `import mpv` loads it at import time)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          get_url() {
+            gh api "repos/$1/releases?per_page=15" \
+              --jq '[.[].assets[]?.browser_download_url | select(test("mpv-dev-x86_64-[0-9].*\\.7z$"))][0] // empty'
+          }
+          url="$(get_url zhongfly/mpv-winbuild)"
+          [ -z "$url" ] && url="$(get_url shinchiro/mpv-winbuild-cmake)"
+          if [ -z "$url" ]; then echo "::error::could not resolve a libmpv dev build URL"; exit 1; fi
+          echo "libmpv dev build: $url"
+          curl -fL -o "$RUNNER_TEMP/mpv-dev.7z" "$url"
+          7z x "$RUNNER_TEMP/mpv-dev.7z" -o"$RUNNER_TEMP/mpv-dev" >/dev/null
+          dll="$(find "$RUNNER_TEMP/mpv-dev" -name 'libmpv-2.dll' | head -1)"
+          if [ -z "$dll" ]; then echo "::error::libmpv-2.dll not in the archive"; exit 1; fi
+          pydir="$(python -c 'import sys, os; print(os.path.dirname(sys.executable))')"
+          # python-mpv resolves the DLL by bare name; the interpreter's own
+          # directory is always on the DLL search path, and it is on PATH too.
+          cp "$dll" "$pydir/mpv-2.dll"
+          echo "$pydir" >> "$GITHUB_PATH"
+
+      - name: Install (editable, compat mode), siblings first
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install pywin32   # win32com.client, imported lazily by the windows bridge
+          pip install -e "$RUNNER_TEMP/app_support" --config-settings editable_mode=compat
+          pip install -e "$RUNNER_TEMP/player_core" --config-settings editable_mode=compat
+          pip install -e ".[dev]" --config-settings editable_mode=compat
+          # Smoke-check every import the suite needs at collection time, so a
+          # missing sibling / DLL fails here with a clear message rather than as a
+          # wall of collection errors. shared_ui rides in on PYTHONPATH (set in
+          # the checkout step); PyQt6 arrives with fun_time above.
+          python -c "import app_support, player_core, shared_ui, mpv; print('imports OK')"
+
+      - name: Run the unit suite
+        shell: bash
+        run: python -m pytest -q
