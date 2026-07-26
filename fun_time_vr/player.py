@@ -51,6 +51,7 @@ from .render import RenderTarget, SceneRenderer, immersive_mode
 from .roles import PrimaryRole
 from .scene import (
     PRIMARY_WIDTH_DEG,
+    SATELLITE_ELEVATION_DEG,
     SATELLITE_WIDTH_DEG,
     satellite_center_azimuth,
     surface_vertices,
@@ -103,10 +104,12 @@ class _VideoUnit:
         self.vertices: np.ndarray | None = None
         self._screen_azimuth = 0.0
         self._screen_width_deg = PRIMARY_WIDTH_DEG
+        self._screen_elevation_deg = 0.0
 
-    def _set_screen(self, azimuth_deg: float, width_deg: float) -> None:
+    def _set_screen(self, azimuth_deg: float, width_deg: float, elevation_deg: float = 0.0) -> None:
         self._screen_azimuth = azimuth_deg
         self._screen_width_deg = width_deg
+        self._screen_elevation_deg = elevation_deg
 
     def render_latest_frame(self) -> None:
         width, height = self.player.video_dims
@@ -116,7 +119,9 @@ class _VideoUnit:
             if sized != (self.target.width, self.target.height):
                 self.target.ensure(*sized)
                 self.vertices = surface_vertices(
-                    self._screen_azimuth, self._screen_width_deg, aspect=self.target.aspect,
+                    self._screen_azimuth, self._screen_width_deg,
+                    aspect=self.target.aspect,
+                    center_elevation_deg=self._screen_elevation_deg,
                 )
         if self.target.ready and self.player.has_new_frame:
             # flip_y: mpv renders top-left-origin; the scene samples GL
@@ -140,7 +145,11 @@ class _VideoUnit:
 
 class _PrimaryUnit(_VideoUnit):
     def __init__(self, manifest: configparser.ConfigParser, get_proc_address) -> None:
-        super().__init__(MpvRenderPlayer(get_proc_address, muted=False, loop_file=True))
+        # Muted at birth: the primary's sound belongs on the headset, and the
+        # headset's sink cannot be trusted until the compositor is presenting
+        # (see route_audio) — unmuted-on-default would blare the room speakers
+        # for the whole warm-up instead.
+        super().__init__(MpvRenderPlayer(get_proc_address, muted=True, loop_file=True))
         self._set_screen(0.0, PRIMARY_WIDTH_DEG)
         commands, vr = manifest["commands"], manifest["vr"]
         self.cmd_file = Path(commands["nau_cmd_file"])
@@ -159,15 +168,40 @@ class _PrimaryUnit(_VideoUnit):
             ),
             start_paused=read_paused_state(self.paused_file, logger=logger),
         )
-        audio_device = vr.get("audio_device", "").strip()
-        if audio_device:
-            picked = self.player.set_audio_device_matching(audio_device)
-            logger.info("Audio device %r -> %s", audio_device, picked or "no match; default")
+        self._audio_device = vr.get("audio_device", "").strip()
+        self._audio_routed = False
         self._status_writer = StatusWriter(
             Path(commands["nau_status_file"]), lambda role: role.status_fields()
         )
         self._volume_painter = VolumeHudPainter()
         self._unhandled: set[str] = set()
+
+    def route_audio(self) -> None:
+        """Give the primary its sound on the first frame the headset presents.
+
+        On the first headset run this routing happened at construction, while
+        the compositor was still bringing the headset up — and the sink took
+        the stream without consuming it, so mpv's audio clock (which the video
+        clock follows) never ticked: every player alive, the primary frozen on
+        frame 1 for the whole session.  Waiting for the first rendered frame
+        means the runtime is actually presenting, with the headset's endpoints
+        live; setting the device then also makes mpv reinitialize its audio
+        chain fresh.  audio-fallback-to-null (player_core) backstops a sink
+        that still refuses: silent playback rather than no playback.
+        """
+        if self._audio_routed:
+            return
+        self._audio_routed = True
+        if self._audio_device:
+            picked = self.player.set_audio_device_matching(self._audio_device)
+            logger.info(
+                "Audio device %r -> %s", self._audio_device, picked or "no match; default"
+            )
+        # Hand the level back to the role, so whatever the session set while
+        # the headset warmed up (a SET_VOLUME, a mute) is what comes on.
+        self.role.audio_live = True
+        self.player.set_volume(self.role.volume)
+        self.player.set_muted(self.role.muted)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         self.role.set_paused(read_paused_state(self.paused_file, logger=logger))
@@ -194,7 +228,9 @@ class _SatelliteUnit(_VideoUnit):
         super().__init__(
             MpvRenderPlayer(get_proc_address, muted=True, loop_file=False, prefetch=True)
         )
-        self._set_screen(satellite_center_azimuth(side), SATELLITE_WIDTH_DEG)
+        self._set_screen(
+            satellite_center_azimuth(side), SATELLITE_WIDTH_DEG, SATELLITE_ELEVATION_DEG
+        )
         commands = manifest["commands"]
         self.side = side
         self.cmd_file = Path(commands[f"{side}_cmd_file"])
@@ -308,6 +344,7 @@ def _run(manifest: configparser.ConfigParser) -> int:
                 unit.render_latest_frame()
 
             if should_render and views:
+                primary.route_audio()
                 for eye_index, view in enumerate(views):
                     session.bind_eye_framebuffer(eye_index)
                     renderer.begin_eye()

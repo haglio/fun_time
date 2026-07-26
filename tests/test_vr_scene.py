@@ -8,6 +8,7 @@ import pytest
 from fun_time_vr.scene import (
     PRIMARY_WIDTH_DEG,
     RADIUS,
+    SATELLITE_ELEVATION_DEG,
     SATELLITE_WIDTH_DEG,
     satellite_center_azimuth,
     surface_vertices,
@@ -19,16 +20,27 @@ def _azimuth_deg(x: float, z: float) -> float:
 
 
 class TestLayout:
-    def test_primary_takes_the_middle_half_and_each_satellite_a_quarter(self):
-        # The user's spec: half the view for the primary in the middle, about a
-        # quarter each for the satellites beside it.
-        assert PRIMARY_WIDTH_DEG == 2 * SATELLITE_WIDTH_DEG
+    def test_satellites_tuck_inside_the_flush_position(self):
+        # First headset run: flush-beside-the-primary put both satellites in
+        # the peripheral vision, so they overlap the primary's edges instead —
+        # they draw over it, so overlap costs nothing.
+        flush = (PRIMARY_WIDTH_DEG + SATELLITE_WIDTH_DEG) / 2
+        assert 0 < satellite_center_azimuth("landscape") < flush
+        assert satellite_center_azimuth("portrait") == -satellite_center_azimuth("landscape")
 
-    def test_satellites_sit_flush_against_the_primary_edges(self):
-        # portrait left of the primary, landscape right, edge to edge.
-        expected = (PRIMARY_WIDTH_DEG + SATELLITE_WIDTH_DEG) / 2
-        assert satellite_center_azimuth("portrait") == -expected
-        assert satellite_center_azimuth("landscape") == expected
+    def test_satellites_are_smaller_than_the_primary_half(self):
+        assert SATELLITE_WIDTH_DEG < PRIMARY_WIDTH_DEG / 2
+
+    def test_satellites_ride_above_the_horizon(self):
+        assert SATELLITE_ELEVATION_DEG > 0
+        verts = surface_vertices(
+            satellite_center_azimuth("portrait"), SATELLITE_WIDTH_DEG,
+            aspect=9 / 16, center_elevation_deg=SATELLITE_ELEVATION_DEG,
+        )
+        center_y = (verts[:, 1].max() + verts[:, 1].min()) / 2
+        assert center_y == pytest.approx(
+            RADIUS * math.tan(math.radians(SATELLITE_ELEVATION_DEG)), rel=1e-5
+        )
 
     def test_unknown_side_is_a_hard_error(self):
         with pytest.raises(KeyError):
