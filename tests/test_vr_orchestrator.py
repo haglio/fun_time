@@ -8,6 +8,7 @@ from fun_time.config import load_config
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     build_vr_manifest,
+    primary_playlist_has_vr,
     validate_vr_config,
     vr_primary_sources,
 )
@@ -113,3 +114,33 @@ class TestVrManifest:
         manifest = build_vr_manifest(config)
         assert manifest["modules"]["satellite_module"] == "satellite"
         assert Path(manifest["commands"]["nau_cmd_file"]).name == "nau_cmd.txt"
+
+
+class TestResumedPrimaryPlaylist:
+    """A desktop session's primary playlist is 2D only; resuming it into a VR
+    session would give the headset nothing but flat screens, so the VR session
+    checks before honoring the resume."""
+
+    def test_a_desktop_playlist_reads_as_holding_no_vr(self, config, tmp_path):
+        playlist = tmp_path / "nau_playlist.tsv"
+        playlist.write_text(
+            f"{tmp_path / 'library' / '2D' / 'scene one.mp4'}\n"
+            f"{tmp_path / 'library' / '2D' / 'scene two.mp4'}\n",
+            encoding="utf-8",
+        )
+
+        assert primary_playlist_has_vr(playlist, config.vr.library_dirs) is False
+
+    def test_one_vr_entry_is_enough(self, config, tmp_path):
+        vr_dir = tmp_path / "library" / "VR" / "finished"
+        playlist = tmp_path / "nau_playlist.tsv"
+        playlist.write_text(
+            f"{tmp_path / 'library' / '2D' / 'scene one.mp4'}\n"
+            f"{vr_dir / 'scene three.mp4'}\t{tmp_path / 'scene three.funscript'}\n",
+            encoding="utf-8",
+        )
+
+        assert primary_playlist_has_vr(playlist, config.vr.library_dirs) is True
+
+    def test_a_missing_playlist_reads_as_holding_no_vr(self, config, tmp_path):
+        assert primary_playlist_has_vr(tmp_path / "absent.tsv", config.vr.library_dirs) is False
