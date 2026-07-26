@@ -35,3 +35,7 @@ pytest-cache-files-*/
 
 # Windows shortcuts are machine-specific and embed the real install path.
 *.lnk
+
+# pCloud conflict copies (this dir syncs via pCloud). Never our files; an
+# untracked one dirties main and blocks merges. '[' escaped to match literally.
+*\[conflicted*
