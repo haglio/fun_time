@@ -66,6 +66,13 @@ class PrimaryRole:
         self._projection = ""
         self._volume = 100
         self._muted = False
+        # Until the host says the sound is live, a SET_VOLUME records the level
+        # without unmuting the player: in VR the primary starts silent and the
+        # host hands it its sound once the headset is presenting (see
+        # fun_time_vr.player.route_audio), so an early command must not
+        # un-silence it before then.  Reported muted meanwhile, which is what
+        # the console draws and what unmuting returns to.
+        self.audio_live = False
         self._load(0)
 
     # ------------------------------------------------------------------ state
@@ -243,7 +250,8 @@ class PrimaryRole:
         self._volume = level
         self._muted = len(parts) > 1 and parts[1].strip() == "1"
         self._player.set_volume(level)
-        self._player.set_muted(self._muted)
+        if self.audio_live:
+            self._player.set_muted(self._muted)
 
     def _apply_play_file(self, arg: str) -> None:
         """Jump to the named video if queued, else splice it in after the

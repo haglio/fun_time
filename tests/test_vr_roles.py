@@ -160,13 +160,25 @@ class TestPlaybackVerbs:
         role.apply_command("SET_SPEED 1.5")
         assert player.speed == 1.5
 
-    def test_set_volume_carries_level_and_mute(self, role_parts):
+    def test_set_volume_carries_level_and_mute_once_audio_is_live(self, role_parts):
         role, player, *_ = role_parts
+        role.audio_live = True
         role.apply_command("SET_VOLUME 40 1")
         assert player.volume == 40
         assert player.muted is True
         role.apply_command("SET_VOLUME 70 0")
         assert player.muted is False
+
+    def test_set_volume_before_audio_is_live_records_without_unsilencing(self, role_parts):
+        """In VR the primary starts silent and the host un-silences it once the
+        headset is presenting; a SET_VOLUME arriving during that warm-up must
+        record the level, not blare it out of the desktop speakers."""
+        role, player, *_ = role_parts
+        role.apply_command("SET_VOLUME 70 0")
+
+        assert role.volume == 70
+        assert role.muted is False
+        assert player.muted is None  # never touched
 
     def test_play_file_jumps_to_a_playlist_member(self, role_parts):
         role, player, *_ , files = role_parts
