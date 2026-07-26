@@ -91,6 +91,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Nudge back 10 seconds", ("-",), ("primary_nudge_prev",)),
             _Row("Nudge forward 10 seconds", ("=",), ("primary_nudge_next",)),
             _Row(
+                "Cycle the video's VR projection — flat screen, 180° SBS, "
+                "fisheye 190, MKX200, 360 — remembered per video (FunTimeVR)",
+                ("P",),
+                ("projection_cycle",),
+            ),
+            _Row(
                 "Set video speed (0.25×–2×; the funscript follows)",
                 (),
                 (

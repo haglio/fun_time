@@ -6,6 +6,9 @@ opencv-python
 pillow
 pygame-ce
 PyQt6
+pyopenxr
+PyOpenGL
+glfw
 
 # Not listed: player_core, installed editable from ../player_core (see its
 # README). It is never published, so pip would go looking for it on PyPI.

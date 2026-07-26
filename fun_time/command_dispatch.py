@@ -1011,6 +1011,14 @@ def dispatch_command(
         )
         return state, ops
 
+    if command == "projection_cycle":
+        # FunTimeVR's primary answers this by walking flat → 180 → fisheye →
+        # MKX200 → 360 and remembering the pick in the video's sidecar.  Routed
+        # like every primary verb so the desktop Nau simply logs it as unknown.
+        if nau_displays(state.primary_mode):
+            config.nau_cmd_file.write_text("CYCLE_PROJECTION", encoding="utf-8")
+        return state, ops
+
     if command in _NAU_CMD_MAP:
         # Loop recording, versions and length only make sense while Nau owns the
         # primary display — nau and hybrid, but not genau.
