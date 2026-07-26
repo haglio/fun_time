@@ -48,5 +48,13 @@
     "generate_image_url": "https://example.com/create",
     "media_root": "C:/path/to/library/generated",
     "metadata_root": "C:/path/to/metadata"
+  },
+  "vr": {
+    "library_dirs": [
+      "C:/path/to/library/vr"
+    ],
+    "audio_device": "Headset",
+    "tcode_udp_host": "127.0.0.1",
+    "tcode_udp_port": 50557
   }
 }

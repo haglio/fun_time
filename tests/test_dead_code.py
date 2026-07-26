@@ -17,6 +17,7 @@ def test_no_dead_code():
             # same bar. It went unscanned while it lived in genau, which is how
             # two unreachable SatelliteSession methods survived the move here.
             str(ROOT / "satellite"),
+            str(ROOT / "fun_time_vr"),
             str(ROOT / "vulture_whitelist.py"),
             "--min-confidence", "60",
         ],

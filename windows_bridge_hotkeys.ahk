@@ -135,6 +135,10 @@ v::QueueCommand("nau_cycle_version")
 ; Nau: cycle the length of what plays — mixed (everything) / shorts / full-length.
 t::QueueCommand("nau_toggle_length")
 
+; FunTimeVR: cycle the primary video's projection (flat / 180 / fisheye /
+; MKX200 / 360), remembered per video.  Desktop Nau ignores the verb.
+p::QueueCommand("projection_cycle")
+
 ; Genau direct control hotkeys.  Each pair reads left-down / right-up: 7/9 sit
 ; above u/o for amplitude, the way u/o and j/l already work for centre and speed.
 7::QueueCommand("genau_amplitude_down")

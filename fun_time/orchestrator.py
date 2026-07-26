@@ -178,12 +178,17 @@ def stamp_shortcut_aumid() -> None:
 STARTUP_MARKER_NAME = "launcher.ready"
 
 
-def startup_marker_path(config) -> Path:
-    """Where ``launch.vbs`` looks to decide whether the launch succeeded."""
-    return config.paths.state_dir / STARTUP_MARKER_NAME
+def startup_marker_path(config, marker_name: str = STARTUP_MARKER_NAME) -> Path:
+    """Where the launcher looks to decide whether the launch succeeded.
+
+    Each launcher watches its own marker (``launch.vbs`` this default,
+    ``launch_vr.vbs`` FunTimeVR's), so one app's leftover can never vouch for
+    the other's launch.
+    """
+    return config.paths.state_dir / marker_name
 
 
-def signal_startup_resolved(config) -> None:
+def signal_startup_resolved(config, marker_name: str = STARTUP_MARKER_NAME) -> None:
     """Tell ``launch.vbs`` that startup reached a resolved state.
 
     The launcher runs the orchestrator hidden, so it can only tell a good
@@ -195,7 +200,7 @@ def signal_startup_resolved(config) -> None:
     which is the launcher's cue to pop the log.  A failure to write it must
     never take the launch down with it, so it is only logged.
     """
-    marker = startup_marker_path(config)
+    marker = startup_marker_path(config, marker_name)
     try:
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_text("ready\n", encoding="utf-8")

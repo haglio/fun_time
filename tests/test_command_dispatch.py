@@ -445,6 +445,29 @@ def test_primary_prev_in_genau_mode_writes_nau_cmd(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV"
 
 
+# --- projection_cycle (FunTimeVR's primary) ---
+
+
+def test_projection_cycle_writes_nau_cmd_while_nau_displays(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="hybrid")
+
+    dispatch_command("projection_cycle", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "CYCLE_PROJECTION"
+
+
+def test_projection_cycle_in_genau_mode_is_a_no_op(tmp_path: Path):
+    """Genau owns the display in genau mode; there is no projected video to
+    re-project, so the verb goes nowhere."""
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="genau")
+
+    dispatch_command("projection_cycle", state, config)
+
+    assert not config.nau_cmd_file.exists()
+
+
 # --- nau cycle-version / length-mode ---
 
 
