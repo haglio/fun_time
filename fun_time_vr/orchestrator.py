@@ -21,6 +21,7 @@ import logging
 import subprocess
 import threading
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 from app_support.logging_utils import configure_logging, install_exception_logging
@@ -38,6 +39,8 @@ from fun_time.modes import (
     SatelliteLibraryContext,
     build_fmode_playlists,
     build_playlist_file_path,
+    build_primary_playlist_paths,
+    write_nau_playlist_file,
 )
 from fun_time.orchestrator import (
     ensure_broker_running,
@@ -69,6 +72,9 @@ from fun_time.windows_bridge_startup import (
 )
 from fun_time.win32 import get_process_creation_time
 from fun_time.runtime_flow import write_flag_file
+from player_core.playlist import read_playlist
+
+from .projection import is_vr_video
 
 VR_STARTUP_MARKER_NAME = "vr_launcher.ready"
 VR_PLAYER_MODULE = "fun_time_vr.player"
@@ -95,6 +101,21 @@ def vr_primary_sources(config) -> str:
     desktop primary's own dirs — the user's "VR videos and non-VR videos"."""
     dirs = [*config.vr.library_dirs, *config.paths.nau_library_dirs]
     return "|".join(str(path) for path in dirs)
+
+
+def primary_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> bool:
+    """Whether the primary's playlist holds any VR-mastered video at all.
+
+    A desktop session's primary playlist never does — it was built from the 2D
+    library alone — and resuming it into a VR session gives a headset nothing
+    but flat screens until something rebuilds.  That is exactly what the first
+    headset run got, so the VR session asks this before honoring a resume.
+    """
+    try:
+        entries = read_playlist(playlist_file)
+    except OSError:
+        return False
+    return any(is_vr_video(video, vr_dirs) for video, _funscript in entries)
 
 
 def build_vr_manifest(config) -> dict[str, dict[str, str]]:
@@ -181,11 +202,11 @@ def run_vr_bridge(config, logger_) -> int:
 
     portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
     landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
+    nau_playlist = build_playlist_file_path(state_dir, PLAYLIST_NAU)
     resumed = resume_playlists([
         (portrait_playlist, read_satellite_status(Path(commands["portrait_status_file"])).video),
         (landscape_playlist, read_satellite_status(Path(commands["landscape_status_file"])).video),
-        (build_playlist_file_path(state_dir, PLAYLIST_NAU),
-         read_nau_status(Path(commands["nau_status_file"])).video),
+        (nau_playlist, read_nau_status(Path(commands["nau_status_file"])).video),
     ])
     if not resumed:
         build_fmode_playlists(
@@ -200,6 +221,15 @@ def run_vr_bridge(config, logger_) -> int:
                 watch_stats_file=watch_stats_path(state_dir),
             ),
         )
+    elif not primary_playlist_has_vr(nau_playlist, config.vr.library_dirs):
+        # Resumed from a desktop session, whose primary playlist is 2D only:
+        # keep the satellites where they were, but rebuild the primary from the
+        # VR-merged sources so a headset session actually gets VR videos.
+        write_nau_playlist_file(
+            nau_playlist,
+            build_primary_playlist_paths(manifest["media"]["nau_library_sources"], False),
+        )
+        logger_.info("Resumed playlists; rebuilt the primary's, which held no VR video")
     logger_.info(
         "Resumed last session's playlists" if resumed else "Nothing to resume; built fresh playlists"
     )
