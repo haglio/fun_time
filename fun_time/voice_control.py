@@ -15,7 +15,6 @@ from pathlib import Path
 
 from fun_time.command_dispatch import command_side
 from fun_time.command_reference import friendly_voice
-from fun_time.dashboard_actions import HELP_REFERENCE_COMMANDS
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_PORTRAIT,
@@ -51,18 +50,17 @@ def _source_for_command(command: str) -> str:
 # Omnipause suspends the AHK hotkeys wholesale and exempts exactly three: Esc,
 # which resumes, Ctrl+Alt+Q, which quits, and Shift+Esc, which retracts the OSR2
 # (``#SuspendExempt`` in windows_bridge_hotkeys.ahk).  Voice mirrors those three
-# — "play" resumes, "quit"/"exit" quits, "relief omnipause" retracts, and that
-# last one has to reach a room that is ALREADY paused, because a paused session
-# can still have the device on the user.  Voice then adds the reference popup,
-# which has no hotkey to mirror: it opens a dashboard window and touches no
-# player, so a paused room has nothing to be protected from, while a pause is
-# exactly when the user stops to look a phrase up.  Nothing else a paused room
-# says reaches the dispatch loop; what keeps a paused room's NOISE out — the bug
-# that first put the popup behind this freeze — is the confidence gate on
-# recognition.
-SUSPEND_EXEMPT_COMMANDS: frozenset[str] = (
-    frozenset({"play", "quit", "relief_omnipause"}) | HELP_REFERENCE_COMMANDS
-)
+# and adds nothing — "play" resumes, "quit"/"exit" quits, "relief omnipause"
+# retracts, and that last one has to reach a room that is ALREADY paused, because
+# a paused session can still have the device on the user.  Nothing else a paused
+# room says reaches the dispatch loop.
+#
+# The reference popup is NOT exempt, deliberately: d6f3766 exempted it ("Let the
+# reference popup answer while the room is paused") and this reverts that, at the
+# user's call.  The freeze is a flat rule about what a paused room may be heard to
+# do, and a spoken "help" is exactly the phrase room noise produced when it opened
+# the popup mid-pause.  Don't re-exempt it without asking first.
+SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({"play", "quit", "relief_omnipause"})
 
 
 def build_grammar() -> str:
