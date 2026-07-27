@@ -1,7 +1,10 @@
-"""Progress reporting for the startup sequence.
+"""What the overlays read, and what the orchestrator writes for them.
 
-Used to communicate startup progress to the loading screen subprocess
-via a shared progress file.
+Both ends of a session put a cover over the screen — ``loading_screen`` while
+the windows arrive, ``closing_screen`` while they go — and both watch a progress
+file in the state dir for how far along the orchestrator has got.  This module
+is that channel: the file names, the phases each end walks through, and the
+writer on the orchestrator's side.
 """
 from __future__ import annotations
 
@@ -10,11 +13,17 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 PROGRESS_FILENAME = "startup_progress.txt"
+SHUTDOWN_PROGRESS_FILENAME = "shutdown_progress.txt"
 
 # The loading screen drops this flag beside the progress file when the user
 # presses Esc; the orchestrator's progress reporter watches for it and raises
 # StartupCancelled at the next phase boundary so startup unwinds.
 CANCEL_FILENAME = "startup_cancel.flag"
+
+# The closing screen drops this flag beside its own progress file once it is
+# painted over every monitor.  Teardown waits for it before killing anything:
+# a cover that is not up yet hides nothing.
+SHUTDOWN_READY_FILENAME = "shutdown_ready.flag"
 
 
 def cancel_file_for(progress_file: str | Path) -> Path:
@@ -22,6 +31,13 @@ def cancel_file_for(progress_file: str | Path) -> Path:
     state dir).  Both the loading screen and the orchestrator derive the path
     this way, so they always agree on it."""
     return Path(progress_file).with_name(CANCEL_FILENAME)
+
+
+def ready_file_for(progress_file: str | Path) -> Path:
+    """The ready flag that pairs with a shutdown *progress_file*.  Derived the
+    way the cancel flag is, so the closing screen and the orchestrator agree on
+    it without passing it around."""
+    return Path(progress_file).with_name(SHUTDOWN_READY_FILENAME)
 
 
 class StartupCancelled(Exception):
@@ -49,12 +65,14 @@ def loading_screen_active(state_dir: Path) -> bool:
 
 
 @dataclass(frozen=True)
-class StartupPhase:
-    """One reported step of startup: what to call it, and how long it takes."""
+class Phase:
+    """One reported step of a sequence: what to call it, and how much of the bar
+    it spans.  What a weight measures is each sequence's own business — see the
+    phase tuples below."""
 
     key: str
     message: str
-    seconds: float
+    weight: float
 
 
 # The startup sequence as the loading screen sees it, in order.  Each phase
@@ -67,13 +85,27 @@ class StartupPhase:
 # the SHAPE of the bar, so being a few tenths stale costs a little smoothness and
 # nothing else.  The last phase closes the overlay and so must be weightless: the
 # screen shuts when the reported position reaches the total.
-STARTUP_PHASES: tuple[StartupPhase, ...] = (
-    StartupPhase("services", "Preparing services...", 0.7),
-    StartupPhase("browser", "Launching browser...", 0.4),
-    StartupPhase("companions", "Launching companions...", 1.3),
-    StartupPhase("players", "Waiting for players...", 0.5),
-    StartupPhase("windows", "Positioning windows...", 0.5),
-    StartupPhase("finalizing", "Finalizing...", 0.0),
+STARTUP_PHASES: tuple[Phase, ...] = (
+    Phase("services", "Preparing services...", 0.7),
+    Phase("browser", "Launching browser...", 0.4),
+    Phase("companions", "Launching companions...", 1.3),
+    Phase("players", "Waiting for players...", 0.5),
+    Phase("windows", "Positioning windows...", 0.5),
+    Phase("finalizing", "Finalizing...", 0.0),
+)
+
+# The teardown as the closing screen sees it.  These weights are NOT seconds:
+# a taskkill returns when Windows says so, and the whole sequence is over in a
+# couple of seconds, so there is nothing here worth timing and the bar simply
+# walks the steps.  No weightless phase ends this one — the orchestrator writes
+# DONE once the last child is gone.
+SHUTDOWN_PHASES: tuple[Phase, ...] = (
+    # The screen opens on this one, so its wording is the screen's own opening
+    # status — anything else would read as a flicker on the first poll.
+    Phase("controls", "Closing...", 1.0),
+    Phase("browser", "Closing browser...", 1.0),
+    Phase("players", "Closing players...", 1.0),
+    Phase("companions", "Closing companions...", 1.0),
 )
 
 
@@ -85,19 +117,20 @@ class ProgressReporter(Protocol):
     def cancelled(self) -> bool: ...
 
 
-class StartupProgress:
-    """Writes progress updates to a file for the loading screen to read.
+class PhaseProgress:
+    """Writes progress updates to a file for an overlay to read.
 
-    Each ``advance`` names the phase being entered and is also a cancellation
-    checkpoint: if the loading screen has dropped the cancel flag, the phase is
-    aborted before it runs by raising ``StartupCancelled``.
+    Each ``advance`` names the phase being entered.  Given a cancel file it is
+    also a cancellation checkpoint: if the overlay has dropped that flag, the
+    phase is aborted before it runs by raising ``StartupCancelled``.  Only
+    startup passes one — a teardown has nothing left to call off.
     """
 
     def __init__(
         self,
         progress_file: Path,
         *,
-        phases: tuple[StartupPhase, ...] = STARTUP_PHASES,
+        phases: tuple[Phase, ...] = STARTUP_PHASES,
         cancel_file: Path | None = None,
     ) -> None:
         self._progress_file = progress_file
@@ -112,12 +145,12 @@ class StartupProgress:
         if self.cancelled:
             raise StartupCancelled()
         entered = self._phase_index(phase)
-        # Hundredths of a second: the loading screen reads two integers.  The
-        # position is the wait ALREADY behind us, so only the final phase can put
-        # it on the total — and the total is what tells the screen to close, so
-        # reporting a phase's own time as it starts would shut the overlay early.
-        done = round(sum(p.seconds for p in self._phases[:entered]) * 100)
-        total = round(sum(p.seconds for p in self._phases) * 100)
+        # Hundredths of a unit: the overlay reads two integers.  The position is
+        # the work ALREADY behind us, so only a weightless final phase can put it
+        # on the total — and the total is what tells the screen to close, so
+        # reporting a phase's own weight as it starts would shut the cover early.
+        done = round(sum(p.weight for p in self._phases[:entered]) * 100)
+        total = round(sum(p.weight for p in self._phases) * 100)
         self._progress_file.write_text(
             f"{done}/{total}|{self._phases[entered].message}",
             encoding="utf-8",
@@ -127,7 +160,7 @@ class StartupProgress:
         for index, phase in enumerate(self._phases):
             if phase.key == key:
                 return index
-        raise KeyError(f"unknown startup phase: {key!r}")
+        raise KeyError(f"unknown phase: {key!r}")
 
     def finish(self) -> None:
         self._progress_file.write_text("DONE", encoding="utf-8")

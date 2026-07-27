@@ -2,29 +2,37 @@
 
 Runs the full startup sequence, launches the minimal AHK hotkey script,
 starts the background dispatch loop, waits for AHK to exit, then shuts
-down all child processes.
+down all child processes.  Both ends of that happen behind a cover over
+every monitor, so the session's windows are never watched arriving or
+leaving one at a time.
 """
 from __future__ import annotations
 
 import configparser
+import contextlib
 import datetime
 import logging
 import os
 import subprocess
 import sys
 import threading
+import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
-from .startup_progress import (
+from .overlay_progress import (
     CANCEL_FILENAME,
     NullProgress,
     PROGRESS_FILENAME,
+    SHUTDOWN_PHASES,
+    SHUTDOWN_PROGRESS_FILENAME,
+    PhaseProgress,
     ProgressReporter,
     StartupCancelled,
-    StartupProgress,
+    ready_file_for,
 )
 from .hud_transport import HUD_FILENAME, HudPublisher
 from .lock_hud import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails, prime_group_indexes
@@ -52,14 +60,16 @@ from .win32 import (
 logger = logging.getLogger(__name__)
 
 
-_CHILD_PID_KEYS = (
-    "nau_pid",
-    "portrait_pid",
-    "landscape_pid",
-    "dashboard_pid",
-    "genau_pid",
-    "audio_pid",
+# Every child a session launches, grouped the way teardown reports it to the
+# closing screen.  The groups are the source of truth: a child added to one is
+# recorded at startup and killed at shutdown by the same edit, so there is no
+# way to add a seventh child and have it quietly outlive the session.
+_CHILD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("players", ("nau_pid", "portrait_pid", "landscape_pid")),
+    ("companions", ("dashboard_pid", "genau_pid", "audio_pid")),
 )
+
+_CHILD_PID_KEYS = tuple(key for _, keys in _CHILD_GROUPS for key in keys)
 
 
 @dataclass(frozen=True)
@@ -152,11 +162,92 @@ def kill_process_tree(pid: int) -> None:
         pass
 
 
-def _shutdown_children(rfb_hwnd: int, children: dict[str, ChildProcess]) -> None:
-    """Kill all child processes launched during startup."""
+def _shutdown_children(
+    rfb_hwnd: int, children: dict[str, ChildProcess], progress: ProgressReporter
+) -> None:
+    """Kill all child processes launched during startup.
+
+    Reports each group as it starts, so the closing screen covering all this can
+    say which windows are on their way out — and, if a kill ever wedges, which
+    one it wedged on.
+    """
+    progress.advance("browser")
     close_window(rfb_hwnd)
-    for child in children.values():
-        kill_recorded_child(child)
+    for phase, keys in _CHILD_GROUPS:
+        progress.advance(phase)
+        for key in keys:
+            kill_recorded_child(children[key])
+
+
+# How long teardown holds for the closing screen to report itself painted.  A
+# fresh python + tkinter process is up in well under a second; the rest is slack
+# for a loaded machine, and it is a ceiling nobody normally pays.
+CLOSING_SCREEN_READY_TIMEOUT_S = 5.0
+
+
+def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen) -> None:
+    """Block until the cover is painted over every monitor.
+
+    Killing before then defeats the whole point of it — the windows would be
+    seen going out one at a time, which is what the screen exists to hide.  Two
+    ways out besides the flag: the screen died, so no flag is ever coming; or it
+    is taking so long that waiting costs more than the flicker would.
+    """
+    deadline = time.monotonic() + CLOSING_SCREEN_READY_TIMEOUT_S
+    while time.monotonic() < deadline:
+        if ready_file.exists():
+            return
+        if proc.poll() is not None:
+            logger.warning("Closing screen exited before it was ready")
+            return
+        time.sleep(0.05)
+    logger.warning(
+        "Closing screen not ready after %.1fs; closing anyway",
+        CLOSING_SCREEN_READY_TIMEOUT_S,
+    )
+
+
+@contextlib.contextmanager
+def _closing_screen(state_dir: Path, *, enabled: bool) -> Iterator[ProgressReporter]:
+    """Cover every monitor while the session comes down, then uncover it.
+
+    Yields the reporter the teardown steps report through.  The cover is up and
+    painted before the body runs and comes down only once the body has finished,
+    so the moment between "quit" and an empty desktop shows one panel instead of
+    six windows going out one by one.
+
+    Disabled for an integration run, which has no eyes on it — the same reason
+    such a run skips the loading screen.
+    """
+    if not enabled:
+        yield NullProgress()
+        return
+
+    progress_file = state_dir / SHUTDOWN_PROGRESS_FILENAME
+    ready_file = ready_file_for(progress_file)
+    # A flag left by a previous session would let this teardown start with
+    # nothing yet covering the screen.
+    ready_file.unlink(missing_ok=True)
+    progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES)
+    # Written before the screen is launched so it has something to read from its
+    # first poll, and so its staleness clock starts here rather than never.
+    progress.advance("controls")
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "fun_time.closing_screen", str(progress_file)],
+    )
+    logger.info("Closing screen launched (pid=%d)", proc.pid)
+    _wait_for_closing_screen(ready_file, proc)
+    try:
+        yield progress
+    finally:
+        progress.finish()
+        try:
+            proc.wait(timeout=3.0)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            logger.warning("Closing screen did not exit, killed")
+        progress_file.unlink(missing_ok=True)
+        ready_file.unlink(missing_ok=True)
 
 
 # Cancelling from the loading screen is a clean, user-initiated exit.
@@ -370,7 +461,7 @@ def run_python_orchestrated_bridge(
     _open_event_log(state_dir)
 
     integration_mode = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-    show_loading = not integration_mode
+    show_overlays = not integration_mode
 
     # --- Launch loading screen (normal mode only) ---
     loading_proc = None
@@ -379,8 +470,8 @@ def run_python_orchestrated_bridge(
     # Clear a cancel flag left over from a previous session so it can't abort
     # this one before the user has touched anything.
     cancel_file.unlink(missing_ok=True)
-    if show_loading:
-        progress = StartupProgress(progress_file, cancel_file=cancel_file)
+    if show_overlays:
+        progress = PhaseProgress(progress_file, cancel_file=cancel_file)
         python_exe = sys.executable
         loading_proc = subprocess.Popen(
             [python_exe, "-m", "fun_time.loading_screen", str(progress_file)],
@@ -406,7 +497,7 @@ def run_python_orchestrated_bridge(
             manifest_path=manifest_path,
             state_dir=state_dir,
             progress=progress,
-            hide_windows=show_loading,
+            hide_windows=show_overlays,
         )
     except StartupCancelled as cancelled:
         # Esc during a phase: the sequence handed back exactly what it had
@@ -444,7 +535,7 @@ def run_python_orchestrated_bridge(
 
     # --- Close loading screen (normal mode only) ---
     # The sequencer already positioned all windows in Phase 4 (the reveal).
-    if show_loading:
+    if show_overlays:
         # Hold the loading screen until the HUD's group indexes are primed, so
         # Fun Time isn't revealed with the maps still blank.  Capped so a slow
         # library scan can't wedge startup — the maps just fill in late.
@@ -575,13 +666,16 @@ def run_python_orchestrated_bridge(
         logger.info("Interrupted — shutting down")
         exit_code = 1
     finally:
-        if voice_controller is not None:
-            voice_controller.stop()
-        if voice_thread is not None:
-            voice_thread.join(timeout=2.0)
-        dispatch_runner.stop()
-        dispatch_thread.join(timeout=2.0)
-        logger.info("AHK exited — shutting down child processes")
-        _shutdown_children(result.rfb_hwnd, children)
+        # The cover goes up first and stays up through everything below: the
+        # controls stopping, the browser closing, and every child being killed.
+        with _closing_screen(state_dir, enabled=show_overlays) as shutdown_progress:
+            if voice_controller is not None:
+                voice_controller.stop()
+            if voice_thread is not None:
+                voice_thread.join(timeout=2.0)
+            dispatch_runner.stop()
+            dispatch_thread.join(timeout=2.0)
+            logger.info("AHK exited — shutting down child processes")
+            _shutdown_children(result.rfb_hwnd, children, shutdown_progress)
 
     return exit_code
