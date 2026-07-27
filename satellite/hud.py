@@ -36,6 +36,8 @@ COL_LABEL_GAP = 4   # breathing room between a column label and its thumbnail
 MIN_GUTTER = 30     # row-label gutter: never narrower than this
 MAX_GUTTER = 100    # …and never wider, so a stray long act can't eat the map
 LOOP_BTN = 18       # loop-button thickness: below the action column, right of the row
+FILTER_BTN = 18     # act-filter button: at the head of each row, in the gutter
+FILTER_ROOM = FILTER_BTN + MAP_GAP  # what it takes out of the row-label gutter
 CTRL_BTN = 18       # a side-control button — the same square as a loop button
 CTRL_BAND_H = 24    # the band those controls sit in, under the status line
 
@@ -365,7 +367,7 @@ class HudTargets:
 
     click: list[tuple[Rect, str]]
     loop: list[tuple[Rect, str]]
-    label: list[tuple[Rect, str]]
+    filter: list[tuple[Rect, str]]
     expand: Rect | None
     control: list[tuple[Rect, str]] = field(default_factory=list)
     # The favourite mark is a readout, so it is here only to carry its tooltip.
@@ -399,38 +401,48 @@ def hit_test_targets(targets: list[tuple[Rect, str]], px: int, py: int) -> str:
     return ""
 
 
-def build_label_targets(
+def filter_button_rects(
     corner_rect: Rect | None,
     action_rects: list[Rect],
     gutter_x: int,
-    gutter_w: int,
     current_action: str,
     action_labels: list[str] | tuple[str, ...],
 ) -> list[tuple[Rect, str]]:
-    """(rect, action_name) for each clickable action-name label in the left gutter —
-    the corner's row is the current action, the rows below are the sibling actions.
-    Clicking one filters the satellite to that action."""
-    targets: list[tuple[Rect, str]] = []
+    """(rect, action_name) for the filter button at the head of each map row — the
+    corner's row is the current action, the rows below are the sibling actions.
+    Pressing one filters the satellite to that action.
+
+    One button per row, at the gutter's left edge and as tall as its row: the same
+    shape the seed-loop button has beside the seed row, because it stands to its row
+    the same way.  Filtering used to be a click on the action name itself, which
+    nothing on the panel said was clickable — so the button is the whole affordance
+    now, and the name beside it is only a label again.
+
+    A row with no action name gets no button: there is nothing to filter to.
+    """
+    rects: list[tuple[Rect, str]] = []
     if corner_rect is not None and current_action:
         _cx, cy, _cw, ch = corner_rect
-        targets.append(((gutter_x, cy, gutter_w, ch), current_action))
+        rects.append(((gutter_x, cy, FILTER_BTN, ch), current_action))
     for (_ax, ay, _aw, ah), name in zip(action_rects, action_labels):
         if name:
-            targets.append(((gutter_x, ay, gutter_w, ah), name))
-    return targets
+            rects.append(((gutter_x, ay, FILTER_BTN, ah), name))
+    return rects
 
 
 def label_is_filtered(label: str, filter_query: str) -> bool:
     """Whether *label*'s act is the one its side is filtered to.
 
-    One rule, used by the map to light that label and by the click to make it a
-    toggle, so what looks on and what turns off cannot disagree.  fun_time records a
-    filter as the act lower-cased, which is how a label reaches it.
+    One rule, used by the map to light that row's label and its filter button, and
+    by the press to make that button a toggle, so what looks on and what turns off
+    cannot disagree.  fun_time records a filter as the act lower-cased, which is how
+    a label reaches it.
     """
     return bool(filter_query) and label.strip().lower() == filter_query.strip().lower()
 
 
 LOOP_TOOLTIPS = {"action": "Loop this action column", "seed": "Loop this seed row"}
+FILTER_TOOLTIP = "Filter to this action"
 EXPAND_TOOLTIP = "More seeds — widen the net"
 CONTROL_TOOLTIPS = {
     "prev": "Previous clip",
@@ -459,6 +471,10 @@ def button_tooltip(targets: HudTargets, px: int, py: int) -> str:
         hit = hit_test_targets(bucket, px, py)
         if hit:
             return tooltips.get(hit, "")
+    # The filter buttons all say the same thing — each one names the act beside it,
+    # so the tooltip only has to say what pressing it does.
+    if hit_test_targets(targets.filter, px, py):
+        return FILTER_TOOLTIP
     if _in(targets.expand, px, py):
         return EXPAND_TOOLTIP
     if _in(targets.favorite, px, py):
@@ -481,7 +497,7 @@ class HudClicks:
     A press on a thumbnail is ambiguous until the double-click window passes —
     single switches to the clip, double locks it — so :meth:`press` defers it and
     :meth:`due` posts it once no second click has arrived.  Every other press
-    (loop buttons, expand, action labels) is unambiguous and posts immediately.
+    (loop buttons, expand, filter buttons) is unambiguous and posts immediately.
     """
 
     def __init__(self, side: str, *, double_click_s: float = DOUBLE_CLICK_S) -> None:
@@ -506,10 +522,11 @@ class HudClicks:
             return self._toggle_loop(loop)
         if _in(targets.expand, px, py):
             return f"{self._side}_more_seeds"
-        action = hit_test_targets(targets.label, px, py)
+        action = hit_test_targets(targets.filter, px, py)
         if action:
-            # A lit label is the filter it set, so pressing it again lifts it: the way
-            # out of a filter is the control that put you in it.
+            # A lit button is the filter it set, so pressing it again lifts it: the way
+            # out of a filter is the control that put you in it — the same toggle the
+            # loop buttons are.
             if label_is_filtered(action, self.active_filter):
                 self.active_filter = ""
                 return f"{self._side}_no_filter"

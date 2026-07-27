@@ -5,6 +5,7 @@ import json
 
 from satellite.hud import (
     CTRL_BTN,
+    FILTER_BTN,
     LOCK_BAND_H,
     LOOP_BTN,
     MAP_GAP,
@@ -14,10 +15,10 @@ from satellite.hud import (
     HudTargets,
     action_label_blocks,
     build_click_targets,
-    build_label_targets,
     button_tooltip,
     control_button_rects,
     expand_button_rect,
+    filter_button_rects,
     friendly_action_label,
     hit_test_targets,
     loop_button_rects,
@@ -200,35 +201,36 @@ def test_an_empty_axis_has_no_window():
     assert (window.start, window.count) == (0, 0)
 
 
-def _label_targets(*labels: str) -> HudTargets:
-    """Click targets for a gutter of action labels, stacked 20px apart."""
+def _filter_targets(*labels: str) -> HudTargets:
+    """Press targets for a gutter of filter buttons, stacked 20px apart."""
     return HudTargets(
         click=[], loop=[],
-        label=[((0, i * 20, 40, 20), label) for i, label in enumerate(labels)],
+        filter=[((0, i * 20, 18, 20), label) for i, label in enumerate(labels)],
         expand=None,
     )
 
 
-def test_clicking_an_action_label_filters_the_side_to_it():
+def test_pressing_a_rows_filter_button_filters_the_side_to_its_act():
     clicks = HudClicks("portrait")
 
-    assert clicks.press(_label_targets("Theta Motion"), 5, 5, now=0.0) == "filter_portrait_theta_motion"
+    assert clicks.press(_filter_targets("Theta Motion"), 5, 5, now=0.0) == "filter_portrait_theta_motion"
 
 
-def test_clicking_the_lit_action_label_turns_the_filter_off():
-    """The label is a toggle: it filters to that act, and pressing the lit one drops
-    the filter — so the way out is the same control as the way in."""
-    clicks = HudClicks("portrait")
-    clicks.active_filter = "alpha"
-
-    assert clicks.press(_label_targets("Alpha"), 5, 5, now=0.0) == "portrait_no_filter"
-
-
-def test_clicking_another_label_while_filtered_moves_the_filter():
+def test_pressing_the_lit_filter_button_turns_the_filter_off():
+    """The button is a toggle, as the loop buttons are: it filters to that act, and
+    pressing the lit one drops the filter — so the way out is the same control as
+    the way in."""
     clicks = HudClicks("portrait")
     clicks.active_filter = "alpha"
 
-    assert clicks.press(_label_targets("Gamma"), 5, 5, now=0.0) == "filter_portrait_gamma"
+    assert clicks.press(_filter_targets("Alpha"), 5, 5, now=0.0) == "portrait_no_filter"
+
+
+def test_pressing_another_rows_filter_button_while_filtered_moves_the_filter():
+    clicks = HudClicks("portrait")
+    clicks.active_filter = "alpha"
+
+    assert clicks.press(_filter_targets("Gamma"), 5, 5, now=0.0) == "filter_portrait_gamma"
 
 
 def test_thumbnail_rects_positions_the_map_and_drops_overflow():
@@ -301,26 +303,29 @@ def test_build_click_targets_skips_a_missing_corner():
     assert build_click_targets(None, [], [], None, [], []) == []
 
 
-def test_build_label_targets_maps_the_gutter_rows_to_actions():
-    """Each row's action-name label is a gutter-wide target beside its thumbnail
-    row: the corner's is the current action, the rows below their siblings."""
+def test_filter_button_rects_puts_one_at_the_head_of_each_row():
+    """Each row gets a filter button at the gutter's left edge, as tall as the row
+    and left of its action name: the corner's is the current action, the rows below
+    their siblings.  A row with no act name gets none — nothing to filter to."""
     corner = (60, 50, 30, 54)
-    actions = [(60, 110, 30, 54)]
+    actions = [(60, 110, 30, 54), (60, 170, 30, 54)]
 
-    targets = build_label_targets(
-        corner, actions, gutter_x=10, gutter_w=50,
-        current_action="Alpha", action_labels=["Gamma"],
+    rects = filter_button_rects(
+        corner, actions, gutter_x=10,
+        current_action="Alpha", action_labels=["Gamma", ""],
     )
 
-    assert targets == [((10, 50, 50, 54), "Alpha"), ((10, 110, 50, 54), "Gamma")]
+    assert rects == [((10, 50, FILTER_BTN, 54), "Alpha"), ((10, 110, FILTER_BTN, 54), "Gamma")]
+    assert filter_button_rects(None, [], 10, "", []) == []
 
 
 def test_button_tooltip_names_each_button():
     """Every glyph on the panel is cryptic on purpose, so each one names itself on
     hover — the side's own controls and the favourite mark included."""
     targets = HudTargets(
-        click=[], label=[],
+        click=[],
         loop=[((0, 0, 20, 20), "action"), ((30, 0, 20, 20), "seed")],
+        filter=[((0, 100, FILTER_BTN, 54), "gamma")],
         expand=(30, 30, 18, 18),
         control=control_button_rects(0, 60),
         favorite=(200, 60, CTRL_BTN, CTRL_BTN),
@@ -328,6 +333,7 @@ def test_button_tooltip_names_each_button():
 
     assert button_tooltip(targets, 5, 5) == "Loop this action column"
     assert button_tooltip(targets, 35, 5) == "Loop this seed row"
+    assert button_tooltip(targets, 5, 105) == "Filter to this action"
     assert button_tooltip(targets, 35, 35) == "More seeds — widen the net"
     assert button_tooltip(targets, 5, 65) == "Previous clip"
     assert button_tooltip(targets, CTRL_BTN + MAP_GAP + 5, 65) == "Next clip"
@@ -366,7 +372,7 @@ def test_friendly_action_label_titlecases_and_keeps_acronyms_upper():
 
 
 def _targets(**overrides) -> HudTargets:
-    base = dict(click=[], loop=[], label=[], expand=None)
+    base = dict(click=[], loop=[], filter=[], expand=None)
     base.update(overrides)
     return HudTargets(**base)
 
@@ -434,19 +440,19 @@ def test_clicking_the_expand_button_posts_more_seeds():
     assert clicks.press(_targets(expand=(0, 0, 18, 18)), 5, 5, now=0.0) == "landscape_more_seeds"
 
 
-def test_clicking_an_action_label_filters_to_that_action():
-    """A click on a row's action name posts filter_<side>_<action>, the same
+def test_pressing_a_filter_button_filters_to_its_row_action():
+    """A press on a row's filter button posts filter_<side>_<action>, the same
     command speaking "[side] gamma" would."""
     clicks = HudClicks("portrait")
-    targets = _targets(label=[((0, 0, 50, 20), "Gamma")])
+    targets = _targets(filter=[((0, 0, FILTER_BTN, 20), "Gamma")])
 
     assert clicks.press(targets, 5, 5, now=0.0) == "filter_portrait_gamma"
 
 
-def test_clicking_a_two_word_action_label_slugs_it():
+def test_pressing_the_filter_button_of_a_two_word_action_slugs_it():
     """Multi-word acts carry an underscore in the command, as filter_vocab slugs
     them ("beta gamma" -> beta_gamma)."""
     clicks = HudClicks("landscape")
-    targets = _targets(label=[((0, 0, 50, 20), "Beta Gamma")])
+    targets = _targets(filter=[((0, 0, FILTER_BTN, 20), "Beta Gamma")])
 
     assert clicks.press(targets, 5, 5, now=0.0) == "filter_landscape_beta_gamma"
