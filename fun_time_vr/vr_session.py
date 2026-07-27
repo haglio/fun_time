@@ -270,6 +270,16 @@ class VRSession:
     def session_ready(self) -> bool:
         return self._session_begun
 
+    @property
+    def focused(self) -> bool:
+        """Whether the headset is worn with this app in the foreground.
+
+        FOCUSED is the one state that proves a human is behind the lenses;
+        VISIBLE also holds while the headset sits on a stand presenting to
+        nobody — with its audio endpoint parked (see route_audio's caller).
+        """
+        return self._session_state == xr.SessionState.FOCUSED
+
     def frame_begin(self) -> tuple[bool, int, list[xr.View]]:
         frame_state = xr.wait_frame(self._session, xr.FrameWaitInfo())
         xr.begin_frame(self._session, xr.FrameBeginInfo())
