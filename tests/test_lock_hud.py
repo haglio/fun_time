@@ -12,7 +12,6 @@ from fun_time.lock_hud import (
     locate_cell,
     navigate_cell,
     panel_thumbnails,
-    prewarm_thumbnails,
     prime_group_indexes,
 )
 from fun_time.media_metadata import (
@@ -652,27 +651,6 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     # empty, so a non-empty index proves prime populated it from the real tree.
     index = cached_group_index(sources, paths_supplier=lambda: [], metadata_root=metadata_root, must_contain=None)
     assert index.path_by_key
-
-
-def test_prewarm_thumbnails_covers_every_clip_in_both_libraries(tmp_path: Path):
-    """Every library clip is thumbnailed up front so a clip change never blocks on
-    a first-use frame grab — the source of the multi-second map lag."""
-    portrait, landscape = tmp_path / "portrait", tmp_path / "landscape"
-    portrait.mkdir()
-    landscape.mkdir()
-    (portrait / "a.mp4").write_text("x", encoding="utf-8")
-    (portrait / "b.mp4").write_text("x", encoding="utf-8")
-    (landscape / "c.mp4").write_text("x", encoding="utf-8")
-    cache_dir = tmp_path / "thumbs"
-    warmed: list[tuple[str, object]] = []
-
-    prewarm_thumbnails(
-        (str(portrait), str(landscape)), cache_dir,
-        thumbnailer=lambda path, cache: warmed.append((path, cache)), sleep_fn=lambda _s: None,
-    )
-
-    assert sorted(Path(p).name for p, _cache in warmed) == ["a.mp4", "b.mp4", "c.mp4"]
-    assert all(cache == cache_dir for _p, cache in warmed)
 
 
 def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):

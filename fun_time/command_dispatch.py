@@ -158,6 +158,9 @@ class BridgeConfig:
     dashboard_state_file: Path
     # Where Nau publishes its one-shot notices (a clip jump with nowhere to go).
     nau_notice_file: Path | None = None
+    # Our own interpreter — what the library browser is launched with, since the
+    # bridge process has no Qt event loop to host that window in.
+    python_exe: str = ""
     broker_cmd_file: Path | None = None
     broker_heartbeat_file: Path | None = None
     broker_tray_launcher: Path | None = None

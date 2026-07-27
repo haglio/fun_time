@@ -21,6 +21,7 @@ from fun_time.win32 import (
     activate_window,
     find_window_by_pid,
     minimize_window,
+    window_rect,
     HWND_TOPMOST,
     HWND_NOTOPMOST,
     GWL_EXSTYLE,
@@ -293,3 +294,22 @@ class TestLiveWindowMutationGuard:
         assert is_window_topmost(0xDEAD) is False
 
 
+
+
+class TestWindowRect:
+    """Where a window sits, for a second window that must stand exactly on it."""
+
+    def test_reports_the_windows_position_and_size(self):
+        def fill(_hwnd, rect_ref):
+            rect = rect_ref._obj
+            rect.left, rect.top, rect.right, rect.bottom = 0, 400, 1080, 1920
+            return 1
+
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowRect.side_effect = fill
+            assert window_rect(123) == (0, 400, 1080, 1520)
+
+    def test_reports_nothing_for_a_window_that_is_gone(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowRect.return_value = 0
+            assert window_rect(123) is None

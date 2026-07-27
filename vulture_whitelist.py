@@ -49,7 +49,6 @@ build_mode_switch_plan  # noqa
 hybrid_mode_button  # noqa
 nau_mode_button  # noqa
 hybrid_quarter_button  # noqa
-hybrid_open_file_dialog  # noqa
 hybrid_genau_amp_label  # noqa
 hybrid_genau_amp_up  # noqa
 hybrid_genau_amp_down  # noqa

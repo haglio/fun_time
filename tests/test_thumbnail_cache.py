@@ -8,7 +8,12 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from fun_time.thumbnail_cache import cached_thumbnail, thumbnail_for, thumbnail_path
+from fun_time.thumbnail_cache import (
+    cached_thumbnail,
+    prewarm_thumbnails,
+    thumbnail_for,
+    thumbnail_path,
+)
 
 
 def _make_video(path: Path, *, width: int = 64, height: int = 48, frames: int = 10) -> None:
@@ -96,3 +101,20 @@ def test_cached_thumbnail_returns_the_file_only_when_it_exists(tmp_path: Path):
     dest.write_bytes(b"JPEG")  # as if the prewarm produced it
 
     assert cached_thumbnail(video, cache) == dest
+
+
+def test_prewarming_covers_every_path_it_is_handed(tmp_path: Path):
+    """Stills are extracted up front so a first use never blocks on a frame grab
+    — the source of the multi-second map lag.  Each caller decides *which*
+    videos: a satellite warms every clip in its library, the primary browser
+    warms one per handle, off the cheapest rendition of it."""
+    cache_dir = tmp_path / "thumbs"
+    warmed: list[tuple[str, object]] = []
+
+    prewarm_thumbnails(
+        [r"C:\videos\a.mp4", r"C:\videos\b.mp4", r"C:\videos\c.mp4"], cache_dir,
+        thumbnailer=lambda path, cache: warmed.append((path, cache)), sleep_fn=lambda _s: None,
+    )
+
+    assert [Path(p).name for p, _cache in warmed] == ["a.mp4", "b.mp4", "c.mp4"]
+    assert all(cache == cache_dir for _p, cache in warmed)
