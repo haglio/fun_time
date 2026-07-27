@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fun_time.command_dispatch import _cancel_lock, _discard, _toggle_lock
+from fun_time.media_actions import ensure_in_favs
 from tests.test_command_dispatch import _cmds, _make_config, _make_state, _set_current
 
 
@@ -91,7 +92,7 @@ def test_unlocking_opens_no_rfb_tab(tmp_path: Path):
     assert not any(op.op == "open_rfb_tab" for op in ops)
 
 
-def test_discard_unlocks_removes_from_favs_advances_and_moves_to_weird(tmp_path: Path, caplog):
+def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_weird(tmp_path: Path, caplog):
     config = _make_config(tmp_path)
     _set_current(config, 3, "odd.mp4")
 
@@ -124,3 +125,47 @@ def test_unlocked_discard_trashes_without_unlocking(tmp_path: Path):
     assert state.locked3 is False
     # Nothing to release, so discard is a bare TRASH (drop current, play next).
     assert _cmds(config, 3) == ["TRASH"]
+
+
+def _favorite_clip(tmp_path: Path, config, name: str) -> Path:
+    """A real file on disk that is also a row in the favorites list."""
+    video = tmp_path / "clips" / name
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_bytes(b"video")
+    ensure_in_favs(config.favs_file, str(video))
+    return video
+
+
+def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path, caplog):
+    """Discarding a favorite demotes it instead of condemning it: the row leaves
+    the favs list and the clip leaves the playlist, but the file stays put."""
+    config = _make_config(tmp_path)
+    video = _favorite_clip(tmp_path, config, "kept.mp4")
+    _set_current(config, 3, str(video))
+
+    with caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"):
+        state = _discard(3, _make_state(locked3=False), config)
+
+    assert state.locked3 is False
+    # Still moves on from the clip, so the key does something visible.
+    assert _cmds(config, 3) == ["TRASH"]
+    assert str(video) not in config.favs_file.read_text(encoding="utf-8")
+    assert video.exists()
+    assert list(config.weird_dir.iterdir()) == []
+    assert f"Removed from favorites on player 3: {video}" in caplog.text
+
+
+def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
+    """The demotion is one step only — once a clip is out of the favorites, the
+    next discard is the full condemnation and moves the file out."""
+    config = _make_config(tmp_path)
+    video = _favorite_clip(tmp_path, config, "twice.mp4")
+    _set_current(config, 2, str(video))
+
+    _discard(2, _make_state(locked2=False), config)
+    assert video.exists()
+
+    _discard(2, _make_state(locked2=False), config)
+
+    assert not video.exists()
+    assert [p.name for p in config.weird_dir.iterdir()] == ["twice.mp4"]

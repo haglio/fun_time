@@ -29,7 +29,7 @@ from .media_metadata import (
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
 from .lock_hud import F_MODE_LABEL, cell_path, hud_map_cells, locate_cell, navigate_cell
-from .modes import collect_video_files, write_playlist_file
+from .modes import collect_video_files, is_favorite_path, read_favs_content, write_playlist_file
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .mode_plan import genau_active, nau_displays
@@ -416,12 +416,18 @@ def _discard(
 ) -> BridgeState:
     locked = state.locked2 if which == 2 else state.locked3
     current_path = _satellite_current(config, which)
-    # "Weird" condemns the video the speaker saw.  When the satellite advanced
+    # "Weird" judges the video the speaker saw.  When the satellite advanced
     # while the phrase was being recognized, jump back to the condemned clip
     # before trashing it, so the wrong (innocent) clip is never the one dropped.
     condemned = target_path or current_path
     already_moved_on = bool(target_path) and not _same_video(target_path, current_path)
-    plan = build_lock_plan("discard", which=which, locked=locked, current_path=condemned)
+    # Whether this is a demotion or a condemnation is read from the same favs
+    # file that lights the HUD's ★ for this clip, so the key does what the badge
+    # on screen implies: a starred clip loses the star, an unstarred one goes.
+    is_favorite = is_favorite_path(condemned, read_favs_content(config.favs_file))
+    plan = build_lock_plan(
+        "discard", which=which, locked=locked, current_path=condemned, is_favorite=is_favorite
+    )
     if locked:
         # A locked satellite is repeat-one; drop the lock so TRASH advances into
         # the playlist instead of looping the clip that replaced the discarded one.

@@ -364,7 +364,8 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
 
 def test_portrait_trash_queues_a_trash_verb_and_condemns_the_clip(tmp_path: Path):
     """An unlocked discard queues a bare TRASH (the native player drops the
-    current clip and plays the next) and condemns the clip — favs removal + weird."""
+    current clip and plays the next) and condemns the clip — favs removal +
+    weird, this clip not being a favorite (``test_lock`` covers that branch)."""
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
 
