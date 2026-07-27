@@ -9,10 +9,12 @@ import threading
 
 import pytest
 
+from fun_time import windows_bridge_orchestrator
 from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
+    _CHILD_PID_KEYS,
     _log_nau_obstruction,
     _open_event_log,
     _shutdown_children,
@@ -26,10 +28,14 @@ from fun_time.win32 import StackedWindow
 from fun_time.windows_bridge_dispatch_loop import BridgeState
 from fun_time.windows_bridge_sequencer import StartupResult
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
-from fun_time.startup_progress import (
+from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
+    SHUTDOWN_PROGRESS_FILENAME,
+    NullProgress,
+    PhaseProgress,
     StartupCancelled,
     cancel_file_for,
+    ready_file_for,
 )
 
 
@@ -127,35 +133,60 @@ class TestIdentifyChildren:
         assert children["nau_pid"] == ChildProcess(pid=200, created_at=0)
 
 
+def _recorded_children(**overrides: ChildProcess) -> dict[str, ChildProcess]:
+    """Every child a session records, as teardown expects to be handed them.
+
+    Unnamed ones stand in as pid 0 — the never-launched child, which nothing
+    kills."""
+    children = {key: ChildProcess(pid=0, created_at=0) for key in _CHILD_PID_KEYS}
+    children.update(overrides)
+    return children
+
+
 class TestShutdownChildren:
     def test_closes_rfb_window(self):
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window") as mock_close:
-            _shutdown_children(88888, {})
+            _shutdown_children(88888, _recorded_children(), NullProgress())
 
         mock_close.assert_called_once_with(88888)
 
     def test_skips_rfb_close_when_no_hwnd(self):
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window") as mock_close:
-            _shutdown_children(0, {})
+            _shutdown_children(0, _recorded_children(), NullProgress())
 
         mock_close.assert_called_once_with(0)
 
     def test_kills_the_recorded_children_but_never_a_recycled_pid(self):
-        children = {
-            "nau_pid": ChildProcess(pid=200, created_at=111),
-            "portrait_pid": ChildProcess(pid=300, created_at=222),
-        }
+        children = _recorded_children(
+            nau_pid=ChildProcess(pid=200, created_at=111),
+            portrait_pid=ChildProcess(pid=300, created_at=222),
+        )
         live_creation_times = {200: 111, 300: 999}  # 300 was recycled
         with patch(
             "fun_time.windows_bridge_orchestrator.get_process_creation_time",
             side_effect=live_creation_times.get,
         ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill, \
              patch("fun_time.windows_bridge_orchestrator.close_window"):
-            _shutdown_children(0, children)
+            _shutdown_children(0, children, NullProgress())
 
         mock_kill.assert_called_once_with(200)
+
+    def test_every_recorded_child_belongs_to_a_reported_group(self):
+        """The groups teardown walks are the same list startup records, so a
+        seventh child cannot be launched and pinned yet never killed."""
+        killed: list[int] = []
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            side_effect=lambda pid: pid * 10,
+        ), patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                   side_effect=killed.append):
+            children = identify_children(_fake_startup_result())
+            _shutdown_children(0, children, NullProgress())
+
+        assert sorted(killed) == sorted(child.pid for child in children.values())
 
     def test_the_broker_is_never_a_recorded_child_so_teardown_leaves_it_running(self):
         """A session's teardown taskkills only the children it recorded at
@@ -289,6 +320,9 @@ class TestRunPythonOrchestratedBridge:
             if "loading_screen" in str(cmd):
                 calls.append("launch_loading")
                 return fake_loading_proc
+            if "closing_screen" in str(cmd):
+                calls.append("launch_closing")
+                return fake_loading_proc
             calls.append("launch_ahk")
             return fake_ahk_proc
 
@@ -310,7 +344,7 @@ class TestRunPythonOrchestratedBridge:
                 project_dir=tmp_path,
             )
 
-        assert calls == ["launch_loading", "startup_sequence", "launch_ahk"]
+        assert calls == ["launch_loading", "startup_sequence", "launch_ahk", "launch_closing"]
         assert code == 0
 
         # Should have killed all 6 child processes
@@ -545,6 +579,163 @@ class TestLoadingScreenLifecycle:
         # No loading screen subprocess should have been launched
         loading_cmds = [c for c in popen_calls if "loading_screen" in str(c)]
         assert len(loading_cmds) == 0, "Loading screen launched in integration mode"
+
+
+class TestClosingScreenLifecycle:
+    """The session's windows go out behind a cover, the way they came in behind
+    one: raised before the first kill, dropped after the last."""
+
+    def _run(self, cfg_factory, tmp_path, *, events: list[str], ready: bool = True):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        fake_overlay_proc = MagicMock()
+        fake_overlay_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            if "closing_screen" in str(cmd):
+                events.append("cover_up")
+                if ready:
+                    # What the real closing screen does the moment it is painted.
+                    ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).write_text(
+                        "", encoding="utf-8"
+                    )
+                return fake_overlay_proc
+            if "loading_screen" in str(cmd):
+                return fake_overlay_proc
+            return fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+                   side_effect=lambda pid: pid * 10), \
+             patch("fun_time.windows_bridge_orchestrator.close_window",
+                   side_effect=lambda hwnd: events.append("close_browser")), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                   side_effect=lambda pid: events.append(f"kill:{pid}")):
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=state_dir,
+                project_dir=tmp_path,
+            )
+        return state_dir
+
+    def test_the_cover_is_up_before_the_first_window_goes(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        events: list[str] = []
+
+        self._run(cfg_factory, tmp_path, events=events)
+
+        assert events[0] == "cover_up"
+        assert set(events[1:]) == {
+            "close_browser", "kill:200", "kill:300", "kill:400",
+            "kill:500", "kill:600", "kill:700",
+        }
+
+    def test_nothing_is_killed_until_the_cover_says_it_is_painted(self, cfg_factory, tmp_path, monkeypatch):
+        """A tkinter process needs a moment to boot, and a cover that is not on
+        screen yet hides nothing — so teardown holds until the screen's own
+        ready flag lands, not merely until its process has been spawned."""
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        events: list[str] = []
+        seen_when_killing: list[bool] = []
+
+        real_wait = windows_bridge_orchestrator._wait_for_closing_screen
+
+        def recording_wait(ready_file, proc):
+            real_wait(ready_file, proc)
+            seen_when_killing.append(ready_file.exists())
+
+        with patch.object(windows_bridge_orchestrator, "_wait_for_closing_screen",
+                          side_effect=recording_wait):
+            self._run(cfg_factory, tmp_path, events=events)
+
+        assert seen_when_killing == [True]
+
+    def test_the_cover_comes_down_only_once_everything_is_gone(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        events: list[str] = []
+
+        real_advance = PhaseProgress.advance
+        real_finish = PhaseProgress.finish
+
+        def spy_advance(self, phase):
+            real_advance(self, phase)
+            events.append(f"advance:{phase}")
+
+        def spy_finish(self):
+            real_finish(self)
+            events.append("done")
+
+        with patch.object(PhaseProgress, "advance", spy_advance), \
+             patch.object(PhaseProgress, "finish", spy_finish):
+            state_dir = self._run(cfg_factory, tmp_path, events=events)
+
+        assert events[-1] == "done"
+        assert events.index("advance:browser") < events.index("close_browser")
+        assert events.index("advance:players") < events.index("kill:300")
+        assert events.index("advance:companions") < events.index("kill:500")
+        # Nothing of the shutdown channel is left behind for the next session.
+        assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
+        assert not ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
+
+    def test_no_closing_screen_in_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
+        """An integration run has no eyes on it and no desktop of its own to
+        cover — the same reason it skips the loading screen."""
+        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+        events: list[str] = []
+
+        self._run(cfg_factory, tmp_path, events=events)
+
+        assert "cover_up" not in events
+
+
+class TestWaitForClosingScreen:
+    def test_returns_as_soon_as_the_flag_lands(self, tmp_path):
+        ready_file = tmp_path / "shutdown_ready.flag"
+        ready_file.write_text("", encoding="utf-8")
+        proc = MagicMock()
+        proc.poll.return_value = None
+
+        windows_bridge_orchestrator._wait_for_closing_screen(ready_file, proc)
+
+    def test_stops_waiting_on_a_screen_that_died(self, tmp_path, caplog):
+        """No flag will ever land from a process that has exited, so waiting out
+        the full timeout would only delay a teardown that has to happen anyway."""
+        proc = MagicMock()
+        proc.poll.return_value = 1
+
+        with caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
+            windows_bridge_orchestrator._wait_for_closing_screen(
+                tmp_path / "shutdown_ready.flag", proc
+            )
+
+        assert "ready" in caplog.text
+
+    def test_gives_up_rather_than_wedge_the_teardown(self, tmp_path, caplog, monkeypatch):
+        """A screen that is alive but never reports is worth a flicker, not a
+        session that will not close."""
+        monkeypatch.setattr(
+            windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0.05
+        )
+        proc = MagicMock()
+        proc.poll.return_value = None
+
+        with caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
+            windows_bridge_orchestrator._wait_for_closing_screen(
+                tmp_path / "shutdown_ready.flag", proc
+            )
+
+        assert "anyway" in caplog.text
 
 
 class TestStartupCancellation:

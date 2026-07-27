@@ -18,7 +18,7 @@ from pathlib import Path
 from .config import LayoutConfig
 from .dashboard_runtime import read_nau_status
 from .monitors import enumerate_monitors, get_logical_monitor_rects
-from .startup_progress import NullProgress, ProgressReporter, StartupCancelled
+from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
 from .runtime_flow import write_flag_file
 from .windows_bridge_startup import (
