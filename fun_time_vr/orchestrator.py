@@ -39,8 +39,7 @@ from fun_time.modes import (
     SatelliteLibraryContext,
     build_fmode_playlists,
     build_playlist_file_path,
-    build_primary_playlist_paths,
-    write_nau_playlist_file,
+    build_primary_playlist,
 )
 from fun_time.orchestrator import (
     ensure_broker_running,
@@ -109,13 +108,12 @@ def primary_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> boo
     A desktop session's primary playlist never does — it was built from the 2D
     library alone — and resuming it into a VR session gives a headset nothing
     but flat screens until something rebuilds.  That is exactly what the first
-    headset run got, so the VR session asks this before honoring a resume.
+    headset run got, so the VR session asks this before honoring a resume.  A
+    missing playlist reads as empty, and so as holding none.
     """
-    try:
-        entries = read_playlist(playlist_file)
-    except OSError:
-        return False
-    return any(is_vr_video(video, vr_dirs) for video, _funscript in entries)
+    return any(
+        is_vr_video(video, vr_dirs) for video, _funscript in read_playlist(playlist_file)
+    )
 
 
 def build_vr_manifest(config) -> dict[str, dict[str, str]]:
@@ -243,10 +241,7 @@ def run_vr_bridge(config, logger_) -> int:
         # Resumed from a desktop session, whose primary playlist is 2D only:
         # keep the satellites where they were, but rebuild the primary from the
         # VR-merged sources so a headset session actually gets VR videos.
-        write_nau_playlist_file(
-            nau_playlist,
-            build_primary_playlist_paths(manifest["media"]["nau_library_sources"], False),
-        )
+        build_primary_playlist(nau_playlist, manifest["media"]["nau_library_sources"])
         logger_.info("Resumed playlists; rebuilt the primary's, which held no VR video")
     logger_.info(
         "Resumed last session's playlists" if resumed else "Nothing to resume; built fresh playlists"

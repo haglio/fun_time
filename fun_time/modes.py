@@ -27,14 +27,19 @@ def is_supported_video_path(path: str) -> bool:
     return Path(path).suffix.lower() in {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
 
 
+def source_roots(source_spec: str) -> list[Path]:
+    """The dirs (and single files) a pipe-joined source spec names, in order.
+
+    The one reader of the spec's shape, so a caller that needs only to know
+    WHERE a library is does not have to walk every file in it to find out.
+    """
+    return [Path(part.strip()) for part in source_spec.split("|") if part.strip()]
+
+
 def collect_video_files(source_spec: str) -> list[str]:
     files: list[str] = []
     seen: set[str] = set()
-    for source_part in source_spec.split("|"):
-        root = source_part.strip()
-        if not root:
-            continue
-        root_path = Path(root)
+    for root_path in source_roots(source_spec):
         if root_path.is_dir():
             for candidate in root_path.rglob("*"):
                 if not candidate.is_file() or not is_supported_video_path(str(candidate)):
@@ -347,6 +352,17 @@ def build_satellite_playlists(
         state_dir=state_dir, f_mode=f_mode, recent=landscape_recent,
         filter_query=landscape_filter, rng=rng, library=library,
     )
+
+
+def build_primary_playlist(playlist_file: Path, primary_sources: str) -> None:
+    """Build and write the primary player's playlist alone, with F-mode off.
+
+    The one-player counterpart to :func:`build_fmode_playlists`, for a startup
+    that keeps the satellites' resumed playlists and needs only the primary's
+    rebuilt — the satellites' library is the same whichever app is running,
+    while the primary's is what the two apps disagree about.
+    """
+    write_nau_playlist_file(playlist_file, build_primary_playlist_paths(primary_sources, False))
 
 
 def build_fmode_playlists(
