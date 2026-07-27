@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # Overlay id, distinct from any other the satellite composites.
 HUD_OVERLAY_ID = 10
 
-_EMPTY_TARGETS = HudTargets(click=[], loop=[], label=[], expand=None)
+_EMPTY_TARGETS = HudTargets(click=[], loop=[], filter=[], expand=None)
 
 
 class HudOverlay:

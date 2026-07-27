@@ -145,7 +145,7 @@ def test_a_wrapped_status_pushes_the_map_down_instead_of_overdrawing_it(thumb):
 
 
 def test_render_exposes_the_controls_it_drew(thumb):
-    """Every drawn thumbnail, loop button and action label comes back as a hit
+    """Every drawn thumbnail, loop button and filter button comes back as a hit
     target, so what is clickable is exactly what is visible."""
     rendered = HudRenderer("portrait").render(
         _model(corner=HudCell(path="c.mp4", thumb=thumb),
@@ -156,7 +156,7 @@ def test_render_exposes_the_controls_it_drew(thumb):
 
     assert [path for _rect, path in rendered.targets.click] == ["c.mp4", "s1.mp4", "a1.mp4"]
     assert sorted(kind for _rect, kind in rendered.targets.loop) == ["action", "seed"]
-    assert [name for _rect, name in rendered.targets.label] == ["alpha", "gamma"]
+    assert [name for _rect, name in rendered.targets.filter] == ["alpha", "gamma"]
     assert rendered.targets.expand is not None
 
 
@@ -372,8 +372,8 @@ def test_the_map_prints_how_big_each_axis_is(thumb):
 
 def test_the_filtered_actions_label_is_lit(thumb):
     """A filter shows on the map, on the row it holds you to — so which act you are
-    filtered to is readable where you would act on it, and the lit label is the
-    control that lifts it."""
+    filtered to is readable where you would act on it, beside the lit button that
+    lifts it."""
     renderer = HudRenderer("portrait")
 
     def gutter_ink(filter_query: str) -> int:
@@ -390,6 +390,55 @@ def test_the_filtered_actions_label_is_lit(thumb):
     assert gutter_ink("alpha") > 0
     assert gutter_ink("") == 0
     assert gutter_ink("gamma") == 0  # …that row's label lights, not this one
+
+
+def test_the_filter_button_lights_on_the_act_the_side_is_filtered_to(thumb):
+    """The filter button is the loop buttons' twin — green while its act is the one
+    the side is held to, so the control that lifts a filter is the lit one that set
+    it, and a filter set any other way still shows on the row it holds you to."""
+    renderer = HudRenderer("portrait")
+
+    def green_ink(filter_query: str) -> int:
+        rendered = renderer.render(_model(
+            corner=HudCell(path="c.mp4", thumb=thumb),
+            actions=(HudCell(path="a1.mp4", thumb=thumb, label="gamma"),),
+            current_action="alpha", filter_query=filter_query,
+        ))
+        x, y, w, h = dict((name, rect) for rect, name in rendered.targets.filter)["alpha"]
+        rgb = _rgb(rendered.bgra)[y:y + h, x:x + w].astype(int)
+        return int(((rgb[:, :, 1] > 100) & (rgb[:, :, 0] < 100) & (rgb[:, :, 2] < 100)).sum())
+
+    assert green_ink("alpha") > 0
+    assert green_ink("") == 0
+    assert green_ink("gamma") == 0  # …that row's button lights, not this one
+
+
+def test_the_filter_button_carries_a_funnel_and_not_an_empty_box(thumb):
+    """The funnel is drawn rather than typed — no face on the machine carries one —
+    so what has to hold is that there is a mark inside the button's border at all:
+    an empty box says nothing about what the button does."""
+    rendered = HudRenderer("portrait").render(
+        _model(corner=HudCell(path="c.mp4", thumb=thumb), current_action="alpha"))
+
+    x, y, w, h = dict((name, rect) for rect, name in rendered.targets.filter)["alpha"]
+    # Inside the rounded border, so the box itself can't be what is counted.
+    inside = _rgb(rendered.bgra)[y + 3:y + h - 3, x + 3:x + w - 3]
+    assert (inside > 80).all(axis=2).sum() > 0
+
+
+def test_a_long_action_name_is_never_drawn_over_its_filter_button(thumb):
+    """The gutter holds the button and the name beside it, so the name is sized into
+    what is left rather than reaching back across the button — which would stamp a
+    funnel through the middle of the word."""
+    renderer = HudRenderer("portrait")
+
+    def button_pixels(action: str) -> np.ndarray:
+        rendered = renderer.render(
+            _model(corner=HudCell(path="c.mp4", thumb=thumb), current_action=action))
+        x, y, w, h = dict((name, rect) for rect, name in rendered.targets.filter)[action]
+        return _rgb(rendered.bgra)[y:y + h, x:x + w]
+
+    assert np.array_equal(button_pixels("motion"), button_pixels("iota"))
 
 
 def test_gutter_width_fits_the_acts_present():
