@@ -36,6 +36,7 @@ from .hud import (
     COL_LABEL_H,
     CTRL_BAND_H,
     ELLIPSIS_ROOM,
+    FILTER_ROOM,
     LOOP_BTN,
     MAP_GAP,
     MAP_THUMB_H,
@@ -54,11 +55,11 @@ from .hud import (
     Rect,
     action_label_blocks,
     build_click_targets,
-    build_label_targets,
     control_button_rects,
     ellipsis_rects,
     expand_button_rect,
     favorite_mark_rect,
+    filter_button_rects,
     friendly_action_label,
     label_is_filtered,
     loop_button_rects,
@@ -95,12 +96,22 @@ _EXPAND_GLYPH = "↔"
 _CONTROL_GLYPHS = {"prev": "⏮", "next": "⏭", "lock": "🔒", "trash": "🗑"}
 _FAVORITE_GLYPH = "★"
 
+# The filter mark, drawn rather than typed: Segoe UI Symbol — the face the other
+# buttons take their icons from — carries no funnel at any codepoint, and this is
+# the one button whose shape *is* its meaning, so a ".notdef" box would say
+# nothing at all.  A mouth _FUNNEL_W wide narrowing to a stem, sized like the
+# glyphs beside it.
+_FUNNEL_W = 9
+_FUNNEL_H = 9
+_FUNNEL_NECK = 3  # width of the stem the mouth narrows to
+
 
 def gutter_width_for(font: ImageFont.FreeTypeFont, current_action: str,
                      action_labels: tuple[str, ...], *, min_width: int = 0) -> int:
     """Size the row-label gutter to the actions actually present — wide enough for
-    the widest word, no wider — so a map of short acts doesn't carry a big empty
-    gutter, and a long one ("Delta") still fits without splitting.
+    the widest word and the row's filter button, no wider — so a map of short acts
+    doesn't carry a big empty gutter, and a long one ("Delta") still fits without
+    splitting.
 
     *min_width* is a floor the caller needs regardless of the acts: the axis counts
     printed in the corner above the gutter have to fit in it too.
@@ -111,7 +122,8 @@ def gutter_width_for(font: ImageFont.FreeTypeFont, current_action: str,
         for word in friendly_action_label(label).split("\n")
     ]
     widest = max((text_width(font, word) for word in words), default=0)
-    return min(max(widest + 2 * MAP_GAP, MIN_GUTTER, min_width), MAX_GUTTER)
+    label_w = max(widest + 2 * MAP_GAP, MIN_GUTTER)
+    return min(max(label_w + FILTER_ROOM, min_width), MAX_GUTTER)
 
 
 @dataclass(frozen=True)
@@ -223,7 +235,7 @@ class HudRenderer:
 
         if model.corner is None:
             return RenderedHud(panel.to_bgra(),
-                               HudTargets(click=[], loop=[], label=[], expand=None,
+                               HudTargets(click=[], loop=[], filter=[], expand=None,
                                           control=controls, favorite=favorite))
 
         # Sized from the whole model, before any windowing, so the gutter does not
@@ -270,6 +282,10 @@ class HudRenderer:
         self._draw_labels(image, draw, model, x, y, gutter_w,
                           corner_rect, seed_rects, action_rects,
                           seed_offset=seed_win.start if seed_win else 0)
+        filter_rects = filter_button_rects(corner_rect, action_rects, x,
+                                           model.current_action,
+                                           [cell.label for cell in model.actions])
+        self._draw_filter_buttons(draw, filter_rects, model.filter_query)
 
         loop_action_rect, loop_seed_rect = loop_button_rects(
             corner_rect, seed_rects, action_rects, right, bottom,
@@ -292,9 +308,7 @@ class HudRenderer:
             loop=[(button, kind)
                   for kind, button in (("action", loop_action_rect), ("seed", loop_seed_rect))
                   if button is not None],
-            label=build_label_targets(corner_rect, action_rects, PAD, gutter_w - MAP_GAP,
-                                      model.current_action,
-                                      [cell.label for cell in model.actions]),
+            filter=filter_rects,
             expand=expand_rect,
             control=controls,
             favorite=favorite,
@@ -428,8 +442,8 @@ class HudRenderer:
             # One block of tight word-lines per act, with a bigger gap between
             # acts, so a two-word act ("Motion" / "Bounce") wraps close but two acts
             # ("Alpha" then "Theta Motion") are clearly separated.  The act the
-            # side is filtered to is drawn lit, since its label is also the control
-            # that lifts that filter.
+            # side is filtered to is drawn lit, matching the lit filter button at
+            # the head of its row.
             colour = TEXT_PRIMARY if label_is_filtered(text, model.filter_query) else TEXT_MUTED
             ascent, descent = self._row.getmetrics()
             line_h = ascent + descent - 4
@@ -453,15 +467,13 @@ class HudRenderer:
         for i, (_ax, ay, _aw, ah) in enumerate(action_rects):
             row(ay, ah, model.actions[i].label if i < len(model.actions) else "")
 
-    def _glyph_button(self, draw, rect: Rect, glyph: str, *, on: bool = False) -> None:
-        """One of the panel's square glyph buttons — the single button shape every
-        control on this HUD is drawn with, so a new one cannot invent its own look.
+    def _button_box(self, draw, rect: Rect, *, on: bool) -> tuple[int, int, int, int]:
+        """The panel's square button, and the color to draw its mark in — the
+        single button shape every control on this HUD is drawn with, so a new one
+        cannot invent its own look.
 
         Off it is an outline in the muted grey the rest of the chrome uses; on it
-        fills green and the glyph reverses out of it.  The glyph is centred on its
-        own ink: the padlock, the bin and the transport arrows all sit high in a
-        box that runs to the descender, so the font's own centring dropped every
-        one of them toward the bottom of its button.
+        fills green and the mark reverses out of it.
         """
         bx, by, bw, bh = rect
         draw.rounded_rectangle(
@@ -469,8 +481,31 @@ class HudRenderer:
             fill=(*GREEN, 255) if on else None,
             outline=(*(GREEN if on else TEXT_MUTED), 255), width=1,
         )
-        draw_glyph(draw, bx + bw / 2, by + bh / 2, glyph, self._glyph,
-                   (*(BG_PRIMARY if on else TEXT_MUTED), 255))
+        return (*(BG_PRIMARY if on else TEXT_MUTED), 255)
+
+    def _glyph_button(self, draw, rect: Rect, glyph: str, *, on: bool = False) -> None:
+        """One of the panel's square buttons with a font glyph on it.
+
+        The glyph is centred on its own ink: the padlock, the bin and the transport
+        arrows all sit high in a box that runs to the descender, so the font's own
+        centring dropped every one of them toward the bottom of its button.
+        """
+        ink = self._button_box(draw, rect, on=on)
+        bx, by, bw, bh = rect
+        draw_glyph(draw, bx + bw / 2, by + bh / 2, glyph, self._glyph, ink)
+
+    def _filter_button(self, draw, rect: Rect, *, on: bool = False) -> None:
+        """The same square button with a funnel drawn on it, for the act filter."""
+        ink = self._button_box(draw, rect, on=on)
+        bx, by, bw, bh = rect
+        cx, cy = bx + bw / 2, by + bh / 2
+        mouth, neck = _FUNNEL_W / 2, _FUNNEL_NECK / 2
+        top, bottom = cy - _FUNNEL_H / 2, cy + _FUNNEL_H / 2
+        draw.polygon(
+            [(cx - mouth, top), (cx + mouth, top), (cx + neck, cy), (cx + neck, bottom),
+             (cx - neck, bottom), (cx - neck, cy)],
+            fill=ink,
+        )
 
     def _draw_controls(self, draw, controls: list[tuple[Rect, str]], favorite: Rect,
                        model: HudModel) -> None:
@@ -487,6 +522,18 @@ class HudRenderer:
         fx, fy, fw, fh = favorite
         draw.text((fx + fw / 2, fy + fh / 2), _FAVORITE_GLYPH, font=self._glyph, anchor="mm",
                   fill=(*(GREEN if model.is_favorite else TEXT_MUTED), 255))
+
+    def _draw_filter_buttons(self, draw, rects: list[tuple[Rect, str]],
+                             filter_query: str) -> None:
+        """The filter button at the head of each row, lit on the act the side is
+        filtered to.
+
+        It lights off the published filter, exactly as the loop buttons light off
+        the published loop — so a filter set any other way (spoken, or from the
+        other side's map) shows here too, and pressing the lit one lifts it.
+        """
+        for rect, name in rects:
+            self._filter_button(draw, rect, on=label_is_filtered(name, filter_query))
 
     def _draw_loop_controls(self, draw, corner_rect, loop_action_rect, loop_seed_rect,
                             seed_rects, action_rects, active_loop, hover_loop) -> None:
