@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.session_resume import resume_playlists
+from fun_time.session_resume import playlist_fits_sources, resume_playlists
 
 
 def _clips(tmp_path: Path, *names: str) -> list[str]:
@@ -95,3 +95,68 @@ class TestResumePlaylists:
         assert resume_playlists([(playlist, b)]) is True
 
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, a]
+
+
+class TestPlaylistFitsSources:
+    """Telling a playlist this session built from one another app left behind.
+
+    FunTimeVR shares this state dir and writes the primary's playlist to the
+    same file, built from the VR library merged with the desktop's — so the
+    desktop session has to recognize that file rather than resume it.
+    """
+
+    def test_a_playlist_from_the_session_s_own_library_fits(self, tmp_path: Path):
+        library = tmp_path / "library" / "2D"
+        library.mkdir(parents=True)
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [
+            str(library / "scene one.mp4"),
+            str(library / "deeper" / "scene two.mp4"),
+        ])
+
+        assert playlist_fits_sources(playlist, str(library)) is True
+
+    def test_one_video_from_another_library_is_enough_not_to_fit(self, tmp_path: Path):
+        library = tmp_path / "library" / "2D"
+        elsewhere = tmp_path / "library" / "VR" / "finished"
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [
+            str(library / "scene one.mp4"),
+            f"{elsewhere / 'headset scene.mp4'}\t{tmp_path / 'headset scene.funscript'}",
+        ])
+
+        assert playlist_fits_sources(playlist, str(library)) is False
+
+    def test_every_dir_of_a_multi_dir_spec_counts(self, tmp_path: Path):
+        """The primary's spec is pipe-joined, and a video from any of its dirs
+        is this session's own."""
+        first = tmp_path / "library" / "one"
+        second = tmp_path / "library" / "two"
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [str(first / "scene one.mp4"), str(second / "scene two.mp4")])
+
+        assert playlist_fits_sources(playlist, f"{first}|{second}") is True
+
+    def test_a_sibling_dir_whose_name_merely_starts_the_same_is_outside(self, tmp_path: Path):
+        """``.../library`` must not swallow ``.../library_vr`` beside it —
+        matching on the raw string prefix is what would."""
+        library = tmp_path / "library"
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [str(tmp_path / "library_vr" / "headset scene.mp4")])
+
+        assert playlist_fits_sources(playlist, str(library)) is False
+
+    def test_case_alone_never_makes_a_video_foreign(self, tmp_path: Path):
+        """Windows hands the same folder back in either case, and the config and
+        a player's playlist need not agree — a rebuild on that would throw away
+        a good resume every launch."""
+        library = tmp_path / "Library" / "2D"
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [str(tmp_path / "library" / "2d" / "scene one.mp4")])
+
+        assert playlist_fits_sources(playlist, str(library)) is True
+
+    def test_a_missing_playlist_holds_nothing_foreign(self, tmp_path: Path):
+        """Having no session to come back to is the resume's own answer, and it
+        must not read as a playlist needing a rebuild."""
+        assert playlist_fits_sources(tmp_path / "absent.tsv", str(tmp_path)) is True

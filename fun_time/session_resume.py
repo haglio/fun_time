@@ -21,10 +21,45 @@ from typing import Sequence
 from player_core.playlist import read_playlist
 
 from .media_metadata import normalize_path_key
-from .modes import write_playlist_entries
+from .modes import source_roots, write_playlist_entries
 
 
 PlaylistEntries = list[tuple[Path, Path | None]]
+
+
+def playlist_fits_sources(playlist_file: Path, sources: str) -> bool:
+    """Whether every video in *playlist_file* comes from *sources*.
+
+    A playlist is only ever built from the source spec of the session that
+    built it, so an entry from outside this session's spec means the file was
+    left by a DIFFERENT app sharing this state dir — today FunTimeVR, whose
+    primary rotation merges the VR library into this one's.  Resuming that is
+    how VR videos reached the desktop app's primary player, which must never
+    play them, so the caller rebuilds rather than resumes.
+
+    An unreadable or missing playlist reads as empty, and so fits vacuously:
+    there is nothing foreign in it, and having nothing to resume at all is the
+    caller's own separate answer.
+    """
+    roots = source_roots(sources)
+    return all(
+        any(_is_within(video, root) for root in roots)
+        for video, _funscript in read_playlist(playlist_file)
+    )
+
+
+def _is_within(video: Path, root: Path) -> bool:
+    """Whether *video* is *root* itself or sits somewhere beneath it.
+
+    Compared component by component, on the same normalized key the rest of the
+    app matches paths by: a library dir and the playlist naming a file in it
+    can differ in case and in separator on Windows, and neither difference is a
+    different library.  Matching on components also keeps a sibling dir whose
+    name merely starts the same — ``.../VR_old`` beside ``.../VR`` — outside.
+    """
+    root_parts = [normalize_path_key(part) for part in root.parts]
+    video_parts = [normalize_path_key(part) for part in video.parts]
+    return video_parts[: len(root_parts)] == root_parts
 
 
 def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
