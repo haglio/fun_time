@@ -139,6 +139,10 @@ t::QueueCommand("nau_toggle_length")
 ; MKX200 / 360), remembered per video.  Desktop Nau ignores the verb.
 p::QueueCommand("projection_cycle")
 
+; FunTimeVR: re-zero the scene onto wherever the headset is facing now (the
+; runtime's own recenter menu doesn't reach this app).  Desktop Nau ignores it.
+z::QueueCommand("recenter_view")
+
 ; Genau direct control hotkeys.  Each pair reads left-down / right-up: 7/9 sit
 ; above u/o for amplitude, the way u/o and j/l already work for centre and speed.
 7::QueueCommand("genau_amplitude_down")

@@ -73,6 +73,10 @@ class PrimaryRole:
         # un-silence it before then.  Reported muted meanwhile, which is what
         # the console draws and what unmuting returns to.
         self.audio_live = False
+        # Level-set by RECENTER and drained by the host each frame: the role
+        # only carries the request, because re-zeroing the scene onto the
+        # current head pose is the host's to do — no player state moves.
+        self._recenter_requested = False
         self._load(0)
 
     # ------------------------------------------------------------------ state
@@ -146,6 +150,8 @@ class PrimaryRole:
             self._reload_playlist()
         elif keyword == "CYCLE_PROJECTION":
             self._cycle_projection()
+        elif keyword == "RECENTER":
+            self._recenter_requested = True
         elif keyword == "SET_TCODE_ENABLED" and arg:
             self._tcode_enabled = arg.strip() != "0"
         elif keyword == "SET_HYBRID":
@@ -179,6 +185,12 @@ class PrimaryRole:
             )
         else:
             self._driver.park(now=now)
+
+    def take_recenter(self) -> bool:
+        """Whether a RECENTER arrived since last asked (consumes the request)."""
+        taken = self._recenter_requested
+        self._recenter_requested = False
+        return taken
 
     def status_fields(self) -> dict[str, str]:
         """Nau's own status contract, so the dispatch loop's parser, the hybrid

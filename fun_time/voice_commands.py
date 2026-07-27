@@ -93,6 +93,9 @@ VOICE_COMMANDS: dict[str, str] = {
     # FunTimeVR: walk the primary video's projection (flat / 180 / fisheye /
     # MKX200 / 360); the pick is remembered per video in its sidecar.
     "projection": "projection_cycle",
+    # FunTimeVR: re-zero the scene onto wherever the headset is facing now —
+    # the in-app recenter, since the runtime's own menu doesn't reach the app.
+    "recenter": "recenter_view",
     "browse": "open_file_dialog",
     "clip": "clipper_save",
     "save clip": "clipper_save",

@@ -97,6 +97,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("projection_cycle",),
             ),
             _Row(
+                "Recenter the VR scene onto wherever the headset faces now "
+                "(FunTimeVR)",
+                ("Z",),
+                ("recenter_view",),
+            ),
+            _Row(
                 "Set video speed (0.25×–2×; the funscript follows)",
                 (),
                 (
