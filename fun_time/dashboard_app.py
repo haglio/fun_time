@@ -25,7 +25,7 @@ from shared_ui.colors import (
 from shared_ui.fonts import FONT_SYMBOL, FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
 
 from fun_time.config import LayoutConfig
-from fun_time.startup_progress import loading_screen_active
+from fun_time.overlay_progress import loading_screen_active
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.win32 import is_window_topmost, set_always_on_top
 from fun_time.dashboard_actions import (
