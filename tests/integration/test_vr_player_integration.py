@@ -189,6 +189,34 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             timeout=20, desc="NEXT to advance the primary",
         )
 
+        # Clip transitions must not stall the frame loop.  Cold-load the
+        # landscape satellite repeatedly — explicit navigation, the harsher
+        # path than prefetched rollover — while frames keep pace.  Before
+        # video_dims stopped querying mpv's core (which a file being opened
+        # holds locked), each transition blocked the render thread for
+        # hundreds of milliseconds and every screen in the scene hitched.
+        transition_ms: list[float] = []
+        for _ in range(4):
+            append_command(Path(commands["landscape_cmd_file"]), "NEXT")
+            for _ in range(60):
+                started = time.perf_counter()
+                for unit in units:
+                    unit.render_latest_frame()
+                glfw.poll_events()
+                elapsed = time.perf_counter() - started
+                transition_ms.append(elapsed * 1e3)
+                time.sleep(max(0.0, period - elapsed))
+        transition_ms.sort()
+        transition_median = transition_ms[len(transition_ms) // 2]
+        assert transition_median < FRAME_BUDGET_MS, (
+            f"frame loop median {transition_median:.1f}ms during clip transitions "
+            f"blows the {FRAME_BUDGET_MS:.1f}ms budget"
+        )
+        assert transition_ms[-1] < 150.0, (
+            f"a clip transition stalled the frame loop {transition_ms[-1]:.0f}ms — "
+            "an mpv core query is back on the render thread"
+        )
+
         # The paused flag freezes a satellite where it stands.
         Path(commands["portrait_paused_file"]).write_text("1", encoding="utf-8")
         _wait(
