@@ -502,6 +502,11 @@ def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
     tcode_port = _sink_udp_port()
     genau_config["genau"]["tcode_udp_port"] = tcode_port
     genau_config["nau"]["tcode_udp_port"] = tcode_port
+    # The VR primary streams to the same broker inlet through fun_time's own
+    # config (``vr.tcode_udp_port``), so it moves onto the run's sink with
+    # them — set even when the section is absent, so a config written before
+    # FunTimeVR existed still cannot fall back to the production default.
+    config.setdefault("vr", {})["tcode_udp_port"] = tcode_port
 
 
 def real_config_path() -> Path:
