@@ -19,13 +19,21 @@ import pytest
 from PyQt6.QtGui import QCloseEvent
 
 from fun_time import load_config
+from fun_time.dashboard_actions import HELP_REFERENCE
 from fun_time.dashboard_app import (
+    REFERENCE_WINDOW_TITLE,
     DashboardLaunchGeometry,
     build_dashboard_window,
     load_dashboard_app_config,
 )
+from fun_time.dashboard_runtime import (
+    DashboardPanelSnapshot,
+    DashboardSnapshot,
+    DashboardWindowSnapshot,
+)
 from fun_time.event_log import NOTICE, event_log_path, notice
 from fun_time.manifest import write_windows_bridge_manifest
+from fun_time.win32 import find_window_by_title, is_window_topmost
 from fun_time.window_layout import MonitorRect, compute_window_layout
 
 
@@ -191,6 +199,65 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
         assert overlay.text() == "No other seeds"
         assert level_color(logging.ERROR).name() in overlay.styleSheet()
         assert level_color(NOTICE).name() != level_color(logging.ERROR).name()
+    finally:
+        window.close()
+
+
+def _omnipause_snapshot(*, omni_paused: bool) -> DashboardSnapshot:
+    """The state file's snapshot, as the dashboard's refresh reads it."""
+    return DashboardSnapshot(
+        f_mode_enabled=False,
+        primary_mode="nau",
+        osr2_mode="controlled",
+        omni_paused=omni_paused,
+        primary=DashboardPanelSnapshot(path=""),
+        portrait=DashboardPanelSnapshot(path=""),
+        landscape=DashboardPanelSnapshot(path=""),
+        window=DashboardWindowSnapshot(x=0, y=0, width=0, height=0),
+    )
+
+
+def test_omnipause_drops_the_reference_popup_from_the_topmost_band(cfg_path: Path):
+    """The hotkeys & voice reference must free the desktop with everything else.
+
+    It is a top-level window of its own — not one of the bridge's managed roles
+    the orchestrator can drop, and not a child riding the dashboard's band — so
+    nothing took it out of WS_EX_TOPMOST and it stayed pinned over the desktop
+    for the whole pause.  Read off the real HWND: only the native platform gives
+    the popup a top-level window whose ex-style means anything.
+    """
+    window, _state_dir = _build_merged_dashboard(cfg_path)
+    try:
+        window._on_action(HELP_REFERENCE)  # the ? button's own path
+        dialog = window._reference_dialog
+        assert dialog is not None
+        hwnd = int(dialog.winId())
+        # The window we are banding is the one the user sees by name.
+        assert find_window_by_title(REFERENCE_WINDOW_TITLE, exact=True) == hwnd
+        # It floats over the players while the desktop is live.
+        assert is_window_topmost(hwnd), "the popup should open topmost"
+
+        window._do_render(_omnipause_snapshot(omni_paused=True), frozenset())
+        assert not is_window_topmost(hwnd), "OmniPause must free the desktop of it"
+
+        window._do_render(_omnipause_snapshot(omni_paused=False), frozenset())
+        assert is_window_topmost(hwnd), "leaving OmniPause floats it back on top"
+    finally:
+        window.close()
+
+
+def test_the_reference_popup_opens_non_topmost_under_omnipause(cfg_path: Path):
+    """Qt applies StaysOnTop as the popup is shown, so opening it mid-pause would
+    strand it over the freed desktop until the next refresh corrected it — it is
+    banded at open time instead, off the last snapshot."""
+    window, _state_dir = _build_merged_dashboard(cfg_path)
+    try:
+        window._do_render(_omnipause_snapshot(omni_paused=True), frozenset())
+
+        window._on_action(HELP_REFERENCE)
+        dialog = window._reference_dialog
+        assert dialog is not None
+        assert not is_window_topmost(int(dialog.winId()))
     finally:
         window.close()
 

@@ -469,6 +469,98 @@ def test_do_render_syncs_own_topmost_from_snapshot(cfg_path: Path):
         window.close()
 
 
+def test_reference_dialog_syncs_topmost_with_omnipause():
+    """The reference popup is its own top-level window — not a MANAGED_ROLE the
+    orchestrator can drop, and not a child riding the dashboard's band — so it
+    corrects its OWN band: out of topmost while paused, back on top after,
+    drift-corrected so it never issues a redundant SetWindowPos."""
+    from fun_time.dashboard_app import ReferenceDialog
+
+    dialog = ReferenceDialog()
+    try:
+        hwnd = int(dialog.winId())
+
+        # Entering OmniPause while topmost drops the popup out of the band.
+        with patch("fun_time.dashboard_app.is_window_topmost", return_value=True), \
+             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+            dialog.sync_topmost(omni_paused=True)
+        mock_set.assert_called_once_with(hwnd, False)
+
+        # Leaving OmniPause while non-topmost floats it back on top.
+        with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
+             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+            dialog.sync_topmost(omni_paused=False)
+        mock_set.assert_called_once_with(hwnd, True)
+
+        # Already in the desired band → no redundant SetWindowPos (no flicker).
+        with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
+             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+            dialog.sync_topmost(omni_paused=True)
+        mock_set.assert_not_called()
+    finally:
+        dialog.close()
+
+
+def test_do_render_syncs_reference_topmost_from_snapshot(cfg_path: Path):
+    """Every render drives the popup's band off the same snapshot the dashboard's
+    own band comes from, so a pause entered while it is open drops it too."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config)
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        with patch.object(window, "_sync_reference_topmost") as mock_sync:
+            window._do_render(_snapshot(omni_paused=True), frozenset())
+        mock_sync.assert_called_once_with(True)
+    finally:
+        window.close()
+
+
+def test_sync_reference_topmost_is_a_noop_with_no_popup(cfg_path: Path):
+    """The popup only exists once it has been opened; before that there is no
+    window to band, and the sync must not reach for one."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config)
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        assert window._reference_dialog is None
+        with patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+            window._sync_reference_topmost(omni_paused=True)
+        mock_set.assert_not_called()
+    finally:
+        window.close()
+
+
+def test_opening_the_reference_under_omnipause_lands_it_non_topmost(cfg_path: Path):
+    """Qt applies StaysOnTop on show, so opening the popup mid-pause would
+    strand it over the freed desktop until the next refresh — it is banded at
+    open time instead, from the last snapshot's omni_paused."""
+    from unittest.mock import MagicMock
+
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config)
+    app_config = load_dashboard_app_config(manifest_path)
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+
+    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+
+    try:
+        window._last_snapshot = _snapshot(omni_paused=True)
+        dialog = MagicMock()
+        with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
+            window._show_reference_dialog()
+        dialog.sync_topmost.assert_called_once_with(True)
+    finally:
+        window.close()
+
+
 def test_help_action_opens_dialog_locally_without_routing_command(cfg_path: Path):
     """Help is a pure UI concern — it opens a dialog and must not write a dispatch command."""
     from unittest.mock import MagicMock
