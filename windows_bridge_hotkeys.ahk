@@ -1,5 +1,10 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+; A persistent script gets a tray icon unless this directive says otherwise, and
+; nothing here needs one: Ctrl+Alt+Q and closing the dashboard both end the
+; session, and the bridge log is a file on disk. Persistent below is what keeps
+; the process alive — the icon never was.
+#NoTrayIcon
 Persistent
 DetectHiddenWindows False
 SetTitleMatchMode 2
@@ -23,24 +28,12 @@ PIDS_FILE_PATH := A_Args[2]
 
 ; Read only the values that the hotkey script needs.
 DASHBOARD_CMD_FILE := RequireManifestValue("commands", "dashboard_cmd_file")
-PROJECT_DIR := RequireManifestValue("runtime", "project_dir")
 WINDOWS_BRIDGE_LOG_FILE := RequireManifestValue("runtime", "windows_bridge_log_file")
 STATE_DIR := GetParentDir(WINDOWS_BRIDGE_LOG_FILE)
-ICON_PATH := PROJECT_DIR . "\icon.ico"
 
 AHK_CMD_FILE := STATE_DIR . "\ahk_cmd.txt"
 
 ; --- Setup ---
-
-if FileExist(ICON_PATH)
-    TraySetIcon(ICON_PATH)
-
-A_IconTip := "Fun Time Windows Bridge"
-A_TrayMenu.Delete()
-A_TrayMenu.Add("Open Windows Bridge Log", ShowWindowsBridgeLog)
-A_TrayMenu.Add()
-A_TrayMenu.Add("Exit Fun Time", (*) => ExitApp())
-A_TrayMenu.AddStandard()
 
 SetTimer(ProcessAhkCommand, 150)
 
@@ -239,9 +232,4 @@ Log(msg) {
     global WINDOWS_BRIDGE_LOG_FILE
     line := FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n"
     AppendWithRetry(line, WINDOWS_BRIDGE_LOG_FILE, 3, 50)
-}
-
-ShowWindowsBridgeLog(*) {
-    global WINDOWS_BRIDGE_LOG_FILE
-    Run('notepad.exe "' . WINDOWS_BRIDGE_LOG_FILE . '"')
 }
