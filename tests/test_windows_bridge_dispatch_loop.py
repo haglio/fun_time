@@ -1796,7 +1796,7 @@ class TestUpdateDashboardOsr2Off:
 
 class TestOmnipauseVoiceFreeze:
     """Under OmniPause a *spoken* command is frozen unless it resumes, quits, or
-    only opens the dashboard's reference popup.
+    retracts the OSR2.
 
     A mis-heard phrase must not act on a paused room — that is the whole bug.
     ``spoken_at`` is what marks a voice line; the deliberate mouse (dashboard,
@@ -1815,20 +1815,16 @@ class TestOmnipauseVoiceFreeze:
             runner._handle_command("landscape_next", spoken_at=123.0)
         mock_dispatch.assert_not_called()
 
-    def test_a_spoken_reference_popup_still_opens_under_omnipause(self, tmp_path):
-        """The reference popup is not the room: it opens a dashboard window and
-        touches no player, so the freeze has nothing to protect from it — while a
-        paused session is exactly when the user stops to look a phrase up.  What
-        keeps room noise out of it is the confidence gate on recognition, which
-        the popup-opening-itself bug this freeze was born from actually needed."""
+    def test_freezes_a_spoken_reference_popup_under_omnipause(self, tmp_path):
+        """The bug it was born from: room noise heard as "help" opening the
+        reference popup mid-pause.  Frozen, it never reaches the dashboard —
+        the popup gets no exemption from the freeze, by the user's call."""
         for command in ("help_reference", "help_reference_close"):
             runner = make_runner(tmp_path)
             runner.state = BridgeState(omni_paused=True)
-            with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-                with patch.object(runner, "_send_press") as mock_press:
-                    runner._handle_command(command, spoken_at=123.0)
-            mock_press.assert_called_once_with(command)
-            mock_dispatch.assert_not_called()
+            with patch.object(runner, "_send_press") as mock_press:
+                runner._handle_command(command, spoken_at=123.0)
+            mock_press.assert_not_called()
 
     def test_keeps_the_mouse_live_under_omnipause(self, tmp_path):
         """A lock-HUD click (bare command, no ``spoken_at``) still acts while

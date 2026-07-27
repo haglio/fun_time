@@ -619,11 +619,11 @@ class TestVoiceController:
 
     def test_suspend_drops_every_command_but_the_exempt_ones(self, tmp_path: Path):
         """Omnipause suspends voice as it suspends the AHK hotkeys: nothing a
-        paused room says acts on that room."""
+        paused room says is acted on — the reference popup included."""
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.suspend()
-        for command in ("landscape_next", "pause", "genau_speed_up"):
+        for command in ("landscape_next", "help_reference", "pause", "genau_speed_up"):
             vc._write_command(command, spoken_at=1.0)
         assert not cmd_file.exists()
 
@@ -648,20 +648,16 @@ class TestVoiceController:
         written = cmd_file.read_text(encoding="utf-8").splitlines()
         assert [parse_command_line(line)[0] for line in written] == ["relief_omnipause"]
 
-    def test_suspend_still_lets_the_reference_popup_through(self, tmp_path: Path):
-        """The popup opens a dashboard window and touches no player, so the
-        freeze has nothing to protect from it — and a pause is exactly when the
-        user reaches for it to look a phrase up."""
+    def test_suspend_freezes_the_reference_popup_too(self, tmp_path: Path):
+        """The popup gets no exemption: the freeze is a flat rule about what a
+        paused room may be heard to do, and "help" is the phrase room noise
+        produced when it opened the popup mid-pause."""
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.suspend()
         vc._write_command("help_reference", spoken_at=1.0)
         vc._write_command("help_reference_close", spoken_at=2.0)
-        written = cmd_file.read_text(encoding="utf-8").splitlines()
-        assert [parse_command_line(line)[0] for line in written] == [
-            "help_reference",
-            "help_reference_close",
-        ]
+        assert not cmd_file.exists()
 
     def test_unsuspend_restores_every_command(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
