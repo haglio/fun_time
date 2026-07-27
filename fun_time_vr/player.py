@@ -18,13 +18,14 @@ GL: per frame it waits on the compositor, lets each mpv render its latest
 frame into that unit's texture (only when one is newly due — the videos'
 24-30fps never paces the 90Hz loop), and hands the compositor its layers.
 
-Flat screens (the satellites always, the primary when its projection is
-``flat``) are submitted as compositor quad layers: the runtime places each in
-the world at the true head pose every refresh — the architecture of the
-desktop-overlay tools that stay smooth over anything.  Only an immersive
-projection (equirect/fisheye wrap) renders through this process's own eye
-pass.  ``vr.compositor_layers=false`` in the config falls back to drawing
-everything in-scene.
+With ``vr.compositor_layers=true``, flat screens (the satellites always, the
+primary when its projection is ``flat``) are submitted as compositor quad
+layers — the runtime places each in the world at the true head pose every
+refresh, the architecture of the desktop-overlay tools.  Off by default: the
+bundled "Pimax OpenXR 0.1.0" runtime accepts the quads in xrEndFrame and
+never composites them, so screens submitted that way don't appear; everything
+draws in-scene inside the projection layer instead, which every runtime
+composites.
 
 Not unit-tested: this is the GL/OpenXR/mpv shell.  Everything it wires —
 roles, scene geometry, matrices, projections, furniture throttling — is
@@ -248,17 +249,19 @@ class _PrimaryUnit(_VideoUnit):
         self._unhandled: set[str] = set()
 
     def route_audio(self) -> None:
-        """Give the primary its sound on the first frame the headset presents.
+        """Give the primary its sound on the first frame the headset is WORN.
 
         On the first headset run this routing happened at construction, while
         the compositor was still bringing the headset up — and the sink took
         the stream without consuming it, so mpv's audio clock (which the video
         clock follows) never ticked: every player alive, the primary frozen on
-        frame 1 for the whole session.  Waiting for the first rendered frame
-        means the runtime is actually presenting, with the headset's endpoints
-        live; setting the device then also makes mpv reinitialize its audio
-        chain fresh.  audio-fallback-to-null (player_core) backstops a sink
-        that still refuses: silent playback rather than no playback.
+        frame 1 for the whole session.  Presenting turned out not to be enough
+        either: a session goes VISIBLE with the headset on its stand, and
+        routing then hit the same parked endpoint and wedged the clock for the
+        whole session (the 23:32 log's mpv=0.0 windows).  So the caller waits
+        for FOCUSED — the state that means a human is wearing it, endpoints
+        draining.  audio-fallback-to-null (player_core) backstops a sink that
+        still refuses: silent playback rather than no playback.
         """
         if self._audio_routed:
             return
@@ -296,8 +299,14 @@ class _PrimaryUnit(_VideoUnit):
 
 class _SatelliteUnit(_VideoUnit):
     def __init__(self, side: str, manifest: configparser.ConfigParser, get_proc_address) -> None:
+        # audio=False, not merely muted: a satellite is silent by design, and
+        # any audio chain in this process can wedge on the headset's parked
+        # endpoint and freeze that player's video clock with it (see
+        # route_audio).  No track, video-timed clock, immune.
         super().__init__(
-            MpvRenderPlayer(get_proc_address, muted=True, loop_file=False, prefetch=True),
+            MpvRenderPlayer(
+                get_proc_address, muted=True, loop_file=False, prefetch=True, audio=False,
+            ),
             SATELLITE_VIDEO_CAP_PX,
         )
         self._set_screen(
@@ -497,7 +506,7 @@ def _run(manifest: configparser.ConfigParser) -> int:
         _SatelliteUnit("landscape", manifest, get_proc_address),
     ]
     units: list[_VideoUnit] = [primary, *satellites]
-    use_layers = manifest.get("vr", "compositor_layers", fallback="1").strip() != "0"
+    use_layers = manifest.get("vr", "compositor_layers", fallback="0").strip() == "1"
     perf = FramePerf(logger=logger)
     stop = threading.Event()
     pump_thread = start_daemon_thread(
@@ -532,7 +541,8 @@ def _run(manifest: configparser.ConfigParser) -> int:
             project = False
             t3 = t2
             if should_render and views:
-                primary.route_audio()
+                if session.focused:
+                    primary.route_audio()
                 mode = immersive_mode(primary.role.projection)
                 if use_layers:
                     for index, unit in enumerate(units):

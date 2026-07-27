@@ -76,7 +76,9 @@ class TestVrConfig:
         assert config.vr.audio_device == "Example Headset"
         assert config.vr.tcode_udp_host == "127.0.0.1"
         assert config.vr.tcode_udp_port == 50557
-        assert config.vr.compositor_layers is True
+        # Off by default: the bundled Pimax runtime accepts quad layers and
+        # never composites them (screens submitted that way don't appear).
+        assert config.vr.compositor_layers is False
 
     def test_absent_vr_section_defaults_empty(self, config, tmp_path):
         raw = (tmp_path / "fun_time_config.json").read_text(encoding="utf-8")
@@ -110,20 +112,62 @@ class TestVrManifest:
         assert vr["tcode_udp_host"] == "127.0.0.1"
         assert vr["tcode_udp_port"] == "50557"
         assert vr["audio_device"] == "Example Headset"
-        assert vr["compositor_layers"] == "1"
+        assert vr["compositor_layers"] == "0"
 
-    def test_manifest_carries_a_layers_opt_out(self, config):
+    def test_manifest_carries_a_layers_opt_in(self, config):
         import dataclasses  # noqa: PLC0415
 
-        opted_out = dataclasses.replace(
-            config, vr=dataclasses.replace(config.vr, compositor_layers=False)
+        opted_in = dataclasses.replace(
+            config, vr=dataclasses.replace(config.vr, compositor_layers=True)
         )
-        assert build_vr_manifest(opted_out)["vr"]["compositor_layers"] == "0"
+        assert build_vr_manifest(opted_in)["vr"]["compositor_layers"] == "1"
 
     def test_everything_else_is_the_desktop_manifest(self, config):
         manifest = build_vr_manifest(config)
         assert manifest["modules"]["satellite_module"] == "satellite"
         assert Path(manifest["commands"]["nau_cmd_file"]).name == "nau_cmd.txt"
+
+
+class _FakeProc:
+    """poll()/terminate()/wait() shaped like subprocess.Popen, exiting after a
+    set number of polls."""
+
+    def __init__(self, exits_after_polls=None):
+        self._exits_after = exits_after_polls
+        self._polls = 0
+        self.terminated = False
+
+    def poll(self):
+        if self._exits_after is None:
+            return None
+        self._polls += 1
+        return 0 if self._polls > self._exits_after else None
+
+    def terminate(self):
+        self.terminated = True
+        self._exits_after = 0
+
+    def wait(self):
+        return 0
+
+
+class TestWaitForSessionEnd:
+    def test_ahk_exit_ends_the_session(self):
+        from fun_time_vr.orchestrator import _wait_for_session_end
+
+        assert _wait_for_session_end(
+            _FakeProc(exits_after_polls=2), _FakeProc(), poll_s=0.0
+        ) == "ahk"
+
+    def test_player_exit_ends_the_session_too(self):
+        # The VR player's window is the session's only window, so closing it
+        # must end the whole session — an orchestrator that kept waiting on
+        # AHK held the single-instance mutex and blocked every relaunch.
+        from fun_time_vr.orchestrator import _wait_for_session_end
+
+        assert _wait_for_session_end(
+            _FakeProc(), _FakeProc(exits_after_polls=2), poll_s=0.0
+        ) == "player"
 
 
 class TestResumedPrimaryPlaylist:

@@ -151,6 +151,23 @@ def launch_vr_player(
         return subprocess.Popen(command, stdout=log, stderr=log, **hidden_subprocess_kwargs())
 
 
+def _wait_for_session_end(ahk_proc, player, *, poll_s: float = 0.5) -> str:
+    """Block until the AHK bridge or the VR player exits; name which went.
+
+    On the desktop the AHK bridge's exit is the session's one natural end.
+    In VR the player window's close button is a quit gesture too — it is the
+    only window the session has — and an orchestrator that kept waiting on
+    AHK after the player died held the single-instance mutex with nothing
+    left to orchestrate, so every relaunch bounced off "already running".
+    """
+    while True:
+        if ahk_proc.poll() is not None:
+            return "ahk"
+        if player.poll() is not None:
+            return "player"
+        time.sleep(poll_s)
+
+
 def _wait_for_player(status_file: Path, player: subprocess.Popen) -> bool:
     """Until the player's first status write — or its early death, reported at
     once rather than after the full timeout."""
@@ -310,7 +327,15 @@ def run_vr_bridge(config, logger_) -> int:
     ahk_proc = subprocess.Popen(command, cwd=config.project_dir)
 
     try:
-        exit_code = ahk_proc.wait()
+        ended_by = _wait_for_session_end(ahk_proc, player)
+        if ended_by == "player":
+            logger_.info("VR player exited -- ending the session")
+            ahk_proc.terminate()
+            ahk_proc.wait()
+            exit_code = 0
+        else:
+            logger_.info("AHK exited -- ending the session")
+            exit_code = ahk_proc.wait()
     except KeyboardInterrupt:
         logger_.info("Interrupted -- shutting down")
         exit_code = 1
@@ -321,7 +346,6 @@ def run_vr_bridge(config, logger_) -> int:
             voice_thread.join(timeout=2.0)
         dispatch_runner.stop()
         dispatch_thread.join(timeout=2.0)
-        logger_.info("AHK exited -- shutting down the VR player")
         kill_recorded_child(children["vr_player_pid"])
     return exit_code
 
