@@ -56,6 +56,6 @@
     "audio_device": "Headset",
     "tcode_udp_host": "127.0.0.1",
     "tcode_udp_port": 50557,
-    "compositor_layers": true
+    "compositor_layers": false
   }
 }
