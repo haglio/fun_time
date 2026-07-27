@@ -92,6 +92,12 @@ SATELLITE_VIDEO_CAP_PX = 2048
 # thread never touches a file at all.
 PUMP_HZ = 30.0
 
+# How long session bring-up tolerates a cold-started runtime whose graphics
+# device is still coming up (see _run's retry loop), and how often it retries.
+# Well inside the orchestrator's 120s first-status timeout.
+SESSION_BRINGUP_TIMEOUT_S = 60.0
+SESSION_BRINGUP_RETRY_S = 2.0
+
 _MUTED_INDICATOR = VolumeHud(volume=0, muted=True)
 
 
@@ -444,18 +450,41 @@ def _draw_eyes(
 
 def _run(manifest: configparser.ConfigParser) -> int:
     import glfw  # noqa: PLC0415 — GL/XR stack loads only after the runtime probe
+    import xr  # noqa: PLC0415
 
     from .vr_session import VRSession  # noqa: PLC0415
 
-    try:
-        session = VRSession()
-    except Exception as exc:
-        logger.exception("VR session bring-up failed")
-        _show_error_popup(
-            "Could not start a VR session.\n\nThe headset answered, but FunTimeVR "
-            f"could not open a session on it.\n\nError: {exc}"
-        )
-        return 1
+    bringup_deadline = time.monotonic() + SESSION_BRINGUP_TIMEOUT_S
+    while True:
+        try:
+            session = VRSession()
+            break
+        except xr.exception.GraphicsDeviceInvalidError as exc:
+            # A cold-started runtime answers the readiness probe (instance +
+            # system) before its compositor's graphics device is up, and
+            # create_session landing in that window fails with
+            # GRAPHICS_DEVICE_INVALID.  The state is transient — the same
+            # call on an identically-made context succeeds once the runtime
+            # settles — so bring-up waits it out instead of dying on the
+            # popup.  (Observed with PimaxXR auto-started by ensure_ready:
+            # one cold launch raced through, the next crashed here.)
+            if time.monotonic() >= bringup_deadline:
+                logger.error("VR session bring-up failed: %s", exc)
+                _show_error_popup(
+                    "Could not start a VR session.\n\nThe VR runtime started, but its "
+                    "graphics device never became ready.\n\nError: "
+                    f"{exc}"
+                )
+                return 1
+            logger.info("VR runtime's graphics device not ready yet; retrying bring-up")
+            time.sleep(SESSION_BRINGUP_RETRY_S)
+        except Exception as exc:
+            logger.exception("VR session bring-up failed")
+            _show_error_popup(
+                "Could not start a VR session.\n\nThe headset answered, but FunTimeVR "
+                f"could not open a session on it.\n\nError: {exc}"
+            )
+            return 1
 
     renderer = SceneRenderer()
 
