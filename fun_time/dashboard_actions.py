@@ -18,6 +18,7 @@ HELP_REFERENCE = "help_reference"
 HELP_REFERENCE_CLOSE = "help_reference_close"
 # The pair that drives only the dashboard's own reference popup: they open and
 # dismiss a help window and reach no player, no shared state.  That is why the
-# dispatch loop echoes them as a press and stops, and why omnipause — which
-# freezes what a spoken command may do to the room — lets them through.
+# dispatch loop echoes them as a press and stops there.  It is NOT why omnipause
+# would let them through — under a pause they are frozen with everything else
+# (see SUSPEND_EXEMPT_COMMANDS in voice_control).
 HELP_REFERENCE_COMMANDS = frozenset({HELP_REFERENCE, HELP_REFERENCE_CLOSE})
