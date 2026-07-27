@@ -436,7 +436,7 @@ CONTROL_TOOLTIPS = {
     "prev": "Previous clip",
     "next": "Next clip",
     "lock": "Lock / unlock this clip",
-    "trash": "Mark weird — move it out",
+    "trash": "Unfavorite it — or mark weird when it is not a favorite",
 }
 FAVORITE_TOOLTIP = "In the favourites"
 
