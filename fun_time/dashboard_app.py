@@ -206,11 +206,15 @@ def _draw_mic_pixmap(w: int, h: int) -> QPixmap:
     return _dashboard_pixmap_cache[key]
 
 
+# The reference popup's name, on its window chrome and on the ? button's tooltip
+# — one constant so the two can't drift, and so tests can find the real window.
+REFERENCE_WINDOW_TITLE = "Hotkeys & Voice Commands Reference"
+
 # Every control in the bar names itself on hover.
 _ACTION_TOOLTIPS: dict[str, str] = {
     QUIT_BUTTON: "Quit",
     OMNIPAUSE_TOGGLE: "Pause everything",
-    HELP_REFERENCE: "Hotkeys & Voice Commands Reference",
+    HELP_REFERENCE: REFERENCE_WINDOW_TITLE,
     FMODE_PANEL: "F-Mode",
     VOICE_TOGGLE: "Voice",
 }
@@ -389,7 +393,7 @@ class ReferenceDialog(QDialog):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Hotkeys & Voice Commands Reference")
+        self.setWindowTitle(REFERENCE_WINDOW_TITLE)
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.WindowStaysOnTopHint
@@ -405,6 +409,27 @@ class ReferenceDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(browser)
+
+    def sync_topmost(self, omni_paused: bool) -> None:
+        """Follow the same OmniPause band policy as every other Fun Time window.
+
+        This popup floats over the players via WindowStaysOnTopHint, but it is
+        not one of the bridge's MANAGED_ROLES — it comes and goes with the ``?``
+        button — so the orchestrator's disable_all_topmost never reached it and
+        it stayed stranded above a freed desktop for the whole pause.  It is its
+        own top-level window, so the dashboard's band does not carry it either;
+        it corrects its own, the same way DashboardWindow._sync_own_topmost does.
+
+        Drift correction: SetWindowPos runs only when the actual band differs
+        from the desired one, so Qt re-asserting the hint (on show, say) is
+        undone on the next refresh with no flicker in the steady state.  winId()
+        is read fresh rather than cached because Qt may recreate the native
+        window across a hide/show.
+        """
+        hwnd = int(self.winId())
+        desired_topmost = not omni_paused
+        if is_window_topmost(hwnd) != desired_topmost:
+            set_always_on_top(hwnd, desired_topmost)
 
 
 def write_dashboard_command(path: Path, action_id: str) -> None:
@@ -708,6 +733,23 @@ class DashboardWindow(QMainWindow):
         if is_window_topmost(self._dash_hwnd) != desired_topmost:
             set_always_on_top(self._dash_hwnd, desired_topmost)
 
+    def _sync_reference_topmost(self, omni_paused: bool) -> None:
+        """Keep the reference popup's band in step with OmniPause too.
+
+        The popup is a separate top-level window, so it rides neither the
+        dashboard's band nor the orchestrator's drop; see
+        :meth:`ReferenceDialog.sync_topmost`.  Runs even while the popup is
+        hidden, so re-opening it lands in the right band.
+        """
+        if self._reference_dialog is None:
+            return
+        self._reference_dialog.sync_topmost(omni_paused)
+
+    @property
+    def _omni_paused(self) -> bool:
+        """Whether the last snapshot we rendered had OmniPause holding."""
+        return self._last_snapshot is not None and self._last_snapshot.omni_paused
+
     def _do_render(
         self,
         snapshot: DashboardSnapshot | None,
@@ -717,9 +759,11 @@ class DashboardWindow(QMainWindow):
         # OmniPause must free the desktop; drop our own topmost while paused
         # (the orchestrator's drop of this window is unreliable) and restore it
         # after.  See _sync_own_topmost.  The log strip is a child widget, so it
-        # rides this window's band automatically.
-        omni_paused = snapshot is not None and snapshot.omni_paused
+        # rides this window's band automatically — the reference popup is its own
+        # top-level window and does not, so it is corrected alongside us.
+        omni_paused = self._omni_paused
         self._sync_own_topmost(omni_paused)
+        self._sync_reference_topmost(omni_paused)
         state_dir = self._app_config.dashboard_state_file.parent
         scene = build_dashboard_scene(
             self._bar_layout,
@@ -771,6 +815,10 @@ class DashboardWindow(QMainWindow):
         self._reference_dialog.show()
         self._reference_dialog.raise_()
         self._reference_dialog.activateWindow()
+        # Qt applies the StaysOnTop hint on show, so opening the popup during
+        # OmniPause would strand it above the freed desktop until the next
+        # refresh corrected it.  Land it in the right band immediately.
+        self._sync_reference_topmost(self._omni_paused)
 
     def _fit_reference_frame_to_rect(self, rect: Rect) -> None:
         """Size the reference popup so its whole frame — title bar included —
