@@ -38,6 +38,7 @@ import argparse
 import configparser
 import ctypes
 import logging
+import math
 import threading
 import time
 from pathlib import Path
@@ -62,7 +63,12 @@ from satellite.status import status_fields as satellite_status_fields
 
 from . import vr_runtime
 from .furniture import chip_state, scrubber_state
-from .matrices import fov_to_projection_matrix, pose_to_view_matrix
+from .matrices import (
+    fov_to_projection_matrix,
+    pose_to_view_matrix,
+    yaw_of_orientation,
+    yaw_rotation_matrix,
+)
 from .perf import FramePerf
 from .render import RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
 from .roles import PrimaryRole
@@ -174,12 +180,13 @@ class _VideoUnit:
             self.player.render(self.target.fbo, self.target.width, self.target.height, flip_y=True)
             self.layer_dirty = True
 
-    def layer_placement(self):
+    def layer_placement(self, azimuth_offset_deg: float = 0.0):
         """Pose and size for this screen's compositor quad, at the aspect its
-        swapchain content was last copied at."""
+        swapchain content was last copied at; *azimuth_offset_deg* swings the
+        whole arrangement around the viewer (recentering)."""
         width, height = self.layer_rect
         return quad_layer_placement(
-            self._screen_azimuth, self._screen_width_deg,
+            self._screen_azimuth + azimuth_offset_deg, self._screen_width_deg,
             aspect=width / height,
             center_elevation_deg=self._screen_elevation_deg,
         )
@@ -395,7 +402,10 @@ def _pump_channels(units: list[_VideoUnit], stop: threading.Event, perf: FramePe
         stop.wait(max(0.0, period - (time.monotonic() - started)))
 
 
-def _update_quad_layer(session, renderer: SceneRenderer, index: int, unit: _VideoUnit):
+def _update_quad_layer(
+    session, renderer: SceneRenderer, index: int, unit: _VideoUnit,
+    azimuth_offset_deg: float,
+):
     """Refresh *unit*'s quad swapchain if its texture moved, and describe the
     layer to submit — or None before the first frame of content exists."""
     from .vr_session import QuadLayer  # noqa: PLC0415 — sibling of the lazy VRSession import
@@ -409,7 +419,7 @@ def _update_quad_layer(session, renderer: SceneRenderer, index: int, unit: _Vide
         unit.layer_rect = (unit.target.width, unit.target.height)
     if unit.layer_rect is None:
         return None
-    position, orientation, size = unit.layer_placement()
+    position, orientation, size = unit.layer_placement(azimuth_offset_deg)
     return QuadLayer(
         swapchain_index=index, position=position, orientation=orientation, size=size,
     )
@@ -422,11 +432,14 @@ def _draw_eyes(
     satellites: list[_SatelliteUnit],
     views,
     mode: int | None,
+    scene_rotation: np.ndarray,
     *,
     include_screens: bool,
 ) -> None:
     """Render the projection layer's two eyes: the immersive wrap, plus every
-    screen when the compositor-layer path is off (*include_screens*)."""
+    screen when the compositor-layer path is off (*include_screens*).
+    *scene_rotation* is the recentering yaw, identity until the first
+    RECENTER."""
     for eye_index, view in enumerate(views):
         session.bind_eye_framebuffer(eye_index)
         renderer.begin_eye()
@@ -442,7 +455,7 @@ def _draw_eyes(
             (view.pose.orientation.x, view.pose.orientation.y,
              view.pose.orientation.z, view.pose.orientation.w),
         )
-        view_proj = projection_matrix @ view_matrix
+        view_proj = projection_matrix @ view_matrix @ scene_rotation
         view_proj32 = np.ascontiguousarray(view_proj, dtype=np.float32)
         if primary.target.ready:
             if mode is not None:
@@ -508,6 +521,11 @@ def _run(manifest: configparser.ConfigParser) -> int:
     units: list[_VideoUnit] = [primary, *satellites]
     use_layers = manifest.get("vr", "compositor_layers", fallback="0").strip() == "1"
     perf = FramePerf(logger=logger)
+    # Recentering: RECENTER re-zeroes the scene onto the head's heading at
+    # that instant, kept as both a model matrix (the eye pass) and an azimuth
+    # shift in degrees (the quad-layer poses) — one fact, two consumers.
+    scene_rotation = np.eye(4, dtype=np.float32)
+    scene_offset_deg = 0.0
     stop = threading.Event()
     pump_thread = start_daemon_thread(
         target=_pump_channels, args=(units, stop, perf), name="file-channels",
@@ -543,12 +561,22 @@ def _run(manifest: configparser.ConfigParser) -> int:
             if should_render and views:
                 if session.focused:
                     primary.route_audio()
+                if primary.role.take_recenter():
+                    yaw = yaw_of_orientation((
+                        views[0].pose.orientation.x, views[0].pose.orientation.y,
+                        views[0].pose.orientation.z, views[0].pose.orientation.w,
+                    ))
+                    scene_rotation = yaw_rotation_matrix(yaw)
+                    scene_offset_deg = -math.degrees(yaw)
+                    logger.info("Recentered the scene onto heading %.0f°", math.degrees(yaw))
                 mode = immersive_mode(primary.role.projection)
                 if use_layers:
                     for index, unit in enumerate(units):
                         if unit is primary and mode is not None:
                             continue
-                        quad = _update_quad_layer(session, renderer, index, unit)
+                        quad = _update_quad_layer(
+                            session, renderer, index, unit, scene_offset_deg,
+                        )
                         if quad is not None:
                             quads.append(quad)
                     project = mode is not None and primary.target.ready
@@ -558,6 +586,7 @@ def _run(manifest: configparser.ConfigParser) -> int:
                 if project:
                     _draw_eyes(
                         session, renderer, primary, satellites, views, mode,
+                        scene_rotation,
                         include_screens=not use_layers,
                     )
             t4 = time.perf_counter()

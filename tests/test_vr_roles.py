@@ -255,6 +255,23 @@ class TestProjectionCycling:
         assert role.projection == FISHEYE_190_SBS
 
 
+class TestRecenter:
+    def test_recenter_is_carried_until_the_host_takes_it(self, role_parts):
+        role, *_ = role_parts
+        assert role.take_recenter() is False
+        assert role.apply_command("RECENTER") is True
+        assert role.take_recenter() is True
+        # Consumed: the host applies one re-zero per request, not per frame.
+        assert role.take_recenter() is False
+
+    def test_repeated_requests_collapse_into_one(self, role_parts):
+        role, *_ = role_parts
+        role.apply_command("RECENTER")
+        role.apply_command("RECENTER")
+        assert role.take_recenter() is True
+        assert role.take_recenter() is False
+
+
 class TestTCode:
     def test_scripted_video_drives_waypoints_at_the_current_speed(self, role_parts):
         role, player, driver, *_ = role_parts
