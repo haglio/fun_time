@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.media_actions import remove_from_favs
 from fun_time.satellite_control import read_satellite_status
 from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
 from fun_time.win32 import (
@@ -535,26 +536,42 @@ def test_fun_time_hybrid_keeps_nau_as_the_display(shared_integration_session: Fu
     s.wait_for_new_log("Switched to nau mode", timeout=12)
 
 
-def test_fun_time_landscape_trash_updates_temp_state(isolated_integration_session: FunTimeIntegrationSession):
+def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
+    isolated_integration_session: FunTimeIntegrationSession,
+):
+    """Every sample the isolated session links in is seeded into its favs.csv, so
+    the clip on screen is a favorite and discard demotes it: the row leaves the
+    list, the file stays in the library."""
     isolated_integration_session.write_dashboard_command("landscape_trash")
-    chunk = isolated_integration_session.wait_for_new_log("Discarding from player 3:", timeout=12)
-    match = re.search(r"Discarding from player 3:\s*(.+)", chunk)
-    assert match, "Expected discard log chunk to include the discarded landscape path"
-    trashed_path = Path(match.group(1).strip()).resolve()
+    chunk = isolated_integration_session.wait_for_new_log("Removed from favorites on player 3:", timeout=12)
+    match = re.search(r"Removed from favorites on player 3:\s*(.+)", chunk)
+    assert match, "Expected the unfavorite log chunk to include the landscape path"
+    demoted_path = Path(match.group(1).strip()).resolve()
 
     isolated_integration_session.wait_until(
-        lambda: not isolated_integration_session.favs_contains(trashed_path),
+        lambda: not isolated_integration_session.favs_contains(demoted_path),
         timeout=12,
         description="landscape sample to be removed from integration favs.csv",
     )
+    assert demoted_path.exists(), "A demoted favorite must stay where it is"
+    assert not any(p.name == demoted_path.name for p in isolated_integration_session.weird_dir.iterdir())
+
+
+def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
+    isolated_integration_session: FunTimeIntegrationSession,
+):
+    """Discarding a clip that is not in the favorites is the full condemnation —
+    it leaves the playlist and the file moves into the weird dir."""
+    status_file = isolated_integration_session.config.paths.state_dir / "portrait_status.txt"
     isolated_integration_session.wait_until(
-        lambda: any(p.name == trashed_path.name for p in isolated_integration_session.weird_dir.iterdir()),
+        lambda: bool(read_satellite_status(status_file).video),
         timeout=12,
-        description="landscape sample to be moved into the integration weird dir",
+        description="portrait satellite to publish the clip it is playing",
     )
+    # Take the clip out of the favorites the way the app does, so the discard
+    # below meets an ordinary library file rather than a favorite.
+    remove_from_favs(isolated_integration_session.favs_file, read_satellite_status(status_file).video)
 
-
-def test_fun_time_portrait_trash_updates_temp_state(isolated_integration_session: FunTimeIntegrationSession):
     isolated_integration_session.write_dashboard_command("portrait_trash")
     chunk = isolated_integration_session.wait_for_new_log("Discarding from player 2:", timeout=12)
     match = re.search(r"Discarding from player 2:\s*(.+)", chunk)
