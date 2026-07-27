@@ -10,14 +10,26 @@ package's own session/verb/status/HUD code, running against offscreen players;
 the primary is :class:`fun_time_vr.roles.PrimaryRole`, Nau's contract
 in-process.
 
-Per frame: pump every unit's file channels, let each mpv render its latest
-frame into that unit's texture, then draw both eyes — the primary as an
-immersive wrap or center screen by its projection, the satellites as floating
-screens beside it, over it in painter's order.
+Two threads.  A worker owns every file channel — pause flags, command drains,
+status writes, HUD polls, and the in-video furniture repaints — at its own
+cadence, because file I/O under a sync client can stall for arbitrary
+milliseconds and none of it may ride the frame loop.  The render thread owns
+GL: per frame it waits on the compositor, lets each mpv render its latest
+frame into that unit's texture (only when one is newly due — the videos'
+24-30fps never paces the 90Hz loop), and hands the compositor its layers.
+
+Flat screens (the satellites always, the primary when its projection is
+``flat``) are submitted as compositor quad layers: the runtime places each in
+the world at the true head pose every refresh — the architecture of the
+desktop-overlay tools that stay smooth over anything.  Only an immersive
+projection (equirect/fisheye wrap) renders through this process's own eye
+pass.  ``vr.compositor_layers=false`` in the config falls back to drawing
+everything in-scene.
 
 Not unit-tested: this is the GL/OpenXR/mpv shell.  Everything it wires —
-roles, scene geometry, matrices, projections — is tested pure, and the
-offscreen mpv path is verified against the real DLL.
+roles, scene geometry, matrices, projections, furniture throttling — is
+tested pure, and the whole pipeline minus OpenXR runs against the real DLLs
+in the hidden-desktop integration suite.
 """
 from __future__ import annotations
 
@@ -30,6 +42,8 @@ import time
 from pathlib import Path
 
 import numpy as np
+
+from app_support.threading_utils import start_daemon_thread
 
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.playlist import read_playlist
@@ -46,13 +60,16 @@ from satellite.session import SatelliteSession
 from satellite.status import status_fields as satellite_status_fields
 
 from . import vr_runtime
+from .furniture import chip_state, scrubber_state
 from .matrices import fov_to_projection_matrix, pose_to_view_matrix
-from .render import RenderTarget, SceneRenderer, immersive_mode
+from .perf import FramePerf
+from .render import RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
 from .roles import PrimaryRole
 from .scene import (
     PRIMARY_WIDTH_DEG,
     SATELLITE_ELEVATION_DEG,
     SATELLITE_WIDTH_DEG,
+    quad_layer_placement,
     satellite_center_azimuth,
     surface_vertices,
 )
@@ -63,9 +80,17 @@ logger = logging.getLogger(__name__)
 _OV_SCRUBBER = 11
 _OV_VOLUME = 12
 
-# Longest texture side a video gets; an 8K master still renders, at a size the
-# GPU can decode + composite twice per frame alongside two more players.
-VIDEO_TARGET_CAP_PX = 4096
+# Longest texture side each video gets.  The primary keeps near-native detail
+# (an 8K master renders at this cap); a satellite's screen is 28° of view, so
+# its cap sits well above what the headset can resolve there while costing a
+# fraction of full-size decode-to-texture renders.
+PRIMARY_VIDEO_CAP_PX = 4096
+SATELLITE_VIDEO_CAP_PX = 2048
+
+# The file-channel worker's cadence: the desktop dispatch loop polls these
+# same files at ~20Hz, so 30Hz loses no responsiveness — and the render
+# thread never touches a file at all.
+PUMP_HZ = 30.0
 
 _MUTED_INDICATOR = VolumeHud(volume=0, muted=True)
 
@@ -96,15 +121,25 @@ def _read_manifest(path: Path) -> configparser.ConfigParser:
 
 class _VideoUnit:
     """What every on-scene player shares: an offscreen mpv, a texture target,
-    and the screen vertices rebuilt whenever the video's aspect changes."""
+    and the screen geometry rebuilt whenever the video's aspect changes."""
 
-    def __init__(self, player) -> None:
+    def __init__(self, player, target_cap_px: int) -> None:
         self.player = player
         self.target = RenderTarget()
-        self.vertices: np.ndarray | None = None
+        self.mesh: ScreenMesh | None = None
+        self._target_cap_px = target_cap_px
         self._screen_azimuth = 0.0
         self._screen_width_deg = PRIMARY_WIDTH_DEG
         self._screen_elevation_deg = 0.0
+        # Compositor-layer bookkeeping, render-thread-owned: whether the
+        # target holds pixels its quad swapchain hasn't copied yet, and the
+        # size the swapchain's content was copied at (None until the first
+        # copy, and again after a resize makes the copied image stale).
+        self.layer_dirty = False
+        self.layer_rect: tuple[int, int] | None = None
+        # Furniture last painted, pump-thread-owned.
+        self._scrubber_shown: tuple | None = None
+        self._chip_shown: tuple | None = None
 
     def _set_screen(self, azimuth_deg: float, width_deg: float, elevation_deg: float = 0.0) -> None:
         self._screen_azimuth = azimuth_deg
@@ -114,32 +149,59 @@ class _VideoUnit:
     def render_latest_frame(self) -> None:
         width, height = self.player.video_dims
         if width and height:
-            scale = min(1.0, VIDEO_TARGET_CAP_PX / max(width, height))
+            scale = min(1.0, self._target_cap_px / max(width, height))
             sized = (max(1, round(width * scale)), max(1, round(height * scale)))
             if sized != (self.target.width, self.target.height):
                 self.target.ensure(*sized)
-                self.vertices = surface_vertices(
+                if self.mesh is None:
+                    self.mesh = ScreenMesh()
+                self.mesh.upload(surface_vertices(
                     self._screen_azimuth, self._screen_width_deg,
                     aspect=self.target.aspect,
                     center_elevation_deg=self._screen_elevation_deg,
-                )
+                ))
+                self.layer_rect = None
         if self.target.ready and self.player.has_new_frame:
             # flip_y: mpv renders top-left-origin; the scene samples GL
             # bottom-left convention (verified against a top-half-white clip).
             self.player.render(self.target.fbo, self.target.width, self.target.height, flip_y=True)
+            self.layer_dirty = True
+
+    def layer_placement(self):
+        """Pose and size for this screen's compositor quad, at the aspect its
+        swapchain content was last copied at."""
+        width, height = self.layer_rect
+        return quad_layer_placement(
+            self._screen_azimuth, self._screen_width_deg,
+            aspect=width / height,
+            center_elevation_deg=self._screen_elevation_deg,
+        )
 
     def overlay_furniture(self, position_ms: float, duration_ms: float, volume_hud, painter) -> None:
         """The scrubber along the bottom and the volume chip at its right end,
-        exactly the furniture the desktop players draw."""
+        exactly the furniture the desktop players draw — repainted only when
+        what they show moves (see :mod:`fun_time_vr.furniture`)."""
         if not self.target.ready:
             return
-        scrubber = progress_bar_bgra(position_ms, duration_ms, None, self.target.width)
-        self.player.overlay(_OV_SCRUBBER, 0, self.target.height - scrubber.shape[0], scrubber)
-        x, y = chip_xy(win_w=self.target.width, win_h=self.target.height, timeline_h=TIMELINE_HEIGHT)
-        self.player.overlay(_OV_VOLUME, x, y, painter.bgra(volume_hud))
+        width, height = self.target.width, self.target.height
+        scrubber = scrubber_state(width, height, position_ms, duration_ms)
+        if scrubber != self._scrubber_shown:
+            self._scrubber_shown = scrubber
+            bar = progress_bar_bgra(position_ms, duration_ms, None, width)
+            self.player.overlay(_OV_SCRUBBER, 0, height - bar.shape[0], bar)
+        chip = chip_state(width, height, volume_hud)
+        if chip != self._chip_shown:
+            self._chip_shown = chip
+            x, y = chip_xy(win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
+            self.player.overlay(_OV_VOLUME, x, y, painter.bgra(volume_hud))
+
+    def _close_graphics(self) -> None:
+        self.target.close()
+        if self.mesh is not None:
+            self.mesh.close()
 
     def close(self) -> None:
-        self.target.close()
+        self._close_graphics()
         self.player.close()
 
 
@@ -149,7 +211,10 @@ class _PrimaryUnit(_VideoUnit):
         # headset's sink cannot be trusted until the compositor is presenting
         # (see route_audio) — unmuted-on-default would blare the room speakers
         # for the whole warm-up instead.
-        super().__init__(MpvRenderPlayer(get_proc_address, muted=True, loop_file=True))
+        super().__init__(
+            MpvRenderPlayer(get_proc_address, muted=True, loop_file=True),
+            PRIMARY_VIDEO_CAP_PX,
+        )
         self._set_screen(0.0, PRIMARY_WIDTH_DEG)
         commands, vr = manifest["commands"], manifest["vr"]
         self.cmd_file = Path(commands["nau_cmd_file"])
@@ -220,13 +285,14 @@ class _PrimaryUnit(_VideoUnit):
 
     def close(self) -> None:
         self.role.close()  # closes driver + player
-        self.target.close()
+        self._close_graphics()
 
 
 class _SatelliteUnit(_VideoUnit):
     def __init__(self, side: str, manifest: configparser.ConfigParser, get_proc_address) -> None:
         super().__init__(
-            MpvRenderPlayer(get_proc_address, muted=True, loop_file=False, prefetch=True)
+            MpvRenderPlayer(get_proc_address, muted=True, loop_file=False, prefetch=True),
+            SATELLITE_VIDEO_CAP_PX,
         )
         self._set_screen(
             satellite_center_azimuth(side), SATELLITE_WIDTH_DEG, SATELLITE_ELEVATION_DEG
@@ -277,7 +343,7 @@ class _SatelliteUnit(_VideoUnit):
 
     def close(self) -> None:
         self.session.close()  # closes the player
-        self.target.close()
+        self._close_graphics()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -291,6 +357,89 @@ def main(argv: list[str] | None = None) -> int:
         _show_error_popup(vr_runtime.explain(ready))
         return 1
     return _run(manifest)
+
+
+def _pump_channels(units: list[_VideoUnit], stop: threading.Event, perf: FramePerf) -> None:
+    """The file-channel worker: every unit's pause flag, command drain, status
+    write, HUD poll and furniture repaint, at its own cadence.
+
+    This work is all file I/O and bitmap painting — none of it GL — and any of
+    it can stall (the state directory lives under a sync client), so it must
+    never share a thread with the frame loop.  Every mpv call it makes
+    (commands, property reads, overlay_add) is thread-safe against the render
+    thread's use of the render contexts; that split — client API on one
+    thread, render API on another — is libmpv's designed usage.
+    """
+    period = 1.0 / PUMP_HZ
+    while not stop.is_set():
+        started = time.monotonic()
+        for unit in units:
+            unit.pump(stop, started)
+        perf.note("pump", (time.monotonic() - started) * 1e3)
+        perf.maybe_flush()
+        stop.wait(max(0.0, period - (time.monotonic() - started)))
+
+
+def _update_quad_layer(session, renderer: SceneRenderer, index: int, unit: _VideoUnit):
+    """Refresh *unit*'s quad swapchain if its texture moved, and describe the
+    layer to submit — or None before the first frame of content exists."""
+    from .vr_session import QuadLayer  # noqa: PLC0415 — sibling of the lazy VRSession import
+
+    if unit.layer_dirty:
+        session.ensure_quad_swapchain(index, unit.target.width, unit.target.height)
+        session.bind_quad_framebuffer(index)
+        renderer.copy_texture(unit.target.texture)
+        session.release_quad_framebuffer(index)
+        unit.layer_dirty = False
+        unit.layer_rect = (unit.target.width, unit.target.height)
+    if unit.layer_rect is None:
+        return None
+    position, orientation, size = unit.layer_placement()
+    return QuadLayer(
+        swapchain_index=index, position=position, orientation=orientation, size=size,
+    )
+
+
+def _draw_eyes(
+    session,
+    renderer: SceneRenderer,
+    primary: _PrimaryUnit,
+    satellites: list[_SatelliteUnit],
+    views,
+    mode: int | None,
+    *,
+    include_screens: bool,
+) -> None:
+    """Render the projection layer's two eyes: the immersive wrap, plus every
+    screen when the compositor-layer path is off (*include_screens*)."""
+    for eye_index, view in enumerate(views):
+        session.bind_eye_framebuffer(eye_index)
+        renderer.begin_eye()
+        projection_matrix = fov_to_projection_matrix(
+            view.fov.angle_left, view.fov.angle_right,
+            view.fov.angle_up, view.fov.angle_down,
+            0.05, 100.0,
+        )
+        # Rotation only: the scene must not parallax with head
+        # translation, or a projected sphere swims.
+        view_matrix = pose_to_view_matrix(
+            (0.0, 0.0, 0.0),
+            (view.pose.orientation.x, view.pose.orientation.y,
+             view.pose.orientation.z, view.pose.orientation.w),
+        )
+        view_proj = projection_matrix @ view_matrix
+        view_proj32 = np.ascontiguousarray(view_proj, dtype=np.float32)
+        if primary.target.ready:
+            if mode is not None:
+                inv32 = np.ascontiguousarray(np.linalg.inv(view_proj), dtype=np.float32)
+                renderer.draw_immersive(mode, primary.target.texture, inv32, eye_index)
+            elif include_screens and primary.mesh is not None and primary.mesh.ready:
+                renderer.draw_screen(primary.mesh, primary.target.texture, view_proj32)
+        if include_screens:
+            for satellite in satellites:
+                if satellite.target.ready and satellite.mesh is not None and satellite.mesh.ready:
+                    renderer.draw_screen(satellite.mesh, satellite.target.texture, view_proj32)
+        session.release_eye_framebuffer(eye_index)
 
 
 def _run(manifest: configparser.ConfigParser) -> int:
@@ -319,67 +468,74 @@ def _run(manifest: configparser.ConfigParser) -> int:
         _SatelliteUnit("landscape", manifest, get_proc_address),
     ]
     units: list[_VideoUnit] = [primary, *satellites]
+    use_layers = manifest.get("vr", "compositor_layers", fallback="1").strip() != "0"
+    perf = FramePerf(logger=logger)
     stop = threading.Event()
-    logger.info("Entering the VR loop (three players up)")
+    pump_thread = start_daemon_thread(
+        target=_pump_channels, args=(units, stop, perf), name="file-channels",
+    )
+    logger.info(
+        "Entering the VR loop (three players up, compositor layers %s)",
+        "on" if use_layers else "off",
+    )
 
     try:
         while session.running and not stop.is_set():
             session.poll_events()
             if session.window_close_requested():
                 break
-            now = time.monotonic()
-            primary.pump(stop, now)
-            for satellite in satellites:
-                satellite.pump(stop, now)
 
             if not session.session_ready:
-                # The channels above stay live while the headset warms up, so
-                # the orchestrator sees status and playback the moment it asks.
+                # The pump thread keeps every channel live while the headset
+                # warms up, so the orchestrator sees status the moment it asks.
                 glfw.poll_events()
                 time.sleep(0.01)
                 continue
 
+            t0 = time.perf_counter()
             should_render, display_time, views = session.frame_begin()
+            t1 = time.perf_counter()
             for unit in units:
                 unit.render_latest_frame()
+            t2 = time.perf_counter()
 
+            quads = []
+            project = False
+            t3 = t2
             if should_render and views:
                 primary.route_audio()
-                for eye_index, view in enumerate(views):
-                    session.bind_eye_framebuffer(eye_index)
-                    renderer.begin_eye()
-                    projection_matrix = fov_to_projection_matrix(
-                        view.fov.angle_left, view.fov.angle_right,
-                        view.fov.angle_up, view.fov.angle_down,
-                        0.05, 100.0,
+                mode = immersive_mode(primary.role.projection)
+                if use_layers:
+                    for index, unit in enumerate(units):
+                        if unit is primary and mode is not None:
+                            continue
+                        quad = _update_quad_layer(session, renderer, index, unit)
+                        if quad is not None:
+                            quads.append(quad)
+                    project = mode is not None and primary.target.ready
+                else:
+                    project = True
+                t3 = time.perf_counter()
+                if project:
+                    _draw_eyes(
+                        session, renderer, primary, satellites, views, mode,
+                        include_screens=not use_layers,
                     )
-                    # Rotation only: the scene must not parallax with head
-                    # translation, or a projected sphere swims.
-                    view_matrix = pose_to_view_matrix(
-                        (0.0, 0.0, 0.0),
-                        (view.pose.orientation.x, view.pose.orientation.y,
-                         view.pose.orientation.z, view.pose.orientation.w),
-                    )
-                    view_proj = projection_matrix @ view_matrix
-                    mode = immersive_mode(primary.role.projection)
-                    if primary.target.ready:
-                        if mode is not None:
-                            renderer.draw_immersive(
-                                mode, primary.target.texture, np.linalg.inv(view_proj), eye_index,
-                            )
-                        elif primary.vertices is not None:
-                            renderer.draw_screen(primary.vertices, primary.target.texture, view_proj)
-                    for satellite in satellites:
-                        if satellite.target.ready and satellite.vertices is not None:
-                            renderer.draw_screen(
-                                satellite.vertices, satellite.target.texture, view_proj,
-                            )
-                    session.release_eye_framebuffer(eye_index)
-            session.frame_end(display_time, views)
+            t4 = time.perf_counter()
+            session.frame_end(display_time, views, project=project, quads=quads)
+            t5 = time.perf_counter()
             glfw.poll_events()
+            perf.note("wait", (t1 - t0) * 1e3)
+            perf.note("mpv", (t2 - t1) * 1e3)
+            perf.note("layers", (t3 - t2) * 1e3)
+            perf.note("eyes", (t4 - t3) * 1e3)
+            perf.note("end", (t5 - t4) * 1e3)
+            perf.frame_done()
     except KeyboardInterrupt:
         logger.info("Interrupted")
     finally:
+        stop.set()
+        pump_thread.join(timeout=2.0)
         for unit in units:
             unit.close()
         renderer.close()

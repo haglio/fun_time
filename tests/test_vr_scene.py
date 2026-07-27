@@ -10,9 +10,21 @@ from fun_time_vr.scene import (
     RADIUS,
     SATELLITE_ELEVATION_DEG,
     SATELLITE_WIDTH_DEG,
+    quad_layer_placement,
     satellite_center_azimuth,
     surface_vertices,
 )
+
+
+def _rotate_by_quat(quat, vec):
+    x, y, z, w = quat
+    vx, vy, vz = vec
+    # Rotation matrix rows applied to vec (standard quaternion rotation).
+    return (
+        (1 - 2 * (y * y + z * z)) * vx + 2 * (x * y - w * z) * vy + 2 * (x * z + w * y) * vz,
+        2 * (x * y + w * z) * vx + (1 - 2 * (x * x + z * z)) * vy + 2 * (y * z - w * x) * vz,
+        2 * (x * z - w * y) * vx + 2 * (y * z + w * x) * vy + (1 - 2 * (x * x + y * y)) * vz,
+    )
 
 
 def _azimuth_deg(x: float, z: float) -> float:
@@ -92,3 +104,52 @@ class TestSurfaceVertices:
     def test_degenerate_aspect_is_rejected(self):
         with pytest.raises(ValueError):
             surface_vertices(0.0, 36.0, aspect=0.0)
+
+
+class TestQuadLayerPlacement:
+    def test_center_sits_where_the_curved_screen_centers(self):
+        azimuth = satellite_center_azimuth("landscape")
+        position, _orientation, _size = quad_layer_placement(
+            azimuth, SATELLITE_WIDTH_DEG, aspect=16 / 9,
+            center_elevation_deg=SATELLITE_ELEVATION_DEG,
+        )
+        assert _azimuth_deg(position[0], position[2]) == pytest.approx(azimuth, abs=1e-5)
+        assert math.hypot(position[0], position[2]) == pytest.approx(RADIUS, rel=1e-6)
+        assert position[1] == pytest.approx(
+            RADIUS * math.tan(math.radians(SATELLITE_ELEVATION_DEG)), rel=1e-6
+        )
+
+    def test_quad_faces_the_viewer(self):
+        # The OpenXR quad convention shows the +Z face, so the pose's +Z must
+        # point from the screen's center back at the origin.
+        position, orientation, _size = quad_layer_placement(-38.0, 28.0, aspect=1.0)
+        front = _rotate_by_quat(orientation, (0.0, 0.0, 1.0))
+        toward_viewer = (-position[0] / RADIUS, 0.0, -position[2] / RADIUS)
+        assert front == pytest.approx(toward_viewer, abs=1e-6)
+
+    def test_quad_subtends_the_screen_width(self):
+        _position, _orientation, (width, _height) = quad_layer_placement(
+            0.0, PRIMARY_WIDTH_DEG, aspect=16 / 9,
+        )
+        subtended = 2 * math.degrees(math.atan((width / 2) / RADIUS))
+        assert subtended == pytest.approx(PRIMARY_WIDTH_DEG, abs=1e-6)
+
+    def test_height_follows_the_aspect_ratio(self):
+        _position, _orientation, (width, height) = quad_layer_placement(
+            0.0, 36.0, aspect=9 / 16,
+        )
+        assert height == pytest.approx(width / (9 / 16), rel=1e-6)
+
+    def test_orientation_is_yaw_only_and_unit_length(self):
+        # The curved screens hang untilted whatever their elevation; the flat
+        # stand-ins must match, or a lifted satellite would lean back.
+        _position, orientation, _size = quad_layer_placement(
+            38.0, 28.0, aspect=16 / 9, center_elevation_deg=10.0,
+        )
+        x, y, z, w = orientation
+        assert x == 0.0 and z == 0.0
+        assert math.hypot(y, w) == pytest.approx(1.0, rel=1e-9)
+
+    def test_degenerate_aspect_is_rejected(self):
+        with pytest.raises(ValueError):
+            quad_layer_placement(0.0, 36.0, aspect=-1.0)

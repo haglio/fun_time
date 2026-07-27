@@ -133,6 +133,7 @@ def build_vr_manifest(config) -> dict[str, dict[str, str]]:
         "tcode_udp_host": config.vr.tcode_udp_host,
         "tcode_udp_port": str(config.vr.tcode_udp_port),
         "audio_device": config.vr.audio_device or "",
+        "compositor_layers": "1" if config.vr.compositor_layers else "0",
     }
     return manifest
 
