@@ -238,7 +238,7 @@ class TestControllerManifest:
         parser.read(manifest_path, encoding="utf-8")
 
         assert manifest_path.name == WINDOWS_BRIDGE_MANIFEST_FILENAME
-        assert parser["runtime"]["project_dir"] == str(cfg.project_dir)
+        assert parser["runtime"]["config_path"] == str(cfg.config_path)
         # The native satellites are wired through their command/paused/status/playlist
         # files, so the written INI carries the quartet.
         assert parser["modules"]["satellite_module"] == "satellite"
