@@ -138,7 +138,7 @@ def _favorite_clip(tmp_path: Path, config, name: str) -> Path:
 
 def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path, caplog):
     """Discarding a favorite demotes it instead of condemning it: the row leaves
-    the favs list and the clip leaves the playlist, but the file stays put."""
+    the favs list, and nothing else about the clip changes."""
     config = _make_config(tmp_path)
     video = _favorite_clip(tmp_path, config, "kept.mp4")
     _set_current(config, 3, str(video))
@@ -147,17 +147,32 @@ def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path
         state = _discard(3, _make_state(locked3=False), config)
 
     assert state.locked3 is False
-    # Still moves on from the clip, so the key does something visible.
-    assert _cmds(config, 3) == ["TRASH"]
+    # NEXT, not TRASH: it moves on from the clip but leaves it in the playlist,
+    # so PREV comes straight back to it.
+    assert _cmds(config, 3) == ["NEXT"]
     assert str(video) not in config.favs_file.read_text(encoding="utf-8")
     assert video.exists()
     assert list(config.weird_dir.iterdir()) == []
     assert f"Removed from favorites on player 3: {video}" in caplog.text
 
 
+def test_demoting_a_favorite_the_player_already_left_does_not_drag_it_back(tmp_path: Path):
+    """Back-dating exists so a condemned clip is the one dropped.  A demotion
+    drops nothing, so a satellite that has moved on is left where it is."""
+    config = _make_config(tmp_path)
+    video = _favorite_clip(tmp_path, config, "spoken_about.mp4")
+    _set_current(config, 3, str(tmp_path / "clips" / "advanced_to.mp4"))
+
+    _discard(3, _make_state(locked3=False), config, target_path=str(video))
+
+    assert _cmds(config, 3) == []
+    assert str(video) not in config.favs_file.read_text(encoding="utf-8")
+
+
 def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
     """The demotion is one step only — once a clip is out of the favorites, the
-    next discard is the full condemnation and moves the file out."""
+    next discard is the full condemnation: dropped from the playlist (TRASH) and
+    moved out of the library."""
     config = _make_config(tmp_path)
     video = _favorite_clip(tmp_path, config, "twice.mp4")
     _set_current(config, 2, str(video))
@@ -167,5 +182,6 @@ def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
 
     _discard(2, _make_state(locked2=False), config)
 
+    assert _cmds(config, 2) == ["NEXT", "TRASH"]
     assert not video.exists()
     assert [p.name for p in config.weird_dir.iterdir()] == ["twice.mp4"]
