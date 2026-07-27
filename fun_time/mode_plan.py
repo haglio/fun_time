@@ -12,8 +12,13 @@ class ModeSwitchPlan:
     # Whether Genau paints its clips or goes black.  Distinct from genau_cmd:
     # PAUSE stops the hand (it still shows the clip it's resting on), while
     # DISPLAY_OFF blanks the window in the modes that don't show Genau at all.
-    display_cmd: str | None
+    genau_display_cmd: str | None
     nau_should_play: bool | None
+    # The same for Nau, and distinct from nau_should_play for the same reason: a
+    # paused Nau still holds the frame it stopped on, and the idle primary-slot
+    # player is minimized rather than hidden (it keeps its taskbar button), so
+    # an alt-tab back to it lands on that frame unless it is blanked.
+    nau_display_cmd: str | None
     log_message: str
     # Leaving hybrid re-enables Nau's funscript T-Code: the per-video arbiter
     # mutes it during funscript gaps, so nau mode would otherwise inherit a
@@ -53,8 +58,9 @@ def build_mode_switch_plan(
             is_transition=False,
             genau_cmd=None,
             hud_cmd=None,
-            display_cmd=None,
+            genau_display_cmd=None,
             nau_should_play=None,
+            nau_display_cmd=None,
             log_message=f"Already in {target_mode} mode",
         )
 
@@ -64,8 +70,9 @@ def build_mode_switch_plan(
             is_transition=False,
             genau_cmd=None,
             hud_cmd=None,
-            display_cmd=None,
+            genau_display_cmd=None,
             nau_should_play=None,
+            nau_display_cmd=None,
             log_message=f"Mode set to {target_mode} (omnipaused)",
         )
 
@@ -96,8 +103,12 @@ def build_mode_switch_plan(
         is_transition=True,
         genau_cmd=genau_cmd,
         hud_cmd=hud_cmd,
-        display_cmd="DISPLAY_ON" if will_genau else "DISPLAY_OFF",
+        genau_display_cmd="DISPLAY_ON" if will_genau else "DISPLAY_OFF",
         nau_should_play=nau_should_play,
+        # Stated on every transition, not only on the ones that move the display
+        # between the two players: it rides a file that is written anyway, and
+        # asserting it means no path can leave Nau blanked while it owns the slot.
+        nau_display_cmd="DISPLAY_ON" if will_nau_display else "DISPLAY_OFF",
         log_message=f"Switched to {target_mode} mode",
         reenable_nau_tcode=current_mode == "hybrid" and target_mode != "hybrid",
     )

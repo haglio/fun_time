@@ -154,9 +154,12 @@ class PrimaryRole:
             self._recenter_requested = True
         elif keyword == "SET_TCODE_ENABLED" and arg:
             self._tcode_enabled = arg.strip() != "0"
-        elif keyword == "SET_HYBRID":
-            # Accepted so a mode switch is not "unhandled"; the VR scene has no
-            # Genau panel to make room for yet (that arrives with genau mode).
+        elif keyword in ("SET_HYBRID", "DISPLAY_ON", "DISPLAY_OFF"):
+            # Accepted so a mode switch is not "unhandled" — both verbs ride
+            # every one.  The VR scene has no Genau panel to make room for or to
+            # hand the display to yet (that arrives with genau mode), so there is
+            # nothing to step aside from and nothing to go dark for: blanking
+            # here would leave the headset showing nothing at all.
             pass
         elif keyword == "QUIT":
             if on_quit is None:

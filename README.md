@@ -363,6 +363,7 @@ Commands (the full set `nau/runtime.py` answers to):
 - `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_MONEY_SHOT`
 - `SET_TCODE_ENABLED 0|1`
 - `SET_HYBRID 0|1` / `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and Nau cannot work out for itself; all three drive what its HUD shows
+- `DISPLAY_ON` / `DISPLAY_OFF` — whether Nau owns the primary rect, which is not whether it is playing: the idle primary-slot player is minimized rather than closed (it keeps its taskbar button), so in Genau mode Nau blanks instead of sitting on the frame it was paused on. The same pair Genau gets, for the same reason
 - `QUIT`
 
 ### `nau_paused.txt`

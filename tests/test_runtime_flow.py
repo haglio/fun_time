@@ -126,12 +126,29 @@ def test_every_mode_switch_tells_nau_whether_it_is_hybrid(flow_files):
     assert "SET_HYBRID 0" in _nau_cmds(flow_files)
 
 
-def test_leaving_hybrid_keeps_both_nau_commands(flow_files):
-    """The command file is overwritten, not appended, so the hybrid signal must
-    ride along with the T-Code re-enable rather than replace it."""
+def test_every_mode_switch_tells_nau_whether_it_is_on_screen(flow_files):
+    """Nau blanks in genau mode the way Genau blanks in nau mode: the idle
+    primary-slot player is minimized rather than closed, so without this an
+    alt-tab back to it lands on the frame it was paused on."""
+    _mode_switch(flow_files, current="nau", target="genau")
+    assert "DISPLAY_OFF" in _nau_cmds(flow_files)
+
+    _mode_switch(flow_files, current="hybrid", target="genau")
+    assert "DISPLAY_OFF" in _nau_cmds(flow_files)
+
+    _mode_switch(flow_files, current="genau", target="nau")
+    assert "DISPLAY_ON" in _nau_cmds(flow_files)
+
+    _mode_switch(flow_files, current="genau", target="hybrid")
+    assert "DISPLAY_ON" in _nau_cmds(flow_files)
+
+
+def test_leaving_hybrid_keeps_every_nau_command(flow_files):
+    """The command file is overwritten, not appended, so the hybrid signal and
+    the display must ride along with the T-Code re-enable, not replace it."""
     _mode_switch(flow_files, current="hybrid", target="nau")
 
-    assert _nau_cmds(flow_files) == ["SET_HYBRID 0", "SET_TCODE_ENABLED 1"]
+    assert _nau_cmds(flow_files) == ["SET_HYBRID 0", "DISPLAY_ON", "SET_TCODE_ENABLED 1"]
 
 
 def test_hybrid_to_nau_keeps_nau_playing(flow_files):
