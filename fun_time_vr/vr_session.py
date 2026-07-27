@@ -166,7 +166,10 @@ class VRSession:
             ),
         )
 
-        self._space = xr.create_reference_space(
+        self._space = self._make_local_space()
+
+    def _make_local_space(self):
+        return xr.create_reference_space(
             self._session,
             xr.ReferenceSpaceCreateInfo(
                 reference_space_type=xr.ReferenceSpaceType.LOCAL,
@@ -242,6 +245,18 @@ class VRSession:
                 buf = xr.poll_event(self._instance)
             except xr.EventUnavailable:
                 break
+
+            if buf.type == xr.StructureType.EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
+                # The runtime re-zeroed its spaces (its own recenter, wherever
+                # its UI offers one).  Recreate ours so the new origin takes
+                # effect; poses already fetched this frame keep the old one,
+                # which is exactly the one frame of continuity a recenter wants.
+                old_space = self._space
+                self._space = self._make_local_space()
+                if old_space is not None:
+                    xr.destroy_space(old_space)
+                logger.info("Runtime recentered the reference space")
+                continue
 
             if buf.type == xr.StructureType.EVENT_DATA_SESSION_STATE_CHANGED:
                 event = ctypes.cast(

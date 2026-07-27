@@ -1019,6 +1019,14 @@ def dispatch_command(
             config.nau_cmd_file.write_text("CYCLE_PROJECTION", encoding="utf-8")
         return state, ops
 
+    if command == "recenter_view":
+        # FunTimeVR re-zeroes its scene onto wherever the headset faces at
+        # this instant; the runtime's own recenter UI never reaches the app.
+        # Routed like every primary verb so the desktop Nau logs it as unknown.
+        if nau_displays(state.primary_mode):
+            config.nau_cmd_file.write_text("RECENTER", encoding="utf-8")
+        return state, ops
+
     if command in _NAU_CMD_MAP:
         # Loop recording, versions and length only make sense while Nau owns the
         # primary display — nau and hybrid, but not genau.

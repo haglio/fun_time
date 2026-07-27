@@ -468,6 +468,27 @@ def test_projection_cycle_in_genau_mode_is_a_no_op(tmp_path: Path):
     assert not config.nau_cmd_file.exists()
 
 
+# --- recenter_view (FunTimeVR's scene) ---
+
+
+def test_recenter_writes_nau_cmd_while_nau_displays(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    dispatch_command("recenter_view", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "RECENTER"
+
+
+def test_recenter_in_genau_mode_is_a_no_op(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="genau")
+
+    dispatch_command("recenter_view", state, config)
+
+    assert not config.nau_cmd_file.exists()
+
+
 # --- nau cycle-version / length-mode ---
 
 
