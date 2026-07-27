@@ -62,6 +62,16 @@ void main() {
 }
 """
 
+_COPY_FRAGMENT_SHADER = """
+#version 330 core
+in vec2 screen_pos;
+out vec4 frag_color;
+uniform sampler2D video_tex;
+void main() {
+    frag_color = texture(video_tex, screen_pos * 0.5 + 0.5);
+}
+"""
+
 _IMMERSIVE_FRAGMENT_SHADER = """
 #version 330 core
 in vec2 screen_pos;
@@ -201,6 +211,49 @@ class RenderTarget:
         GL.glDeleteTextures(1, [self.texture])
 
 
+class ScreenMesh:
+    """One screen's triangle strip in a static VBO.
+
+    The strip changes only when the video's aspect does (a few times a
+    session), so it is uploaded then — not rebuilt and re-uploaded on every
+    draw of every eye of every frame, which is what a shared dynamic buffer
+    was costing.
+    """
+
+    def __init__(self) -> None:
+        self._vao = GL.glGenVertexArrays(1)
+        self._vbo = GL.glGenBuffers(1)
+        self.vertex_count = 0
+        GL.glBindVertexArray(self._vao)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self._vbo)
+        stride = 5 * 4
+        GL.glEnableVertexAttribArray(0)
+        GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(0))
+        GL.glEnableVertexAttribArray(1)
+        GL.glVertexAttribPointer(1, 2, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(3 * 4))
+        GL.glBindVertexArray(0)
+
+    def upload(self, vertices: np.ndarray) -> None:
+        data = np.ascontiguousarray(vertices, dtype=np.float32)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self._vbo)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, data.nbytes, data, GL.GL_STATIC_DRAW)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, 0)
+        self.vertex_count = len(data)
+
+    @property
+    def ready(self) -> bool:
+        return self.vertex_count > 0
+
+    def draw(self) -> None:
+        GL.glBindVertexArray(self._vao)
+        GL.glDrawArrays(GL.GL_TRIANGLE_STRIP, 0, self.vertex_count)
+        GL.glBindVertexArray(0)
+
+    def close(self) -> None:
+        GL.glDeleteVertexArrays(1, [self._vao])
+        GL.glDeleteBuffers(1, [self._vbo])
+
+
 class SceneRenderer:
     """Draws one eye's view: the immersive wrap or the primary screen, then
     the satellite screens over it (painter's order keeps them on top)."""
@@ -216,18 +269,10 @@ class SceneRenderer:
         self._imm_eye = GL.glGetUniformLocation(self._immersive_program, "eye")
         self._imm_mode = GL.glGetUniformLocation(self._immersive_program, "mode")
         self._imm_tex = GL.glGetUniformLocation(self._immersive_program, "video_tex")
+        self._copy_program = _compile_program(_FULLSCREEN_VERTEX_SHADER, _COPY_FRAGMENT_SHADER)
+        self._copy_tex = GL.glGetUniformLocation(self._copy_program, "video_tex")
 
         self._fullscreen_vao = GL.glGenVertexArrays(1)
-        self._quad_vao = GL.glGenVertexArrays(1)
-        self._quad_vbo = GL.glGenBuffers(1)
-        GL.glBindVertexArray(self._quad_vao)
-        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self._quad_vbo)
-        stride = 5 * 4
-        GL.glEnableVertexAttribArray(0)
-        GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(0))
-        GL.glEnableVertexAttribArray(1)
-        GL.glVertexAttribPointer(1, 2, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(3 * 4))
-        GL.glBindVertexArray(0)
 
     def begin_eye(self) -> None:
         """Reset the state the mpv render contexts may have left behind."""
@@ -239,13 +284,13 @@ class SceneRenderer:
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
     def draw_immersive(self, mode: int, texture: int, inv_view_proj: np.ndarray, eye: int) -> None:
+        """*inv_view_proj* must already be float32 (converted once per eye by
+        the caller, not per draw)."""
         GL.glUseProgram(self._immersive_program)
         GL.glUniform1i(self._imm_eye, eye)
         GL.glUniform1i(self._imm_mode, mode)
         GL.glUniform1i(self._imm_tex, 0)
-        GL.glUniformMatrix4fv(
-            self._imm_inv_view_proj, 1, GL.GL_TRUE, inv_view_proj.astype(np.float32)
-        )
+        GL.glUniformMatrix4fv(self._imm_inv_view_proj, 1, GL.GL_TRUE, inv_view_proj)
         GL.glActiveTexture(GL.GL_TEXTURE0)
         GL.glBindTexture(GL.GL_TEXTURE_2D, texture)
         GL.glBindVertexArray(self._fullscreen_vao)
@@ -253,22 +298,40 @@ class SceneRenderer:
         GL.glBindVertexArray(0)
         GL.glUseProgram(0)
 
-    def draw_screen(self, vertices: np.ndarray, texture: int, view_proj: np.ndarray) -> None:
+    def draw_screen(self, mesh: ScreenMesh, texture: int, view_proj: np.ndarray) -> None:
+        """*view_proj* must already be float32, like :meth:`draw_immersive`'s."""
         GL.glUseProgram(self._quad_program)
         GL.glUniform1i(self._quad_tex, 0)
-        GL.glUniformMatrix4fv(self._quad_view_proj, 1, GL.GL_TRUE, view_proj.astype(np.float32))
+        GL.glUniformMatrix4fv(self._quad_view_proj, 1, GL.GL_TRUE, view_proj)
         GL.glActiveTexture(GL.GL_TEXTURE0)
         GL.glBindTexture(GL.GL_TEXTURE_2D, texture)
-        GL.glBindVertexArray(self._quad_vao)
-        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self._quad_vbo)
-        data = np.ascontiguousarray(vertices, dtype=np.float32)
-        GL.glBufferData(GL.GL_ARRAY_BUFFER, data.nbytes, data, GL.GL_DYNAMIC_DRAW)
-        GL.glDrawArrays(GL.GL_TRIANGLE_STRIP, 0, len(data))
+        mesh.draw()
+        GL.glUseProgram(0)
+
+    def copy_texture(self, texture: int) -> None:
+        """Fill the bound framebuffer's viewport with *texture*, byte-for-byte.
+
+        How a video texture reaches a compositor-layer swapchain image: a
+        plain sampling draw rather than glBlitFramebuffer, because a blit
+        into an sRGB attachment leaves encode-on-write to the driver's
+        discretion while this path keeps the passthrough contract (module
+        docstring) that the projection path uses.
+        """
+        GL.glDisable(GL.GL_DEPTH_TEST)
+        GL.glDisable(GL.GL_BLEND)
+        GL.glDisable(GL.GL_SCISSOR_TEST)
+        GL.glDisable(GL.GL_CULL_FACE)
+        GL.glUseProgram(self._copy_program)
+        GL.glUniform1i(self._copy_tex, 0)
+        GL.glActiveTexture(GL.GL_TEXTURE0)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, texture)
+        GL.glBindVertexArray(self._fullscreen_vao)
+        GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
         GL.glBindVertexArray(0)
         GL.glUseProgram(0)
 
     def close(self) -> None:
         GL.glDeleteProgram(self._quad_program)
         GL.glDeleteProgram(self._immersive_program)
-        GL.glDeleteVertexArrays(2, [self._fullscreen_vao, self._quad_vao])
-        GL.glDeleteBuffers(1, [self._quad_vbo])
+        GL.glDeleteProgram(self._copy_program)
+        GL.glDeleteVertexArrays(1, [self._fullscreen_vao])

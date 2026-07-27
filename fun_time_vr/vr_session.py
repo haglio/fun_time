@@ -38,6 +38,26 @@ class SwapchainInfo:
     images: list[int] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class QuadLayer:
+    """One flat screen for the runtime's compositor to place in the world.
+
+    The image is the most recently released one of the session's quad
+    swapchain *swapchain_index*; the pose and size come from
+    :func:`fun_time_vr.scene.quad_layer_placement`.
+    """
+
+    swapchain_index: int
+    position: tuple[float, float, float]
+    orientation: tuple[float, float, float, float]
+    size: tuple[float, float]
+
+
+# A retired quad swapchain may still be referenced by the frames in flight,
+# so destruction waits this many frame_end calls.
+_RETIRE_AFTER_FRAMES = 3
+
+
 class VRSession:
     """The OpenXR instance, session, reference space, and per-eye swapchains."""
 
@@ -50,6 +70,9 @@ class VRSession:
         self._session_state = xr.SessionState.UNKNOWN
         self._session_begun = False
         self.swapchains: list[SwapchainInfo] = []
+        self.quad_swapchains: dict[int, SwapchainInfo] = {}
+        self._retiring: list[list] = []  # [frames_left, xr.Swapchain]
+        self._period_logged = False
         self.view_config_views: list[xr.ViewConfigurationView] = []
         self._fbo = 0
 
@@ -142,33 +165,53 @@ class VRSession:
             ),
         )
 
+    def _make_swapchain(self, width: int, height: int) -> SwapchainInfo:
+        swapchain = xr.create_swapchain(
+            self._session,
+            xr.SwapchainCreateInfo(
+                usage_flags=xr.SwapchainUsageFlags.COLOR_ATTACHMENT_BIT,
+                format=GL.GL_SRGB8_ALPHA8,
+                sample_count=1,
+                width=width,
+                height=height,
+                face_count=1,
+                array_size=1,
+                mip_count=1,
+            ),
+        )
+        images = xr.enumerate_swapchain_images(swapchain, xr.SwapchainImageOpenGLKHR)
+        return SwapchainInfo(
+            handle=swapchain, width=width, height=height,
+            images=[image.image for image in images],
+        )
+
     def _create_swapchains(self) -> None:
         for view_cfg in self.view_config_views:
-            width = view_cfg.recommended_image_rect_width
-            height = view_cfg.recommended_image_rect_height
-            swapchain = xr.create_swapchain(
-                self._session,
-                xr.SwapchainCreateInfo(
-                    usage_flags=xr.SwapchainUsageFlags.COLOR_ATTACHMENT_BIT,
-                    format=GL.GL_SRGB8_ALPHA8,
-                    sample_count=1,
-                    width=width,
-                    height=height,
-                    face_count=1,
-                    array_size=1,
-                    mip_count=1,
-                ),
-            )
-            images = xr.enumerate_swapchain_images(swapchain, xr.SwapchainImageOpenGLKHR)
-            info = SwapchainInfo(
-                handle=swapchain, width=width, height=height,
-                images=[image.image for image in images],
+            info = self._make_swapchain(
+                view_cfg.recommended_image_rect_width,
+                view_cfg.recommended_image_rect_height,
             )
             logger.info(
                 "Swapchain %d: %dx%d, %d images",
-                len(self.swapchains), width, height, len(info.images),
+                len(self.swapchains), info.width, info.height, len(info.images),
             )
             self.swapchains.append(info)
+
+    def ensure_quad_swapchain(self, index: int, width: int, height: int) -> None:
+        """Have quad swapchain *index* exist at exactly *width* x *height*.
+
+        Sized to the video texture and recreated when the clip's size changes
+        (rare), so submission always uses the full image rect — no sub-rect,
+        whose origin convention differs per graphics API.  The replaced chain
+        is retired, not destroyed: frames in flight may still composite it.
+        """
+        existing = self.quad_swapchains.get(index)
+        if existing is not None and (existing.width, existing.height) == (width, height):
+            return
+        if existing is not None:
+            self._retiring.append([_RETIRE_AFTER_FRAMES, existing.handle])
+        self.quad_swapchains[index] = self._make_swapchain(width, height)
+        logger.info("Quad swapchain %d: %dx%d", index, width, height)
 
     # ------------------------------------------------------------------
     # Frame loop
@@ -218,6 +261,12 @@ class VRSession:
     def frame_begin(self) -> tuple[bool, int, list[xr.View]]:
         frame_state = xr.wait_frame(self._session, xr.FrameWaitInfo())
         xr.begin_frame(self._session, xr.FrameBeginInfo())
+        if not self._period_logged and frame_state.predicted_display_period:
+            self._period_logged = True
+            period_ms = frame_state.predicted_display_period / 1e6
+            logger.info(
+                "Display period %.2f ms (%.1f Hz)", period_ms, 1000.0 / period_ms
+            )
 
         should_render = bool(frame_state.should_render) and self._session_state in (
             xr.SessionState.VISIBLE, xr.SessionState.FOCUSED,
@@ -248,8 +297,7 @@ class VRSession:
 
         return should_render, frame_state.predicted_display_time, views
 
-    def bind_eye_framebuffer(self, eye_index: int) -> None:
-        info = self.swapchains[eye_index]
+    def _bind_swapchain_framebuffer(self, info: SwapchainInfo) -> None:
         image_index = xr.acquire_swapchain_image(info.handle, xr.SwapchainImageAcquireInfo())
         xr.wait_swapchain_image(info.handle, xr.SwapchainImageWaitInfo(timeout=xr.INFINITE_DURATION))
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self._fbo)
@@ -259,12 +307,42 @@ class VRSession:
         )
         GL.glViewport(0, 0, info.width, info.height)
 
+    def bind_eye_framebuffer(self, eye_index: int) -> None:
+        self._bind_swapchain_framebuffer(self.swapchains[eye_index])
+
     def release_eye_framebuffer(self, eye_index: int) -> None:
         GL.glFlush()
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         xr.release_swapchain_image(self.swapchains[eye_index].handle, xr.SwapchainImageReleaseInfo())
 
-    def frame_end(self, display_time: int, views: list[xr.View]) -> None:
+    def bind_quad_framebuffer(self, index: int) -> None:
+        self._bind_swapchain_framebuffer(self.quad_swapchains[index])
+
+    def release_quad_framebuffer(self, index: int) -> None:
+        GL.glFlush()
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        xr.release_swapchain_image(
+            self.quad_swapchains[index].handle, xr.SwapchainImageReleaseInfo()
+        )
+
+    def frame_end(
+        self,
+        display_time: int,
+        views: list[xr.View],
+        *,
+        project: bool = True,
+        quads: list[QuadLayer] | None = None,
+    ) -> None:
+        """Submit this frame's layers: the projection layer (when *project*),
+        then each :class:`QuadLayer` over it in painter's order.
+
+        The runtime composites every layer at the true head pose each refresh,
+        so a quad holds rock-steady in the world even on a frame the app took
+        too long to update — flat screens as layers is exactly how a desktop
+        overlay tool stays smooth over a struggling game.
+        """
+        # Built and kept in locals so every struct the layer pointers reference
+        # stays alive until end_frame returns.
         projection_views = [
             xr.CompositionLayerProjectionView(
                 pose=view.pose,
@@ -284,17 +362,57 @@ class VRSession:
             space=self._space,
             views=projection_views,
         )
-        layers = [
-            ctypes.cast(ctypes.pointer(projection_layer), ctypes.POINTER(xr.CompositionLayerBaseHeader))
+        quad_structs = [
+            xr.CompositionLayerQuad(
+                space=self._space,
+                eye_visibility=xr.EyeVisibility.BOTH,
+                sub_image=xr.SwapchainSubImage(
+                    swapchain=self.quad_swapchains[quad.swapchain_index].handle,
+                    image_rect=xr.Rect2Di(
+                        offset=xr.Offset2Di(0, 0),
+                        extent=xr.Extent2Di(
+                            self.quad_swapchains[quad.swapchain_index].width,
+                            self.quad_swapchains[quad.swapchain_index].height,
+                        ),
+                    ),
+                    image_array_index=0,
+                ),
+                pose=xr.Posef(
+                    orientation=xr.Quaternionf(*quad.orientation),
+                    position=xr.Vector3f(*quad.position),
+                ),
+                size=xr.Extent2Df(*quad.size),
+            )
+            for quad in (quads or [])
         ]
+        layers = []
+        if views and project:
+            layers.append(
+                ctypes.cast(
+                    ctypes.pointer(projection_layer),
+                    ctypes.POINTER(xr.CompositionLayerBaseHeader),
+                )
+            )
+        if views:
+            layers.extend(
+                ctypes.cast(
+                    ctypes.pointer(struct), ctypes.POINTER(xr.CompositionLayerBaseHeader)
+                )
+                for struct in quad_structs
+            )
         xr.end_frame(
             self._session,
             xr.FrameEndInfo(
                 display_time=display_time,
                 environment_blend_mode=xr.EnvironmentBlendMode.OPAQUE,
-                layers=layers if views else [],
+                layers=layers,
             ),
         )
+        for entry in self._retiring:
+            entry[0] -= 1
+        for entry in [entry for entry in self._retiring if entry[0] <= 0]:
+            self._retiring.remove(entry)
+            xr.destroy_swapchain(entry[1])
 
     # ------------------------------------------------------------------
     # Cleanup
@@ -310,6 +428,10 @@ class VRSession:
                     pass
             for info in self.swapchains:
                 xr.destroy_swapchain(info.handle)
+            for info in self.quad_swapchains.values():
+                xr.destroy_swapchain(info.handle)
+            for _frames_left, handle in self._retiring:
+                xr.destroy_swapchain(handle)
             if self._space is not None:
                 xr.destroy_space(self._space)
             xr.destroy_session(self._session)

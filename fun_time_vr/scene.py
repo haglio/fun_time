@@ -46,6 +46,40 @@ def satellite_center_azimuth(side: str) -> float:
     return _SATELLITE_AZIMUTH_BY_SIDE[side]
 
 
+def quad_layer_placement(
+    center_azimuth_deg: float,
+    width_deg: float,
+    *,
+    aspect: float,
+    center_elevation_deg: float = 0.0,
+    radius: float = RADIUS,
+) -> tuple[tuple[float, float, float], tuple[float, float, float, float], tuple[float, float]]:
+    """Pose and size for the flat compositor quad standing in for a screen.
+
+    When the runtime composites a screen as an ``XrCompositionLayerQuad``, the
+    gently-curved patch flattens to its tangent plane: same center point on
+    the cylinder, yaw-only orientation facing the viewer (matching the
+    untilted columns of :func:`surface_vertices`), and a width chosen so the
+    flat quad subtends exactly *width_deg* from the origin — the sagitta of a
+    curve this gentle is centimeters, so the swap reads identical in the
+    headset.  Returns ``(position, orientation_xyzw, (width, height))`` in the
+    reference space's meters, height from *aspect* as ever.
+    """
+    if aspect <= 0:
+        raise ValueError(f"aspect must be positive, got {aspect}")
+    theta = math.radians(center_azimuth_deg)
+    position = (
+        radius * math.sin(theta),
+        radius * math.tan(math.radians(center_elevation_deg)),
+        -radius * math.cos(theta),
+    )
+    # A rotation about +Y by -theta points the quad's +Z (its front face,
+    # per the OpenXR quad-layer convention) back at the viewer.
+    orientation = (0.0, math.sin(-theta / 2.0), 0.0, math.cos(theta / 2.0))
+    width = 2.0 * radius * math.tan(math.radians(width_deg) / 2.0)
+    return position, orientation, (width, width / aspect)
+
+
 def surface_vertices(
     center_azimuth_deg: float,
     width_deg: float,

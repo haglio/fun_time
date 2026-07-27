@@ -117,13 +117,16 @@ class VrConfig:
     (the VR-mastered videos live in their own branch of the library);
     ``audio_device`` routes the primary's sound to the headset by substring
     match; the T-Code endpoint is the broker's UDP inlet, the same one Nau and
-    Genau send to.
+    Genau send to.  ``compositor_layers`` hands flat screens to the runtime's
+    compositor as quad layers (the smooth path); false falls back to drawing
+    every screen inside the projection layer.
     """
 
     library_dirs: tuple[Path, ...] = ()
     audio_device: str | None = None
     tcode_udp_host: str = "127.0.0.1"
     tcode_udp_port: int = 50557
+    compositor_layers: bool = True
 
 
 @dataclass(frozen=True)
@@ -318,6 +321,7 @@ def _load_vr_config(raw: dict[str, Any] | None) -> VrConfig:
         audio_device=str(audio_device) if audio_device else None,
         tcode_udp_host=str(values.get("tcode_udp_host", "127.0.0.1")),
         tcode_udp_port=int(values.get("tcode_udp_port", 50557)),
+        compositor_layers=bool(values.get("compositor_layers", True)),
     )
 
 
