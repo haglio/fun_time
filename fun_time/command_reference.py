@@ -143,7 +143,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("R",),
                 ("nau_record_down", "nau_record_up", "nau_record_tap", "nau_loop_cancel"),
             ),
-            _Row("Open file browser", ("\\",), ("backslash_key", "open_file_dialog")),
+            _Row("Open file browser", ("\\",), ("backslash_key", "browse_library")),
             _Row("Save clip (Clipper)", ("'",), ("clipper_save",)),
         ),
     ),

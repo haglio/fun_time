@@ -8,6 +8,8 @@ path yields a fresh thumbnail instead of a stale one.
 from __future__ import annotations
 
 import hashlib
+import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 import cv2
@@ -15,6 +17,11 @@ from PIL import Image
 
 # Default longest-edge size (px) for a HUD sibling thumbnail.
 DEFAULT_MAX_SIZE = 160
+
+# Where the cache lives, under the session's state dir.  One cache for every
+# still in the session — the satellites' HUD maps and the library browser's
+# tiles — so a video decoded for one is already warm for the other.
+THUMBNAIL_CACHE_DIRNAME = "hud_thumbnails"
 
 
 def _norm(path: str | Path) -> Path:
@@ -86,3 +93,24 @@ def thumbnail_for(
     dest.parent.mkdir(parents=True, exist_ok=True)
     image.save(dest, "JPEG", quality=80)
     return dest
+
+
+def prewarm_thumbnails(
+    videos: Iterable[str | Path],
+    cache_dir: str | Path,
+    thumbnailer: Callable[[str | Path, str | Path], object] = thumbnail_for,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    pause_s: float = 0.05,
+) -> None:
+    """Extract and cache *videos*' thumbnails, so a first use never blocks on a
+    frame grab.  Idempotent — an already cached thumbnail is skipped.  Sleeps
+    briefly between clips so decoding a big HEVC library never starves the
+    session's own work (that starvation was showing up as multi-second blinks);
+    run it off the main thread.
+
+    The caller chooses which videos: a satellite warms every clip in its
+    library, the library browser one per handle off its cheapest rendition.
+    """
+    for video in videos:
+        thumbnailer(video, cache_dir)
+        sleep_fn(pause_s)

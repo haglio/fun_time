@@ -162,7 +162,7 @@ class TestVoiceCommands:
             "version": "nau_cycle_version",
             "shorts": "nau_length_shorts",
             "full length": "nau_length_full",
-            "browse": "open_file_dialog",
+            "browse": "browse_library",
             "clip": "clipper_save",
             "save clip": "clipper_save",
             "slow down": "genau_speed_down",
