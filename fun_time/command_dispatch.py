@@ -435,10 +435,17 @@ def _discard(
     if plan.remove_from_favs and condemned:
         remove_from_favs(config.favs_file, condemned)
     if plan.advance_playlist:
-        if already_moved_on:
-            _play_video(config, which, condemned)
-        # TRASH drops the current clip from the playlist and plays the next.
-        _send_satellite(config, which, "TRASH")
+        if plan.drop_from_playlist:
+            if already_moved_on:
+                _play_video(config, which, condemned)
+            # TRASH drops the current clip from the playlist and plays the next.
+            _send_satellite(config, which, "TRASH")
+        elif not already_moved_on:
+            # A demotion leaves the clip in the playlist, so this is a plain
+            # advance (NEXT) and PREV comes straight back to it.  Nothing has to
+            # be done to the clip itself, so a satellite that already moved on is
+            # left alone rather than dragged back to a clip it would leave again.
+            _send_satellite(config, which, "NEXT")
     if plan.move_to_weird and condemned:
         move_to_weird(config.weird_dir, Path(condemned))
     if plan.log_message:

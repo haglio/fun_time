@@ -541,7 +541,9 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
 ):
     """Every sample the isolated session links in is seeded into its favs.csv, so
     the clip on screen is a favorite and discard demotes it: the row leaves the
-    list, the file stays in the library."""
+    list, the file stays in the library, and the clip stays in the rotation —
+    W then A comes straight back to it."""
+    status_file = isolated_integration_session.config.paths.state_dir / "landscape_status.txt"
     isolated_integration_session.write_dashboard_command("landscape_trash")
     chunk = isolated_integration_session.wait_for_new_log("Removed from favorites on player 3:", timeout=12)
     match = re.search(r"Removed from favorites on player 3:\s*(.+)", chunk)
@@ -555,6 +557,18 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     )
     assert demoted_path.exists(), "A demoted favorite must stay where it is"
     assert not any(p.name == demoted_path.name for p in isolated_integration_session.weird_dir.iterdir())
+
+    isolated_integration_session.wait_until(
+        lambda: Path(read_satellite_status(status_file).video or "x").resolve() != demoted_path,
+        timeout=12,
+        description="landscape satellite to advance off the demoted clip",
+    )
+    isolated_integration_session.write_dashboard_command("landscape_prev")
+    isolated_integration_session.wait_until(
+        lambda: Path(read_satellite_status(status_file).video or "x").resolve() == demoted_path,
+        timeout=12,
+        description="landscape prev to land back on the demoted clip, still in the rotation",
+    )
 
 
 def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
