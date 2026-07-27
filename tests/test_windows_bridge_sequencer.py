@@ -24,7 +24,7 @@ from fun_time.window_layout import (
     WindowLayoutPlan,
 )
 from fun_time.config import LayoutConfig
-from fun_time.startup_progress import STARTUP_PHASES, NullProgress, StartupCancelled
+from fun_time.overlay_progress import STARTUP_PHASES, NullProgress, StartupCancelled
 
 import pytest
 
