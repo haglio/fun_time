@@ -101,7 +101,7 @@ def test_transitions_that_do_not_leave_hybrid_never_touch_nau_tcode():
         assert plan.reenable_nau_tcode is False
 
 
-def test_display_cmd_tracks_whether_genau_is_on_screen():
+def test_genau_display_cmd_tracks_whether_genau_is_on_screen():
     # Genau paints its clips only in the modes that show it; in nau mode it goes
     # dark so an alt-tab never lands on a stray frame.  This is separate from
     # genau_cmd: PAUSE stops the hand, DISPLAY_OFF blanks the window.
@@ -114,15 +114,35 @@ def test_display_cmd_tracks_whether_genau_is_on_screen():
         ("hybrid", "nau", "DISPLAY_OFF"),
     ):
         plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=False)
-        assert plan.display_cmd == expected, f"{current}->{target}"
+        assert plan.genau_display_cmd == expected, f"{current}->{target}"
+
+
+def test_nau_display_cmd_tracks_whether_nau_is_on_screen():
+    # The mirror image: Nau owns the display in nau and hybrid, and in genau mode
+    # it goes dark for the same reason Genau does in nau mode — the idle player is
+    # minimized, not closed, so an alt-tab would otherwise land on the frame it
+    # was paused on.  Separate from nau_should_play, which only moves when the
+    # display changes hands; this is asserted on every transition.
+    for current, target, expected in (
+        ("genau", "nau", "DISPLAY_ON"),
+        ("genau", "hybrid", "DISPLAY_ON"),
+        ("nau", "hybrid", "DISPLAY_ON"),
+        ("hybrid", "nau", "DISPLAY_ON"),
+        ("nau", "genau", "DISPLAY_OFF"),
+        ("hybrid", "genau", "DISPLAY_OFF"),
+    ):
+        plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=False)
+        assert plan.nau_display_cmd == expected, f"{current}->{target}"
 
 
 def test_no_display_cmd_without_a_transition():
     for mode in ("nau", "genau", "hybrid"):
         plan = build_mode_switch_plan(current_mode=mode, target_mode=mode, omni_paused=False)
-        assert plan.display_cmd is None
+        assert plan.genau_display_cmd is None
+        assert plan.nau_display_cmd is None
     omni = build_mode_switch_plan(current_mode="nau", target_mode="genau", omni_paused=True)
-    assert omni.display_cmd is None
+    assert omni.genau_display_cmd is None
+    assert omni.nau_display_cmd is None
 
 
 def test_genau_cmd_is_authoritative_for_the_target_mode():

@@ -1750,7 +1750,7 @@ def test_leaving_hybrid_reenables_nau_tcode(tmp_path: Path):
     dispatch_command("nau_activate", state, config)
 
     assert config.nau_cmd_file.read_text(encoding="utf-8").splitlines() == [
-        "SET_HYBRID 0", "SET_TCODE_ENABLED 1",
+        "SET_HYBRID 0", "DISPLAY_ON", "SET_TCODE_ENABLED 1",
     ]
 
 
