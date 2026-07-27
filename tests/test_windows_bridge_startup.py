@@ -395,9 +395,9 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         landscape_log_file=state_dir / "landscape_satellite.log",
         portrait_rect=WindowRect(x=2560, y=0, width=1440, height=2500),
         landscape_rect=WindowRect(x=1664, y=0, width=896, height=1392),
-        primary_sources="primary_a|primary_b",
-        portrait_sources="portrait_a",
-        landscape_sources="landscape_a",
+        primary_sources=f"{tmp_path / 'primary_a'}|{tmp_path / 'primary_b'}",
+        portrait_sources=str(tmp_path / "portrait_a"),
+        landscape_sources=str(tmp_path / "landscape_a"),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         result_file=tmp_path / "core_session.ini",
@@ -445,9 +445,9 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
     # The same playlist builder the F-mode toggle uses, with F-mode off.
     build.assert_called_once_with(
-        primary_sources="primary_a|primary_b",
-        portrait_sources="portrait_a",
-        landscape_sources="landscape_a",
+        primary_sources=kwargs["primary_sources"],
+        portrait_sources=kwargs["portrait_sources"],
+        landscape_sources=kwargs["landscape_sources"],
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         enabled=False,
@@ -485,23 +485,43 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     )
 
 
+def _seed_resumable_session(tmp_path: Path, kwargs: dict) -> dict[str, list[str]]:
+    """Last session's three playlist files and status files, on disk.
+
+    Each player gets two clips drawn from the very dirs this session's source
+    spec names — the shape a real build leaves behind — and its status file
+    names the second, so a resume rotates that one to the front.
+    """
+    state_dir = kwargs["state_dir"]
+    state_dir.mkdir(parents=True, exist_ok=True)
+    sources = {
+        "portrait": kwargs["portrait_sources"],
+        "landscape": kwargs["landscape_sources"],
+        "nau": kwargs["primary_sources"].split("|")[0],
+    }
+    left_on = {}
+    for name, source_dir in sources.items():
+        Path(source_dir).mkdir(parents=True, exist_ok=True)
+        clips = []
+        for index in (1, 2):
+            clip = Path(source_dir) / f"{name} scene {index}.mp4"
+            clip.write_bytes(b"")
+            clips.append(str(clip))
+        left_on[name] = clips
+        (state_dir / f"{name}_playlist.tsv").write_text(
+            "".join(f"{c}\n" for c in clips), encoding="utf-8"
+        )
+        (state_dir / f"{name}_status.txt").write_text(f"video={clips[1]}\n", encoding="utf-8")
+    return left_on
+
+
 def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_path: Path, caplog):
     """Reopening Fun Time lands on the clips it was closed on: with last
     session's playlist files still on disk, each is rotated onto the video that
     player published and no fresh shuffle is built over them."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
-    state_dir.mkdir(parents=True, exist_ok=True)
-    left_on = {}
-    for name in ("portrait", "landscape", "nau"):
-        clips = []
-        for index in (1, 2):
-            clip = tmp_path / f"{name}{index}.mp4"
-            clip.write_bytes(b"")
-            clips.append(str(clip))
-        left_on[name] = clips
-        (state_dir / f"{name}_playlist.tsv").write_text("".join(f"{c}\n" for c in clips), encoding="utf-8")
-        (state_dir / f"{name}_status.txt").write_text(f"video={clips[1]}\n", encoding="utf-8")
+    left_on = _seed_resumable_session(tmp_path, kwargs)
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
@@ -520,6 +540,50 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     # Which clips you get is the whole difference between the two paths, so the
     # session says which one it took.
     assert "Resumed last session's playlists" in caplog.text
+
+
+def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
+    tmp_path: Path, caplog
+):
+    """FunTimeVR writes its primary playlist to the very file the desktop
+    session resumes from, and builds it from the VR library merged with this
+    one's — so reopening the desktop app inherited VR videos it must never
+    play.  Only the primary is rebuilt: both apps build the satellites from the
+    same dirs, so their resume is still last session's and is kept."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    state_dir = kwargs["state_dir"]
+    left_on = _seed_resumable_session(tmp_path, kwargs)
+    # The other app's addition: a video from a library this session never names.
+    vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
+    vr_clip.parent.mkdir(parents=True, exist_ok=True)
+    vr_clip.write_bytes(b"")
+    nau_playlist = state_dir / "nau_playlist.tsv"
+    nau_playlist.write_text(
+        f"{vr_clip}\n{left_on['nau'][0]}\n", encoding="utf-8"
+    )
+    (state_dir / "nau_status.txt").write_text(f"video={vr_clip}\n", encoding="utf-8")
+
+    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+        "fun_time.windows_bridge_startup.ensure_broker"
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch(
+        "fun_time.windows_bridge_startup.build_fmode_playlists"
+    ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps"):
+        with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
+            start_core_session(**kwargs)
+
+    # The primary comes back from this session's own library, and the foreign
+    # video is gone from it.
+    rebuilt = nau_playlist.read_text(encoding="utf-8").splitlines()
+    assert sorted(line.split("\t")[0] for line in rebuilt) == sorted(left_on["nau"])
+    # The satellites keep the resume; nothing rebuilt all three.
+    build.assert_not_called()
+    for name in ("portrait", "landscape"):
+        first, second = left_on[name]
+        playlist = state_dir / f"{name}_playlist.tsv"
+        assert playlist.read_text(encoding="utf-8").splitlines() == [second, first]
+    assert "rebuilt the primary's" in caplog.text
 
 
 def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
