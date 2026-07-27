@@ -96,7 +96,7 @@ VOICE_COMMANDS: dict[str, str] = {
     # FunTimeVR: re-zero the scene onto wherever the headset is facing now —
     # the in-app recenter, since the runtime's own menu doesn't reach the app.
     "recenter": "recenter_view",
-    "browse": "open_file_dialog",
+    "browse": "browse_library",
     "clip": "clipper_save",
     "save clip": "clipper_save",
     "record": "nau_record_down",

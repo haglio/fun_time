@@ -808,7 +808,7 @@ class TestDispatchLoopRunner:
         recv_sock.close()
         assert "quarter_button" in messages
 
-    def test_backslash_key_sends_open_file_dialog_press_in_nau_mode(self, tmp_path):
+    def test_backslash_key_sends_browse_library_press_in_nau_mode(self, tmp_path):
         recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         recv_sock.bind(("127.0.0.1", 0))
         recv_sock.settimeout(1.0)
@@ -825,7 +825,7 @@ class TestDispatchLoopRunner:
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner.tick()
             time.sleep(0.15)
 
@@ -837,7 +837,7 @@ class TestDispatchLoopRunner:
             except OSError:
                 break
         recv_sock.close()
-        assert "open_file_dialog" in messages
+        assert "browse_library" in messages
 
     def test_backslash_key_enters_omnipause_when_not_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
@@ -849,7 +849,7 @@ class TestDispatchLoopRunner:
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner.tick()
             time.sleep(0.15)  # background thread needs a moment
 
@@ -1491,11 +1491,11 @@ class TestModeDependentTopmost:
         assert promoted.index(NAU_HWND) < promoted.index(GENAU_HWND)
 
 
-class TestHandleOpenFileDialog:
-    """Tests for the open_file_dialog command (the Nau "browse" feature).
+class TestBrowseLibrary:
+    """Tests for the browse_library command (the Nau "browse" feature).
 
     Browsing must leave playback and voice alone — everything keeps playing
-    while you pick.  The dialog only needs the topmost bands dropped so it is
+    while you pick.  The browser only needs the topmost bands dropped so it is
     not buried under the always-on-top windows; it must never enter OmniPause.
     """
 
@@ -1514,8 +1514,8 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
+            runner._handle_browse_library()
 
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "enter_omnipause" not in dispatched
@@ -1535,25 +1535,32 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
                    side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
+            runner._handle_browse_library()
 
         removed = {h for h, v in topmost_calls if not v}
         assert removed == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
-    def test_shows_file_dialog_with_primary_sources_dir(self, tmp_path):
-        """Shows our own file dialog with the first primary_sources directory."""
-        config = make_config(tmp_path, primary_sources=r"C:\videos\2D\non_AI|C:\other")
-        runner = make_runner(tmp_path, config=config)
+    def test_browses_the_session_library_over_the_primary_display(self, tmp_path):
+        """The browse opens Fun Time's own library browser, filling Nau's rect.
+
+        Nau's window is what the pick will play in, so the browser stands exactly
+        where the video will be — and covers nothing else on either monitor.
+        """
+        config = make_config(tmp_path, python_exe=r"C:\python.exe")
+        runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
         runner.state = BridgeState(omni_paused=False)
 
         with patch.object(runner, "_remove_all_topmost"), \
              patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.window_rect", return_value=(0, 400, 1080, 1520)), \
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
+            runner._handle_browse_library()
 
-        mock_dialog.assert_called_once_with(r"C:\videos\2D\non_AI", owner_hwnd=NAU_HWND)
+        mock_browse.assert_called_once_with(
+            tmp_path / "launch.ini", r"C:\python.exe", over=(0, 400, 1080, 1520),
+        )
 
     def test_sends_selected_file_to_nau_by_default(self, tmp_path):
         """In nau mode (the default) a selected file becomes a Nau PLAY_FILE
@@ -1571,8 +1578,8 @@ class TestHandleOpenFileDialog:
         with patch.object(runner, "_remove_all_topmost"), \
              patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=str(video)):
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=str(video)):
+            runner._handle_browse_library()
 
         command = runner.config.nau_cmd_file.read_text(encoding="utf-8")
         assert command == f"PLAY_FILE {video}\t{mirrored}"
@@ -1587,8 +1594,8 @@ class TestHandleOpenFileDialog:
         with patch.object(runner, "_remove_all_topmost"), \
              patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=r"C:\videos\movie.mp4"):
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=r"C:\videos\movie.mp4"):
+            runner._handle_browse_library()
 
         assert runner.config.nau_cmd_file.read_text(encoding="utf-8") == r"PLAY_FILE C:\videos\movie.mp4"
 
@@ -1600,8 +1607,8 @@ class TestHandleOpenFileDialog:
         with patch.object(runner, "_remove_all_topmost"), \
              patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
+            runner._handle_browse_library()
 
         assert not runner.config.nau_cmd_file.exists()
 
@@ -1617,8 +1624,8 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
                    side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
+            runner._handle_browse_library()
 
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS | {NAU_HWND}
@@ -1633,8 +1640,8 @@ class TestHandleOpenFileDialog:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
                    side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
+            runner._handle_browse_library()
 
         # genau mode: Nau is hidden and never joins the topmost band — it is
         # explicitly held non-topmost, never promoted.
@@ -1643,8 +1650,45 @@ class TestHandleOpenFileDialog:
         assert (NAU_HWND, False) in topmost_calls
         assert NAU_HWND not in restored
 
-    def test_topmost_removed_before_dialog(self, tmp_path):
-        """Topmost removal happens before showing the file dialog."""
+    def test_hands_the_keyboard_to_the_browser_and_takes_it_back(self, tmp_path):
+        """The global hotkeys are suspended for the browse, then restored.
+
+        Otherwise they eat the keys the browser needs: the arrows are the
+        satellites' prev/next and every letter is some command, so an
+        alphabetical grid could neither be walked nor typed at — a hotkey
+        consumes the press rather than passing it on.
+        """
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False)
+        suspends: list[str] = []
+
+        with patch.object(runner, "_remove_all_topmost"), \
+             patch.object(runner, "_restore_all_topmost"), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library",
+                   side_effect=lambda *a, **kw: suspends.append(
+                       runner.ahk_cmd_file.read_text(encoding="utf-8"))):
+            runner._handle_browse_library()
+
+        assert suspends == ["suspend_hotkeys"]
+        assert runner.ahk_cmd_file.read_text(encoding="utf-8") == "unsuspend_hotkeys"
+
+    def test_leaves_the_suspended_hotkeys_alone_when_already_paused(self, tmp_path):
+        """Under OmniPause the hotkeys are already suspended and must stay that
+        way — unsuspending after the browse would end the pause's own hold."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
+            runner._handle_browse_library()
+
+        assert not runner.ahk_cmd_file.exists()
+
+    def test_topmost_removed_before_the_browser_opens(self, tmp_path):
+        """Topmost removal happens before the browser window goes up."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
@@ -1653,54 +1697,54 @@ class TestHandleOpenFileDialog:
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", side_effect=lambda d, **kw: (call_log.append("dialog"), None)[-1]):
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", side_effect=lambda *a, **kw: (call_log.append("browse"), None)[-1]):
+            runner._handle_browse_library()
 
-        assert "dialog" in call_log
+        assert "browse" in call_log
         first_remove = next(i for i, c in enumerate(call_log) if c == "topmost_False")
-        assert first_remove < call_log.index("dialog")
+        assert first_remove < call_log.index("browse")
 
     def test_skips_topmost_management_when_already_paused(self, tmp_path):
         """Under OmniPause the topmost bands are already down and must stay down
         (restoring them would strand windows on top mid-pause), so browse leaves
-        them alone — but still shows the dialog."""
+        them alone — but still opens the browser."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=NAU_HWND), \
+             patch("fun_time.windows_bridge_dispatch_loop.window_rect", return_value=(0, 0, 800, 600)), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
+            runner._handle_browse_library()
 
-        # Should not touch topmost
         mock_topmost.assert_not_called()
-        # Should still show the file dialog owned by the Nau window
-        mock_dialog.assert_called_once_with("", owner_hwnd=NAU_HWND)
+        mock_browse.assert_called_once()
 
-    def test_shows_dialog_with_empty_dir_when_no_primary_sources(self, tmp_path):
-        """When primary_sources is empty, dialog opens with empty initial dir."""
+    def test_browses_unplaced_when_the_primary_display_cannot_be_found(self, tmp_path):
+        """With no Nau window to stand over, the browser picks its own place.
+
+        find_window_by_title is stubbed too: _resolve_role("nau") falls back to it
+        when the pid lookup misses, and left live it would enumerate the real
+        desktop and return a stray HWND (a running Fun Time's Nau window) — a flake.
+        """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
-        # With no Nau window found, the dialog is owner-less.  find_window_by_title
-        # is stubbed too: _resolve_role("nau") falls back to it when the pid lookup
-        # misses, and left live it would enumerate the real desktop and return a
-        # stray HWND (e.g. a running Fun Time's Nau window) — a flake.
         with patch.object(runner, "_remove_all_topmost"), \
              patch.object(runner, "_restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None) as mock_dialog:
-            runner._handle_open_file_dialog()
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
+            runner._handle_browse_library()
 
-        mock_dialog.assert_called_once_with("", owner_hwnd=0)
+        assert mock_browse.call_args.kwargs["over"] is None
 
     def test_concurrent_invocations_prevented(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)  # fast path — no omnipause
 
-        with patch("fun_time.windows_bridge_dispatch_loop.show_open_file_dialog", return_value=None):
-            original_handle = runner._handle_open_file_dialog
+        with patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
+            original_handle = runner._handle_browse_library
 
             barrier = threading.Barrier(2, timeout=2.0)
 
@@ -1721,15 +1765,15 @@ class TestHandleOpenFileDialog:
             t2.join(timeout=2.0)
 
         # The lock should prevent truly concurrent execution
-        assert hasattr(runner, "_file_dialog_lock")
+        assert hasattr(runner, "_browse_lock")
 
-    def test_open_file_dialog_routed_from_tick(self, tmp_path):
+    def test_browse_library_routed_from_tick(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("open_file_dialog", encoding="utf-8")
+        cmd_file.write_text("browse_library", encoding="utf-8")
 
-        with patch.object(runner, "_handle_open_file_dialog") as mock_handle:
+        with patch.object(runner, "_handle_browse_library") as mock_handle:
             runner.tick()
             # Give the background thread a moment to start
             time.sleep(0.1)

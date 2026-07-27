@@ -217,12 +217,42 @@ Every player says whether it is the one those bare words would reach: the **dot*
 
 The primary stack runs in one of three modes, each selected by its own hotkey (see the popup): **Nau**, **Genau**, and **Hybrid**. The `\` key is mode-dependent:
 
-- in Nau mode, `\` opens a file-picker dialog; the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Fun Time enters OmniPause while the dialog is open and leaves it when the dialog closes.
+- in Nau mode, `\` opens the **library browser** (see below); the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 - in Genau and Hybrid modes, `\` offsets Genau playback by a quarter cycle.
 
 The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode (in Genau mode the paused Nau still navigates in the background). The `'` clip-save key reads the current video/time from Nau's status file in Nau and Hybrid modes.
 
 The Nau-mode voice trigger is spoken as "now now" (the reference displays it as "nau nau" — "nau" itself is not in the recognizer's vocabulary).
+
+### The library browser (Nau mode)
+
+The primary library is filed by pipeline stage, several folders deep, and the
+same video sits in three of them at different trims and upscales
+(`…/winston/0 unsorted/`, `…/winston/1 could use work/2_originals_good_trimwise_but_need_upscaling/`,
+`…/winston/3_good_to_go/processed/`). Browsing that tree means knowing how far a
+video got through the pipeline before you can find it, which is the librarian's
+business and not the viewer's.
+
+So `\` opens Fun Time's own browser instead of a file dialog. It shows one tile
+per **video** rather than per file — every rendition of one video collapsed into
+a single *handle* — with a still off each, named after the video, alphabetical,
+and no folders anywhere. Arrow keys move the selection, typing jumps to a title,
+and Enter or a double-click plays it in Nau; the window's close button abandons
+the browse. The global hotkeys are suspended for its duration so those keys
+reach it at all — they consume the press, and the arrows and every letter are
+already commands. Escape is the exception: it belongs to OmniPause and stays
+live, which is why it is not the way out of the browser.
+
+The families come from Evolver's metadata sidecar (`version.group`), which is
+the authority on "same video, other version" — the filenames alone cannot say
+so. A video with no record stands alone as its own handle. Picking one plays its
+largest rendition, the same one the primary player's own version cycling treats
+as canonical, so `V` walks the rest of the family from there.
+
+Stills are cached under `state/hud_thumbnails/` — the same cache the satellites'
+HUD maps paint from — and warmed in the background at startup, one per handle,
+taken off the *smallest* rendition: a 2.7 GB upscale and the original it came
+from make the same picture, and only one of them is cheap to open.
 
 ### Loop recording (Nau mode)
 
@@ -378,6 +408,13 @@ Written by Nau: the current `video`, `position_ms`, `duration_ms`, `has_funscrip
 ### `watch_stats.json`
 
 Per-video watch counts (`completions` / `skips` / `locks`) keyed by normalized path — the input to the frequency weighting described under "Watch stats". Written by the dispatch loop's ~1 Hz satellite sampler and by lock commands; entries whose file vanished (e.g. marked weird) are pruned on the next write. Delete the file to reset all weights to neutral.
+
+### `library_browser_pick.txt`
+
+The video the library browser picked, written as it closes and consumed by the
+dispatch loop, which turns it into Nau's `PLAY_FILE`. The browser is a separate
+process (the bridge has no Qt event loop), so this is how the pick gets back.
+Cleared before every browse, so abandoning one never replays the last pick.
 
 ### `nau_playlist.tsv`
 

@@ -35,8 +35,11 @@ from .overlay_progress import (
     ready_file_for,
 )
 from .hud_transport import HUD_FILENAME, HudPublisher
-from .lock_hud import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails, prime_group_indexes
+from .library_handles import build_library_handles
+from .lock_hud import prime_group_indexes
 from .loopback_server import serve_loopback
+from .modes import collect_video_files
+from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -397,6 +400,22 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
     _log_nau_obstruction(nau_hwnd)
 
 
+def _primary_browse_stills(bridge_config) -> list[str]:
+    """One video per library-browser tile, off the cheapest rendition of each.
+
+    Warmed with the satellites' clips so the browser opens on a full grid rather
+    than filling in under the user.  Per handle rather than per file, and off the
+    smallest member: an upscale and the original it came from make the same
+    picture, and only one of them is seconds rather than minutes to open.
+    """
+    return [
+        handle.preview
+        for handle in build_library_handles(
+            bridge_config.primary_sources, bridge_config.regen_metadata_root
+        )
+    ]
+
+
 def _start_hud_priming(
     bridge_config, manifest, *, enabled: bool
 ) -> tuple[HudPublisher | None, threading.Event]:
@@ -430,7 +449,10 @@ def _start_hud_priming(
             prime_group_indexes(sources, bridge_config.regen_metadata_root)
         finally:
             primed.set()
-        prewarm_thumbnails(sources, cache_dir)
+        for source in sources:
+            if source:
+                prewarm_thumbnails(collect_video_files(source), cache_dir)
+        prewarm_thumbnails(_primary_browse_stills(bridge_config), cache_dir)
 
     threading.Thread(target=_warm, daemon=True, name="hud-warm").start()
     return publisher, primed
@@ -585,6 +607,7 @@ def run_python_orchestrated_bridge(
         role_hwnds=result.role_hwnds,
         config=bridge_config,
         dashboard_cmd_file=Path(manifest["commands"]["dashboard_cmd_file"]),
+        manifest_path=Path(manifest_path),
         shared_state_file=state_dir / "shared_bridge_state.ini",
         ahk_cmd_file=state_dir / "ahk_cmd.txt",
         nau_pid=result.nau_pid,

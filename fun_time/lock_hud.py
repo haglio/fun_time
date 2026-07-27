@@ -24,8 +24,6 @@ from fun_time.media_metadata import (
 from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
 
-THUMBNAIL_CACHE_DIRNAME = "hud_thumbnails"
-
 # What F-mode is called on screen.  One key toggles it for every player at once, so
 # it has to read the same on both HUDs and on the dashboard — Nau's own HUD carries
 # a matching constant (``nau.hud.F_MODE_LABEL`` in genau), which is the one place
@@ -450,27 +448,6 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
                 metadata_root=metadata_root,
                 must_contain=None,
             )
-
-
-def prewarm_thumbnails(
-    sources: tuple[str, ...],
-    cache_dir: str | Path,
-    thumbnailer: Callable[[str, str | Path], object] = thumbnail_for,
-    sleep_fn: Callable[[float], None] = time.sleep,
-    pause_s: float = 0.05,
-) -> None:
-    """Extract and cache every library clip's thumbnail in the background, so the
-    map paints from cache instead of blocking on a first-use frame grab.
-    Idempotent — an already cached thumbnail is skipped.  Sleeps briefly between
-    clips so decoding a big HEVC library never starves the session's own work
-    (that starvation was showing up as multi-second blinks); run it off the main
-    thread."""
-    for source in sources:
-        if not source:
-            continue
-        for path in collect_video_files(source):
-            thumbnailer(path, cache_dir)
-            sleep_fn(pause_s)
 
 
 def build_panels(

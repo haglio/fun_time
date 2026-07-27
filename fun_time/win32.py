@@ -241,6 +241,19 @@ def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = T
     _user32.SetWindowPos(hwnd, 0, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE)
 
 
+def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
+    """Where *hwnd* sits, as (x, y, width, height), or None if it is gone.
+
+    Read so a second window can be stood exactly on a first — the library
+    browser fills the primary player's rect, since that is where the video it
+    picks will play.
+    """
+    rect = ctypes.wintypes.RECT()
+    if not _user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return None
+    return rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top
+
+
 def set_always_on_top(hwnd: int, on_top: bool) -> None:
     """Set or clear the always-on-top flag for a window."""
     insert_after = HWND_TOPMOST if on_top else HWND_NOTOPMOST
@@ -412,13 +425,15 @@ def is_window_minimized(hwnd: int) -> bool:
     return bool(_user32.IsIconic(hwnd))
 
 
-# --- File Open Dialog (COM IFileOpenDialog) ---
+# --- COM plumbing (the shortcut's AppUserModelID) ---
 
 import uuid
 
 COINIT_APARTMENTTHREADED = 0x2
+
+# IUnknown vtable index, for _release below.
+_VTBL_RELEASE = 2
 CLSCTX_ALL = 0x17
-SIGDN_FILESYSPATH = 0x80058000
 
 
 class GUID(ctypes.Structure):
@@ -434,14 +449,6 @@ def _make_guid(s: str) -> GUID:
     u = uuid.UUID(s)
     return GUID(u.time_low, u.time_mid, u.time_hi_version,
                 (ctypes.c_ubyte * 8)(*u.bytes[8:]))
-
-
-class COMDLG_FILTERSPEC(ctypes.Structure):
-    _fields_ = [
-        ("pszName", ctypes.wintypes.LPCWSTR),
-        ("pszSpec", ctypes.wintypes.LPCWSTR),
-    ]
-
 
 # --- Shortcut AppUserModelID (COM IShellLink + IPersistFile + IPropertyStore) ---
 
@@ -614,22 +621,6 @@ def _get_lnk_aumid(lnk_path: str) -> str | None:
         _release(shell_link.value)
 
 
-# --- File Open Dialog (COM IFileOpenDialog) ---
-
-CLSID_FileOpenDialog = _make_guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")
-IID_IFileOpenDialog = _make_guid("d57c7288-d4ad-4768-be02-9d969532d960")
-IID_IShellItem = _make_guid("43826d1e-e718-42ee-bc55-a1e261c37bfe")
-
-# IFileOpenDialog vtable indices (IUnknown + IModalWindow + IFileDialog + IFileOpenDialog)
-_VTBL_RELEASE = 2
-_VTBL_SHOW = 3
-_VTBL_SET_FILE_TYPES = 4
-_VTBL_SET_FOLDER = 12
-_VTBL_GET_RESULT = 20
-# IShellItem vtable indices
-_VTBL_GET_DISPLAY_NAME = 5
-
-
 def _vtbl_call(obj_addr: int, index: int, restype: type, *argtypes: type):
     """Build a callable for COM vtable method at *index*. Caller passes 'this' as first arg."""
     vtbl = ctypes.c_void_p.from_address(obj_addr).value
@@ -641,79 +632,3 @@ def _vtbl_call(obj_addr: int, index: int, restype: type, *argtypes: type):
 
 def _release(obj_addr: int) -> None:
     _vtbl_call(obj_addr, _VTBL_RELEASE, ctypes.c_ulong)(obj_addr)
-
-
-def show_open_file_dialog(initial_dir: str, owner_hwnd: int = 0) -> str | None:
-    """Show a native Windows file-open dialog starting at *initial_dir*.
-
-    Uses COM IFileOpenDialog with SetFolder (not SetDefaultFolder) so the
-    dialog always opens at the specified directory, ignoring Windows' MRU
-    cache.  The owner_hwnd parameter positions the dialog near that window.
-
-    Returns the selected file path, or None if the user cancelled.
-    """
-    _ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
-    try:
-        return _show_ifile_dialog(initial_dir, owner_hwnd)
-    finally:
-        _ole32.CoUninitialize()
-
-
-def _show_ifile_dialog(initial_dir: str, owner_hwnd: int) -> str | None:
-    dialog = ctypes.c_void_p()
-    hr = _ole32.CoCreateInstance(
-        ctypes.byref(CLSID_FileOpenDialog), None, CLSCTX_ALL,
-        ctypes.byref(IID_IFileOpenDialog), ctypes.byref(dialog),
-    )
-    if hr != 0:
-        return None
-    try:
-        # Set initial folder (always forces, ignores MRU)
-        if initial_dir:
-            folder = ctypes.c_void_p()
-            hr = _shell32.SHCreateItemFromParsingName(
-                initial_dir, None, ctypes.byref(IID_IShellItem), ctypes.byref(folder),
-            )
-            if hr == 0:
-                _vtbl_call(dialog.value, _VTBL_SET_FOLDER,
-                           ctypes.HRESULT, ctypes.c_void_p)(dialog.value, folder.value)
-                _release(folder.value)
-
-        # Set video file filters
-        specs = (COMDLG_FILTERSPEC * 2)(
-            COMDLG_FILTERSPEC("Video Files",
-                              "*.mp4;*.mkv;*.avi;*.wmv;*.mov;*.flv;*.webm;*.m4v;*.ts;*.mpg;*.mpeg"),
-            COMDLG_FILTERSPEC("All Files", "*.*"),
-        )
-        _vtbl_call(dialog.value, _VTBL_SET_FILE_TYPES,
-                   ctypes.HRESULT, ctypes.c_uint,
-                   ctypes.POINTER(COMDLG_FILTERSPEC))(dialog.value, 2, specs)
-
-        # Show (blocks until user selects or cancels)
-        hr = _vtbl_call(dialog.value, _VTBL_SHOW,
-                        ctypes.HRESULT, ctypes.wintypes.HWND)(dialog.value, owner_hwnd)
-        if hr != 0:
-            return None
-
-        # Get selected file path
-        result = ctypes.c_void_p()
-        hr = _vtbl_call(dialog.value, _VTBL_GET_RESULT,
-                        ctypes.HRESULT, ctypes.POINTER(ctypes.c_void_p))(
-            dialog.value, ctypes.byref(result))
-        if hr != 0:
-            return None
-        try:
-            path_ptr = ctypes.wintypes.LPWSTR()
-            hr = _vtbl_call(result.value, _VTBL_GET_DISPLAY_NAME,
-                            ctypes.HRESULT, ctypes.c_int,
-                            ctypes.POINTER(ctypes.wintypes.LPWSTR))(
-                result.value, SIGDN_FILESYSPATH, ctypes.byref(path_ptr))
-            if hr != 0:
-                return None
-            path = path_ptr.value
-            _ole32.CoTaskMemFree(path_ptr)
-            return path
-        finally:
-            _release(result.value)
-    finally:
-        _release(dialog.value)

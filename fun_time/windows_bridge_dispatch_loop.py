@@ -29,7 +29,9 @@ from .command_dispatch import (
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
 from .event_log import NOTICE, notice
 from .hud_transport import HudPublisher
+from .library_browser import browse_library
 from .lock_hud import SideInputs, build_panels
+from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from .mode_plan import genau_active
 from .nau_console import console_payload
 from .modes import build_mirrored_funscript_path, is_favorite_path, read_favs_content
@@ -63,7 +65,7 @@ from .win32 import (
     minimize_window,
     restore_window,
     set_always_on_top,
-    show_open_file_dialog,
+    window_rect,
 )
 
 logger = logging.getLogger(__name__)
@@ -256,6 +258,7 @@ class DispatchLoopRunner:
         landscape_pid: int = 0,
         dashboard_pid: int = 0,
         dashboard_enabled: bool,
+        manifest_path: Path | None = None,
         hud_publisher: HudPublisher | None = None,
         rfb_hwnd: int = 0,
         rfb_shortcut_target: str = "",
@@ -268,6 +271,12 @@ class DispatchLoopRunner:
         self.dashboard_cmd_file = dashboard_cmd_file
         self.shared_state_file = shared_state_file
         self.ahk_cmd_file = ahk_cmd_file
+        # The session's launch manifest — handed to the library browser, which
+        # reads the same file every other child process does, so the browse can
+        # never disagree with the session about what the library is.
+        self.manifest_path = manifest_path or (
+            config.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
         self.nau_pid = nau_pid
         self.portrait_pid = portrait_pid
         self.landscape_pid = landscape_pid
@@ -294,7 +303,7 @@ class DispatchLoopRunner:
         self.state = BridgeState()
         self._last_sync = 0.0
         self._stop = threading.Event()
-        self._file_dialog_lock = threading.Lock()
+        self._browse_lock = threading.Lock()
         self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._press_port: int | None = None
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
@@ -610,11 +619,11 @@ class DispatchLoopRunner:
             # with the device still on the user, which is the case relief exists
             # for, so the retract must go out even from inside omnipause.
             self._handle_enter_omnipause("relief_omnipause")
-        elif cmd == "open_file_dialog":
+        elif cmd == "browse_library":
             threading.Thread(
-                target=self._handle_open_file_dialog,
+                target=self._handle_browse_library,
                 daemon=True,
-                name="file-dialog",
+                name="library-browser",
             ).start()
         elif cmd == "broker_panel":
             threading.Thread(
@@ -627,11 +636,11 @@ class DispatchLoopRunner:
                 self._send_press("quarter_button")
                 self._dispatch("quarter_button", spoken_at)
             else:
-                self._send_press("open_file_dialog")
+                self._send_press("browse_library")
                 threading.Thread(
-                    target=self._handle_open_file_dialog,
+                    target=self._handle_browse_library,
                     daemon=True,
-                    name="file-dialog",
+                    name="library-browser",
                 ).start()
         # -- idempotent voice commands --
         elif cmd == "pause":
@@ -1054,39 +1063,53 @@ class DispatchLoopRunner:
         self._dispatch(command)
         self._log_topmost_state("post-enter")
 
-    def _handle_open_file_dialog(self) -> None:
-        """Open the Windows file dialog and play the pick in Nau, once at a time.
+    def _handle_browse_library(self) -> None:
+        """Browse the library and play the pick in Nau, one browse at a time.
 
-        Serialized on a lock: the dialog is modal to the user but not to the
-        dispatch loop, so a second request while one is open would stack a
-        second dialog and a second topmost drop/restore pair.
+        Serialized on a lock: the browser is the user's window, not the dispatch
+        loop's, so a second request while one is open would stack a second
+        browser and a second topmost drop/restore pair.
         """
-        if not self._file_dialog_lock.acquire(blocking=False):
+        if not self._browse_lock.acquire(blocking=False):
             return
         try:
-            self._handle_open_file_dialog_inner()
+            self._browse_library_inner()
         finally:
-            self._file_dialog_lock.release()
+            self._browse_lock.release()
 
-    def _handle_open_file_dialog_inner(self) -> None:
+    def _browse_library_inner(self) -> None:
         # Browsing keeps everything playing — it must NOT enter OmniPause.  The
-        # old flow paused the whole session for the dialog, and picking a video
+        # old flow paused the whole session for the browse, and picking a video
         # resumed only Nau, stranding the satellites + voice frozen ("we're in
-        # omnipause").  All the dialog actually needs is to not be buried under
+        # omnipause").  All the browser actually needs is to not be buried under
         # the always-on-top windows, so drop the topmost bands for its duration
         # and restore them after — playback and voice are never touched.  Under
         # OmniPause the bands are already down and must stay down (restoring
         # them would strand windows on top mid-pause), so only manage them when
         # not paused.
-        manage_topmost = not self.state.omni_paused
+        #
+        # The hotkeys go the same way, and for the browser's sake rather than
+        # its own: they are global and they *consume* the press, so the arrows
+        # would move the portrait satellite instead of the selection and every
+        # letter would fire a command instead of typing ahead through an
+        # alphabetical grid.  Suspending hands the keyboard to the browser for
+        # the browse; under OmniPause they are already suspended and the pause
+        # owns that hold, so it is left to release it.
+        manage_session = not self.state.omni_paused
 
-        if manage_topmost:
+        if manage_session:
             self._remove_all_topmost()
+            self.ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
 
         try:
-            default_dir = self.config.primary_sources.split("|")[0] if self.config.primary_sources else ""
-            owner_hwnd = self._resolve_role("nau")
-            selected = show_open_file_dialog(default_dir or "", owner_hwnd=owner_hwnd)
+            # Over Nau's own rect: the pick plays there, so the browse stands
+            # where the video will, and covers nothing else on either monitor.
+            nau_hwnd = self._resolve_role("nau")
+            selected = browse_library(
+                self.manifest_path,
+                self.config.python_exe,
+                over=window_rect(nau_hwnd) if nau_hwnd else None,
+            )
             if selected:
                 # Nau owns the primary display; play the pick there, paired with
                 # its funscript when one exists at the mirrored path.
@@ -1097,8 +1120,9 @@ class DispatchLoopRunner:
                     command = f"PLAY_FILE {selected}"
                 self.config.nau_cmd_file.write_text(command, encoding="utf-8")
         finally:
-            if manage_topmost:
+            if manage_session:
                 self._restore_all_topmost()
+                self.ahk_cmd_file.write_text("unsuspend_hotkeys", encoding="utf-8")
 
     def run(self) -> None:
         """Main loop — call from a background thread."""
@@ -1145,6 +1169,7 @@ def build_bridge_config_from_manifest(
         weird_dir=Path(manifest["media"]["weird_dir"]),
         state_dir=Path(manifest["commands"]["dashboard_state_file"]).parent,
         primary_sources=manifest["media"]["nau_library_sources"],
+        python_exe=manifest["executables"]["python_exe"],
         portrait_sources=manifest["media"]["portrait_dirs"],
         landscape_sources=manifest["media"]["landscape_dirs"],
         genau_mode_file=Path(manifest["commands"]["genau_mode_file"]),
