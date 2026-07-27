@@ -15,7 +15,6 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
     dashboard_enabled = os.environ.get("FUN_TIME_DISABLE_DASHBOARD") != "1"
     return {
         "runtime": {
-            "project_dir": str(config.project_dir),
             "config_path": str(config.config_path),
             "windows_bridge_log_file": str(config.log_file("windows_bridge")),
             "genau_config_path": str(config.paths.genau_config_path or config.config_path),
