@@ -504,3 +504,48 @@ def test_the_thumbnail_cache_is_only_ever_topped_up(checkouts):
     assert (branch_state / "hud_thumbnails" / "abc123.jpg").read_bytes() == b"already here"
     assert (branch_state / "hud_thumbnails" / "def456.jpg").read_bytes() == b"new one"
     assert branch_state / "hud_thumbnails" / "abc123.jpg" not in seeded
+
+
+@pytestmark_shortcut
+def test_an_agent_takes_its_shortcut_back_out_once_the_work_lands(primary_with_launcher):
+    """The branch is in Fun Time by then, so a file still offering to run it
+    separately is clutter he has to reason about — and nothing else sweeps it
+    until some other agent happens to write one."""
+    written = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+
+    removed = branch_session.remove_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+
+    assert removed == written
+    assert not written.exists()
+
+
+@pytestmark_shortcut
+def test_removing_a_shortcut_leaves_every_other_branch_alone(primary_with_launcher):
+    """Several branches are usually in flight at once.  Matching is on the
+    worktree a shortcut runs, so taking one out never disturbs another agent's."""
+    mine = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+    someone_elses = branch_session.write_launch_shortcut(
+        primary_with_launcher.older, primary=primary_with_launcher.primary
+    )
+
+    branch_session.remove_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+
+    assert not mine.exists()
+    assert someone_elses.is_file()
+
+
+@pytestmark_shortcut
+def test_removing_a_shortcut_that_was_never_written_is_not_an_error(primary_with_launcher):
+    """An agent told to always clean up should not have to remember whether it
+    ever made one."""
+    assert branch_session.remove_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    ) is None
