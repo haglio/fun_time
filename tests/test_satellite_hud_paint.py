@@ -545,31 +545,70 @@ def test_a_row_the_filter_only_partly_matches_still_lights(thumb):
     assert lit_ink("alpha") == 0
 
 
+def _white_halves(rendered) -> tuple[int, int]:
+    """Near-white ink across the corner row's act names, split into the row's upper
+    and lower halves — a row carrying two acts draws one in each.
+
+    Measured past the filter button at the head of the row: that button fills white
+    when it is lit, which is the same ink the labels use.
+    """
+    (cx, cy, _cw, ch), _path = rendered.targets.click[0]
+    band = (_rgb(rendered.bgra)[cy:cy + ch, PAD + FILTER_ROOM:cx - MAP_GAP] > 200).all(axis=2)
+    return int(band[:ch // 2].sum()), int(band[ch // 2:].sum())
+
+
 def test_only_the_act_the_filter_matched_is_lit_on_a_two_act_row(thumb):
-    """A clip can carry two acts ("Gamma, Theta") and only one of them is why the
-    filter keeps it, so only that one goes white — lighting the whole label named an
-    act the filter has nothing to do with.  The acts stack in order, so the lit one
-    moves between the halves of the row as the query changes."""
+    """A clip can carry two acts ("Gamma, Theta") and a one-act filter keeps it for
+    one of them, so only that one goes white — lighting the whole label named an act
+    the filter has nothing to do with.  The acts stack in order, so the lit one moves
+    between the halves of the row as the query changes."""
     renderer = HudRenderer("portrait")
 
-    def white_halves(filter_query: str) -> tuple[int, int]:
-        rendered = renderer.render(_model(
+    def halves(filter_query: str) -> tuple[int, int]:
+        return _white_halves(renderer.render(_model(
             corner=HudCell(path="c.mp4", thumb=thumb),
             current_action="gamma, theta", filter_query=filter_query,
-        ))
-        (cx, cy, _cw, ch), _path = rendered.targets.click[0]
-        # The part of the gutter holding the two act names, past the filter button
-        # at the head of the row — that button fills white when it is lit, which is
-        # the same ink the labels use.
-        band = (_rgb(rendered.bgra)[cy:cy + ch, PAD + FILTER_ROOM:cx - MAP_GAP] > 200).all(axis=2)
-        return int(band[:ch // 2].sum()), int(band[ch // 2:].sum())
+        )))
 
-    gamma_top, gamma_bottom = white_halves("gamma")
-    theta_top, theta_bottom = white_halves("theta")
+    gamma_top, gamma_bottom = halves("gamma")
+    theta_top, theta_bottom = halves("theta")
 
     assert gamma_top > 0 and gamma_bottom == 0
     assert theta_bottom > 0 and theta_top == 0
-    assert white_halves("alpha") == (0, 0)
+    assert halves("alpha") == (0, 0)
+
+
+def test_a_filter_set_from_a_two_act_clip_lights_both_of_its_acts(thumb):
+    """Pressing a two-act row's button filters to both acts, and fun_time keeps the
+    clip for both — so both go white.  Neither did: the two-act query matched neither
+    act on its own, so the row you had just filtered to read as unfiltered."""
+    rendered = HudRenderer("portrait").render(_model(
+        corner=HudCell(path="c.mp4", thumb=thumb),
+        current_action="gamma, theta motion", filter_query="gamma, theta motion",
+    ))
+
+    top, bottom = _white_halves(rendered)
+
+    assert top > 0 and bottom > 0
+
+
+def test_a_leading_modifier_stays_grey_when_the_act_it_qualifies_is_filtered(thumb):
+    """"POV Gamma" is a qualifier in front of an act, drawn as two acts: under a
+    "gamma" filter only "Gamma" is why the clip is here, so "POV" stays grey rather
+    than reading as part of what was asked for."""
+    renderer = HudRenderer("portrait")
+
+    def halves(filter_query: str) -> tuple[int, int]:
+        return _white_halves(renderer.render(_model(
+            corner=HudCell(path="c.mp4", thumb=thumb),
+            current_action="pov gamma", filter_query=filter_query,
+        )))
+
+    pov, gamma = halves("gamma")
+
+    assert pov == 0 and gamma > 0
+    # …and a filter on the row itself names both, so both light.
+    assert all(half > 0 for half in halves("pov gamma"))
 
 
 def test_the_filter_button_carries_a_funnel_and_not_an_empty_box(thumb):

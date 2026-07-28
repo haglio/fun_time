@@ -139,8 +139,10 @@ class HudModel:
     seeds: tuple[HudCell, ...] = ()
     actions: tuple[HudCell, ...] = ()
     current_action: str = ""
-    # The act this side is filtered to, if any: the map lights every row the
-    # filter keeps, and pressing a lit one lifts it.
+    # The act(s) this side is filtered to, if any: the map lights every row the
+    # filter keeps and, within a row, the acts the filter actually names.  Pressing
+    # a row's button moves the filter onto that row, or lifts it when the filter is
+    # already exactly that row.
     filter_query: str = ""
     active_loop: str = ""
     # How many clips each axis stands for, the clip on screen included.  The map
@@ -514,24 +516,42 @@ def _norm_act(text: str) -> str:
     return " ".join(str(text or "").split()).lower()
 
 
+def _acts(text: str) -> list[str]:
+    """*text* as its separate acts, normalized — for a row label or for a filter
+    query, which is set from one and so is shaped like one."""
+    return [act for act in (_norm_act(part) for part in split_acts(text)) if act]
+
+
+def act_is_filtered(act: str, filter_query: str) -> bool:
+    """Whether *act* is one of the acts the filter names — what decides which of a
+    row's acts is drawn lit.
+
+    A filter for one act lights that act alone: on a "POV / Gamma" row a "gamma"
+    filter whitens "Gamma" and leaves "POV" grey, which is what says *why* the clip
+    is here.  A filter set from a clip carrying two acts names both, so both light.
+    """
+    return any(query in _norm_act(act) for query in _acts(filter_query))
+
+
 def label_is_filtered(label: str, filter_query: str) -> bool:
-    """Whether the side's filter is one *label*'s row satisfies.
+    """Whether the filter keeps a row labelled *label* — its button's lit state, and
+    what the press reads to decide between narrowing and lifting.
 
     fun_time keeps a clip when the query appears as a *contiguous substring* of its
-    metadata (``media_metadata.matches_query``), so the map has to read the same way
-    — filtered to "gamma", a row labelled "POV Gamma" and a row carrying two acts as
-    "Gamma, Theta" are both clips the filter keeps.  Matching the whole label exactly
-    instead left those rows unlit, so the mark flicked off the moment one came up and
-    back on at the next exact match: it read as the filter dropping and returning
-    while the playlist under it never changed.
+    metadata (``media_metadata.matches_query``), so every act the query names has to
+    be one of the row's: filtered to "gamma", both a "POV Gamma" row and a "Gamma,
+    Theta" row are clips it keeps, while a plain "Missionary" row is *not* kept by a
+    "missionary, breast insertion" filter and must not read as though it were.
+    Within a row an act still matches on a substring ("gamma" catching "theta
+    gamma") — the same rule fun_time uses, one act down.
 
-    One rule, used by the map to light a row's label and its filter button, and by
-    the press to make that button a toggle, so what looks on and what turns off
-    cannot disagree.  fun_time records a filter as the act lower-cased, which is how
-    a query reaches it.
+    One rule for the whole row, used by the map to light its button and by the press
+    to know whether it is already exactly this row, so what looks on and what turns
+    off cannot disagree.
     """
-    query = _norm_act(filter_query)
-    return bool(query) and query in _norm_act(label)
+    acts, query = _acts(label), _acts(filter_query)
+    return bool(acts) and bool(query) and all(
+        any(part in act for act in acts) for part in query)
 
 
 LOOP_TOOLTIPS = {"action": "Loop this action column", "seed": "Loop this seed row"}
@@ -617,16 +637,17 @@ class HudClicks:
             return f"{self._side}_more_seeds"
         action = hit_test_targets(targets.filter, px, py)
         if action:
-            # A lit button is a row the filter is keeping, so pressing it lifts that
-            # filter: the way out is whichever control shows as on — the same toggle
-            # the loop buttons are.  It costs narrowing "gamma" to "pov gamma" from
-            # the map, which is the right trade: a lit button that stayed lit on a
-            # press would be the confusing half.
-            if label_is_filtered(action, self.active_filter):
+            # Narrow before you lift.  A press on a row the filter only partly keeps
+            # ("POV Gamma" under "gamma") moves the filter onto that whole row, and
+            # only a press on the row the filter already *is* turns it off — so a
+            # broad filter can be tightened from the map, which lifting on the first
+            # press made impossible.
+            query = _norm_act(action)
+            if query == _norm_act(self.active_filter):
                 self.active_filter = ""
                 return f"{self._side}_no_filter"
-            self.active_filter = action.lower()
-            return f"filter_{self._side}_{action.lower().replace(' ', '_')}"
+            self.active_filter = query
+            return f"filter_{self._side}_{query.replace(' ', '_')}"
         path = hit_test_targets(targets.click, px, py)
         if not path:
             return ""
@@ -660,23 +681,45 @@ class HudClicks:
 # Action words that read wrong in plain title case — kept upper.
 _ACTION_ACRONYMS = {"pov": "POV"}
 
+# Words the metadata writes in front of an act ("POV cumshot") that qualify how it
+# was shot rather than naming what happens.  Split off as an act of their own, so a
+# filter for the act itself lights the act and leaves the qualifier grey — on one
+# line "POV Cumshot" both words went white under a "cumshot" filter, which said the
+# camera angle was part of what you had asked for.
+_ACT_MODIFIERS = ("pov",)
+
 
 def _titlecase_word(word: str) -> str:
     return _ACTION_ACRONYMS.get(word.lower(), word[:1].upper() + word[1:].lower())
 
 
+def split_acts(name: str) -> list[str]:
+    """*name* as the separate acts it carries, in order and unnormalized.
+
+    Commas separate acts ("Alpha, Theta Motion"), and a leading modifier is an act
+    of its own.  The single split behind both the drawing and the filter comparisons,
+    so a row cannot be lit act by act along one seam and drawn along another.
+    """
+    acts: list[str] = []
+    for part in str(name or "").split(","):
+        words = part.split()
+        if len(words) > 1 and words[0].lower() in _ACT_MODIFIERS:
+            acts.append(words[0])
+            words = words[1:]
+        if words:
+            acts.append(" ".join(words))
+    return acts
+
+
 def action_label_blocks(name: str) -> list[list[str]]:
     """A clip's action(s) drawn nicely, as one block of word-lines per action.
 
-    A clip can carry several comma-separated acts ("Alpha, Theta Motion") — each
-    becomes its own block, so they can be drawn with a gap between the acts but
-    tight wrapping within one.  "(unknown)" when there is no action metadata.
+    A clip can carry several acts ("Alpha, Theta Motion", "POV Gamma") — each becomes
+    its own block, so they can be drawn with a gap between the acts but tight
+    wrapping within one, and each can be lit on its own.  "(unknown)" when there is
+    no action metadata.
     """
-    blocks = [
-        [_titlecase_word(word) for word in act.split()]
-        for act in name.split(",")
-        if act.strip()
-    ]
+    blocks = [[_titlecase_word(word) for word in act.split()] for act in split_acts(name)]
     return blocks or [["(unknown)"]]
 
 
