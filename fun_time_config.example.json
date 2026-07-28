@@ -16,6 +16,7 @@
     "audio_dir": "C:/path/to/audio",
     "favs_file": "favs.csv",
     "state_dir": "state",
+    "broker_state_dir": "state",
     "genau_python_exe": "C:/path/to/genau/.venv/Scripts/pythonw.exe",
     "genau_config_path": "C:/path/to/genau/genau_config.json",
     "broker_tray_launcher": "../broker/launch_broker_tray.vbs"
