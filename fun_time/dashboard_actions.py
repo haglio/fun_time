@@ -8,7 +8,6 @@ loop matches on the string either way.
 from __future__ import annotations
 
 
-FMODE_PANEL = "fmode_panel"
 QUIT_BUTTON = "quit"
 OMNIMINIMIZE = "omniminimize"
 OMNIRESTORE = "omnirestore"

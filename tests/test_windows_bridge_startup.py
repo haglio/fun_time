@@ -456,7 +456,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     ) as seed, patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ) as prepare, patch(
-        "fun_time.windows_bridge_startup.build_fmode_playlists"
+        "fun_time.windows_bridge_startup.build_all_playlists"
     ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
         start_core_session(**kwargs)
 
@@ -482,14 +482,14 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         muted=False,
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
-    # The same playlist builder the F-mode toggle uses, with F-mode off.
+    # Every player's playlist, each built with its F-mode off — the flags default
+    # off, which is what a session with nothing to resume opens in.
     build.assert_called_once_with(
         primary_sources=kwargs["primary_sources"],
         portrait_sources=kwargs["portrait_sources"],
         landscape_sources=kwargs["landscape_sources"],
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        enabled=False,
         library=SatelliteLibraryContext(
             metadata_root=tmp_path / "metadata",
             watch_stats_file=state_dir / "watch_stats.json",
@@ -567,7 +567,7 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch(
-        "fun_time.windows_bridge_startup.build_fmode_playlists"
+        "fun_time.windows_bridge_startup.build_all_playlists"
     ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps"):
         with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
             start_core_session(**kwargs)
@@ -592,7 +592,7 @@ def _run_start_core_session(kwargs: dict) -> None:
     ), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch(
-        "fun_time.windows_bridge_startup.build_fmode_playlists"
+        "fun_time.windows_bridge_startup.build_all_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         start_core_session(**kwargs)
 
@@ -609,7 +609,8 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     _seed_resumable_session(tmp_path, kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
     write_shared_state(state_file, BridgeState(
-        f_mode_enabled=True,
+        primary_f_mode=True,
+        portrait_f_mode=True,
         portrait_filter="alpha",
         landscape_latest=True,
         portrait_loop="seed",
@@ -620,7 +621,7 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
 
     state = read_shared_state(state_file)
     assert state is not None
-    assert state.f_mode_enabled is True
+    assert (state.primary_f_mode, state.portrait_f_mode) == (True, True)
     assert state.portrait_filter == "alpha"
     assert state.landscape_latest is True
     assert state.portrait_loop == "seed"
@@ -671,7 +672,7 @@ def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_p
     what clears an OmniPause a crash left stranded."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(f_mode_enabled=True, omni_paused=True))
+    write_shared_state(state_file, BridgeState(primary_f_mode=True, omni_paused=True))
 
     _run_start_core_session(kwargs)
 
@@ -692,7 +693,7 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
     (state_dir / "nau_playlist.tsv").write_text(
         f"{vr_clip}\n{left_on['nau'][0]}\n", encoding="utf-8"
     )
-    write_shared_state(shared_state_path(state_dir), BridgeState(f_mode_enabled=True))
+    write_shared_state(shared_state_path(state_dir), BridgeState(primary_f_mode=True))
 
     with patch("fun_time.windows_bridge_startup.build_primary_playlist") as rebuild:
         _run_start_core_session(kwargs)
@@ -728,7 +729,7 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch(
-        "fun_time.windows_bridge_startup.build_fmode_playlists"
+        "fun_time.windows_bridge_startup.build_all_playlists"
     ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps"):
         with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
             start_core_session(**kwargs)
@@ -763,7 +764,7 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch(
-        "fun_time.windows_bridge_startup.build_fmode_playlists"
+        "fun_time.windows_bridge_startup.build_all_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         start_core_session(**kwargs)
 
@@ -790,7 +791,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch(
-        "fun_time.windows_bridge_startup.build_fmode_playlists"
+        "fun_time.windows_bridge_startup.build_all_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         start_core_session(**kwargs)
 

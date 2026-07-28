@@ -46,14 +46,14 @@ def client_rect_filling_frame(
 # carrying that player's buttons and a cable running to the OSR2.  Every player
 # draws its own HUD now and those buttons are on it, so what is left is the
 # handful that belong to no player: quit, pause everything, the reference popup,
-# and the F-mode and voice lights.  (The broker light went to the primary's HUD
-# with the rest of the OSR2 status — it is the primary's concern, not the room's.)
-# They do not need to be arranged like the room.
+# and the microphone.  (The broker light went to the primary's HUD with the rest
+# of the OSR2 status — it is the primary's concern, not the room's; F-mode went to
+# each player's own HUD, since it is set per player now.)  They do not need to be
+# arranged like the room.
 
 BUTTON = 26          # a control in the bar
-CHIP = 22            # a status light — smaller, since it is read not pressed
 GAP = 8              # between controls
-GROUP_GAP = 22       # between the buttons and the chips
+GROUP_GAP = 22       # between the app's own lockup and the controls
 PAD = 10             # inset from the bar's edges
 APP_ICON = 24
 APP_TITLE_W = 108
@@ -77,7 +77,6 @@ class DashboardBarLayout:
     quit_button: Rect
     omnipause_button: Rect
     help_button: Rect
-    fmode_panel: Rect
     voice_panel: Rect
 
     @property
@@ -90,9 +89,10 @@ class DashboardBarLayout:
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
     """The control bar, laid out left to right at its natural size.
 
-    The app's own name and mark lead, then the three buttons, then the three
-    chips — pressable things together, readable things together, rather than in
-    the shape of the monitors they used to stand for.
+    The app's own name and mark lead, then the four controls in one run.  The
+    microphone is one of them rather than a light set off to the side: F-mode was
+    the other light, and with it gone to the players' own HUDs a lone chip past a
+    gap read as something adrift from the bar rather than part of it.
     """
     height = PAD * 2 + BUTTON
     mid = lambda size: PAD + (BUTTON - size) // 2  # noqa: E731 — vertical centring
@@ -104,15 +104,9 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
     x += APP_TITLE_W + GROUP_GAP
 
     buttons = []
-    for _ in range(3):
+    for _ in range(4):
         buttons.append(Rect(x, PAD, BUTTON, BUTTON))
         x += BUTTON + GAP
-    x += GROUP_GAP - GAP
-
-    chips = []
-    for _ in range(2):
-        chips.append(Rect(x, mid(CHIP), CHIP, CHIP))
-        x += CHIP + GAP
 
     return DashboardBarLayout(
         height=height,
@@ -121,8 +115,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
         quit_button=buttons[0],
         omnipause_button=buttons[1],
         help_button=buttons[2],
-        fmode_panel=chips[0],
-        voice_panel=chips[1],
+        voice_panel=buttons[3],
     )
 
 

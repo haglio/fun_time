@@ -96,9 +96,12 @@ _LOOP_GLYPH = "↻"
 _EXPAND_GLYPH = "↔"
 # The side's own controls.  Skip-track for the browse pair rather than bare
 # arrows, so they cannot be read as "step along the map"; a padlock and a bin for
-# the two that act on the clip on screen.  All four come from the same symbol
-# face as the loop glyph above — Segoe UI Bold has none of them.
-_CONTROL_GLYPHS = {"prev": "⏮", "next": "⏭", "lock": "🔒", "trash": "🗑"}
+# the two that act on the clip on screen.  They come from the same symbol face as
+# the loop glyph above — Segoe UI Bold has none of them.  F-mode is the letter
+# itself: no mark says "favourites only", and the mode is called F everywhere
+# else — on the key that toggles it, in the status line above, and in what a
+# speaker says out loud.
+_CONTROL_GLYPHS = {"prev": "⏮", "next": "⏭", "lock": "🔒", "trash": "🗑", "fmode": "F"}
 _FAVORITE_GLYPH = "★"
 
 # The filter mark, drawn rather than typed: Segoe UI Symbol — the face the other
@@ -533,20 +536,21 @@ class HudRenderer:
 
     def _draw_controls(self, draw, controls: list[tuple[Rect, str]], favorite: Rect,
                        model: HudModel) -> None:
-        """The side's own four buttons, and the mark saying whether the clip on
-        screen is one of the favourites.
+        """The side's own buttons, and the mark saying whether the clip on screen
+        is one of the favourites.
 
-        Only the lock has an on-state — the other three do a thing rather than be
-        in one.  The star is a readout, not a button, so it gets no box: a box
-        would invite a press that does nothing.
+        The lock and F-mode are states, so they light while they are on; the other
+        three do a thing rather than be in one.  The star is a readout, not a
+        button, so it gets no box: a box would invite a press that does nothing.
 
-        The lock lights green rather than white, and so does the star: locking a
-        clip puts it in the favorites, so the two are the same fact and read as
-        one color.
+        Both lit states are green rather than white, and so is the star: locking a
+        clip puts it in the favorites and F-mode is the filter over them, so all
+        three are the same fact and read as one color.
         """
+        lit = {"lock": model.locked, "fmode": model.f_mode}
         for rect, name in controls:
             self._glyph_button(draw, rect, _CONTROL_GLYPHS[name],
-                               on=model.locked and name == "lock", on_color=GREEN)
+                               on=lit.get(name, False), on_color=GREEN)
         fx, fy, fw, fh = favorite
         draw.text((fx + fw / 2, fy + fh / 2), _FAVORITE_GLYPH, font=self._glyph, anchor="mm",
                   fill=(*(GREEN if model.is_favorite else TEXT_MUTED), 255))

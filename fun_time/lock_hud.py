@@ -24,10 +24,10 @@ from fun_time.media_metadata import (
 from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
 
-# What F-mode is called on screen.  One key toggles it for every player at once, so
-# it has to read the same on both HUDs and on the dashboard — Nau's own HUD carries
-# a matching constant (``nau.hud.F_MODE_LABEL`` in genau), which is the one place
-# the wording could drift.
+# What F-mode is called on screen.  Every player has its own now, and the F key
+# still reaches all of them at once, so it has to read the same on every HUD —
+# Nau's own HUD carries a matching constant (``nau.hud.F_MODE_LABEL`` in genau),
+# which is the one place the wording could drift.
 F_MODE_LABEL = "F-Mode"
 
 
@@ -88,6 +88,10 @@ class HudPanel:
     # better beside ``locked``, but a defaulted field cannot precede a required
     # one, and defaulting it keeps every construction site from naming it.
     is_favorite: bool = False
+    # Whether THIS side is in F-mode — narrowed to the favourites.  It is said in
+    # the status line already; the flag rides along so the side's own F-mode button
+    # can light, the way ``locked`` lights the lock button.
+    f_mode: bool = False
     # Labels for the map's axes: the current clip's own action (the top row),
     # and each action sibling's action name (the rows down the column). Seed
     # columns are labelled by ordinal ("Seed 1", …) so need no data here.
@@ -378,6 +382,7 @@ def build_hud_panel(
         locked=locked,
         lock_label=_status_label(locked, active_loop, latest, filter_query, f_mode),
         is_favorite=is_favorite,
+        f_mode=f_mode,
         current=anchor,
         seed_siblings=seed,
         action_siblings=action,
@@ -412,11 +417,14 @@ class SideInputs:
     widen_clip: str = ""
     nav_anchor: str = ""
     latest: bool = False
+    # This side's own F-mode.  Sided like the filter and the order beside it: each
+    # satellite has its own button for it, so the two can differ.
+    f_mode: bool = False
     is_favorite: bool = False
 
 
 def _side_panel(
-    inputs: SideInputs, metadata_root: Path | None, f_mode: bool, active_side: str,
+    inputs: SideInputs, metadata_root: Path | None, active_side: str,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if inputs.current:
@@ -435,7 +443,7 @@ def _side_panel(
         filter_query=inputs.filter_query, loop_axis=inputs.loop_axis,
         map_anchor=inputs.map_anchor, widen_clip=inputs.widen_clip,
         nav_anchor=inputs.nav_anchor, latest=inputs.latest,
-        is_favorite=inputs.is_favorite, f_mode=f_mode,
+        is_favorite=inputs.is_favorite, f_mode=inputs.f_mode,
         active=active_side == inputs.side,
     )
 
@@ -457,7 +465,7 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
 
 def build_panels(
     portrait: SideInputs, landscape: SideInputs, *,
-    metadata_root: Path | None = None, f_mode: bool = False, active_side: str = "",
+    metadata_root: Path | None = None, active_side: str = "",
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -467,15 +475,15 @@ def build_panels(
     across a widened seed loop for every member of the looped pool, and the
     ``nav_anchor`` while the live clip is still one of its map cells.
 
-    ``f_mode`` is unsided on purpose: one key narrows every player at once, so it
-    goes to both panels or to neither.  ``active_side`` is unsided for the opposite
-    reason — it *names* exactly one player, so at most one of these two panels can
-    claim it, and neither does while the primary holds it.  A name rather than the
-    dispatcher's slot number, because that is what a side is called everywhere else
-    in here; the one translation lives where the number does.
+    F-mode rides in each side's own inputs, since each satellite has its own
+    button for it and the two can differ.  ``active_side`` is the one thing here
+    that is unsided, because it *names* exactly one player: at most one of these
+    two panels can claim it, and neither does while the primary holds it.  A name
+    rather than the dispatcher's slot number, because that is what a side is
+    called everywhere else in here; the one translation lives where the number does.
     """
-    return (_side_panel(portrait, metadata_root, f_mode, active_side),
-            _side_panel(landscape, metadata_root, f_mode, active_side))
+    return (_side_panel(portrait, metadata_root, active_side),
+            _side_panel(landscape, metadata_root, active_side))
 
 
 def panel_thumbnails(

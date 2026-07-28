@@ -37,7 +37,6 @@ class DashboardWindowSnapshot:
 
 @dataclass(frozen=True)
 class DashboardSnapshot:
-    f_mode_enabled: bool
     primary_mode: str
     osr2_mode: str
     omni_paused: bool
@@ -59,7 +58,6 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         return None
 
     return DashboardSnapshot(
-        f_mode_enabled=_read_bool(parser, "fmode", "enabled"),
         primary_mode=parser.get("primary", "mode", fallback="nau"),
         osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
         omni_paused=_read_bool(parser, "omnipause", "active"),

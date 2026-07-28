@@ -36,12 +36,16 @@ from .mode_plan import genau_active, nau_displays
 from .filter_vocab import decode_filter_command
 from .omnipause import build_omnipause_plan
 from .runtime_flow import (
+    FMODE_PLAYERS,
+    LANDSCAPE_PLAYER,
+    PORTRAIT_PLAYER,
+    PRIMARY_PLAYER,
     SatelliteFilterFlowResult,
     apply_enter_omnipause,
+    apply_fmode,
     apply_leave_omnipause,
     apply_mode_switch,
     apply_satellite_filter,
-    apply_toggle_fmode,
     satellite_browse_paths,
 )
 from .satellite_control import read_satellite_status, write_satellite_command
@@ -80,7 +84,14 @@ class BridgeState:
     locked2: bool = False
     locked3: bool = False
     primary_mode: str = "nau"
-    f_mode_enabled: bool = False
+    # Whether each player is in F-mode, held per player because it is set per
+    # player: each HUD carries its own button, and only the bare "f mode" (and the
+    # F key) still reaches all three at once.  It narrows the satellites to the
+    # favourites and the primary to the videos that have a funscript, so which
+    # player it is on genuinely changes what it means.
+    primary_f_mode: bool = False
+    portrait_f_mode: bool = False
+    landscape_f_mode: bool = False
     omni_paused: bool = False
     # Which browse order each satellite is in: newest-first ("Latest") when set,
     # else shuffled.  Per side, since Latest and Shuffle name a side, and read by
@@ -1110,8 +1121,10 @@ def dispatch_command(
     if command == "leave_omnipause":
         return _dispatch_leave_omnipause(state, config)
 
-    if command in ("fmode_toggle", "fmode_panel"):
-        return _dispatch_fmode_toggle(state, config)
+    fmode_target = _FMODE_COMMANDS.get(command)
+    if fmode_target is not None:
+        players, target = fmode_target
+        return _dispatch_fmode(players, target, state, config)
 
     reorder = _REORDER_COMMANDS.get(command)
     if reorder is not None:
@@ -1326,11 +1339,75 @@ def _primary_slot_ops(primary_mode: str) -> list[WindowOp]:
     ]
 
 
-def _dispatch_fmode_toggle(
-    state: BridgeState, config: BridgeConfig
+# Which players each F-mode command reaches, and what it sets them to — None for
+# the toggles, True/False for the forms that assert a state and so cannot land on
+# the opposite of what was asked when a phrase is misheard twice.  The bare
+# command — the F key, the spoken "f mode" — still means all three at once; naming
+# a player reaches that one alone, off its own HUD button or its own spoken
+# phrase.  ``both_fmode`` never arrives here: the dispatch loop expands every
+# both_* into its portrait/landscape pair first.
+_FMODE_COMMANDS: dict[str, tuple[tuple[str, ...], bool | None]] = {
+    "fmode_toggle": (FMODE_PLAYERS, None),
+    "fmode_on": (FMODE_PLAYERS, True),
+    "fmode_off": (FMODE_PLAYERS, False),
+    "primary_fmode": ((PRIMARY_PLAYER,), None),
+    "primary_fmode_on": ((PRIMARY_PLAYER,), True),
+    "primary_fmode_off": ((PRIMARY_PLAYER,), False),
+    "portrait_fmode": ((PORTRAIT_PLAYER,), None),
+    "portrait_fmode_on": ((PORTRAIT_PLAYER,), True),
+    "portrait_fmode_off": ((PORTRAIT_PLAYER,), False),
+    "landscape_fmode": ((LANDSCAPE_PLAYER,), None),
+    "landscape_fmode_on": ((LANDSCAPE_PLAYER,), True),
+    "landscape_fmode_off": ((LANDSCAPE_PLAYER,), False),
+}
+
+# Where each player's flash goes, so a sided F-mode reports on that player's own
+# display and the all-players one reports to the room.
+_FMODE_NOTICE_SOURCE = {
+    PRIMARY_PLAYER: SOURCE_PRIMARY,
+    PORTRAIT_PLAYER: SOURCE_PORTRAIT,
+    LANDSCAPE_PLAYER: SOURCE_LANDSCAPE,
+}
+
+_FMODE_STATE_FIELD = {
+    PRIMARY_PLAYER: "primary_f_mode",
+    PORTRAIT_PLAYER: "portrait_f_mode",
+    LANDSCAPE_PLAYER: "landscape_f_mode",
+}
+
+
+def _player_f_mode(state: BridgeState, player: str) -> bool:
+    """Whether *player* is in F-mode — the one reader of the per-player flags."""
+    return bool(getattr(state, _FMODE_STATE_FIELD[player]))
+
+
+def _next_f_mode(state: BridgeState, players: tuple[str, ...]) -> bool:
+    """What a toggle over *players* should set them all to.
+
+    One player is an ordinary flip.  Several — the F key, or a spoken "f mode" —
+    turn on unless every one of them is already on, so the key that means "narrow
+    everything" can never leave half the room narrowed and half not: it either
+    completes the narrowing or lifts it.
+    """
+    return not all(_player_f_mode(state, player) for player in players)
+
+
+def _dispatch_fmode(
+    players: tuple[str, ...], target: bool | None,
+    state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]]:
-    result = apply_toggle_fmode(
-        f_mode_enabled=state.f_mode_enabled,
+    """Put *players* into F-mode or out of it, rebuilding only what moves.
+
+    *target* is the state to assert, or None to toggle.  A player already in the
+    asked-for state is left out of the rebuild entirely: its playlist file is not
+    rewritten, so "portrait f mode on" said twice does not reshuffle the queue the
+    first one built.
+    """
+    enabled = _next_f_mode(state, players) if target is None else target
+    changed = tuple(player for player in players if _player_f_mode(state, player) != enabled)
+    result = apply_fmode(
+        players=changed,
+        enabled=enabled,
         portrait_recent=state.portrait_latest,
         landscape_recent=state.landscape_latest,
         primary_sources=config.primary_sources,
@@ -1341,38 +1418,36 @@ def _dispatch_fmode_toggle(
         portrait_cmd_file=config.portrait_cmd_file,
         landscape_cmd_file=config.landscape_cmd_file,
         nau_cmd_file=config.nau_cmd_file,
-        regen_media_root=config.regen_media_root,
         regen_metadata_root=config.regen_metadata_root,
         portrait_filter=state.portrait_filter,
         landscape_filter=state.landscape_filter,
     )
-    if result.log_message:
+    if result.players:
         logger.info(result.log_message)
-    # Flash which way it went, on whichever display the eye is on (system → the
-    # primary).  The dispatch owns this rather than the voice echo, so the F key
-    # and the dashboard button flash it too, not just a spoken "F mode" — which is
-    # why fmode is self-reporting (see SELF_REPORTING_COMMANDS).  Enabling is the
-    # quiet green confirmation; disabling is the loud one — the whole library just
+    state = replace(state, **{_FMODE_STATE_FIELD[player]: enabled for player in result.players})
+    # A rebuilt satellite got a new queue, which drops its lock, its group loop and
+    # the widened seed row that rode on the loop — the same as any other rebuild.
+    for player, which in ((PORTRAIT_PLAYER, 2), (LANDSCAPE_PLAYER, 3)):
+        if player in result.players:
+            state = _cancel_lock(which, state, config)
+            state = _clear_side_grouping(state, which)
+    # Flash which way it went, on the display it went on — a sided F-mode reports
+    # from that player, the all-players one from the room.  It goes off the players
+    # *asked for*, not the ones that moved: "f mode" is a gesture at the room even
+    # on the press where only one player was left to narrow.  The dispatch owns
+    # this rather than the voice echo, so the F key and the HUD buttons flash it
+    # too, not just a spoken "F mode" (which is why fmode is self-reporting — see
+    # SELF_REPORTING_COMMANDS).  Enabling is green, since what it narrows to is the
+    # favorites and the funscripts; disabling is the loud one — the library just
     # came back, so it flashes red the way the other "this is now off" notices do.
-    enabled = result.next_f_mode_enabled
+    source = _FMODE_NOTICE_SOURCE[players[0]] if len(players) == 1 else SOURCE_SYSTEM
     notice_op = WindowOp(
         op="notice",
         key=f"{F_MODE_LABEL} enabled" if enabled else f"{F_MODE_LABEL} disabled",
-        source=SOURCE_SYSTEM,
+        source=source,
         level=FAVORITE_NOTICE_LEVEL if enabled else FAILED_NOTICE_LEVEL,
     )
-    # F-mode rebuilds both satellites' playlists, dropping any group loops and the
-    # widened seed rows that rode on them.
-    return replace(
-        state,
-        f_mode_enabled=result.next_f_mode_enabled,
-        locked2=result.next_locked2,
-        locked3=result.next_locked3,
-        portrait_loop="",
-        landscape_loop="",
-        portrait_widen_clip="",
-        landscape_widen_clip="",
-    ), [notice_op]
+    return state, [notice_op]
 
 
 def _dispatch_reorder(
@@ -1453,7 +1528,7 @@ def _dispatch_no_loop(
     browse = satellite_browse_paths(
         which=which,
         query=_side_filter(state, which),
-        f_mode_enabled=state.f_mode_enabled,
+        f_mode_enabled=_side_f_mode(state, which),
         recent=state.portrait_latest if which == 2 else state.landscape_latest,
         sources=config.portrait_sources if which == 2 else config.landscape_sources,
         favs_file=config.favs_file,
@@ -1481,6 +1556,12 @@ def _side_filter(state: BridgeState, which: int) -> str:
     return state.portrait_filter if which == 2 else state.landscape_filter
 
 
+def _side_f_mode(state: BridgeState, which: int) -> bool:
+    """Whether satellite *which* is in F-mode — the flag every rebuild of that side
+    has to carry, or the rebuild would quietly widen it back to the whole library."""
+    return state.portrait_f_mode if which == 2 else state.landscape_f_mode
+
+
 def _set_side_filter(state: BridgeState, which: int, query: str) -> BridgeState:
     if which == 2:
         return replace(state, portrait_filter=query)
@@ -1502,7 +1583,7 @@ def _rebuild_side(
     return apply_satellite_filter(
         which=which,
         query=query,
-        f_mode_enabled=state.f_mode_enabled,
+        f_mode_enabled=_side_f_mode(state, which),
         recent=state.portrait_latest if which == 2 else state.landscape_latest,
         sources=config.portrait_sources if which == 2 else config.landscape_sources,
         favs_file=config.favs_file,

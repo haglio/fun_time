@@ -5,7 +5,6 @@ from pathlib import Path
 
 def build_dashboard_snapshot_text(
     *,
-    f_mode_enabled: bool,
     osr2_mode: str,
     primary_mode: str,
     portrait_locked: bool,
@@ -14,8 +13,6 @@ def build_dashboard_snapshot_text(
     voice_active: bool = True,
 ) -> str:
     return (
-        "[fmode]\n"
-        f"enabled={'1' if f_mode_enabled else '0'}\n"
         "[osr2]\n"
         f"mode={osr2_mode}\n"
         "[omnipause]\n"
@@ -48,7 +45,6 @@ def _read_existing_snapshot(path: Path) -> str:
 def write_dashboard_snapshot(
     output_file: str | Path,
     *,
-    f_mode_enabled: bool,
     osr2_mode: str,
     primary_mode: str,
     portrait_locked: bool,
@@ -58,7 +54,6 @@ def write_dashboard_snapshot(
 ) -> bool:
     path = Path(output_file)
     text = build_dashboard_snapshot_text(
-        f_mode_enabled=f_mode_enabled,
         osr2_mode=osr2_mode,
         primary_mode=primary_mode,
         portrait_locked=portrait_locked,

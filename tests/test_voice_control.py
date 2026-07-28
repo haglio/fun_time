@@ -301,6 +301,26 @@ class TestVoiceCommands:
                 assert VOICE_COMMANDS[f"{side} {word}"] == target  # side first
                 assert VOICE_COMMANDS[f"{word} {side}"] == target  # side last
 
+    def test_f_mode_is_sayable_per_player_in_either_order(self):
+        """Every player has its own F-mode, so each is sayable by naming it — in
+        either order, like the rest of the grid.  "main" is the synonym for
+        "primary" it is everywhere else, and "both" means the two satellites."""
+        for word, act in (("f mode", "fmode"),
+                          ("f mode on", "fmode_on"),
+                          ("f mode off", "fmode_off")):
+            for side in ("portrait", "landscape", "both", "primary"):
+                assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
+                assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
+            assert VOICE_COMMANDS[f"main {word}"] == f"primary_{act}"
+            assert VOICE_COMMANDS[f"{word} main"] == f"primary_{act}"
+
+    def test_bare_f_mode_still_reaches_every_player(self):
+        """Naming a player narrows that one; the bare phrase is the whole-room
+        gesture the F key is, so it must not have become an active-side command."""
+        assert VOICE_COMMANDS["f mode"] == "fmode_toggle"
+        assert VOICE_COMMANDS["f mode on"] == "fmode_on"
+        assert VOICE_COMMANDS["f mode off"] == "fmode_off"
+
     def test_cycle_verb_phrases_map_to_the_active_cycle(self):
         """"cycle / next / change <axis>" are extra active-side spoken forms for
         the cycle commands, and "scene" reads as "action"."""

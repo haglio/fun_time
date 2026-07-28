@@ -410,16 +410,15 @@ def test_button_tooltip_names_each_button():
 
 
 def test_control_button_rects_lays_the_sides_own_controls_out_in_a_row():
-    """The browse pair, then the two that act on the clip on screen — the buttons
-    the dashboard used to carry for this side, now in the side's own HUD."""
+    """The browse pair, then the two that act on the clip on screen, then F-mode —
+    the buttons the dashboard used to carry for this side, now in the side's own
+    HUD."""
     rects = control_button_rects(10, 40)
 
-    assert [name for _rect, name in rects] == ["prev", "next", "lock", "trash"]
+    assert [name for _rect, name in rects] == ["prev", "next", "lock", "trash", "fmode"]
     assert [rect for rect, _name in rects] == [
-        (10, 40, CTRL_BTN, CTRL_BTN),
-        (10 + (CTRL_BTN + MAP_GAP), 40, CTRL_BTN, CTRL_BTN),
-        (10 + 2 * (CTRL_BTN + MAP_GAP), 40, CTRL_BTN, CTRL_BTN),
-        (10 + 3 * (CTRL_BTN + MAP_GAP), 40, CTRL_BTN, CTRL_BTN),
+        (10 + step * (CTRL_BTN + MAP_GAP), 40, CTRL_BTN, CTRL_BTN)
+        for step in range(5)
     ]
 
 
@@ -470,8 +469,9 @@ def test_single_click_switches_and_double_click_locks():
 
 
 def test_clicking_a_side_control_posts_that_sides_command():
-    """The four buttons post exactly the commands the dashboard's panel used to —
-    "portrait_prev", "landscape_trash" — so the dispatch loop needs no new verbs."""
+    """Each button posts exactly the command that side answers to —
+    "portrait_prev", "landscape_trash", "portrait_fmode" — so the dispatch loop
+    needs no new verbs for a button, only for the thing it does."""
     targets = _targets(control=control_button_rects(0, 0))
     ctrl = CTRL_BTN + MAP_GAP
 
@@ -479,6 +479,14 @@ def test_clicking_a_side_control_posts_that_sides_command():
     assert HudClicks("portrait").press(targets, ctrl + 5, 5, now=0.0) == "portrait_next"
     assert HudClicks("landscape").press(targets, 2 * ctrl + 5, 5, now=0.0) == "landscape_lock"
     assert HudClicks("landscape").press(targets, 3 * ctrl + 5, 5, now=0.0) == "landscape_trash"
+    assert HudClicks("portrait").press(targets, 4 * ctrl + 5, 5, now=0.0) == "portrait_fmode"
+
+
+def test_parse_hud_reads_this_sides_f_mode():
+    """Published per side, since each satellite has its own — and False when the
+    key is absent, so a panel from before this existed simply reads as not in it."""
+    assert parse_hud(json.dumps({"side": "portrait", "f_mode": True})).f_mode is True
+    assert parse_hud(json.dumps({"side": "portrait"})).f_mode is False
 
 
 def test_a_side_control_posts_at_once_rather_than_waiting_out_a_double_click():

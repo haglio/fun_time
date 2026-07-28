@@ -398,6 +398,7 @@ class DispatchLoopRunner:
                 widen_clip=getattr(state, f"{name}_widen_clip"),
                 nav_anchor=getattr(state, f"{name}_nav_anchor"),
                 latest=getattr(state, f"{name}_latest"),
+                f_mode=getattr(state, f"{name}_f_mode"),
                 is_favorite=is_favorite_path(current, favs),
             )
 
@@ -407,7 +408,6 @@ class DispatchLoopRunner:
             side("landscape", sources=self.config.landscape_sources,
                  status_file=self.config.landscape_status_file, locked=state.locked3),
             metadata_root=self.config.regen_metadata_root,
-            f_mode=state.f_mode_enabled,
             active_side=side_name(state.active_side),
         )
         self._hud_publisher.publish("portrait", portrait)
@@ -420,6 +420,7 @@ class DispatchLoopRunner:
         self._hud_publisher.publish_payload("nau", console_payload(
             mode=state.primary_mode,
             active=state.active_side == PRIMARY_SIDE,
+            f_mode=state.primary_f_mode,
             osr2_mode=self._osr2_mode(),
             funscript_driving=nau.funscript_driving,
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
@@ -617,12 +618,6 @@ class DispatchLoopRunner:
         elif cmd == "landscape_lock_off":
             if self.state.locked3:
                 self._dispatch("landscape_lock", spoken_at)
-        elif cmd == "fmode_on":
-            if not self.state.f_mode_enabled:
-                self._dispatch("fmode_toggle", spoken_at)
-        elif cmd == "fmode_off":
-            if self.state.f_mode_enabled:
-                self._dispatch("fmode_toggle", spoken_at)
         elif cmd == "broker_start":
             self._handle_broker_start()
         elif cmd == "broker_stop":
@@ -817,7 +812,6 @@ class DispatchLoopRunner:
             voice_active = self.voice_controller is not None and not self.voice_controller.is_muted
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
-                f_mode_enabled=self.state.f_mode_enabled,
                 osr2_mode=osr2_mode,
                 primary_mode=self.state.primary_mode,
                 portrait_locked=self.state.locked2,

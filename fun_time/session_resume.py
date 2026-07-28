@@ -37,12 +37,13 @@ from .shared_state import read_shared_state, write_shared_state
 PlaylistEntries = list[tuple[Path, Path | None]]
 
 # What a reopened session comes back believing.  Most of it is what shaped the
-# playlist files that were just resumed — F-mode and a filter decide which clips
-# are in them, Latest fixes their order, and a group loop IS the group written
-# out as the playlist, with the map anchored (and the seed row widened) on the
-# clip it started from.  The rest is what the session was simply *left* in: the
-# sound level and each side's lock are how you had it set, and there is no more
-# reason for them to reset overnight than there is for the clip on screen to.
+# playlist files that were just resumed — each player's own F-mode and each
+# side's filter decide which clips are in them, Latest fixes their order, and a
+# group loop IS the group written out as the playlist, with the map anchored
+# (and the seed row widened) on the clip it started from.  The rest is what the
+# session was simply *left* in: the sound level and each side's lock are how you
+# had it set, and there is no more reason for them to reset overnight than there
+# is for the clip on screen to.
 #
 # Those last two are the ones with a live counterpart to re-assert, since neither
 # lives in a file a new process reads: the level is seeded to both audio sinks at
@@ -55,7 +56,9 @@ PlaylistEntries = list[tuple[Path, Path | None]]
 # opens in nau mode holding the floor, and a keyboard-navigation selection was
 # never a thing you could leave running.
 RESUMED_FIELDS = (
-    "f_mode_enabled",
+    "primary_f_mode",
+    "portrait_f_mode",
+    "landscape_f_mode",
     "portrait_filter",
     "landscape_filter",
     "portrait_latest",

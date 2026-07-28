@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fun_time.dashboard_layout import (
     BUTTON,
-    CHIP,
+    GAP,
     PAD,
     Rect,
     client_rect_filling_frame,
@@ -16,13 +16,13 @@ def _rects(layout) -> list[Rect]:
     return [
         layout.app_icon, layout.app_title,
         layout.quit_button, layout.omnipause_button, layout.help_button,
-        layout.fmode_panel, layout.voice_panel,
+        layout.voice_panel,
     ]
 
 
 def test_the_bar_reads_left_to_right_in_the_order_it_is_written():
-    """The app's mark, then the buttons, then the lights — grouped by what they
-    are rather than by which player they used to stand for."""
+    """The app's mark, then the controls — grouped by what they are rather than
+    by which player they used to stand for."""
     layout = compute_dashboard_bar_layout()
 
     xs = [rect.x for rect in _rects(layout)]
@@ -40,13 +40,15 @@ def test_nothing_in_the_bar_overlaps_anything_else():
                     or second.x + second.width <= first.x)
 
 
-def test_the_buttons_are_pressable_and_the_lights_are_smaller():
-    """The three lights are read, not pressed, so they do not need a button's
-    target and would crowd the bar at one."""
+def test_the_microphone_is_one_of_the_buttons_not_a_light_beside_them():
+    """F-mode was the other light, and it has gone to the players' own HUDs.  A
+    lone chip past a group gap read as adrift from the bar, so the microphone is
+    a button in the same run, at the same size and the same spacing."""
     layout = compute_dashboard_bar_layout()
 
-    assert layout.quit_button.height == BUTTON
-    assert layout.fmode_panel.height == CHIP < BUTTON
+    assert layout.voice_panel.height == layout.quit_button.height == BUTTON
+    assert layout.voice_panel.y == layout.quit_button.y
+    assert layout.voice_panel.x == layout.help_button.x + BUTTON + GAP
 
 
 def test_everything_sits_on_one_line_inside_the_bars_height():
