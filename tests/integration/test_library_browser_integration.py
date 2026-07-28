@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw
 from PyQt6.QtGui import QFontDatabase
 
 from fun_time.library_browser import LibraryBrowserWindow
-from fun_time.library_handles import LibraryHandle
+from fun_time.library_handles import CLIPS_SUFFIX, LibraryHandle
 from fun_time.thumbnail_cache import thumbnail_path
 
 pytestmark = [
@@ -30,10 +30,12 @@ pytestmark = [
 ]
 
 TITLES = ("Alpha Studio - Scene One", "Beta Collective - The Long Afternoon 2")
+SECTIONS = ("big_batch", "big_batch" + CLIPS_SUFFIX)
 
 
 def _handles(tmp_path: Path, cache: Path) -> list[LibraryHandle]:
-    """Two handles, each with a still already cached, so nothing is extracted."""
+    """One handle per section, each with a still already cached, so nothing is
+    extracted — and so the grid has a header of each kind to paint."""
     handles = []
     for index, title in enumerate(TITLES):
         video = tmp_path / f"v{index}.mp4"
@@ -41,7 +43,9 @@ def _handles(tmp_path: Path, cache: Path) -> list[LibraryHandle]:
         picture = Image.new("RGB", (176, 99), (40, 60, 90))
         ImageDraw.Draw(picture).rectangle((10, 10, 60, 60), fill=(200, 120, 40))
         picture.save(thumbnail_path(video, cache), "JPEG")
-        handles.append(LibraryHandle(title=title, versions=(str(video),)))
+        handles.append(
+            LibraryHandle(title=title, versions=(str(video),), section=SECTIONS[index])
+        )
     return handles
 
 
@@ -50,7 +54,9 @@ def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
 
     Legibility is read off the font: on the native platform the families are
     there and the title's glyphs are really in the face being drawn with, where
-    offscreen has no font at all and paints every character as a box.
+    offscreen has no font at all and paints every character as a box.  Section
+    headers are held to the same bar — the separator in one is a character too,
+    and a header nobody can read names no section.
     """
     cache = tmp_path / "cache"
     cache.mkdir()
@@ -65,10 +71,11 @@ def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
         assert QFontDatabase.families(), "native platform must have real fonts"
         metrics = window.fontMetrics()
         assert metrics.horizontalAdvance(TITLES[0]) > 0
-        for character in set("".join(TITLES)):
+        for character in set("".join(TITLES + SECTIONS)):
             assert metrics.inFont(character), f"{character!r} would paint as a box"
 
-        assert not window.item(0).icon().isNull()
+        tiles = [row for row, handle in enumerate(window.rows) if handle is not None]
+        assert not window.item(tiles[0]).icon().isNull()
         assert painted.width() > 0 and painted.height() > 0
         colors = {painted.pixel(x, y) for x in range(0, painted.width(), 7)
                   for y in range(0, painted.height(), 7)}

@@ -235,19 +235,34 @@ business and not the viewer's.
 
 So `\` opens Fun Time's own browser instead of a file dialog. It shows one tile
 per **video** rather than per file — every rendition of one video collapsed into
-a single *handle* — with a still off each, named after the video, alphabetical,
-and no folders anywhere. Arrow keys move the selection, typing jumps to a title,
+a single *handle* — with a still off each, named after the video, and no stage
+folders anywhere. Arrow keys move the selection, typing jumps to a title,
 and Enter or a double-click plays it in Nau; the window's close button abandons
 the browse. The global hotkeys are suspended for its duration so those keys
 reach it at all — they consume the press, and the arrows and every letter are
 already commands. Escape is the exception: it belongs to OmniPause and stays
 live, which is why it is not the way out of the browser.
 
+The grid is banded into **sections**, each with a header across the row. A
+section is the folder a video came from — the first folder under a
+`nau_library_dirs` source, which says which batch or origin it is from; every
+stage folder below that stays hidden. Within a section it is alphabetical.
+Sections rank by how much of the library each folder holds, biggest first, so
+the browse opens on the bulk of it.
+
+Videos **carved out of a compilation** get a band of their own beside their
+folder's whole videos, headed `<folder> · clips` and sitting just behind them.
+Evolver marks an excerpt with a `clip` record (the parent compilation, the
+running order in it, the scene it came from), and that record is the whole test
+— so a reel's worth of cuts never sits between the scenes they were cut from.
+
 The families come from Evolver's metadata sidecar (`version.group`), which is
 the authority on "same video, other version" — the filenames alone cannot say
 so. A video with no record stands alone as its own handle. Picking one plays its
 largest rendition, the same one the primary player's own version cycling treats
-as canonical, so `V` walks the rest of the family from there.
+as canonical, so `V` walks the rest of the family from there. That largest
+rendition also decides the section: the odd family that records both an excerpt
+and the whole scene sits with the whole videos, because that is what it plays.
 
 Stills are cached under `state/hud_thumbnails/` — the same cache the satellites'
 HUD maps paint from — and warmed in the background at startup, one per handle,

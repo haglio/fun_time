@@ -27,8 +27,8 @@ from PyQt6.QtCore import QSize, Qt, QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QListWidget, QListWidgetItem
 
-from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, TEXT_PRIMARY
-from shared_ui.fonts import FONT_UI, SIZE_BODY, make_font
+from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, make_font
 
 from .library_handles import LibraryHandle, build_library_handles
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
@@ -42,6 +42,10 @@ TILE_WIDTH = 200
 TILE_HEIGHT = 168
 ICON_WIDTH = 176
 ICON_HEIGHT = 99
+
+# A section header's band across the grid — tall enough to read, short enough
+# that a section costs less than a row of tiles.
+HEADER_HEIGHT = 34
 
 # How often the grid picks up thumbnails the background extractor has finished.
 THUMBNAIL_POLL_MS = 150
@@ -78,7 +82,6 @@ class LibraryBrowserWindow(QListWidget):
         self.setResizeMode(QListWidget.ResizeMode.Adjust)
         self.setMovement(QListWidget.Movement.Static)
         self.setWordWrap(True)
-        self.setUniformItemSizes(True)
         self.setIconSize(QSize(ICON_WIDTH, ICON_HEIGHT))
         self.setSpacing(6)
         self.setFont(make_font(FONT_UI, SIZE_BODY))
@@ -90,16 +93,19 @@ class LibraryBrowserWindow(QListWidget):
             f" QListWidget::item:selected {{ background-color: {BLUE.name()}; }}"
         )
 
+        # One row per widget item, holding the handle it shows — or None where the
+        # row is a section header.  Headers push every tile below them out of step
+        # with the handle list, so the row is what a pick is read off.
+        self.rows: list[LibraryHandle | None] = []
+        section = None
         for handle in self._handles:
-            item = QListWidgetItem(handle.title)
-            item.setSizeHint(QSize(TILE_WIDTH, TILE_HEIGHT))
-            item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
-            cached = cached_thumbnail(handle.preview, self._thumbnail_cache)
-            if cached is not None:
-                item.setIcon(QIcon(str(cached)))
-            self.addItem(item)
-        if self._handles:
-            self.setCurrentRow(0)
+            if handle.section != section:
+                section = handle.section
+                self._add_row(self._header_item(section), None)
+            self._add_row(self._tile_item(handle), handle)
+        first_tile = next((row for row, handle in enumerate(self.rows) if handle), None)
+        if first_tile is not None:
+            self.setCurrentRow(first_tile)
 
         self.itemActivated.connect(self._pick)
 
@@ -111,9 +117,49 @@ class LibraryBrowserWindow(QListWidget):
         self._collect_timer = QTimer(self)
         self._collect_timer.timeout.connect(self._collect_thumbnails)
 
+    def _add_row(self, item: QListWidgetItem, handle: LibraryHandle | None) -> None:
+        self.rows.append(handle)
+        self.addItem(item)
+
+    def _tile_item(self, handle: LibraryHandle) -> QListWidgetItem:
+        item = QListWidgetItem(handle.title)
+        item.setSizeHint(QSize(TILE_WIDTH, TILE_HEIGHT))
+        item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
+        cached = cached_thumbnail(handle.preview, self._thumbnail_cache)
+        if cached is not None:
+            item.setIcon(QIcon(str(cached)))
+        return item
+
+    def _header_item(self, section: str) -> QListWidgetItem:
+        """A section's name, spanning the row so its band starts on a fresh line.
+
+        Not selectable and not enabled, so the arrow keys step from one band's
+        last tile straight to the next's first — a header names a group of
+        videos, it is not one you can play.
+        """
+        item = QListWidgetItem(section)
+        item.setFlags(Qt.ItemFlag.NoItemFlags)
+        item.setSizeHint(QSize(self._header_width(), HEADER_HEIGHT))
+        item.setFont(make_font(FONT_UI, SIZE_HEADING, bold=True))
+        item.setForeground(TEXT_MUTED)
+        item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        return item
+
+    def _header_width(self) -> int:
+        """Wide enough that no tile fits beside a header, whatever the viewport."""
+        return max(TILE_WIDTH, self.viewport().width() - 2 * self.spacing())
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        """Keep the headers spanning: a stale width lets tiles ride up beside one."""
+        super().resizeEvent(event)
+        width = self._header_width()
+        for row, handle in enumerate(self.rows):
+            if handle is None:
+                self.item(row).setSizeHint(QSize(width, HEADER_HEIGHT))
+
     def start_thumbnail_extraction(self) -> None:
         """Fill in the stills the cache did not already have, in the background."""
-        pending = rows_without_thumbnails(self._handles, self._thumbnail_cache)
+        pending = rows_needing_stills(self.rows, self._thumbnail_cache)
         if not pending:
             return
         self._extractor = threading.Thread(
@@ -124,7 +170,8 @@ class LibraryBrowserWindow(QListWidget):
 
     def _extract(self, rows: Sequence[int]) -> None:
         for row in rows:
-            extracted = thumbnail_for(self._handles[row].preview, self._thumbnail_cache)
+            handle = self.rows[row]
+            extracted = thumbnail_for(handle.preview, self._thumbnail_cache)
             if extracted is not None:
                 self._extracted.put((row, str(extracted)))
 
@@ -141,18 +188,24 @@ class LibraryBrowserWindow(QListWidget):
             self._collect_timer.stop()
 
     def _pick(self, item: QListWidgetItem) -> None:
-        self._on_pick(self._handles[self.row(item)].video)
+        handle = self.rows[self.row(item)]
+        if handle is None:
+            return
+        self._on_pick(handle.video)
         self.close()
 
 
-def rows_without_thumbnails(
-    handles: Sequence[LibraryHandle], thumbnail_cache: str | Path
+def rows_needing_stills(
+    rows: Sequence[LibraryHandle | None], thumbnail_cache: str | Path
 ) -> list[int]:
-    """Which rows still need a still extracted — the cache misses, in order."""
+    """Which rows still need a still extracted — the cache misses, in order.
+
+    Header rows (``None``) picture nothing and are skipped.
+    """
     return [
         row
-        for row, handle in enumerate(handles)
-        if cached_thumbnail(handle.preview, thumbnail_cache) is None
+        for row, handle in enumerate(rows)
+        if handle is not None and cached_thumbnail(handle.preview, thumbnail_cache) is None
     ]
 
 
