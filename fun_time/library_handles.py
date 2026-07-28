@@ -89,13 +89,10 @@ def _is_clip(video: str, metadata_root: Path | None) -> bool:
 CLIPS_SUFFIX = " · clips"
 
 
-def source_folder(video: str, sources: str) -> str:
-    """The folder under a library source that *video* came from.
+def source_path(video: str, sources: str) -> tuple[str, ...]:
+    """*video*'s folders below whichever library source holds it.
 
-    The FIRST component below the source root, which is the one thing about a
-    library path worth knowing — which batch or origin a video came from.
-    Everything under it is pipeline stage, which is what the browse hides.  A
-    video sitting directly in a source root has no such folder, and gets "".
+    Empty for a video that is directly in a source root, or under none of them.
     """
     path = Path(video)
     for source in sources.split("|"):
@@ -106,19 +103,55 @@ def source_folder(video: str, sources: str) -> str:
             relative = path.relative_to(root)
         except ValueError:
             continue
-        return relative.parts[0] if len(relative.parts) > 1 else ""
-    return ""
+        return relative.parts[:-1]
+    return ()
 
 
-def section_for(video: str, sources: str, metadata_root: Path | None) -> str:
-    """Which band of the browse *video* belongs to.
+def source_folder(video: str, sources: str) -> str:
+    """The folder under a library source that *video* came from.
 
-    Its source folder, and — for an excerpt — a band of its own beside that
-    folder's whole videos, so a reel's worth of cuts never sits between the
-    scenes they came from.
+    The FIRST component below the source root, which is the one thing about a
+    library path always worth knowing — which batch or origin a video came from.
+    Everything under it is pipeline stage, which is what the browse hides, unless
+    :func:`band_names` finds a real division in it.
     """
-    folder = source_folder(video, sources)
-    return folder + CLIPS_SUFFIX if _is_clip(video, metadata_root) else folder
+    folders = source_path(video, sources)
+    return folders[0] if folders else ""
+
+
+def band_names(bands: dict[tuple[str, bool], list[tuple[str, ...]]]) -> dict[tuple[str, bool], str]:
+    """What to call each (folder, is-clip) band — its own folder where it has one.
+
+    A folder whose cuts and whole videos have been filed into two folders of
+    their own is named after them, so the header and Explorer read the same
+    words.  That is recognised by each band having a *dominant* second folder and
+    the two differing: where the split is the sidecar's alone the two bands share
+    their stage folders, and where a folder holds only whole videos there is no
+    second band to differ from — in both of those the folder keeps its own name
+    and the cuts, if any, take the suffix.
+
+    Dominant rather than unanimous, so one straggler left behind by a move (a
+    file the running session had open) cannot drag a band's name back.
+    """
+    names = {}
+    for (folder, is_clip), paths in bands.items():
+        mate = bands.get((folder, not is_clip))
+        mine, theirs = _dominant_subfolder(paths), _dominant_subfolder(mate or [])
+        if mine and theirs and mine != theirs:
+            names[(folder, is_clip)] = f"{folder}/{mine}"
+        else:
+            names[(folder, is_clip)] = folder + CLIPS_SUFFIX if is_clip else folder
+    return names
+
+
+def _dominant_subfolder(paths: list[tuple[str, ...]]) -> str:
+    """The second folder most of *paths* sit under, or "" when they are split
+    across several — which is what a set of pipeline stages looks like."""
+    seconds = Counter(parts[1] for parts in paths if len(parts) > 1)
+    if not seconds:
+        return ""
+    name, count = seconds.most_common(1)[0]
+    return name if count * 2 > sum(seconds.values()) else ""
 
 
 def build_library_handles(sources: str, metadata_root: Path | None) -> list[LibraryHandle]:
@@ -138,33 +171,32 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
         title = _recorded_group(video, metadata_root) or Path(video).stem
         families.setdefault(title, []).append(video)
 
-    handles = [
-        LibraryHandle(
-            title=title,
-            versions=(versions := tuple(
-                sorted(families[title], key=lambda video: (-_file_size(video), video))
-            )),
-            section=section_for(versions[0], sources, metadata_root),
-        )
-        for title in families
-    ]
+    played = {
+        title: tuple(sorted(videos, key=lambda video: (-_file_size(video), video)))
+        for title, videos in families.items()
+    }
+    keys = {
+        title: (source_folder(versions[0], sources), _is_clip(versions[0], metadata_root))
+        for title, versions in played.items()
+    }
+    bands: dict[tuple[str, bool], list[tuple[str, ...]]] = {}
+    for title, key in keys.items():
+        bands.setdefault(key, []).append(source_path(played[title][0], sources))
+    names = band_names(bands)
+
     # Folders rank by their whole weight, cuts included, so a folder that was
     # sliced into hundreds of excerpts cannot send those excerpts ahead of a
     # different folder entirely.  Its two bands then stay adjacent, whole videos
-    # first: the cuts came out of them, so they follow.
-    weight = Counter(_folder_of(handle.section) for handle in handles)
-    return sorted(
-        handles,
-        key=lambda handle: (
-            -weight[_folder_of(handle.section)],
-            _folder_of(handle.section),
-            handle.section.endswith(CLIPS_SUFFIX),
-            handle.title.casefold(),
-            handle.title,
-        ),
-    )
-
-
-def _folder_of(section: str) -> str:
-    """The source folder a section belongs to — its two bands share one."""
-    return section[: -len(CLIPS_SUFFIX)] if section.endswith(CLIPS_SUFFIX) else section
+    # first: the cuts came out of them, so they follow.  Ordering reads the band
+    # key rather than the section name, which is only what the band is *called*.
+    weight = Counter(folder for folder, _is_clip in keys.values())
+    return [
+        LibraryHandle(title=title, versions=played[title], section=names[keys[title]])
+        for title in sorted(
+            played,
+            key=lambda title: (
+                -weight[keys[title][0]], keys[title][0], keys[title][1],
+                title.casefold(), title,
+            ),
+        )
+    ]
