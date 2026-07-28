@@ -421,3 +421,86 @@ def test_a_shortcut_is_refused_before_the_launcher_has_landed(repo_with_worktree
         branch_session.write_launch_shortcut(
             repo_with_worktrees.newer, primary=repo_with_worktrees.primary
         )
+
+
+def _live_state(checkouts) -> Path:
+    """The live session's state dir, with something of each kind in it."""
+    state = checkouts.primary / "state"
+    (state / "hud_thumbnails").mkdir(parents=True)
+    (state / "hud_thumbnails" / "abc123.jpg").write_bytes(b"thumbnail")
+    (state / "nau_durations.json").write_text(json.dumps({"C:/library/main/one.mp4": {"ms": 1}}), encoding="utf-8")
+    (state / "watch_stats.json").write_text(json.dumps({"C:/library/main/one.mp4": {"seconds": 90}}), encoding="utf-8")
+    # Session state, which must stay the branch session's own.
+    (state / "nau_playlist.tsv").write_text("C:/library/main/one.mp4\n", encoding="utf-8")
+    (state / "dashboard_cmd.txt").write_text("portrait_lock", encoding="utf-8")
+    (state / "shared_state.ini").write_text("[state]\n", encoding="utf-8")
+    return state
+
+
+def test_the_library_caches_are_started_from_the_live_sessions(checkouts):
+    """Startup waits for Nau to report the video it is opening, and Nau reports
+    nothing until it has a duration for it — so against a cold
+    ``nau_durations.json`` it probed the whole library first and a branch launch
+    took 45 seconds where the live session takes 4.  The thumbnail cache and the
+    watch stats are the same cost paid later: blank HUD maps and an empty
+    breeding view, neither of them the branch's doing."""
+    _live_state(checkouts)
+
+    branch_config = branch_session.build_branch_config(
+        checkouts.worktree, primary_config_path=checkouts.config_path, primary=checkouts.primary
+    )
+
+    state = branch_config.parent
+    assert json.loads((state / "nau_durations.json").read_text(encoding="utf-8")) == {
+        "C:/library/main/one.mp4": {"ms": 1}
+    }
+    assert (state / "watch_stats.json").is_file()
+    assert (state / "hud_thumbnails" / "abc123.jpg").read_bytes() == b"thumbnail"
+
+
+def test_nothing_describing_the_session_itself_is_seeded(checkouts):
+    """The separate state dir exists so a half-finished branch cannot corrupt
+    what the live session reads back.  Seeding a playlist, a command file or the
+    resume point would hand back exactly what it prevents."""
+    _live_state(checkouts)
+
+    branch_config = branch_session.build_branch_config(
+        checkouts.worktree, primary_config_path=checkouts.config_path, primary=checkouts.primary
+    )
+
+    state = branch_config.parent
+    assert not (state / "nau_playlist.tsv").exists()
+    assert not (state / "dashboard_cmd.txt").exists()
+    assert not (state / "shared_state.ini").exists()
+
+
+def test_a_branch_sessions_own_cache_is_not_overwritten_by_an_older_one(checkouts):
+    """A seed, not a sync.  A worktree kept around for days has its own newer
+    durations by then, and rolling them back would make it index again."""
+    live = _live_state(checkouts)
+    branch_state = checkouts.worktree / "state"
+    branch_state.mkdir(parents=True)
+    (branch_state / "nau_durations.json").write_text(json.dumps({"newer": {}}), encoding="utf-8")
+    stale = (live / "nau_durations.json").stat().st_mtime - 60
+    os.utime(live / "nau_durations.json", (stale, stale))
+
+    branch_session.seed_derived_caches(live, branch_state)
+
+    assert json.loads((branch_state / "nau_durations.json").read_text(encoding="utf-8")) == {"newer": {}}
+
+
+def test_the_thumbnail_cache_is_only_ever_topped_up(checkouts):
+    """A thumbnail is named for its video and that video's modification time, so
+    one already there can never be out of date — every launch after the first
+    copies nothing rather than thousands of files."""
+    live = _live_state(checkouts)
+    branch_state = checkouts.worktree / "state"
+    (branch_state / "hud_thumbnails").mkdir(parents=True)
+    (branch_state / "hud_thumbnails" / "abc123.jpg").write_bytes(b"already here")
+    (live / "hud_thumbnails" / "def456.jpg").write_bytes(b"new one")
+
+    seeded = branch_session.seed_derived_caches(live, branch_state)
+
+    assert (branch_state / "hud_thumbnails" / "abc123.jpg").read_bytes() == b"already here"
+    assert (branch_state / "hud_thumbnails" / "def456.jpg").read_bytes() == b"new one"
+    assert branch_state / "hud_thumbnails" / "abc123.jpg" not in seeded
