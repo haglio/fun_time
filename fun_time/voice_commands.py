@@ -150,17 +150,13 @@ VOICE_COMMANDS: dict[str, str] = {
     "cruise control": "genau_toggle_cruise",
     "cruise on": "genau_cruise_on",
     "cruise off": "genau_cruise_off",
-    # Cruise's other half, split out: cruise varies the stroke, auto advance
-    # moves on to the next clip.
-    "auto advance": "genau_toggle_auto_advance",
-    "advance on": "genau_auto_advance_on",
-    "advance off": "genau_auto_advance_off",
     "previous clip": "genau_prev_clip",
     "next clip": "genau_next_clip",
-    # Bare "weird" and "lock" already address the active satellite, so Genau's
-    # own clip actions name the clip.
+    # Bare "weird" already addresses the active satellite, so Genau's own clip
+    # action names the clip.  There is no spoken hold to go with it: holding a
+    # clip is the primary's lock, said as "primary lock" or bare while the
+    # primary has the floor.
     "weird clip": "genau_weird_clip",
-    "lock clip": "genau_toggle_clip_lock",
     "offset": "quarter_button",
     # "voice off" / "mic off" both mute voice control (there is no spoken way
     # back — a muted recognizer hears nothing; the dashboard mic button or a

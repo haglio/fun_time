@@ -188,16 +188,21 @@ class TestVoiceCommands:
             assert VOICE_COMMANDS[phrase] == cmd
 
     def test_genau_clip_phrases_are_distinct_from_the_satellite_ones(self):
-        """Bare "weird" and "lock" already mean the active satellite, so Genau's
-        clip actions have to name the clip."""
+        """Bare "weird" already means the active satellite, so Genau's clip
+        action has to name the clip."""
         assert VOICE_COMMANDS["weird clip"] == "genau_weird_clip"
-        assert VOICE_COMMANDS["lock clip"] == "genau_toggle_clip_lock"
         assert VOICE_COMMANDS["weird"] == "active_trash"
 
-    def test_auto_advance_phrases_arm_and_pace_it(self):
-        assert VOICE_COMMANDS["auto advance"] == "genau_toggle_auto_advance"
-        assert VOICE_COMMANDS["advance on"] == "genau_auto_advance_on"
-        assert VOICE_COMMANDS["advance off"] == "genau_auto_advance_off"
+    def test_holding_a_genau_clip_is_the_primary_lock_and_nothing_of_its_own(self):
+        """It was a phrase and a padlock beside auto advance's arming; the two
+        could disagree, and the console carried a second lock next to Nau's."""
+        assert "lock clip" not in VOICE_COMMANDS
+        assert "auto advance" not in VOICE_COMMANDS
+        assert "advance on" not in VOICE_COMMANDS
+        assert "advance off" not in VOICE_COMMANDS
+        assert VOICE_COMMANDS["primary lock"] == "primary_lock_on"
+
+    def test_a_spoken_interval_names_the_seconds(self):
         # A spoken interval covers 1-60 seconds, single digits and compounds
         # included — the tens-only vocabulary could not hear "advance five".
         for word, seconds in (

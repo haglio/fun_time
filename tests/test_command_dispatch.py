@@ -473,15 +473,27 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF"
 
 
-def test_primary_lock_reaches_nau_in_genau_mode_too(tmp_path: Path):
-    """Like [ and ], and for the same reason: the blanked Nau is still a player
-    with a playlist, and what its end of file does is settled either way."""
+def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
+    """The lock is about what is on screen, and in genau mode that is Genau's
+    clip — the same split the speed controls make.  One padlock on the console
+    rather than one per player, which is what left Hybrid with two."""
     config = _make_config(tmp_path)
     state = _make_state(primary_mode="genau")
 
     dispatch_command("primary_lock", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK"
+    assert not config.nau_cmd_file.exists()
+
+
+def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    dispatch_command("primary_lock_off", _make_state(primary_mode="genau"), config)
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF"
+
+    dispatch_command("primary_lock_on", _make_state(primary_mode="hybrid"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON"
 
 
 def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(tmp_path: Path):
@@ -2190,13 +2202,12 @@ def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
     assert ops == []
 
 
-def test_genau_auto_advance_commands_write_cmd_file(tmp_path: Path):
-    """Auto-advance is its own switch now — cruise no longer carries it."""
+def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
+    """What is left of auto-advance is its pace: the arming and the hold it could
+    disagree with are one padlock now (see the primary lock tests above)."""
     for command, verb in (
-        ("genau_toggle_auto_advance", "TOGGLE_AUTO_ADVANCE"),
-        ("genau_auto_advance_on", "AUTO_ADVANCE_ON"),
-        ("genau_auto_advance_off", "AUTO_ADVANCE_OFF"),
-        ("genau_toggle_clip_lock", "TOGGLE_CLIP_LOCK"),
+        ("genau_advance_down", "ADVANCE_DOWN"),
+        ("genau_advance_up", "ADVANCE_UP"),
         ("genau_weird_clip", "WEIRD"),
     ):
         config = _make_config(tmp_path / command)

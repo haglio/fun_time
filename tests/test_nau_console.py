@@ -70,15 +70,24 @@ class TestPayload:
         assert _payload(record="recording")["record"] == "recording"
         assert _payload()["record"] == "normal"
 
-    def test_a_held_clip_is_reported_apart_from_the_arming(self):
-        payload = _payload(genau=GenauStatus(auto_advance_active=True, clip_locked=True))
+    def test_the_lock_reported_is_the_lock_of_whoever_is_showing(self):
+        """One padlock on the console, so one flag: Nau's hold on its video where
+        Nau is on screen, Genau's hold on its clip where Genau is.  Publishing
+        both is what left Hybrid drawing two locks that meant different things."""
+        held_clip = GenauStatus(locked=True)
+        loose_clip = GenauStatus(locked=False)
 
-        assert payload["auto_advance"] is True
-        assert payload["clip_locked"] is True
-        assert _payload()["auto_advance"] is False
+        for mode in ("nau", "hybrid"):
+            assert _payload(mode=mode, nau_locked=True, genau=loose_clip)["locked"] is True
+            assert _payload(mode=mode, nau_locked=False, genau=held_clip)["locked"] is False
 
-    def test_naus_lock_is_bounced_back_for_the_console_to_draw(self):
-        """The padlock is Nau's own state, but in genau mode the console carrying
-        it is drawn by a player with no such lock to ask."""
-        assert _payload(nau_locked=True)["locked"] is True
-        assert _payload(nau_locked=False)["locked"] is False
+        assert _payload(mode="genau", nau_locked=False, genau=held_clip)["locked"] is True
+        assert _payload(mode="genau", nau_locked=True, genau=loose_clip)["locked"] is False
+
+    def test_genaus_own_arming_and_hold_are_no_longer_published(self):
+        """They were two flags for one behavior, and the padlock they fed sat
+        beside Nau's on the same console."""
+        payload = _payload()
+
+        assert "auto_advance" not in payload
+        assert "clip_locked" not in payload
