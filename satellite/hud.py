@@ -675,12 +675,17 @@ class HudClicks:
 # Action words that read wrong in plain title case — kept upper.
 _ACTION_ACRONYMS = {"pov": "POV"}
 
-# Words the metadata writes in front of an act ("POV cumshot") that qualify how it
-# was shot rather than naming what happens.  Split off as an act of their own, so a
-# filter for the act itself lights the act and leaves the qualifier grey — on one
-# line "POV Cumshot" both words went white under a "cumshot" filter, which said the
-# camera angle was part of what you had asked for.
-_ACT_MODIFIERS = ("pov",)
+# The camera words the metadata writes in front of an act: they say how the clip was
+# shot, not what happens in it.  Split off as an act of their own, so a filter for
+# the act lights the act and leaves the camera word grey — on one line "POV Cumshot"
+# both words went white under a "cumshot" filter, saying the camera angle was part
+# of what you had asked for.
+#
+# Both of them, because Evolver's backfill tool scopes *every* act it records by one
+# ("Side Alpha", "POV Alpha" — `backfill/vocabulary.py`, `_CAMERAS`), and it never
+# writes a bare act.  So every clip labelled from here on carries one of these, and a
+# list holding only "pov" would leave every "Side …" row lighting both words.
+_ACT_MODIFIERS = ("pov", "side")
 
 
 def _titlecase_word(word: str) -> str:
