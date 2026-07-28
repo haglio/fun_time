@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,12 +9,14 @@ logger = logging.getLogger(__name__)
 
 from .modes import (
     PLAYLIST_LANDSCAPE,
+    PLAYLIST_NAU,
     PLAYLIST_PORTRAIT,
     SatelliteLibraryContext,
-    build_fmode_playlists,
+    build_one_satellite_playlist,
     build_playlist_file_path,
+    build_primary_playlist_paths,
     build_satellite_playlist_paths,
-    build_satellite_playlists,
+    write_nau_playlist_file,
     write_playlist_file,
 )
 from .broker_control import RESUME_CMD, write_broker_command
@@ -66,12 +69,22 @@ class ModeSwitchFlowResult:
     log_message: str
 
 
+# The three players F-mode can be set on, each with its own flag.  It means a
+# different narrowing on each — the satellites drop to the favourites, the primary
+# to the videos that have a funscript — which is exactly why it is worth setting
+# one player at a time.
+PRIMARY_PLAYER = "primary"
+PORTRAIT_PLAYER = "portrait"
+LANDSCAPE_PLAYER = "landscape"
+FMODE_PLAYERS = (PRIMARY_PLAYER, PORTRAIT_PLAYER, LANDSCAPE_PLAYER)
+
+
 @dataclass(frozen=True)
 class FModeFlowResult:
-    success: bool
-    next_f_mode_enabled: bool
-    next_locked2: bool
-    next_locked3: bool
+    """Which players were put into (or out of) F-mode, and what to say about it."""
+
+    players: tuple[str, ...]
+    enabled: bool
     log_message: str
 
 
@@ -126,9 +139,65 @@ def apply_mode_switch(
     )
 
 
-def apply_toggle_fmode(
+def apply_primary_fmode(
     *,
-    f_mode_enabled: bool,
+    enabled: bool,
+    primary_sources: str,
+    state_dir: str | Path,
+    nau_cmd_file: str | Path,
+) -> None:
+    """Rebuild the primary's playlist under *enabled* and hand it to Nau.
+
+    F-mode narrows the primary to the videos that have a funscript beside them —
+    the OSR2 has something to follow for every clip that comes up.
+    """
+    write_nau_playlist_file(
+        build_playlist_file_path(Path(state_dir), PLAYLIST_NAU),
+        build_primary_playlist_paths(primary_sources, enabled),
+    )
+    # Both verbs on one write: this file is overwritten, not appended, so telling
+    # Nau the flag afterwards would drop the reload that goes with it.  Nau's HUD
+    # has no other way to know — the playlist it is handed has already been
+    # narrowed, and a list of scripted videos looks like any other.
+    Path(nau_cmd_file).write_text(
+        f"{RELOAD_PLAYLIST_CMD}\n{SET_F_MODE_CMD} {int(enabled)}", encoding="utf-8"
+    )
+
+
+def apply_satellite_fmode(
+    *,
+    which: int,
+    enabled: bool,
+    sources: str,
+    favs_file: str | Path,
+    state_dir: str | Path,
+    cmd_file: str | Path,
+    recent: bool = False,
+    filter_query: str = "",
+    regen_metadata_root: Path | None = None,
+) -> None:
+    """Rebuild one satellite's playlist under *enabled* and tell it to re-read.
+
+    F-mode narrows a satellite to the favourites.  The side's own filter and
+    order ride along, so narrowing to favourites does not quietly undo either.
+    """
+    build_one_satellite_playlist(
+        sources=sources,
+        name=PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE,
+        favs_file=Path(favs_file),
+        state_dir=Path(state_dir),
+        f_mode=enabled,
+        recent=recent,
+        filter_query=filter_query,
+        library=_satellite_library(state_dir, regen_metadata_root),
+    )
+    write_satellite_command(Path(cmd_file), RELOAD_PLAYLIST_CMD)
+
+
+def apply_fmode(
+    *,
+    players: Sequence[str],
+    enabled: bool,
     portrait_recent: bool,
     landscape_recent: bool,
     primary_sources: str,
@@ -139,40 +208,47 @@ def apply_toggle_fmode(
     portrait_cmd_file: str | Path,
     landscape_cmd_file: str | Path,
     nau_cmd_file: str | Path,
-    regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
     portrait_filter: str = "",
     landscape_filter: str = "",
 ) -> FModeFlowResult:
-    target_enabled = not f_mode_enabled
-    # Writes each satellite's and Nau's playlist file in place; the players below
-    # are told to re-read them.
-    build_fmode_playlists(
-        primary_sources=primary_sources,
-        portrait_sources=portrait_sources,
-        landscape_sources=landscape_sources,
-        favs_file=Path(favs_file),
-        state_dir=Path(state_dir),
-        enabled=target_enabled,
-        portrait_recent=portrait_recent,
-        landscape_recent=landscape_recent,
-        portrait_filter=portrait_filter,
-        landscape_filter=landscape_filter,
-        library=_satellite_library(state_dir, regen_metadata_root),
-    )
-    write_satellite_command(Path(portrait_cmd_file), RELOAD_PLAYLIST_CMD)
-    write_satellite_command(Path(landscape_cmd_file), RELOAD_PLAYLIST_CMD)
-    # Both verbs on one write: this file is overwritten, not appended, so telling
-    # Nau the flag afterwards would drop the reload that goes with it.
-    Path(nau_cmd_file).write_text(
-        f"{RELOAD_PLAYLIST_CMD}\n{SET_F_MODE_CMD} {int(target_enabled)}", encoding="utf-8"
-    )
+    """Put each of *players* into F-mode, or take it out, and rebuild just those.
+
+    A player not named is not touched at all — its playlist file is left exactly
+    as it is, so setting one side's F-mode cannot reshuffle the other's queue out
+    from under it.  That is the whole reason the rebuild is per player rather than
+    the one all-three build this used to do.
+    """
+    named = tuple(player for player in FMODE_PLAYERS if player in players)
+    if PRIMARY_PLAYER in named:
+        apply_primary_fmode(
+            enabled=enabled,
+            primary_sources=primary_sources,
+            state_dir=state_dir,
+            nau_cmd_file=nau_cmd_file,
+        )
+    for player, which, sources, cmd_file, recent, query in (
+        (PORTRAIT_PLAYER, 2, portrait_sources, portrait_cmd_file, portrait_recent, portrait_filter),
+        (LANDSCAPE_PLAYER, 3, landscape_sources, landscape_cmd_file, landscape_recent, landscape_filter),
+    ):
+        if player in named:
+            apply_satellite_fmode(
+                which=which,
+                enabled=enabled,
+                sources=sources,
+                favs_file=favs_file,
+                state_dir=state_dir,
+                cmd_file=cmd_file,
+                recent=recent,
+                filter_query=query,
+                regen_metadata_root=regen_metadata_root,
+            )
     return FModeFlowResult(
-        success=True,
-        next_f_mode_enabled=target_enabled,
-        next_locked2=False,
-        next_locked3=False,
-        log_message=f"F-mode hotkey: {'enabled' if target_enabled else 'disabled'}",
+        players=named,
+        enabled=enabled,
+        log_message=(
+            f"F-mode {'enabled' if enabled else 'disabled'}: {', '.join(named) or 'nothing'}"
+        ),
     )
 
 

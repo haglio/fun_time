@@ -115,15 +115,19 @@ class TestResumeSharedState:
     "F-mode" by reporting it *enabled* while nothing visibly changed.
     """
 
-    def test_carries_f_mode_onto_the_resumed_session(self, tmp_path: Path):
-        """The resumed playlists hold favorites only, so the session is in
-        F-mode however it was closed — and every HUD has to say so."""
+    def test_carries_each_players_own_f_mode_onto_the_resumed_session(self, tmp_path: Path):
+        """A resumed playlist holds whatever its own player was narrowed to, so
+        each F-mode comes back as it was closed — and each HUD has to say so.
+        Carrying one flag for all three would put players into an F-mode whose
+        playlist was never built under it."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(f_mode_enabled=True))
+        write_shared_state(state_file, BridgeState(
+            primary_f_mode=True, portrait_f_mode=False, landscape_f_mode=True))
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert state.f_mode_enabled is True
+        assert (state.primary_f_mode, state.portrait_f_mode,
+                state.landscape_f_mode) == (True, False, True)
 
     def test_carries_a_running_loop_and_the_map_it_hangs_on(self, tmp_path: Path):
         """A loop IS the group written out as the side's playlist, so resuming
@@ -231,7 +235,7 @@ class TestResumeSatelliteLocks:
         """Nothing to resume means the builder just wrote three fresh playlists
         with F-mode off, so last session's state describes files that are gone."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(f_mode_enabled=True, portrait_loop="seed"))
+        write_shared_state(state_file, BridgeState(portrait_f_mode=True, portrait_loop="seed"))
 
         state = resume_shared_state(state_file, resumed=False)
 
@@ -241,13 +245,13 @@ class TestResumeSatelliteLocks:
         """The dispatch loop reads its state off this file every tick and never
         hears about the return value, so the carry has to be on disk."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(f_mode_enabled=True, omni_paused=True))
+        write_shared_state(state_file, BridgeState(portrait_f_mode=True, omni_paused=True))
 
         resume_shared_state(state_file, resumed=True)
 
         written = read_shared_state(state_file)
         assert written is not None
-        assert written.f_mode_enabled is True
+        assert written.portrait_f_mode is True
         assert written.omni_paused is False
 
     def test_a_first_run_leaves_a_state_file_behind(self, tmp_path: Path):

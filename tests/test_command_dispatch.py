@@ -9,6 +9,8 @@ from urllib.request import url2pathname
 
 import logging
 
+import pytest
+
 from fun_time.command_dispatch import (
     FAILED_NOTICE_LEVEL,
     FAVORITE_NOTICE_LEVEL,
@@ -93,7 +95,6 @@ def _make_state(**overrides) -> BridgeState:
         locked2=False,
         locked3=False,
         primary_mode="nau",
-        f_mode_enabled=False,
         omni_paused=False,
     )
     defaults.update(overrides)
@@ -750,69 +751,117 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
     assert config.nau_paused_file.read_text(encoding="utf-8") == "0"
 
 
-# --- fmode_toggle ---
+# --- F-mode ---
 
 
-def test_fmode_toggle_enables_from_disabled(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(f_mode_enabled=False)
-
-    with (
-        patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode,
-    ):
-        mock_fmode.return_value = type("R", (), {
-            "success": True,
-            "next_f_mode_enabled": True,
-            "next_locked2": False,
-            "next_locked3": False,
-            "log_message": "F-mode hotkey: enabled",
-        })()
-        new_state, ops = dispatch_command("fmode_toggle", state, config)
-
-    assert new_state.f_mode_enabled is True
-    assert new_state.locked2 is False
-    assert new_state.locked3 is False
-
-
-def test_fmode_panel_click_dispatches_as_fmode_toggle(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(f_mode_enabled=False)
-
-    with (
-        patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode,
-    ):
-        mock_fmode.return_value = type("R", (), {
-            "success": True,
-            "next_f_mode_enabled": True,
-            "next_locked2": False,
-            "next_locked3": False,
-            "log_message": "F-mode hotkey: enabled",
-        })()
-        new_state, ops = dispatch_command("fmode_panel", state, config)
-
-    assert new_state.f_mode_enabled is True
-    assert new_state.locked2 is False
-    assert new_state.locked3 is False
-
-
-def _fmode_result(*, enabled: bool):
+def _fmode_result(**kwargs):
+    """Stand in for the real flow: it reports back exactly the players it was
+    handed, in the order the module lists them."""
+    players = tuple(kwargs["players"])
+    enabled = kwargs["enabled"]
     return type("R", (), {
-        "success": True, "next_f_mode_enabled": enabled,
-        "next_locked2": False, "next_locked3": False,
-        "log_message": f"F-mode hotkey: {'enabled' if enabled else 'disabled'}",
+        "players": players,
+        "enabled": enabled,
+        "log_message": f"F-mode {'enabled' if enabled else 'disabled'}: {', '.join(players)}",
     })()
 
 
-def test_fmode_toggle_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
-    """Every path into F-mode — the F key, the dashboard, a spoken "F mode" — now
-    flashes the same confirmation, since the dispatch owns it rather than the voice
-    layer echoing the phrase it heard."""
+def _dispatch_fmode(command: str, state: BridgeState, config: BridgeConfig):
+    """Run *command* with the playlist rebuild stubbed out, and hand back the mock
+    so a caller can look at what the flow was asked for."""
+    with patch("fun_time.command_dispatch.apply_fmode", side_effect=_fmode_result) as mock_fmode:
+        new_state, ops = dispatch_command(command, state, config)
+    return new_state, ops, mock_fmode
+
+
+def test_fmode_toggle_enables_every_player_from_disabled(tmp_path: Path):
+    """The bare command is still the whole-room gesture the F key always was."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_toggle_fmode",
-               return_value=_fmode_result(enabled=True)):
-        _new_state, ops = dispatch_command(
-            "fmode_toggle", _make_state(f_mode_enabled=False), config)
+    new_state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", _make_state(), config)
+
+    assert mock_fmode.call_args.kwargs["players"] == ("primary", "portrait", "landscape")
+    assert (new_state.primary_f_mode, new_state.portrait_f_mode,
+            new_state.landscape_f_mode) == (True, True, True)
+
+
+def test_fmode_toggle_narrows_the_rest_rather_than_lifting_what_is_narrowed(tmp_path: Path):
+    """With one player already in F-mode, the key that means "narrow everything"
+    must finish the job, not undo the half of it that is done — otherwise one press
+    leaves the room in the split state it was pressed to resolve."""
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_f_mode=True)
+
+    new_state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
+
+    assert (new_state.primary_f_mode, new_state.portrait_f_mode,
+            new_state.landscape_f_mode) == (True, True, True)
+    # …and the player that was already narrowed is left out of the rebuild, so its
+    # queue is not reshuffled for nothing.
+    assert mock_fmode.call_args.kwargs["players"] == ("primary", "landscape")
+
+
+def test_fmode_toggle_lifts_it_once_every_player_is_in_it(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_f_mode=True, portrait_f_mode=True, landscape_f_mode=True)
+
+    new_state, _ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
+
+    assert (new_state.primary_f_mode, new_state.portrait_f_mode,
+            new_state.landscape_f_mode) == (False, False, False)
+
+
+@pytest.mark.parametrize(
+    "command, field",
+    [
+        ("primary_fmode", "primary_f_mode"),
+        ("portrait_fmode", "portrait_f_mode"),
+        ("landscape_fmode", "landscape_f_mode"),
+    ],
+)
+def test_a_named_player_goes_into_f_mode_alone(tmp_path: Path, command: str, field: str):
+    """What each HUD's own F button posts: that player and no other."""
+    config = _make_config(tmp_path)
+
+    new_state, _ops, mock_fmode = _dispatch_fmode(command, _make_state(), config)
+
+    assert getattr(new_state, field) is True
+    assert [getattr(new_state, other) for other in
+            ("primary_f_mode", "portrait_f_mode", "landscape_f_mode")].count(True) == 1
+    assert mock_fmode.call_args.kwargs["players"] == (command.removesuffix("_fmode"),)
+
+
+def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path):
+    """A phrase misheard twice must not leave F-mode the opposite of what was asked."""
+    config = _make_config(tmp_path)
+
+    stays_on, _ops, _mock = _dispatch_fmode(
+        "portrait_fmode_on", _make_state(portrait_f_mode=True), config)
+    stays_off, _ops, _mock = _dispatch_fmode(
+        "portrait_fmode_off", _make_state(portrait_f_mode=False), config)
+
+    assert stays_on.portrait_f_mode is True
+    assert stays_off.portrait_f_mode is False
+
+
+def test_asserting_the_state_a_player_is_already_in_rebuilds_nothing(tmp_path: Path):
+    """The rebuild replaces the queue, so "portrait f mode on" said twice would
+    reshuffle what the first one built."""
+    config = _make_config(tmp_path)
+
+    _state, _ops, mock_fmode = _dispatch_fmode(
+        "portrait_fmode_on", _make_state(portrait_f_mode=True), config)
+
+    assert mock_fmode.call_args.kwargs["players"] == ()
+
+
+def test_fmode_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
+    """Every path into F-mode — the F key, a HUD button, a spoken "F mode" — flashes
+    the same confirmation, since the dispatch owns it rather than the voice layer
+    echoing the phrase it heard."""
+    config = _make_config(tmp_path)
+
+    _state, ops, _mock = _dispatch_fmode("fmode_toggle", _make_state(), config)
 
     # At the favorites' own level, so it flashes green: F-mode is the filter over
     # them, and green is what the favorites and the funscripts own.
@@ -820,16 +869,14 @@ def test_fmode_toggle_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Pa
                             level=FAVORITE_NOTICE_LEVEL)]
 
 
-def test_fmode_toggle_flashes_a_red_notice_when_it_turns_off(tmp_path: Path):
+def test_fmode_flashes_a_red_notice_when_it_turns_off(tmp_path: Path):
     """The reported bug: disabling F-mode still flashed a green "F mode", which
     reads as "turned on".  Off is the loud state here — the library just went back
     to its full self — so it flashes red and says which way it went."""
     config = _make_config(tmp_path)
+    state = _make_state(primary_f_mode=True, portrait_f_mode=True, landscape_f_mode=True)
 
-    with patch("fun_time.command_dispatch.apply_toggle_fmode",
-               return_value=_fmode_result(enabled=False)):
-        _new_state, ops = dispatch_command(
-            "fmode_toggle", _make_state(f_mode_enabled=True), config)
+    _state, ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
     assert ops == [
         WindowOp(op="notice", key="F-Mode disabled", source="system",
@@ -837,47 +884,33 @@ def test_fmode_toggle_flashes_a_red_notice_when_it_turns_off(tmp_path: Path):
     ]
 
 
-def test_fmode_toggle_passes_each_sides_current_order(tmp_path: Path):
-    """F-mode rebuilds both satellites, and the two can be in different orders, so
-    each side's own ordering has to go with it."""
+def test_a_sided_fmode_flashes_on_that_players_own_display(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(f_mode_enabled=False, portrait_latest=True, landscape_latest=False)
 
-    with patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode:
-        mock_fmode.return_value = type("R", (), {
-            "success": True,
-            "next_f_mode_enabled": True,
-            "next_locked2": False,
-            "next_locked3": False,
-            "log_message": "F-mode hotkey: enabled",
-        })()
-        dispatch_command("fmode_toggle", state, config)
+    _state, ops, _mock = _dispatch_fmode("landscape_fmode", _make_state(), config)
+
+    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="landscape",
+                            level=FAVORITE_NOTICE_LEVEL)]
+
+
+def test_fmode_passes_each_sides_current_order(tmp_path: Path):
+    """A rebuild has to keep the side's order, and the two satellites can be in
+    different ones, so each side's own ordering goes with it."""
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_latest=True, landscape_latest=False)
+
+    _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
     assert mock_fmode.call_args.kwargs["portrait_recent"] is True
     assert mock_fmode.call_args.kwargs["landscape_recent"] is False
 
 
-def test_fmode_toggle_passes_provider_roots_for_group_collapse(tmp_path: Path):
-    config = replace(
-        _make_config(tmp_path),
-        regen_media_root=tmp_path / "media",
-        regen_metadata_root=tmp_path / "metadata",
-    )
-    state = _make_state(f_mode_enabled=False)
+def test_fmode_passes_the_metadata_root_for_group_collapse(tmp_path: Path):
+    config = replace(_make_config(tmp_path), regen_metadata_root=tmp_path / "metadata")
 
-    with patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode:
-        mock_fmode.return_value = type("R", (), {
-            "success": True,
-            "next_f_mode_enabled": True,
-            "next_locked2": False,
-            "next_locked3": False,
-            "log_message": "F-mode hotkey: enabled",
-        })()
-        dispatch_command("fmode_toggle", state, config)
+    _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", _make_state(), config)
 
-    kwargs = mock_fmode.call_args.kwargs
-    assert kwargs["regen_media_root"] == tmp_path / "media"
-    assert kwargs["regen_metadata_root"] == tmp_path / "metadata"
+    assert mock_fmode.call_args.kwargs["regen_metadata_root"] == tmp_path / "metadata"
 
 
 def _filter_result(count=1, applied=True, message="ok"):
@@ -1152,16 +1185,11 @@ def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
     assert mock_filter.call_args.kwargs["query"] == ""
 
 
-def test_fmode_toggle_passes_active_filters(tmp_path: Path):
+def test_fmode_passes_active_filters(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
 
-    with patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode:
-        mock_fmode.return_value = type("R", (), {
-            "success": True, "next_f_mode_enabled": True,
-            "next_locked2": False, "next_locked3": False, "log_message": "x",
-        })()
-        dispatch_command("fmode_toggle", state, config)
+    _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
     kwargs = mock_fmode.call_args.kwargs
     assert kwargs["portrait_filter"] == "alpha"
@@ -2881,23 +2909,33 @@ def test_a_reorder_clears_only_its_own_sides_loop(tmp_path: Path):
     assert (state.landscape_loop, state.landscape_widen_clip) == ("action", "C:/v/l.mp4")
 
 
-def test_fmode_toggle_clears_both_loops(tmp_path: Path):
+def test_fmode_clears_the_loop_of_every_side_it_rebuilds(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_toggle_fmode") as mock_fmode:
-        mock_fmode.return_value = type(
-            "R", (), {"next_f_mode_enabled": True, "next_locked2": False,
-                      "next_locked3": False, "log_message": ""}
-        )()
-        state, _ops = dispatch_command(
-            "fmode_toggle",
-            _make_state(portrait_loop="seed", landscape_loop="action",
-                        portrait_widen_clip="C:/v/p.mp4", landscape_widen_clip="C:/v/l.mp4"),
-            config,
-        )
+    state, _ops, _mock = _dispatch_fmode(
+        "fmode_toggle",
+        _make_state(portrait_loop="seed", landscape_loop="action",
+                    portrait_widen_clip="C:/v/p.mp4", landscape_widen_clip="C:/v/l.mp4"),
+        config,
+    )
 
     assert (state.portrait_loop, state.landscape_loop) == ("", "")
     assert (state.portrait_widen_clip, state.landscape_widen_clip) == ("", "")
+
+
+def test_a_sided_fmode_leaves_the_other_sides_loop_running(tmp_path: Path):
+    """Only the rebuilt side lost its queue, so only its loop goes with it."""
+    config = _make_config(tmp_path)
+
+    state, _ops, _mock = _dispatch_fmode(
+        "portrait_fmode",
+        _make_state(portrait_loop="seed", landscape_loop="action",
+                    portrait_widen_clip="C:/v/p.mp4", landscape_widen_clip="C:/v/l.mp4"),
+        config,
+    )
+
+    assert (state.portrait_loop, state.portrait_widen_clip) == ("", "")
+    assert (state.landscape_loop, state.landscape_widen_clip) == ("action", "C:/v/l.mp4")
 
 
 def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):

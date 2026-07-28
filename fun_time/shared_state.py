@@ -1,8 +1,8 @@
 """The state file a session reads its own mode off.
 
 One small INI in the state dir holds what the whole session is *in* — which
-sides are locked, what each is filtered and ordered by, whether F-mode is on,
-what is looping, where the sound is.  The dispatch loop owns it: it re-reads the
+sides are locked, what each is filtered and ordered by, which players are in
+F-mode, what is looping, where the sound is.  The dispatch loop owns it: it re-reads the
 file every tick and writes it back after every command, so the state survives
 its own resync and reaches the dashboard and both satellite HUDs, which are
 separate processes drawing what the file says.
@@ -36,7 +36,9 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         "locked2": "1" if state.locked2 else "0",
         "locked3": "1" if state.locked3 else "0",
         "primary_mode": state.primary_mode,
-        "f_mode_enabled": "1" if state.f_mode_enabled else "0",
+        "primary_f_mode": "1" if state.primary_f_mode else "0",
+        "portrait_f_mode": "1" if state.portrait_f_mode else "0",
+        "landscape_f_mode": "1" if state.landscape_f_mode else "0",
         "omni_paused": "1" if state.omni_paused else "0",
         "active_side": str(state.active_side),
         "portrait_filter": state.portrait_filter,
@@ -83,7 +85,9 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         locked2=s.get("locked2", "0") == "1",
         locked3=s.get("locked3", "0") == "1",
         primary_mode=s.get("primary_mode", "nau"),
-        f_mode_enabled=s.get("f_mode_enabled", "0") == "1",
+        primary_f_mode=s.get("primary_f_mode", "0") == "1",
+        portrait_f_mode=s.get("portrait_f_mode", "0") == "1",
+        landscape_f_mode=s.get("landscape_f_mode", "0") == "1",
         omni_paused=s.get("omni_paused", "0") == "1",
         active_side=_int_or(s, "active_side", 1),
         portrait_filter=s.get("portrait_filter", ""),

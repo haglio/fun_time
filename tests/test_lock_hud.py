@@ -727,22 +727,24 @@ def test_build_panels_marks_only_the_active_side_active(tmp_path: Path):
     assert actives("primary") == (False, False)  # the primary has it; neither satellite does
 
 
-def test_build_panels_puts_f_mode_on_both_sides(tmp_path: Path):
-    """F-mode is one global flag, not a sided one — the F key narrows both
-    satellites at once — so both status lines say it or neither does."""
+def test_build_panels_says_f_mode_on_the_side_that_is_in_it(tmp_path: Path):
+    """F-mode is sided now — each satellite has its own button for it — so the
+    status line says it on the side it is on, and the other panel stays silent."""
     reset_group_index_cache()
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
 
     portrait, landscape = build_panels(
-        SideInputs("portrait", sources=sources, current=current),
+        SideInputs("portrait", sources=sources, current=current, f_mode=True),
         SideInputs("landscape", sources=sources, current=current),
-        metadata_root=metadata_root, f_mode=True,
+        metadata_root=metadata_root,
     )
 
     assert "F-Mode" in portrait.lock_label
-    assert "F-Mode" in landscape.lock_label
+    assert "F-Mode" not in landscape.lock_label
+    # …and the flag itself rides along, so the side's own button can light.
+    assert (portrait.f_mode, landscape.f_mode) == (True, False)
 
 
 def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):

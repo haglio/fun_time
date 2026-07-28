@@ -8,7 +8,7 @@ import json
 
 from fun_time.modes import (
     SatelliteLibraryContext,
-    build_fmode_playlists,
+    build_all_playlists,
     build_mirrored_funscript_path,
     build_primary_playlist_paths,
     build_satellite_playlist_paths,
@@ -107,7 +107,7 @@ def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path:
     assert paths == [str(first)]
 
 
-def test_build_fmode_playlists_writes_satellite_playlist_files(tmp_path: Path):
+def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
@@ -128,13 +128,15 @@ def test_build_fmode_playlists_writes_satellite_playlist_files(tmp_path: Path):
     )
     state_dir = tmp_path / "state"
 
-    build_fmode_playlists(
+    build_all_playlists(
         primary_sources=str(primary_root),
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
         favs_file=favs_file,
         state_dir=state_dir,
-        enabled=True,
+        primary_f_mode=True,
+        portrait_f_mode=True,
+        landscape_f_mode=True,
         rng=random.Random(1),
     )
 
@@ -147,7 +149,7 @@ def test_build_fmode_playlists_writes_satellite_playlist_files(tmp_path: Path):
     assert not (state_dir / "primary_playlist.tsv").exists()
 
 
-def test_build_fmode_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path: Path):
+def test_build_all_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     primary_root.mkdir(parents=True)
     scripted_video = primary_root / "scripted.mp4"
@@ -160,13 +162,12 @@ def test_build_fmode_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path
     favs_file = tmp_path / "favs.csv"
     state_dir = tmp_path / "state"
 
-    build_fmode_playlists(
+    build_all_playlists(
         primary_sources=str(primary_root),
         portrait_sources="",
         landscape_sources="",
         favs_file=favs_file,
         state_dir=state_dir,
-        enabled=False,
         rng=random.Random(1),
     )
 
@@ -310,7 +311,6 @@ def test_build_satellite_playlists_writes_both_recency_ordered_files(tmp_path: P
         landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        f_mode=False,
         portrait_recent=True,
         landscape_recent=True,
     )
@@ -319,7 +319,7 @@ def test_build_satellite_playlists_writes_both_recency_ordered_files(tmp_path: P
     assert _lines(state_dir / "landscape_playlist.tsv") == [str(l_new), str(l_old)]
 
 
-def test_build_fmode_playlists_recent_orders_satellites(tmp_path: Path):
+def test_build_all_playlists_recent_orders_satellites(tmp_path: Path):
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
     p_old, p_new = portrait_root / "p_old.mp4", portrait_root / "p_new.mp4"
@@ -330,13 +330,12 @@ def test_build_fmode_playlists_recent_orders_satellites(tmp_path: Path):
     _touch_with_mtime(l_new, 2000)
     state_dir = tmp_path / "state"
 
-    build_fmode_playlists(
+    build_all_playlists(
         primary_sources="",
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        enabled=False,
         portrait_recent=True,
         landscape_recent=True,
     )
@@ -508,7 +507,6 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
         landscape_sources=str(source_dir),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        f_mode=False,
         portrait_recent=False,
         landscape_recent=False,
         rng=random.Random(5),
@@ -521,7 +519,7 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
         assert listed[0] in paths.values()
 
 
-def test_build_fmode_playlists_forwards_library_to_satellites(tmp_path: Path):
+def test_build_all_playlists_forwards_library_to_satellites(tmp_path: Path):
     source_dir, library, paths = _grouped_library(tmp_path, {
         "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
         "subject1_alpha": _i2v_meta("111", "Alpha"),
@@ -530,13 +528,12 @@ def test_build_fmode_playlists_forwards_library_to_satellites(tmp_path: Path):
     primary_dir.mkdir()
     (primary_dir / "main.mp4").write_text("x", encoding="utf-8")
 
-    build_fmode_playlists(
+    build_all_playlists(
         primary_sources=str(primary_dir),
         portrait_sources=str(source_dir),
         landscape_sources=str(source_dir),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        enabled=False,
         rng=random.Random(5),
         library=library,
     )
@@ -630,7 +627,6 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
         landscape_sources=str(landscape_dir),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        f_mode=False,
         portrait_recent=True,
         landscape_recent=True,
         portrait_filter="alpha",

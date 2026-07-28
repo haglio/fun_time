@@ -1991,47 +1991,32 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_not_called()
 
-    # -- fmode on / fmode off --
+    # -- f mode, sided --
 
-    def test_fmode_on_dispatches_when_disabled(self, tmp_path):
+    def test_a_sided_fmode_reaches_the_dispatch_as_written(self, tmp_path):
+        """The on/off forms are the dispatch's own commands now — it alone knows
+        which players each names, and it is what decides a no-op rebuilds nothing —
+        so the loop passes them straight through rather than second-guessing them."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(f_mode_enabled=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("fmode_on", encoding="utf-8")
+            cmd_file.write_text("portrait_fmode_on", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_called_once_with("fmode_toggle", None)
+        mock_d.assert_called_once_with("portrait_fmode_on", None)
 
-    def test_fmode_on_noop_when_enabled(self, tmp_path):
+    def test_both_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
+        """"both f mode" is sugar, exactly as it is for every other sided command:
+        there is no combined handler, just the pair run in turn."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(f_mode_enabled=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("fmode_on", encoding="utf-8")
+            cmd_file.write_text("both_fmode", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-        mock_d.assert_not_called()
-
-    def test_fmode_off_dispatches_when_enabled(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(f_mode_enabled=True)
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("fmode_off", encoding="utf-8")
-            runner._last_sync = float("inf")
-            runner.tick()
-        mock_d.assert_called_once_with("fmode_toggle", None)
-
-    def test_fmode_off_noop_when_disabled(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(f_mode_enabled=False)
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("fmode_off", encoding="utf-8")
-            runner._last_sync = float("inf")
-            runner.tick()
-        mock_d.assert_not_called()
+        assert [call.args[0] for call in mock_d.call_args_list] == [
+            "portrait_fmode", "landscape_fmode",
+        ]
 
     # -- genau activate --
 
@@ -2511,17 +2496,26 @@ class TestHudPublishing:
         assert landscape["locked"] is False
         assert landscape["corner"]["path"] == "C:/v/l.mp4"
 
-    def test_the_published_panel_says_when_f_mode_is_on(self, tmp_path):
+    def test_the_published_panel_says_when_that_sides_f_mode_is_on(self, tmp_path):
         """The flag lives on the bridge state and nowhere the player can see, so the
-        status line is the only way F-mode reaches the screen a satellite is on."""
+        publish is the only way F-mode reaches the screen a satellite is on — as the
+        status line, and as the flag its own button lights off.
+
+        It is sided: the satellite that is not in F-mode must not say it is."""
         runner = self._runner_with_hud(tmp_path)
-        _write_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4", fraction=0.1)
-        runner.state = replace(runner.state, f_mode_enabled=True)
+        for side in ("portrait", "landscape"):
+            _write_satellite_status(tmp_path / f"{side}_status.txt", f"C:/v/{side}.mp4",
+                                    fraction=0.1)
+        runner.state = replace(runner.state, portrait_f_mode=True)
 
         runner.tick()
 
         portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        landscape = json.loads((tmp_path / "landscape_hud.json").read_text(encoding="utf-8"))
         assert portrait["lock_label"] == "Unlocked · Shuffle · F-Mode"
+        assert portrait["f_mode"] is True
+        assert landscape["lock_label"] == "Unlocked · Shuffle"
+        assert landscape["f_mode"] is False
 
     def test_the_published_panel_says_which_side_has_the_floor(self, tmp_path):
         """The active side is a slot number in the state and a side *name* on the

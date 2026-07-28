@@ -10,9 +10,25 @@ def test_the_self_reporting_commands_flash_their_own_outcome():
     stacked a confirmation under a red correction."""
     assert SELF_REPORTING_COMMANDS == {
         "nau_compilation", "nau_full_vid", "nau_clip_jump",
-        "nau_funscript_jump", "nau_next_funscripted", "fmode_toggle",
+        "nau_funscript_jump", "nau_next_funscripted",
         "portrait_trash", "landscape_trash", "active_trash", "both_trash",
+        "fmode_toggle", "fmode_on", "fmode_off",
+        *(
+            f"{player}_fmode{suffix}"
+            for player in ("primary", "portrait", "landscape", "both")
+            for suffix in ("", "_on", "_off")
+        ),
     }
+
+
+def test_every_spoken_f_mode_is_self_reporting():
+    """F-mode is per player now, so voice can hand over any of a dozen spellings —
+    bare, sided, or asserting on/off.  The dispatch flashes which way each one
+    went, so a spelling left off this list is one that stacks a green echo on top
+    of a red "disabled"."""
+    spoken = {cmd for cmd in VOICE_COMMANDS.values() if "fmode" in cmd}
+    assert spoken, "expected the F-mode phrases to still exist"
+    assert spoken <= SELF_REPORTING_COMMANDS
 
 
 def test_every_spoken_discard_is_self_reporting():

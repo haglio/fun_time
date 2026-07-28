@@ -67,7 +67,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("Shift+Esc",),
                 ("relief_omnipause",),
             ),
-            _Row("Toggle F-Mode", ("F",), ("fmode_toggle", "fmode_on", "fmode_off")),
+            _Row(
+                "Toggle F-Mode on every player at once — each player also has "
+                "its own, on its own HUD (see the sections below)",
+                ("F",),
+                ("fmode_toggle", "fmode_on", "fmode_off"),
+            ),
             _Row("Latest — (re)load Portrait/Landscape newest-first", (), ("both_latest",)),
             _Row("Shuffle — reshuffle Portrait/Landscape (cancels Latest; keeps filters)", (), ("both_shuffle",)),
             # The primary display's sound, in whichever mode owns it — Nau's
@@ -143,6 +148,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("R",),
                 ("nau_record_down", "nau_record_up", "nau_record_tap", "nau_loop_cancel"),
             ),
+            _Row(
+                "F-Mode on the primary alone — play only the videos that "
+                "have a funscript",
+                (),
+                ("primary_fmode", "primary_fmode_on", "primary_fmode_off"),
+            ),
             _Row("Open file browser", ("\\",), ("backslash_key", "browse_library")),
             _Row("Save clip (Clipper)", ("'",), ("clipper_save",)),
         ),
@@ -173,6 +184,11 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Latest portrait — reload it newest-first", (), ("portrait_latest",)),
             _Row("Shuffle portrait — reshuffle it (cancels Latest; keeps the filter)", (), ("portrait_shuffle",)),
             _Row("Drop portrait's filter — keep its order and everything else", (), ("portrait_no_filter",)),
+            _Row(
+                "F-Mode on portrait alone — browse only its favorites",
+                (),
+                ("portrait_fmode", "portrait_fmode_on", "portrait_fmode_off"),
+            ),
             _Row("Reset portrait — back to every default: no filter, no lock, no loop, shuffled from the top", (), ("portrait_reset",)),
         ),
     ),
@@ -202,6 +218,11 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Latest landscape — reload it newest-first", (), ("landscape_latest",)),
             _Row("Shuffle landscape — reshuffle it (cancels Latest; keeps the filter)", (), ("landscape_shuffle",)),
             _Row("Drop landscape's filter — keep its order and everything else", (), ("landscape_no_filter",)),
+            _Row(
+                "F-Mode on landscape alone — browse only its favorites",
+                (),
+                ("landscape_fmode", "landscape_fmode_on", "landscape_fmode_off"),
+            ),
             _Row("Reset landscape — back to every default: no filter, no lock, no loop, shuffled from the top", (), ("landscape_reset",)),
         ),
     ),
@@ -221,6 +242,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Filter both to their current clip's action", (), ("both_lock_action",)),
             _Row("Shuffle both — reshuffle each (cancels Latest; keeps filters)", (), ("both_shuffle",)),
             _Row("Drop both filters — keep their orders and everything else", (), ("both_no_filter",)),
+            _Row(
+                "F-Mode on both satellites — browse only their favorites "
+                "(the primary keeps whatever it is in)",
+                (),
+                ("both_fmode", "both_fmode_on", "both_fmode_off"),
+            ),
             _Row("Reset both — back to every default: no filters, no locks, no loops, shuffled from the top", (), ("both_reset",)),
         ),
     ),
