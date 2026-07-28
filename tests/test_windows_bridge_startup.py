@@ -321,12 +321,29 @@ def test_prepare_random_favs_browser_manifest_lists_urls_directly_without_lazy_l
     ]
 
 
+def _seed_startup_states(tmp_path: Path, **overrides):
+    """seed_startup_states over throwaway paths under *tmp_path*."""
+    kwargs = dict(
+        genau_paused_file=tmp_path / "genau_paused.txt",
+        audio_paused_file=tmp_path / "audio_paused.txt",
+        nau_paused_file=tmp_path / "nau_paused.txt",
+        audio_volume_file=tmp_path / "audio_volume.txt",
+        nau_cmd_file=tmp_path / "nau_cmd.txt",
+    )
+    kwargs.update(overrides)
+    return seed_startup_states(
+        kwargs.pop("genau_paused_file"), kwargs.pop("audio_paused_file"),
+        kwargs.pop("nau_paused_file"), kwargs.pop("audio_volume_file"),
+        kwargs.pop("genau_cmd_file", None), **kwargs,
+    )
+
+
 def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
     genau_file = tmp_path / "genau_paused.txt"
     audio_file = tmp_path / "audio_paused.txt"
     nau_file = tmp_path / "nau_paused.txt"
 
-    seed_startup_states(genau_file, audio_file, nau_file, tmp_path / "audio_volume.txt")
+    _seed_startup_states(tmp_path)
 
     # Genau parked, audio parked, Nau paused until the sequencer's reveal.
     assert genau_file.read_text(encoding="utf-8") == "1"
@@ -340,31 +357,45 @@ def test_seed_startup_states_blanks_genaus_display(tmp_path: Path):
     has to say so, or Genau comes up painting its clips over Nau's window."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
-    seed_startup_states(
-        tmp_path / "genau_paused.txt",
-        tmp_path / "audio_paused.txt",
-        tmp_path / "nau_paused.txt",
-        tmp_path / "audio_volume.txt",
-        genau_cmd,
-    )
+    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "DISPLAY_OFF"]
 
 
-def test_seed_startup_states_restores_full_volume(tmp_path: Path):
-    """A session muted last night must not come back silent: Nau and the audio
-    companion both launch at full volume, so the published level must say so."""
+def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path):
+    """With no level asked for, both sinks come up unattenuated — the level a
+    first run, and every session before the sound was remembered, opens on."""
     volume_file = tmp_path / "audio_volume.txt"
     volume_file.write_text("0", encoding="utf-8")
 
-    seed_startup_states(
-        tmp_path / "genau_paused.txt",
-        tmp_path / "audio_paused.txt",
-        tmp_path / "nau_paused.txt",
-        volume_file,
-    )
+    _seed_startup_states(tmp_path, audio_volume_file=volume_file)
 
     assert read_volume(volume_file) == MAX_VOLUME
+    assert (tmp_path / "nau_cmd.txt").read_text(encoding="utf-8") == "SET_VOLUME 100 0"
+
+
+def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: Path):
+    """Nau and the audio companion each launch unattenuated and neither reads a
+    level it already has, so seeding is the only way a resumed session comes up
+    as loud as it was left."""
+    volume_file = tmp_path / "audio_volume.txt"
+
+    _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40)
+
+    assert read_volume(volume_file) == 40
+    assert (tmp_path / "nau_cmd.txt").read_text(encoding="utf-8") == "SET_VOLUME 40 0"
+
+
+def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Path):
+    """The companion is only asked to be quiet, so a mute reaches it as zero;
+    Nau also draws the control, so it gets the level and the flag and can say
+    muted rather than turned all the way down."""
+    volume_file = tmp_path / "audio_volume.txt"
+
+    _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40, muted=True)
+
+    assert read_volume(volume_file) == 0
+    assert (tmp_path / "nau_cmd.txt").read_text(encoding="utf-8") == "SET_VOLUME 40 1"
 
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
@@ -384,6 +415,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         audio_paused_file=tmp_path / "audio_paused.txt",
         nau_paused_file=tmp_path / "nau_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
+        nau_cmd_file=state_dir / "nau_cmd.txt",
         satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
         portrait_cmd_file=state_dir / "portrait_cmd.txt",
@@ -437,12 +469,17 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     )
     # Startup leaves a live broker alone, only starting one when none answers.
     ensure.assert_called_once_with(state_dir / "broker_heartbeat.txt", None)
+    # Seeded at the sound level this session opens on — full, with no session to
+    # come back to.
     seed.assert_called_once_with(
         tmp_path / "genau_paused.txt",
         tmp_path / "audio_paused.txt",
         tmp_path / "nau_paused.txt",
         tmp_path / "audio_volume.txt",
         tmp_path / "genau_cmd.txt",
+        nau_cmd_file=state_dir / "nau_cmd.txt",
+        volume=MAX_VOLUME,
+        muted=False,
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
     # The same playlist builder the F-mode toggle uses, with F-mode off.
@@ -545,10 +582,14 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
 
 
 def _run_start_core_session(kwargs: dict) -> None:
-    """start_core_session with everything outside the resume patched away."""
+    """start_core_session with what reaches outside the state dir patched away.
+
+    The seeding is left real — it only writes flags under the state dir, and it
+    is what puts a resumed session's sound level on both audio sinks.
+    """
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
-    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+    ), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch(
         "fun_time.windows_bridge_startup.build_fmode_playlists"
@@ -584,6 +625,44 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     assert state.landscape_latest is True
     assert state.portrait_loop == "seed"
     assert state.portrait_map_anchor == "C:/v/a.mp4"
+
+
+def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path: Path):
+    """The level lives in the bridge, not in anything the players read on their
+    own, so it reaches this session only by being seeded — to the audio
+    companion as the audible level, and to Nau as the level plus the mute it
+    draws over it."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(tmp_path, kwargs)
+    write_shared_state(
+        shared_state_path(kwargs["state_dir"]), BridgeState(volume=40, muted=True)
+    )
+
+    _run_start_core_session(kwargs)
+
+    state = read_shared_state(shared_state_path(kwargs["state_dir"]))
+    assert (state.volume, state.muted) == (40, True)
+    assert read_volume(kwargs["audio_volume_file"]) == 0
+    assert kwargs["nau_cmd_file"].read_text(encoding="utf-8") == "SET_VOLUME 40 1"
+
+
+def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path):
+    """A lock dies with the mpv process holding it, so it is queued back to the
+    side that had one — waiting in the command file before that satellite
+    launches, and drained on its first tick over the clip the resume put at the
+    top of its playlist."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(tmp_path, kwargs)
+    write_shared_state(
+        shared_state_path(kwargs["state_dir"]), BridgeState(locked2=True, locked3=False)
+    )
+
+    _run_start_core_session(kwargs)
+
+    state = read_shared_state(shared_state_path(kwargs["state_dir"]))
+    assert (state.locked2, state.locked3) == (True, False)
+    assert kwargs["portrait_cmd_file"].read_text(encoding="utf-8").split() == ["LOCK"]
+    assert not kwargs["landscape_cmd_file"].exists()
 
 
 def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_path: Path):

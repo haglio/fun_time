@@ -30,3 +30,27 @@ def read_volume(path: Path) -> int:
         return int(path.read_text(encoding="utf-8").replace("﻿", "").strip())
     except (OSError, ValueError):
         return MAX_VOLUME
+
+
+def publish_audio_level(
+    *, nau_cmd_file: Path, audio_volume_file: Path, volume: int, muted: bool
+) -> None:
+    """Put *volume* / *muted* on both of the primary display's audio sinks.
+
+    Nau's mpv carries the video's sound; the Genau audio companion carries the
+    clip music.  Which one is audible depends on the mode, so both are told the
+    same level every time and the bridge alone holds the authoritative value.
+
+    The companion is only ever asked to be quiet, so a mute reaches it as a level
+    of zero and it stays dumb.  Nau also *draws* the level, and zero cannot tell
+    it muted from turned all the way down, nor what unmuting should return to —
+    so it gets the level and the mute, and works the audible loudness out itself.
+
+    One function because startup seeds the session's opening level through it and
+    every spoken "quieter" goes through it after: two sinks with different
+    spellings of the same state is exactly the pair that drifts when each caller
+    writes them itself.
+    """
+    nau_cmd_file.parent.mkdir(parents=True, exist_ok=True)
+    nau_cmd_file.write_text(f"SET_VOLUME {volume} {int(muted)}", encoding="utf-8")
+    write_volume(audio_volume_file, MIN_VOLUME if muted else volume)

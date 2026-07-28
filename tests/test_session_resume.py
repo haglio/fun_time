@@ -9,6 +9,7 @@ from fun_time.session_resume import (
     RESUMED_FIELDS,
     playlist_fits_sources,
     resume_playlists,
+    resume_satellite_locks,
     resume_shared_state,
 )
 from fun_time.shared_state import read_shared_state, write_shared_state
@@ -160,16 +161,28 @@ class TestResumeSharedState:
         assert state.portrait_latest is True
         assert state.landscape_latest is True
 
-    def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
-        """A lock is repeat-one on an mpv that has been replaced, OmniPause's
-        flags are cleared before the players launch, the sound is re-seeded to
-        full, the primary opens in nau mode holding the floor, and a keyboard
-        selection was never a thing you could leave running.  Carrying any of
-        them forward would be the same lie in the other direction."""
+    def test_carries_the_sound_level_and_each_side_s_lock(self, tmp_path: Path):
+        """Neither is a thing that should reset overnight, so both come back —
+        and each has its world put back with it, the level seeded to both audio
+        sinks at startup and the lock re-sent to its satellite."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(
-            locked2=True, locked3=True, omni_paused=True, primary_mode="genau",
-            active_side=3, volume=30, muted=True,
+            volume=40, muted=True, locked2=True, locked3=False,
+        ))
+
+        state = resume_shared_state(state_file, resumed=True)
+
+        assert (state.volume, state.muted) == (40, True)
+        assert (state.locked2, state.locked3) == (True, False)
+
+    def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
+        """OmniPause's flags are cleared before the players launch, the primary
+        opens in nau mode holding the floor, and a keyboard selection was never
+        a thing you could leave running.  Carrying any of them forward would be
+        the same lie in the other direction."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(
+            omni_paused=True, primary_mode="genau", active_side=3,
             portrait_nav_anchor="C:/v/a.mp4", landscape_nav_anchor="C:/v/b.mp4",
         ))
 
@@ -179,6 +192,40 @@ class TestResumeSharedState:
         for field in fields(BridgeState):
             if field.name not in RESUMED_FIELDS:
                 assert getattr(state, field.name) == getattr(fresh, field.name)
+
+
+class TestResumeSatelliteLocks:
+    """A lock is repeat-one in mpv's own loop_file, so it dies with the player
+    process and has to be re-sent — unlike a filter or a loop, which ride back in
+    on the playlist file the new player reads."""
+
+    def test_queues_a_lock_for_the_side_that_was_holding_one(self, tmp_path: Path):
+        portrait = tmp_path / "portrait_cmd.txt"
+        landscape = tmp_path / "landscape_cmd.txt"
+
+        resume_satellite_locks([(portrait, True), (landscape, False)])
+
+        assert portrait.read_text(encoding="utf-8").split() == ["LOCK"]
+        assert not landscape.exists()
+
+    def test_queues_nothing_for_a_session_that_was_not_locked(self, tmp_path: Path):
+        """An unlocked side must not be sent anything at all: the satellite
+        launches auto-advancing, which is already what unlocked means."""
+        portrait = tmp_path / "portrait_cmd.txt"
+
+        resume_satellite_locks([(portrait, False)])
+
+        assert not portrait.exists()
+
+    def test_keeps_whatever_is_already_queued(self, tmp_path: Path):
+        """The command file is a queue, so the lock joins it rather than
+        replacing a verb something else is waiting to have drained."""
+        portrait = tmp_path / "portrait_cmd.txt"
+        portrait.write_text("RELOAD_PLAYLIST\n", encoding="utf-8")
+
+        resume_satellite_locks([(portrait, True)])
+
+        assert portrait.read_text(encoding="utf-8").split() == ["RELOAD_PLAYLIST", "LOCK"]
 
     def test_opens_on_defaults_when_the_playlists_were_built_fresh(self, tmp_path: Path):
         """Nothing to resume means the builder just wrote three fresh playlists
