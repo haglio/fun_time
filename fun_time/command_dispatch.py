@@ -413,11 +413,13 @@ def _toggle_lock(
         if target.url:
             uri = write_lock_tab_page(tabs_dir(config.state_dir), target)
             lock_ops.append(WindowOp(op="open_rfb_tab", key=uri))
-    # A lock is repeat-one on a single clip — incompatible with a group loop's
-    # repeat-all — so toggling the lock ends any loop (and widened row) the side
-    # was running.
+    # A lock does not end a group loop: it holds one clip (mpv ``loop_file``) and
+    # leaves the loop's queue exactly as it was, so unlocking drops the side straight
+    # back into cycling that group.  The loop therefore stays in state — a lock is a
+    # pause at one position *inside* the loop, and the HUD goes on drawing the loop
+    # (lit button, group rectangle, frozen map) with the held clip ringed.
     next_state = replace(state, locked2=plan.next_locked) if which == 2 else replace(state, locked3=plan.next_locked)
-    return _clear_side_grouping(next_state, which), lock_ops
+    return next_state, lock_ops
 
 
 def _discard(

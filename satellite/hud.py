@@ -241,6 +241,23 @@ def thumbnail_rects(
     return corner, seeds, actions
 
 
+def playing_rect(
+    playing: Cell, corner_rect: Rect, seed_rects: list[Rect], action_rects: list[Rect]
+) -> Rect | None:
+    """The rect of the cell holding the clip on screen, or None when that cell was
+    not drawn (its axis's window closed before reaching it).
+
+    Usually the corner — but a lock taken inside a running loop holds a member the
+    map is not anchored on, and the ring saying "this is the clip being held" has to
+    land on the cell that clip is actually drawn in, not on the loop's anchor.
+    """
+    bucket, index = playing
+    if bucket == "corner":
+        return corner_rect
+    rects = seed_rects if bucket == "seed" else action_rects if bucket == "action" else []
+    return rects[index] if 0 <= index < len(rects) else None
+
+
 def _row_right(corner_rect: Rect, seed_rects: list[Rect]) -> int:
     cx, _cy, cw, _ch = corner_rect
     return max([cx + cw] + [sx + sw for sx, _sy, sw, _sh in seed_rects])
