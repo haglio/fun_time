@@ -441,19 +441,23 @@ class HudRenderer:
         def row(row_y: int, row_h: int, text: str) -> None:
             # One block of tight word-lines per act, with a bigger gap between
             # acts, so a two-word act ("Motion" / "Bounce") wraps close but two acts
-            # ("Alpha" then "Theta Motion") are clearly separated.  A row the
-            # filter keeps is drawn lit, matching the lit filter button at the head
-            # of that row.
-            colour = TEXT_PRIMARY if label_is_filtered(text, model.filter_query) else TEXT_MUTED
+            # ("Alpha" then "Theta Motion") are clearly separated.  Each act is lit
+            # on its own account: on a clip carrying two, only the one the filter
+            # matched is why the clip is here, and lighting the other named an act
+            # the filter has nothing to do with.  The row's own button still lights
+            # off the whole label — the filter keeps the row, whichever of its acts
+            # earned it.
             ascent, descent = self._row.getmetrics()
             line_h = ascent + descent - 4
             blocks = action_label_blocks(text)
             total = sum(len(block) for block in blocks) * line_h + (len(blocks) - 1) * ACT_GAP
             ty = row_y + (row_h - total) // 2
             for block in blocks:
+                lit = label_is_filtered(" ".join(block), model.filter_query)
+                color = TEXT_PRIMARY if lit else TEXT_MUTED
                 for line in block:
                     draw.text((x + gutter_w - MAP_GAP, ty + line_h / 2), line,
-                              font=self._row, anchor="rm", fill=(*colour, 255))
+                              font=self._row, anchor="rm", fill=(*color, 255))
                     ty += line_h
                 ty += ACT_GAP
 
