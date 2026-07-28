@@ -1,9 +1,17 @@
 """Bringing a reopened session back to the clip each player was on."""
 from __future__ import annotations
 
+from dataclasses import fields
 from pathlib import Path
 
-from fun_time.session_resume import playlist_fits_sources, resume_playlists
+from fun_time.command_dispatch import BridgeState
+from fun_time.session_resume import (
+    RESUMED_FIELDS,
+    playlist_fits_sources,
+    resume_playlists,
+    resume_shared_state,
+)
+from fun_time.shared_state import read_shared_state, write_shared_state
 
 
 def _clips(tmp_path: Path, *names: str) -> list[str]:
@@ -95,6 +103,113 @@ class TestResumePlaylists:
         assert resume_playlists([(playlist, b)]) is True
 
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, a]
+
+
+class TestResumeSharedState:
+    """The other half of a resume: coming back in the mode you left in.
+
+    The playlist files carry F-mode, each side's filter and order, and any group
+    loop baked into them, so a session that resumed those files and opened on a
+    default state described itself wrongly on every HUD — and answered the next
+    "F-mode" by reporting it *enabled* while nothing visibly changed.
+    """
+
+    def test_carries_f_mode_onto_the_resumed_session(self, tmp_path: Path):
+        """The resumed playlists hold favorites only, so the session is in
+        F-mode however it was closed — and every HUD has to say so."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(f_mode_enabled=True))
+
+        state = resume_shared_state(state_file, resumed=True)
+
+        assert state.f_mode_enabled is True
+
+    def test_carries_a_running_loop_and_the_map_it_hangs_on(self, tmp_path: Path):
+        """A loop IS the group written out as the side's playlist, so resuming
+        that file resumes the loop — the HUD has to keep its button lit and its
+        map frozen where the loop left it, not read the queue as a browse."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(
+            portrait_loop="seed",
+            portrait_map_anchor="C:/v/a.mp4",
+            portrait_widen_clip="C:/v/a.mp4",
+            landscape_loop="action",
+            landscape_map_anchor="C:/v/b.mp4",
+        ))
+
+        state = resume_shared_state(state_file, resumed=True)
+
+        assert state.portrait_loop == "seed"
+        assert state.portrait_map_anchor == "C:/v/a.mp4"
+        assert state.portrait_widen_clip == "C:/v/a.mp4"
+        assert state.landscape_loop == "action"
+        assert state.landscape_map_anchor == "C:/v/b.mp4"
+
+    def test_carries_each_side_s_filter_and_order(self, tmp_path: Path):
+        """Both narrowed the playlist that just came back, so both are still in
+        force and belong on the status line."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(
+            portrait_filter="alpha", landscape_filter="beta gamma",
+            portrait_latest=True, landscape_latest=True,
+        ))
+
+        state = resume_shared_state(state_file, resumed=True)
+
+        assert (state.portrait_filter, state.landscape_filter) == ("alpha", "beta gamma")
+        assert state.portrait_latest is True
+        assert state.landscape_latest is True
+
+    def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
+        """A lock is repeat-one on an mpv that has been replaced, OmniPause's
+        flags are cleared before the players launch, the sound is re-seeded to
+        full, the primary opens in nau mode holding the floor, and a keyboard
+        selection was never a thing you could leave running.  Carrying any of
+        them forward would be the same lie in the other direction."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(
+            locked2=True, locked3=True, omni_paused=True, primary_mode="genau",
+            active_side=3, volume=30, muted=True,
+            portrait_nav_anchor="C:/v/a.mp4", landscape_nav_anchor="C:/v/b.mp4",
+        ))
+
+        state = resume_shared_state(state_file, resumed=True)
+
+        fresh = BridgeState()
+        for field in fields(BridgeState):
+            if field.name not in RESUMED_FIELDS:
+                assert getattr(state, field.name) == getattr(fresh, field.name)
+
+    def test_opens_on_defaults_when_the_playlists_were_built_fresh(self, tmp_path: Path):
+        """Nothing to resume means the builder just wrote three fresh playlists
+        with F-mode off, so last session's state describes files that are gone."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(f_mode_enabled=True, portrait_loop="seed"))
+
+        state = resume_shared_state(state_file, resumed=False)
+
+        assert state == BridgeState()
+
+    def test_the_seeded_state_is_what_the_session_opens_on(self, tmp_path: Path):
+        """The dispatch loop reads its state off this file every tick and never
+        hears about the return value, so the carry has to be on disk."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(f_mode_enabled=True, omni_paused=True))
+
+        resume_shared_state(state_file, resumed=True)
+
+        written = read_shared_state(state_file)
+        assert written is not None
+        assert written.f_mode_enabled is True
+        assert written.omni_paused is False
+
+    def test_a_first_run_leaves_a_state_file_behind(self, tmp_path: Path):
+        """There is nothing to read on a wiped state dir, and the session still
+        has to open on a state — a written default, not a missing file."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+
+        assert resume_shared_state(state_file, resumed=True) == BridgeState()
+        assert state_file.exists()
 
 
 class TestPlaylistFitsSources:

@@ -39,6 +39,7 @@ from .library_handles import build_library_handles
 from .lock_hud import prime_group_indexes
 from .loopback_server import serve_loopback
 from .modes import collect_video_files
+from .shared_state import shared_state_path
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
@@ -581,12 +582,16 @@ def run_python_orchestrated_bridge(
     children = identify_children(result)
     write_pids_file(pids_file, children)
 
-    # Clean stale state files from previous sessions so the dispatch loop
-    # starts fresh (e.g. omni_paused=True left over from a crash).
+    # Clean stale command files from previous sessions so the dispatch loop
+    # starts fresh.  The shared state file is deliberately NOT among them:
+    # startup already wrote this session's opening state to it (see
+    # session_resume.resume_shared_state), including whatever the resumed
+    # playlists were built under, and deleting it here would drop all of that
+    # back to defaults — the crashed-session leftovers that delete was for are
+    # cleared by that write instead.
     # Start background dispatch loop (dashboard polling + genau sync)
     dashboard_cmd_file = Path(manifest["commands"]["dashboard_cmd_file"])
     for stale in (
-        state_dir / "shared_bridge_state.ini",
         state_dir / "ahk_cmd.txt",
         dashboard_cmd_file,
         dashboard_cmd_file.with_suffix(".processing"),
@@ -608,7 +613,7 @@ def run_python_orchestrated_bridge(
         config=bridge_config,
         dashboard_cmd_file=Path(manifest["commands"]["dashboard_cmd_file"]),
         manifest_path=Path(manifest_path),
-        shared_state_file=state_dir / "shared_bridge_state.ini",
+        shared_state_file=shared_state_path(state_dir),
         ahk_cmd_file=state_dir / "ahk_cmd.txt",
         nau_pid=result.nau_pid,
         portrait_pid=result.portrait_pid,

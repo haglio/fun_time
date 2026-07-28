@@ -14,7 +14,6 @@ import threading
 import time
 from pathlib import Path
 
-from .audio_volume import MAX_VOLUME
 from player_core.file_channel import append_command
 
 from .command_dispatch import (
@@ -37,6 +36,7 @@ from .mode_plan import genau_active
 from .nau_console import console_payload
 from .modes import build_mirrored_funscript_path, is_favorite_path, read_favs_content
 from .satellite_control import read_satellite_status
+from .shared_state import read_shared_state, write_shared_state
 from .video_timeline import VideoTimeline
 from .voice_commands import parse_command_line
 from .watch_stats import WatchTracker, record_watch_event, watch_stats_path
@@ -160,81 +160,6 @@ def expand_both_command(command: str) -> list[str]:
         suffix = command[len("both_"):]
         return [f"portrait_{suffix}", f"landscape_{suffix}"]
     return [command]
-
-
-def write_shared_state(state_file: Path, state: BridgeState) -> None:
-    """Write bridge state to the shared INI file the HUD and the guard read."""
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser["state"] = {
-        "locked2": "1" if state.locked2 else "0",
-        "locked3": "1" if state.locked3 else "0",
-        "primary_mode": state.primary_mode,
-        "f_mode_enabled": "1" if state.f_mode_enabled else "0",
-        "omni_paused": "1" if state.omni_paused else "0",
-        "active_side": str(state.active_side),
-        "portrait_filter": state.portrait_filter,
-        "landscape_filter": state.landscape_filter,
-        "portrait_latest": "1" if state.portrait_latest else "0",
-        "landscape_latest": "1" if state.landscape_latest else "0",
-        "portrait_loop": state.portrait_loop,
-        "landscape_loop": state.landscape_loop,
-        "portrait_map_anchor": state.portrait_map_anchor,
-        "landscape_map_anchor": state.landscape_map_anchor,
-        "portrait_widen_clip": state.portrait_widen_clip,
-        "landscape_widen_clip": state.landscape_widen_clip,
-        "portrait_nav_anchor": state.portrait_nav_anchor,
-        "landscape_nav_anchor": state.landscape_nav_anchor,
-        "volume": str(state.volume),
-        "muted": "1" if state.muted else "0",
-    }
-    state_file.parent.mkdir(parents=True, exist_ok=True)
-    tmp = state_file.with_suffix(".tmp")
-    with tmp.open("w", encoding="utf-8") as fp:
-        parser.write(fp)
-    tmp.replace(state_file)
-
-
-def _int_or(section, key: str, default: int) -> int:
-    """An integer INI value, falling back to *default* when absent or malformed."""
-    try:
-        return int(section.get(key, default))
-    except ValueError:
-        return default
-
-
-def read_shared_state(state_file: Path) -> BridgeState | None:
-    """Read bridge state from the shared INI file."""
-    if not state_file.exists():
-        return None
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser.read(str(state_file), encoding="utf-8")
-    if "state" not in parser:
-        return None
-    s = parser["state"]
-    return BridgeState(
-        locked2=s.get("locked2", "0") == "1",
-        locked3=s.get("locked3", "0") == "1",
-        primary_mode=s.get("primary_mode", "nau"),
-        f_mode_enabled=s.get("f_mode_enabled", "0") == "1",
-        omni_paused=s.get("omni_paused", "0") == "1",
-        active_side=_int_or(s, "active_side", 1),
-        portrait_filter=s.get("portrait_filter", ""),
-        landscape_filter=s.get("landscape_filter", ""),
-        portrait_latest=s.get("portrait_latest", "0") == "1",
-        landscape_latest=s.get("landscape_latest", "0") == "1",
-        portrait_loop=s.get("portrait_loop", ""),
-        landscape_loop=s.get("landscape_loop", ""),
-        portrait_map_anchor=s.get("portrait_map_anchor", ""),
-        landscape_map_anchor=s.get("landscape_map_anchor", ""),
-        portrait_widen_clip=s.get("portrait_widen_clip", ""),
-        landscape_widen_clip=s.get("landscape_widen_clip", ""),
-        portrait_nav_anchor=s.get("portrait_nav_anchor", ""),
-        landscape_nav_anchor=s.get("landscape_nav_anchor", ""),
-        volume=_int_or(s, "volume", MAX_VOLUME),
-        muted=s.get("muted", "0") == "1",
-    )
 
 
 def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 90.0) -> float | None:
