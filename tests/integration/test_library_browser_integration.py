@@ -9,6 +9,7 @@ lives here, on the native platform, where the fonts are real.
 """
 from __future__ import annotations
 
+import ctypes
 import os
 import sys
 from pathlib import Path
@@ -80,5 +81,29 @@ def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
         colors = {painted.pixel(x, y) for x in range(0, painted.width(), 7)
                   for y in range(0, painted.height(), 7)}
         assert len(colors) > 3, "the grid painted a flat slab, not tiles"
+    finally:
+        window.close()
+
+
+def test_the_browser_window_owns_no_taskbar_button(tmp_path: Path):
+    """The mirror of the dashboard's check, and the opposite answer.
+
+    The dashboard is a program you leave running, so it carries WS_EX_APPWINDOW
+    and shows on the taskbar.  A browse is a window you open and dismiss, so it
+    carries WS_EX_TOOLWINDOW instead and shows nowhere — which is what stops it
+    turning up as an "open" mark against some unrelated app's icon.  Only the
+    real Qt windows platform gives winId() a genuine top-level HWND to read.
+    """
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    window = LibraryBrowserWindow(
+        _handles(tmp_path, cache), thumbnail_cache=cache, on_pick=lambda _v: None,
+    )
+    try:
+        window.show()
+        ex_style = ctypes.windll.user32.GetWindowLongW(int(window.winId()), -20)  # GWL_EXSTYLE
+
+        assert ex_style & 0x00000080, "WS_EX_TOOLWINDOW should be set"
+        assert not (ex_style & 0x00040000), "WS_EX_APPWINDOW should NOT be set"
     finally:
         window.close()

@@ -243,6 +243,12 @@ reach it at all — they consume the press, and the arrows and every letter are
 already commands. Escape is the exception: it belongs to OmniPause and stays
 live, which is why it is not the way out of the browser.
 
+It is a **Tool window**: no taskbar button, because a browse is something you
+open and dismiss rather than a program you leave running. It claims Fun Time's
+AppUserModelID before its window exists, so it can never be filed under some
+unrelated app. And it belongs to the session — quitting Fun Time closes a browse
+still on screen, since the dispatch loop that launched it holds it until it ends.
+
 The grid is banded into **sections**, each with a header across the row. A
 section is the folder a video came from — the first folder under a
 `nau_library_dirs` source, which says which batch or origin it is from; every

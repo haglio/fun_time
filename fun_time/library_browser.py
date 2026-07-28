@@ -73,6 +73,11 @@ class LibraryBrowserWindow(QListWidget):
         on_pick: Callable[[str], None],
     ) -> None:
         super().__init__(None)
+        # A Tool window, which on Windows means no taskbar button: a browse is
+        # something you open and dismiss, not a program that is running.  Left
+        # a plain window it earns its own indicator, and — declaring no identity
+        # of its own — Windows hangs that off whatever app it can pair it with.
+        self.setWindowFlags(Qt.WindowType.Tool)
         self._handles = tuple(handles)
         self._thumbnail_cache = Path(thumbnail_cache)
         self._on_pick = on_pick
@@ -288,6 +293,14 @@ def main(argv: list[str] | None = None) -> int:
     from PyQt6.QtWidgets import QApplication
 
     args = parse_args(argv)
+    # Claim Fun Time's identity before any window exists, so the browse is never
+    # mistaken for an unrelated app's window (see the Tool flag above).
+    from .win32 import APP_USER_MODEL_ID, set_app_user_model_id
+    try:
+        set_app_user_model_id(APP_USER_MODEL_ID)
+    except OSError:
+        pass  # Non-fatal — taskbar identity just falls back to the default
+
     app = QApplication.instance() or QApplication([])
 
     config = load_browser_config(args.manifest_path)
