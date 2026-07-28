@@ -9,7 +9,7 @@ from PyQt6.QtCore import QEvent, QPointF, Qt
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import QApplication, QToolButton
 
-from fun_time.event_log import NOTICE, EventRecord
+from fun_time.event_log import FAVORITE, NOTICE, EventRecord
 from fun_time.log_panel import (
     MAX_RECORDS,
     LogFilter,
@@ -18,6 +18,7 @@ from fun_time.log_panel import (
     append_records,
     copy_button_position,
     format_record,
+    level_color,
     load_prefs,
     save_prefs,
     visible_records,
@@ -74,6 +75,24 @@ class TestAppendRecords:
         assert len(out) == MAX_RECORDS
         assert out[-1].message == "newest"
         assert out[0].message == "1"
+
+
+class TestLevelColor:
+    """What each level looks like — here in the stream, and on the flash the
+    notice overlay draws from the same table."""
+
+    def test_an_ordinary_announcement_is_white(self):
+        """Green used to mean "a command did something", which put it on the
+        volume, the browse order and every other confirmation.  It means one thing
+        now: the favorites and the funscripts."""
+        assert level_color(NOTICE).getRgb()[:3] == (240, 240, 240)
+
+    def test_the_favorites_and_the_funscripts_keep_the_green(self):
+        assert level_color(FAVORITE).getRgb()[:3] == (48, 160, 48)
+
+    def test_a_dead_end_is_still_red_and_chatter_still_muted(self):
+        assert level_color(logging.ERROR).getRgb()[:3] == (255, 60, 60)
+        assert level_color(logging.INFO).getRgb()[:3] == (120, 120, 120)
 
 
 class TestFormatRecord:

@@ -47,6 +47,7 @@ from .runtime_flow import (
 from .satellite_control import read_satellite_status, write_satellite_command
 from .watch_stats import record_watch_event, watch_stats_path
 from .event_log import (
+    FAVORITE,
     NOTICE,
     SOURCE_LANDSCAPE,
     SOURCE_PORTRAIT,
@@ -57,10 +58,16 @@ from .event_log import (
 logger = logging.getLogger(__name__)
 
 # A notice that reports a command had no effect ("No other seeds") is logged at
-# ERROR so the log panel and the on-player flash render it red, not green — the
+# ERROR so the log panel and the on-player flash render it red, not white — the
 # user asked to tell a command that did something from one that hit a dead end at
 # a glance.
 FAILED_NOTICE_LEVEL = logging.ERROR
+
+# The other end of the same trick: a notice about the favorites — locking a clip
+# into them, taking one back out, turning their filter on — is logged a level
+# above NOTICE so it flashes green, which is what green means everywhere in this
+# app.  Everything else a command announces is a plain white NOTICE.
+FAVORITE_NOTICE_LEVEL = FAVORITE
 
 
 def _satellite_source(which: int) -> str:
@@ -196,8 +203,9 @@ class WindowOp:
     key: str = ""
     # Which window a ``notice`` op is about, so the log panel can filter it.
     source: str = SOURCE_SYSTEM
-    # The log level a ``notice`` op is logged at — NOTICE (green) for a normal
-    # confirmation, ERROR (red) for a command that hit a dead end.
+    # The log level a ``notice`` op is logged at — NOTICE (white) for a normal
+    # confirmation, FAVORITE (green) for one about the favorites or a funscript,
+    # ERROR (red) for a command that hit a dead end.
     level: int = NOTICE
 
 
@@ -463,9 +471,13 @@ def _discard(
         logger.info(plan.log_message)
     # Which of the two things this key does is invisible otherwise: both look
     # like "the clip went away", and the ★ that tells them apart is gone by the
-    # time you could read it.
+    # time you could read it.  The color says it too — undoing a favoriting is
+    # green, condemning a clip that was never one is not.
     discard_ops = (
-        [WindowOp(op="notice", key=plan.notice_message, source=_satellite_source(which))]
+        [WindowOp(
+            op="notice", key=plan.notice_message, source=_satellite_source(which),
+            level=FAVORITE_NOTICE_LEVEL if plan.notice_about_favorites else NOTICE,
+        )]
         if plan.notice_message
         else []
     )
@@ -692,7 +704,10 @@ def _dispatch_group_loop(
         _send_satellite(config, which, "LOCK")
         state = replace(state, locked2=True) if which == 2 else replace(state, locked3=True)
         state = _clear_side_grouping(state, which)
-        return state, [WindowOp(op="notice", key="Locked", source=source)]
+        # Green: locking a clip puts it in the favorites, so it says so in the
+        # color the favorites own.
+        return state, [WindowOp(op="notice", key="Locked", source=source,
+                                level=FAVORITE_NOTICE_LEVEL)]
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = _cancel_lock(which, state, config)
     # Write the group as the side's playlist with the current clip first, then
@@ -1351,7 +1366,7 @@ def _dispatch_fmode_toggle(
         op="notice",
         key=f"{F_MODE_LABEL} enabled" if enabled else f"{F_MODE_LABEL} disabled",
         source=SOURCE_SYSTEM,
-        level=NOTICE if enabled else FAILED_NOTICE_LEVEL,
+        level=FAVORITE_NOTICE_LEVEL if enabled else FAILED_NOTICE_LEVEL,
     )
     # F-mode rebuilds both satellites' playlists, dropping any group loops and the
     # widened seed rows that rode on them.

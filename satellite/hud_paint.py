@@ -225,7 +225,7 @@ class HudRenderer:
         image, draw = panel.image, panel.draw
 
         x, y = PAD, PAD
-        # The dot at the head of the band: green while a bare "lock" or "next" would
+        # The dot at the head of the band: white while a bare "lock" or "next" would
         # land on this side, the palette's grey otherwise.  Always drawn, never
         # hidden — an absent dot and an idle dot look the same, and then only the
         # player that *has* the floor says anything, which is half an answer.
@@ -485,30 +485,35 @@ class HudRenderer:
         for i, (_ax, ay, _aw, ah) in enumerate(action_rects):
             row(ay, ah, model.actions[i].label if i < len(model.actions) else "")
 
-    def _button_box(self, draw, rect: Rect, *, on: bool) -> tuple[int, int, int, int]:
+    def _button_box(self, draw, rect: Rect, *, on: bool,
+                    on_color=WHITE) -> tuple[int, int, int, int]:
         """The panel's square button, and the color to draw its mark in — the
         single button shape every control on this HUD is drawn with, so a new one
         cannot invent its own look.
 
         Off it is an outline in the muted grey the rest of the chrome uses; on it
-        fills green and the mark reverses out of it.
+        fills *on_color* and the mark reverses out of it.  That fill is white for
+        everything here except the lock: green across this family means favorites
+        and the funscripts, and the lock is the gesture that favorites a clip, so
+        it is the one control on the panel that earns the color.
         """
         bx, by, bw, bh = rect
         draw.rounded_rectangle(
             [bx, by, bx + bw - 1, by + bh - 1], radius=3,
-            fill=(*GREEN, 255) if on else None,
-            outline=(*(GREEN if on else TEXT_MUTED), 255), width=1,
+            fill=(*on_color, 255) if on else None,
+            outline=(*(on_color if on else TEXT_MUTED), 255), width=1,
         )
         return (*(BG_PRIMARY if on else TEXT_MUTED), 255)
 
-    def _glyph_button(self, draw, rect: Rect, glyph: str, *, on: bool = False) -> None:
+    def _glyph_button(self, draw, rect: Rect, glyph: str, *, on: bool = False,
+                      on_color=WHITE) -> None:
         """One of the panel's square buttons with a font glyph on it.
 
         The glyph is centred on its own ink: the padlock, the bin and the transport
         arrows all sit high in a box that runs to the descender, so the font's own
         centring dropped every one of them toward the bottom of its button.
         """
-        ink = self._button_box(draw, rect, on=on)
+        ink = self._button_box(draw, rect, on=on, on_color=on_color)
         bx, by, bw, bh = rect
         draw_glyph(draw, bx + bw / 2, by + bh / 2, glyph, self._glyph, ink)
 
@@ -533,10 +538,14 @@ class HudRenderer:
         Only the lock has an on-state — the other three do a thing rather than be
         in one.  The star is a readout, not a button, so it gets no box: a box
         would invite a press that does nothing.
+
+        The lock lights green rather than white, and so does the star: locking a
+        clip puts it in the favorites, so the two are the same fact and read as
+        one color.
         """
         for rect, name in controls:
             self._glyph_button(draw, rect, _CONTROL_GLYPHS[name],
-                               on=model.locked and name == "lock")
+                               on=model.locked and name == "lock", on_color=GREEN)
         fx, fy, fw, fh = favorite
         draw.text((fx + fw / 2, fy + fh / 2), _FAVORITE_GLYPH, font=self._glyph, anchor="mm",
                   fill=(*(GREEN if model.is_favorite else TEXT_MUTED), 255))

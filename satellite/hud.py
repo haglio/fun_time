@@ -620,8 +620,8 @@ class HudClicks:
             # A lit button is a row the filter is keeping, so pressing it lifts that
             # filter: the way out is whichever control shows as on — the same toggle
             # the loop buttons are.  It costs narrowing "gamma" to "pov gamma" from
-            # the map, which is the right trade: a green button that stayed green on
-            # a press would be the confusing half.
+            # the map, which is the right trade: a lit button that stayed lit on a
+            # press would be the confusing half.
             if label_is_filtered(action, self.active_filter):
                 self.active_filter = ""
                 return f"{self._side}_no_filter"
