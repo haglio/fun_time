@@ -273,6 +273,77 @@ def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
     return copied
 
 
+def _seeded_state_names() -> tuple[str, ...]:
+    """What a branch session starts from the live session's state rather than
+    building for itself.
+
+    Each of these is written into a session's state dir but describes the
+    *library*, not the session — so a fresh state dir means rebuilding work that
+    was already done, against a library of thousands of files.  That is what made
+    a branch launch take 45 seconds against the live session's 4: startup waits
+    for Nau to report the video it is opening, Nau reports nothing until it has a
+    duration for it, and against a cold ``nau_durations.json`` it went off and
+    probed the library first while everything else sat finished.
+
+    The thumbnail cache and the watch stats are the same shape of cost paid
+    later instead of at startup: without them the HUD maps fill in one decoded
+    frame at a time and the breeding view comes up empty — a wrongness the
+    branch did not cause, which is exactly what a verification session must
+    never show.
+
+    Nothing describing the *session* is here.  Playlists, command files, the
+    resume point and the shared state stay the branch's own; sharing those is
+    what the separate state dir exists to prevent.
+    """
+    from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME  # noqa: PLC0415 — pulls in cv2
+
+    return ("nau_durations.json", "watch_stats.json", THUMBNAIL_CACHE_DIRNAME)
+
+
+def seed_derived_caches(live_state: Path, branch_state: Path) -> list[Path]:
+    """Copy the library-derived caches from *live_state*; return what landed.
+
+    Copied rather than hardlinked, and never written back: a branch is
+    unfinished code, and the live session's caches are not its to corrupt.  A
+    file already in the branch state dir and newer than the live one is left
+    alone — that is the branch session's own work, and this is a seed rather
+    than a sync.
+    """
+    seeded: list[Path] = []
+    for name in _seeded_state_names():
+        source = live_state / name
+        if source.is_dir():
+            seeded.extend(_seed_directory(source, branch_state / name))
+        elif source.is_file() and _seed_file(source, branch_state / name):
+            seeded.append(branch_state / name)
+    return seeded
+
+
+def _seed_file(source: Path, destination: Path) -> bool:
+    if destination.exists() and destination.stat().st_mtime >= source.stat().st_mtime:
+        return False
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, destination)
+    return True
+
+
+def _seed_directory(source: Path, destination: Path) -> list[Path]:
+    """Copy the entries *destination* does not have yet.
+
+    Only the missing ones: a cache keyed by content — a thumbnail is named for
+    its video and that video's modification time — never needs refreshing, so
+    every launch after the first copies nothing.
+    """
+    destination.mkdir(parents=True, exist_ok=True)
+    copied: list[Path] = []
+    for entry in source.iterdir():
+        target = destination / entry.name
+        if entry.is_file() and not target.exists():
+            shutil.copyfile(entry, target)
+            copied.append(target)
+    return copied
+
+
 def build_branch_config(
     worktree: Path,
     *,
@@ -309,6 +380,8 @@ def build_branch_config(
     mirror_private_overlays(primary, worktree)
 
     state_dir.mkdir(parents=True, exist_ok=True)
+    seed_derived_caches(real.paths.state_dir, state_dir)
+
     destination = state_dir / BRANCH_CONFIG_NAME
     destination.write_text(json.dumps(raw, indent=2), encoding="utf-8")
     return destination
