@@ -2579,22 +2579,30 @@ class TestHudPublishing:
         assert console["broker"] is True
         assert console["osr2"] in ("off", "auto", "funscript", "genau", "idle")
 
-    def test_the_console_carries_naus_lock_back_to_whoever_draws_it(self, tmp_path):
-        """Nau owns the lock, but in genau mode the console showing it is drawn by
-        Genau — so it goes out on Nau's status file and comes back down here, the
-        way the loop state does."""
+    def test_the_console_carries_the_lock_back_to_whoever_draws_it(self, tmp_path):
+        """Each player owns its own lock, and neither can see the other's — so
+        both go out on their status files and the one the mode says is showing
+        comes back down here, the way the loop state does."""
         runner = self._runner_with_hud(tmp_path)
-        status = runner.config.nau_status_file
+        nau = runner.config.nau_status_file
+        genau = runner.config.state_dir / "genau_status.txt"
 
-        status.write_text("video=C:/v/n.mp4\nlocked=0\n", encoding="utf-8")
-        runner._last_hud_publish -= 1
-        runner.tick()
-        assert self._console(tmp_path)["locked"] is False
+        def published(mode: str) -> bool:
+            runner.state = replace(runner.state, primary_mode=mode)
+            runner._last_hud_publish -= 1
+            runner.tick()
+            return self._console(tmp_path)["locked"]
 
-        status.write_text("video=C:/v/n.mp4\nlocked=1\n", encoding="utf-8")
-        runner._last_hud_publish -= 1
-        runner.tick()
-        assert self._console(tmp_path)["locked"] is True
+        nau.write_text("video=C:/v/n.mp4\nlocked=0\n", encoding="utf-8")
+        genau.write_text("locked=1\n", encoding="utf-8")
+        assert published("nau") is False
+        assert published("hybrid") is False
+        assert published("genau") is True
+
+        nau.write_text("video=C:/v/n.mp4\nlocked=1\n", encoding="utf-8")
+        genau.write_text("locked=0\n", encoding="utf-8")
+        assert published("nau") is True
+        assert published("genau") is False
 
     def test_each_sides_panel_says_whether_its_own_clip_is_a_favourite(self, tmp_path):
         """The dashboard's panel used to say this by turning green; the HUD marks

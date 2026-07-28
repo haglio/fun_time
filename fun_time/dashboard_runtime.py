@@ -128,11 +128,11 @@ def read_nau_status(path: Path) -> NauStatus:
 @dataclass(frozen=True)
 class GenauStatus:
     cruise_active: bool = False
-    # Auto-advance is armed separately from cruise: cruise varies the stroke,
-    # auto-advance moves on to the next clip, and a held clip stays put while
-    # auto-advance is still armed around it.
-    auto_advance_active: bool = False
-    clip_locked: bool = False
+    # Whether Genau is holding the clip on screen rather than letting its interval
+    # carry it on — the same lock Nau has, and on for the same reason: a clip
+    # repeating is where Genau opens.  Cruise is a separate thing entirely; it
+    # varies the stroke, never which clip plays.
+    locked: bool = True
     shape: str = "sine"
 
 
@@ -156,8 +156,7 @@ def read_genau_status(path: Path) -> GenauStatus:
         )
         return GenauStatus(
             cruise_active=_status_bool(values, "cruise"),
-            auto_advance_active=_status_bool(values, "advance"),
-            clip_locked=_status_bool(values, "clip_locked"),
+            locked=_status_bool(values, "locked", default=True),
             shape=values.get("shape", "sine").strip(),
         )
     except (OSError, ValueError):
