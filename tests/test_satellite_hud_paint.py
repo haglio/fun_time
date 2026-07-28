@@ -436,6 +436,32 @@ def test_a_row_the_filter_only_partly_matches_still_lights(thumb):
     assert green_ink("alpha") == 0
 
 
+def test_only_the_act_the_filter_matched_is_lit_on_a_two_act_row(thumb):
+    """A clip can carry two acts ("Gamma, Theta") and only one of them is why the
+    filter keeps it, so only that one goes white — lighting the whole label named an
+    act the filter has nothing to do with.  The acts stack in order, so the lit one
+    moves between the halves of the row as the query changes."""
+    renderer = HudRenderer("portrait")
+
+    def white_halves(filter_query: str) -> tuple[int, int]:
+        rendered = renderer.render(_model(
+            corner=HudCell(path="c.mp4", thumb=thumb),
+            current_action="gamma, theta", filter_query=filter_query,
+        ))
+        (cx, cy, _cw, ch), _path = rendered.targets.click[0]
+        # The gutter beside the corner row: its two act names, and the (green, never
+        # near-white) filter button at the head of the row.
+        band = (_rgb(rendered.bgra)[cy:cy + ch, PAD:cx - MAP_GAP] > 200).all(axis=2)
+        return int(band[:ch // 2].sum()), int(band[ch // 2:].sum())
+
+    gamma_top, gamma_bottom = white_halves("gamma")
+    theta_top, theta_bottom = white_halves("theta")
+
+    assert gamma_top > 0 and gamma_bottom == 0
+    assert theta_bottom > 0 and theta_top == 0
+    assert white_halves("alpha") == (0, 0)
+
+
 def test_the_filter_button_carries_a_funnel_and_not_an_empty_box(thumb):
     """The funnel is drawn rather than typed — no face on the machine carries one —
     so what has to hold is that there is a mark inside the button's border at all:
