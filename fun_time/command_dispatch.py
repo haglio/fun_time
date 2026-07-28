@@ -300,6 +300,12 @@ _NAU_CMD_MAP = {
     "nau_end_compilation": "END_COMPILATION",
     "nau_full_vid": "PLAY_FULL_VID",
     "nau_clip_jump": "PLAY_CLIP_JUMP",
+    # Funscript navigation: past this video's quiet stretch, or on to the next
+    # video in the playlist that has a script at all (landing on its action).
+    # Only Nau can answer either — it holds the playlist's funscript column and
+    # the parsed script of what is playing.
+    "nau_funscript_jump": "JUMP_TO_FUNSCRIPT",
+    "nau_next_funscripted": "NEXT_FUNSCRIPTED",
 }
 
 

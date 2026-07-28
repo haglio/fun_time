@@ -120,6 +120,15 @@ VOICE_COMMANDS: dict[str, str] = {
     "end compilation": "nau_end_compilation",
     "full video": "nau_full_vid",
     "full vid": "nau_full_vid",
+    # Funscript navigation.  A scripted video is mostly not scripted — the action
+    # comes in runs with quiet stretches between them — so one phrase skips the
+    # stretch you are in and the other gives up on the video entirely for the next
+    # one that has a script, landing on its action rather than at its top.  vosk
+    # has no "funscript" token but has both halves, so the recognizer listens for
+    # the split "fun script"/"fun scripted"; the reference joins them back up via
+    # command_reference.friendly_voice.
+    "jump to fun script": "nau_funscript_jump",
+    "next fun scripted": "nau_next_funscripted",
     # The phrases for the clip jump are library vocabulary, so they come from
     # the content overlay and are merged in below rather than written here.
     "slow down": "genau_speed_down",
@@ -412,13 +421,16 @@ VOICE_COMMANDS.update(_filter_commands)
 
 
 # Commands that flash their own outcome, so the generic "I heard you" green echo
-# must not stack a second toast on top.  The clip jumps report from Nau (the clip
-# it reached, or "full video not available"); F-mode reports from the dispatch,
-# which alone knows whether the toggle turned it on (green) or off (red) — and by
-# owning the toast there, the F key and the dashboard flash it too, not just voice.
+# must not stack a second toast on top.  The clip and funscript jumps report from
+# Nau (where they landed, or "full video not available" / "no funscripting
+# ahead"); F-mode reports from the dispatch, which alone knows whether the toggle
+# turned it on (green) or off (red) — and by owning the toast there, the F key and
+# the dashboard flash it too, not just voice.
 SELF_REPORTING_COMMANDS = frozenset({
     "nau_compilation",
     "nau_full_vid",
     "nau_clip_jump",
+    "nau_funscript_jump",
+    "nau_next_funscripted",
     "fmode_toggle",
 })

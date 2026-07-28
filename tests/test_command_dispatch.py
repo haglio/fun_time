@@ -591,9 +591,29 @@ def test_clip_jump_writes_play_clip_jump(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP"
 
 
+def test_funscript_jump_writes_jump_to_funscript(tmp_path: Path):
+    config = _make_config(tmp_path)
+    dispatch_command("nau_funscript_jump", _make_state(primary_mode="nau"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT"
+
+
+def test_next_funscripted_writes_next_funscripted(tmp_path: Path):
+    config = _make_config(tmp_path)
+    dispatch_command("nau_next_funscripted", _make_state(primary_mode="hybrid"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED"
+
+
 def test_clip_nav_inert_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("nau_compilation", _make_state(primary_mode="genau"), config)
+    assert not config.nau_cmd_file.exists()
+
+
+def test_funscript_nav_inert_in_genau_mode(tmp_path: Path):
+    """Genau owns the display and the device there; Nau's playlist and script are
+    not what the room is watching, so a jump into them would be invisible."""
+    config = _make_config(tmp_path)
+    dispatch_command("nau_next_funscripted", _make_state(primary_mode="genau"), config)
     assert not config.nau_cmd_file.exists()
 
 
@@ -608,6 +628,16 @@ def test_clip_nav_voice_phrases():
 
     for phrase in load_content()["clip_jump_phrases"]:
         assert VOICE_COMMANDS[phrase] == "nau_clip_jump"
+
+
+def test_funscript_nav_voice_phrases_are_split_for_vosk():
+    """The small vosk model has no "funscript" token, so the recognizer listens
+    for the two-word form; the reference rejoins it (see friendly_voice)."""
+    from fun_time.voice_commands import VOICE_COMMANDS
+
+    assert VOICE_COMMANDS["jump to fun script"] == "nau_funscript_jump"
+    assert VOICE_COMMANDS["next fun scripted"] == "nau_next_funscripted"
+    assert "jump to funscript" not in VOICE_COMMANDS
 
 
 # --- landscape_prev / landscape_next ---

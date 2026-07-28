@@ -449,6 +449,22 @@ def test_no_say_column_leaks_the_raw_omni_pause_form():
             assert "omni pause" not in phrase, phrase
 
 
+def test_funscript_row_shows_the_joined_word_the_recognizer_cannot_hear():
+    """The small vosk model has no "funscript" token, so the recognizer listens
+    for "fun script" — but nobody says it that way, and reading it in the popup
+    would teach the wrong phrase."""
+    assert VOICE_COMMANDS["jump to fun script"] == "nau_funscript_jump"
+    assert "jump to funscript" not in VOICE_COMMANDS  # display-only
+
+    rows = [r for r in _all_rows() if "nau_funscript_jump" in r.commands]
+    assert len(rows) == 1, "expected exactly one funscript navigation row"
+    assert rows[0].voice == ("jump to funscript", "next funscripted")
+    assert rows[0].hotkeys == ()
+    for row in _all_rows():
+        for phrase in row.voice:
+            assert "fun script" not in phrase, phrase
+
+
 def test_reference_does_not_import_voice_runtime():
     """Importing the reference must not drag in voice_control (and its vosk runtime).
 
