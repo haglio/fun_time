@@ -132,5 +132,15 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   Then tell him it is live and needs a restart. Only he may waive the launch —
   "just land it" is his call to make, never yours.
 
+- **A new config key your branch reads must also go in his real config, or that
+  session will not see it.** `launch_branch.vbs` builds the branch config with
+  the PRIMARY checkout's `branch_session` — main's code, by design — so a key
+  main's `_pin_paths_to_the_primary` has never heard of is never written, your
+  loader silently falls back to its default, and he watches the bug you just
+  fixed happen again. Unknown keys ARE copied through verbatim from
+  `fun_time_config.json`, so add it there, absolute (main will not resolve a
+  relative one for you), before handing him the shortcut. Cost the broker/OSR2
+  indicator fix a whole round trip on 2026-07-28.
+
 Everything else in the global CLAUDE.md — work in a worktree, green tests before
 you push, clean handoff — still applies.
