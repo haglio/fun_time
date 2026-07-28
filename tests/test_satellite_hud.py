@@ -8,6 +8,7 @@ from satellite.hud import (
     FILTER_BTN,
     LOCK_BAND_H,
     LOOP_BTN,
+    MAP_CELLS,
     MAP_GAP,
     ROW_GAP,
     HudCell,
@@ -147,16 +148,15 @@ def test_parse_hud_rejects_junk():
 
 
 # --- the window a long loop is drawn through ---------------------------------
-# 30px cells with MAP_GAP (5) between them: 110px of room holds exactly three
-# (30 + 35 + 35), which is about what a real satellite panel fits.
-_CELLS = [30] * 12
-_ROOM_FOR_THREE = 110
+# The window is a count, not a measurement: MAP_CELLS of an axis however long, and
+# whatever shape the clips in it are.
+_LOOP = 12
 
 
 def test_a_loop_short_enough_to_fit_is_drawn_whole():
-    window = map_window([30, 30, 30], playing=0, available=_ROOM_FOR_THREE)
+    window = map_window(MAP_CELLS, playing=0)
 
-    assert (window.start, window.count) == (0, 3)
+    assert (window.start, window.count) == (0, MAP_CELLS)
     assert window.more_before is False
     assert window.more_after is False
 
@@ -164,9 +164,9 @@ def test_a_loop_short_enough_to_fit_is_drawn_whole():
 def test_a_loop_just_started_opens_on_the_clip_on_screen():
     """The loop's head is the clip it started on, so at that moment the window opens
     there — the clip you pressed loop on is drawn in the corner, never mid-row."""
-    window = map_window(_CELLS, playing=0, available=_ROOM_FOR_THREE)
+    window = map_window(_LOOP, playing=0)
 
-    assert (window.start, window.count) == (0, 3)
+    assert (window.start, window.count) == (0, MAP_CELLS)
     assert window.more_after is True
     assert window.more_before is False
 
@@ -175,7 +175,7 @@ def test_a_loop_partway_through_keeps_the_clip_on_screen_in_the_middle():
     """Once the loop has advanced past the first cells the window slides with it, so
     the lit thumbnail stays in the middle instead of walking off the end of the map
     and leaving nothing highlighted."""
-    window = map_window(_CELLS, playing=5, available=_ROOM_FOR_THREE)
+    window = map_window(_LOOP, playing=5)
 
     assert (window.start, window.count) == (4, 3)  # 4, 5, 6 — the playing one centred
     assert window.more_before is True
@@ -183,22 +183,24 @@ def test_a_loop_partway_through_keeps_the_clip_on_screen_in_the_middle():
 
 
 def test_a_loop_near_its_end_clamps_rather_than_running_off():
-    window = map_window(_CELLS, playing=11, available=_ROOM_FOR_THREE)
+    window = map_window(_LOOP, playing=11)
 
     assert (window.start, window.count) == (9, 3)
     assert window.more_before is True
     assert window.more_after is False
 
 
-def test_a_cell_too_big_for_the_room_is_still_drawn():
-    """A clipped thumbnail beats a map with nothing on it at all."""
-    window = map_window([300], playing=0, available=100)
+def test_an_axis_shorter_than_the_window_gives_only_what_it_has():
+    """Two seeds is a two-cell row, not a three-cell row with a hole in it — and the
+    panel is then measured around the two."""
+    window = map_window(2, playing=0)
 
-    assert (window.start, window.count) == (0, 1)
+    assert (window.start, window.count) == (0, 2)
+    assert window.more_after is False
 
 
 def test_an_empty_axis_has_no_window():
-    window = map_window([], playing=0, available=200)
+    window = map_window(0, playing=0)
 
     assert (window.start, window.count) == (0, 0)
 
