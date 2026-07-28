@@ -22,6 +22,7 @@ Core files:
 
 - `main.sh` — compatibility wrapper that forwards to `orchestrator.py`
 - `launch.vbs` — hidden Windows launcher used by the shortcut/taskbar item
+- `launch_branch.vbs` — the same launch, aimed at a branch worktree instead (see “Verifying an unlanded branch”)
 - `fun_time_config.json` — central config for paths, ports, and layout values
 - `windows_bridge_hotkeys.ahk` — minimal AutoHotkey hotkey shell launched by the orchestrator
 - `fun_time/` — shared Python package for config, logging, orchestration, the dashboard, and command dispatch
@@ -166,6 +167,27 @@ Use the `Fun Time` shortcut / taskbar launcher, which calls:
 - which runs `python -m fun_time.orchestrator`
 
 `fun_time.orchestrator` now starts the broker tray launcher if the broker is missing, so the tray status icon and broker recovery flow stay aligned with Windows logon startup.
+
+### Verifying an unlanded branch
+
+Fun Time runs from the primary checkout, and that only moves when `main` does —
+so work sitting on a branch is code you cannot otherwise see, run or judge.
+Double-click `launch_branch.vbs` and pick a branch (or type part of its name) to
+run a real session on that worktree's code instead: your real library, your real
+monitors, uncommitted edits included.
+
+A branch session **replaces** the live one rather than running beside it. Almost
+everything a session touches is one-per-machine — the AHK hotkey shell is
+`#SingleInstance Force`, the UDP endpoints and the loopback port are fixed, and
+there is one microphone, one broker and one set of monitors — so the generated
+config carries the live session's `instance_id` and both take the same
+single-instance mutex. Whichever starts second is turned away with the usual
+"already running" message, including the taskbar icon while a branch session is
+up. Quit with `Ctrl+Alt+Q` and launch normally again afterwards.
+
+What the branch session keeps to itself is `state/`, inside the worktree — its
+command files, playlists, logs, thumbnails and resume point. Everything else is
+the real thing on purpose. See `fun_time/branch_session.py`.
 
 ### Clipper way
 
@@ -583,6 +605,7 @@ These are the files that define the working system:
 - `fun_time_config.json`
 - `main.sh`
 - `launch.vbs`
+- `launch_branch.vbs`
 - `windows_bridge_hotkeys.ahk`
 - `fun_time/config.py`
 - `fun_time/orchestrator.py`

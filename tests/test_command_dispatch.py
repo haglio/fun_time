@@ -3043,3 +3043,39 @@ def test_lock_action_without_metadata_says_so(tmp_path: Path):
         op.op == "notice" and "No action metadata" in op.key and op.source == "landscape"
         for op in ops
     )
+
+
+# --- where the clipper sibling is ---
+
+
+def test_the_clipper_sibling_is_found_beside_the_primary_not_beside_a_worktree():
+    """``../clipper`` measured from this file names a directory inside
+    ``.claude/worktrees`` whenever the session is a branch-verification one, and
+    there is nothing there — the save died in its ``cwd=`` and the hotkey looked
+    like the branch had broken it.  The siblings live beside the primary
+    checkout, which a worktree can name because they share a git directory."""
+    from fun_time.command_dispatch import _clipper_project_dir
+
+    _clipper_project_dir.cache_clear()
+    try:
+        resolved = _clipper_project_dir()
+    finally:
+        _clipper_project_dir.cache_clear()
+
+    assert resolved.name == "clipper"
+    assert "worktrees" not in resolved.parts
+
+
+def test_the_clipper_sibling_falls_back_to_this_checkout_without_git():
+    """No worse than it was: where git cannot answer, the checkout that is
+    running is the only guess available."""
+    import fun_time.command_dispatch as command_dispatch
+
+    command_dispatch._clipper_project_dir.cache_clear()
+    try:
+        with patch("fun_time.branch_session.primary_checkout", side_effect=OSError("no git")):
+            resolved = command_dispatch._clipper_project_dir()
+    finally:
+        command_dispatch._clipper_project_dir.cache_clear()
+
+    assert resolved == Path(command_dispatch.__file__).resolve().parents[1].parent / "clipper"

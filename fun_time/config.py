@@ -146,6 +146,23 @@ class ProjectConfig:
     loopback_port: int = LOOPBACK_PORT
     # FunTimeVR's additions; the desktop session never reads them.
     vr: VrConfig = VrConfig()
+    # Config key ``instance_id``; read through the property below.
+    instance_id_override: str | None = None
+
+    @property
+    def instance_id(self) -> str:
+        """Which running session this one *is*, for the single-instance mutex.
+
+        Defaults to the config path, so every config is its own instance —
+        which is what lets integration runs, each on a unique temp config, take
+        mutexes without colliding.  A config may instead name another session's
+        identity, and then the two can never both be up: whichever starts
+        second is refused with Fun Time's own "already running" message.  That
+        is how a branch-verification session guarantees it replaces the live
+        session rather than fighting it for the AHK shell, the monitors and the
+        machine's fixed ports (see :mod:`fun_time.branch_session`).
+        """
+        return self.instance_id_override or str(self.config_path)
 
     @property
     def genau_mode_file(self) -> Path:
@@ -199,10 +216,10 @@ class ProjectConfig:
         return self.logs_dir / f"{name}.log"
 
 
-def _resolve_config_path(config_path: str | Path | None) -> Path:
+def _resolve_config_path(config_path: str | Path | None, project_dir: Path) -> Path:
     path = Path(config_path).expanduser() if config_path else DEFAULT_CONFIG_PATH
     if not path.is_absolute():
-        path = (PROJECT_DIR / path).resolve()
+        path = (project_dir / path).resolve()
     return path
 
 
@@ -215,8 +232,10 @@ def _require_optional_dict(parent: dict[str, Any], key: str, source_path: Path) 
     return value
 
 
-def _require_path_value(parent: dict[str, Any], key: str, source_path: Path, context: str) -> Path:
-    return _resolve_path(PROJECT_DIR, _require_value(parent, key, source_path, context))
+def _require_path_value(
+    parent: dict[str, Any], key: str, source_path: Path, context: str, project_dir: Path
+) -> Path:
+    return _resolve_path(project_dir, _require_value(parent, key, source_path, context))
 
 
 def _require_typed_value(
@@ -229,7 +248,7 @@ def _require_typed_value(
     return cast(_require_value(parent, key, source_path, context))
 
 
-def _load_paths_config(paths_raw: dict[str, Any], source_path: Path) -> PathsConfig:
+def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir: Path) -> PathsConfig:
     nau_library_dirs_raw = _require_value(paths_raw, "nau_library_dirs", source_path, "config.paths")
     if not isinstance(nau_library_dirs_raw, list):
         raise TypeError("paths.nau_library_dirs must be a list of folder paths")
@@ -237,19 +256,19 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path) -> PathsCon
         raise ValueError("paths.nau_library_dirs must include at least one folder path")
 
     return PathsConfig(
-        ahk_exe=_require_path_value(paths_raw, "ahk_exe", source_path, "config.paths"),
-        python_exe=_require_path_value(paths_raw, "python_exe", source_path, "config.paths"),
-        nau_library_dirs=tuple(_resolve_path(PROJECT_DIR, str(value)) for value in nau_library_dirs_raw),
-        portrait_dirs=_load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", source_path),
-        landscape_dirs=_load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", source_path),
-        weird_dir=_require_path_value(paths_raw, "weird_dir", source_path, "config.paths"),
-        clips_dir=_require_path_value(paths_raw, "clips_dir", source_path, "config.paths"),
-        audio_dir=_require_path_value(paths_raw, "audio_dir", source_path, "config.paths"),
-        favs_file=_require_path_value(paths_raw, "favs_file", source_path, "config.paths"),
-        state_dir=_require_path_value(paths_raw, "state_dir", source_path, "config.paths"),
-        genau_python_exe=_resolve_path(PROJECT_DIR, paths_raw["genau_python_exe"]) if paths_raw.get("genau_python_exe") else None,
-        genau_config_path=_resolve_path(PROJECT_DIR, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
-        broker_tray_launcher=_resolve_path(PROJECT_DIR, paths_raw["broker_tray_launcher"]) if paths_raw.get("broker_tray_launcher") else None,
+        ahk_exe=_require_path_value(paths_raw, "ahk_exe", source_path, "config.paths", project_dir),
+        python_exe=_require_path_value(paths_raw, "python_exe", source_path, "config.paths", project_dir),
+        nau_library_dirs=tuple(_resolve_path(project_dir, str(value)) for value in nau_library_dirs_raw),
+        portrait_dirs=_load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", source_path, project_dir),
+        landscape_dirs=_load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", source_path, project_dir),
+        weird_dir=_require_path_value(paths_raw, "weird_dir", source_path, "config.paths", project_dir),
+        clips_dir=_require_path_value(paths_raw, "clips_dir", source_path, "config.paths", project_dir),
+        audio_dir=_require_path_value(paths_raw, "audio_dir", source_path, "config.paths", project_dir),
+        favs_file=_require_path_value(paths_raw, "favs_file", source_path, "config.paths", project_dir),
+        state_dir=_require_path_value(paths_raw, "state_dir", source_path, "config.paths", project_dir),
+        genau_python_exe=_resolve_path(project_dir, paths_raw["genau_python_exe"]) if paths_raw.get("genau_python_exe") else None,
+        genau_config_path=_resolve_path(project_dir, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
+        broker_tray_launcher=_resolve_path(project_dir, paths_raw["broker_tray_launcher"]) if paths_raw.get("broker_tray_launcher") else None,
     )
 
 
@@ -275,28 +294,30 @@ def _load_audio_companion_config(audio_raw: dict[str, Any], source_path: Path) -
     )
 
 
-def _load_random_favs_browser_config(browser_raw: dict[str, Any] | None) -> RandomFavsBrowserConfig:
+def _load_random_favs_browser_config(
+    browser_raw: dict[str, Any] | None, project_dir: Path
+) -> RandomFavsBrowserConfig:
     default_user_data_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
     browser_values = browser_raw or {}
     return RandomFavsBrowserConfig(
         enabled=bool(browser_values.get("enabled", False)),
-        shortcut_path=_resolve_path(PROJECT_DIR, str(browser_values.get("shortcut_path", "Blair Chrome.lnk"))),
-        user_data_dir=_resolve_path(PROJECT_DIR, str(browser_values.get("user_data_dir", default_user_data_dir))),
+        shortcut_path=_resolve_path(project_dir, str(browser_values.get("shortcut_path", "Blair Chrome.lnk"))),
+        user_data_dir=_resolve_path(project_dir, str(browser_values.get("user_data_dir", default_user_data_dir))),
         profile_name=str(browser_values.get("profile_name", "Blair")),
         open_count=int(browser_values.get("open_count", 10)),
         lazy_load=bool(browser_values.get("lazy_load", False)),
     )
 
 
-def _load_regen_config(raw: dict[str, Any] | None) -> RegenConfig:
+def _load_regen_config(raw: dict[str, Any] | None, project_dir: Path) -> RegenConfig:
     values = raw or {}
     media_root = values.get("media_root")
     metadata_root = values.get("metadata_root")
     return RegenConfig(
         generate_video_url=str(values.get("generate_video_url", "https://example.com/video")),
         generate_image_url=str(values.get("generate_image_url", "https://example.com/create")),
-        media_root=_resolve_path(PROJECT_DIR, str(media_root)) if media_root else None,
-        metadata_root=_resolve_path(PROJECT_DIR, str(metadata_root)) if metadata_root else None,
+        media_root=_resolve_path(project_dir, str(media_root)) if media_root else None,
+        metadata_root=_resolve_path(project_dir, str(metadata_root)) if metadata_root else None,
     )
 
 
@@ -311,14 +332,14 @@ def _load_voice_control_config(voice_raw: dict[str, Any] | None) -> VoiceControl
     )
 
 
-def _load_vr_config(raw: dict[str, Any] | None) -> VrConfig:
+def _load_vr_config(raw: dict[str, Any] | None, project_dir: Path) -> VrConfig:
     values = raw or {}
     library_dirs_raw = values.get("library_dirs", [])
     if not isinstance(library_dirs_raw, list):
         raise TypeError("vr.library_dirs must be a list of folder paths")
     audio_device = values.get("audio_device")
     return VrConfig(
-        library_dirs=tuple(_resolve_path(PROJECT_DIR, str(value)) for value in library_dirs_raw),
+        library_dirs=tuple(_resolve_path(project_dir, str(value)) for value in library_dirs_raw),
         audio_device=str(audio_device) if audio_device else None,
         tcode_udp_host=str(values.get("tcode_udp_host", "127.0.0.1")),
         tcode_udp_port=int(values.get("tcode_udp_port", 50557)),
@@ -351,8 +372,18 @@ def _raise_for_missing_config(path: Path) -> None:
     )
 
 
-def load_config(config_path: str | Path | None = None) -> ProjectConfig:
-    path = _resolve_config_path(config_path)
+def load_config(config_path: str | Path | None = None, *, project_dir: Path | None = None) -> ProjectConfig:
+    """Load a config, resolving its relative paths against *project_dir*.
+
+    *project_dir* defaults to :data:`PROJECT_DIR`, the checkout that imported
+    this package, which is what every session wants: a config's relative values
+    describe the checkout it belongs to.  It is a parameter so that code holding
+    *two* checkouts at once can say which — the branch-verification launcher
+    reads the live config while running from the primary, and must resolve it
+    the way the live session does rather than the way its caller happens to sit.
+    """
+    project_dir = project_dir or PROJECT_DIR
+    path = _resolve_config_path(config_path, project_dir)
     if not path.exists():
         _raise_for_missing_config(path)
     with path.open("r", encoding="utf-8") as fp:
@@ -369,25 +400,28 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     vr_raw = _require_optional_dict(raw, "vr", path)
 
     return ProjectConfig(
-        project_dir=PROJECT_DIR,
+        project_dir=project_dir,
         config_path=path,
-        paths=_load_paths_config(paths_raw, path),
+        paths=_load_paths_config(paths_raw, path, project_dir),
         layout=_load_layout_config(layout_raw, path),
         audio_companion=_load_audio_companion_config(audio_raw, path),
-        random_favs_browser=_load_random_favs_browser_config(browser_raw),
+        random_favs_browser=_load_random_favs_browser_config(browser_raw, project_dir),
         voice_control=_load_voice_control_config(voice_raw),
-        regen=_load_regen_config(regen_raw),
+        regen=_load_regen_config(regen_raw, project_dir),
         loopback_port=int(raw.get("loopback_port", LOOPBACK_PORT)),
-        vr=_load_vr_config(vr_raw),
+        vr=_load_vr_config(vr_raw, project_dir),
+        instance_id_override=str(raw["instance_id"]) if raw.get("instance_id") else None,
     )
 
 
-def _load_dir_list(paths_raw: dict[str, Any], list_key: str, single_key: str, source_path: Path) -> tuple[Path, ...]:
+def _load_dir_list(
+    paths_raw: dict[str, Any], list_key: str, single_key: str, source_path: Path, project_dir: Path
+) -> tuple[Path, ...]:
     values = paths_raw.get(list_key)
     if values is None:
-        return (_resolve_path(PROJECT_DIR, str(_require_value(paths_raw, single_key, source_path, "config.paths"))),)
+        return (_resolve_path(project_dir, str(_require_value(paths_raw, single_key, source_path, "config.paths"))),)
     if not isinstance(values, list):
         raise TypeError(f"paths.{list_key} must be a list of folder paths")
     if not values:
         raise ValueError(f"paths.{list_key} must include at least one folder path")
-    return tuple(_resolve_path(PROJECT_DIR, str(value)) for value in values)
+    return tuple(_resolve_path(project_dir, str(value)) for value in values)
