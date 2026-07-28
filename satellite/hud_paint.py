@@ -65,6 +65,7 @@ from .hud import (
     loop_button_rects,
     looped_group_box,
     map_window,
+    playing_rect,
     seed_column_label,
     status_band_height,
     thumbnail_rects,
@@ -75,7 +76,7 @@ _PLACEHOLDER = (48, 48, 60)  # a thumbnail fun_time has not produced yet
 
 _TOOLTIP_ALPHA = 240
 _DIM = 0.5      # non-playing thumbnails; the one on screen stays full
-_BORDER_W = 2   # the lock ring around the corner
+_BORDER_W = 2   # the lock ring around the held clip
 _DOT = 1        # radius of one dot in a "…" mark — small, so three read as three
 _DOT_GAP = 4    # centre-to-centre spacing of those dots along the axis
 _COUNT_LINE_H = 11  # line pitch of the axis counts in the map's top-left corner
@@ -194,10 +195,11 @@ class HudRenderer:
     ) -> RenderedHud:
         """The panel as a BGRA bitmap plus the rects its controls occupy.
 
-        The current clip anchors the map with a white border when locked; its seed
-        family runs right along the row and its distinct other actions run down the
-        column, so stepping an action moves down and the row reloads with that
-        action's seeds.
+        The current clip anchors the map — its seed family runs right along the row
+        and its distinct other actions run down the column, so stepping an action
+        moves down and the row reloads with that action's seeds.  A lock rings the
+        cell being held in white: the corner normally, or the member a loop had
+        reached when the lock was taken.
         """
         width, height = PANEL_SIZE.get(model.side, PANEL_SIZE["portrait"])
         panel = HudPanel(width, height)
@@ -275,9 +277,10 @@ class HudRenderer:
 
         self._draw_thumbnails(image, model, corner_rect, seed_rects, action_rects,
                               corner_thumb, seed_thumbs, action_thumbs)
-        if model.locked:
-            cx, cy, cw, ch = corner_rect
-            draw.rectangle([cx, cy, cx + cw - 1, cy + ch - 1],
+        held = playing_rect(model.playing, corner_rect, seed_rects, action_rects)
+        if model.locked and held is not None:
+            hx, hy, hw, hh = held
+            draw.rectangle([hx, hy, hx + hw - 1, hy + hh - 1],
                            outline=(*WHITE, 255), width=_BORDER_W)
         self._draw_labels(image, draw, model, x, y, gutter_w,
                           corner_rect, seed_rects, action_rects,

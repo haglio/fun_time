@@ -72,6 +72,32 @@ def test_render_rings_the_locked_clip_in_white(thumb):
     assert ring_ink(False) == 0
 
 
+def test_the_lock_ring_follows_the_clip_being_held(thumb):
+    """A lock taken inside a loop holds whichever member the loop had reached, and
+    the map stays anchored where the loop started — so the ring has to land on the
+    cell that clip is drawn in.  Left on the corner it rings a clip that is neither
+    playing nor locked."""
+    def ring_ink(playing) -> tuple[int, int]:
+        rendered = HudRenderer("portrait").render(
+            _model(playing=playing, active_loop="seed",
+                   lock_label="Looping seeds · Locked · Shuffle",
+                   corner=HudCell(path="c.mp4", thumb=thumb),
+                   seeds=(HudCell(path="s1.mp4", thumb=thumb),)))
+        rgb = _rgb(rendered.bgra)
+
+        def white_in(rect) -> int:
+            x, y, w, h = rect
+            return int((rgb[y:y + h, x:x + w] > 248).all(axis=2).sum())
+
+        corner_rect, seed_rect = rendered.targets.click[0][0], rendered.targets.click[1][0]
+        return white_in(corner_rect), white_in(seed_rect)
+
+    corner_ringed, seed_bare = ring_ink(("corner", 0))
+    corner_bare, seed_ringed = ring_ink(("seed", 0))
+    assert corner_ringed > corner_bare
+    assert seed_ringed > seed_bare
+
+
 def test_render_without_a_corner_still_draws_the_shell():
     """A satellite with no clip yet gets the lock band and nothing else — and no
     click targets, so a stray press over the empty panel posts nothing."""

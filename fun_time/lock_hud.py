@@ -42,11 +42,14 @@ def _status_label(
 ) -> str:
     """The HUD's one status line — everything the side is in, at a glance.
 
-    What is looping (or, with no loop, the lock), which order the browse is in, and
+    What is looping, whether the lock is holding, which order the browse is in, and
     the two filtering layers: a reader should not have to look anywhere else to know
-    how the satellite is behaving.  A running loop displaces the lock word, which is
-    off and beside the point while a group repeats — but never the order, since
-    ending the loop drops the side straight back into it.
+    how the satellite is behaving.  The loop leads, because it is the set the side is
+    playing; a lock taken inside one is a hold at one position in that set, so it
+    follows rather than replaces it.  Only "Locked" joins a running loop — saying
+    "Unlocked" beside a loop is noise, since a loop is repeat-all and nothing is
+    being held.  The order stays on the line either way, since ending both drops the
+    side straight back into it.
 
     The filters run coarse to fine: F-mode cuts the whole library to favourites,
     then the act filter narrows what is left.  The act goes last and unlabelled — a
@@ -54,7 +57,9 @@ def _status_label(
     fixed word has to precede it rather than follow it.  How big each axis is belongs
     to the map, which prints its own counts.
     """
-    parts = [f"Looping {loop_axis}s" if loop_axis else _lock_label(locked)]
+    parts = [f"Looping {loop_axis}s"] if loop_axis else []
+    if locked or not loop_axis:
+        parts.append(_lock_label(locked))
     parts.append("Latest" if latest else "Shuffle")
     if f_mode:
         parts.append(F_MODE_LABEL)
