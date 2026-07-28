@@ -373,6 +373,13 @@ def build_branch_config(
     It is the live config with three changes: every path pinned to what the
     primary resolved, ``state_dir`` moved into the worktree, and the live
     session's ``instance_id`` carried over so the two can never both be up.
+
+    Everything else rides through verbatim — including keys *this* code has
+    never heard of, which matters because ``launch_branch.vbs`` runs the primary
+    checkout's copy of this module against a worktree's session.  A branch that
+    starts reading a new config key is therefore launched by a generator that
+    does not pin it: the key reaches the session only if the machine's own
+    ``fun_time_config.json`` already names it, absolutely.
     """
     worktree = worktree.resolve()
     primary = (primary or config_module.PROJECT_DIR).resolve()
