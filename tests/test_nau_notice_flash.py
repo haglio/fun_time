@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fun_time.command_dispatch import FAILED_NOTICE_LEVEL
+from fun_time.command_dispatch import FAILED_NOTICE_LEVEL, FAVORITE_NOTICE_LEVEL
+from fun_time.event_log import NOTICE
 from fun_time.windows_bridge_dispatch_loop import read_nau_notice
 
 
@@ -53,6 +54,21 @@ class TestFlashNauNotice:
         assert len(first) == 1
         assert len(again) == 1  # the repeat tick adds nothing
         assert first[0].levelno == FAILED_NOTICE_LEVEL
+
+    def test_nau_names_the_kind_and_this_side_picks_the_color(self, tmp_path, caplog):
+        """Nau has no palette.  It says a funscript jump is about a funscript, and
+        the level it lands at here is what makes it green — an ordinary jump, which
+        says nothing, lands white."""
+        loop = self._loop(tmp_path)
+        with caplog.at_level(logging.DEBUG):
+            _write(tmp_path / "nau_notice.txt", 1, "favorite", "funscript jump")
+            loop._flash_nau_notice()
+            _write(tmp_path / "nau_notice.txt", 2, "notice", "full video")
+            loop._flash_nau_notice()
+
+        by_message = {r.message: r.levelno for r in caplog.records}
+        assert by_message["funscript jump"] == FAVORITE_NOTICE_LEVEL
+        assert by_message["full video"] == NOTICE
 
     def test_a_new_sequence_flashes_again(self, tmp_path, caplog):
         loop = self._loop(tmp_path)

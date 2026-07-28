@@ -25,6 +25,15 @@ from pathlib import Path
 NOTICE = 25
 logging.addLevelName(NOTICE, "NOTICE")
 
+# A notice about the one family of things green is reserved for on every surface
+# in this app: the favorites, the lock that puts a clip in them, F-mode's filter
+# over them, and the funscripts.  A hair louder than a plain NOTICE so it picks a
+# color of its own without changing what any verbosity stop lets through — every
+# notice, either kind, shows from the NOTICE stop down.  Not a stop on the dial
+# itself: it is a NOTICE that happens to be about favorites, not a volume.
+FAVORITE = 26
+logging.addLevelName(FAVORITE, "FAVORITE")
+
 # The verbosity dial's stops, least to most severe.
 LEVELS_BY_NAME: dict[str, int] = {
     "DEBUG": logging.DEBUG,
@@ -108,9 +117,10 @@ class EventLogHandler(logging.Handler):
 def notice(logger: logging.Logger, message: str, *, source: str, level: int = NOTICE) -> None:
     """Log a message meant for the person watching the screen.
 
-    *level* defaults to NOTICE (a normal announcement — green in the panel and
-    the on-player flash); pass a louder level (WARNING/ERROR) for a command that
-    failed or hit a dead end, which the colour then reads as amber/red.
+    *level* defaults to NOTICE (a normal announcement — white in the panel and
+    the on-player flash); pass FAVORITE for one about the favorites or a
+    funscript, which reads green, or a louder level (WARNING/ERROR) for a command
+    that failed or hit a dead end, which reads amber/red.
     """
     logger.log(level, message, extra={"source": source})
 

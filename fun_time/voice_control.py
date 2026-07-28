@@ -234,7 +234,7 @@ class VoiceController:
     def _handle_recognition(self, interp: Recognition, *, spoken_at: float) -> None:
         """Act on one interpreted utterance: dispatch, confirm, or report.
 
-        A recognized command that actually dispatches flashes a green
+        A recognized command that actually dispatches flashes a plain white
         confirmation over the player it addresses; speech that matched nothing
         flashes a red "unrecognized command: …" so a mis-heard phrase is visible
         rather than silent.  Confirmations follow whether the command dispatched,

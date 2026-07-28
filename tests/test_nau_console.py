@@ -63,6 +63,13 @@ class TestPayload:
         assert payload["cruise"] is True
         assert payload["shape"] == "sawtooth"
 
+    def test_carries_naus_loop_machine_for_the_record_button(self):
+        """The console is drawn in genau mode too, by a player with no loop machine
+        to ask — so where Nau is in the gesture rides here with the rest of the
+        room, and the record button can say which press comes next."""
+        assert _payload(record="recording")["record"] == "recording"
+        assert _payload()["record"] == "normal"
+
     def test_a_held_clip_is_reported_apart_from_the_arming(self):
         payload = _payload(genau=GenauStatus(auto_advance_active=True, clip_locked=True))
 

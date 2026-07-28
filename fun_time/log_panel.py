@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fun_time.event_log import (
+    FAVORITE,
     LEVEL_NAMES,
     LEVELS_BY_NAME,
     NOTICE,
@@ -164,10 +165,15 @@ _SOURCE_LABELS: dict[str, str] = {
     "system": "Sys",
 }
 
+# An ordinary announcement is white; green is kept for the one family it means
+# across this whole app — the favorites, the lock that puts a clip in them,
+# F-mode, and the funscripts (see :data:`fun_time.event_log.FAVORITE`).  These
+# color the log lines and, through them, the notices flashed over the players.
 _LEVEL_COLORS: dict[int, QColor] = {
     logging.DEBUG: TEXT_MUTED,
     logging.INFO: TEXT_MUTED,
-    NOTICE: GREEN,
+    NOTICE: TEXT_PRIMARY,
+    FAVORITE: GREEN,
     logging.WARNING: AMBER,
     logging.ERROR: RED,
 }
@@ -322,10 +328,15 @@ class LogPanelWidget(QWidget):
             # ~300px strip, so each must give up the space QToolButton would
             # otherwise reserve.
             button.setFixedWidth(40)
+            # Text alone carries the state: white when the source is being shown,
+            # the same dimmed gray as everything else when it is not.  These sit in
+            # the dashboard's top bar and are read at a glance every few minutes at
+            # most, so a filled chip per source was five bright blocks competing
+            # with the controls beside them for attention they do not deserve.
             button.setStyleSheet(
                 "QToolButton { padding: 2px 1px; border: none;"
                 f" color: {TEXT_MUTED.name()}; background: {BG_SECONDARY.name()}; border-radius: 2px; }}"
-                f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()}; background: {BLUE.name()}; }}"
+                f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()}; }}"
             )
             button.toggled.connect(self._on_sources_changed)
             controls.addWidget(button)
@@ -362,7 +373,9 @@ class LogPanelWidget(QWidget):
         """
         viewport = self._list.viewport()
         self._copy_icon = _copy_icon(_COPY_ICON_SIZE, TEXT_PRIMARY, BG_BUTTON)
-        self._copied_icon = _copied_icon(_COPY_ICON_SIZE, GREEN)
+        # White, not green: a copy having worked has nothing to do with the
+        # favorites, which is what green means everywhere else in here.
+        self._copied_icon = _copied_icon(_COPY_ICON_SIZE, TEXT_PRIMARY)
 
         self._copy_button = QToolButton(viewport)
         self._copy_button.setIcon(self._copy_icon)
