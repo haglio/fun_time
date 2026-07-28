@@ -109,20 +109,23 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   The primary is only ever fast-forwarded — never reset or merged-into.
 - **A red required check** (`.github/workflows/merge-gate.yml`) can't land.
 
-- **Get his eyes on the branch before the PR — `launch_branch.vbs`.** He runs Fun
+- **Get his eyes on the branch before the PR — leave him a shortcut.** He runs Fun
   Time from the primary checkout, which only moves when `main` does, so a branch
   used to be a change he could not see, run or judge; that is why the rule here
   was once "land it unverified rather than park it". It no longer is. With your
-  suites green, tell him to open
-  [fun_time](C:/Users/redacted/workspace/haglio/fun_time) and double-click
-  `launch_branch.vbs`, then pick your branch from the list (or type part of its
-  name). That runs a real session on your worktree's code — his real library, his
-  real monitors, uncommitted edits included. It replaces the live session rather
-  than joining it, so he quits with Ctrl+Alt+Q and launches Fun Time normally
-  afterwards; `fun_time/branch_session.py` says what it isolates and what it
-  shares on purpose. Then on his word: PR → queue → `git -C <primary> pull
-  --ff-only origin main`, and tell him it is live and needs a restart. Only he
-  may waive the launch — "just land it" is his call to make, never yours.
+  suites green, run `python -m fun_time.branch_session --shortcut` from your
+  worktree: it leaves a `Verify <branch>.lnk` in the primary checkout and prints
+  the path. Then tell him to open
+  [fun_time](C:/Users/redacted/workspace/haglio/fun_time) and double-click that
+  file, naming it exactly. **Never hand him a branch to choose or a command to
+  run** — picking is your job, not his. Double-clicking it runs a real session on
+  your worktree's code (his real library, his real monitors, uncommitted edits
+  included), replacing the live session rather than joining it, so he quits with
+  Ctrl+Alt+Q and launches Fun Time normally afterwards;
+  `fun_time/branch_session.py` says what it isolates and what it shares on
+  purpose. Then on his word: PR → queue → `git -C <primary> pull --ff-only origin
+  main`, and tell him it is live and needs a restart. Only he may waive the
+  launch — "just land it" is his call to make, never yours.
 
 Everything else in the global CLAUDE.md — work in a worktree, green tests before
 you push, clean handoff — still applies.

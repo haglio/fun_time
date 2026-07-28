@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.branch_session import WORKTREE_LIST_NAME
-
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -144,29 +142,25 @@ def test_branch_launcher_watches_the_worktrees_sentinels_not_the_primarys():
     assert 'launchLog = fso.BuildPath(stateDir, "launcher.log")' in text
 
 
-def test_branch_launcher_asks_which_branch_rather_than_taking_a_command_line():
-    """The user launches from Explorer, so the branch name has to be asked for
-    on screen.  The menu comes from the same file ``branch_session`` writes it
-    to, and it is read back as Unicode — commit subjects are full of em dashes,
-    and FileSystemObject's ANSI mode mangles them."""
+def test_branch_launcher_takes_the_worktree_from_the_shortcut_that_ran_it():
+    """He is never asked to find a branch.  The agent that has something to show
+    makes a ``Verify <branch>.lnk`` naming its worktree, and the launcher reads
+    it from there — so double-clicking this file directly has nothing to run,
+    and says so rather than doing something arbitrary."""
     text = _text("launch_branch.vbs")
 
-    assert "InputBox" in text
-    assert f'"{WORKTREE_LIST_NAME}"' in text
-    assert "--list" in text
-    # OpenTextFile(..., TristateTrue): the UTF-16 the list is written as.
-    assert "OpenTextFile(listFile, 1, False, -1)" in text
+    assert "WScript.Arguments.Count < 1" in text
+    assert "worktree = WScript.Arguments(0)" in text
+    assert "Double-click that instead." in text
+    # No menu to work through: picking is the agent's job, not his.
+    assert "InputBox" not in text
 
 
-def test_branch_launcher_can_reach_a_worktree_the_menu_did_not_list():
-    """The repo carries dozens of worktrees and InputBox truncates a prompt past
-    about a thousand characters, so the menu shows only the newest few.  Typing
-    part of a branch name reaches any of them — which is also the shape an agent
-    hands the user, a branch name rather than a position in a list."""
+def test_branch_launcher_says_so_when_the_worktree_has_been_deleted():
+    """A shortcut outlives the branch it was made for — the worktree goes when
+    the work lands.  Without this the launch dies inside python with a config
+    error, and the dialog he gets says nothing about why."""
     text = _text("launch_branch.vbs")
 
-    assert "maxShown" in text
-    assert "older ones not shown" in text
-    assert "InStr(LCase(labels(i)), needle)" in text
-    # An ambiguous name must not silently launch one of the matches.
-    assert "Type more of the name." in text
+    assert "fso.FolderExists(worktree)" in text
+    assert "already in Fun Time" in text
