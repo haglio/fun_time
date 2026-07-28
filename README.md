@@ -311,10 +311,10 @@ AI videos under the regen media root carry metadata sidecars (see `regen.media_r
 - a **seed family** is every video whose generation config differs *only by seed* — the same scenario rendered from a different seed
 - a **loose seed family** is the same scene held only by its prompts and cast/action, with the render knobs (model, resolution, aspect ratio, quality, creativity) freed as well as the seed — a wider net for "the same scene, however it was rendered"
 
-Two command pairs ride on those groups (keys: `Del`/`End` portrait, `E`/`Q` landscape; voice: "portrait action", "portrait seed", "landscape action", "landscape seed"):
+Two command pairs ride on those groups, spoken rather than key-bound ("portrait action", "portrait seed", "landscape action", "landscape seed"):
 
-- **Cycle action** switches the current video to the next action of its group, in a fixed order so repeated presses tour every act. The log panel names the action that came up. If the sibling is not in the playlist (grouped builds keep one slot per group — see below), it is swapped in place of the current entry.
-- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render knobs freed) so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds". Every hit narrates itself over the player and in the log panel — **"Next seed"** for an exact same-config sister, **"Similar clip"** for a widened near-match — so you can see at a glance which one fired (and thus watch the widening happen: press seed across clips and wait for a "Similar clip").
+- **Cycle action** switches the current video to the next action of its group, in a fixed order so repeating it tours every act. The log panel names the action that came up. If the sibling is not in the playlist (grouped builds keep one slot per group — see below), it is swapped in place of the current entry.
+- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render knobs freed) so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds". Every hit narrates itself over the player and in the log panel — **"Next seed"** for an exact same-config sister, **"Similar clip"** for a widened near-match — so you can see at a glance which one fired (and thus watch the widening happen: say "seed" across clips and wait for a "Similar clip").
 
 Unlike prev/next, cycling does **not** release an active lock: it means "show me this differently", so the lock's repeat-one simply carries over to the sibling.
 
@@ -325,7 +325,7 @@ During satellite builds, each action group **collapses to one playlist slot**, s
 Fun Time watches how you treat each satellite video and adjusts how often it comes up (`fun_time/watch_stats.py`, persisted in `state/watch_stats.json`):
 
 - playing a video through to ~the end counts a **completion**; while locked on repeat, every loop counts again
-- pressing next/prev (or a cycle key) early in a video counts a **skip**
+- pressing next/prev (or cycling action/seed) early in a video counts a **skip**
 - **locking** a video is the strongest positive signal
 
 Counts become a playback weight — `2^((completions + 3·locks − skips)/3)`, clamped to between ⅛× and 8× — applied at every shuffled satellite build: weighted shuffle order (loved videos surface early), weighted pick inside collapsed action groups (the acts you finish win the slot), and probabilistic inclusion (a weight-⅛ video sits out ~7 of 8 builds). This is the continuous companion to mark-as-weird: hated videos fade away instead of leaving. Neutral videos are never excluded, and the transitions the system causes itself (unlock's auto-advance, discards) never penalize anything.
