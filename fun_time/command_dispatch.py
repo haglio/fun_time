@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, write_volume
+from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .config import RegenConfig
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .media_metadata import (
@@ -1216,21 +1216,14 @@ def _step_volume(state: BridgeState, step: int) -> BridgeState:
 def _dispatch_audio(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Publish *state*'s sound level to both of the primary display's audio sinks.
-
-    Nau's mpv carries the video's sound; the Genau audio companion carries the
-    clip music.  Which one is audible depends on the mode, so both are told the
-    same level every time and the bridge alone holds the authoritative value.
-
-    The companion is only ever asked to be quiet, so a mute reaches it as a level
-    of zero and it stays dumb.  Nau also *draws* the level, and zero cannot tell
-    it muted from turned all the way down, nor what unmuting should return to —
-    so it gets the level and the mute, and works the audible loudness out itself.
-    """
-    level = MIN_VOLUME if state.muted else state.volume
-    config.nau_cmd_file.write_text(
-        f"SET_VOLUME {state.volume} {int(state.muted)}", encoding="utf-8")
-    write_volume(config.audio_volume_file, level)
+    """Publish *state*'s sound level to both of the primary display's audio sinks,
+    and say on screen what it now is."""
+    publish_audio_level(
+        nau_cmd_file=config.nau_cmd_file,
+        audio_volume_file=config.audio_volume_file,
+        volume=state.volume,
+        muted=state.muted,
+    )
     message = "Muted" if state.muted else f"Volume {state.volume}%"
     return state, [WindowOp(op="notice", key=message, source=SOURCE_PRIMARY)]
 

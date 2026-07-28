@@ -25,6 +25,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Sequence
 
+from player_core.file_channel import append_command
 from player_core.playlist import read_playlist
 
 from .command_dispatch import BridgeState
@@ -35,17 +36,24 @@ from .shared_state import read_shared_state, write_shared_state
 
 PlaylistEntries = list[tuple[Path, Path | None]]
 
-# What a resumed playlist still stands for, and so what a reopened session has
-# to come back believing.  Every one of these shaped the files that were just
-# resumed: F-mode and a filter decide which clips are in them, Latest fixes
-# their order, and a group loop IS the group written out as the playlist, with
-# the map anchored (and the seed row widened) on the clip it started from.
+# What a reopened session comes back believing.  Most of it is what shaped the
+# playlist files that were just resumed — F-mode and a filter decide which clips
+# are in them, Latest fixes their order, and a group loop IS the group written
+# out as the playlist, with the map anchored (and the seed row widened) on the
+# clip it started from.  The rest is what the session was simply *left* in: the
+# sound level and each side's lock are how you had it set, and there is no more
+# reason for them to reset overnight than there is for the clip on screen to.
 #
-# Nothing else survives, because nothing on disk carries it into the new
-# session: a lock is repeat-one on an mpv process that has been replaced,
-# OmniPause's paused flags are cleared before the players launch, the sound
-# level is re-seeded to full, the primary opens in nau mode holding the floor,
-# and a keyboard-navigation selection was never a thing you could leave running.
+# Those last two are the ones with a live counterpart to re-assert, since neither
+# lives in a file a new process reads: the level is seeded to both audio sinks at
+# startup (see fun_time.audio_volume.publish_audio_level) and each lock is queued
+# back to its satellite (:func:`resume_satellite_locks`).  Carrying a flag whose
+# world is not put back with it is the same lie as dropping one that was true.
+#
+# Nothing else survives, because nothing carries it into the new session:
+# OmniPause's paused flags are cleared before the players launch, the primary
+# opens in nau mode holding the floor, and a keyboard-navigation selection was
+# never a thing you could leave running.
 RESUMED_FIELDS = (
     "f_mode_enabled",
     "portrait_filter",
@@ -58,6 +66,10 @@ RESUMED_FIELDS = (
     "landscape_map_anchor",
     "portrait_widen_clip",
     "landscape_widen_clip",
+    "locked2",
+    "locked3",
+    "volume",
+    "muted",
 )
 
 
@@ -147,14 +159,32 @@ def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
     return True
 
 
+def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
+    """Queue LOCK on the command file of each satellite that was locked.
+
+    *locks* pairs a satellite's command file with whether that side comes back
+    locked.  A lock is repeat-one in mpv's own ``loop_file``, which lives in a
+    player process that has just been replaced, so unlike a filter or a loop it
+    cannot ride back in on a file the new player reads — it has to be re-sent.
+
+    Queued before the satellites launch, so each drains it on its very first
+    tick, by which time its session has already loaded the clip the resume put at
+    the top of its playlist: the same clip the lock was on when the session
+    closed, locked again before a frame of anything else can play.
+    """
+    for command_file, locked in locks:
+        if locked:
+            append_command(Path(command_file), "LOCK")
+
+
 def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
-    """Seed *state_file* with the mode the resumed playlists still stand for.
+    """Seed *state_file* with the state a resumed session comes back in.
 
     Pass *resumed* as :func:`resume_playlists` reported it: the state carried
     forward is only ever the state that explains the files on disk, so a session
     built fresh — nothing to resume, or a rebuild over the top — opens on
     defaults, and one that kept last session's playlists keeps what shaped them
-    (:data:`RESUMED_FIELDS`).
+    and what it was left set to (:data:`RESUMED_FIELDS`).
 
     Written either way, and returned, since the file is what the dispatch loop
     reads its opening state from: the alternative was deleting it at startup,

@@ -7,7 +7,7 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
-from .audio_volume import MAX_VOLUME, write_volume
+from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
 from .config import load_config
 from .dashboard_runtime import is_broker_heartbeat_fresh, read_nau_status
@@ -21,7 +21,12 @@ from .modes import (
     build_primary_playlist,
 )
 from .satellite_control import read_satellite_status
-from .session_resume import playlist_fits_sources, resume_playlists, resume_shared_state
+from .session_resume import (
+    playlist_fits_sources,
+    resume_playlists,
+    resume_satellite_locks,
+    resume_shared_state,
+)
 from .shared_state import shared_state_path
 from .watch_stats import watch_stats_path
 from .orchestrator_broker import (
@@ -251,12 +256,22 @@ def seed_startup_states(
     nau_paused_file: str | Path,
     audio_volume_file: str | Path,
     genau_cmd_file: str | Path | None = None,
+    *,
+    nau_cmd_file: str | Path,
+    volume: int = MAX_VOLUME,
+    muted: bool = False,
 ) -> None:
     """Seed the cross-process flags for the startup mode (nau): Genau parked, Nau
-    paused until the sequencer's reveal unpauses it, and the sound level back at
-    full — Nau and the audio companion each launch unattenuated, so a level left
-    muted by the last session would silence this one with nothing on screen to
-    explain it.
+    paused until the sequencer's reveal unpauses it, and the sound at the level
+    this session opens on.
+
+    That level is the session's, not full: Nau and the audio companion each
+    launch unattenuated and neither reads a level from a file it already has, so
+    seeding is the only way a resumed session comes up as loud as you left it.
+    Both sinks are told (through the one publisher the live volume commands use),
+    which is what keeps a resumed mute explicable rather than a silence with
+    nothing on screen behind it — Nau draws the level and the mute it is given.
+    The defaults are a fresh session's: full, unmuted.
 
     Genau's *display* is seeded too, on its command channel.  Blanking keys off
     DISPLAY_ON/DISPLAY_OFF and Genau defaults to owning its display (so a
@@ -272,7 +287,12 @@ def seed_startup_states(
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(value, encoding="utf-8")
-    write_volume(Path(audio_volume_file), MAX_VOLUME)
+    publish_audio_level(
+        nau_cmd_file=Path(nau_cmd_file),
+        audio_volume_file=Path(audio_volume_file),
+        volume=volume,
+        muted=muted,
+    )
     if genau_cmd_file is not None:
         path = Path(genau_cmd_file)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -308,6 +328,7 @@ def start_core_session(
     audio_paused_file: str | Path,
     nau_paused_file: str | Path,
     audio_volume_file: str | Path,
+    nau_cmd_file: str | Path,
     satellite_python_exe: str | Path,
     satellite_module: str,
     portrait_cmd_file: str | Path,
@@ -347,14 +368,6 @@ def start_core_session(
     # not matter that ensure_broker may only now be starting one.
     write_broker_command(broker_cmd_file, PARK_CMD)
     ensure_broker(broker_heartbeat_file, broker_tray_launcher)
-    seed_startup_states(
-        genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file,
-        genau_cmd_file,
-    )
-    # seed_startup_states does not touch the satellite paused files; clear any "1"
-    # a prior OmniPause stranded so the satellites launch playing, not frozen.
-    reset_satellite_paused_states(portrait_paused_file, landscape_paused_file)
-    prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     state_path = Path(state_dir)
     portrait_playlist = build_playlist_file_path(state_path, PLAYLIST_PORTRAIT)
     landscape_playlist = build_playlist_file_path(state_path, PLAYLIST_LANDSCAPE)
@@ -371,11 +384,21 @@ def start_core_session(
         (landscape_playlist, read_satellite_status(Path(landscape_status_file)).video),
         (nau_playlist, read_nau_status(Path(nau_status_file)).video),
     ])
-    # Come back to the mode those playlists were built in, too — F-mode, each
-    # side's filter and order, any group loop.  The dispatch loop opens on this
-    # file, so a session that resumed the files and not the state described
-    # itself wrongly on every HUD.
+    # Come back to the state that session was in, too — F-mode, each side's
+    # filter, order and lock, any group loop, the sound level.  The dispatch loop
+    # opens on this file, so a session that resumed the files and not the state
+    # described itself wrongly on every HUD.  It is read before the flags below
+    # are seeded, because two of them are what those flags have to be seeded to.
     carried = resume_shared_state(shared_state_path(state_path), resumed=resumed)
+    seed_startup_states(
+        genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file,
+        genau_cmd_file, nau_cmd_file=nau_cmd_file,
+        volume=carried.volume, muted=carried.muted,
+    )
+    # seed_startup_states does not touch the satellite paused files; clear any "1"
+    # a prior OmniPause stranded so the satellites launch playing, not frozen.
+    reset_satellite_paused_states(portrait_paused_file, landscape_paused_file)
+    prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     if not resumed:
         build_fmode_playlists(
             primary_sources=primary_sources,
@@ -405,6 +428,12 @@ def start_core_session(
         if resumed
         else "Nothing to resume; built fresh playlists"
     )
+    # A lock has no file of its own to come back in, so queue it for each side
+    # that was holding one — from here it is waiting when the satellite starts.
+    resume_satellite_locks([
+        (Path(portrait_cmd_file), carried.locked2),
+        (Path(landscape_cmd_file), carried.locked3),
+    ])
     launch_core_apps(
         python_exe=satellite_python_exe,
         satellite_module=satellite_module,
