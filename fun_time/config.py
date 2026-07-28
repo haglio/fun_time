@@ -51,6 +51,15 @@ class PathsConfig:
     audio_dir: Path
     favs_file: Path
     state_dir: Path
+    # Where the machine's one OSR2 broker keeps its own channel: the heartbeat and
+    # serial-activity stamps it writes, and the command, mode and permission files
+    # it reads.  Those files are the *broker's*, not the session's — ``../broker``
+    # resolves them from its own config, which names one directory for good — so a
+    # session that moves its ``state_dir`` has to keep pointing here.  Absent from
+    # the config it simply is ``state_dir``, which is true of every session but a
+    # branch one (see :mod:`fun_time.branch_session`), and of an integration run,
+    # whose broker is a temp-dir one of its own.
+    broker_state_dir: Path
     genau_python_exe: Path | None = None
     genau_config_path: Path | None = None
     broker_tray_launcher: Path | None = None
@@ -164,9 +173,32 @@ class ProjectConfig:
         """
         return self.instance_id_override or str(self.config_path)
 
+    # --- The broker's channel.  Every one of these is a file ../broker opens by
+    # its own config, so they follow the broker's state dir rather than ours.
     @property
     def genau_mode_file(self) -> Path:
-        return self.paths.state_dir / "genau_mode.txt"
+        """The broker's "Genau has the OSR2" flag — written by it, read by us."""
+        return self.paths.broker_state_dir / "genau_mode.txt"
+
+    @property
+    def genau_enabled_file(self) -> Path:
+        """Whether the broker may hand the OSR2 to Genau at all — our switch, its read."""
+        return self.paths.broker_state_dir / "genau_enabled.txt"
+
+    @property
+    def broker_cmd_file(self) -> Path:
+        """The one verb the broker consumes per tick (park, retract, resume)."""
+        return self.paths.broker_state_dir / "broker_cmd.txt"
+
+    @property
+    def broker_heartbeat_file(self) -> Path:
+        """Stamped every half second while the broker holds the serial port."""
+        return self.paths.broker_state_dir / "broker_heartbeat.txt"
+
+    @property
+    def osr2_serial_rx_file(self) -> Path:
+        """Stamped when the OSR2 last spoke — which is how we know it is powered on."""
+        return self.paths.broker_state_dir / "osr2_serial_rx.txt"
 
     @property
     def genau_cmd_file(self) -> Path:
@@ -255,6 +287,7 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
     if not nau_library_dirs_raw:
         raise ValueError("paths.nau_library_dirs must include at least one folder path")
 
+    state_dir = _require_path_value(paths_raw, "state_dir", source_path, "config.paths", project_dir)
     return PathsConfig(
         ahk_exe=_require_path_value(paths_raw, "ahk_exe", source_path, "config.paths", project_dir),
         python_exe=_require_path_value(paths_raw, "python_exe", source_path, "config.paths", project_dir),
@@ -265,7 +298,8 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
         clips_dir=_require_path_value(paths_raw, "clips_dir", source_path, "config.paths", project_dir),
         audio_dir=_require_path_value(paths_raw, "audio_dir", source_path, "config.paths", project_dir),
         favs_file=_require_path_value(paths_raw, "favs_file", source_path, "config.paths", project_dir),
-        state_dir=_require_path_value(paths_raw, "state_dir", source_path, "config.paths", project_dir),
+        state_dir=state_dir,
+        broker_state_dir=_resolve_path(project_dir, paths_raw["broker_state_dir"]) if paths_raw.get("broker_state_dir") else state_dir,
         genau_python_exe=_resolve_path(project_dir, paths_raw["genau_python_exe"]) if paths_raw.get("genau_python_exe") else None,
         genau_config_path=_resolve_path(project_dir, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
         broker_tray_launcher=_resolve_path(project_dir, paths_raw["broker_tray_launcher"]) if paths_raw.get("broker_tray_launcher") else None,

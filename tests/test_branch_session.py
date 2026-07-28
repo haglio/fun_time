@@ -143,6 +143,32 @@ def test_the_branch_session_keeps_its_state_inside_the_worktree(checkouts):
     assert branch.paths.state_dir != live.paths.state_dir
 
 
+def test_the_broker_keeps_its_own_corner_of_state_in_the_primary(checkouts):
+    """The state dir moves into the worktree; the broker's files stay behind.
+
+    ``../broker`` opens its heartbeat, serial-activity, command and mode files
+    from the one directory its own config names, and never learns that a session
+    moved.  Letting them follow ``state_dir`` pointed a branch session at a
+    directory the broker has never written: the primary console's broker light
+    red and its OSR2 light "off" while the device was plainly being driven, and
+    park/resume written where nothing consumes them.
+    """
+    live, branch = _live_and_branch(checkouts)
+
+    assert branch.paths.broker_state_dir == live.paths.state_dir
+    assert branch.paths.broker_state_dir != branch.paths.state_dir
+    assert [
+        path.parent
+        for path in (
+            branch.broker_heartbeat_file,
+            branch.osr2_serial_rx_file,
+            branch.broker_cmd_file,
+            branch.genau_mode_file,
+            branch.genau_enabled_file,
+        )
+    ] == [live.paths.state_dir] * 5
+
+
 def test_a_branch_session_and_the_live_one_take_the_same_mutex(checkouts):
     """Which is what makes two sessions impossible rather than unlikely.
 

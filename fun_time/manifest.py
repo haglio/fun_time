@@ -61,8 +61,13 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             "landscape_status_file": str(config.paths.state_dir / "landscape_status.txt"),
             "landscape_playlist_file": str(config.paths.state_dir / "landscape_playlist.tsv"),
             "landscape_hud_file": str(config.paths.state_dir / HUD_FILENAME["landscape"]),
-            "broker_cmd_file": str(config.paths.state_dir / "broker_cmd.txt"),
-            "broker_heartbeat_file": str(config.paths.state_dir / "broker_heartbeat.txt"),
+            "broker_cmd_file": str(config.broker_cmd_file),
+            "broker_heartbeat_file": str(config.broker_heartbeat_file),
+            # The broker's own directory, so a child needing a broker file we have
+            # not named here resolves it against the broker rather than against the
+            # session — which is what put the console's broker and OSR2 lights on a
+            # branch session's empty state dir.
+            "broker_state_dir": str(config.paths.broker_state_dir),
             "broker_tray_launcher": str(config.paths.broker_tray_launcher or ""),
             "audio_paused_file": str(config.audio_paused_file),
             "audio_volume_file": str(config.audio_volume_file),
