@@ -26,6 +26,7 @@ from player_core.hud_panel import (
     WHITE,
     HudPanel,
     draw_glyph,
+    draw_icon,
     load_font,
     text_width,
 )
@@ -99,11 +100,14 @@ _EXPAND_GLYPH = "↔"
 # The side's own controls.  Skip-track for the browse pair rather than bare
 # arrows, so they cannot be read as "step along the map"; a padlock and a bin for
 # the two that act on the clip on screen.  They come from the same symbol face as
-# the loop glyph above — Segoe UI Bold has none of them.  F-mode is the letter
-# itself: no mark says "favourites only", and the mode is called F everywhere
-# else — on the key that toggles it, in the status line above, and in what a
-# speaker says out loud.
-_CONTROL_GLYPHS = {"prev": "⏮", "next": "⏭", "lock": "🔒", "trash": "🗑", "fmode": "F"}
+# the loop glyph above — Segoe UI Bold has none of them.
+_CONTROL_GLYPHS = {"prev": "⏮", "next": "⏭", "lock": "🔒", "trash": "🗑"}
+# F-mode wears its own mark rather than a glyph: no symbol says "favorites
+# only", and the mode already has a face — the pink "F" of ``fmode_icon.ico``,
+# the five-by-five letter every app in this family is marked with.  A letter set
+# in the body face is a thin thing beside it, reading as a caption rather than a
+# badge (:func:`player_core.hud_panel.draw_icon`).
+_ICON_CONTROLS = {"fmode": "F"}
 _FAVORITE_GLYPH = "★"
 
 # The filter mark, drawn rather than typed: Segoe UI Symbol — the face the other
@@ -560,10 +564,16 @@ class HudRenderer:
 
         Both lit states are green rather than white, and so is the star: locking a
         clip puts it in the favorites and F-mode is the filter over them, so all
-        three are the same fact and read as one color.
+        three are the same fact and read as one color.  F-mode's button carries
+        its own pink mark on top of that green, the same badge it wears on the
+        primary console and on the taskbar.
         """
         lit = {"lock": model.locked, "fmode": model.f_mode}
         for rect, name in controls:
+            if name in _ICON_CONTROLS:
+                self._button_box(draw, rect, on=lit.get(name, False), on_color=GREEN)
+                draw_icon(draw, rect, _ICON_CONTROLS[name])
+                continue
             self._glyph_button(draw, rect, _CONTROL_GLYPHS[name],
                                on=lit.get(name, False), on_color=GREEN)
         fx, fy, fw, fh = favorite

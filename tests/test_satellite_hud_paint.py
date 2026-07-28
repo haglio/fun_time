@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from player_core.hud_panel import TEXT_MUTED, WHITE
+from player_core.hud_panel import ICON_GRIDS, TEXT_MUTED, WHITE
 
 from satellite.hud import (
     CTRL_BAND_H,
@@ -298,6 +298,29 @@ def test_the_state_controls_and_favourite_mark_light_up_when_they_apply():
     assert ink(rects["lock"], on) > ink(rects["lock"], off)
     assert ink(rects["fmode"], on) > ink(rects["fmode"], off)
     assert ink(on.targets.favorite, on) > ink(off.targets.favorite, off)
+
+
+def test_f_mode_wears_its_own_badge_rather_than_a_typed_letter():
+    """`fmode_icon.ico` is a pink five-by-five "F" — the mark the mode has on the
+    taskbar and on the primary console — and a letter set in the body face is a
+    thin thing beside it.  The mark holds whether or not the mode is on; only what
+    is behind it changes."""
+    for f_mode in (False, True):
+        rendered = HudRenderer("landscape").render(
+            HudModel(side="landscape", lock_label="Unlocked", f_mode=f_mode))
+        x, y, w, h = {name: rect for rect, name in rendered.targets.control}["fmode"]
+        box = _rgb(rendered.bgra)[y:y + h, x:x + w]
+        pink = (box == np.array((200, 80, 160), dtype=box.dtype)).all(axis=2)
+        ys, xs = np.nonzero(pink)
+        cell = (xs.max() - xs.min() + 1) / 5
+        drawn = [
+            "".join("#" if pink[int(ys.min() + (r + 0.5) * cell),
+                                int(xs.min() + (c + 0.5) * cell)] else "."
+                    for c in range(5))
+            for r in range(5)
+        ]
+
+        assert drawn == list(ICON_GRIDS["F"]), f_mode
 
 
 def test_a_running_loops_button_fills_white_and_not_the_locks_green(thumb):
