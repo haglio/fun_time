@@ -609,23 +609,29 @@ def test_a_filter_set_from_a_two_act_clip_lights_both_of_its_acts(thumb):
     assert top > 0 and bottom > 0
 
 
-def test_a_leading_modifier_stays_grey_when_the_act_it_qualifies_is_filtered(thumb):
-    """"POV Gamma" is a qualifier in front of an act, drawn as two acts: under a
-    "gamma" filter only "Gamma" is why the clip is here, so "POV" stays grey rather
-    than reading as part of what was asked for."""
+@pytest.mark.parametrize("camera", ["pov", "side"])
+def test_a_leading_camera_word_stays_grey_when_its_act_is_filtered(camera, thumb):
+    """A camera word in front of an act is drawn as an act of its own: under a
+    "gamma" filter only "Gamma" is why the clip is here, so the camera word stays
+    grey rather than reading as part of what was asked for.
+
+    Both words, because Evolver's backfill scopes every act it records by one of
+    them — so a list holding only "POV" would leave every "Side …" clip lighting
+    both of its words.
+    """
     renderer = HudRenderer("portrait")
 
     def halves(filter_query: str) -> tuple[int, int]:
         return _white_halves(renderer.render(_model(
             corner=HudCell(path="c.mp4", thumb=thumb),
-            current_action="pov gamma", filter_query=filter_query,
+            current_action=f"{camera} gamma", filter_query=filter_query,
         )))
 
-    pov, gamma = halves("gamma")
+    scope, gamma = halves("gamma")
 
-    assert pov == 0 and gamma > 0
+    assert scope == 0 and gamma > 0
     # …and a filter on the row itself names both, so both light.
-    assert all(half > 0 for half in halves("pov gamma"))
+    assert all(half > 0 for half in halves(f"{camera} gamma"))
 
 
 def test_the_filter_button_carries_a_funnel_and_not_an_empty_box(thumb):

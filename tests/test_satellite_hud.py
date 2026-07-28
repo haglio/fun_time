@@ -380,7 +380,8 @@ def test_act_is_filtered_picks_out_which_of_a_rows_acts_the_filter_named():
     """The row says whether the clip is here; this says which of its acts is why —
     the rule that whitens one line of a label and leaves its neighbours grey."""
     assert act_is_filtered("Gamma", "gamma") is True
-    assert act_is_filtered("POV", "gamma") is False        # the qualifier is not the act
+    assert act_is_filtered("POV", "gamma") is False        # a camera word is not the act
+    assert act_is_filtered("Side", "gamma") is False
     assert act_is_filtered("Theta Gamma", "gamma") is True  # an act the query is part of
     # A filter set from a two-act clip names both, so both of that row's acts light.
     assert act_is_filtered("Gamma", "gamma, theta") is True
@@ -431,13 +432,19 @@ def test_action_label_blocks_separate_comma_joined_acts():
     assert action_label_blocks("") == [["(unknown)"]]
 
 
-def test_action_label_blocks_split_a_leading_modifier_into_its_own_act():
-    """"POV gamma" is a camera angle in front of an act, not a two-word act, so it
-    becomes two blocks — which is what lets a "gamma" filter light "Gamma" and leave
-    "POV" grey instead of whitening both."""
+def test_action_label_blocks_split_a_leading_camera_word_into_its_own_act():
+    """A camera word in front of an act is not part of it, so it becomes its own
+    block — which is what lets a "gamma" filter light "Gamma" and leave the camera
+    word grey instead of whitening both.
+
+    Both camera words, since Evolver's backfill scopes every act it writes by one of
+    them and never writes a bare act.
+    """
     assert action_label_blocks("pov gamma") == [["POV"], ["Gamma"]]
+    assert action_label_blocks("side gamma") == [["Side"], ["Gamma"]]
+    assert action_label_blocks("side theta motion") == [["Side"], ["Theta", "Motion"]]
     assert action_label_blocks("pov") == [["POV"]]  # nothing to qualify: one act
-    assert action_label_blocks("theta motion") == [["Theta", "Motion"]]  # not a modifier
+    assert action_label_blocks("theta motion") == [["Theta", "Motion"]]  # not a camera word
 
 
 def test_friendly_action_label_titlecases_and_keeps_acronyms_upper():
