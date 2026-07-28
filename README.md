@@ -178,7 +178,8 @@ fun_time.branch_session --shortcut` from its worktree, which leaves a
 `Verify <branch>.lnk` in this folder and tells you the filename; double-clicking
 it runs a real session on that worktree's code — your real library, your real
 monitors, uncommitted edits included. `launch_branch.vbs` is what those
-shortcuts point at and is not run on its own. Shortcuts whose worktree has been
+shortcuts point at and is not run on its own. The agent takes its shortcut back
+out once the work lands, and any left over from a worktree that has since been
 deleted are swept away whenever a new one is written.
 
 A branch session **replaces** the live one rather than running beside it. Almost
