@@ -422,7 +422,7 @@ def _toggle_lock(
 
 def _discard(
     which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
-) -> BridgeState:
+) -> tuple[BridgeState, list[WindowOp]]:
     locked = state.locked2 if which == 2 else state.locked3
     current_path = _satellite_current(config, which)
     # "Weird" judges the video the speaker saw.  When the satellite advanced
@@ -459,7 +459,16 @@ def _discard(
         move_to_weird(config.weird_dir, Path(condemned))
     if plan.log_message:
         logger.info(plan.log_message)
-    return replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
+    # Which of the two things this key does is invisible otherwise: both look
+    # like "the clip went away", and the ★ that tells them apart is gone by the
+    # time you could read it.
+    discard_ops = (
+        [WindowOp(op="notice", key=plan.notice_message, source=_satellite_source(which))]
+        if plan.notice_message
+        else []
+    )
+    next_state = replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
+    return next_state, discard_ops
 
 
 # display slot (2=portrait, 3=landscape) and variation axis per cycle command.
@@ -994,7 +1003,8 @@ def dispatch_command(
         return state, ops
 
     if command == "portrait_trash":
-        state = _discard(2, state, config, target_path)
+        state, discard_ops = _discard(2, state, config, target_path)
+        ops.extend(discard_ops)
         return state, ops
 
     if command == "landscape_prev":
@@ -1013,7 +1023,8 @@ def dispatch_command(
         return state, ops
 
     if command == "landscape_trash":
-        state = _discard(3, state, config, target_path)
+        state, discard_ops = _discard(3, state, config, target_path)
+        ops.extend(discard_ops)
         return state, ops
 
     if command in ("primary_prev", "primary_next"):

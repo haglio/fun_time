@@ -210,7 +210,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         (
             _Row("Previous both clips", (), ("both_prev",)),
             _Row("Next both clips", (), ("both_next",)),
-            _Row("Mark both clips as weird", (), ("both_trash",)),
+            _Row("Unfavorite both clips — or mark weird the ones that are not favorites", (), ("both_trash",)),
             _Row("Lock / unlock both", (), ("both_lock_on", "both_lock_off")),
             _Row("Cycle both actions — same subject(s) & scene, another act", (), ("both_cycle_action",)),
             _Row("Cycle both seeds — same config, different subject", (), ("both_cycle_seed",)),
@@ -245,7 +245,11 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 (),
                 ("active_next",),
             ),
-            _Row("Mark the active side's clip as weird", (), ("active_trash",)),
+            _Row(
+                "Unfavorite the active side's clip — or mark it weird when it is not a favorite",
+                (),
+                ("active_trash",),
+            ),
             _Row(
                 "Lock the selected map clip and re-home the map on it (keyboard navigation)",
                 ("Enter",),
