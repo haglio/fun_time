@@ -38,13 +38,13 @@ from .hud import (
     ELLIPSIS_ROOM,
     FILTER_ROOM,
     MAP_BOTTOM_RESERVE,
+    MAP_CELLS,
     MAP_GAP,
     MAP_RIGHT_RESERVE,
     MAP_THUMB_H,
     MAX_GUTTER,
     MIN_GUTTER,
     PAD,
-    ROW_GAP,
     STATUS_DOT,
     STATUS_LINE_H,
     STATUS_TEXT_X,
@@ -65,6 +65,8 @@ from .hud import (
     label_is_filtered,
     loop_button_rects,
     looped_group_box,
+    map_column_height,
+    map_row_width,
     map_window,
     panel_height,
     panel_width,
@@ -188,6 +190,22 @@ class HudRenderer:
         return Image.new("RGBA", (cell_width(self._side), MAP_THUMB_H),
                          (*_PLACEHOLDER, 255))
 
+    def _map_thumbnails(
+        self, model: HudModel
+    ) -> tuple[Image.Image | None, list[Image.Image], list[Image.Image]]:
+        """The images for every cell of the windowed map — corner, seed row, action
+        column — decoded once and used both to measure the panel and to paste into
+        it, so what the panel was sized for is what goes in it.
+
+        The corner is None when there is no clip yet, which is also when there is no
+        row and no column.
+        """
+        if model.corner is None:
+            return None, [], []
+        return (self._thumbnail(model.corner),
+                [self._thumbnail(cell) for cell in model.seeds],
+                [self._thumbnail(cell) for cell in model.actions])
+
     def render(
         self,
         model: HudModel,
@@ -204,23 +222,31 @@ class HudRenderer:
         cell being held in white: the corner normally, or the member a loop had
         reached when the lock was taken.
         """
-        # Measured before it is drawn, so the panel is exactly the room its map and
-        # controls need: the width from the gutter and a full map, then the status
-        # wrapped into that width, then the height from how many lines that took.
-        # Sized from the whole model, before any windowing, so neither the gutter nor
-        # the panel changes width as a loop's window slides along — and the gutter
-        # never narrower than the axis counts printed above it.
+        # The gutter is sized from the WHOLE model, before any windowing, so it does
+        # not change width as a loop's window slides along — and never narrower than
+        # the axis counts printed above it.
         counts = self._count_lines(model)
         gutter_w = gutter_width_for(
             self._row, model.current_action, tuple(cell.label for cell in model.actions),
             min_width=max((text_width(self._tiny, line) for line in counts), default=0) + MAP_GAP,
         )
-        width = panel_width(model.side, gutter_w)
+        # Then the map is windowed, and the panel measured around the cells that won
+        # — the width from the gutter and the row's real cells, the status wrapped
+        # into that width, the height from how many lines that took and how many rows
+        # the column has.  Measuring first and windowing into what was left is what
+        # made a row of wide clips two cells instead of three.
+        model, seed_win, action_win = self._window(model)
+        corner_thumb, seed_thumbs, action_thumbs = self._map_thumbnails(model)
+        row = ([corner_thumb.width] + [thumb.width for thumb in seed_thumbs]
+               if corner_thumb is not None
+               else [cell_width(model.side)] * MAP_CELLS)
+        width = panel_width(gutter_w, map_row_width(row))
         lines = wrap_status_line(
             model.lock_label, width - PAD - STATUS_TEXT_X,
             lambda text: text_width(self._body, text))
-        height = panel_height(model.side, status_lines=len(lines),
-                              mapped=model.corner is not None)
+        height = panel_height(
+            len(lines),
+            map_column_height(1 + len(action_thumbs)) if corner_thumb is not None else 0)
         panel = HudPanel(width, height)
         image, draw = panel.image, panel.draw
 
@@ -260,25 +286,17 @@ class HudRenderer:
 
         self._draw_counts(draw, x, y, counts)
         right, bottom = width - PAD, height - PAD
-        # Both axes are drawn through a window that keeps the clip on screen in view,
-        # and both keep room at each end for the "…" that says the map runs on past
+        # Both axes keep room at each end for the "…" that says the map runs on past
         # what is drawn.  That room is kept unconditionally — looping or not, more to
         # show or not — so nothing on the map ever moves: not as a window slides, not
         # when a mark appears, and not when a loop is switched on or off.
         map_x = x + gutter_w + ELLIPSIS_ROOM
         map_y = y + COL_LABEL_H + COL_LABEL_GAP + ELLIPSIS_ROOM
-        # Laid out against the panel's own edges rather than against MAP_CELLS: the
-        # panel was measured to leave exactly a full map here, so this comes out the
-        # same — and a cell of an odd shape simply fits fewer, with the "…" saying so,
-        # instead of running off the edge.
+        # The panel was measured to leave exactly this map here, so these bounds are
+        # where the map already ends; they are what keeps painting and hit-testing
+        # from drifting apart, not a second answer to how many cells fit.
         map_right = right - MAP_RIGHT_RESERVE - ELLIPSIS_ROOM
         map_bottom = bottom - MAP_BOTTOM_RESERVE - ELLIPSIS_ROOM
-        model, seed_win, action_win = self._window(
-            model, room_x=map_right - map_x, room_y=map_bottom - map_y)
-
-        corner_thumb = self._thumbnail(model.corner)
-        seed_thumbs = [self._thumbnail(cell) for cell in model.seeds]
-        action_thumbs = [self._thumbnail(cell) for cell in model.actions]
         corner_rect, seed_rects, action_rects = thumbnail_rects(
             map_x=map_x, map_y=map_y, right=map_right, bottom=map_bottom,
             corner_size=corner_thumb.size,
@@ -330,17 +348,18 @@ class HudRenderer:
         return RenderedHud(panel.to_bgra(), targets)
 
     def _window(
-        self, model: HudModel, *, room_x: int, room_y: int
+        self, model: HudModel
     ) -> tuple[HudModel, MapWindow | None, MapWindow | None]:
         """*model* narrowed to the cells actually drawn, plus each axis's window.
 
-        An axis can hold far more clips than the map has room for — a loop's group
+        An axis can hold far more clips than the map draws — a loop's group
         especially.  Rather than draw the first few and leave the clip on screen off
         the map once playback moves past them (which showed as the highlight
         vanishing onto an unrecognisable video), each axis is drawn through a window
-        that keeps the playing cell near the middle.  Narrowing the model here means
-        everything downstream — rects, labels, hit targets, the bright cell — works
-        off the drawn cells alone.
+        of MAP_CELLS that keeps the playing cell near the middle.  Narrowing the
+        model here means everything downstream — rects, labels, hit targets, the
+        bright cell, and the panel measured around them — works off the drawn cells
+        alone.
         """
         if model.corner is None:
             return model, None, None
@@ -349,17 +368,13 @@ class HudRenderer:
         action_strip = [model.corner, *model.actions]
         seed_at = index + 1 if bucket == "seed" else 0
         action_at = index + 1 if bucket == "action" else 0
-        # Along the row the cells differ in width, so they are measured; down the
-        # column every thumbnail is scaled to one height, so none need decoding.
-        seed_win = map_window([self._thumbnail(cell).width for cell in seed_strip],
-                              seed_at, room_x, gap=MAP_GAP)
-        action_win = map_window([MAP_THUMB_H] * len(action_strip), action_at, room_y, gap=ROW_GAP)
+        seed_win = map_window(len(seed_strip), seed_at)
+        action_win = map_window(len(action_strip), action_at)
         # The corner slot belongs to whichever axis the clip on screen sits on: that
-        # is the only axis whose window can have moved off the corner.
+        # is the only axis whose window can have moved off the corner.  Both strips
+        # hold the corner, so both windows hold at least it.
         window = action_win if bucket == "action" else seed_win
         strip = action_strip if bucket == "action" else seed_strip
-        if not window.count:
-            return model, None, None
         corner = strip[window.start]
         lit = (action_at if bucket == "action" else seed_at) - window.start
         narrowed = replace(
@@ -389,10 +404,10 @@ class HudRenderer:
     def _draw_counts(self, draw, x: int, y: int, lines: tuple[str, ...]) -> None:
         """The axis counts, in the corner left of the map and above its first row.
 
-        The map draws only the cells that fit — and a window can hide a whole loop's
-        worth — so this is the only place its real size can be read.  It sits outside
-        the map proper, in the gutter's own column, and is there whether or not a
-        loop is running.
+        The map draws only MAP_CELLS of each axis — and a window can hide a whole
+        loop's worth — so this is the only place its real size can be read.  It sits
+        outside the map proper, in the gutter's own column, and is there whether or
+        not a loop is running.
         """
         for line_no, text in enumerate(lines, start=1):
             draw.text((x, y + _COUNT_LINE_H * line_no), text, font=self._tiny,

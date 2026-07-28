@@ -44,17 +44,18 @@ MAP_RIGHT_RESERVE = 2 * (LOOP_BTN + MAP_GAP)
 MAP_BOTTOM_RESERVE = LOOP_BTN + MAP_GAP
 
 # The map is three cells on a side — the clip on screen in the corner, two of its
-# seeds along the row, two of its other acts down the column — and the panel is
-# measured to hold exactly that.  Both panels were fixed slabs before (300x430 and
-# 500x300), sized against the shape of the window they float over rather than
-# against what they draw: the landscape one had no room for a third row, and both
-# carried space no map ever reached.
+# seeds along the row, two of its other acts down the column.  Each axis is
+# windowed to this many cells and the panel is then measured around the cells that
+# won, so the count is what is fixed and the panel is what gives.  Sizing it the
+# other way round — a panel of some chosen width, and as many cells as happened to
+# fit — is what made the portrait map two cells wide: its clips are not all 9:16,
+# and a row of the wider ones ran out of panel after the second one.
 MAP_CELLS = 3
-# How wide one map cell draws, per side: a clip of that side's shape scaled to
-# MAP_THUMB_H (fun_time caches thumbnails at a 160px longest edge, so a portrait
-# 9:16 lands on 30 and a landscape 16:9 on 96).  The panel is measured off this,
-# and it is also the placeholder drawn where fun_time has not produced a frame
-# yet, so the map holds its shape before any thumbnail exists.
+# The nominal width of one of a side's cells: a clip of that side's usual shape
+# scaled to MAP_THUMB_H (fun_time caches thumbnails at a 160px longest edge, so a
+# 9:16 lands on 30 and a 16:9 on 96).  Only for the two cases with no thumbnail to
+# measure — the placeholder drawn while fun_time is still producing a frame, and
+# the panel before the first clip arrives.  A real cell is always measured.
 CELL_W = {"portrait": 30, "landscape": 96}
 
 STATUS_SEPARATOR = " · "  # what fun_time joins the status line's parts with
@@ -144,7 +145,7 @@ class HudModel:
     filter_query: str = ""
     active_loop: str = ""
     # How many clips each axis stands for, the clip on screen included.  The map
-    # draws only the cells that fit, so it prints these in its top-left corner —
+    # draws only MAP_CELLS of them, so it prints these in its top-left corner —
     # the only place the real size of each axis can be read.
     seed_count: int = 0
     action_count: int = 0
@@ -166,46 +167,46 @@ ELLIPSIS_ROOM = ELLIPSIS + 2 * MAP_GAP
 
 
 def cell_width(side: str) -> int:
-    """How wide one of *side*'s clips draws on the map.  One lookup, so the panel
-    is never measured against a cell width the map does not draw."""
+    """The nominal width of one of *side*'s cells — see :data:`CELL_W`.  Used only
+    where there is no thumbnail to measure."""
     return CELL_W.get(side, CELL_W["portrait"])
 
 
-def map_extent(side: str) -> tuple[int, int]:
-    """The room a full ``MAP_CELLS`` x ``MAP_CELLS`` map of *side*'s clips takes —
-    the cells themselves, plus the gaps between them.  Not the "…" slots or the
-    buttons past either end: those are the panel's business, below."""
-    return (MAP_CELLS * cell_width(side) + (MAP_CELLS - 1) * MAP_GAP,
-            MAP_CELLS * MAP_THUMB_H + (MAP_CELLS - 1) * ROW_GAP)
+def map_row_width(widths: list[int]) -> int:
+    """The room a map row of cells *widths* across takes, its gaps included."""
+    return sum(widths) + max(0, len(widths) - 1) * MAP_GAP
 
 
-def panel_width(side: str, gutter: int) -> int:
-    """How wide *side*'s panel has to be: the row-label gutter, then the map's
-    left "…" slot, a full map, its right "…" slot, and the seed-loop and expand
-    buttons past that.
+def map_column_height(cells: int) -> int:
+    """The room a map column of *cells* rows takes, its gaps included.  Every row
+    is scaled to one height, so a count is all this needs."""
+    return cells * MAP_THUMB_H + max(0, cells - 1) * ROW_GAP
 
-    Independent of anything the status says, so the status can be wrapped into
-    this width before the height is known.
+
+def panel_width(gutter: int, row_width: int) -> int:
+    """How wide the panel has to be around a map row *row_width* across: the
+    row-label gutter, the map's left "…" slot, the row, its right "…" slot, and the
+    seed-loop and expand buttons past that.
+
+    Independent of anything the status says, so the status can be wrapped into this
+    width before the height is known.
     """
-    map_w, _map_h = map_extent(side)
-    return PAD + gutter + ELLIPSIS_ROOM + map_w + ELLIPSIS_ROOM + MAP_RIGHT_RESERVE + PAD
+    return PAD + gutter + ELLIPSIS_ROOM + row_width + ELLIPSIS_ROOM + MAP_RIGHT_RESERVE + PAD
 
 
-def panel_height(side: str, *, status_lines: int, mapped: bool) -> int:
-    """How tall *side*'s panel has to be: the status band (as many lines as it
-    wrapped to) and the control band, then — when there is a map to draw — the
-    "Seed N" header strip, the map's own "…" slots and rows, and the action-loop
-    button below them.
+def panel_height(status_lines: int, column_height: int) -> int:
+    """How tall the panel has to be: the status band (as many lines as it wrapped
+    to) and the control band, then — around a map column *column_height* deep — the
+    "Seed N" header strip, the column's own "…" slots, and the action-loop button
+    below it.
 
-    *mapped* is false before the satellite's first clip arrives, when the panel is
-    the two bands and nothing else: there is no map, so there is no room to keep
-    for one.
+    *column_height* is 0 before the satellite's first clip, when the panel is the
+    two bands and nothing else: there is no map, so no room is kept for one.
     """
-    _map_w, map_h = map_extent(side)
     foot = PAD + status_band_height(status_lines) + CTRL_BAND_H
-    if mapped:
+    if column_height:
         foot += (COL_LABEL_H + COL_LABEL_GAP + ELLIPSIS_ROOM
-                 + map_h + ELLIPSIS_ROOM + MAP_BOTTOM_RESERVE)
+                 + column_height + ELLIPSIS_ROOM + MAP_BOTTOM_RESERVE)
     return foot + PAD
 
 
@@ -219,49 +220,35 @@ class MapWindow:
     more_after: bool
 
 
-def map_window(sizes: list[int], playing: int, available: int, *, gap: int = MAP_GAP) -> MapWindow:
-    """The run of cells to draw from one axis of the map, keeping *playing* near its
-    middle.
+def map_window(total: int, playing: int, limit: int = MAP_CELLS) -> MapWindow:
+    """The run of at most *limit* cells to draw from an axis of *total*, keeping
+    *playing* near its middle.
 
-    *sizes* are the cells' extents along the axis (widths across the seed row,
-    heights down the action column) and *available* is the room they share.  The run
-    always holds *playing* and grows outward from it, alternating sides and taking
-    the right first: an axis whose head is on screen therefore fills away from the
-    corner, while one whose playing cell has moved along keeps that cell in the
-    middle — which is what stops the lit cell walking off the end of the map and
-    leaving nothing highlighted at all.  A single cell too big for the room is still
-    drawn.
+    The run always holds *playing* and grows outward from it, alternating sides and
+    taking the right first: an axis whose head is on screen therefore fills away
+    from the corner, while one whose playing cell has moved along keeps that cell in
+    the middle — which is what stops the lit cell walking off the end of the map and
+    leaving nothing highlighted at all.
+
+    A count, not a measurement.  This used to take the cells' widths and the room
+    they had to share, which made the map as wide as the panel happened to allow —
+    two cells for a row of the wider portrait clips, three for the narrower ones.
+    The panel is measured around the run instead now, so what the map shows no
+    longer depends on the shape of the clips that are in it.
     """
-    if not sizes:
+    if total <= 0 or limit <= 0:
         return MapWindow(0, 0, False, False)
-    playing = max(0, min(playing, len(sizes) - 1))
+    playing = max(0, min(playing, total - 1))
     start, end = playing, playing + 1
-    used = sizes[playing]
-    while True:
-        sides = []
-        if end < len(sizes):
-            sides.append(True)
-        if start > 0:
-            sides.append(False)
-        if not sides:
-            break
+    while end - start < min(limit, total):
         # Take from whichever side has been given fewer cells so far — that is what
         # centres *playing* — with the right winning ties so a fresh loop reads left
-        # to right.  A side that no longer fits defers to the other.
-        sides.sort(key=lambda right: (end - playing - 1) if right else (playing - start))
-        for right in sides:
-            cost = sizes[end if right else start - 1] + gap
-            if used + cost > available:
-                continue
-            used += cost
-            if right:
-                end += 1
-            else:
-                start -= 1
-            break
+        # to right.  A side that has run out defers to the other.
+        if end < total and (start == 0 or end - playing - 1 <= playing - start):
+            end += 1
         else:
-            break
-    return MapWindow(start, end - start, start > 0, end < len(sizes))
+            start -= 1
+    return MapWindow(start, end - start, start > 0, end < total)
 
 
 def thumbnail_rects(

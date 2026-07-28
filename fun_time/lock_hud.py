@@ -95,7 +95,7 @@ class HudPanel:
     action_labels: tuple[str, ...] = ()
     # How many clips each axis stands for, the clip on screen included: the seed
     # family (widened when the row is) and the distinct acts of the subject.  The map
-    # draws only the cells that fit, so these are the only place the real size of
+    # draws only a few cells of each, so these are the only place the real size of
     # each axis can be read.
     seed_count: int = 0
     action_count: int = 0
