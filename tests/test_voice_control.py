@@ -365,14 +365,24 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["both loop all"] == "both_reset"
 
     def test_primary_nav_phrases_both_orders(self):
-        """The primary player joins the grid for navigation only, in either
-        order; "main" is a synonym for "primary". Bare "next"/"previous" reach
-        it via the active side."""
+        """The primary player joins the grid for navigation, in either order;
+        "main" is a synonym for "primary". Bare "next"/"previous" reach it via
+        the active side."""
         for word in ("primary", "main"):
             assert VOICE_COMMANDS[f"{word} next"] == "primary_next"
             assert VOICE_COMMANDS[f"next {word}"] == "primary_next"
             assert VOICE_COMMANDS[f"{word} previous"] == "primary_prev"
             assert VOICE_COMMANDS[f"previous {word}"] == "primary_prev"
+
+    def test_primary_lock_phrases_both_orders(self):
+        """The primary's lock joins that grid too, and says there what it says on
+        a satellite: hold the video on screen, or let its end walk the playlist.
+        Bare "lock"/"unlock" reach it via the active side."""
+        for word in ("primary", "main"):
+            assert VOICE_COMMANDS[f"{word} lock"] == "primary_lock_on"
+            assert VOICE_COMMANDS[f"lock {word}"] == "primary_lock_on"
+            assert VOICE_COMMANDS[f"{word} unlock"] == "primary_lock_off"
+            assert VOICE_COMMANDS[f"unlock {word}"] == "primary_lock_off"
 
     def test_mode_named_navigation_both_orders(self):
         """A mode's name + next/previous (either order) navigates its player:

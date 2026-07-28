@@ -374,6 +374,24 @@ def test_read_nau_status_defaults_funscript_resting_to_false(tmp_path: Path):
     assert read_nau_status(tmp_path / "missing.txt").funscript_resting is False
 
 
+def test_read_nau_status_parses_the_lock(tmp_path: Path):
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text("video=C:\\clip.mp4\nlocked=0\n", encoding="utf-8")
+
+    assert read_nau_status(status_file).locked is False
+
+
+def test_read_nau_status_defaults_the_lock_to_on(tmp_path: Path):
+    """Holding one video is what the primary does until told otherwise, so a
+    status that says nothing about the lock — or no status at all — must not read
+    as unlocked and light the console's padlock the wrong way."""
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text("video=C:\\clip.mp4\n", encoding="utf-8")
+
+    assert read_nau_status(status_file).locked is True
+    assert read_nau_status(tmp_path / "missing.txt").locked is True
+
+
 def test_read_nau_status_parses_position_and_duration(tmp_path: Path):
     # Watch tracking (breeding) needs the playback fraction, so both the
     # position and the clip length are read off Nau's status file.

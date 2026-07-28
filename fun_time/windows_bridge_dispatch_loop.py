@@ -123,11 +123,15 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 
 # The side-agnostic actions the primary (Nau) answers, and what it answers with.
 # Navigation is the same gesture on every player; "end loop" is the same *word* for
-# a different loop — Nau's A-B loop rather than a satellite's group loop.
+# a different loop — Nau's A-B loop rather than a satellite's group loop.  A lock
+# is the same thing on all three — repeat-one on what is on screen — so the bare
+# word reaches whichever was last addressed, the primary included.
 _PRIMARY_EQUIVALENTS = {
     "next": "primary_next",
     "prev": "primary_prev",
     "no_loop": "nau_loop_cancel",
+    "lock_on": "primary_lock_on",
+    "lock_off": "primary_lock_off",
 }
 
 
@@ -135,12 +139,13 @@ def resolve_active_side_command(command: str, active_side: int) -> str:
     """Rewrite a side-agnostic ``active_*`` command onto the active player.
 
     ``active_next``/``active_prev`` follow the last player navigated — primary
-    (Nau, slot 1), portrait (2), or landscape (3).  ``active_no_loop`` reaches the
-    primary too, meaning the loop *it* has: Nau's A-B loop, where on a satellite the
-    same phrase ends a group loop.  The rest (lock, weird, cycle) exist only on the
-    satellites, so while the primary is active they resolve to nothing — returned
-    unchanged, which is a no-op downstream.  Every non-``active_`` command passes
-    through unchanged.
+    (Nau, slot 1), portrait (2), or landscape (3).  ``active_lock_on``/``_off``
+    reach the primary too, meaning there what they mean on a satellite: hold the
+    video on screen, or let the playlist walk on.  So does ``active_no_loop``, but
+    meaning the loop *it* has: Nau's A-B loop, where on a satellite the same phrase
+    ends a group loop.  The rest (weird, cycle) exist only on the satellites, so
+    while the primary is active they resolve to nothing — returned unchanged, which
+    is a no-op downstream.  Every non-``active_`` command passes through unchanged.
     """
     if not command.startswith("active_"):
         return command
@@ -426,8 +431,12 @@ class DispatchLoopRunner:
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
             if self.config.broker_heartbeat_file else False,
             # Nau's loop machine, so the record button on the console can show
-            # which half of the gesture is running.
+            # which half of the gesture is running, and its lock, so the padlock
+            # can show whether the video is being held.  Both come back off Nau's
+            # own status file, because in genau mode the player drawing that
+            # console has neither to ask.
             record=nau.state,
+            nau_locked=nau.locked,
             genau=read_genau_status(self.config.state_dir / "genau_status.txt"),
         ))
 
