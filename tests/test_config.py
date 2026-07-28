@@ -185,6 +185,38 @@ class TestLoadConfig:
         cfg = load_config(path)
         assert cfg.paths.broker_tray_launcher == launcher
 
+    def test_the_broker_shares_our_state_dir_unless_it_is_named(self, cfg_path: Path):
+        """Which every session but a branch one does — one directory, one broker."""
+        cfg = load_config(cfg_path)
+        assert cfg.paths.broker_state_dir == cfg.paths.state_dir
+
+    def test_the_brokers_files_follow_the_broker_when_it_is_named(self, cfg_factory, tmp_path: Path):
+        """Named, it takes the whole channel with it, not the heartbeat alone.
+
+        Each of these is a file ``../broker`` opens from its own config, so all
+        of them have to leave together — a session reading four out of five from
+        the broker and one from itself is the bug in miniature.
+        """
+        broker_state = tmp_path / "primary" / "state"
+        path = cfg_factory({"paths": {"broker_state_dir": str(broker_state)}})
+        cfg = load_config(path)
+
+        assert cfg.paths.broker_state_dir == broker_state
+        assert cfg.paths.state_dir != broker_state
+        assert [
+            cfg.broker_heartbeat_file,
+            cfg.osr2_serial_rx_file,
+            cfg.broker_cmd_file,
+            cfg.genau_mode_file,
+            cfg.genau_enabled_file,
+        ] == [
+            broker_state / "broker_heartbeat.txt",
+            broker_state / "osr2_serial_rx.txt",
+            broker_state / "broker_cmd.txt",
+            broker_state / "genau_mode.txt",
+            broker_state / "genau_enabled.txt",
+        ]
+
     def test_missing_random_favs_browser_section_defaults_disabled(self, cfg_factory):
         path = cfg_factory()
         raw = json.loads(path.read_text(encoding="utf-8"))

@@ -38,6 +38,12 @@ half-finished branch cannot corrupt what the live session reads back.
 Everything else is deliberately the real thing — the real library, the real
 ``favs.csv``, the real broker and device — because a verification run on
 fixtures verifies fixtures.
+
+The broker's own files are the exception inside that exception.  They live in
+``state/`` too, but they belong to ``../broker``, which opens them from one
+directory named in its own config and never learns a session moved — so they
+stay pinned to the primary's (``paths.broker_state_dir``) while everything else
+in ``state/`` moves into the worktree.
 """
 from __future__ import annotations
 
@@ -194,6 +200,15 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
     what the primary resolved keeps a branch session on the machine's real
     files.
 
+    ``broker_state_dir`` is pinned for a different reason, and is the one that
+    matters most here: it defaults to ``state_dir``, and ``state_dir`` is the one
+    value this rewrite goes on to move.  The broker is the machine's one broker,
+    configured against the primary for good, so a branch session that let its
+    heartbeat, serial-activity, command and mode files follow that move would read
+    an empty directory — the primary console's broker light red and its OSR2 light
+    "off" while the device is plainly running, and its park and resume verbs
+    written where nothing reads them.
+
     Every value comes from *real*, the config as production loaded it — nothing
     here re-implements path resolution.  ``state_dir`` is listed for the same
     reason: this is the complete set, and the state dir being overridden
@@ -212,6 +227,7 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "audio_dir": paths.audio_dir,
             "favs_file": paths.favs_file,
             "state_dir": paths.state_dir,
+            "broker_state_dir": paths.broker_state_dir,
             "genau_python_exe": paths.genau_python_exe,
             "genau_config_path": paths.genau_config_path,
             "broker_tray_launcher": paths.broker_tray_launcher,

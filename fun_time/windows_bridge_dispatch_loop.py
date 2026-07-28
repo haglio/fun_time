@@ -44,10 +44,8 @@ from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import (
-    genau_enabled_path,
     is_broker_heartbeat_fresh,
     is_osr2_device_on,
-    read_genau_enabled,
     read_genau_status,
     read_nau_status,
 )
@@ -811,7 +809,7 @@ class DispatchLoopRunner:
         Read by the dashboard's snapshot and by Nau's console — one rule, so the
         two cannot disagree about what has the OSR2.
         """
-        if not is_osr2_device_on(self.config.state_dir / "osr2_serial_rx.txt"):
+        if not is_osr2_device_on(self.config.osr2_serial_rx_file):
             return "off"
         return "auto" if read_flag_file(self.config.genau_mode_file, False) else "controlled"
 
@@ -1191,6 +1189,7 @@ def build_bridge_config_from_manifest(
         dashboard_state_file=Path(manifest["commands"]["dashboard_state_file"]),
         broker_cmd_file=Path(manifest["commands"]["broker_cmd_file"]),
         broker_heartbeat_file=Path(manifest["commands"]["broker_heartbeat_file"]),
+        broker_state_dir=Path(v) if (v := manifest["commands"].get("broker_state_dir", "").strip()) else None,
         broker_tray_launcher=Path(v) if (v := manifest["commands"].get("broker_tray_launcher", "").strip()) else None,
         regen_media_root=Path(v) if (v := manifest.get("regen", "media_root", fallback="").strip()) else None,
         regen_metadata_root=Path(v) if (v := manifest.get("regen", "metadata_root", fallback="").strip()) else None,

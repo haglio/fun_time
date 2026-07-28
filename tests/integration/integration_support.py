@@ -582,6 +582,16 @@ def isolate_shared_resources(config: dict, genau_config: dict) -> None:
     # writes, never has.
     config["paths"]["broker_tray_launcher"] = ""
 
+    # And the broker's own directory, which a config may pin away from the
+    # session's own so the two land on the machine's one broker (a branch session
+    # does — see :mod:`fun_time.branch_session`).  A run copies the config whole,
+    # so it would inherit that pin: park and retract written into the live
+    # broker's command file, and its heartbeat read back as the run's own — the
+    # fresh heartbeat that is the one thing the kill path above waits for.
+    # Dropping the key puts the whole channel back inside the run's state dir,
+    # where no broker writes and none is ever started.
+    config["paths"].pop("broker_state_dir", None)
+
     # There is one microphone.  Windows shares an input device between listeners
     # rather than refusing the second, so a run that opened it would not fail —
     # it would listen in on the user and act on what they said to their own
