@@ -49,7 +49,8 @@ from fun_time.orchestrator import (
     validate_config,
 )
 from fun_time.satellite_control import read_satellite_status
-from fun_time.session_resume import resume_playlists
+from fun_time.session_resume import resume_playlists, resume_shared_state
+from fun_time.shared_state import shared_state_path
 from fun_time.voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from fun_time.watch_stats import watch_stats_path
 from fun_time.windows_bridge_dispatch_loop import (
@@ -224,6 +225,10 @@ def run_vr_bridge(config, logger_) -> int:
         (landscape_playlist, read_satellite_status(Path(commands["landscape_status_file"])).video),
         (nau_playlist, read_nau_status(Path(commands["nau_status_file"])).video),
     ])
+    # And the mode those playlists were built in: F-mode, each side's filter and
+    # order, any group loop.  The dispatch loop opens on this file, so resuming
+    # the files without it leaves every HUD describing a different session.
+    carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed)
     if not resumed:
         build_fmode_playlists(
             primary_sources=manifest["media"]["nau_library_sources"],
@@ -241,7 +246,10 @@ def run_vr_bridge(config, logger_) -> int:
         # Resumed from a desktop session, whose primary playlist is 2D only:
         # keep the satellites where they were, but rebuild the primary from the
         # VR-merged sources so a headset session actually gets VR videos.
-        build_primary_playlist(nau_playlist, manifest["media"]["nau_library_sources"])
+        build_primary_playlist(
+            nau_playlist, manifest["media"]["nau_library_sources"],
+            f_mode=carried.f_mode_enabled,
+        )
         logger_.info("Resumed playlists; rebuilt the primary's, which held no VR video")
     logger_.info(
         "Resumed last session's playlists" if resumed else "Nothing to resume; built fresh playlists"
@@ -269,9 +277,11 @@ def run_vr_bridge(config, logger_) -> int:
     # The reveal: playback starts the moment the player is up.
     write_flag_file(commands["nau_paused_file"], False)
 
+    # Command files only: the shared state file already holds this session's
+    # opening state, written above with whatever the resumed playlists were
+    # built under, and deleting it here would drop all of it back to defaults.
     dashboard_cmd_file = Path(commands["dashboard_cmd_file"])
     for stale in (
-        state_dir / "shared_bridge_state.ini",
         state_dir / "ahk_cmd.txt",
         dashboard_cmd_file,
         dashboard_cmd_file.with_suffix(".processing"),
@@ -283,7 +293,7 @@ def run_vr_bridge(config, logger_) -> int:
         role_hwnds={},
         config=bridge_config,
         dashboard_cmd_file=dashboard_cmd_file,
-        shared_state_file=state_dir / "shared_bridge_state.ini",
+        shared_state_file=shared_state_path(state_dir),
         ahk_cmd_file=state_dir / "ahk_cmd.txt",
         # Every role pid stays 0: the roles live inside the VR player, there
         # are no per-role windows, and unresolved HWNDs are exactly what makes

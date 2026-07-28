@@ -21,7 +21,8 @@ from .modes import (
     build_primary_playlist,
 )
 from .satellite_control import read_satellite_status
-from .session_resume import playlist_fits_sources, resume_playlists
+from .session_resume import playlist_fits_sources, resume_playlists, resume_shared_state
+from .shared_state import shared_state_path
 from .watch_stats import watch_stats_path
 from .orchestrator_broker import (
     BROKER_LAUNCHER_PATTERN,
@@ -370,6 +371,11 @@ def start_core_session(
         (landscape_playlist, read_satellite_status(Path(landscape_status_file)).video),
         (nau_playlist, read_nau_status(Path(nau_status_file)).video),
     ])
+    # Come back to the mode those playlists were built in, too — F-mode, each
+    # side's filter and order, any group loop.  The dispatch loop opens on this
+    # file, so a session that resumed the files and not the state described
+    # itself wrongly on every HUD.
+    carried = resume_shared_state(shared_state_path(state_path), resumed=resumed)
     if not resumed:
         build_fmode_playlists(
             primary_sources=primary_sources,
@@ -390,7 +396,7 @@ def start_core_session(
         # must never play them.  Rebuild the primary from this session's own
         # library alone; the satellites' playlists come from the same dirs in
         # either app, so their resume stands.
-        build_primary_playlist(nau_playlist, primary_sources)
+        build_primary_playlist(nau_playlist, primary_sources, f_mode=carried.f_mode_enabled)
         logger.info("Resumed playlists; rebuilt the primary's, which held another app's videos")
     # Which of the two ran is the difference between the clips of the last
     # session and three new ones, so the log says outright which you are getting.

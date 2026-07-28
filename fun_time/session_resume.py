@@ -1,4 +1,5 @@
-"""Bring a reopened session back to the clip each player was on.
+"""Bring a reopened session back to the clip each player was on, and the mode
+they were in.
 
 Every player starts at the top of the playlist file fun_time hands it, and
 startup used to overwrite all three with a fresh weighted shuffle — so
@@ -8,8 +9,14 @@ each one onto the clip that was on screen: the player's first entry is where
 you left off, and because a playlist wraps, the clips that were coming up still
 come up in the same order.
 
-Nothing has to be written at shutdown for this.  Each player already publishes
-the video it is playing to its status file every tick, so the last tick before
+Keeping those files means keeping what SHAPED them, which is the other half here
+(:func:`resume_shared_state`): a playlist carries its session's F-mode, filter,
+order and loop in it, so the session has to come back believing what its files
+say, or every HUD describes a session other than the one playing.
+
+Nothing has to be written at shutdown for either half.  Each player already
+publishes the video it is playing to its status file every tick, and the
+dispatch loop writes the state file after every command, so the last tick before
 the session ended is the record — one that survives the force-kill that ends a
 session, and a crash or a power cut too, where a shutdown hook would not.
 """
@@ -20,11 +27,38 @@ from typing import Sequence
 
 from player_core.playlist import read_playlist
 
+from .command_dispatch import BridgeState
 from .media_metadata import normalize_path_key
 from .modes import source_roots, write_playlist_entries
+from .shared_state import read_shared_state, write_shared_state
 
 
 PlaylistEntries = list[tuple[Path, Path | None]]
+
+# What a resumed playlist still stands for, and so what a reopened session has
+# to come back believing.  Every one of these shaped the files that were just
+# resumed: F-mode and a filter decide which clips are in them, Latest fixes
+# their order, and a group loop IS the group written out as the playlist, with
+# the map anchored (and the seed row widened) on the clip it started from.
+#
+# Nothing else survives, because nothing on disk carries it into the new
+# session: a lock is repeat-one on an mpv process that has been replaced,
+# OmniPause's paused flags are cleared before the players launch, the sound
+# level is re-seeded to full, the primary opens in nau mode holding the floor,
+# and a keyboard-navigation selection was never a thing you could leave running.
+RESUMED_FIELDS = (
+    "f_mode_enabled",
+    "portrait_filter",
+    "landscape_filter",
+    "portrait_latest",
+    "landscape_latest",
+    "portrait_loop",
+    "landscape_loop",
+    "portrait_map_anchor",
+    "landscape_map_anchor",
+    "portrait_widen_clip",
+    "landscape_widen_clip",
+)
 
 
 def playlist_fits_sources(playlist_file: Path, sources: str) -> bool:
@@ -111,3 +145,29 @@ def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
     for playlist_file, entries in rotated:
         write_playlist_entries(playlist_file, entries)
     return True
+
+
+def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
+    """Seed *state_file* with the mode the resumed playlists still stand for.
+
+    Pass *resumed* as :func:`resume_playlists` reported it: the state carried
+    forward is only ever the state that explains the files on disk, so a session
+    built fresh — nothing to resume, or a rebuild over the top — opens on
+    defaults, and one that kept last session's playlists keeps what shaped them
+    (:data:`RESUMED_FIELDS`).
+
+    Written either way, and returned, since the file is what the dispatch loop
+    reads its opening state from: the alternative was deleting it at startup,
+    which is exactly how a session came back playing favorites while every HUD
+    said F-mode was off — and then answered "F-mode" by reporting it *enabled*
+    and changing nothing you could see.  Writing defaults clears a crashed
+    session's leftovers just as the delete did.
+    """
+    previous = read_shared_state(state_file) if resumed else None
+    state = (
+        BridgeState()
+        if previous is None
+        else BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS})
+    )
+    write_shared_state(state_file, state)
+    return state

@@ -15,12 +15,11 @@ from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
 from fun_time.hud_transport import HudPublisher
 from fun_time.media_metadata import normalize_path_key
 from fun_time.voice_commands import parse_command_line
+from fun_time.shared_state import read_shared_state, write_shared_state
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     expand_both_command,
-    write_shared_state,
-    read_shared_state,
     resolve_active_side_command,
     detect_sleep_gap,
     DispatchLoopRunner,
@@ -281,156 +280,6 @@ class TestPollDashboardCommands:
         result = poll_dashboard_commands(cmd_file)
 
         assert result == ["primary_prev"]
-
-
-class TestSharedState:
-    def test_write_then_read_roundtrip(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(
-            locked2=True,
-            locked3=False,
-            primary_mode="genau",
-            f_mode_enabled=False,
-            omni_paused=True,
-        )
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded == state
-
-    def test_read_returns_none_when_missing(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        assert read_shared_state(state_file) is None
-
-    def test_active_side_roundtrips(self, tmp_path):
-        """active_side must persist: tick() reloads state from this file every
-        iteration, so a side set by a nav command would be lost otherwise."""
-        state_file = tmp_path / "shared_state.ini"
-        write_shared_state(state_file, BridgeState(active_side=3))
-
-        loaded = read_shared_state(state_file)
-
-        assert loaded is not None
-        assert loaded.active_side == 3
-
-    def test_active_side_defaults_to_the_primary_for_legacy_files(self, tmp_path):
-        """An INI written before active_side existed loads as the primary (1) —
-        the same floor a fresh session opens on."""
-        state_file = tmp_path / "shared_state.ini"
-        state_file.write_text(
-            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
-            "f_mode_enabled = 0\nomni_paused = 0\n",
-            encoding="utf-8",
-        )
-
-        loaded = read_shared_state(state_file)
-
-        assert loaded is not None
-        assert loaded.active_side == 1
-
-    def test_roundtrip_preserves_the_sound_level(self, tmp_path):
-        """volume/muted must persist: tick() reloads state from this file every
-        iteration, so a spoken "quieter" would be undone before it was heard."""
-        state_file = tmp_path / "shared_state.ini"
-
-        write_shared_state(state_file, BridgeState(volume=30, muted=True))
-        loaded = read_shared_state(state_file)
-
-        assert loaded.volume == 30
-        assert loaded.muted is True
-
-    def test_roundtrip_preserves_per_satellite_filters(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(
-            primary_mode="nau",
-            portrait_filter="beta gamma",
-            landscape_filter="alpha",
-        )
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded.portrait_filter == "beta gamma"
-        assert loaded.landscape_filter == "alpha"
-
-    def test_roundtrip_preserves_per_satellite_loops(self, tmp_path):
-        """The HUD runs in its own process and reads its loop state from this
-        file, so a loop set by a command has to survive the round-trip."""
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait_loop="seed", landscape_loop="action")
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded.portrait_loop == "seed"
-        assert loaded.landscape_loop == "action"
-
-    def test_roundtrip_preserves_the_map_anchor(self, tmp_path):
-        """The HUD orders a running loop's map from the clip the loop started on,
-        which it reads from this file, so it must survive the round-trip."""
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait_map_anchor="C:/v/a.mp4", landscape_map_anchor="C:/v/b.mp4")
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded.portrait_map_anchor == "C:/v/a.mp4"
-        assert loaded.landscape_map_anchor == "C:/v/b.mp4"
-
-    def test_roundtrip_preserves_the_widen_clip(self, tmp_path):
-        """The HUD reads which clip each side's seed row is widened around from
-        this file, so it must survive the round-trip."""
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait_widen_clip="C:/v/a.mp4", landscape_widen_clip="C:/v/b.mp4")
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded.portrait_widen_clip == "C:/v/a.mp4"
-        assert loaded.landscape_widen_clip == "C:/v/b.mp4"
-
-    def test_roundtrip_preserves_the_nav_anchor(self, tmp_path):
-        """The HUD reads which clip each side's map is frozen on for keyboard
-        navigation from this file, so it must survive the round-trip."""
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait_nav_anchor="C:/v/a.mp4", landscape_nav_anchor="C:/v/b.mp4")
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded.portrait_nav_anchor == "C:/v/a.mp4"
-        assert loaded.landscape_nav_anchor == "C:/v/b.mp4"
-
-    def test_state_files_without_loop_keys_load_as_unlooped(self, tmp_path):
-        # A state file written before loops were tracked must still load.
-        state_file = tmp_path / "shared_state.ini"
-        state_file.write_text(
-            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
-            "f_mode_enabled = 0\nomni_paused = 0\n",
-            encoding="utf-8",
-        )
-
-        loaded = read_shared_state(state_file)
-
-        assert loaded is not None
-        assert loaded.portrait_loop == ""
-        assert loaded.landscape_loop == ""
-
-    def test_state_files_without_filter_keys_load_as_unfiltered(self, tmp_path):
-        # A state file written before filters existed must still load.
-        state_file = tmp_path / "shared_state.ini"
-        state_file.write_text(
-            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
-            "f_mode_enabled = 0\nomni_paused = 0\n",
-            encoding="utf-8",
-        )
-
-        loaded = read_shared_state(state_file)
-
-        assert loaded is not None
-        assert loaded.portrait_filter == ""
-        assert loaded.landscape_filter == ""
 
 
 class TestResolveActiveSideCommand:
