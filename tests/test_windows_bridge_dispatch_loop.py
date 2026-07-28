@@ -1030,6 +1030,61 @@ class TestDispatchLoopRunner:
 
         assert minimized == []
 
+    def test_mode_switch_leaves_the_outgoing_player_up_for_a_beat(self, tmp_path):
+        """Minimizing freezes a window's Alt-Tab thumbnail — Windows stops
+        compositing it — so the player being left has to be minimized only once
+        the DISPLAY_OFF sent with the same switch is on screen.  Minimize in the
+        frame or two that takes and the thumbnail keeps the video frame it was
+        sitting on, which is the whole thing the blanking is for."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("genau_activate", encoding="utf-8")
+
+        minimized: list[int] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+            runner.tick()
+
+            assert minimized == [], "Nau minimized before it could paint the black"
+            assert runner._pending_hides.keys() == {"nau"}
+
+            # The settle elapses; the next tick parks it, without activation.
+            runner._pending_hides["nau"] = time.monotonic() - 0.001
+            runner.tick()
+
+        assert minimized == [NAU_HWND]
+        assert runner._pending_hides == {}
+
+    def test_switching_straight_back_never_minimizes_the_player(self, tmp_path):
+        """A switch inside the settle window would otherwise minimize the very
+        player it had just restored."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("genau_activate\nnau_activate", encoding="utf-8")
+
+        minimized: list[int] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+            runner.tick()
+            for role in list(runner._pending_hides):
+                runner._pending_hides[role] = time.monotonic() - 0.001
+            runner.tick()
+
+        assert NAU_HWND not in minimized, "Nau owns the display again"
+        assert minimized == [GENAU_HWND]
+
     def test_omnirestore_restores_exactly_the_minimized_windows(self, tmp_path):
         """omnirestore un-minimizes the windows omniminimize minimized — no
         more (a second omnirestore is a no-op), no less, never activating."""
@@ -1321,6 +1376,13 @@ class TestModeSwitchVisibility:
                    side_effect=lambda h: calls.append(("activate", h))), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner._dispatch(command)
+            # The outgoing player's minimize is held back a beat, so it can paint
+            # the black the same switch told it to before its Alt-Tab thumbnail
+            # freezes (see _hide_role).  Run that out here, so these tests still
+            # see the whole ordered sequence.
+            for role in runner._pending_hides:
+                runner._pending_hides[role] = time.monotonic() - 0.001
+            runner._flush_pending_hides()
 
         assert runner.state.primary_mode == {
             "genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid",

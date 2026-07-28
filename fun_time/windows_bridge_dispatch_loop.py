@@ -68,6 +68,13 @@ from .win32 import (
 
 logger = logging.getLogger(__name__)
 
+# How long the outgoing primary-slot player keeps its window before it is
+# minimized, so the DISPLAY_OFF it was sent in the same breath is on screen
+# first (see DispatchLoopRunner._hide_role).  Generous next to the ~1 frame the
+# player needs to read the verb and the ~1 more to present the black — this is
+# time nobody can see, and being early is the failure it exists to avoid.
+PRIMARY_BLANK_SETTLE_S = 0.25
+
 
 def read_nau_notice(path) -> tuple[float, str, str]:
     """Nau's latest one-shot notice as (sequence, level, message).
@@ -293,6 +300,9 @@ class DispatchLoopRunner:
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
+        # Primary-slot windows waiting out PRIMARY_BLANK_SETTLE_S before they are
+        # minimized, by role -> the monotonic time they are due.
+        self._pending_hides: dict[str, float] = {}
         self._stop = threading.Event()
         self._file_dialog_lock = threading.Lock()
         self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -402,6 +412,9 @@ class DispatchLoopRunner:
         finally:
             self._batching_rfb = False
         self._flush_rfb_tabs()
+        # After the batch, so a switch and a switch straight back inside one
+        # batch cancel rather than minimize the player they just brought back.
+        self._flush_pending_hides()
 
         self._sync_voice_suspension()
 
@@ -729,17 +742,15 @@ class DispatchLoopRunner:
                 # player is parked by minimizing it (keeps its taskbar button),
                 # so bringing it back is a restore.  No-activate — activate_role
                 # handles focus — and DWM transitions are disabled, so it's
-                # instant.
+                # instant.  A switch straight back cancels the settle below: the
+                # window being restored must not be minimized a moment later.
+                self._pending_hides.pop(op.key, None)
                 hwnd = self._resolve_role(op.key)
                 if hwnd:
                     restore_window(hwnd, activate=False)
                 continue
             if op.op == "hide_role":
-                # Minimize instead of SW_HIDE so the window keeps its taskbar
-                # button (running indicator) the whole session.
-                hwnd = self._resolve_role(op.key)
-                if hwnd:
-                    minimize_window(hwnd, activate=False)
+                self._hide_role(op.key)
                 continue
             if op.op == "activate_role":
                 if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
@@ -775,6 +786,40 @@ class DispatchLoopRunner:
             self._flush_rfb_tabs()
         if self.dashboard_enabled:
             self._update_dashboard()
+
+    def _hide_role(self, role: str) -> None:
+        """Park the primary-slot player a mode switch is leaving — after a beat.
+
+        Only that pair is ever hidden (see ``_primary_slot_ops``), and only they
+        need the beat.  Minimizing is what FREEZES a window's Alt-Tab thumbnail:
+        Windows stops compositing a minimized window, so whatever it last drew is
+        what the thumbnail keeps showing until it is restored.  The same switch
+        has just told this player to go dark (DISPLAY_OFF), and reading that verb
+        and presenting the black costs it a frame or two — minimize inside that
+        gap and the thumbnail keeps the video frame the player was sitting on,
+        which is the exact thing the blanking exists to prevent.
+
+        Nothing shows during the wait: the incoming player has already been
+        restored, activated and promoted over the same rect, and this one has
+        been demoted out of the topmost band (see :meth:`_restack_primary_slot`).
+        """
+        self._pending_hides[role] = time.monotonic() + PRIMARY_BLANK_SETTLE_S
+
+    def _minimize_role(self, role: str) -> None:
+        # Minimize instead of SW_HIDE so the window keeps its taskbar button
+        # (running indicator) the whole session.
+        hwnd = self._resolve_role(role)
+        if hwnd:
+            minimize_window(hwnd, activate=False)
+
+    def _flush_pending_hides(self) -> None:
+        """Park each primary-slot window whose settle time has run out."""
+        if not self._pending_hides:
+            return
+        now = time.monotonic()
+        for role in [r for r, due in self._pending_hides.items() if now >= due]:
+            del self._pending_hides[role]
+            self._minimize_role(role)
 
     def _flush_rfb_tabs(self) -> None:
         """Open every buffered RFB URL as tabs in one Chrome launch."""
