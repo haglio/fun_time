@@ -21,6 +21,7 @@ from satellite.hud import (
     filter_button_rects,
     friendly_action_label,
     hit_test_targets,
+    label_is_filtered,
     loop_button_rects,
     map_window,
     parse_hud,
@@ -233,6 +234,16 @@ def test_pressing_another_rows_filter_button_while_filtered_moves_the_filter():
     assert clicks.press(_filter_targets("Gamma"), 5, 5, now=0.0) == "filter_portrait_gamma"
 
 
+def test_pressing_a_partly_matching_lit_button_lifts_the_filter():
+    """A row the filter keeps without naming it exactly ("POV Gamma" under "gamma")
+    is lit, so its button has to be the way out too — a green button that answered a
+    press by staying green would be the confusing half of the toggle."""
+    clicks = HudClicks("portrait")
+    clicks.active_filter = "gamma"
+
+    assert clicks.press(_filter_targets("POV Gamma"), 5, 5, now=0.0) == "portrait_no_filter"
+
+
 def test_thumbnail_rects_positions_the_map_and_drops_overflow():
     """The corner anchors the map; seeds walk right and actions walk down, each
     dropped (not clipped) when it would cross the panel edge."""
@@ -317,6 +328,32 @@ def test_filter_button_rects_puts_one_at_the_head_of_each_row():
 
     assert rects == [((10, 50, FILTER_BTN, 54), "Alpha"), ((10, 110, FILTER_BTN, 54), "Gamma")]
     assert filter_button_rects(None, [], 10, "", []) == []
+
+
+def test_label_is_filtered_reads_a_filter_the_way_fun_time_applies_it():
+    """fun_time keeps a clip when the query is a substring of its metadata, so a row
+    it keeps has to light even when its label is not the query exactly — "POV Gamma"
+    and "Gamma, Theta" are both clips a "gamma" filter holds you to.
+
+    Checked against fun_time's own matcher, the authority this rule mirrors, so the
+    two cannot drift apart in silence.  The empty query is the one deliberate
+    difference: it matches every clip there, and lights no row here.
+    """
+    from fun_time.media_metadata import matches_query
+
+    cases = [
+        ("Gamma", "gamma", True),               # the row that names it
+        ("POV Gamma", "gamma", True),           # the query is one word of the act
+        ("Gamma, Theta", "gamma", True),        # one of two acts on the clip
+        ("Gamma   Theta", "gamma theta", True),  # whitespace collapsed on both sides
+        ("Alpha", "gamma", False),
+        ("Gam", "gamma", False),                # the label is not the longer query
+    ]
+    for label, query, expected in cases:
+        assert label_is_filtered(label, query) is expected, (label, query)
+        assert matches_query({"video": {"action": label}}, query) is expected, (label, query)
+
+    assert label_is_filtered("Gamma", "") is False
 
 
 def test_button_tooltip_names_each_button():
