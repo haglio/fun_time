@@ -11,7 +11,9 @@ The user is never asked to find a branch.  An agent with something to show runs
 a ``Verify <branch>.lnk`` in the primary checkout — the folder he keeps open —
 and tells him that filename.  He double-clicks it; the branch is already baked
 in.  ``launch_branch.vbs`` is the launcher every one of those shortcuts points
-at, and is not run on its own.
+at, and is not run on its own.  Once the work lands, the same agent runs
+``--remove-shortcut`` to take its file back out again: what is sitting in that
+folder should be what is waiting on him, and nothing else.
 
 **A branch session replaces the live one; it never runs beside it.**  Nearly
 everything a session touches is one-per-machine with no per-directory version:
@@ -533,6 +535,31 @@ def write_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> Pat
     return destination
 
 
+def remove_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> Path | None:
+    """Take *worktree*'s launcher back out of the primary checkout.
+
+    An agent's last step once its work has landed: the branch is in Fun Time by
+    then, so a shortcut still offering to run it separately is a file in his
+    folder that can only confuse.  The stale sweep would catch it eventually,
+    but only when some other agent happens to write a shortcut — which may be
+    days away, and it is his folder in the meantime.
+
+    Matched by the worktree the shortcut runs rather than by its name, so a
+    branch renamed since makes no difference.  Returns what was removed, or
+    ``None`` if there was nothing.  Run it before removing the worktree: from a
+    directory that is gone there is no package left to run it with.
+    """
+    primary = (primary or primary_checkout()).resolve()
+    worktree = worktree.resolve()
+    removed: Path | None = None
+    for path, target in _generated_shortcuts(primary).items():
+        if target == worktree:
+            path.unlink()
+            removed = path
+    prune_stale_shortcuts(primary)
+    return removed
+
+
 def _write_shortcut(
     destination: Path, *, target: str, arguments: str, working_dir: str, icon: str, description: str
 ) -> None:
@@ -567,6 +594,14 @@ def build_parser() -> argparse.ArgumentParser:
              "into the primary, print its path, and exit.",
     )
     ap.add_argument(
+        "--remove-shortcut",
+        nargs="?",
+        const=".",
+        metavar="WORKTREE",
+        help="Take WORKTREE's launcher (default: this checkout's) back out of the primary "
+             "once its work has landed, and exit.",
+    )
+    ap.add_argument(
         "--list",
         action="store_true",
         help="List the worktrees that could be verified, newest first, and exit.",
@@ -589,6 +624,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.shortcut:
         target = config_module.PROJECT_DIR if args.shortcut == "." else Path(args.shortcut)
         print(write_launch_shortcut(target))
+        return 0
+    if args.remove_shortcut:
+        target = (
+            config_module.PROJECT_DIR if args.remove_shortcut == "." else Path(args.remove_shortcut)
+        )
+        removed = remove_launch_shortcut(target)
+        print(removed if removed else f"No launcher was there for {target}")
         return 0
     if not args.worktree:
         parser.error("give the worktree to run a session from, or --shortcut to make its launcher")

@@ -124,8 +124,13 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   Ctrl+Alt+Q and launches Fun Time normally afterwards;
   `fun_time/branch_session.py` says what it isolates and what it shares on
   purpose. Then on his word: PR → queue → `git -C <primary> pull --ff-only origin
-  main`, and tell him it is live and needs a restart. Only he may waive the
-  launch — "just land it" is his call to make, never yours.
+  main` → `python -m fun_time.branch_session --remove-shortcut` from your
+  worktree, **before** you remove that worktree and before you tell him it is
+  done. **Always take your shortcut back out.** The work is in Fun Time by then,
+  so a file still offering to run it separately is clutter he has to reason
+  about, and nothing else sweeps it until some other agent happens to write one.
+  Then tell him it is live and needs a restart. Only he may waive the launch —
+  "just land it" is his call to make, never yours.
 
 Everything else in the global CLAUDE.md — work in a worktree, green tests before
 you push, clean handoff — still applies.
