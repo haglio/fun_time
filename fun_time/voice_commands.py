@@ -425,7 +425,11 @@ VOICE_COMMANDS.update(_filter_commands)
 # Nau (where they landed, or "full video not available" / "no funscripting
 # ahead"); F-mode reports from the dispatch, which alone knows whether the toggle
 # turned it on (green) or off (red) — and by owning the toast there, the F key and
-# the dashboard flash it too, not just voice.
+# the dashboard flash it too, not just voice.  "weird" is that same shape: only
+# the dispatch knows whether the clip was a favorite being demoted
+# ("Unfavorited") or an ordinary one being condemned ("Marked weird"), and
+# echoing the phrase back would say neither.  All four spellings are listed
+# because any of them can be what voice hands over.
 SELF_REPORTING_COMMANDS = frozenset({
     "nau_compilation",
     "nau_full_vid",
@@ -433,4 +437,8 @@ SELF_REPORTING_COMMANDS = frozenset({
     "nau_funscript_jump",
     "nau_next_funscripted",
     "fmode_toggle",
+    "portrait_trash",
+    "landscape_trash",
+    "active_trash",
+    "both_trash",
 })
