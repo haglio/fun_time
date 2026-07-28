@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from player_core.file_channel import append_command
+
 MIN_VOLUME = 0
 MAX_VOLUME = 100
 
@@ -50,7 +52,11 @@ def publish_audio_level(
     every spoken "quieter" goes through it after: two sinks with different
     spellings of the same state is exactly the pair that drifts when each caller
     writes them itself.
+
+    Nau's verb *joins* its queue rather than replacing it.  Startup seeds more
+    than one thing on that channel — the level and whether F-mode is on — before
+    Nau is up to drain any of them, and a whole-file write would land whichever
+    went last and silently drop the other.
     """
-    nau_cmd_file.parent.mkdir(parents=True, exist_ok=True)
-    nau_cmd_file.write_text(f"SET_VOLUME {volume} {int(muted)}", encoding="utf-8")
+    append_command(nau_cmd_file, f"SET_VOLUME {volume} {int(muted)}")
     write_volume(audio_volume_file, MIN_VOLUME if muted else volume)
