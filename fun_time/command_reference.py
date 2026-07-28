@@ -131,6 +131,14 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                  "nau_clip_jump"),
             ),
             _Row(
+                "Funscript navigation: \"jump to funscript\" skips ahead to "
+                "where this video's scripting starts up again; \"next "
+                "funscripted\" leaves for the next scripted video in the "
+                "playlist, landing where its action begins",
+                (),
+                ("nau_funscript_jump", "nau_next_funscripted"),
+            ),
+            _Row(
                 "Loop control: hold and release to set a loop, press to end loop",
                 ("R",),
                 ("nau_record_down", "nau_record_up", "nau_record_tap", "nau_loop_cancel"),
@@ -332,6 +340,10 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     # the two-word "un mute" and the reference shows "unmute".
     ("un mute", "unmute"),
     ("un pause", "unpause"),
+    # …nor "funscript", though it has both halves, so the recognizer hears the
+    # split "fun script" and the reference shows the single word.  One rewrite
+    # covers "next fun scripted" too, since "fun script" sits inside it.
+    ("fun script", "funscript"),
     # …nor "omnipause", though it has both halves, so the recognizer hears the
     # split "omni pause" and the reference shows the single word.  Listed after
     # "un pause" so that rewrite has already run and cannot re-split this one.

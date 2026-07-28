@@ -360,7 +360,8 @@ Commands (the full set `nau/runtime.py` answers to):
 - `PLAY_FILE video[TAB]funscript`
 - `RELOAD_PLAYLIST`
 - `TOGGLE_LENGTH_MODE` / `SET_LENGTH_MODE mixed|shorts|full`
-- `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_MONEY_SHOT`
+- `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_CLIP_JUMP`
+- `JUMP_TO_FUNSCRIPT` / `NEXT_FUNSCRIPTED` — funscript navigation: seek past this video's quiet stretch to where its scripting starts up again, or leave for the next scripted video in the playlist, landing where its action begins. Nau alone can answer either, holding both the playlist's funscript column and the parsed script of what is playing
 - `SET_TCODE_ENABLED 0|1`
 - `SET_HYBRID 0|1` / `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and Nau cannot work out for itself; all three drive what its HUD shows
 - `DISPLAY_ON` / `DISPLAY_OFF` — whether Nau owns the primary rect, which is not whether it is playing: the idle primary-slot player is minimized rather than closed (it keeps its taskbar button), so in Genau mode Nau blanks instead of sitting on the frame it was paused on. The same pair Genau gets, for the same reason
