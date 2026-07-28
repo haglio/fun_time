@@ -97,6 +97,11 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   `gh pr create --fill`. Auto-merge arms itself; the queue rebases your PR onto
   `main`, runs the required check, and merges it when green. Don't ff-merge into
   the primary checkout, don't push `main` directly, and never force-push `main`.
+- **Delete the branch the moment it merges** — `git push origin --delete
+  <branch>`, before you tell him the work is done. Neither the queue nor the
+  ruleset prunes it, so every landed PR otherwise leaves a branch on origin for
+  good, and the next agent reading `git branch -r` for what is in flight has to
+  sift the dead from the live.
 - **The `.git/agent-merge.lock` is retired here** — the GitHub queue serializes.
 - **Sync local checkouts by pulling.** `main` advances only on origin (via the
   queue), so the primary checkout and worktrees update with
