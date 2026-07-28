@@ -82,11 +82,29 @@ def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeInteg
 
 
 def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
+    """The bare command still narrows every player at once, and lifts it again."""
     shared_integration_session.write_dashboard_command("fmode_toggle")
-    shared_integration_session.wait_for_new_log("F-mode hotkey: enabled", timeout=12)
+    shared_integration_session.wait_for_new_log(
+        "F-mode enabled: primary, portrait, landscape", timeout=12)
 
     shared_integration_session.write_dashboard_command("fmode_toggle")
-    shared_integration_session.wait_for_new_log("F-mode hotkey: disabled", timeout=12)
+    shared_integration_session.wait_for_new_log(
+        "F-mode disabled: primary, portrait, landscape", timeout=12)
+
+
+def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegrationSession):
+    """What a satellite's own F button posts: that player alone goes into F-mode,
+    and the whole-room command afterwards finishes the job rather than undoing it."""
+    shared_integration_session.write_dashboard_command("portrait_fmode")
+    shared_integration_session.wait_for_new_log("F-mode enabled: portrait", timeout=12)
+
+    shared_integration_session.write_dashboard_command("fmode_toggle")
+    shared_integration_session.wait_for_new_log(
+        "F-mode enabled: primary, landscape", timeout=12)
+
+    shared_integration_session.write_dashboard_command("fmode_off")
+    shared_integration_session.wait_for_new_log(
+        "F-mode disabled: primary, portrait, landscape", timeout=12)
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):

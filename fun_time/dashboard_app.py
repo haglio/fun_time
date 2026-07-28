@@ -19,7 +19,6 @@ from shared_ui.colors import (
     BG_SECONDARY,
     BLUE,
     BORDER_PANEL,
-    GREEN,
     TEXT_PRIMARY,
 )
 from shared_ui.fonts import FONT_SYMBOL, FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
@@ -29,7 +28,6 @@ from fun_time.overlay_progress import loading_screen_active
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.win32 import is_window_topmost, set_always_on_top
 from fun_time.dashboard_actions import (
-    FMODE_PANEL,
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
     OMNIMINIMIZE,
@@ -215,7 +213,6 @@ _ACTION_TOOLTIPS: dict[str, str] = {
     QUIT_BUTTON: "Quit",
     OMNIPAUSE_TOGGLE: "Pause everything",
     HELP_REFERENCE: REFERENCE_WINDOW_TITLE,
-    FMODE_PANEL: "F-Mode",
     VOICE_TOGGLE: "Voice",
 }
 
@@ -227,14 +224,14 @@ def build_dashboard_scene(
     width: int,
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
-    """The control bar: the app's mark, the three buttons, the two lights.
+    """The control bar: the app's mark, then the four controls in one run.
 
     What each player is doing is on that player's own HUD now, so nothing here
     stands for a player — which is why the bar has no shape to keep and simply
     runs along the top of the window.  The OSR2 broker light went to the primary's
     HUD with the rest of the device status; it is the primary's, not the room's.
+    F-mode went to every player's HUD, since each player has its own now.
     """
-    fmode_fill = GREEN if snapshot is not None and snapshot.f_mode_enabled else COLOR_PANEL
     voice_fill = BLUE if snapshot is not None and snapshot.voice_active else COLOR_PANEL
 
     omni_paused = snapshot is not None and snapshot.omni_paused
@@ -247,7 +244,6 @@ def build_dashboard_scene(
         DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
         DashboardRectItem(layout.omnipause_button, fill=_press_fill(COLOR_PANEL, OMNIPAUSE_TOGGLE)),
         DashboardRectItem(layout.help_button, fill=_press_fill(COLOR_PANEL, HELP_REFERENCE)),
-        DashboardRectItem(layout.fmode_panel, fill=_press_fill(fmode_fill, FMODE_PANEL)),
         DashboardRectItem(layout.voice_panel, fill=_press_fill(voice_fill, VOICE_TOGGLE)),
     )
     _font_symbol = make_font(FONT_SYMBOL, 13, bold=True)
@@ -266,10 +262,8 @@ def build_dashboard_scene(
         DashboardTextItem("Fun Time", layout.app_title, color=COLOR_APP_TITLE,
                           anchor="w", font=_font_app),
     )
-    _chip_h = layout.fmode_panel.height
     images = (
         DashboardImageItem(_load_icon_pixmap("icon.ico", layout.app_icon.height), layout.app_icon),
-        DashboardImageItem(_load_icon_pixmap("fmode_icon.ico", _chip_h), layout.fmode_panel),
         DashboardImageItem(
             _draw_mic_pixmap(layout.voice_panel.width, layout.voice_panel.height),
             layout.voice_panel,
@@ -279,7 +273,6 @@ def build_dashboard_scene(
         (QUIT_BUTTON, layout.quit_button),
         (OMNIPAUSE_TOGGLE, layout.omnipause_button),
         (HELP_REFERENCE, layout.help_button),
-        (FMODE_PANEL, layout.fmode_panel),
         (VOICE_TOGGLE, layout.voice_panel),
     )
     return DashboardScene(

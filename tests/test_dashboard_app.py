@@ -21,7 +21,6 @@ from fun_time.dashboard_app import (
     write_dashboard_command,
 )
 from fun_time.dashboard_actions import (
-    FMODE_PANEL,
     HELP_REFERENCE,
     OMNIPAUSE_TOGGLE,
     QUIT_BUTTON,
@@ -38,7 +37,7 @@ def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
 
 def _snapshot(**overrides) -> DashboardSnapshot:
     base = dict(
-        f_mode_enabled=False, primary_mode="nau", osr2_mode="controlled", omni_paused=False,
+        primary_mode="nau", osr2_mode="controlled", omni_paused=False,
         primary=DashboardPanelSnapshot(path=""),
         portrait=DashboardPanelSnapshot(path=""),
         landscape=DashboardPanelSnapshot(path=""),
@@ -59,13 +58,13 @@ def _fill(scene, rect):
 
 
 def test_the_bar_carries_only_what_belongs_to_no_player():
-    """Quit, pause everything, the reference popup, and the F-mode and voice
-    lights.  Anything about a particular player — the broker included — is on that
+    """Quit, pause everything, the reference popup, and the microphone.  Anything
+    about a particular player — the broker and F-mode included — is on that
     player's HUD."""
     scene = _scene()
 
     assert [action for action, _rect in scene.actions] == [
-        QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, FMODE_PANEL, VOICE_TOGGLE,
+        QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE,
     ]
 
 
@@ -120,21 +119,19 @@ def test_pausing_everything_does_not_paint_the_button_a_state_colour():
     assert _fill(_scene(), layout.quit_button) == COLOR_PANEL
 
 
-def test_the_f_mode_and_voice_lights_come_on_with_what_they_report():
+def test_the_microphone_comes_on_with_what_it_reports():
     layout = compute_dashboard_bar_layout()
 
-    assert _fill(_scene(_snapshot(f_mode_enabled=True)), layout.fmode_panel) == GREEN
-    assert _fill(_scene(_snapshot()), layout.fmode_panel) == COLOR_PANEL
     assert _fill(_scene(_snapshot(voice_active=True)), layout.voice_panel) == BLUE
     assert _fill(_scene(_snapshot(voice_active=False)), layout.voice_panel) == COLOR_PANEL
 
 
-def test_the_lights_carry_their_own_marks():
-    """Each is an icon rather than a word, so the bar stays a bar."""
+def test_the_microphone_carries_its_own_mark():
+    """It is an icon rather than a word, so the bar stays a bar."""
     layout = compute_dashboard_bar_layout()
     drawn = {item.rect for item in _scene().images}
 
-    assert {layout.fmode_panel, layout.voice_panel} <= drawn
+    assert layout.voice_panel in drawn
 
 
 def test_every_control_names_itself_on_hover():
@@ -730,7 +727,6 @@ def test_lighten_color_caps_at_255():
 
 def _make_snapshot(*, primary_mode: str = "nau") -> DashboardSnapshot:
     return DashboardSnapshot(
-        f_mode_enabled=False,
         primary_mode=primary_mode,
         osr2_mode="auto",
         omni_paused=False,

@@ -48,6 +48,7 @@ def console_payload(
     broker: bool,
     record: str = "normal",
     genau: GenauStatus,
+    f_mode: bool = False,
 ) -> dict:
     """The console panel as the primary player parses it.
 
@@ -58,10 +59,17 @@ def console_payload(
     *record* is Nau's own loop machine (normal / recording / looping), which rides
     here because the console is drawn in genau mode too — by a player with no loop
     machine to ask — and because Nau already tells us in its status file.
+
+    ``f_mode`` is the primary's own F-mode — its playlist narrowed to the videos
+    that have a funscript.  Nau is told the flag directly too (``SET_F_MODE``, for
+    its status line), but the console's button has to light off what the
+    orchestrator holds, exactly as the satellites' do: the flag is set from three
+    places at once and only one of them is the player.
     """
     return {
         "mode": mode,
         "active": active,
+        "f_mode": f_mode,
         "osr2": osr2_state(mode=mode, osr2_mode=osr2_mode,
                            funscript_driving=funscript_driving),
         "broker": broker,

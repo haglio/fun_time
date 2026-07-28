@@ -158,6 +158,7 @@ def test_both_section_lists_combined_satellite_commands():
         "both_cycle_action", "both_cycle_seed", "both_more_seeds",
         "both_action_loop", "both_seed_loop", "both_no_loop", "both_lock_action",
         "both_shuffle", "both_no_filter", "both_reset",
+        "both_fmode", "both_fmode_on", "both_fmode_off",
     }
     # Voice phrases are derived from VOICE_COMMANDS, so each row surfaces one —
     # side word first ("both next", "both lock"), matching every satellite row.

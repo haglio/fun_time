@@ -8,11 +8,13 @@ import pytest
 import json
 
 from fun_time.runtime_flow import (
+    FMODE_PLAYERS,
+    PORTRAIT_PLAYER,
     apply_enter_omnipause,
+    apply_fmode,
     apply_leave_omnipause,
     apply_mode_switch,
     apply_satellite_filter,
-    apply_toggle_fmode,
     satellite_browse_paths,
 )
 
@@ -258,8 +260,9 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
     nau_cmd_file = tmp_path / "nau_cmd.txt"
 
-    result = apply_toggle_fmode(
-        f_mode_enabled=False,
+    result = apply_fmode(
+        players=FMODE_PLAYERS,
+        enabled=True,
         portrait_recent=False,
         landscape_recent=False,
         primary_sources=str(primary_root),
@@ -272,10 +275,8 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
         nau_cmd_file=nau_cmd_file,
     )
 
-    assert result.success is True
-    assert result.next_f_mode_enabled is True
-    assert result.next_locked2 is False
-    assert result.next_locked3 is False
+    assert result.players == FMODE_PLAYERS
+    assert result.enabled is True
     # Each satellite is told to re-read its playlist file; Nau reloads via its own
     # command file too.  All three playlist files are rewritten in place.
     assert portrait_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
@@ -285,6 +286,44 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
     assert (state_dir / "portrait_playlist.tsv").exists()
     assert (state_dir / "landscape_playlist.tsv").exists()
     assert (state_dir / "nau_playlist.tsv").exists()
+
+
+def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Path):
+    """F-mode is per player, so naming one must rebuild that one alone.
+
+    Rebuilding a player that was not asked for would reshuffle its queue out from
+    under it — which is exactly what the old all-three build did, and the reason
+    the rebuild is per player now.
+    """
+    portrait_root, landscape_root = tmp_path / "portrait", tmp_path / "landscape"
+    for root in (portrait_root, landscape_root):
+        root.mkdir(parents=True)
+        (root / "clip.mp4").write_text("x", encoding="utf-8")
+    state_dir = tmp_path / "state"
+    landscape_cmd_file = tmp_path / "landscape_cmd.txt"
+    nau_cmd_file = tmp_path / "nau_cmd.txt"
+
+    result = apply_fmode(
+        players=(PORTRAIT_PLAYER,),
+        enabled=True,
+        portrait_recent=False,
+        landscape_recent=False,
+        primary_sources="",
+        portrait_sources=str(portrait_root),
+        landscape_sources=str(landscape_root),
+        favs_file=tmp_path / "favs.csv",
+        state_dir=state_dir,
+        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
+        landscape_cmd_file=landscape_cmd_file,
+        nau_cmd_file=nau_cmd_file,
+    )
+
+    assert result.players == (PORTRAIT_PLAYER,)
+    assert (state_dir / "portrait_playlist.tsv").exists()
+    assert not (state_dir / "landscape_playlist.tsv").exists()
+    assert not (state_dir / "nau_playlist.tsv").exists()
+    assert not landscape_cmd_file.exists()
+    assert not nau_cmd_file.exists()
 
 
 def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_path: Path):
@@ -299,9 +338,10 @@ def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_pat
     (root / "main.mp4").write_text("x", encoding="utf-8")
     nau_cmd_file = tmp_path / "nau_cmd.txt"
 
-    def toggle(enabled: bool) -> list[str]:
-        apply_toggle_fmode(
-            f_mode_enabled=enabled,
+    def told(enabled: bool) -> list[str]:
+        apply_fmode(
+            players=FMODE_PLAYERS,
+            enabled=enabled,
             portrait_recent=False, landscape_recent=False,
             primary_sources=str(root), portrait_sources="", landscape_sources="",
             favs_file=tmp_path / "favs.csv", state_dir=tmp_path / "state",
@@ -311,8 +351,8 @@ def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_pat
         )
         return nau_cmd_file.read_text(encoding="utf-8").splitlines()
 
-    assert toggle(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 1"]
-    assert toggle(True) == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
+    assert told(True) == ["RELOAD_PLAYLIST", "SET_F_MODE 1"]
+    assert told(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
 
 
 def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path):
@@ -333,8 +373,9 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
 
-    apply_toggle_fmode(
-        f_mode_enabled=True,
+    apply_fmode(
+        players=FMODE_PLAYERS,
+        enabled=False,
         portrait_recent=False,
         landscape_recent=False,
         primary_sources="",
@@ -345,7 +386,6 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
         portrait_cmd_file=tmp_path / "portrait_cmd.txt",
         landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
-        regen_media_root=media_root,
         regen_metadata_root=metadata_root,
     )
 
@@ -361,9 +401,10 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
         path.write_text("x", encoding="utf-8")
         os.utime(path, (mtime, mtime))
 
-    # Toggling F-mode off must keep the satellite playlists newest-first, not reshuffle.
-    apply_toggle_fmode(
-        f_mode_enabled=True,
+    # Turning F-mode off must keep the satellite playlists newest-first, not reshuffle.
+    apply_fmode(
+        players=FMODE_PLAYERS,
+        enabled=False,
         portrait_recent=True,
         landscape_recent=True,
         primary_sources="",
@@ -504,8 +545,9 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
     l_kiss = _make_action_video(landscape_root, media_root, metadata_root, "lk", "Kissing")
     _make_action_video(landscape_root, media_root, metadata_root, "lc", "Alpha")
 
-    apply_toggle_fmode(
-        f_mode_enabled=True,  # toggles F-mode OFF, so only the metadata filter applies
+    apply_fmode(
+        players=FMODE_PLAYERS,
+        enabled=False,  # F-mode OFF, so only the metadata filter applies
         portrait_recent=True,
         landscape_recent=True,
         primary_sources="",
@@ -516,7 +558,6 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
         portrait_cmd_file=tmp_path / "portrait_cmd.txt",
         landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
-        regen_media_root=media_root,
         regen_metadata_root=metadata_root,
         portrait_filter="alpha",
         landscape_filter="kissing",

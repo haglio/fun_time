@@ -31,7 +31,6 @@ def test_load_dashboard_snapshot_reads_back_every_mode_the_bridge_writes(tmp_pat
     snapshot_file = tmp_path / "dashboard_state.ini"
     write_dashboard_snapshot(
         snapshot_file,
-        f_mode_enabled=False,
         osr2_mode="controlled",
         primary_mode=mode,
         portrait_locked=False,
@@ -49,8 +48,6 @@ def test_load_dashboard_snapshot_parses_bridge_export(tmp_path: Path):
     snapshot_file.write_text(
         "\n".join(
             [
-                "[fmode]",
-                "enabled=0",
                 "[osr2]",
                 "mode=auto",
                 "[primary]",
@@ -92,8 +89,6 @@ def test_load_dashboard_snapshot_supports_utf16_ini_exports(tmp_path: Path):
     snapshot_file.write_text(
         "\n".join(
             [
-                "[fmode]",
-                "enabled=1",
                 "[osr2]",
                 "mode=auto",
                 "[primary]",
@@ -119,7 +114,6 @@ def test_load_dashboard_snapshot_supports_utf16_ini_exports(tmp_path: Path):
     snapshot = load_dashboard_snapshot(snapshot_file)
 
     assert snapshot is not None
-    assert snapshot.f_mode_enabled is True
     assert snapshot.primary_mode == "genau"
     assert snapshot.portrait.locked is True
     assert snapshot.window.x == 10
@@ -130,8 +124,6 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
     snapshot_file.write_text(
         "\n".join(
             [
-                "[fmode]",
-                "enabled=1",
                 "[osr2]",
                 "mode=controlled",
                 "[primary]",
@@ -149,7 +141,6 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
     snapshot = load_dashboard_snapshot(snapshot_file)
 
     assert snapshot is not None
-    assert snapshot.f_mode_enabled is True
     assert snapshot.primary.path == ""
     assert snapshot.portrait.locked is True
     assert snapshot.window.width == 0
@@ -160,8 +151,6 @@ def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
     snapshot_file.write_text(
         "\n".join(
             [
-                "[fmode]",
-                "enabled=0",
                 "[osr2]",
                 "mode=auto",
                 "[omnipause]",
@@ -189,8 +178,6 @@ def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
     snapshot_file.write_text(
         "\n".join(
             [
-                "[fmode]",
-                "enabled=0",
                 "[osr2]",
                 "mode=auto",
                 "[primary]",
@@ -216,8 +203,6 @@ def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
     snapshot_file.write_text(
         "\n".join(
             [
-                "[fmode]",
-                "enabled=0",
                 "[osr2]",
                 "mode=controlled",
                 "[omnipause]",
@@ -247,8 +232,6 @@ def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
     snapshot_file.write_text(
         "\n".join(
             [
-                "[fmode]",
-                "enabled=0",
                 "[osr2]",
                 "mode=controlled",
                 "[primary]",

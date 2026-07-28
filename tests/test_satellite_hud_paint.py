@@ -253,19 +253,22 @@ def test_render_exposes_the_controls_it_drew(thumb):
 
 
 def test_render_draws_the_sides_own_controls_even_with_no_clip():
-    """The four buttons the dashboard used to carry are the side's, not the map's,
-    so they are there before the first clip arrives — a satellite that came up
-    empty can still be stepped off it."""
+    """The buttons the dashboard used to carry are the side's, not the map's, so
+    they are there before the first clip arrives — a satellite that came up empty
+    can still be stepped off it, and still narrowed to its favourites."""
     rendered = HudRenderer("landscape").render(
         HudModel(side="landscape", locked=False, lock_label="Unlocked"))
 
-    assert [name for _rect, name in rendered.targets.control] == ["prev", "next", "lock", "trash"]
+    assert [name for _rect, name in rendered.targets.control] == [
+        "prev", "next", "lock", "trash", "fmode",
+    ]
     assert rendered.targets.favorite is not None
 
 
-def test_the_lock_button_and_favourite_mark_light_up_when_they_apply():
-    """Green is what the dashboard's panel used for both, so both keep it: the
-    lock button while the side is locked, the star while the clip is a favourite."""
+def test_the_state_controls_and_favourite_mark_light_up_when_they_apply():
+    """Green is what the dashboard's panel used, so everything that is a *state*
+    keeps it: the lock button while the side is locked, the F button while the
+    side is in F-mode, the star while the clip is a favourite."""
     def ink(rect, rendered) -> int:
         x, y, w, h = rect
         rgb = _rgb(rendered.bgra)[y:y + h, x:x + w].astype(int)
@@ -276,10 +279,12 @@ def test_the_lock_button_and_favourite_mark_light_up_when_they_apply():
         return HudRenderer("landscape").render(
             HudModel(side="landscape", lock_label="Unlocked", **overrides))
 
-    off, on = rendered_with(), rendered_with(locked=True, is_favorite=True)
-    lock_rect = dict((name, rect) for rect, name in on.targets.control)["lock"]
+    off = rendered_with()
+    on = rendered_with(locked=True, is_favorite=True, f_mode=True)
+    rects = {name: rect for rect, name in on.targets.control}
 
-    assert ink(lock_rect, on) > ink(lock_rect, off)
+    assert ink(rects["lock"], on) > ink(rects["lock"], off)
+    assert ink(rects["fmode"], on) > ink(rects["fmode"], off)
     assert ink(on.targets.favorite, on) > ink(off.targets.favorite, off)
 
 

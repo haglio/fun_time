@@ -327,7 +327,8 @@ def build_satellite_playlists(
     landscape_sources: str,
     favs_file: Path,
     state_dir: Path,
-    f_mode: bool,
+    portrait_f_mode: bool = False,
+    landscape_f_mode: bool = False,
     portrait_recent: bool = False,
     landscape_recent: bool = False,
     portrait_filter: str = "",
@@ -337,19 +338,20 @@ def build_satellite_playlists(
 ) -> None:
     """Build and write the Portrait/Landscape satellite playlists (the two satellites).
 
-    Each satellite honours its own filter AND its own ordering — newest-first when
-    its ``*_recent`` is set, otherwise shuffled (with action-group collapse and
-    watch weighting when *library* is given) — since Latest and Shuffle are sided
-    commands and the two satellites can be in different orders.
+    Each satellite honours its own filter, its own F-mode AND its own ordering —
+    newest-first when its ``*_recent`` is set, otherwise shuffled (with
+    action-group collapse and watch weighting when *library* is given) — since
+    every one of the three is a sided command and the two satellites can be in
+    different states.
     """
     build_one_satellite_playlist(
         sources=portrait_sources, name=PLAYLIST_PORTRAIT, favs_file=favs_file,
-        state_dir=state_dir, f_mode=f_mode, recent=portrait_recent,
+        state_dir=state_dir, f_mode=portrait_f_mode, recent=portrait_recent,
         filter_query=portrait_filter, rng=rng, library=library,
     )
     build_one_satellite_playlist(
         sources=landscape_sources, name=PLAYLIST_LANDSCAPE, favs_file=favs_file,
-        state_dir=state_dir, f_mode=f_mode, recent=landscape_recent,
+        state_dir=state_dir, f_mode=landscape_f_mode, recent=landscape_recent,
         filter_query=landscape_filter, rng=rng, library=library,
     )
 
@@ -357,7 +359,7 @@ def build_satellite_playlists(
 def build_primary_playlist(playlist_file: Path, primary_sources: str, *, f_mode: bool) -> None:
     """Build and write the primary player's playlist alone.
 
-    The one-player counterpart to :func:`build_fmode_playlists`, for a startup
+    The one-player counterpart to :func:`build_all_playlists`, for a startup
     that keeps the satellites' resumed playlists and needs only the primary's
     rebuilt — the satellites' library is the same whichever app is running,
     while the primary's is what the two apps disagree about.
@@ -369,14 +371,16 @@ def build_primary_playlist(playlist_file: Path, primary_sources: str, *, f_mode:
     write_nau_playlist_file(playlist_file, build_primary_playlist_paths(primary_sources, f_mode))
 
 
-def build_fmode_playlists(
+def build_all_playlists(
     *,
     primary_sources: str,
     portrait_sources: str,
     landscape_sources: str,
     favs_file: Path,
     state_dir: Path,
-    enabled: bool,
+    primary_f_mode: bool = False,
+    portrait_f_mode: bool = False,
+    landscape_f_mode: bool = False,
     portrait_recent: bool = False,
     landscape_recent: bool = False,
     portrait_filter: str = "",
@@ -384,13 +388,20 @@ def build_fmode_playlists(
     rng: random.Random | None = None,
     library: SatelliteLibraryContext | None = None,
 ) -> None:
-    """Build and write all three playlists — both satellites' and Nau's."""
+    """Build and write all three playlists — both satellites' and Nau's.
+
+    F-mode is per player, so each takes its own flag: a session where only the
+    landscape satellite is narrowed to favourites builds the other two whole.
+    The one caller that wants all three at once is a fresh start with nothing
+    to resume, which is why every flag defaults off.
+    """
     build_satellite_playlists(
         portrait_sources=portrait_sources,
         landscape_sources=landscape_sources,
         favs_file=favs_file,
         state_dir=state_dir,
-        f_mode=enabled,
+        portrait_f_mode=portrait_f_mode,
+        landscape_f_mode=landscape_f_mode,
         portrait_recent=portrait_recent,
         landscape_recent=landscape_recent,
         portrait_filter=portrait_filter,
@@ -400,5 +411,5 @@ def build_fmode_playlists(
     )
     write_nau_playlist_file(
         build_playlist_file_path(state_dir, PLAYLIST_NAU),
-        build_primary_playlist_paths(primary_sources, enabled, rng=rng),
+        build_primary_playlist_paths(primary_sources, primary_f_mode, rng=rng),
     )

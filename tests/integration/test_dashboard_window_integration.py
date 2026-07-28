@@ -206,7 +206,6 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
 def _omnipause_snapshot(*, omni_paused: bool) -> DashboardSnapshot:
     """The state file's snapshot, as the dashboard's refresh reads it."""
     return DashboardSnapshot(
-        f_mode_enabled=False,
         primary_mode="nau",
         osr2_mode="controlled",
         omni_paused=omni_paused,

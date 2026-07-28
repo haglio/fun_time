@@ -72,6 +72,10 @@ VOICE_COMMANDS: dict[str, str] = {
     "retract": "relief_omnipause",
     # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
     # generated as an order-agnostic grid below the literal.
+    #
+    # Bare, F-mode still means every player at once — the same gesture the F key
+    # is.  Naming a player narrows just that one; those phrases are generated with
+    # the sided grid below.
     "f mode": "fmode_toggle",
     "f mode on": "fmode_on",
     "f mode off": "fmode_off",
@@ -305,6 +309,24 @@ for _player_word in ("primary", "main"):
     VOICE_COMMANDS[f"{_player_word} reset"] = "nau_length_mixed"
     VOICE_COMMANDS[f"reset {_player_word}"] = "nau_length_mixed"
 
+# F-mode, per player.  Every player has its own — it narrows a satellite to the
+# favourites and the primary to the videos that have a funscript — so each is
+# sayable by naming it, in either order like the rest of the grid: "portrait f
+# mode" and "f mode portrait" are the same command.  "both" drives the two
+# satellites (expanded into its pair by the dispatch loop) and "primary"/"main"
+# the primary, matching the words those players answer to everywhere else.  The
+# bare phrases stay in the literal map above, where they reach all three at once.
+_FMODE_PHRASES: dict[str, str] = {
+    "f mode": "fmode",
+    "f mode on": "fmode_on",
+    "f mode off": "fmode_off",
+}
+for _fmode_word, _fmode_act in _FMODE_PHRASES.items():
+    for _side in ("portrait", "landscape", "both", "primary", "main"):
+        _target = "primary" if _side == "main" else _side
+        VOICE_COMMANDS[f"{_side} {_fmode_word}"] = f"{_target}_{_fmode_act}"
+        VOICE_COMMANDS[f"{_fmode_word} {_side}"] = f"{_target}_{_fmode_act}"
+
 # Mode-named navigation: a mode's name + next/previous (either order) navigates
 # that mode's player.  Nau and Hybrid drive the primary (Nau owns the primary
 # display in both modes); Genau steps its own clip.  vosk can't hear "nau" or
@@ -436,9 +458,18 @@ SELF_REPORTING_COMMANDS = frozenset({
     "nau_clip_jump",
     "nau_funscript_jump",
     "nau_next_funscripted",
-    "fmode_toggle",
     "portrait_trash",
     "landscape_trash",
     "active_trash",
     "both_trash",
+    # Every spelling of F-mode: the dispatch flashes which way each one went, so a
+    # spoken one must not stack the generic echo on top of that.
+    "fmode_toggle",
+    "fmode_on",
+    "fmode_off",
+    *(
+        f"{player}_fmode{suffix}"
+        for player in ("primary", "portrait", "landscape", "both")
+        for suffix in ("", "_on", "_off")
+    ),
 })

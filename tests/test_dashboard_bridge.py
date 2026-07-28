@@ -7,7 +7,6 @@ from fun_time.dashboard_bridge import build_dashboard_snapshot_text, write_dashb
 
 def test_build_dashboard_snapshot_text_matches_bridge_contract():
     text = build_dashboard_snapshot_text(
-        f_mode_enabled=True,
         osr2_mode="auto",
         primary_mode="nau",
         portrait_locked=True,
@@ -15,8 +14,6 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
     )
 
     assert text == (
-        "[fmode]\n"
-        "enabled=1\n"
         "[osr2]\n"
         "mode=auto\n"
         "[omnipause]\n"
@@ -35,7 +32,6 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
 
 def test_build_dashboard_snapshot_text_includes_omnipause_state():
     text = build_dashboard_snapshot_text(
-        f_mode_enabled=False,
         osr2_mode="controlled",
         primary_mode="nau",
         portrait_locked=False,
@@ -48,7 +44,6 @@ def test_build_dashboard_snapshot_text_includes_omnipause_state():
 
 def test_build_dashboard_snapshot_text_includes_voice_state():
     text = build_dashboard_snapshot_text(
-        f_mode_enabled=False,
         osr2_mode="controlled",
         primary_mode="nau",
         portrait_locked=False,
@@ -64,7 +59,6 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
 
     first = write_dashboard_snapshot(
         output,
-        f_mode_enabled=False,
         osr2_mode="controlled",
         primary_mode="genau",
         portrait_locked=False,
@@ -72,7 +66,6 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
     )
     second = write_dashboard_snapshot(
         output,
-        f_mode_enabled=False,
         osr2_mode="controlled",
         primary_mode="genau",
         portrait_locked=False,

@@ -294,14 +294,16 @@ The mute reaches the two sinks differently, which is why `SET_VOLUME` carries tw
 
 ### F-Mode
 
-Toggling F-Mode rebuilds every playlist immediately, rather than waiting for the next advance — both satellite playlists plus Nau's `nau_playlist.tsv` — and each player is sent `RELOAD_PLAYLIST`. What it narrows to differs by player:
+F-Mode is **per player** — the primary, portrait and landscape each have their own — and setting one rebuilds that player's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A player that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by player:
 
 - the primary playlist (Nau) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
 - each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
-The same builder (`build_fmode_playlists`) writes all three playlist files at startup, so startup and the F-mode toggle share one playlist authority.
+Every player carries its own F button in the first row of icons on its own HUD (the satellites' control band, the primary console's transport row); the dashboard has no F-mode control. The `F` key and a bare spoken "f mode" still reach all three at once — they turn F-Mode **on** unless every player is already in it, so the whole-room gesture can never leave half the room narrowed. Naming a player narrows just that one: "portrait f mode", "f mode landscape", "primary f mode on", "both f mode off" — either word order, and `both` means the two satellites.
 
-Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and Nau's mode HUD carries it beside the length mode or compilation — Nau is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other.
+`build_all_playlists` writes all three playlist files at startup (each player's F-Mode off, which is what a session with nothing to resume opens in); `apply_fmode` rebuilds the named players after that.
+
+Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and Nau's mode HUD carries it beside the length mode or compilation — Nau is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-player flag, published with the rest of that player's panel.
 
 ### Cycle action & cycle seed (satellites)
 
@@ -439,7 +441,7 @@ Cleared before every browse, so abandoning one never replays the last pick.
 
 ### `nau_playlist.tsv`
 
-One video per line, with a TAB plus the funscript path when one exists. Written by `build_fmode_playlists` at startup and on every F-mode toggle (which also sends Nau `RELOAD_PLAYLIST` and `SET_F_MODE`, on one write — the command file is overwritten, not appended).
+One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the primary's F-mode changes (which also sends Nau `RELOAD_PLAYLIST` and `SET_F_MODE`, on one write — the command file is overwritten, not appended).
 
 ### `event_log.jsonl`
 

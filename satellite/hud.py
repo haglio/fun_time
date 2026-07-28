@@ -135,6 +135,10 @@ class HudModel:
     # this by turning the side's panel green; the HUD marks it in the control
     # band, beside the buttons that act on that clip.
     is_favorite: bool = False
+    # Whether THIS side is in F-mode — its browse narrowed to the favourites.  The
+    # dashboard carried one light for the whole room; each player has its own now,
+    # so it lights this side's own button in the control band.
+    f_mode: bool = False
     corner: HudCell | None = None
     seeds: tuple[HudCell, ...] = ()
     actions: tuple[HudCell, ...] = ()
@@ -388,10 +392,12 @@ def ellipsis_rects(
 # --- the side's own controls -------------------------------------------------
 # The buttons the dashboard used to carry for this satellite, now on the
 # satellite itself: browse first (the pair reached for most), then the two that
-# act on the clip on screen.  Each name is also its command's verb, so
-# "portrait_prev" and "landscape_trash" fall out of the same tuple that draws
-# them and the button can never post a command it isn't labelled for.
-CONTROLS = ("prev", "next", "lock", "trash")
+# act on the clip on screen, then F-mode — which acts on neither, but on the
+# library the browse draws from, so it sits past the ones that do.  Each name is
+# also its command's verb, so "portrait_prev" and "landscape_trash" fall out of
+# the same tuple that draws them and the button can never post a command it isn't
+# labelled for.
+CONTROLS = ("prev", "next", "lock", "trash", "fmode")
 
 
 def control_button_rects(x: int, y: int) -> list[tuple[Rect, str]]:
@@ -542,6 +548,7 @@ CONTROL_TOOLTIPS = {
     "next": "Next clip",
     "lock": "Lock / unlock this clip",
     "trash": "Unfavorite it — or mark weird when it is not a favorite",
+    "fmode": "F-Mode — browse only the favorites on this player",
 }
 FAVORITE_TOOLTIP = "In the favourites"
 
@@ -718,6 +725,7 @@ def parse_hud(text: str) -> HudModel | None:
         active=bool(raw.get("active", False)),
 
         is_favorite=bool(raw.get("is_favorite", False)),
+        f_mode=bool(raw.get("f_mode", False)),
         corner=_cell(raw.get("corner")),
         seeds=tuple(cell for cell in seeds if cell is not None),
         actions=tuple(cell for cell in actions if cell is not None),

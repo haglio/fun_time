@@ -37,7 +37,7 @@ from fun_time.modes import (
     PLAYLIST_NAU,
     PLAYLIST_PORTRAIT,
     SatelliteLibraryContext,
-    build_fmode_playlists,
+    build_all_playlists,
     build_playlist_file_path,
     build_primary_playlist,
 )
@@ -243,13 +243,12 @@ def run_vr_bridge(config, logger_) -> int:
         (Path(commands["landscape_cmd_file"]), carried.locked3),
     ])
     if not resumed:
-        build_fmode_playlists(
+        build_all_playlists(
             primary_sources=manifest["media"]["nau_library_sources"],
             portrait_sources=manifest["media"]["portrait_dirs"],
             landscape_sources=manifest["media"]["landscape_dirs"],
             favs_file=Path(manifest["media"]["favs_file"]),
             state_dir=state_dir,
-            enabled=False,
             library=SatelliteLibraryContext(
                 metadata_root=bridge_config.regen_metadata_root,
                 watch_stats_file=watch_stats_path(state_dir),
@@ -261,7 +260,7 @@ def run_vr_bridge(config, logger_) -> int:
         # VR-merged sources so a headset session actually gets VR videos.
         build_primary_playlist(
             nau_playlist, manifest["media"]["nau_library_sources"],
-            f_mode=carried.f_mode_enabled,
+            f_mode=carried.primary_f_mode,
         )
         logger_.info("Resumed playlists; rebuilt the primary's, which held no VR video")
     logger_.info(

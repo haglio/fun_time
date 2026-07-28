@@ -16,7 +16,7 @@ from .modes import (
     PLAYLIST_NAU,
     PLAYLIST_PORTRAIT,
     SatelliteLibraryContext,
-    build_fmode_playlists,
+    build_all_playlists,
     build_playlist_file_path,
     build_primary_playlist,
 )
@@ -400,13 +400,12 @@ def start_core_session(
     reset_satellite_paused_states(portrait_paused_file, landscape_paused_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     if not resumed:
-        build_fmode_playlists(
+        build_all_playlists(
             primary_sources=primary_sources,
             portrait_sources=portrait_sources,
             landscape_sources=landscape_sources,
             favs_file=Path(favs_file),
             state_dir=state_path,
-            enabled=False,
             library=SatelliteLibraryContext(
                 metadata_root=regen_metadata_root,
                 watch_stats_file=watch_stats_path(state_path),
@@ -419,7 +418,7 @@ def start_core_session(
         # must never play them.  Rebuild the primary from this session's own
         # library alone; the satellites' playlists come from the same dirs in
         # either app, so their resume stands.
-        build_primary_playlist(nau_playlist, primary_sources, f_mode=carried.f_mode_enabled)
+        build_primary_playlist(nau_playlist, primary_sources, f_mode=carried.primary_f_mode)
         logger.info("Resumed playlists; rebuilt the primary's, which held another app's videos")
     # Which of the two ran is the difference between the clips of the last
     # session and three new ones, so the log says outright which you are getting.

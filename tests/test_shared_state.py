@@ -19,7 +19,9 @@ class TestSharedState:
             locked2=True,
             locked3=False,
             primary_mode="genau",
-            f_mode_enabled=False,
+            primary_f_mode=True,
+            portrait_f_mode=False,
+            landscape_f_mode=True,
             omni_paused=True,
         )
 
@@ -49,7 +51,7 @@ class TestSharedState:
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
             "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
-            "f_mode_enabled = 0\nomni_paused = 0\n",
+            "omni_paused = 0\n",
             encoding="utf-8",
         )
 
@@ -136,7 +138,7 @@ class TestSharedState:
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
             "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
-            "f_mode_enabled = 0\nomni_paused = 0\n",
+            "omni_paused = 0\n",
             encoding="utf-8",
         )
 
@@ -151,7 +153,7 @@ class TestSharedState:
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
             "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
-            "f_mode_enabled = 0\nomni_paused = 0\n",
+            "omni_paused = 0\n",
             encoding="utf-8",
         )
 
