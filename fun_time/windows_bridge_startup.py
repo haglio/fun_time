@@ -7,6 +7,8 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
+from player_core.file_channel import append_command
+
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
 from .config import load_config
@@ -20,6 +22,7 @@ from .modes import (
     build_playlist_file_path,
     build_primary_playlist,
 )
+from .runtime_flow import SET_F_MODE_CMD
 from .satellite_control import read_satellite_status
 from .session_resume import (
     playlist_fits_sources,
@@ -260,18 +263,27 @@ def seed_startup_states(
     nau_cmd_file: str | Path,
     volume: int = MAX_VOLUME,
     muted: bool = False,
+    f_mode: bool = False,
 ) -> None:
     """Seed the cross-process flags for the startup mode (nau): Genau parked, Nau
-    paused until the sequencer's reveal unpauses it, and the sound at the level
+    paused until the sequencer's reveal unpauses it, and the sound and F-mode
     this session opens on.
 
-    That level is the session's, not full: Nau and the audio companion each
-    launch unattenuated and neither reads a level from a file it already has, so
-    seeding is the only way a resumed session comes up as loud as you left it.
-    Both sinks are told (through the one publisher the live volume commands use),
-    which is what keeps a resumed mute explicable rather than a silence with
-    nothing on screen behind it — Nau draws the level and the mute it is given.
-    The defaults are a fresh session's: full, unmuted.
+    Both of those last two are the session's, not a fresh session's.  The level
+    is seeded because Nau and the audio companion each launch unattenuated and
+    neither reads a level from a file it already has, so seeding is the only way
+    a resumed session comes up as loud as you left it — and both sinks are told,
+    through the one publisher the live volume commands use, which is what keeps a
+    resumed mute explicable rather than a silence with nothing on screen behind
+    it (Nau draws the level and the mute it is given).
+
+    *f_mode* is the primary's own — this whole function is the primary slot's
+    seeding — and it is seeded for the same shape of reason: the playlist Nau is
+    handed has already been narrowed and a list of scripted videos looks like any
+    other, so Nau's HUD can only know from being told.  fun_time draws the
+    satellites' HUD model itself, which is why a resumed F-mode session showed
+    F-Mode on every player except the one that had to be sent it.
+    The defaults are a fresh session's: full, unmuted, unnarrowed.
 
     Genau's *display* is seeded too, on its command channel.  Blanking keys off
     DISPLAY_ON/DISPLAY_OFF and Genau defaults to owning its display (so a
@@ -293,6 +305,7 @@ def seed_startup_states(
         volume=volume,
         muted=muted,
     )
+    append_command(Path(nau_cmd_file), f"{SET_F_MODE_CMD} {int(f_mode)}")
     if genau_cmd_file is not None:
         path = Path(genau_cmd_file)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -393,7 +406,7 @@ def start_core_session(
     seed_startup_states(
         genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file,
         genau_cmd_file, nau_cmd_file=nau_cmd_file,
-        volume=carried.volume, muted=carried.muted,
+        volume=carried.volume, muted=carried.muted, f_mode=carried.primary_f_mode,
     )
     # seed_startup_states does not touch the satellite paused files; clear any "1"
     # a prior OmniPause stranded so the satellites launch playing, not frozen.

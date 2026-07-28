@@ -362,16 +362,21 @@ def test_seed_startup_states_blanks_genaus_display(tmp_path: Path):
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "DISPLAY_OFF"]
 
 
+def _nau_verbs(tmp_path: Path) -> list[str]:
+    """What is queued for Nau, one verb per line as it drains them."""
+    return (tmp_path / "nau_cmd.txt").read_text(encoding="utf-8").split("\n")[:-1]
+
+
 def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path):
-    """With no level asked for, both sinks come up unattenuated — the level a
-    first run, and every session before the sound was remembered, opens on."""
+    """With nothing asked for, both sinks come up unattenuated and unnarrowed —
+    what a first run, and every session before either was remembered, opens on."""
     volume_file = tmp_path / "audio_volume.txt"
     volume_file.write_text("0", encoding="utf-8")
 
     _seed_startup_states(tmp_path, audio_volume_file=volume_file)
 
     assert read_volume(volume_file) == MAX_VOLUME
-    assert (tmp_path / "nau_cmd.txt").read_text(encoding="utf-8") == "SET_VOLUME 100 0"
+    assert _nau_verbs(tmp_path) == ["SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: Path):
@@ -383,7 +388,7 @@ def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: P
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40)
 
     assert read_volume(volume_file) == 40
-    assert (tmp_path / "nau_cmd.txt").read_text(encoding="utf-8") == "SET_VOLUME 40 0"
+    assert _nau_verbs(tmp_path)[0] == "SET_VOLUME 40 0"
 
 
 def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Path):
@@ -395,7 +400,17 @@ def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Pat
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40, muted=True)
 
     assert read_volume(volume_file) == 0
-    assert (tmp_path / "nau_cmd.txt").read_text(encoding="utf-8") == "SET_VOLUME 40 1"
+    assert _nau_verbs(tmp_path)[0] == "SET_VOLUME 40 1"
+
+
+def test_seed_startup_states_tells_nau_whether_f_mode_is_on(tmp_path: Path):
+    """The playlist Nau is handed has already been narrowed and a list of
+    scripted videos looks like any other, so its HUD can only know from being
+    told — and it is told alongside the level, not instead of it: both verbs
+    have to survive on a channel nothing has drained yet."""
+    _seed_startup_states(tmp_path, f_mode=True)
+
+    assert _nau_verbs(tmp_path) == ["SET_VOLUME 100 0", "SET_F_MODE 1"]
 
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
@@ -469,8 +484,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     )
     # Startup leaves a live broker alone, only starting one when none answers.
     ensure.assert_called_once_with(state_dir / "broker_heartbeat.txt", None)
-    # Seeded at the sound level this session opens on — full, with no session to
-    # come back to.
+    # Seeded at what this session opens on — full volume, F-mode off, with no
+    # session to come back to.
     seed.assert_called_once_with(
         tmp_path / "genau_paused.txt",
         tmp_path / "audio_paused.txt",
@@ -480,6 +495,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         nau_cmd_file=state_dir / "nau_cmd.txt",
         volume=MAX_VOLUME,
         muted=False,
+        f_mode=False,
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
     # Every player's playlist, each built with its F-mode off — the flags default
@@ -626,6 +642,10 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     assert state.landscape_latest is True
     assert state.portrait_loop == "seed"
     assert state.portrait_map_anchor == "C:/v/a.mp4"
+    # fun_time draws the satellites' HUD model and the dashboard's off that
+    # state, but Nau's own HUD can only know F-mode from being told — so it is
+    # told, or the primary is the one display that comes back saying nothing.
+    assert "SET_F_MODE 1" in kwargs["nau_cmd_file"].read_text(encoding="utf-8").splitlines()
 
 
 def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path: Path):
@@ -644,7 +664,9 @@ def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path:
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
     assert (state.volume, state.muted) == (40, True)
     assert read_volume(kwargs["audio_volume_file"]) == 0
-    assert kwargs["nau_cmd_file"].read_text(encoding="utf-8") == "SET_VOLUME 40 1"
+    assert kwargs["nau_cmd_file"].read_text(encoding="utf-8").splitlines()[0] == (
+        "SET_VOLUME 40 1"
+    )
 
 
 def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path):
