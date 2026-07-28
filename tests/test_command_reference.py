@@ -27,6 +27,14 @@ def _ahk_hotkey_commands() -> set[str]:
     return set(_QUEUED_RE.findall(_ahk_script()))
 
 
+def _ahk_binding_for(command: str) -> str | None:
+    """The key the AHK script binds to ``command``, as the script spells it."""
+    match = re.search(
+        rf'^(\S+)::QueueCommand\("{re.escape(command)}"\)', _ahk_script(), re.MULTILINE
+    )
+    return match.group(1) if match else None
+
+
 def _ahk_suspend_exempt_commands() -> set[str]:
     """The commands bound inside the script's ``#SuspendExempt`` block.
 
@@ -98,21 +106,44 @@ def test_voice_toggle_is_not_key_bound():
         assert row.hotkeys == (), f"{row.description!r} must show no hotkey"
 
 
-def test_cycle_action_and_seed_rows_have_keys_and_voice():
-    """Del/End cycle the portrait's action/seed; E/Q do the same for landscape."""
+def test_cycle_action_and_seed_are_spoken_only():
+    """Cycling a clip's action or seed is a spoken command on both sides.
+
+    Each held a key once — Del/End on portrait, E/Q on landscape — and none of the
+    four was ever used, so they went back to the pool; E now ends a landscape loop.
+    """
     expected = {
-        "portrait_cycle_action": ("Del", "portrait action"),
-        "portrait_cycle_seed": ("End", "portrait seed"),
-        "landscape_cycle_action": ("E", "landscape action"),
-        "landscape_cycle_seed": ("Q", "landscape seed"),
+        "portrait_cycle_action": "portrait action",
+        "portrait_cycle_seed": "portrait seed",
+        "landscape_cycle_action": "landscape action",
+        "landscape_cycle_seed": "landscape seed",
     }
     rows = _all_rows()
-    for cmd, (key, phrase) in expected.items():
+    queued = _ahk_hotkey_commands()
+    for cmd, phrase in expected.items():
         assert VOICE_COMMANDS[phrase] == cmd
+        assert cmd not in queued, f"{cmd} is spoken-only and must hold no key"
+        owning = [r for r in rows if cmd in r.commands]
+        assert len(owning) == 1, f"expected exactly one row for {cmd}"
+        assert owning[0].hotkeys == ()
+        assert phrase in owning[0].voice
+
+
+def test_ending_a_group_loop_is_key_bound_per_side():
+    """A group loop is entered by voice but ended by a key too: Home for portrait,
+    E for landscape.  A loop is otherwise the one satellite state with no way out at
+    the keyboard, so each binding has to reach the same command the phrase does.
+    """
+    expected = {"portrait_no_loop": "Home", "landscape_no_loop": "E"}
+    rows = _all_rows()
+    for cmd, key in expected.items():
+        bound = _ahk_binding_for(cmd)
+        assert bound is not None, f"{cmd} must be bound in the AHK hotkey script"
+        # AHK writes letter hotkeys lowercase; the reference labels them uppercase.
+        assert bound.lower() == key.lower(), f"{cmd} is on {bound!r}, expected {key!r}"
         owning = [r for r in rows if cmd in r.commands]
         assert len(owning) == 1, f"expected exactly one row for {cmd}"
         assert owning[0].hotkeys == (key,)
-        assert phrase in owning[0].voice
 
 
 def test_both_section_lists_combined_satellite_commands():
