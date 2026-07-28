@@ -294,18 +294,22 @@ for _axis_word, _axis_cmd in _CYCLE_AXES.items():
     for _cycle_verb in ("cycle", "next", "change"):
         VOICE_COMMANDS[f"{_cycle_verb} {_axis_word}"] = _axis_cmd
 
-# The primary (Nau) player joins the grid for navigation and reset — "primary
-# next" / "next primary" (either order) — since it has no lock or weird, and its
+# The primary (Nau) player joins the grid for navigation, its lock and reset —
+# "primary next" / "next primary" (either order) — since it has no weird, and its
 # one cycle axis is "version" above rather than the satellites' action/seed.
-# "main" is a synonym for "primary".  Bare "next"/"previous" also reach it
-# whenever it was the last player navigated (the active side resolves to the
-# primary then).  "reset" means here what it means for a satellite — drop
-# whatever is narrowing the playlist, back to the default browse — which for Nau
-# is leaving any compilation and any length filter for the mixed library.
+# "main" is a synonym for "primary".  Bare "next"/"previous"/"lock"/"unlock" also
+# reach it whenever it was the last player addressed (the active side resolves to
+# the primary then).  A lock means here what it means on a satellite: hold the
+# video on screen, where unlocked its end walks the playlist.  "reset" means what
+# it means for a satellite — drop whatever is narrowing the playlist, back to the
+# default browse — which for Nau is leaving any compilation and any length filter
+# for the mixed library.
+_PRIMARY_ACTIONS = {"next": "next", "previous": "prev",
+                    "lock": "lock_on", "unlock": "lock_off"}
 for _player_word in ("primary", "main"):
-    for _nav_word, _nav in {"next": "next", "previous": "prev"}.items():
-        VOICE_COMMANDS[f"{_player_word} {_nav_word}"] = f"primary_{_nav}"
-        VOICE_COMMANDS[f"{_nav_word} {_player_word}"] = f"primary_{_nav}"
+    for _action_word, _action in _PRIMARY_ACTIONS.items():
+        VOICE_COMMANDS[f"{_player_word} {_action_word}"] = f"primary_{_action}"
+        VOICE_COMMANDS[f"{_action_word} {_player_word}"] = f"primary_{_action}"
     VOICE_COMMANDS[f"{_player_word} reset"] = "nau_length_mixed"
     VOICE_COMMANDS[f"reset {_player_word}"] = "nau_length_mixed"
 

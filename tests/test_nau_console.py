@@ -15,7 +15,7 @@ from fun_time.nau_console import (
 
 def _payload(**overrides) -> dict:
     base = dict(mode="nau", active=False, osr2_mode="controlled",
-                funscript_driving=False, broker=False,
+                funscript_driving=False, broker=False, nau_locked=True,
                 genau=GenauStatus())
     base.update(overrides)
     return console_payload(**base)
@@ -76,3 +76,9 @@ class TestPayload:
         assert payload["auto_advance"] is True
         assert payload["clip_locked"] is True
         assert _payload()["auto_advance"] is False
+
+    def test_naus_lock_is_bounced_back_for_the_console_to_draw(self):
+        """The padlock is Nau's own state, but in genau mode the console carrying
+        it is drawn by a player with no such lock to ask."""
+        assert _payload(nau_locked=True)["locked"] is True
+        assert _payload(nau_locked=False)["locked"] is False

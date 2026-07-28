@@ -448,6 +448,53 @@ def test_primary_prev_in_genau_mode_writes_nau_cmd(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV"
 
 
+# --- primary_lock ---
+
+
+def test_primary_lock_toggles_naus_hold_on_the_video(tmp_path: Path):
+    """The apostrophe and the console's padlock both send the toggle; Nau holds
+    the state, since only it knows what its own end of file is doing."""
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    dispatch_command("primary_lock", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK"
+
+
+def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau")
+
+    dispatch_command("primary_lock_on", state, config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON"
+
+    dispatch_command("primary_lock_off", state, config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF"
+
+
+def test_primary_lock_reaches_nau_in_genau_mode_too(tmp_path: Path):
+    """Like [ and ], and for the same reason: the blanked Nau is still a player
+    with a playlist, and what its end of file does is settled either way."""
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="genau")
+
+    dispatch_command("primary_lock", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK"
+
+
+def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(tmp_path: Path):
+    """A satellite's own lock key selects that side; the primary's does the same,
+    so a following bare "next" goes where the last thing you touched was."""
+    config = _make_config(tmp_path)
+    state = _make_state(primary_mode="nau", active_side=2)
+
+    state, _ops = dispatch_command("primary_lock", state, config)
+
+    assert state.active_side == 1
+
+
 # --- projection_cycle (FunTimeVR's primary) ---
 
 

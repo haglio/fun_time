@@ -93,6 +93,13 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         (
             _Row("Previous video", ("[",), ("primary_prev",)),
             _Row("Next video", ("]",), ("primary_next",)),
+            _Row(
+                "Lock / unlock the primary — locked (the default) the video "
+                "repeats; unlocked it plays on to the next one and the playlist "
+                "runs around",
+                ("'",),
+                ("primary_lock", "primary_lock_on", "primary_lock_off"),
+            ),
             _Row("Nudge back 10 seconds", ("-",), ("primary_nudge_prev",)),
             _Row("Nudge forward 10 seconds", ("=",), ("primary_nudge_next",)),
             _Row(
@@ -155,7 +162,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("primary_fmode", "primary_fmode_on", "primary_fmode_off"),
             ),
             _Row("Open file browser", ("\\",), ("backslash_key", "browse_library")),
-            _Row("Save clip (Clipper)", ("'",), ("clipper_save",)),
+            _Row("Save clip (Clipper)", (";",), ("clipper_save",)),
         ),
     ),
     (
@@ -255,8 +262,8 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         "Active side",
         (
             _Row(
-                "Lock / unlock the active side — the portrait or landscape "
-                "player most recently addressed by voice or keyboard",
+                "Lock / unlock the active side — the primary, portrait or "
+                "landscape player most recently addressed by voice or keyboard",
                 (),
                 ("active_lock_on", "active_lock_off"),
             ),
