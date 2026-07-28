@@ -123,8 +123,8 @@ class HudModel:
     seeds: tuple[HudCell, ...] = ()
     actions: tuple[HudCell, ...] = ()
     current_action: str = ""
-    # The act this side is filtered to, if any: the map lights that row's
-    # label, and pressing the lit one lifts the filter.
+    # The act this side is filtered to, if any: the map lights every row the
+    # filter keeps, and pressing a lit one lifts it.
     filter_query: str = ""
     active_loop: str = ""
     # How many clips each axis stands for, the clip on screen included.  The map
@@ -430,15 +430,31 @@ def filter_button_rects(
     return rects
 
 
-def label_is_filtered(label: str, filter_query: str) -> bool:
-    """Whether *label*'s act is the one its side is filtered to.
+def _norm_act(text: str) -> str:
+    """An act label or a filter query flattened for comparison: lower-cased with
+    runs of whitespace collapsed, the way fun_time normalizes both sides of its own
+    match (``media_metadata._norm_text``)."""
+    return " ".join(str(text or "").split()).lower()
 
-    One rule, used by the map to light that row's label and its filter button, and
-    by the press to make that button a toggle, so what looks on and what turns off
+
+def label_is_filtered(label: str, filter_query: str) -> bool:
+    """Whether the side's filter is one *label*'s row satisfies.
+
+    fun_time keeps a clip when the query appears as a *contiguous substring* of its
+    metadata (``media_metadata.matches_query``), so the map has to read the same way
+    — filtered to "gamma", a row labelled "POV Gamma" and a row carrying two acts as
+    "Gamma, Theta" are both clips the filter keeps.  Matching the whole label exactly
+    instead left those rows unlit, so the mark flicked off the moment one came up and
+    back on at the next exact match: it read as the filter dropping and returning
+    while the playlist under it never changed.
+
+    One rule, used by the map to light a row's label and its filter button, and by
+    the press to make that button a toggle, so what looks on and what turns off
     cannot disagree.  fun_time records a filter as the act lower-cased, which is how
-    a label reaches it.
+    a query reaches it.
     """
-    return bool(filter_query) and label.strip().lower() == filter_query.strip().lower()
+    query = _norm_act(filter_query)
+    return bool(query) and query in _norm_act(label)
 
 
 LOOP_TOOLTIPS = {"action": "Loop this action column", "seed": "Loop this seed row"}
@@ -524,9 +540,11 @@ class HudClicks:
             return f"{self._side}_more_seeds"
         action = hit_test_targets(targets.filter, px, py)
         if action:
-            # A lit button is the filter it set, so pressing it again lifts it: the way
-            # out of a filter is the control that put you in it — the same toggle the
-            # loop buttons are.
+            # A lit button is a row the filter is keeping, so pressing it lifts that
+            # filter: the way out is whichever control shows as on — the same toggle
+            # the loop buttons are.  It costs narrowing "gamma" to "pov gamma" from
+            # the map, which is the right trade: a green button that stayed green on
+            # a press would be the confusing half.
             if label_is_filtered(action, self.active_filter):
                 self.active_filter = ""
                 return f"{self._side}_no_filter"

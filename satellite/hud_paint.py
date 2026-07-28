@@ -441,9 +441,9 @@ class HudRenderer:
         def row(row_y: int, row_h: int, text: str) -> None:
             # One block of tight word-lines per act, with a bigger gap between
             # acts, so a two-word act ("Motion" / "Bounce") wraps close but two acts
-            # ("Alpha" then "Theta Motion") are clearly separated.  The act the
-            # side is filtered to is drawn lit, matching the lit filter button at
-            # the head of its row.
+            # ("Alpha" then "Theta Motion") are clearly separated.  A row the
+            # filter keeps is drawn lit, matching the lit filter button at the head
+            # of that row.
             colour = TEXT_PRIMARY if label_is_filtered(text, model.filter_query) else TEXT_MUTED
             ascent, descent = self._row.getmetrics()
             line_h = ascent + descent - 4
@@ -525,12 +525,13 @@ class HudRenderer:
 
     def _draw_filter_buttons(self, draw, rects: list[tuple[Rect, str]],
                              filter_query: str) -> None:
-        """The filter button at the head of each row, lit on the act the side is
-        filtered to.
+        """The filter button at the head of each row, lit on every row the filter
+        keeps — which is more than the row that names it exactly, since fun_time
+        matches a query as a substring (see :func:`label_is_filtered`).
 
         It lights off the published filter, exactly as the loop buttons light off
         the published loop — so a filter set any other way (spoken, or from the
-        other side's map) shows here too, and pressing the lit one lifts it.
+        other side's map) shows here too, and pressing a lit one lifts it.
         """
         for rect, name in rects:
             self._filter_button(draw, rect, on=label_is_filtered(name, filter_query))
