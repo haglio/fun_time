@@ -2579,6 +2579,46 @@ class TestHudPublishing:
         assert console["broker"] is True
         assert console["osr2"] in ("off", "auto", "funscript", "genau", "idle")
 
+    def test_both_broker_lights_read_the_brokers_directory_not_the_sessions(self, tmp_path):
+        """A branch session moves ``state/`` into its worktree; the machine's one
+        broker keeps writing where it always did.
+
+        Reading the heartbeat and the serial stamp out of the *session's*
+        directory is what had this console calling a live broker dead and a
+        driven OSR2 off — so a stamp in the session's own directory must not
+        light either one.
+        """
+        broker_state = tmp_path / "primary_state"
+        broker_state.mkdir()
+        publisher = HudPublisher(
+            {"portrait": tmp_path / "portrait_hud.json",
+             "landscape": tmp_path / "landscape_hud.json",
+             "nau": tmp_path / "nau_console.json"},
+            tmp_path / "thumbs",
+        )
+        runner = make_runner(tmp_path, hud_publisher=publisher, config=make_config(
+            tmp_path,
+            broker_state_dir=broker_state,
+            broker_heartbeat_file=broker_state / "broker_heartbeat.txt",
+        ))
+
+        def published(state_dir: Path) -> dict:
+            now = time.time()
+            (state_dir / "broker_heartbeat.txt").write_text(str(now), encoding="utf-8")
+            (state_dir / "osr2_serial_rx.txt").write_text(str(now), encoding="utf-8")
+            runner._last_hud_publish -= 1
+            runner.tick()
+            return self._console(tmp_path)
+
+        # The worktree's own state dir: fresh stamps nothing reads.
+        session = published(tmp_path)
+        assert session["broker"] is False
+        assert session["osr2"] == "off"
+
+        broker = published(broker_state)
+        assert broker["broker"] is True
+        assert broker["osr2"] != "off"
+
     def test_the_console_carries_the_lock_back_to_whoever_draws_it(self, tmp_path):
         """Each player owns its own lock, and neither can see the other's — so
         both go out on their status files and the one the mode says is showing

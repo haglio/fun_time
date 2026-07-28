@@ -36,7 +36,13 @@ def _the_users_config() -> tuple[dict, dict]:
     """The two configs as the user's own session has them, naming what the machine shares."""
     config = {
         "audio_companion": {"host": "127.0.0.1", "port": AUDIO_COMPANION_PORT},
-        "paths": {"broker_tray_launcher": "../osr2_broker/launch_broker_tray.vbs"},
+        "paths": {
+            "broker_tray_launcher": "../osr2_broker/launch_broker_tray.vbs",
+            # A session may be pinned at the broker's own directory rather than
+            # its own state dir — a branch session is — and a run copies the
+            # config whole.
+            "broker_state_dir": "C:/Users/Example/workspace/fun_time/state",
+        },
         "voice_control": {"enabled": True, "device_name": "Brio"},
         "loopback_port": LOOPBACK_PORT,
         # Vestigial: fun_time stopped parsing this when Genau moved to its own
@@ -261,6 +267,22 @@ def test_a_run_never_starts_or_adopts_the_machines_broker(isolated_ports):
     config, _genau_config = isolated_ports
 
     assert config["paths"]["broker_tray_launcher"] == ""
+
+
+def test_a_run_never_inherits_a_pin_at_the_machines_broker_directory(isolated_ports):
+    """The broker's files are the one part of ``state/`` a session may be pointed
+    away from its own directory for — a branch session is, because the machine's
+    one broker writes where its own config says and nowhere else.
+
+    A run copies the config whole, so it would inherit that pin: park and retract
+    written into the live broker's command file while the user is using it, and
+    the live heartbeat read back as the run's own — which is precisely the fresh
+    heartbeat the broker kill path above is only ever reached through.  Dropped,
+    the whole channel falls back inside the run's own state dir.
+    """
+    config, _genau_config = isolated_ports
+
+    assert "broker_state_dir" not in config["paths"]
 
 
 def test_a_run_never_opens_the_microphone(isolated_ports):

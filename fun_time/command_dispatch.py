@@ -183,6 +183,12 @@ class BridgeConfig:
     broker_cmd_file: Path | None = None
     broker_heartbeat_file: Path | None = None
     broker_tray_launcher: Path | None = None
+    # Where the broker keeps the rest of its channel.  Unset it falls back to
+    # ``state_dir``, which is what the two are for every session that runs from
+    # the primary checkout; a branch session moves ``state_dir`` into its worktree
+    # and this stays on the primary, because the broker is still the machine's one
+    # broker.  See :attr:`fun_time.config.PathsConfig.broker_state_dir`.
+    broker_state_dir: Path | None = None
     regen_media_root: Path | None = None
     regen_metadata_root: Path | None = None
     regen_generate_video_url: str = "https://example.com/video"
@@ -196,6 +202,21 @@ class BridgeConfig:
 
     def satellite_playlist_file(self, which: int) -> Path:
         return self.portrait_playlist_file if which == 2 else self.landscape_playlist_file
+
+    @property
+    def broker_state(self) -> Path:
+        """The directory the broker's files live in, defaulted to our own."""
+        return self.broker_state_dir or self.state_dir
+
+    @property
+    def genau_enabled_file(self) -> Path:
+        """Our switch for whether the broker may hand the OSR2 to Genau."""
+        return genau_enabled_path(self.broker_state)
+
+    @property
+    def osr2_serial_rx_file(self) -> Path:
+        """When the OSR2 last spoke, as the broker last stamped it."""
+        return self.broker_state / "osr2_serial_rx.txt"
 
     @property
     def regen(self) -> RegenConfig:
@@ -1182,7 +1203,7 @@ def dispatch_command(
     if command == "genau_toggle_auto":
         # Flip whether Genau may take over while OSR2 is in auto mode. The broker
         # reads this persisted flag each tick, so a plain file write is enough.
-        _toggle_genau_enabled(genau_enabled_path(config.state_dir))
+        _toggle_genau_enabled(config.genau_enabled_file)
         return state, ops
 
     speed = _speed_engine_commands(command)

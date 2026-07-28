@@ -120,6 +120,21 @@ class TestControllerManifest:
             assert commands[f"{side}_status_file"] == str(state / f"{side}_status.txt")
             assert commands[f"{side}_playlist_file"] == str(state / f"{side}_playlist.tsv")
 
+    def test_the_brokers_files_are_manifested_from_the_brokers_own_directory(
+        self, tmp_path: Path, cfg_factory,
+    ):
+        """Every child reads its paths back out of this manifest, so a session
+        whose state dir has moved has to be told the broker's rather than left to
+        derive one from its own."""
+        broker_state = tmp_path / "primary_state"
+        path = cfg_factory({"paths": {"broker_state_dir": str(broker_state)}})
+        commands = build_windows_bridge_manifest(load_config(path))["commands"]
+
+        assert commands["broker_state_dir"] == str(broker_state)
+        assert commands["broker_cmd_file"] == str(broker_state / "broker_cmd.txt")
+        assert commands["broker_heartbeat_file"] == str(broker_state / "broker_heartbeat.txt")
+        assert commands["genau_mode_file"] == str(broker_state / "genau_mode.txt")
+
     def test_nau_library_dirs_joined_with_pipe(self, tmp_path: Path, cfg_factory):
         extra = tmp_path / "extra"
         extra.mkdir()
