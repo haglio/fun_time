@@ -11,6 +11,7 @@ import logging
 
 from fun_time.command_dispatch import (
     FAILED_NOTICE_LEVEL,
+    FAVORITE_NOTICE_LEVEL,
     BridgeState,
     BridgeConfig,
     WindowOp,
@@ -813,7 +814,10 @@ def test_fmode_toggle_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Pa
         _new_state, ops = dispatch_command(
             "fmode_toggle", _make_state(f_mode_enabled=False), config)
 
-    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="system")]
+    # At the favorites' own level, so it flashes green: F-mode is the filter over
+    # them, and green is what the favorites and the funscripts own.
+    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="system",
+                            level=FAVORITE_NOTICE_LEVEL)]
 
 
 def test_fmode_toggle_flashes_a_red_notice_when_it_turns_off(tmp_path: Path):
@@ -2621,7 +2625,10 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
     assert _playlist(config, 2) == []  # no queue reshape for a group of one
     assert _cmds(config, 2) == ["LOCK"]  # a group of one is really a single-video lock
     assert new_state.locked2 is True
-    assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
+    notices = [op for op in ops if op.op == "notice"]
+    assert [op.key for op in notices] == ["Locked"]
+    # Green, because a lock puts the clip in the favorites.
+    assert [op.level for op in notices] == [FAVORITE_NOTICE_LEVEL]
 
 
 def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):

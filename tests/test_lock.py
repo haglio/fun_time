@@ -16,7 +16,13 @@ import logging
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.command_dispatch import _cancel_lock, _discard, _toggle_lock
+from fun_time.command_dispatch import (
+    FAVORITE_NOTICE_LEVEL,
+    _cancel_lock,
+    _discard,
+    _toggle_lock,
+)
+from fun_time.event_log import NOTICE
 from fun_time.media_actions import ensure_in_favs
 from tests.test_command_dispatch import _cmds, _make_config, _make_state, _set_current
 
@@ -203,6 +209,10 @@ def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
 
     assert [op.key for op in demote_ops] == ["Unfavorited"]
     assert [op.key for op in condemn_ops] == ["Marked weird"]
+    # And in different colors: undoing a favoriting is one of the things green
+    # is kept for, condemning a clip that was never a favorite is not.
+    assert [op.level for op in demote_ops] == [FAVORITE_NOTICE_LEVEL]
+    assert [op.level for op in condemn_ops] == [NOTICE]
     assert _cmds(config, 2) == ["NEXT", "TRASH"]
     assert not video.exists()
     assert [p.name for p in config.weird_dir.iterdir()] == ["twice.mp4"]

@@ -420,8 +420,8 @@ if _shadowed:
 VOICE_COMMANDS.update(_filter_commands)
 
 
-# Commands that flash their own outcome, so the generic "I heard you" green echo
-# must not stack a second toast on top.  The clip and funscript jumps report from
+# Commands that flash their own outcome, so the generic "I heard you" echo must
+# not stack a second toast on top.  The clip and funscript jumps report from
 # Nau (where they landed, or "full video not available" / "no funscripting
 # ahead"); F-mode reports from the dispatch, which alone knows whether the toggle
 # turned it on (green) or off (red) — and by owning the toast there, the F key and

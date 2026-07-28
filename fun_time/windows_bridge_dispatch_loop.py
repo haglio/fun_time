@@ -27,7 +27,7 @@ from .command_dispatch import (
     side_name,
 )
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
-from .event_log import NOTICE, notice
+from .event_log import FAVORITE, NOTICE, notice
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
 from .lock_hud import SideInputs, build_panels
@@ -77,6 +77,11 @@ logger = logging.getLogger(__name__)
 # player needs to read the verb and the ~1 more to present the black — this is
 # time nobody can see, and being early is the failure it exists to avoid.
 PRIMARY_BLANK_SETTLE_S = 0.25
+
+# What Nau's own notice levels mean here.  Nau has no palette — it names the kind
+# of thing that happened and this side picks the color, the same way the ops
+# raised in :mod:`fun_time.command_dispatch` do.
+_NAU_NOTICE_LEVELS = {"error": FAILED_NOTICE_LEVEL, "favorite": FAVORITE}
 
 
 def read_nau_notice(path) -> tuple[float, str, str]:
@@ -419,6 +424,9 @@ class DispatchLoopRunner:
             funscript_driving=nau.funscript_driving,
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
             if self.config.broker_heartbeat_file else False,
+            # Nau's loop machine, so the record button on the console can show
+            # which half of the gesture is running.
+            record=nau.state,
             genau=read_genau_status(self.config.state_dir / "genau_status.txt"),
         ))
 
@@ -475,7 +483,12 @@ class DispatchLoopRunner:
             self.voice_controller.unsuspend()
 
     def _flash_nau_notice(self) -> None:
-        """Surface anything Nau has raised since the last tick, once."""
+        """Surface anything Nau has raised since the last tick, once.
+
+        Nau names the kind rather than the color: "error" for a request with
+        nowhere to go, "favorite" for one about a funscript — which is what green
+        is kept for here — and anything else is an ordinary white notice.
+        """
         path = getattr(self.config, "nau_notice_file", None)
         if path is None:
             return
@@ -486,7 +499,7 @@ class DispatchLoopRunner:
         if message:
             notice(
                 logger, message, source="primary",
-                level=FAILED_NOTICE_LEVEL if level == "error" else NOTICE,
+                level=_NAU_NOTICE_LEVELS.get(level, NOTICE),
             )
 
     def _sync_hybrid_driver(self) -> None:

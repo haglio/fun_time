@@ -20,6 +20,11 @@ class LockActionPlan:
     # action was about.  Empty when there is nothing to announce — the action
     # was a no-op, or the log line is all it warrants.
     notice_message: str = ""
+    # Whether that notice is about the favorites, which is what decides its
+    # color: the caller flashes those green and everything else white.  Said as
+    # a fact about the action rather than as a log level, so this module stays
+    # free of logging — the two things a discard can be look identical otherwise.
+    notice_about_favorites: bool = False
 
 
 def build_lock_plan(
@@ -75,6 +80,7 @@ def build_lock_plan(
                 open_rfb_tab=False,
                 log_message=f"Removed from favorites on player {which}: {current_path}",
                 notice_message="Unfavorited",
+                notice_about_favorites=True,
             )
         return LockActionPlan(
             next_locked=False,

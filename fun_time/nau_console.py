@@ -46,6 +46,7 @@ def console_payload(
     osr2_mode: str,
     funscript_driving: bool,
     broker: bool,
+    record: str = "normal",
     genau: GenauStatus,
 ) -> dict:
     """The console panel as the primary player parses it.
@@ -53,6 +54,10 @@ def console_payload(
     The drive readout's own numbers (amplitude, centre, speed, the trace and its
     limits) travel on the separate drive file Genau publishes; this carries the
     room around them.
+
+    *record* is Nau's own loop machine (normal / recording / looping), which rides
+    here because the console is drawn in genau mode too — by a player with no loop
+    machine to ask — and because Nau already tells us in its status file.
     """
     return {
         "mode": mode,
@@ -60,6 +65,7 @@ def console_payload(
         "osr2": osr2_state(mode=mode, osr2_mode=osr2_mode,
                            funscript_driving=funscript_driving),
         "broker": broker,
+        "record": record,
         "cruise": genau.cruise_active,
         # Auto advance is armed apart from cruise — cruise varies the stroke, auto
         # advance moves on to the next clip — and a held clip is it armed but

@@ -12,6 +12,7 @@ from player_core.hud_panel import TEXT_MUTED, WHITE
 from satellite.hud import (
     CTRL_BAND_H,
     ELLIPSIS_ROOM,
+    FILTER_ROOM,
     LOCK_BAND_H,
     MAP_CELLS,
     MAP_GAP,
@@ -282,6 +283,19 @@ def test_the_lock_button_and_favourite_mark_light_up_when_they_apply():
     assert ink(on.targets.favorite, on) > ink(off.targets.favorite, off)
 
 
+def test_a_running_loops_button_fills_white_and_not_the_locks_green(thumb):
+    """The lock and the star are the panel's two favorites marks, and green is
+    theirs alone; a loop is just this side repeating a group, so its button lights
+    in the plain white every other control here uses."""
+    rendered = HudRenderer("portrait").render(_loop_model(thumb, ("corner", 0)))
+    x, y, w, h = dict((kind, rect) for rect, kind in rendered.targets.loop)["seed"]
+    rgb = _rgb(rendered.bgra)[y:y + h, x:x + w].astype(int)
+
+    assert (rgb > 240).all(axis=2).any()
+    green = (rgb[:, :, 1] > 100) & (rgb[:, :, 0] < 100) & (rgb[:, :, 2] < 100)
+    assert not green.any()
+
+
 def test_the_playing_cell_is_brighter_than_the_others(tmp_path: Path):
     """The clip actually on screen is drawn at full opacity and the rest dim, so
     the bright one reads as "this is what's on" even mid-loop."""
@@ -483,29 +497,33 @@ def test_the_filtered_actions_label_is_lit(thumb):
     assert gutter_ink("gamma") == 0  # …that row's label lights, not this one
 
 
-def _filter_button_green(rendered, action: str) -> int:
-    """How much green the *action* row's filter button carries — its lit state."""
+def _filter_button_fill(rendered, action: str) -> int:
+    """How much white the *action* row's filter button carries — its lit state.
+
+    White, not green: green across these HUDs means the favorites and the
+    funscripts, and a filter is neither.  Only the lock keeps the color.
+    """
     x, y, w, h = dict((name, rect) for rect, name in rendered.targets.filter)[action]
     rgb = _rgb(rendered.bgra)[y:y + h, x:x + w].astype(int)
-    return int(((rgb[:, :, 1] > 100) & (rgb[:, :, 0] < 100) & (rgb[:, :, 2] < 100)).sum())
+    return int((rgb > 240).all(axis=2).sum())
 
 
 def test_the_filter_button_lights_on_the_act_the_side_is_filtered_to(thumb):
-    """The filter button is the loop buttons' twin — green while its row is one the
+    """The filter button is the loop buttons' twin — lit while its row is one the
     filter keeps, so the control that lifts a filter is the lit one that set it, and
     a filter set any other way still shows on the row it holds you to."""
     renderer = HudRenderer("portrait")
 
-    def green_ink(filter_query: str) -> int:
-        return _filter_button_green(renderer.render(_model(
+    def lit_ink(filter_query: str) -> int:
+        return _filter_button_fill(renderer.render(_model(
             corner=HudCell(path="c.mp4", thumb=thumb),
             actions=(HudCell(path="a1.mp4", thumb=thumb, label="gamma"),),
             current_action="alpha", filter_query=filter_query,
         )), "alpha")
 
-    assert green_ink("alpha") > 0
-    assert green_ink("") == 0
-    assert green_ink("gamma") == 0  # …that row's button lights, not this one
+    assert lit_ink("alpha") > 0
+    assert lit_ink("") == 0
+    assert lit_ink("gamma") == 0  # …that row's button lights, not this one
 
 
 def test_a_row_the_filter_only_partly_matches_still_lights(thumb):
@@ -515,16 +533,16 @@ def test_a_row_the_filter_only_partly_matches_still_lights(thumb):
     the filter had dropped while the playlist under it had not changed at all."""
     renderer = HudRenderer("portrait")
 
-    def green_ink(current_action: str) -> int:
-        return _filter_button_green(renderer.render(_model(
+    def lit_ink(current_action: str) -> int:
+        return _filter_button_fill(renderer.render(_model(
             corner=HudCell(path="c.mp4", thumb=thumb),
             current_action=current_action, filter_query="gamma",
         )), current_action)
 
-    assert green_ink("gamma") > 0
-    assert green_ink("pov gamma") > 0       # the query is one word of the act
-    assert green_ink("gamma, theta") > 0    # one of the clip's two acts
-    assert green_ink("alpha") == 0
+    assert lit_ink("gamma") > 0
+    assert lit_ink("pov gamma") > 0       # the query is one word of the act
+    assert lit_ink("gamma, theta") > 0    # one of the clip's two acts
+    assert lit_ink("alpha") == 0
 
 
 def test_only_the_act_the_filter_matched_is_lit_on_a_two_act_row(thumb):
@@ -540,9 +558,10 @@ def test_only_the_act_the_filter_matched_is_lit_on_a_two_act_row(thumb):
             current_action="gamma, theta", filter_query=filter_query,
         ))
         (cx, cy, _cw, ch), _path = rendered.targets.click[0]
-        # The gutter beside the corner row: its two act names, and the (green, never
-        # near-white) filter button at the head of the row.
-        band = (_rgb(rendered.bgra)[cy:cy + ch, PAD:cx - MAP_GAP] > 200).all(axis=2)
+        # The part of the gutter holding the two act names, past the filter button
+        # at the head of the row — that button fills white when it is lit, which is
+        # the same ink the labels use.
+        band = (_rgb(rendered.bgra)[cy:cy + ch, PAD + FILTER_ROOM:cx - MAP_GAP] > 200).all(axis=2)
         return int(band[:ch // 2].sum()), int(band[ch // 2:].sum())
 
     gamma_top, gamma_bottom = white_halves("gamma")
