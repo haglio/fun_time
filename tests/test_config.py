@@ -393,3 +393,29 @@ class TestLoopbackPort:
         path = cfg_factory({"loopback_port": 54321})
         cfg = load_config(path)
         assert cfg.loopback_port == 54321
+
+
+# ---------------------------------------------------------------------------
+# instance_id
+# ---------------------------------------------------------------------------
+
+class TestInstanceId:
+    """Which running session a config *is*, for the single-instance mutex.
+
+    The mutex used to be taken on the config path directly, which made "one
+    session per config file" the only arrangement expressible.  A
+    branch-verification session needs the opposite: its own config, but the live
+    session's identity, so the two can never both hold the desktop's AHK shell,
+    monitors and fixed ports.  An integration run needs the old behavior and
+    keeps it — its config lives at a unique temp path, so it is its own instance
+    without saying anything.
+    """
+
+    def test_defaults_to_the_config_file(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.instance_id == str(cfg_path)
+
+    def test_a_config_can_name_another_sessions_identity(self, cfg_factory):
+        path = cfg_factory({"instance_id": "C:/checkouts/fun_time/fun_time_config.json"})
+        cfg = load_config(path)
+        assert cfg.instance_id == "C:/checkouts/fun_time/fun_time_config.json"

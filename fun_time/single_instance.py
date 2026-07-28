@@ -17,14 +17,17 @@ MUTEX_BROKER = "Global\\FunTime.Broker"
 MUTEX_ORCHESTRATOR = "Global\\FunTime.Orchestrator"
 
 
-def mutex_name_for_config(base: str, config_path: Path) -> str:
-    """Derive a mutex name from a base prefix and config file path.
+def mutex_name_for_config(base: str, instance_id: str | Path) -> str:
+    """Derive a mutex name from a base prefix and a session identity.
 
-    The same config path always produces the same mutex, so the real app
-    (single config) blocks duplicates while integration tests (unique
-    tmp configs) run without conflict.
+    The identity is ``ProjectConfig.instance_id`` — the config path, unless the
+    config names another session's.  The same identity always produces the same
+    mutex, so the real app (single config) blocks duplicates while integration
+    tests (unique tmp configs) run without conflict, and a branch-verification
+    session — which borrows the live session's identity on purpose — is refused
+    while that one is up, in either order.
     """
-    suffix = hashlib.md5(str(config_path).encode()).hexdigest()[:12]
+    suffix = hashlib.md5(str(instance_id).encode()).hexdigest()[:12]
     return f"{base}.{suffix}"
 
 

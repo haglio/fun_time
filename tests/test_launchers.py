@@ -1,4 +1,4 @@
-"""The two ways a session is started: the Windows launcher and the shell wrapper.
+"""The ways a session is started: the Windows launchers and the shell wrapper.
 
 Both must run the orchestrator on the project venv.  ``fun_time`` imports its
 sibling packages — ``app_support``, ``player_core`` — and those are editable
@@ -11,6 +11,8 @@ anywhere says why.
 from __future__ import annotations
 
 from pathlib import Path
+
+from fun_time.branch_session import WORKTREE_LIST_NAME
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
@@ -104,3 +106,67 @@ def test_vr_launcher_holds_the_same_invariants_with_its_own_sentinels():
     # The sentinel names must not collide with the desktop launcher's.
     desktop = _text("launch.vbs")
     assert "vr_launcher.ready" not in desktop
+
+
+def test_branch_launcher_holds_the_same_invariants_and_runs_from_the_primary():
+    """``launch_branch.vbs`` is launch.vbs aimed at a worktree.  It keeps every
+    hidden-launch safeguard — the venv pin, the console log, the ready/exited
+    sentinel pair, the failure dialog with the log tail — and it runs
+    ``fun_time.branch_session`` out of the primary checkout, because the
+    launcher and the config it writes are main's code.  Only the session
+    underneath is the branch's; branch_session is what moves the working
+    directory into the worktree."""
+    text = _text("launch_branch.vbs")
+
+    assert ".venv\\Scripts\\python.exe" in text
+    assert "where " not in text
+    assert "-m fun_time.branch_session" in text
+    assert "launcher.log" in text
+    assert "2>&1 & type nul >" in text
+    assert "launcher.ready" in text
+    assert "launcher.exited" in text
+    assert "failed to start" in text
+    assert text.count("MsgBox") >= 2
+    assert "vbCritical" in text
+
+
+def test_branch_launcher_watches_the_worktrees_sentinels_not_the_primarys():
+    """It reuses launch.vbs's sentinel names, kept apart by *directory*: the
+    branch session's state dir is inside the worktree, so that is where it
+    writes ``launcher.ready`` and where the launcher must look.  Watching the
+    primary's would let the live session's leftovers vouch for a branch launch
+    that never got off the ground."""
+    text = _text("launch_branch.vbs")
+
+    assert 'stateDir = fso.BuildPath(worktree, "state")' in text
+    assert 'readyFile = fso.BuildPath(stateDir, "launcher.ready")' in text
+    assert 'exitedFlag = fso.BuildPath(stateDir, "launcher.exited")' in text
+    assert 'launchLog = fso.BuildPath(stateDir, "launcher.log")' in text
+
+
+def test_branch_launcher_asks_which_branch_rather_than_taking_a_command_line():
+    """The user launches from Explorer, so the branch name has to be asked for
+    on screen.  The menu comes from the same file ``branch_session`` writes it
+    to, and it is read back as Unicode — commit subjects are full of em dashes,
+    and FileSystemObject's ANSI mode mangles them."""
+    text = _text("launch_branch.vbs")
+
+    assert "InputBox" in text
+    assert f'"{WORKTREE_LIST_NAME}"' in text
+    assert "--list" in text
+    # OpenTextFile(..., TristateTrue): the UTF-16 the list is written as.
+    assert "OpenTextFile(listFile, 1, False, -1)" in text
+
+
+def test_branch_launcher_can_reach_a_worktree_the_menu_did_not_list():
+    """The repo carries dozens of worktrees and InputBox truncates a prompt past
+    about a thousand characters, so the menu shows only the newest few.  Typing
+    part of a branch name reaches any of them — which is also the shape an agent
+    hands the user, a branch name rather than a position in a list."""
+    text = _text("launch_branch.vbs")
+
+    assert "maxShown" in text
+    assert "older ones not shown" in text
+    assert "InStr(LCase(labels(i)), needle)" in text
+    # An ambiguous name must not silently launch one of the matches.
+    assert "Type more of the name." in text

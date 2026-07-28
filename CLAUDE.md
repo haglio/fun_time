@@ -109,17 +109,20 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   The primary is only ever fast-forwarded — never reset or merged-into.
 - **A red required check** (`.github/workflows/merge-gate.yml`) can't land.
 
-- **Land it; never park a finished branch waiting for him to review.** The global
-  rule that a remote `main` waits for the user's go-ahead assumes he can look at
-  the work first. Here he cannot: the app runs from the primary checkout, which
-  only moves when `main` does, so a branch held back is a change he is unable to
-  see, run, or judge — and telling him it is ready but unlanded hands him a turn
-  where there is nothing he can do. He has called that unacceptable, twice. So
-  green suites → PR → queue → `git -C <primary> pull --ff-only origin main`, and
-  the message that reaches him says it is live and needs a restart. Landing IS
-  the verification environment; the queue's required check is the gate, and a bad
-  change is one revert away. The near miss that still counts: opening the PR but
-  asking before you enable the merge — that is the same stall with extra steps.
+- **Get his eyes on the branch before the PR — `launch_branch.vbs`.** He runs Fun
+  Time from the primary checkout, which only moves when `main` does, so a branch
+  used to be a change he could not see, run or judge; that is why the rule here
+  was once "land it unverified rather than park it". It no longer is. With your
+  suites green, tell him to open
+  [fun_time](C:/Users/redacted/workspace/haglio/fun_time) and double-click
+  `launch_branch.vbs`, then pick your branch from the list (or type part of its
+  name). That runs a real session on your worktree's code — his real library, his
+  real monitors, uncommitted edits included. It replaces the live session rather
+  than joining it, so he quits with Ctrl+Alt+Q and launches Fun Time normally
+  afterwards; `fun_time/branch_session.py` says what it isolates and what it
+  shares on purpose. Then on his word: PR → queue → `git -C <primary> pull
+  --ff-only origin main`, and tell him it is live and needs a restart. Only he
+  may waive the launch — "just land it" is his call to make, never yours.
 
 Everything else in the global CLAUDE.md — work in a worktree, green tests before
 you push, clean handoff — still applies.
