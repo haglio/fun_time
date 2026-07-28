@@ -384,7 +384,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # The SAME mutex as the desktop session: both drive the same state files
     # and the same players' channels, so they must never run together.
-    _mutex_handle = try_acquire_mutex(mutex_name_for_config(MUTEX_ORCHESTRATOR, config.config_path))
+    _mutex_handle = try_acquire_mutex(mutex_name_for_config(MUTEX_ORCHESTRATOR, config.instance_id))
     if _mutex_handle is None:
         logger_.warning("Another Fun Time session (desktop or VR) is already running; exiting")
         signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)

@@ -217,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     install_exception_logging(logger)
 
     from .single_instance import MUTEX_ORCHESTRATOR, mutex_name_for_config, try_acquire_mutex, show_already_running_message
-    _mutex_handle = try_acquire_mutex(mutex_name_for_config(MUTEX_ORCHESTRATOR, config.config_path))
+    _mutex_handle = try_acquire_mutex(mutex_name_for_config(MUTEX_ORCHESTRATOR, config.instance_id))
     if _mutex_handle is None:
         logger.warning("Another Fun Time instance is already running; exiting")
         # The user got a message of our own; keep the launcher from adding a

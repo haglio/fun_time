@@ -205,7 +205,15 @@ class FunTimeIntegrationSession:
             self._stderr_fh.close()
         return exit_code
 
-    def start(self, wait_seconds: float = 45.0) -> None:
+    def start(self, wait_seconds: float = 45.0, project_dir: Path | None = None) -> None:
+        """Launch the orchestrator and wait for it to report the bridge up.
+
+        *project_dir* is the working directory the orchestrator runs in, which
+        is also the checkout it resolves ``fun_time`` and ``satellite`` from —
+        ``fun_time`` is not installed into the venv, so the working directory is
+        what chooses the code.  It defaults to this checkout; a branch-session
+        test passes the worktree, which is the whole mechanism under test.
+        """
         self._reap_leftover_runtime_processes()
         env = os.environ.copy()
         env["FUN_TIME_DISABLE_DASHBOARD"] = "1"
@@ -221,7 +229,7 @@ class FunTimeIntegrationSession:
         already_logged = len(self._read_windows_bridge_log())
         self._proc = subprocess.Popen(
             [sys.executable, "-m", "fun_time.orchestrator", "--config", str(self.config.config_path)],
-            cwd=self.config.project_dir,
+            cwd=project_dir or self.config.project_dir,
             env=env,
             stdout=subprocess.DEVNULL,
             stderr=self._stderr_fh,

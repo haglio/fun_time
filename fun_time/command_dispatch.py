@@ -6,6 +6,7 @@ instead of subprocess invocations via the plan-file protocol.
 """
 from __future__ import annotations
 
+import functools
 import logging
 import subprocess
 import sys
@@ -1671,13 +1672,31 @@ def _dispatch_mode_switch(
     return state, ops
 
 
-_CLIPPER_PROJECT_DIR = Path(__file__).resolve().parents[1].parent / "clipper"
-_CLIPPER_PYTHON = _CLIPPER_PROJECT_DIR / ".venv" / "Scripts" / "python.exe"
+@functools.lru_cache(maxsize=1)
+def _clipper_project_dir() -> Path:
+    """The sibling clipper checkout, found from the primary rather than from here.
+
+    ``__file__`` names whichever checkout is running, and a branch-verification
+    session runs from a worktree — where ``../clipper`` is a directory under
+    ``.claude/worktrees`` that does not exist, so the save died in the ``cwd=``
+    and the hotkey looked like the branch had broken it.  The siblings live
+    beside the *primary* checkout, which every worktree can name (they share its
+    git directory).  Cached: it is one subprocess, and the answer cannot change
+    while the session runs.  Anywhere git cannot answer, this checkout is the
+    best guess there is, which is also the old behavior.
+    """
+    from .branch_session import primary_checkout  # noqa: PLC0415 — avoids a launcher import on the hot path
+
+    try:
+        return primary_checkout().parent / "clipper"
+    except (OSError, subprocess.SubprocessError):
+        return Path(__file__).resolve().parents[1].parent / "clipper"
 
 
 def _clipper_python() -> str:
-    if _CLIPPER_PYTHON.is_file():
-        return str(_CLIPPER_PYTHON)
+    clipper_python = _clipper_project_dir() / ".venv" / "Scripts" / "python.exe"
+    if clipper_python.is_file():
+        return str(clipper_python)
     return sys.executable
 
 
@@ -1710,7 +1729,7 @@ def _dispatch_clipper_save(config: BridgeConfig) -> str:
             capture_output=True,
             text=True,
             timeout=10,
-            cwd=str(_CLIPPER_PROJECT_DIR),
+            cwd=str(_clipper_project_dir()),
         )
         if result.returncode == 0:
             session_path = result.stdout.strip()
