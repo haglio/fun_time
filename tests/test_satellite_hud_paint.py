@@ -392,25 +392,48 @@ def test_the_filtered_actions_label_is_lit(thumb):
     assert gutter_ink("gamma") == 0  # …that row's label lights, not this one
 
 
+def _filter_button_green(rendered, action: str) -> int:
+    """How much green the *action* row's filter button carries — its lit state."""
+    x, y, w, h = dict((name, rect) for rect, name in rendered.targets.filter)[action]
+    rgb = _rgb(rendered.bgra)[y:y + h, x:x + w].astype(int)
+    return int(((rgb[:, :, 1] > 100) & (rgb[:, :, 0] < 100) & (rgb[:, :, 2] < 100)).sum())
+
+
 def test_the_filter_button_lights_on_the_act_the_side_is_filtered_to(thumb):
-    """The filter button is the loop buttons' twin — green while its act is the one
-    the side is held to, so the control that lifts a filter is the lit one that set
-    it, and a filter set any other way still shows on the row it holds you to."""
+    """The filter button is the loop buttons' twin — green while its row is one the
+    filter keeps, so the control that lifts a filter is the lit one that set it, and
+    a filter set any other way still shows on the row it holds you to."""
     renderer = HudRenderer("portrait")
 
     def green_ink(filter_query: str) -> int:
-        rendered = renderer.render(_model(
+        return _filter_button_green(renderer.render(_model(
             corner=HudCell(path="c.mp4", thumb=thumb),
             actions=(HudCell(path="a1.mp4", thumb=thumb, label="gamma"),),
             current_action="alpha", filter_query=filter_query,
-        ))
-        x, y, w, h = dict((name, rect) for rect, name in rendered.targets.filter)["alpha"]
-        rgb = _rgb(rendered.bgra)[y:y + h, x:x + w].astype(int)
-        return int(((rgb[:, :, 1] > 100) & (rgb[:, :, 0] < 100) & (rgb[:, :, 2] < 100)).sum())
+        )), "alpha")
 
     assert green_ink("alpha") > 0
     assert green_ink("") == 0
     assert green_ink("gamma") == 0  # …that row's button lights, not this one
+
+
+def test_a_row_the_filter_only_partly_matches_still_lights(thumb):
+    """fun_time keeps a "POV Gamma" clip under a "gamma" filter, so its row stays
+    lit while it is on screen.  Lighting only an exact "gamma" put the mark out the
+    moment such a clip came up and back on at the next exact one — the panel saying
+    the filter had dropped while the playlist under it had not changed at all."""
+    renderer = HudRenderer("portrait")
+
+    def green_ink(current_action: str) -> int:
+        return _filter_button_green(renderer.render(_model(
+            corner=HudCell(path="c.mp4", thumb=thumb),
+            current_action=current_action, filter_query="gamma",
+        )), current_action)
+
+    assert green_ink("gamma") > 0
+    assert green_ink("pov gamma") > 0       # the query is one word of the act
+    assert green_ink("gamma, theta") > 0    # one of the clip's two acts
+    assert green_ink("alpha") == 0
 
 
 def test_the_filter_button_carries_a_funnel_and_not_an_empty_box(thumb):
