@@ -8,6 +8,8 @@ from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QKeyEvent
 
 from fun_time.library_browser import (
+    ICON_HEIGHT,
+    ICON_WIDTH,
     LibraryBrowserWindow,
     browse_library,
     load_browser_config,
@@ -302,3 +304,29 @@ def test_picking_a_video_ends_the_browse_as_well_as_reporting_it(tmp_path: Path)
 
     assert picked == ["C:/videos/alpha.mp4"]
     assert ended == ["over"]
+
+
+def test_a_still_is_scaled_to_fit_its_tile_and_never_stretched(tmp_path: Path):
+    """Grown until it meets an edge, with its proportions untouched.
+
+    A tall video and a wide one are the same tile, so one of the two axes always
+    has room to spare; filling both would squash whichever picture does not share
+    the tile's shape.  The cached stills are capped well below the tile, so this
+    scales *up* as well as down — a still left at its own size sits in a corner
+    of the space it was given.
+    """
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    tall = tmp_path / "tall.mp4"
+    tall.write_bytes(b"\0")
+    Image.new("RGB", (60, 160)).save(thumbnail_path(tall, cache), "JPEG")
+
+    window = LibraryBrowserWindow(
+        [_handle("tall scene", str(tall))], thumbnail_cache=cache, on_pick=lambda _v: None,
+    )
+    window.open_folder(("main",))
+    drawn = window.item(window.rows.index(window.rows[-1])).icon().pixmap(ICON_WIDTH, ICON_HEIGHT)
+
+    assert drawn.height() == ICON_HEIGHT, "the long edge should meet the tile's edge"
+    assert drawn.width() == round(ICON_HEIGHT * 60 / 160), "proportions must not change"
+    assert drawn.width() < ICON_WIDTH, "the short edge stops before the other edge"
