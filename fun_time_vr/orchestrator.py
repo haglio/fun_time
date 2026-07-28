@@ -234,7 +234,7 @@ def run_vr_bridge(config, logger_) -> int:
         commands["genau_paused_file"], commands["audio_paused_file"],
         commands["nau_paused_file"], commands["audio_volume_file"],
         commands["genau_cmd_file"], nau_cmd_file=commands["nau_cmd_file"],
-        volume=carried.volume, muted=carried.muted,
+        volume=carried.volume, muted=carried.muted, f_mode=carried.primary_f_mode,
     )
     # A lock lives in the player process, so it has to be re-sent; the roles read
     # the satellites' own command files, and the VR player is not up yet.
