@@ -13,9 +13,9 @@ from satellite.hud import (
     CTRL_BAND_H,
     ELLIPSIS_ROOM,
     LOCK_BAND_H,
+    MAP_CELLS,
     MAP_GAP,
     PAD,
-    PANEL_SIZE,
     STATUS_DOT,
     STATUS_TEXT_X,
     HudCell,
@@ -31,6 +31,19 @@ def thumb(tmp_path: Path) -> str:
     path = tmp_path / "thumb.jpg"
     Image.new("RGB", (40, 60), (30, 30, 30)).save(path)
     return str(path)
+
+
+@pytest.fixture
+def clip_thumbs(tmp_path: Path) -> dict[str, str]:
+    """A thumbnail of each side's real shape — fun_time caches at a 160px longest
+    edge, so this is the 9:16 and 16:9 the map actually scales down."""
+    shapes = {"portrait": (90, 160), "landscape": (160, 90)}
+    paths = {}
+    for side, size in shapes.items():
+        path = tmp_path / f"{side}.jpg"
+        Image.new("RGB", size, (30, 30, 30)).save(path)
+        paths[side] = str(path)
+    return paths
 
 
 def _model(**overrides) -> HudModel:
@@ -51,9 +64,62 @@ def test_render_fills_the_panel_and_draws_the_map(thumb):
                actions=(HudCell(path="a1.mp4", thumb=thumb, label="alpha"),))
     )
 
-    width, height = PANEL_SIZE["portrait"]
-    assert rendered.bgra.shape == (height, width, 4)
     assert (rendered.bgra[:, :, 3] > 0).mean() > 0.5
+
+
+def _crowded(side: str, thumb: str) -> HudModel:
+    """A side with more seeds and more acts than any map draws."""
+    return HudModel(
+        side=side, lock_label="Unlocked · Shuffle", current_action="Alpha",
+        corner=HudCell(path="c.mp4", thumb=thumb),
+        seeds=tuple(HudCell(path=f"s{i}.mp4", thumb=thumb) for i in range(6)),
+        actions=tuple(HudCell(path=f"a{i}.mp4", thumb=thumb, label="Alpha") for i in range(4)),
+        seed_count=7, action_count=5,
+    )
+
+
+@pytest.mark.parametrize("side", ["portrait", "landscape"])
+def test_the_panel_holds_exactly_a_three_by_three_map(side, clip_thumbs):
+    """What the panel is sized for: three cells on a side, whichever side it is.
+
+    Both panels were fixed slabs chosen against the shape of the window they float
+    over — which left the landscape one unable to draw a third row at all, and gave
+    the portrait one space no map ever reached.
+    """
+    rendered = HudRenderer(side).render(_crowded(side, clip_thumbs[side]))
+
+    rects = [rect for rect, _path in rendered.targets.click]
+    columns = {x for x, _y, _w, _h in rects}
+    rows = {y for _x, y, _w, _h in rects}
+    assert (len(columns), len(rows)) == (MAP_CELLS, MAP_CELLS)
+
+
+@pytest.mark.parametrize("side", ["portrait", "landscape"])
+def test_the_panel_stops_where_its_last_controls_do(side, clip_thumbs):
+    """No slab past the map: the expand button ends one margin in from the right
+    edge and the action-loop button one margin up from the bottom, so every pixel
+    of the panel is carrying something."""
+    rendered = HudRenderer(side).render(_crowded(side, clip_thumbs[side]))
+    height, width = rendered.bgra.shape[:2]
+
+    ex, _ey, ew, _eh = rendered.targets.expand
+    loop = dict((kind, rect) for rect, kind in rendered.targets.loop)
+    _lx, ly, _lw, lh = loop["action"]
+    assert ex + ew == width - PAD
+    assert ly + lh == height - PAD
+
+
+def test_a_satellite_with_no_clip_yet_gets_a_panel_only_as_tall_as_its_bands(thumb):
+    """Before the first clip there is no map, so the panel is the status and control
+    bands and nothing else — it grows to the map when there is one to draw."""
+    renderer = HudRenderer("portrait")
+    shell = renderer.render(HudModel(side="portrait", lock_label="Unlocked"))
+    mapped = renderer.render(_model(corner=HudCell(path="c.mp4", thumb=thumb)))
+
+    # Only the height gives: the width is the map's either way, so the panel does
+    # not narrow to its bands and then snap wide again on the first clip.
+    assert shell.bgra.shape[1] == mapped.bgra.shape[1]
+    assert shell.bgra.shape[0] < mapped.bgra.shape[0]
 
 
 def test_render_rings_the_locked_clip_in_white(thumb):
@@ -148,11 +214,10 @@ def test_a_status_too_wide_for_the_panel_is_drawn_wrapped_not_clipped(thumb):
     label = "Looping actions · Latest · F-Mode · beta gamma"
     rgb = _rgb(HudRenderer("portrait").render(
         _model(lock_label=label, corner=HudCell(path="c.mp4", thumb=thumb))).bgra)
-    width, _height = PANEL_SIZE["portrait"]
 
     # Text running into the panel's right margin is what clipping looks like: the
     # glyphs past it were simply never drawn.
-    assert (rgb[:, width - PAD:] > 200).all(axis=2).sum() == 0
+    assert (rgb[:, rgb.shape[1] - PAD:] > 200).all(axis=2).sum() == 0
 
 
 def test_a_wrapped_status_pushes_the_map_down_instead_of_overdrawing_it(thumb):
