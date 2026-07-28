@@ -24,7 +24,7 @@ from typing import Callable, Sequence
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from PyQt6.QtCore import QSize, Qt, QTimer
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtGui import QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QListWidget, QListWidgetItem
 
 from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, TEXT_MUTED, TEXT_PRIMARY
@@ -47,6 +47,10 @@ ICON_HEIGHT = 99
 # What the tile that goes back up is called, at the two places it can appear.
 UP_LABEL = "back"
 UP_TO_LIBRARY = "all folders"
+
+# The hairline between a folder tile's four stills, so they read as four
+# pictures rather than one.
+MONTAGE_GAP = 2
 
 # How often the grid picks up thumbnails the background extractor has finished.
 THUMBNAIL_POLL_MS = 150
@@ -119,7 +123,7 @@ class LibraryBrowserWindow(QListWidget):
         # Rows whose still is not cached yet are extracted off the event loop and
         # collected here; the timer below hands them to the grid.  A cold cache
         # would otherwise block the browse behind hundreds of HEVC decodes.
-        self._extracted: queue.Queue[tuple[int, str]] = queue.Queue()
+        self._extracted: queue.Queue[int] = queue.Queue()
         self._extractor: threading.Thread | None = None
         self._collect_timer = QTimer(self)
         self._collect_timer.timeout.connect(self._collect_thumbnails)
@@ -152,8 +156,18 @@ class LibraryBrowserWindow(QListWidget):
         return self._pictured_item(handle.title, handle.preview)
 
     def _folder_item(self, child: SubFolder) -> QListWidgetItem:
-        """A folder tile: its name, how much is in it, and a still from inside."""
-        return self._pictured_item(f"{child.name}  ({child.count})", child.preview)
+        """A folder tile: its name, how much is in it, and stills from inside."""
+        item = QListWidgetItem(f"{child.name}  ({child.count})")
+        item.setSizeHint(QSize(TILE_WIDTH, TILE_HEIGHT))
+        item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
+        stills = [
+            cached for cached in (
+                cached_thumbnail(preview, self._thumbnail_cache) for preview in child.previews
+            ) if cached is not None
+        ]
+        if stills:
+            item.setIcon(montage_icon(stills))
+        return item
 
     def _up_item(self, parent: tuple[str, ...]) -> QListWidgetItem:
         """The way back — first tile, so it is where the eye and the arrows start."""
@@ -215,19 +229,29 @@ class LibraryBrowserWindow(QListWidget):
         # replaces them, and a still must never land on whatever row now sits at
         # that index in another folder.
         for row in rows:
-            extracted = thumbnail_for(showing[row].preview, self._thumbnail_cache)
-            if extracted is not None:
-                self._extracted.put((row, str(extracted)))
+            for preview in previews_of(showing[row]):
+                thumbnail_for(preview, self._thumbnail_cache)
+            self._extracted.put(row)
 
     def _collect_thumbnails(self) -> None:
         while True:
             try:
-                row, path = self._extracted.get_nowait()
+                row = self._extracted.get_nowait()
             except queue.Empty:
                 break
             item = self.item(row)
-            if item is not None:
-                item.setIcon(fitted_icon(path))
+            what = self.rows[row] if row < len(self.rows) else None
+            if item is None or what is None:
+                continue
+            stills = [
+                cached for cached in (
+                    cached_thumbnail(preview, self._thumbnail_cache)
+                    for preview in previews_of(what)
+                ) if cached is not None
+            ]
+            if stills:
+                item.setIcon(montage_icon(stills) if isinstance(what, SubFolder)
+                             else fitted_icon(stills[0]))
         if self._extractor is not None and not self._extractor.is_alive():
             self._collect_timer.stop()
 
@@ -253,23 +277,67 @@ def fitted_icon(still: str | Path) -> QIcon:
     the tile: the cache caps its longest edge below the tile's, so an unscaled
     one sits in a corner of the space it was given.
     """
-    pixmap = QPixmap(str(still)).scaled(
-        ICON_WIDTH, ICON_HEIGHT,
+    return QIcon(_fitted(still, ICON_WIDTH, ICON_HEIGHT))
+
+
+def _fitted(still: str | Path, width: int, height: int) -> QPixmap:
+    return QPixmap(str(still)).scaled(
+        width, height,
         Qt.AspectRatioMode.KeepAspectRatio,
         Qt.TransformationMode.SmoothTransformation,
     )
-    return QIcon(pixmap)
+
+
+def montage_icon(stills: Sequence[str | Path]) -> QIcon:
+    """*stills* laid out two by two across one tile, each keeping its shape.
+
+    A folder of hundreds said almost nothing when it was drawn with a single
+    still, so it is drawn with four of its videos instead.  One still gets the
+    whole tile — there is nothing to quarter it around — and a folder that holds
+    two or three leaves the spare cells empty rather than repeating itself.
+    """
+    if len(stills) == 1:
+        return fitted_icon(stills[0])
+    cell_width = (ICON_WIDTH - MONTAGE_GAP) // 2
+    cell_height = (ICON_HEIGHT - MONTAGE_GAP) // 2
+    canvas = QPixmap(ICON_WIDTH, ICON_HEIGHT)
+    canvas.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(canvas)
+    try:
+        for index, still in enumerate(stills[:4]):
+            picture = _fitted(still, cell_width, cell_height)
+            left = (index % 2) * (cell_width + MONTAGE_GAP)
+            top = (index // 2) * (cell_height + MONTAGE_GAP)
+            painter.drawPixmap(
+                left + (cell_width - picture.width()) // 2,
+                top + (cell_height - picture.height()) // 2,
+                picture,
+            )
+    finally:
+        painter.end()
+    return QIcon(canvas)
+
+
+def previews_of(what: object) -> tuple[str, ...]:
+    """The videos a row is pictured with — one for a video, up to four for a folder."""
+    if what is None:
+        return ()
+    return getattr(what, "previews", None) or (what.preview,)
 
 
 def rows_needing_stills(rows: Sequence[object], thumbnail_cache: str | Path) -> list[int]:
     """Which rows still need a still extracted — the cache misses, in order.
 
-    The go-back row (``None``) pictures nothing and is skipped.
+    The go-back row pictures nothing and is skipped; a folder row counts as a
+    miss while any of its four is missing, so its tile completes.
     """
     return [
         row
         for row, what in enumerate(rows)
-        if what is not None and cached_thumbnail(what.preview, thumbnail_cache) is None
+        if any(
+            cached_thumbnail(preview, thumbnail_cache) is None
+            for preview in previews_of(what)
+        )
     ]
 
 

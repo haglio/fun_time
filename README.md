@@ -282,7 +282,8 @@ belongs to the session — quitting Fun Time closes a browse still on screen,
 since the dispatch loop that launched it holds it until it ends.
 
 The grid is one you **walk**. It opens on the library's own folders — one tile
-per folder under a `nau_library_dirs` source, with a still from inside it and a
+per folder under a `nau_library_dirs` source, showing four of its videos laid out
+two by two (drawn at random, so a folder is never the same picture twice) and a
 count — and opening one shows what is in it: either the folders it was split
 into, or its videos. A tile at the head of every folder goes back up, and so
 does Backspace.

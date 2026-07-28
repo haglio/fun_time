@@ -14,19 +14,26 @@ under it at once, however many stage folders they are spread across on disk.
 """
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from typing import Sequence
 
 from .library_handles import LibraryHandle
 
 
+# How many videos a folder tile is pictured with.  Four says what kind of thing
+# is inside where one said almost nothing about a folder of hundreds, and still
+# leaves each cell big enough to read at a tile's size.
+FOLDER_PREVIEWS = 4
+
+
 @dataclass(frozen=True)
 class SubFolder:
-    """A folder tile: what it is called, how much is in it, and its picture."""
+    """A folder tile: what it is called, how much is in it, and its pictures."""
 
     name: str
     count: int
-    preview: str
+    previews: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -57,13 +64,21 @@ def _section_parts(handle: LibraryHandle) -> tuple[str, ...]:
     return tuple(part for part in handle.section.split("/") if part)
 
 
-def folder_at(handles: Sequence[LibraryHandle], path: Sequence[str]) -> Folder:
+def folder_at(
+    handles: Sequence[LibraryHandle],
+    path: Sequence[str],
+    *,
+    rng: random.Random | None = None,
+) -> Folder:
     """What the browser shows at *path* — its sub-folders, or its videos.
 
     Order follows *handles* throughout, which arrive sectioned and alphabetical
     from :func:`fun_time.library_handles.build_library_handles`, so a folder's
     tiles and its videos come up in the order the library was already ranked in.
+    Only the stills a folder tile is drawn with are random, and *rng* is how a
+    test pins them.
     """
+    randomizer = rng or random.Random()
     path = tuple(path)
     inside = [h for h in handles if _section_parts(h)[: len(path)] == path]
     names: dict[str, list[LibraryHandle]] = {}
@@ -75,7 +90,16 @@ def folder_at(handles: Sequence[LibraryHandle], path: Sequence[str]) -> Folder:
         return Folder(
             path=path,
             children=tuple(
-                SubFolder(name=name, count=len(members), preview=members[0].preview)
+                SubFolder(
+                    name=name,
+                    count=len(members),
+                    previews=tuple(
+                        handle.preview
+                        for handle in randomizer.sample(
+                            members, min(FOLDER_PREVIEWS, len(members))
+                        )
+                    ),
+                )
                 for name, members in names.items()
             ),
             handles=(),

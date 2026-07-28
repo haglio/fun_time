@@ -330,3 +330,50 @@ def test_a_still_is_scaled_to_fit_its_tile_and_never_stretched(tmp_path: Path):
     assert drawn.height() == ICON_HEIGHT, "the long edge should meet the tile's edge"
     assert drawn.width() == round(ICON_HEIGHT * 60 / 160), "proportions must not change"
     assert drawn.width() < ICON_WIDTH, "the short edge stops before the other edge"
+
+
+def test_a_folder_tile_shows_four_stills_in_a_grid(tmp_path: Path):
+    """Four videos from inside, laid out two by two, each keeping its shape."""
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    handles = []
+    for index in range(4):
+        video = tmp_path / f"v{index}.mp4"
+        video.write_bytes(b"\0" * (10 + index))
+        Image.new("RGB", (160, 90), (20 * index, 90, 140)).save(
+            thumbnail_path(video, cache), "JPEG"
+        )
+        handles.append(_handle(f"Scene {index}", str(video), section="big_batch"))
+
+    window = LibraryBrowserWindow(handles, thumbnail_cache=cache, on_pick=lambda _v: None)
+    drawn = window.item(0).icon().pixmap(ICON_WIDTH, ICON_HEIGHT)
+
+    assert not drawn.isNull()
+    assert (drawn.width(), drawn.height()) == (ICON_WIDTH, ICON_HEIGHT)
+    # Four distinct fills, one per cell, so nothing was drawn over or left out.
+    image = drawn.toImage()
+    corners = {
+        image.pixel(ICON_WIDTH // 4, ICON_HEIGHT // 4),
+        image.pixel(3 * ICON_WIDTH // 4, ICON_HEIGHT // 4),
+        image.pixel(ICON_WIDTH // 4, 3 * ICON_HEIGHT // 4),
+        image.pixel(3 * ICON_WIDTH // 4, 3 * ICON_HEIGHT // 4),
+    }
+    assert len(corners) == 4
+
+
+def test_a_folder_holding_one_video_gives_it_the_whole_tile(tmp_path: Path):
+    """No point quartering a tile around a single still."""
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    video = tmp_path / "only.mp4"
+    video.write_bytes(b"\0")
+    Image.new("RGB", (160, 90), (200, 40, 90)).save(thumbnail_path(video, cache), "JPEG")
+
+    window = LibraryBrowserWindow(
+        [_handle("only scene", str(video), section="big_batch")],
+        thumbnail_cache=cache,
+        on_pick=lambda _v: None,
+    )
+    drawn = window.item(0).icon().pixmap(ICON_WIDTH, ICON_HEIGHT)
+
+    assert drawn.width() == ICON_WIDTH, "one still fills the tile as a video's would"
