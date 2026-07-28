@@ -10,7 +10,9 @@ from urllib.request import url2pathname
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
+from fun_time.command_dispatch import BridgeState
 from fun_time.modes import SatelliteLibraryContext
+from fun_time.shared_state import read_shared_state, shared_state_path, write_shared_state
 from fun_time.window_layout import WindowRect
 from fun_time.windows_bridge_startup import (
     _build_satellite_launch_command,
@@ -540,6 +542,85 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     # Which clips you get is the whole difference between the two paths, so the
     # session says which one it took.
     assert "Resumed last session's playlists" in caplog.text
+
+
+def _run_start_core_session(kwargs: dict) -> None:
+    """start_core_session with everything outside the resume patched away."""
+    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+        "fun_time.windows_bridge_startup.ensure_broker"
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch(
+        "fun_time.windows_bridge_startup.build_fmode_playlists"
+    ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
+        start_core_session(**kwargs)
+
+
+def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built_in(
+    tmp_path: Path,
+):
+    """The playlists that just came back were built under last session's F-mode,
+    filter, order and loop, and the dispatch loop opens on the state file — so
+    wiping it left the session playing favorites while every HUD said F-mode
+    was off, and the next "F-mode" then reported it *enabled* to no visible
+    effect.  What shaped the files on disk comes back with them."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(tmp_path, kwargs)
+    state_file = shared_state_path(kwargs["state_dir"])
+    write_shared_state(state_file, BridgeState(
+        f_mode_enabled=True,
+        portrait_filter="alpha",
+        landscape_latest=True,
+        portrait_loop="seed",
+        portrait_map_anchor="C:/v/a.mp4",
+    ))
+
+    _run_start_core_session(kwargs)
+
+    state = read_shared_state(state_file)
+    assert state is not None
+    assert state.f_mode_enabled is True
+    assert state.portrait_filter == "alpha"
+    assert state.landscape_latest is True
+    assert state.portrait_loop == "seed"
+    assert state.portrait_map_anchor == "C:/v/a.mp4"
+
+
+def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_path: Path):
+    """Nothing to resume: the builder wrote three new playlists with F-mode off,
+    so last session's state describes files that no longer exist.  This is also
+    what clears an OmniPause a crash left stranded."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    state_file = shared_state_path(kwargs["state_dir"])
+    write_shared_state(state_file, BridgeState(f_mode_enabled=True, omni_paused=True))
+
+    _run_start_core_session(kwargs)
+
+    assert read_shared_state(state_file) == BridgeState()
+
+
+def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_path: Path):
+    """The rebuild for another app's playlist has to honour the F-mode the
+    satellites came back in — the primary's own reading of it, funscripted
+    clips only — or one player quietly holds the whole library while the HUDs
+    say F-mode."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    left_on = _seed_resumable_session(tmp_path, kwargs)
+    state_dir = kwargs["state_dir"]
+    vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
+    vr_clip.parent.mkdir(parents=True, exist_ok=True)
+    vr_clip.write_bytes(b"")
+    (state_dir / "nau_playlist.tsv").write_text(
+        f"{vr_clip}\n{left_on['nau'][0]}\n", encoding="utf-8"
+    )
+    write_shared_state(shared_state_path(state_dir), BridgeState(f_mode_enabled=True))
+
+    with patch("fun_time.windows_bridge_startup.build_primary_playlist") as rebuild:
+        _run_start_core_session(kwargs)
+
+    rebuild.assert_called_once_with(
+        state_dir / "nau_playlist.tsv", kwargs["primary_sources"], f_mode=True
+    )
 
 
 def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
