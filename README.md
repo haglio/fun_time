@@ -311,7 +311,9 @@ as canonical, so `V` walks the rest of the family from there. That largest
 rendition also decides the section: the odd family that records both an excerpt
 and the whole scene sits with the whole videos, because that is what it plays.
 
-Stills are cached under `state/hud_thumbnails/` — the same cache the satellites'
+A still is grown until it meets one of its tile's edges and no further, so a
+tall video and a wide one keep their own proportions rather than both being
+squashed into the tile's shape. Stills are cached under `state/hud_thumbnails/` — the same cache the satellites'
 HUD maps paint from — and warmed in the background at startup, one per handle,
 taken off the *smallest* rendition: a 2.7 GB upscale and the original it came
 from make the same picture, and only one of them is cheap to open.
