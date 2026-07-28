@@ -291,6 +291,36 @@ def test_the_lock_word_stands_down_while_a_loop_runs():
     assert "Shuffle" in panel.lock_label
 
 
+def test_a_lock_taken_inside_a_loop_joins_the_line_instead_of_replacing_it():
+    """Locking does not end a loop — it holds one position in it — so the line has
+    to carry both.  Dropping "Looping seeds" the moment the lock went on read as the
+    loop having ended, and then unlocking looked like it came back from nowhere."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    panel = build_hud_panel(
+        "portrait", locked=True, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
+    )
+
+    assert panel.lock_label == "Looping seeds · Locked · Shuffle"
+
+
+def test_a_lock_inside_a_loop_keeps_the_loops_chrome_and_rings_the_held_clip():
+    """The whole panel goes on reading as a loop: the button stays lit, the map
+    stays anchored on the clip the loop started on, and ``playing`` names the member
+    the lock is holding — which is the cell the HUD rings."""
+    index = _index(current=CUR, seed_sibs=[S1])
+
+    # The loop started on CUR and had reached S1 when the lock was taken.
+    panel = build_hud_panel(
+        "portrait", locked=True, current=S1, index=index, loop_axis="seed", map_anchor=CUR,
+    )
+
+    assert panel.locked is True
+    assert panel.active_loop == "seed"   # still looping — the lit button, the rectangle
+    assert panel.current == CUR          # …over the map the loop hung
+    assert panel.playing == S1           # …held on the member it had reached
+
+
 def test_the_status_line_says_looping_without_counting():
     """The size of each axis is on the map itself now, so this line just says what is
     looping, not how much of it."""

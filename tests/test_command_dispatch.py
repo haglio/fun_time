@@ -2694,21 +2694,48 @@ def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
     assert state.portrait_widen_clip == ""  # the lock drops the widened row too
 
 
-def test_toggling_the_lock_ends_a_loop(tmp_path: Path):
-    """A lock is repeat-one on one clip — incompatible with a loop's repeat-all —
-    so locking clears the loop flag and the widened row that rode on it."""
-    config = _make_config(tmp_path)
+def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path):
+    """A lock inside a loop is a hold at one position in it, not the end of it.
 
-    _set_current(config, 2, r"C:\videos\provider2\abc_123.mp4")
+    LOCK repeats the clip on screen and leaves the loop's queue untouched, so the
+    side really is still looping — dropping the flag only stopped the HUD from
+    saying so, and then unlocking put you back into a loop the panel had disowned.
+    """
+    config = _make_config(tmp_path)
+    clip = r"C:\videos\provider2\abc_123.mp4"
+
+    _set_current(config, 2, clip)
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         state, _ops = dispatch_command(
             "portrait_lock",
-            _make_state(locked2=False, portrait_loop="action", portrait_widen_clip=r"C:\videos\provider2\abc_123.mp4"),
+            _make_state(locked2=False, portrait_loop="action", portrait_map_anchor=clip,
+                        portrait_widen_clip=clip),
             config,
         )
 
-    assert state.portrait_loop == ""
-    assert state.portrait_widen_clip == ""
+    assert state.locked2 is True
+    assert state.portrait_loop == "action"      # still looping, just held
+    assert state.portrait_map_anchor == clip    # …over the same map
+    assert state.portrait_widen_clip == clip    # …and the same widened row
+
+
+def test_unlocking_leaves_the_loop_running(tmp_path: Path):
+    """Coming out of the lock drops you straight back into the loop you were in:
+    UNLOCK restores auto-advance over the loop's own queue, which the lock never
+    replaced, so the flag has to survive the unlock too."""
+    config = _make_config(tmp_path)
+    clip = r"C:\videos\provider2\abc_123.mp4"
+
+    _set_current(config, 2, clip)
+    state, _ops = dispatch_command(
+        "portrait_lock",
+        _make_state(locked2=True, portrait_loop="seed", portrait_map_anchor=clip),
+        config,
+    )
+
+    assert state.locked2 is False
+    assert state.portrait_loop == "seed"
+    assert "UNLOCK" in _cmds(config, 2)
 
 
 def test_an_applied_filter_clears_a_running_loop(tmp_path: Path):
