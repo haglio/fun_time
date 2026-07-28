@@ -9,6 +9,7 @@ import configparser
 import logging
 import os
 import socket
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -314,6 +315,10 @@ class DispatchLoopRunner:
         self._pending_hides: dict[str, float] = {}
         self._stop = threading.Event()
         self._browse_lock = threading.Lock()
+        # The browse now on screen, if any.  It is launched mid-session, so it
+        # cannot join the startup children the teardown list kills; this holds it
+        # instead, and stop() is where quitting takes it with the session.
+        self._browser_process: subprocess.Popen | None = None
         self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._press_port: int | None = None
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
@@ -1154,6 +1159,7 @@ class DispatchLoopRunner:
                 self.manifest_path,
                 self.config.python_exe,
                 over=window_rect(nau_hwnd) if nau_hwnd else None,
+                runner=self._run_browser,
             )
             if selected:
                 # Nau owns the primary display; play the pick there, paired with
@@ -1192,8 +1198,23 @@ class DispatchLoopRunner:
                 logger.exception("Dispatch loop error")
             self._stop.wait(0.05)
 
+    def _run_browser(self, command, **kwargs) -> None:
+        """Run the browser, holding it while it is up so :meth:`stop` can end it."""
+        process = subprocess.Popen(command, **kwargs)
+        self._browser_process = process
+        try:
+            process.wait()
+        finally:
+            self._browser_process = None
+
     def stop(self) -> None:
         self._stop.set()
+        # A browse still on screen is the session's window, so it goes with the
+        # session — otherwise quitting Fun Time leaves the grid up over an empty
+        # desktop, owned by nothing that is still running.
+        browsing = self._browser_process
+        if browsing is not None:
+            browsing.terminate()
 
 
 def build_bridge_config_from_manifest(

@@ -7,7 +7,7 @@ import threading
 import time
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -1622,6 +1622,7 @@ class TestBrowseLibrary:
 
         mock_browse.assert_called_once_with(
             tmp_path / "launch.ini", r"C:\python.exe", over=(0, 400, 1080, 1520),
+            runner=runner._run_browser,
         )
 
     def test_sends_selected_file_to_nau_by_default(self, tmp_path):
@@ -2811,3 +2812,37 @@ class TestHudPublishing:
 
     def test_a_runner_without_a_hud_publisher_just_ticks(self, tmp_path):
         make_runner(tmp_path).tick()
+
+
+class TestBrowserOutlivesNothing:
+    """The browser is a child of the session, so quitting has to take it.
+
+    It is launched mid-session rather than at startup, so it cannot join the
+    _CHILD_GROUPS teardown list the way the players and companions do; the
+    dispatch loop owns it instead, and its stop is where the browse dies.
+    """
+
+    def test_quitting_the_session_kills_a_browser_still_open(self, tmp_path):
+        runner = make_runner(tmp_path)
+        opened = threading.Event()
+        process = Mock()
+        process.wait.side_effect = lambda: (opened.set(), time.sleep(0.4))
+
+        with patch("fun_time.windows_bridge_dispatch_loop.subprocess.Popen",
+                   return_value=process) as mock_popen:
+            browsing = threading.Thread(target=runner._run_browser, args=(["python"],))
+            browsing.start()
+            assert opened.wait(2.0), "the browser never started"
+            runner.stop()
+            browsing.join(timeout=2.0)
+
+        mock_popen.assert_called_once()
+        process.terminate.assert_called_once()
+        assert runner._browser_process is None, "the finished browse is not still held"
+
+    def test_stopping_with_no_browse_open_terminates_nothing(self, tmp_path):
+        runner = make_runner(tmp_path)
+
+        runner.stop()
+
+        assert runner._browser_process is None
