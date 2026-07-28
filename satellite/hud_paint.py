@@ -53,6 +53,7 @@ from .hud import (
     HudTargets,
     MapWindow,
     Rect,
+    act_is_filtered,
     action_label_blocks,
     build_click_targets,
     cell_width,
@@ -456,18 +457,18 @@ class HudRenderer:
             # One block of tight word-lines per act, with a bigger gap between
             # acts, so a two-word act ("Motion" / "Bounce") wraps close but two acts
             # ("Alpha" then "Theta Motion") are clearly separated.  Each act is lit
-            # on its own account: on a clip carrying two, only the one the filter
-            # matched is why the clip is here, and lighting the other named an act
-            # the filter has nothing to do with.  The row's own button still lights
-            # off the whole label — the filter keeps the row, whichever of its acts
-            # earned it.
+            # on its own account, and only inside a row the filter actually keeps:
+            # the row says whether the clip is here at all, the act says which of
+            # its acts is why.  Lighting a matching act inside a row the filter
+            # drops would mark a clip that is not in the playlist.
+            row_lit = label_is_filtered(text, model.filter_query)
             ascent, descent = self._row.getmetrics()
             line_h = ascent + descent - 4
             blocks = action_label_blocks(text)
             total = sum(len(block) for block in blocks) * line_h + (len(blocks) - 1) * ACT_GAP
             ty = row_y + (row_h - total) // 2
             for block in blocks:
-                lit = label_is_filtered(" ".join(block), model.filter_query)
+                lit = row_lit and act_is_filtered(" ".join(block), model.filter_query)
                 color = TEXT_PRIMARY if lit else TEXT_MUTED
                 for line in block:
                     draw.text((x + gutter_w - MAP_GAP, ty + line_h / 2), line,
