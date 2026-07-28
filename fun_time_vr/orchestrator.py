@@ -49,7 +49,11 @@ from fun_time.orchestrator import (
     validate_config,
 )
 from fun_time.satellite_control import read_satellite_status
-from fun_time.session_resume import resume_playlists, resume_shared_state
+from fun_time.session_resume import (
+    resume_playlists,
+    resume_satellite_locks,
+    resume_shared_state,
+)
 from fun_time.shared_state import shared_state_path
 from fun_time.voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from fun_time.watch_stats import watch_stats_path
@@ -200,11 +204,6 @@ def run_vr_bridge(config, logger_) -> int:
         commands["broker_heartbeat_file"],
         Path(v) if (v := commands.get("broker_tray_launcher", "").strip()) else None,
     )
-    seed_startup_states(
-        commands["genau_paused_file"], commands["audio_paused_file"],
-        commands["nau_paused_file"], commands["audio_volume_file"],
-        commands["genau_cmd_file"],
-    )
     reset_satellite_paused_states(
         commands["portrait_paused_file"], commands["landscape_paused_file"],
     )
@@ -225,10 +224,24 @@ def run_vr_bridge(config, logger_) -> int:
         (landscape_playlist, read_satellite_status(Path(commands["landscape_status_file"])).video),
         (nau_playlist, read_nau_status(Path(commands["nau_status_file"])).video),
     ])
-    # And the mode those playlists were built in: F-mode, each side's filter and
-    # order, any group loop.  The dispatch loop opens on this file, so resuming
-    # the files without it leaves every HUD describing a different session.
+    # And the state that session was in: F-mode, each side's filter, order and
+    # lock, any group loop, the sound level.  The dispatch loop opens on this
+    # file, so resuming the files without it leaves every HUD describing a
+    # different session.  Read before the flags below are seeded, because two of
+    # them are what those flags have to be seeded to.
     carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed)
+    seed_startup_states(
+        commands["genau_paused_file"], commands["audio_paused_file"],
+        commands["nau_paused_file"], commands["audio_volume_file"],
+        commands["genau_cmd_file"], nau_cmd_file=commands["nau_cmd_file"],
+        volume=carried.volume, muted=carried.muted,
+    )
+    # A lock lives in the player process, so it has to be re-sent; the roles read
+    # the satellites' own command files, and the VR player is not up yet.
+    resume_satellite_locks([
+        (Path(commands["portrait_cmd_file"]), carried.locked2),
+        (Path(commands["landscape_cmd_file"]), carried.locked3),
+    ])
     if not resumed:
         build_fmode_playlists(
             primary_sources=manifest["media"]["nau_library_sources"],
