@@ -106,7 +106,12 @@ e::QueueCommand("landscape_no_loop")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
 Enter::QueueCommand("active_nav_lock")
-'::QueueCommand("clipper_save")
+; Nau's lock: hold the video on screen, or let its end walk the playlist.  The
+; apostrophe sits beside the satellites' own lock keys on the home row, and gave
+; up Save clip to take it — that moved one key left, to the semicolon (bound by
+; scancode because a bare ; opens a comment in AHK).
+'::QueueCommand("primary_lock")
+SC027::QueueCommand("clipper_save")
 
 ; Nau loop recording: hold R to mark, release to loop, press again to cancel.
 ; The held flag suppresses key-repeat so only one RECORD_DOWN is queued.

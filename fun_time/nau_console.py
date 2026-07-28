@@ -47,6 +47,7 @@ def console_payload(
     funscript_driving: bool,
     broker: bool,
     record: str = "normal",
+    nau_locked: bool = True,
     genau: GenauStatus,
     f_mode: bool = False,
 ) -> dict:
@@ -56,9 +57,11 @@ def console_payload(
     limits) travel on the separate drive file Genau publishes; this carries the
     room around them.
 
-    *record* is Nau's own loop machine (normal / recording / looping), which rides
-    here because the console is drawn in genau mode too — by a player with no loop
-    machine to ask — and because Nau already tells us in its status file.
+    *record* is Nau's own loop machine (normal / recording / looping), and
+    *nau_locked* whether it is holding the video on screen rather than letting it
+    end.  Both ride here for the same reason: the console is drawn in genau mode
+    too — by a player with neither a loop machine nor a lock of its own to ask —
+    and Nau already tells us both in its status file.
 
     ``f_mode`` is the primary's own F-mode — its playlist narrowed to the videos
     that have a funscript.  Nau is told the flag directly too (``SET_F_MODE``, for
@@ -74,6 +77,9 @@ def console_payload(
                            funscript_driving=funscript_driving),
         "broker": broker,
         "record": record,
+        # Nau's own lock, bounced back off its status file: the console draws it,
+        # and in genau mode the player drawing that console is not Nau.
+        "locked": nau_locked,
         "cruise": genau.cruise_active,
         # Auto advance is armed apart from cruise — cruise varies the stroke, auto
         # advance moves on to the next clip — and a held clip is it armed but

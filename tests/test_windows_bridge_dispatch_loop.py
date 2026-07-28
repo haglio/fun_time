@@ -322,10 +322,18 @@ class TestResolveActiveSideCommand:
         assert resolve_active_side_command("active_no_loop", 2) == "portrait_no_loop"
         assert resolve_active_side_command("active_no_loop", 3) == "landscape_no_loop"
 
+    def test_a_bare_lock_reaches_the_primary_too(self):
+        """A lock means the same thing on all three — repeat-one on what is on
+        screen — so the bare word follows the active side onto the primary rather
+        than falling through to nothing there."""
+        assert resolve_active_side_command("active_lock_on", 1) == "primary_lock_on"
+        assert resolve_active_side_command("active_lock_off", 1) == "primary_lock_off"
+        assert resolve_active_side_command("active_lock_on", 2) == "portrait_lock_on"
+        assert resolve_active_side_command("active_lock_off", 3) == "landscape_lock_off"
+
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
-        """Primary has no lock/weird/cycle, so a bare satellite-only command
-        while it is active resolves to nothing (unchanged → a downstream no-op)."""
-        assert resolve_active_side_command("active_lock_on", 1) == "active_lock_on"
+        """Primary has no weird or cycle, so a bare satellite-only command while it
+        is active resolves to nothing (unchanged → a downstream no-op)."""
         assert resolve_active_side_command("active_trash", 1) == "active_trash"
         assert resolve_active_side_command("active_cycle_seed", 1) == "active_cycle_seed"
 
@@ -2570,6 +2578,23 @@ class TestHudPublishing:
         console = self._console(tmp_path)
         assert console["broker"] is True
         assert console["osr2"] in ("off", "auto", "funscript", "genau", "idle")
+
+    def test_the_console_carries_naus_lock_back_to_whoever_draws_it(self, tmp_path):
+        """Nau owns the lock, but in genau mode the console showing it is drawn by
+        Genau — so it goes out on Nau's status file and comes back down here, the
+        way the loop state does."""
+        runner = self._runner_with_hud(tmp_path)
+        status = runner.config.nau_status_file
+
+        status.write_text("video=C:/v/n.mp4\nlocked=0\n", encoding="utf-8")
+        runner._last_hud_publish -= 1
+        runner.tick()
+        assert self._console(tmp_path)["locked"] is False
+
+        status.write_text("video=C:/v/n.mp4\nlocked=1\n", encoding="utf-8")
+        runner._last_hud_publish -= 1
+        runner.tick()
+        assert self._console(tmp_path)["locked"] is True
 
     def test_each_sides_panel_says_whether_its_own_clip_is_a_favourite(self, tmp_path):
         """The dashboard's panel used to say this by turning green; the HUD marks

@@ -88,6 +88,12 @@ class NauStatus:
     paused: bool = False
     has_funscript: bool = False
     funscript_resting: bool = False
+    # Whether Nau is holding the video on screen rather than letting it end.  The
+    # primary console draws the lock, and in genau mode it is drawn by a player
+    # with no such lock of its own to ask — so it comes through here, the way the
+    # loop ``state`` does.  Defaults on because that is what a primary with
+    # nothing to say is doing.
+    locked: bool = True
 
     @property
     def funscript_driving(self) -> bool:
@@ -113,6 +119,7 @@ def read_nau_status(path: Path) -> NauStatus:
             paused=_status_bool(values, "paused"),
             has_funscript=_status_bool(values, "has_funscript"),
             funscript_resting=_status_bool(values, "funscript_resting"),
+            locked=_status_bool(values, "locked", default=True),
         )
     except (OSError, ValueError):
         return NauStatus()
@@ -129,8 +136,14 @@ class GenauStatus:
     shape: str = "sine"
 
 
-def _status_bool(values: dict[str, str], key: str) -> bool:
-    return values.get(key, "0").strip() not in ("0", "false", "")
+def _status_bool(values: dict[str, str], key: str, *, default: bool = False) -> bool:
+    """*key* read as a flag, or *default* where the file does not carry it.
+
+    A default of True is for a flag whose "on" is the player's own resting state:
+    a status that predates the key, or one read before the player's first write,
+    then says what the player is actually doing rather than the opposite.
+    """
+    return values.get(key, "1" if default else "0").strip() not in ("0", "false", "")
 
 
 def read_genau_status(path: Path) -> GenauStatus:
