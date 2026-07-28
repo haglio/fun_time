@@ -24,7 +24,7 @@ from typing import Callable, Sequence
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from PyQt6.QtCore import QSize, Qt, QTimer
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtWidgets import QListWidget, QListWidgetItem
 
 from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, TEXT_MUTED, TEXT_PRIMARY
@@ -170,7 +170,7 @@ class LibraryBrowserWindow(QListWidget):
         item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
         cached = cached_thumbnail(preview, self._thumbnail_cache)
         if cached is not None:
-            item.setIcon(QIcon(str(cached)))
+            item.setIcon(fitted_icon(cached))
         return item
 
     def closeEvent(self, event) -> None:  # noqa: N802 (Qt override)
@@ -227,7 +227,7 @@ class LibraryBrowserWindow(QListWidget):
                 break
             item = self.item(row)
             if item is not None:
-                item.setIcon(QIcon(path))
+                item.setIcon(fitted_icon(path))
         if self._extractor is not None and not self._extractor.is_alive():
             self._collect_timer.stop()
 
@@ -241,6 +241,24 @@ class LibraryBrowserWindow(QListWidget):
         else:
             self._on_pick(what.video)
             self.close()
+
+
+def fitted_icon(still: str | Path) -> QIcon:
+    """*still* grown to meet a tile's edge, with its proportions untouched.
+
+    Qt would otherwise draw the icon at exactly the icon size, stretching a
+    picture that is not the tile's shape — and a library holds both tall videos
+    and wide ones, so one of the two axes always has room to spare.  Scaling here
+    rather than leaving it to the view also grows a still that is *smaller* than
+    the tile: the cache caps its longest edge below the tile's, so an unscaled
+    one sits in a corner of the space it was given.
+    """
+    pixmap = QPixmap(str(still)).scaled(
+        ICON_WIDTH, ICON_HEIGHT,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    return QIcon(pixmap)
 
 
 def rows_needing_stills(rows: Sequence[object], thumbnail_cache: str | Path) -> list[int]:
