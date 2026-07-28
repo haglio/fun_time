@@ -13,7 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .dashboard_runtime import GenauStatus
-from .mode_plan import genau_active
+from .mode_plan import genau_active, nau_displays
 
 NAU_CONSOLE_FILENAME = "nau_console.json"
 
@@ -57,11 +57,16 @@ def console_payload(
     limits) travel on the separate drive file Genau publishes; this carries the
     room around them.
 
-    *record* is Nau's own loop machine (normal / recording / looping), and
-    *nau_locked* whether it is holding the video on screen rather than letting it
-    end.  Both ride here for the same reason: the console is drawn in genau mode
-    too — by a player with neither a loop machine nor a lock of its own to ask —
-    and Nau already tells us both in its status file.
+    *record* is Nau's own loop machine (normal / recording / looping), and rides
+    here because the console is drawn in genau mode too, by a player with no loop
+    machine to ask — and because Nau already tells us in its status file.
+
+    The lock is published as one flag for one padlock, resolved to whichever
+    player is on the primary slot: *nau_locked* while Nau shows its video, Genau's
+    own hold on its clip in genau mode.  Both players open locked, both mean
+    repeat-one on what is on screen, and the console shows one of them at a time —
+    so the mode decides which, here, rather than the console drawing two padlocks
+    and leaving the reader to work out whose is whose.
 
     ``f_mode`` is the primary's own F-mode — its playlist narrowed to the videos
     that have a funscript.  Nau is told the flag directly too (``SET_F_MODE``, for
@@ -77,15 +82,11 @@ def console_payload(
                            funscript_driving=funscript_driving),
         "broker": broker,
         "record": record,
-        # Nau's own lock, bounced back off its status file: the console draws it,
-        # and in genau mode the player drawing that console is not Nau.
-        "locked": nau_locked,
+        # The hold of whichever player owns the slot, bounced back off its status
+        # file: the console draws the padlock, and the player drawing that console
+        # is not always the player it is about.
+        "locked": nau_locked if nau_displays(mode) else genau.locked,
         "cruise": genau.cruise_active,
-        # Auto advance is armed apart from cruise — cruise varies the stroke, auto
-        # advance moves on to the next clip — and a held clip is it armed but
-        # sitting still, which the console lights as its own state.
-        "auto_advance": genau.auto_advance_active,
-        "clip_locked": genau.clip_locked,
         "shape": genau.shape,
     }
 

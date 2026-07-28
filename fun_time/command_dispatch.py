@@ -228,17 +228,17 @@ _GENAU_CMD_MAP = {
     "genau_center_up": "CENTER_UP",
     "genau_cycle_shape": "CYCLE_SHAPE",
     "genau_cycle_shape_prev": "CYCLE_SHAPE_PREV",
-    # Cruise varies the stroke; auto-advance moves on to the next clip.  They
-    # used to be one switch, and are armed separately now.
+    # Cruise varies the stroke, never which clip plays — moving on from a clip is
+    # what an unlocked Genau does by itself, at the pace below.
     "genau_toggle_cruise": "TOGGLE_CRUISE",
     "genau_cruise_on": "CRUISE_ON",
     "genau_cruise_off": "CRUISE_OFF",
-    "genau_toggle_auto_advance": "TOGGLE_AUTO_ADVANCE",
-    "genau_auto_advance_on": "AUTO_ADVANCE_ON",
-    "genau_auto_advance_off": "AUTO_ADVANCE_OFF",
-    # Holding a clip against auto-advance, and condemning one outright — the
-    # Genau counterparts of a satellite's lock and weird.
-    "genau_toggle_clip_lock": "TOGGLE_CLIP_LOCK",
+    # How long an unlocked Genau leaves each clip on screen, a second at a time.
+    # There is no switch to go with it: the padlock is the switch, and this is
+    # only its pace (see _PRIMARY_LOCK_COMMANDS).
+    "genau_advance_down": "ADVANCE_DOWN",
+    "genau_advance_up": "ADVANCE_UP",
+    # Condemning a clip outright — Genau's counterpart of a satellite's weird.
     "genau_weird_clip": "WEIRD",
     "genau_prev_clip": "PREV",
     "genau_next_clip": "NEXT",
@@ -919,11 +919,13 @@ def _cycle_variant(
 PRIMARY_SIDE = 1
 SIDE_NAMES = {PRIMARY_SIDE: "primary", 2: "portrait", 3: "landscape"}
 
-# Nau's own lock: repeat the video on screen, or let its end walk the playlist —
-# the same repeat-one a satellite's lock is, and the primary's original behavior,
-# so it is on until something turns it off.  The toggle is the key and the console
-# button; the absolute pair is what the spoken forms send, since a speaker asks for
-# the state they want.
+# The primary slot's lock: repeat what is on screen, or let it move on — Nau's
+# video into the next playlist entry, Genau's clip into the next clip after its
+# interval.  Both players answer these three verbs and both open locked, so the
+# one padlock on the console means the same thing whichever is showing; the mode
+# decides which of them hears it, exactly as it decides for prev/next.  The toggle
+# is the key and the button; the absolute pair is what the spoken forms send,
+# since a speaker asks for the state they want.
 _PRIMARY_LOCK_COMMANDS = {
     "primary_lock": "TOGGLE_LOCK",
     "primary_lock_on": "LOCK_ON",
@@ -1084,10 +1086,12 @@ def dispatch_command(
 
     lock_verb = _PRIMARY_LOCK_COMMANDS.get(command)
     if lock_verb is not None:
-        # Ungated like next/prev, and for the same reason: in genau mode the
-        # blanked Nau is still a player with a playlist, and what its end of file
-        # does is settled whether or not anyone is looking at it.
-        config.nau_cmd_file.write_text(lock_verb, encoding="utf-8")
+        # To whichever player is showing, because the lock is about what is on
+        # screen: Nau's video in nau and hybrid, Genau's clip in genau.  The same
+        # split the speed controls make, and for the same reason.
+        target = (config.nau_cmd_file if nau_displays(state.primary_mode)
+                  else config.genau_cmd_file)
+        target.write_text(lock_verb, encoding="utf-8")
         return state, ops
 
     if command in ("primary_nudge_prev", "primary_nudge_next"):

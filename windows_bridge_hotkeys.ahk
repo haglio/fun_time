@@ -106,10 +106,11 @@ e::QueueCommand("landscape_no_loop")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
 Enter::QueueCommand("active_nav_lock")
-; Nau's lock: hold the video on screen, or let its end walk the playlist.  The
-; apostrophe sits beside the satellites' own lock keys on the home row, and gave
-; up Save clip to take it — that moved one key left, to the semicolon (bound by
-; scancode because a bare ; opens a comment in AHK).
+; The primary slot's lock, reaching whichever player is showing: Nau's video
+; holds instead of walking the playlist, Genau's clip holds instead of moving on
+; every few seconds.  The apostrophe sits beside the satellites' own lock keys on
+; the home row, and gave up Save clip to take it — that moved one key left, to the
+; semicolon (bound by scancode because a bare ; opens a comment in AHK).
 '::QueueCommand("primary_lock")
 SC027::QueueCommand("clipper_save")
 
@@ -152,18 +153,17 @@ i::QueueCommand("genau_cycle_shape")
 o::QueueCommand("genau_center_up")
 j::QueueCommand("genau_speed_down")
 l::QueueCommand("genau_speed_up")
-; Cruise varies the stroke, auto advance moves on to the next clip — one switch
-; each, side by side on the bottom row.
+; Cruise varies the stroke; moving on from a clip is what an unlocked Genau does
+; by itself, so it is the apostrophe's lock rather than a switch of its own.
 c::QueueCommand("genau_toggle_cruise")
-x::QueueCommand("genau_toggle_auto_advance")
 SC035::QueueCommand("genau_toggle_auto")
 
 ; Genau's clip cluster, laid out like the arrow keys are for the portrait side:
-; K above to condemn the clip, M and . either side for previous and next, and
-; , below K to hold the clip against auto advance.
+; K above to condemn the clip, M and . either side for previous and next.  The
+; hold that used to sit below K is the apostrophe now — one lock key for whichever
+; player is on the primary slot.
 k::QueueCommand("genau_weird_clip")
 m::QueueCommand("genau_prev_clip")
-SC033::QueueCommand("genau_toggle_clip_lock")
 SC034::QueueCommand("genau_next_clip")
 
 ; -------------------- CORE FUNCTIONS --------------------

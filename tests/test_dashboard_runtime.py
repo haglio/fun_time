@@ -313,14 +313,22 @@ def test_read_genau_status_parses_active_cruise_and_shape(tmp_path: Path):
     assert status.shape == "triangle"
 
 
-def test_read_genau_status_parses_auto_advance_and_its_lock(tmp_path: Path):
+def test_read_genau_status_parses_the_clip_lock(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("advance=1\nclip_locked=1\n", encoding="utf-8")
+    status_file.write_text("locked=0\n", encoding="utf-8")
 
-    status = read_genau_status(status_file)
+    assert read_genau_status(status_file).locked is False
 
-    assert status.auto_advance_active is True
-    assert status.clip_locked is True
+
+def test_read_genau_status_defaults_the_clip_lock_to_on(tmp_path: Path):
+    """A clip repeating is where Genau opens, so a status that says nothing about
+    the lock — or none at all — must not light the console's padlock the wrong
+    way."""
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("cruise=0\n", encoding="utf-8")
+
+    assert read_genau_status(status_file).locked is True
+    assert read_genau_status(tmp_path / "missing.txt").locked is True
 
 
 def test_read_genau_status_handles_inactive_cruise(tmp_path: Path):

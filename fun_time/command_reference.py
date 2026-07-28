@@ -94,9 +94,10 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Previous video", ("[",), ("primary_prev",)),
             _Row("Next video", ("]",), ("primary_next",)),
             _Row(
-                "Lock / unlock the primary — locked (the default) the video "
-                "repeats; unlocked it plays on to the next one and the playlist "
-                "runs around",
+                "Lock / unlock the primary — locked (the default) what is on "
+                "screen repeats; unlocked it moves on and the list runs around. "
+                "Reaches whichever player is showing: Nau's video here, Genau's "
+                "clip in Genau mode",
                 ("'",),
                 ("primary_lock", "primary_lock_on", "primary_lock_off"),
             ),
@@ -347,15 +348,15 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Previous Genau clip", ("M",), ("genau_prev_clip",)),
             _Row("Next Genau clip", (".",), ("genau_next_clip",)),
             _Row("Mark the Genau clip weird — skip it, and out of rotation", ("K",), ("genau_weird_clip",)),
-            _Row("Hold the clip against auto advance", (",",), ("genau_toggle_clip_lock",)),
             _Row("Allow / suppress Genau takeover (OSR2 auto)", ("/",), ("genau_toggle_auto",)),
             _Row("Enable / disable cruise control (varies the stroke)", ("C",), ("genau_toggle_cruise", "genau_cruise_on", "genau_cruise_off")),
             _Row(
-                "Enable / disable auto advance (moves on to the next clip)",
-                ("X",),
-                ("genau_toggle_auto_advance", "genau_auto_advance_on", "genau_auto_advance_off"),
+                "Seconds a clip holds the screen before Genau moves on — only "
+                "while it is unlocked (the ' key above holds it)",
+                (),
+                ("genau_advance_down", "genau_advance_up"),
+                ("auto advance 1–60",),
             ),
-            _Row("Set the seconds between auto advances", (), (), ("auto advance 1–60",)),
             _Row("Offset ¼ cycle", ("\\",), ("backslash_key", "quarter_button")),
         ),
     ),
