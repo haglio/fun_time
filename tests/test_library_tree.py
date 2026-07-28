@@ -68,14 +68,31 @@ def test_a_folder_carries_the_way_back_up(tmp_path=None):
     assert folder_at(handles, ()).parent is None
 
 
-def test_a_folder_pictures_itself_with_a_video_from_inside_it(tmp_path=None):
-    """A folder tile needs a still of its own, and the first video under it is
-    the one the eye would land on anyway."""
-    handles = [
-        _handle("Beta Scene", "big_batch/whole"),
-        _handle("Excerpt 1", "big_batch/cuts"),
-    ]
+
+
+def test_a_folder_pictures_itself_with_four_of_its_videos(tmp_path=None):
+    """One still says almost nothing about a folder of hundreds.
+
+    Four, drawn at random, say what kind of thing is in there — and change from
+    browse to browse, so a folder is never represented by the same picture twice
+    running.
+    """
+    import random
+
+    handles = [_handle(f"Scene {i}", "big_batch") for i in range(10)]
+
+    child = folder_at(handles, (), rng=random.Random(7)).children[0]
+    other = folder_at(handles, (), rng=random.Random(8)).children[0]
+
+    assert len(child.previews) == 4
+    assert len(set(child.previews)) == 4, "the same video must not fill two cells"
+    assert set(child.previews) <= {handle.preview for handle in handles}
+    assert child.previews != other.previews, "a different browse picks differently"
+
+
+def test_a_folder_with_less_than_four_pictures_itself_with_what_it_has(tmp_path=None):
+    handles = [_handle("Beta Scene", "big_batch"), _handle("Gamma Scene", "big_batch")]
 
     child = folder_at(handles, ()).children[0]
 
-    assert child.preview == handles[0].preview
+    assert set(child.previews) == {handle.preview for handle in handles}
