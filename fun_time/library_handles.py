@@ -34,7 +34,7 @@ class LibraryHandle:
     title: str
     versions: tuple[str, ...]
     # Which band of the browse this sits in — the source folder it came from,
-    # and whether it is an excerpt.  See :func:`section_for`.
+    # and whether it is an excerpt.  See :func:`band_names`.
     section: str = ""
 
     @property
@@ -162,26 +162,30 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
     a video sits *below* its source folder says how far it got through the
     pipeline, never what it is, so it never decides where the video turns up.
 
-    A family's section follows the version it plays, not its members at large:
-    the odd family holding both an excerpt and the whole scene it came from
-    belongs with the whole videos, because that is what picking it plays.
+    A family that spans the excerpt line becomes two handles — see below.
     """
-    families: dict[str, list[str]] = {}
+    # Keyed by family AND by whether it is an excerpt: Evolver ties a cut to the
+    # scene it came out of with the same version.group, but a cut is a *piece* of
+    # that scene, not another rendition of it.  Folded together the cut would
+    # vanish — the whole scene is the bigger file, so it would take the handle,
+    # the name and the folder, leaving the cut reachable only by cycling versions
+    # inside a video it is not a version of.
+    families: dict[tuple[str, bool], list[str]] = {}
     for video in collect_video_files(sources):
         title = _recorded_group(video, metadata_root) or Path(video).stem
-        families.setdefault(title, []).append(video)
+        families.setdefault((title, _is_clip(video, metadata_root)), []).append(video)
 
     played = {
-        title: tuple(sorted(videos, key=lambda video: (-_file_size(video), video)))
-        for title, videos in families.items()
+        family: tuple(sorted(videos, key=lambda video: (-_file_size(video), video)))
+        for family, videos in families.items()
     }
     keys = {
-        title: (source_folder(versions[0], sources), _is_clip(versions[0], metadata_root))
-        for title, versions in played.items()
+        family: (source_folder(versions[0], sources), family[1])
+        for family, versions in played.items()
     }
     bands: dict[tuple[str, bool], list[tuple[str, ...]]] = {}
-    for title, key in keys.items():
-        bands.setdefault(key, []).append(source_path(played[title][0], sources))
+    for family, key in keys.items():
+        bands.setdefault(key, []).append(source_path(played[family][0], sources))
     names = band_names(bands)
 
     # Folders rank by their whole weight, cuts included, so a folder that was
@@ -189,14 +193,14 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
     # different folder entirely.  Its two bands then stay adjacent, whole videos
     # first: the cuts came out of them, so they follow.  Ordering reads the band
     # key rather than the section name, which is only what the band is *called*.
-    weight = Counter(folder for folder, _is_clip in keys.values())
+    weight = Counter(folder for folder, _clip in keys.values())
     return [
-        LibraryHandle(title=title, versions=played[title], section=names[keys[title]])
-        for title in sorted(
+        LibraryHandle(title=family[0], versions=played[family], section=names[keys[family]])
+        for family in sorted(
             played,
-            key=lambda title: (
-                -weight[keys[title][0]], keys[title][0], keys[title][1],
-                title.casefold(), title,
+            key=lambda family: (
+                -weight[keys[family][0]], keys[family][0], keys[family][1],
+                family[0].casefold(), family[0],
             ),
         )
     ]

@@ -1,10 +1,11 @@
-"""The primary library browser — a grid of version-group handles."""
+"""The primary library browser — folder tiles you walk, then the videos inside."""
 from __future__ import annotations
 
 from pathlib import Path
 
 from PIL import Image
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QKeyEvent
 
 from fun_time.library_browser import (
     LibraryBrowserWindow,
@@ -14,6 +15,7 @@ from fun_time.library_browser import (
     rows_needing_stills,
 )
 from fun_time.library_handles import LibraryHandle
+from fun_time.library_tree import SubFolder
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
 from fun_time import load_config
@@ -25,27 +27,115 @@ def _handle(title: str, *versions: str, section: str = "main") -> LibraryHandle:
     )
 
 
-def test_the_grid_shows_one_tile_per_handle_in_the_order_given(tmp_path: Path):
+def _labels(window: LibraryBrowserWindow) -> list[str]:
+    return [window.item(row).text() for row in range(window.count())]
+
+
+def _backspace() -> QKeyEvent:
+    return QKeyEvent(
+        QEvent.Type.KeyPress, Qt.Key.Key_Backspace.value, Qt.KeyboardModifier.NoModifier,
+    )
+
+
+def test_a_browse_opens_on_the_librarys_own_folders(tmp_path: Path):
+    """Not on a wall of videos: the top level is one tile per folder, counted."""
     window = LibraryBrowserWindow(
-        [_handle("alpha scene"), _handle("Beta Scene"), _handle("Gamma Scene")],
+        [
+            _handle("Beta Scene", section="big_batch/whole"),
+            _handle("Excerpt 1", section="big_batch/cuts"),
+            _handle("alpha scene", section="small_batch"),
+        ],
         thumbnail_cache=tmp_path,
         on_pick=lambda _video: None,
     )
 
-    assert [
-        window.item(row).text()
-        for row, handle in enumerate(window.rows)
-        if handle is not None
-    ] == ["alpha scene", "Beta Scene", "Gamma Scene"]
+    assert _labels(window) == ["big_batch  (2)", "small_batch  (1)"]
+    assert all(isinstance(what, SubFolder) for what in window.rows)
 
 
-def test_activating_a_tile_reports_that_handles_playable_version(tmp_path: Path):
+def test_opening_a_folder_shows_what_is_in_it_and_a_way_back(tmp_path: Path):
+    handles = [
+        _handle("Beta Scene", section="big_batch/whole"),
+        _handle("Excerpt 1", section="big_batch/cuts"),
+        _handle("Excerpt 2", section="big_batch/cuts"),
+    ]
+    window = LibraryBrowserWindow(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+
+    window.itemActivated.emit(window.item(0))
+
+    assert _labels(window) == ["all folders", "whole  (1)", "cuts  (2)"]
+    assert window.rows[0] is None
+
+
+def test_the_deepest_folder_lays_out_every_video_under_it(tmp_path: Path):
+    """No processing folder is ever a step — the videos come up in one grid."""
+    handles = [_handle(f"Excerpt {i}", section="big_batch/cuts") for i in range(3)]
+    window = LibraryBrowserWindow(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+
+    window.open_folder(("big_batch", "cuts"))
+
+    assert _labels(window) == ["back", "Excerpt 0", "Excerpt 1", "Excerpt 2"]
+    assert window.rows[1:] == handles
+
+
+def test_the_way_back_goes_back(tmp_path: Path):
+    handles = [_handle("Excerpt 1", section="big_batch/cuts")]
+    window = LibraryBrowserWindow(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.open_folder(("big_batch", "cuts"))
+
+    window.itemActivated.emit(window.item(0))
+
+    assert _labels(window) == ["all folders", "cuts  (1)"]
+
+
+def test_backspace_goes_back_too(tmp_path: Path):
+    """The key every other file browser uses for it, and the grid has the focus."""
+    handles = [_handle("Excerpt 1", section="big_batch/cuts")]
+    window = LibraryBrowserWindow(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.open_folder(("big_batch", "cuts"))
+
+    window.keyPressEvent(_backspace())
+
+    assert _labels(window) == ["all folders", "cuts  (1)"]
+
+
+def test_backspace_at_the_top_stays_put(tmp_path: Path):
+    window = LibraryBrowserWindow(
+        [_handle("Excerpt 1", section="big_batch/cuts")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+    )
+
+    window.keyPressEvent(_backspace())
+
+    assert _labels(window) == ["big_batch  (1)"]
+
+
+def test_the_selection_starts_on_the_first_thing_worth_opening(tmp_path: Path):
+    """Never on the way back — arrowing off the top of a folder is not the point."""
+    window = LibraryBrowserWindow(
+        [_handle("Excerpt 1", section="big_batch/cuts")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+    )
+    window.open_folder(("big_batch",))
+
+    assert window.currentRow() == 1
+
+
+def test_activating_a_video_reports_that_handles_playable_version(tmp_path: Path):
     picked: list[str] = []
     handles = [
-        _handle("alpha scene", "C:/videos/0 unsorted/alpha.mp4"),
-        _handle("Beta Scene", "C:/videos/3_good_to_go/beta_big.mp4", "C:/videos/0 unsorted/beta.mp4"),
+        _handle("alpha scene", "C:/videos/0 unsorted/alpha.mp4", section="main"),
+        _handle(
+            "Beta Scene",
+            "C:/videos/3_good_to_go/beta_big.mp4",
+            "C:/videos/0 unsorted/beta.mp4",
+            section="main",
+        ),
     ]
     window = LibraryBrowserWindow(handles, thumbnail_cache=tmp_path, on_pick=picked.append)
+    window.open_folder(("main",))
 
     window.itemActivated.emit(window.item(window.rows.index(handles[1])))
 
@@ -77,11 +167,54 @@ def test_a_cached_still_becomes_the_tile_and_only_misses_are_extracted(tmp_path:
 
     handles = [_handle("alpha scene", str(pictured)), _handle("Beta Scene", str(bare))]
     window = LibraryBrowserWindow(handles, thumbnail_cache=cache, on_pick=lambda _video: None)
+    window.open_folder(("main",))
 
     pictured_row, bare_row = (window.rows.index(handle) for handle in handles)
     assert not window.item(pictured_row).icon().isNull()
     assert window.item(bare_row).icon().isNull()
     assert rows_needing_stills(window.rows, cache) == [bare_row]
+
+
+def test_a_folder_tile_is_pictured_with_a_still_from_inside_it(tmp_path: Path):
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    video = tmp_path / "alpha.mp4"
+    video.write_bytes(b"\0")
+    Image.new("RGB", (16, 9)).save(thumbnail_path(video, cache), "JPEG")
+
+    window = LibraryBrowserWindow(
+        [_handle("alpha scene", str(video), section="big_batch")],
+        thumbnail_cache=cache,
+        on_pick=lambda _video: None,
+    )
+
+    assert not window.item(0).icon().isNull()
+
+
+def test_the_browser_keeps_out_of_the_taskbar(tmp_path: Path):
+    """A browse is a thing you open and dismiss, not a program that is running.
+
+    Qt's Tool window type is what clears the taskbar button on Windows.  Without
+    it the grid gets its own indicator — and, having declared no identity of its
+    own, one Windows hangs off whatever unrelated app it can pair it with.
+    """
+    window = LibraryBrowserWindow(
+        [_handle("alpha scene")], thumbnail_cache=tmp_path, on_pick=lambda _video: None,
+    )
+
+    assert window.windowFlags() & Qt.WindowType.Tool
+
+
+def test_the_title_says_which_folder_is_open(tmp_path: Path):
+    window = LibraryBrowserWindow(
+        [_handle("Excerpt 1", section="big_batch/cuts")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+    )
+
+    window.open_folder(("big_batch", "cuts"))
+
+    assert window.windowTitle().endswith("big_batch/cuts")
 
 
 def test_the_browser_reads_its_library_from_the_session_manifest(tmp_path: Path, cfg_factory):
@@ -134,65 +267,38 @@ def test_an_abandoned_browse_never_replays_the_previous_pick(tmp_path: Path):
     assert browse_library(manifest, r"C:\python.exe", runner=lambda _c, **_k: None) is None
 
 
-def test_each_section_is_announced_by_a_header_the_selection_skips(tmp_path: Path):
-    """A band of tiles is unreadable without a name on it, and a header is not a
-    thing you can play — so it is drawn but never selected, and arrowing through
-    the grid steps straight from one section's last tile to the next's first."""
+def test_closing_the_browse_tells_the_process_it_is_over(tmp_path: Path):
+    """Nothing else can: Qt does not count a Tool window towards the last-window
+    quit, so without this the picked video would sit in the result file with the
+    bridge still blocked on a process that had nothing left to do."""
+    ended: list[str] = []
     window = LibraryBrowserWindow(
-        [
-            _handle("Beta Scene", section="big_batch"),
-            _handle("Excerpt 1", section="big_batch · clips"),
-            _handle("Excerpt 2", section="big_batch · clips"),
-        ],
+        [_handle("alpha scene")],
         thumbnail_cache=tmp_path,
         on_pick=lambda _video: None,
+        on_close=lambda: ended.append("over"),
     )
+    window.show()
 
-    assert [window.item(row).text() for row in range(window.count())] == [
-        "big_batch", "Beta Scene", "big_batch · clips", "Excerpt 1", "Excerpt 2",
-    ]
-    assert [handle is None for handle in window.rows] == [True, False, True, False, False]
-    assert not window.item(0).flags() & Qt.ItemFlag.ItemIsSelectable
-    assert window.item(1).flags() & Qt.ItemFlag.ItemIsSelectable
+    window.close()
+
+    assert ended == ["over"]
 
 
-def test_a_pick_names_the_handle_under_its_own_header(tmp_path: Path):
-    """The rows are offset by every header above them, so picking has to read the
-    handle off the row rather than counting tiles."""
+def test_picking_a_video_ends_the_browse_as_well_as_reporting_it(tmp_path: Path):
     picked: list[str] = []
+    ended: list[str] = []
+    handles = [_handle("alpha scene", "C:/videos/alpha.mp4", section="main")]
     window = LibraryBrowserWindow(
-        [
-            _handle("Beta Scene", "C:/videos/beta.mp4", section="big_batch"),
-            _handle("Excerpt 1", "C:/videos/one.mp4", section="big_batch · clips"),
-        ],
+        handles,
         thumbnail_cache=tmp_path,
         on_pick=picked.append,
+        on_close=lambda: ended.append("over"),
     )
+    window.open_folder(("main",))
+    window.show()
 
-    window.itemActivated.emit(window.item(3))
+    window.itemActivated.emit(window.item(window.rows.index(handles[0])))
 
-    assert picked == ["C:/videos/one.mp4"]
-
-
-def test_the_first_tile_is_selected_not_the_header_above_it(tmp_path: Path):
-    window = LibraryBrowserWindow(
-        [_handle("Beta Scene", section="big_batch")],
-        thumbnail_cache=tmp_path,
-        on_pick=lambda _video: None,
-    )
-
-    assert window.currentRow() == 1
-
-
-def test_the_browser_keeps_out_of_the_taskbar(tmp_path: Path):
-    """A browse is a thing you open and dismiss, not a program that is running.
-
-    Qt's Tool window type is what clears the taskbar button on Windows.  Without
-    it the grid gets its own indicator — and, having declared no identity of its
-    own, one Windows hangs off whatever unrelated app it can pair it with.
-    """
-    window = LibraryBrowserWindow(
-        [_handle("alpha scene")], thumbnail_cache=tmp_path, on_pick=lambda _video: None,
-    )
-
-    assert window.windowFlags() & Qt.WindowType.Tool
+    assert picked == ["C:/videos/alpha.mp4"]
+    assert ended == ["over"]

@@ -16,7 +16,9 @@ from pathlib import Path
 
 import pytest
 from PIL import Image, ImageDraw
-from PyQt6.QtGui import QFontDatabase
+from PyQt6.QtCore import QEvent, QPointF, Qt, QTimer
+from PyQt6.QtGui import QFontDatabase, QMouseEvent
+from PyQt6.QtWidgets import QApplication
 
 from fun_time.library_browser import LibraryBrowserWindow
 from fun_time.library_handles import CLIPS_SUFFIX, LibraryHandle
@@ -105,5 +107,82 @@ def test_the_browser_window_owns_no_taskbar_button(tmp_path: Path):
 
         assert ex_style & 0x00000080, "WS_EX_TOOLWINDOW should be set"
         assert not (ex_style & 0x00040000), "WS_EX_APPWINDOW should NOT be set"
+    finally:
+        window.close()
+
+
+def _double_click(window: LibraryBrowserWindow, row: int) -> None:
+    """Deliver a genuine double-click onto *row*'s tile.
+
+    The whole four-event sequence a mouse produces, sent to the viewport so it
+    runs through ``QAbstractItemView`` exactly as the real gesture does.  The
+    press and release are not decoration: a lone ``MouseButtonDblClick`` leaves
+    the view with no pressed index and it discards the event, on ours and on a
+    bare QListWidget alike.  ``QTest.mouseDClick`` is not used either — on this
+    hidden desktop it delivers nothing to the view at all, so a test written on
+    it would pass or fail on the harness rather than on the browser.
+    """
+    point = QPointF(window.visualItemRect(window.item(row)).center())
+    for kind in (
+        QEvent.Type.MouseButtonPress,
+        QEvent.Type.MouseButtonRelease,
+        QEvent.Type.MouseButtonDblClick,
+        QEvent.Type.MouseButtonRelease,
+    ):
+        QApplication.sendEvent(window.viewport(), QMouseEvent(
+            kind, point, Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+        ))
+
+
+def test_a_double_click_reaches_the_pick_and_ends_the_browse(tmp_path: Path):
+    """The gesture, not the signal — and the whole way out of the process.
+
+    A unit test can only emit ``itemActivated`` by hand, which says the handler
+    is wired and nothing about whether the gesture ever gets there — and the
+    gesture was never the half that was broken.  The browse *ended* nowhere: Qt
+    does not count a Tool window towards the last-window quit, so a picked video
+    sat in the result file with the bridge still blocked on a process that had
+    nothing left to do, and from the outside a double-click looked like it did
+    nothing.  So this drives the click through a running event loop that has to
+    actually return.
+    """
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    handles = _handles(tmp_path, cache)
+    app = QApplication.instance()
+    picked: list[str] = []
+    window = LibraryBrowserWindow(
+        handles, thumbnail_cache=cache, on_pick=picked.append, on_close=app.quit,
+    )
+    window.open_folder((SECTIONS[0],))
+    window.resize(800, 500)
+    window.show()
+    app.processEvents()
+
+    row = window.rows.index(handles[0])
+    QTimer.singleShot(0, lambda: _double_click(window, row))
+    QTimer.singleShot(4000, app.quit)  # watchdog: never hang the suite
+    app.exec()
+
+    assert picked == [handles[0].video], "a double-click must play the video"
+    assert window.isHidden(), "picking closes the browse"
+
+
+def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
+    """The same gesture on a folder tile walks into it rather than playing it."""
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    window = LibraryBrowserWindow(
+        _handles(tmp_path, cache), thumbnail_cache=cache, on_pick=lambda _v: None,
+    )
+    try:
+        window.resize(800, 500)
+        window.show()
+        QApplication.instance().processEvents()
+
+        _double_click(window, 0)
+
+        assert window.windowTitle().endswith(SECTIONS[0])
     finally:
         window.close()
