@@ -13,6 +13,7 @@ from satellite.hud import (
     HudCell,
     HudClicks,
     HudTargets,
+    act_is_filtered,
     action_label_blocks,
     build_click_targets,
     button_tooltip,
@@ -234,14 +235,29 @@ def test_pressing_another_rows_filter_button_while_filtered_moves_the_filter():
     assert clicks.press(_filter_targets("Gamma"), 5, 5, now=0.0) == "filter_portrait_gamma"
 
 
-def test_pressing_a_partly_matching_lit_button_lifts_the_filter():
-    """A row the filter keeps without naming it exactly ("POV Gamma" under "gamma")
-    is lit, so its button has to be the way out too — a green button that answered a
-    press by staying green would be the confusing half of the toggle."""
+def test_pressing_a_partly_matching_button_narrows_the_filter_before_lifting_it():
+    """A row the filter keeps without being exactly it ("POV Gamma" under "gamma") is
+    the act you reached for, so the first press moves the filter onto that whole row
+    and only a press on the row the filter already is turns it off.  Lifting on the
+    first press left no way to tighten a broad filter from the map."""
     clicks = HudClicks("portrait")
     clicks.active_filter = "gamma"
 
-    assert clicks.press(_filter_targets("POV Gamma"), 5, 5, now=0.0) == "portrait_no_filter"
+    assert clicks.press(_filter_targets("POV Gamma"), 5, 5, now=0.0) == "filter_portrait_pov_gamma"
+    assert clicks.active_filter == "pov gamma"
+    assert clicks.press(_filter_targets("POV Gamma"), 5, 5, now=1.0) == "portrait_no_filter"
+
+
+def test_pressing_a_two_act_rows_button_filters_to_both_of_its_acts():
+    """A clip carrying two acts filters to the pair, which is the query fun_time
+    keeps clips having both under — and pressing it again lifts it, since that row is
+    now exactly the filter."""
+    clicks = HudClicks("portrait")
+
+    command = clicks.press(_filter_targets("Gamma, Theta Motion"), 5, 5, now=0.0)
+
+    assert command == "filter_portrait_gamma,_theta_motion"
+    assert clicks.press(_filter_targets("Gamma, Theta Motion"), 5, 5, now=1.0) == "portrait_no_filter"
 
 
 def test_thumbnail_rects_positions_the_map_and_drops_overflow():
@@ -343,9 +359,11 @@ def test_label_is_filtered_reads_a_filter_the_way_fun_time_applies_it():
 
     cases = [
         ("Gamma", "gamma", True),               # the row that names it
-        ("POV Gamma", "gamma", True),           # the query is one word of the act
+        ("POV Gamma", "gamma", True),           # the query is one act of the row
         ("Gamma, Theta", "gamma", True),        # one of two acts on the clip
         ("Gamma   Theta", "gamma theta", True),  # whitespace collapsed on both sides
+        ("Gamma, Theta", "gamma, theta", True),  # the filter set from that very clip
+        ("Gamma", "gamma, theta", False),       # …which does not keep a one-act clip
         ("Alpha", "gamma", False),
         ("Gam", "gamma", False),                # the label is not the longer query
     ]
@@ -354,6 +372,19 @@ def test_label_is_filtered_reads_a_filter_the_way_fun_time_applies_it():
         assert matches_query({"video": {"action": label}}, query) is expected, (label, query)
 
     assert label_is_filtered("Gamma", "") is False
+
+
+def test_act_is_filtered_picks_out_which_of_a_rows_acts_the_filter_named():
+    """The row says whether the clip is here; this says which of its acts is why —
+    the rule that whitens one line of a label and leaves its neighbours grey."""
+    assert act_is_filtered("Gamma", "gamma") is True
+    assert act_is_filtered("POV", "gamma") is False        # the qualifier is not the act
+    assert act_is_filtered("Theta Gamma", "gamma") is True  # an act the query is part of
+    # A filter set from a two-act clip names both, so both of that row's acts light.
+    assert act_is_filtered("Gamma", "gamma, theta") is True
+    assert act_is_filtered("Theta", "gamma, theta") is True
+    assert act_is_filtered("Alpha", "gamma, theta") is False
+    assert act_is_filtered("Gamma", "") is False
 
 
 def test_button_tooltip_names_each_button():
@@ -396,8 +427,16 @@ def test_action_label_blocks_separate_comma_joined_acts():
     """Several acts on one clip ("Alpha, Theta Motion") become one block each
     (drawn with a gap between), commas dropped; one act is a single block."""
     assert action_label_blocks("alpha, theta motion") == [["Alpha"], ["Theta", "Motion"]]
-    assert action_label_blocks("pov gamma") == [["POV", "Gamma"]]
     assert action_label_blocks("") == [["(unknown)"]]
+
+
+def test_action_label_blocks_split_a_leading_modifier_into_its_own_act():
+    """"POV gamma" is a camera angle in front of an act, not a two-word act, so it
+    becomes two blocks — which is what lets a "gamma" filter light "Gamma" and leave
+    "POV" grey instead of whitening both."""
+    assert action_label_blocks("pov gamma") == [["POV"], ["Gamma"]]
+    assert action_label_blocks("pov") == [["POV"]]  # nothing to qualify: one act
+    assert action_label_blocks("theta motion") == [["Theta", "Motion"]]  # not a modifier
 
 
 def test_friendly_action_label_titlecases_and_keeps_acronyms_upper():
