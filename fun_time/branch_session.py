@@ -6,6 +6,13 @@ see, run or judge.  This is the third option between parking the branch and
 landing it unverified: point a real session at the unlanded worktree, on the
 real library, on the real monitors, first.
 
+The user is never asked to find a branch.  An agent with something to show runs
+``python -m fun_time.branch_session --shortcut`` from its worktree, which leaves
+a ``Verify <branch>.lnk`` in the primary checkout — the folder he keeps open —
+and tells him that filename.  He double-clicks it; the branch is already baked
+in.  ``launch_branch.vbs`` is the launcher every one of those shortcuts points
+at, and is not run on its own.
+
 **A branch session replaces the live one; it never runs beside it.**  Nearly
 everything a session touches is one-per-machine with no per-directory version:
 the AHK hotkey shell is ``#SingleInstance Force`` and would evict the live
@@ -34,6 +41,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -50,16 +60,18 @@ from .config import DEFAULT_CONFIG_PATH, ProjectConfig, load_config
 # holds the machine's real library paths and must never be committable.
 BRANCH_CONFIG_NAME = "fun_time_branch_config.json"
 
-# The picker's menu, written where launch_branch.vbs reads it back.
-WORKTREE_LIST_NAME = "branch_worktrees.txt"
+# The shared launcher every generated shortcut points at, in the primary.
+LAUNCHER_NAME = "launch_branch.vbs"
+
+# Each generated launcher is "Verify <branch>.lnk", written beside launch.vbs in
+# the primary checkout — the folder he already keeps open.  ``*.lnk`` is
+# git-ignored, which is what makes a checkout a safe place to leave them.
+SHORTCUT_PREFIX = "Verify "
+SHORTCUT_SUFFIX = ".lnk"
 
 STATE_DIRNAME = "state"
 FIELD_SEPARATOR = "\t"
-
-# How wide a menu line may be.  VBScript's InputBox truncates a prompt past
-# roughly a thousand characters, and this repo carries dozens of worktrees, so
-# the whole menu's budget is a few hundred.
-LABEL_WIDTH = 64
+DETACHED = "(detached)"
 
 # Git-ignored overlays that a session reads from its own checkout, so they exist
 # in the primary and in no worktree.  See :func:`mirror_private_overlays`.
@@ -111,19 +123,12 @@ class Worktree:
 
     @property
     def label(self) -> str:
-        """One line naming the branch and its latest work, for the picker.
+        """One line naming the branch and its latest work, for ``--list``.
 
-        Kept inside :data:`LABEL_WIDTH`, and the branch name is never what gives
-        — it is the thing an agent hands the user, so the subject is cut
-        instead.  The age is relative ("2 hours ago") because that is what
-        identifies a branch to somebody who was awake for it; a date would not.
+        The age is relative ("2 hours ago") because that is what identifies a
+        branch to somebody who was awake for it; a date would not.
         """
-        head, tail = f"{self.branch} — ", f" ({self.age})"
-        room = LABEL_WIDTH - len(head) - len(tail)
-        if room < 4:
-            return f"{self.branch}{tail}"
-        subject = self.subject if len(self.subject) <= room else f"{self.subject[:room - 1]}…"
-        return f"{head}{subject}{tail}"
+        return f"{self.branch} — {self.subject} ({self.age})"
 
 
 def _parse_worktree_records(porcelain: str) -> list[tuple[Path, str]]:
@@ -134,12 +139,12 @@ def _parse_worktree_records(porcelain: str) -> list[tuple[Path, str]]:
     """
     records: list[tuple[Path, str]] = []
     path: Path | None = None
-    branch = "(detached)"
+    branch = DETACHED
     for line in porcelain.splitlines():
         if line.startswith("worktree "):
             if path is not None:
                 records.append((path, branch))
-            path, branch = Path(line.removeprefix("worktree ")), "(detached)"
+            path, branch = Path(line.removeprefix("worktree ")), DETACHED
         elif line.startswith("branch "):
             branch = line.removeprefix("branch ").removeprefix("refs/heads/")
     if path is not None:
@@ -158,9 +163,9 @@ def list_worktrees(primary: Path | None = None) -> list[Worktree]:
     """Every other checkout of this repo, most recent commit first.
 
     Git is the source of truth rather than a glob of ``.claude/worktrees``, so a
-    worktree made by hand somewhere else is offered too.  A registered worktree
-    whose directory is gone (deleted but not pruned) is skipped: it is a menu
-    entry that could only fail.
+    worktree made by hand somewhere else is found too.  A registered worktree
+    whose directory is gone (deleted but not pruned) is skipped: there is
+    nothing left there to run.
     """
     primary = (primary or primary_checkout()).resolve()
     dated: list[tuple[int, Worktree]] = []
@@ -330,17 +335,150 @@ def launch(worktree: Path, **kwargs) -> int:
     return subprocess.run(command, cwd=str(worktree), check=False).returncode
 
 
-def write_worktree_list(destination: Path, worktrees: list[Worktree]) -> None:
-    """Write the picker's menu where ``launch_branch.vbs`` reads it back.
+def current_branch(worktree: Path) -> str:
+    """The branch *worktree* has checked out, or :data:`DETACHED`."""
+    name = _git(["rev-parse", "--abbrev-ref", "HEAD"], worktree).strip()
+    return DETACHED if name == "HEAD" else name
 
-    UTF-16 with a BOM: it is the one encoding VBScript's FileSystemObject reads
-    losslessly, and a commit subject with an em dash in it comes back mangled
-    from anything else.
+
+def shortcut_name(worktree: Path, branch: str) -> str:
+    """What the generated launcher for *worktree* is called in Explorer.
+
+    The branch name, because that is what an agent tells him it made — a
+    worktree's directory name is a slug he has never seen.  Slashes and the
+    other characters Windows reserves become dashes, and a worktree on no
+    branch at all falls back to its directory.
     """
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(
-        "".join(f"{worktree.path}{FIELD_SEPARATOR}{worktree.label}\n" for worktree in worktrees),
-        encoding="utf-16",
+    name = worktree.name if branch == DETACHED else branch
+    return f"{SHORTCUT_PREFIX}{re.sub(r'[<>:"/\\|?*]', '-', name).strip()}{SHORTCUT_SUFFIX}"
+
+
+def _ps_quote(value: str) -> str:
+    """*value* as a PowerShell single-quoted literal."""
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
+def _powershell(script: str) -> str:
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command", script],
+        capture_output=True,
+        text=True,
+        check=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return result.stdout
+
+
+def _read_shortcuts(primary: Path) -> dict[Path, tuple[str, str]]:
+    """Every ``Verify *.lnk`` sitting in *primary*, as (target, arguments).
+
+    Read through PowerShell's ``WScript.Shell`` rather than pywin32, which this
+    venv does not carry — ``windows_bridge_sequencer.resolve_shortcut`` keeps
+    the same fallback for the same reason.  One invocation for the whole folder,
+    because starting PowerShell costs far more than reading a shortcut does.
+    """
+    script = (
+        "$shell = New-Object -ComObject WScript.Shell; "
+        f"Get-ChildItem -LiteralPath {_ps_quote(str(primary))} "
+        f"-Filter {_ps_quote(f'{SHORTCUT_PREFIX}*{SHORTCUT_SUFFIX}')} -ErrorAction SilentlyContinue "
+        "| ForEach-Object { $link = $shell.CreateShortcut($_.FullName); "
+        "Write-Output ($_.FullName + \"`t\" + $link.TargetPath + \"`t\" + $link.Arguments) }"
+    )
+    found: dict[Path, tuple[str, str]] = {}
+    for line in _powershell(script).splitlines():
+        fields = line.split(FIELD_SEPARATOR)
+        if len(fields) == 3:
+            found[Path(fields[0])] = (fields[1], fields[2])
+    return found
+
+
+def _generated_shortcuts(primary: Path) -> dict[Path, Path]:
+    """Those of them this module wrote, mapped to the worktree each one runs.
+
+    A filename is not proof of anything — the folder is full of his own files —
+    so ownership is decided by the arguments naming the branch launcher.
+    """
+    owned: dict[Path, Path] = {}
+    for path, (_target, arguments) in _read_shortcuts(primary).items():
+        tokens = [token.strip('"') for token in shlex.split(arguments or "", posix=False)]
+        if len(tokens) >= 2 and Path(tokens[0]).name.lower() == LAUNCHER_NAME:
+            owned[path] = Path(tokens[1])
+    return owned
+
+
+def prune_stale_shortcuts(primary: Path) -> list[Path]:
+    """Delete the generated launchers whose worktree is gone; return which.
+
+    A worktree is removed once its branch lands, and a shortcut still pointing
+    at one is a file in his folder that can only fail.  Run whenever a new one
+    is written, so what sits there is roughly what is in flight rather than
+    everything ever verified — this repo carries dozens of worktrees, and
+    without this the folder fills up within days.
+    """
+    removed: list[Path] = []
+    for path, worktree in sorted(_generated_shortcuts(primary).items()):
+        if not worktree.is_dir():
+            path.unlink()
+            removed.append(path)
+    return removed
+
+
+def write_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> Path:
+    """Put a double-clickable launcher for *worktree* in the primary checkout.
+
+    This is how a branch reaches him: an agent makes one of these, names the
+    file, and he double-clicks it in the folder he already keeps open.  There is
+    no menu and nothing to choose — the branch is baked into the shortcut, so
+    the only thing he has to know is which file the agent told him about.
+
+    It points at ``launch_branch.vbs`` in the primary rather than carrying the
+    launch itself, so one made weeks ago still runs today's launcher.
+    """
+    primary = (primary or primary_checkout()).resolve()
+    worktree = worktree.resolve()
+    launcher = primary / LAUNCHER_NAME
+    if not launcher.is_file():
+        raise FileNotFoundError(
+            f"{launcher} is missing — the primary checkout has to be on a main that "
+            "carries the branch launcher before a shortcut to it can run."
+        )
+    branch = current_branch(worktree)
+    destination = primary / shortcut_name(worktree, branch)
+    _write_shortcut(
+        destination,
+        # wscript rather than the .vbs itself: a shortcut's target has to be an
+        # executable for arguments to reach the script.
+        target=str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "wscript.exe"),
+        arguments=subprocess.list2cmdline([str(launcher), str(worktree), branch]),
+        working_dir=str(primary),
+        icon=str(primary / "icon.ico"),
+        description=f"Run Fun Time on {branch}",
+    )
+    prune_stale_shortcuts(primary)
+    return destination
+
+
+def _write_shortcut(
+    destination: Path, *, target: str, arguments: str, working_dir: str, icon: str, description: str
+) -> None:
+    """Write a .lnk through PowerShell's ``WScript.Shell``.
+
+    There is no pure-Python way to author a shortcut, and pywin32 is not in this
+    venv — the same reason ``resolve_shortcut`` reads them this way.
+    """
+    fields = {
+        "TargetPath": target,
+        "Arguments": arguments,
+        "WorkingDirectory": working_dir,
+        "IconLocation": icon,
+        "Description": description,
+    }
+    assignments = "".join(f"$link.{name} = {_ps_quote(value)}; " for name, value in fields.items())
+    _powershell(
+        f"$link = (New-Object -ComObject WScript.Shell).CreateShortcut({_ps_quote(str(destination))}); "
+        f"{assignments}$link.Save()"
     )
 
 
@@ -348,11 +486,17 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Run a Fun Time session from a branch worktree.")
     ap.add_argument("worktree", nargs="?", help="The worktree to run the session from.")
     ap.add_argument(
-        "--list",
+        "--shortcut",
         nargs="?",
-        const="-",
-        metavar="FILE",
-        help="List the worktrees available to verify, newest first — to FILE, or to stdout.",
+        const=".",
+        metavar="WORKTREE",
+        help="Write the double-clickable launcher for WORKTREE (default: this checkout) "
+             "into the primary, print its path, and exit.",
+    )
+    ap.add_argument(
+        "--list",
+        action="store_true",
+        help="List the worktrees that could be verified, newest first, and exit.",
     )
     return ap
 
@@ -366,15 +510,15 @@ def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
     if args.list:
-        worktrees = list_worktrees()
-        if args.list == "-":
-            for worktree in worktrees:
-                print(f"{worktree.path}{FIELD_SEPARATOR}{worktree.label}")
-        else:
-            write_worktree_list(Path(args.list), worktrees)
+        for worktree in list_worktrees():
+            print(f"{worktree.path}{FIELD_SEPARATOR}{worktree.label}")
+        return 0
+    if args.shortcut:
+        target = config_module.PROJECT_DIR if args.shortcut == "." else Path(args.shortcut)
+        print(write_launch_shortcut(target))
         return 0
     if not args.worktree:
-        parser.error("give the worktree to run a session from, or --list to see them")
+        parser.error("give the worktree to run a session from, or --shortcut to make its launcher")
     return launch(Path(args.worktree))
 
 
