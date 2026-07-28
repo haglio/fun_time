@@ -16,6 +16,10 @@ class LockActionPlan:
     move_to_weird: bool
     open_rfb_tab: bool
     log_message: str
+    # The glanceable version of ``log_message``, flashed over the player the
+    # action was about.  Empty when there is nothing to announce — the action
+    # was a no-op, or the log line is all it warrants.
+    notice_message: str = ""
 
 
 def build_lock_plan(
@@ -70,6 +74,7 @@ def build_lock_plan(
                 move_to_weird=False,
                 open_rfb_tab=False,
                 log_message=f"Removed from favorites on player {which}: {current_path}",
+                notice_message="Unfavorited",
             )
         return LockActionPlan(
             next_locked=False,
@@ -80,6 +85,9 @@ def build_lock_plan(
             move_to_weird=bool(current_path),
             open_rfb_tab=False,
             log_message=f"Discarding from player {which}: {current_path}",
+            # Only when there is a clip to condemn: with no current path the
+            # discard touches nothing, and announcing it would be a lie.
+            notice_message="Marked weird" if current_path else "",
         )
 
     raise ValueError(f"Unsupported lock action: {action}")

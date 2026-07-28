@@ -14,8 +14,10 @@ from pathlib import Path
 
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
 from fun_time.dashboard_runtime import NauStatus, read_nau_status
+from fun_time.event_log import EventRecord, event_log_path, read_events
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
+from fun_time.notice_overlay import is_announcement
 from fun_time.win32 import get_process_image_name
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
@@ -265,6 +267,16 @@ class FunTimeIntegrationSession:
             return False
         text = self.favs_file.read_text(encoding="utf-8", errors="ignore")
         return str(path.resolve()) in text
+
+    def notices(self) -> list[EventRecord]:
+        """Every announcement in this session's event log so far.
+
+        The overlay flashes exactly what clears :func:`is_announcement`, so a
+        record here with the right source is a toast over the right player —
+        assertable without a QApplication.
+        """
+        records, _offset = read_events(event_log_path(self.config.paths.state_dir))
+        return [record for record in records if is_announcement(record)]
 
     def wait_until(self, predicate, *, timeout: float = 10.0, description: str = "condition") -> None:
         deadline = time.time() + timeout

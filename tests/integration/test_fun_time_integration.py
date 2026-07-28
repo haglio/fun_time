@@ -559,6 +559,15 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     assert not any(p.name == demoted_path.name for p in isolated_integration_session.weird_dir.iterdir())
 
     isolated_integration_session.wait_until(
+        lambda: any(
+            n.message == "Unfavorited" and n.source == "landscape"
+            for n in isolated_integration_session.notices()
+        ),
+        timeout=12,
+        description="an \"Unfavorited\" toast over the landscape player",
+    )
+
+    isolated_integration_session.wait_until(
         lambda: Path(read_satellite_status(status_file).video or "x").resolve() != demoted_path,
         timeout=12,
         description="landscape satellite to advance off the demoted clip",
@@ -601,6 +610,14 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
         lambda: any(p.name == trashed_path.name for p in isolated_integration_session.weird_dir.iterdir()),
         timeout=12,
         description="portrait sample to be moved into the integration weird dir",
+    )
+    isolated_integration_session.wait_until(
+        lambda: any(
+            n.message == "Marked weird" and n.source == "portrait"
+            for n in isolated_integration_session.notices()
+        ),
+        timeout=12,
+        description='a "Marked weird" toast over the portrait player',
     )
 
 
