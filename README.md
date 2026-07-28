@@ -274,31 +274,34 @@ live, which is why it is not the way out of the browser.
 It is a **Tool window**: no taskbar button, because a browse is something you
 open and dismiss rather than a program you leave running. It claims Fun Time's
 AppUserModelID before its window exists, so it can never be filed under some
-unrelated app. And it belongs to the session — quitting Fun Time closes a browse
-still on screen, since the dispatch loop that launched it holds it until it ends.
+unrelated app. Being a Tool window is also why it has to end its own process:
+Qt does not count one towards the last-window quit, so closing the window is
+wired to quitting the app — without that a picked video sat in the result file
+with the bridge blocked behind a process that had nothing left to do. And it
+belongs to the session — quitting Fun Time closes a browse still on screen,
+since the dispatch loop that launched it holds it until it ends.
 
-The grid is banded into **sections**, each with a header across the row. A
-section is the folder a video came from — the first folder under a
-`nau_library_dirs` source, which says which batch or origin it is from; every
-stage folder below that stays hidden. Within a section it is alphabetical.
-Sections rank by how much of the library each folder holds, biggest first, so
-the browse opens on the bulk of it.
+The grid is one you **walk**. It opens on the library's own folders — one tile
+per folder under a `nau_library_dirs` source, with a still from inside it and a
+count — and opening one shows what is in it: either the folders it was split
+into, or its videos. A tile at the head of every folder goes back up, and so
+does Backspace.
 
-Videos **carved out of a compilation** get a band of their own beside their
-folder's whole videos, sitting just behind them. Evolver marks an excerpt with a
-`clip` record (the parent compilation, the running order in it, the scene it came
-from), and that record is the whole test — so a reel's worth of cuts never sits
-between the scenes they were cut from.
+The pipeline stages are never steps. Opening the last folder lays out **every**
+video under it at once, however many processing folders they are spread across
+on disk, because how far a video got through the pipeline is an implementation
+detail Fun Time exists to hide — and its other stages are reachable from the
+player anyway, as versions. Within a folder it is alphabetical, and the folders
+rank by how much of the library each holds, biggest first.
 
-A band is **named after the folder it was filed into**, where it has one. Where
-the cuts and the whole videos of a folder have been moved into two folders of
-their own — each keeping its own copy of the pipeline stages — the headers read
-those folder names (`larkin/redacted`, `larkin/full`), so the browse and
-Explorer say the same words. That is recognised by each band having a dominant
-second folder and the two differing; where the split is the sidecar's alone, both
-bands share the stage folders and the headers fall back to `<folder>` and
-`<folder> · clips`. Dominant rather than unanimous, so one file a move left
-behind cannot drag a band's name back.
+Videos **carved out of a compilation** become a folder of their own beside their
+folder's whole videos. Evolver marks an excerpt with a `clip` record (the parent
+compilation, the running order in it, the scene it came from), and that record is
+the whole test — so a reel's worth of cuts never sits among the scenes they were
+cut from. Where those two sets have been filed into two folders on disk, each
+keeping its own copy of the pipeline stages, the tiles are named after those
+folders (`redacted`, `full`); where the split is the sidecar's alone, the cuts
+take a `· clips` name instead.
 
 The families come from Evolver's metadata sidecar (`version.group`), which is
 the authority on "same video, other version" — the filenames alone cannot say
