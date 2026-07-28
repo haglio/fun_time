@@ -17,11 +17,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 # --- layout constants (px) ---------------------------------------------------
-# The panel is shaped like its satellite's clips so more of the map fits: the
-# landscape HUD is wide (wide clips -> wide seed columns, plus room for the
-# seed-loop and expand buttons past them), the portrait HUD is tall (tall clips
-# -> tall rows, plus room for the action column to grow down).
-PANEL_SIZE = {"portrait": (300, 430), "landscape": (500, 300)}
 # Inset of the HUD from the player window's top-left corner.
 MARGIN = 12
 
@@ -40,6 +35,27 @@ FILTER_BTN = 18     # act-filter button: at the head of each row, in the gutter
 FILTER_ROOM = FILTER_BTN + MAP_GAP  # what it takes out of the row-label gutter
 CTRL_BTN = 18       # a side-control button — the same square as a loop button
 CTRL_BAND_H = 24    # the band those controls sit in, under the status line
+
+# What the map keeps clear past the end of each axis for that axis's own buttons:
+# the seed-loop and expand buttons right of the row, the action-loop button below
+# the column.  The panel is measured with these and the map laid out against them,
+# so a widened row can never push a button off the panel.
+MAP_RIGHT_RESERVE = 2 * (LOOP_BTN + MAP_GAP)
+MAP_BOTTOM_RESERVE = LOOP_BTN + MAP_GAP
+
+# The map is three cells on a side — the clip on screen in the corner, two of its
+# seeds along the row, two of its other acts down the column — and the panel is
+# measured to hold exactly that.  Both panels were fixed slabs before (300x430 and
+# 500x300), sized against the shape of the window they float over rather than
+# against what they draw: the landscape one had no room for a third row, and both
+# carried space no map ever reached.
+MAP_CELLS = 3
+# How wide one map cell draws, per side: a clip of that side's shape scaled to
+# MAP_THUMB_H (fun_time caches thumbnails at a 160px longest edge, so a portrait
+# 9:16 lands on 30 and a landscape 16:9 on 96).  The panel is measured off this,
+# and it is also the placeholder drawn where fun_time has not produced a frame
+# yet, so the map holds its shape before any thumbnail exists.
+CELL_W = {"portrait": 30, "landscape": 96}
 
 STATUS_SEPARATOR = " · "  # what fun_time joins the status line's parts with
 STATUS_LINE_H = 14        # what each line past the first adds to the band
@@ -147,6 +163,50 @@ class HudModel:
 # loop is switched on or off.
 ELLIPSIS = 12
 ELLIPSIS_ROOM = ELLIPSIS + 2 * MAP_GAP
+
+
+def cell_width(side: str) -> int:
+    """How wide one of *side*'s clips draws on the map.  One lookup, so the panel
+    is never measured against a cell width the map does not draw."""
+    return CELL_W.get(side, CELL_W["portrait"])
+
+
+def map_extent(side: str) -> tuple[int, int]:
+    """The room a full ``MAP_CELLS`` x ``MAP_CELLS`` map of *side*'s clips takes —
+    the cells themselves, plus the gaps between them.  Not the "…" slots or the
+    buttons past either end: those are the panel's business, below."""
+    return (MAP_CELLS * cell_width(side) + (MAP_CELLS - 1) * MAP_GAP,
+            MAP_CELLS * MAP_THUMB_H + (MAP_CELLS - 1) * ROW_GAP)
+
+
+def panel_width(side: str, gutter: int) -> int:
+    """How wide *side*'s panel has to be: the row-label gutter, then the map's
+    left "…" slot, a full map, its right "…" slot, and the seed-loop and expand
+    buttons past that.
+
+    Independent of anything the status says, so the status can be wrapped into
+    this width before the height is known.
+    """
+    map_w, _map_h = map_extent(side)
+    return PAD + gutter + ELLIPSIS_ROOM + map_w + ELLIPSIS_ROOM + MAP_RIGHT_RESERVE + PAD
+
+
+def panel_height(side: str, *, status_lines: int, mapped: bool) -> int:
+    """How tall *side*'s panel has to be: the status band (as many lines as it
+    wrapped to) and the control band, then — when there is a map to draw — the
+    "Seed N" header strip, the map's own "…" slots and rows, and the action-loop
+    button below them.
+
+    *mapped* is false before the satellite's first clip arrives, when the panel is
+    the two bands and nothing else: there is no map, so there is no room to keep
+    for one.
+    """
+    _map_w, map_h = map_extent(side)
+    foot = PAD + status_band_height(status_lines) + CTRL_BAND_H
+    if mapped:
+        foot += (COL_LABEL_H + COL_LABEL_GAP + ELLIPSIS_ROOM
+                 + map_h + ELLIPSIS_ROOM + MAP_BOTTOM_RESERVE)
+    return foot + PAD
 
 
 @dataclass(frozen=True)

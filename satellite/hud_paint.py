@@ -37,13 +37,13 @@ from .hud import (
     CTRL_BAND_H,
     ELLIPSIS_ROOM,
     FILTER_ROOM,
-    LOOP_BTN,
+    MAP_BOTTOM_RESERVE,
     MAP_GAP,
+    MAP_RIGHT_RESERVE,
     MAP_THUMB_H,
     MAX_GUTTER,
     MIN_GUTTER,
     PAD,
-    PANEL_SIZE,
     ROW_GAP,
     STATUS_DOT,
     STATUS_LINE_H,
@@ -55,6 +55,7 @@ from .hud import (
     Rect,
     action_label_blocks,
     build_click_targets,
+    cell_width,
     control_button_rects,
     ellipsis_rects,
     expand_button_rect,
@@ -65,6 +66,8 @@ from .hud import (
     loop_button_rects,
     looped_group_box,
     map_window,
+    panel_height,
+    panel_width,
     playing_rect,
     seed_column_label,
     status_band_height,
@@ -182,8 +185,8 @@ class HudRenderer:
                     self._thumbs[cell.thumb] = cached
             if cached is not None:
                 return cached
-        width = 30 if self._side == "portrait" else 96
-        return Image.new("RGBA", (width, MAP_THUMB_H), (*_PLACEHOLDER, 255))
+        return Image.new("RGBA", (cell_width(self._side), MAP_THUMB_H),
+                         (*_PLACEHOLDER, 255))
 
     def render(
         self,
@@ -201,7 +204,23 @@ class HudRenderer:
         cell being held in white: the corner normally, or the member a loop had
         reached when the lock was taken.
         """
-        width, height = PANEL_SIZE.get(model.side, PANEL_SIZE["portrait"])
+        # Measured before it is drawn, so the panel is exactly the room its map and
+        # controls need: the width from the gutter and a full map, then the status
+        # wrapped into that width, then the height from how many lines that took.
+        # Sized from the whole model, before any windowing, so neither the gutter nor
+        # the panel changes width as a loop's window slides along — and the gutter
+        # never narrower than the axis counts printed above it.
+        counts = self._count_lines(model)
+        gutter_w = gutter_width_for(
+            self._row, model.current_action, tuple(cell.label for cell in model.actions),
+            min_width=max((text_width(self._tiny, line) for line in counts), default=0) + MAP_GAP,
+        )
+        width = panel_width(model.side, gutter_w)
+        lines = wrap_status_line(
+            model.lock_label, width - PAD - STATUS_TEXT_X,
+            lambda text: text_width(self._body, text))
+        height = panel_height(model.side, status_lines=len(lines),
+                              mapped=model.corner is not None)
         panel = HudPanel(width, height)
         image, draw = panel.image, panel.draw
 
@@ -216,11 +235,10 @@ class HudRenderer:
         # looping, the browse order, F-mode and the filter, so there is nothing else
         # to lay out up here.  Drawn full-strength whatever it says — dimming it when
         # the side happened to be unlocked hid it in the case where it carries most —
-        # and wrapped against the room the dot leaves, because all five at once
-        # outruns the narrow portrait panel and Pillow clips the tail away in silence.
-        lines = wrap_status_line(
-            model.lock_label, width - PAD - STATUS_TEXT_X,
-            lambda text: text_width(self._body, text))
+        # and wrapped (above) against the room the dot leaves, because all five at
+        # once outruns the narrow portrait panel and Pillow clips the tail away in
+        # silence.  It is the one thing the panel is *not* widened for: a status is
+        # occasionally long, and a map-shaped panel is the point.
         for line_no, line in enumerate(lines):
             draw.text((STATUS_TEXT_X, y + 11 + line_no * STATUS_LINE_H), line,
                       font=self._body, anchor="ls", fill=(*TEXT_PRIMARY, 255))
@@ -240,14 +258,6 @@ class HudRenderer:
                                HudTargets(click=[], loop=[], filter=[], expand=None,
                                           control=controls, favorite=favorite))
 
-        # Sized from the whole model, before any windowing, so the gutter does not
-        # change width as a loop's window slides along — and never narrower than the
-        # axis counts printed above it.
-        counts = self._count_lines(model)
-        gutter_w = gutter_width_for(
-            self._row, model.current_action, tuple(cell.label for cell in model.actions),
-            min_width=max((text_width(self._tiny, line) for line in counts), default=0) + MAP_GAP,
-        )
         self._draw_counts(draw, x, y, counts)
         right, bottom = width - PAD, height - PAD
         # Both axes are drawn through a window that keeps the clip on screen in view,
@@ -257,11 +267,12 @@ class HudRenderer:
         # when a mark appears, and not when a loop is switched on or off.
         map_x = x + gutter_w + ELLIPSIS_ROOM
         map_y = y + COL_LABEL_H + COL_LABEL_GAP + ELLIPSIS_ROOM
-        # Reserve room past the map for its buttons — the seed-loop + expand
-        # buttons sit right of the seed row, the action-loop button below the
-        # column — so a widened row can never push them off the panel.
-        map_right = right - (2 * LOOP_BTN + 2 * MAP_GAP) - ELLIPSIS_ROOM
-        map_bottom = bottom - (LOOP_BTN + MAP_GAP) - ELLIPSIS_ROOM
+        # Laid out against the panel's own edges rather than against MAP_CELLS: the
+        # panel was measured to leave exactly a full map here, so this comes out the
+        # same — and a cell of an odd shape simply fits fewer, with the "…" saying so,
+        # instead of running off the edge.
+        map_right = right - MAP_RIGHT_RESERVE - ELLIPSIS_ROOM
+        map_bottom = bottom - MAP_BOTTOM_RESERVE - ELLIPSIS_ROOM
         model, seed_win, action_win = self._window(
             model, room_x=map_right - map_x, room_y=map_bottom - map_y)
 
