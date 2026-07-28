@@ -109,5 +109,17 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   The primary is only ever fast-forwarded — never reset or merged-into.
 - **A red required check** (`.github/workflows/merge-gate.yml`) can't land.
 
+- **Land it; never park a finished branch waiting for him to review.** The global
+  rule that a remote `main` waits for the user's go-ahead assumes he can look at
+  the work first. Here he cannot: the app runs from the primary checkout, which
+  only moves when `main` does, so a branch held back is a change he is unable to
+  see, run, or judge — and telling him it is ready but unlanded hands him a turn
+  where there is nothing he can do. He has called that unacceptable, twice. So
+  green suites → PR → queue → `git -C <primary> pull --ff-only origin main`, and
+  the message that reaches him says it is live and needs a restart. Landing IS
+  the verification environment; the queue's required check is the gate, and a bad
+  change is one revert away. The near miss that still counts: opening the PR but
+  asking before you enable the merge — that is the same stall with extra steps.
+
 Everything else in the global CLAUDE.md — work in a worktree, green tests before
 you push, clean handoff — still applies.

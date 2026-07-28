@@ -182,3 +182,17 @@ def test_the_first_tile_is_selected_not_the_header_above_it(tmp_path: Path):
     )
 
     assert window.currentRow() == 1
+
+
+def test_the_browser_keeps_out_of_the_taskbar(tmp_path: Path):
+    """A browse is a thing you open and dismiss, not a program that is running.
+
+    Qt's Tool window type is what clears the taskbar button on Windows.  Without
+    it the grid gets its own indicator — and, having declared no identity of its
+    own, one Windows hangs off whatever unrelated app it can pair it with.
+    """
+    window = LibraryBrowserWindow(
+        [_handle("alpha scene")], thumbnail_cache=tmp_path, on_pick=lambda _video: None,
+    )
+
+    assert window.windowFlags() & Qt.WindowType.Tool
