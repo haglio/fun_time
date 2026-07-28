@@ -15,6 +15,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -248,46 +249,6 @@ def test_the_real_config_is_never_one_of_the_overlays_carried_over():
     assert not any("fun_time_config" in str(path) for path in branch_session._PRIVATE_OVERLAYS)
 
 
-def test_the_picker_list_is_written_where_vbscript_can_read_it_back(tmp_path):
-    """UTF-16 with a BOM is the one encoding FileSystemObject reads losslessly.
-    Commit subjects are full of em dashes, and anything else hands the picker a
-    line of mojibake."""
-    listed = [
-        branch_session.Worktree(
-            path=Path("C:/checkouts/branch"),
-            branch="claude/example",
-            age="2 hours ago",
-            subject="Widen the spine — again",
-        )
-    ]
-    destination = tmp_path / branch_session.WORKTREE_LIST_NAME
-
-    branch_session.write_worktree_list(destination, listed)
-
-    assert destination.read_bytes().startswith(b"\xff\xfe")
-    path, label = destination.read_text(encoding="utf-16").rstrip("\n").split("\t")
-    assert Path(path) == Path("C:/checkouts/branch")
-    assert label == "claude/example — Widen the spine — again (2 hours ago)"
-
-
-def test_a_long_subject_gives_way_before_the_branch_name_does():
-    """The menu's whole budget is a few hundred characters — InputBox truncates
-    a prompt past about a thousand — and the branch name is the part an agent
-    hands the user, so it is never what gets cut."""
-    worktree = branch_session.Worktree(
-        path=Path("C:/checkouts/branch"),
-        branch="claude/a-fairly-long-branch-name",
-        age="2 hours ago",
-        subject="A commit subject long enough that it cannot possibly fit beside all that",
-    )
-
-    label = worktree.label
-
-    assert len(label) <= branch_session.LABEL_WIDTH
-    assert label.startswith("claude/a-fairly-long-branch-name — ")
-    assert label.endswith("… (2 hours ago)")
-
-
 def _git(repo: Path, *args: str, when: str | None = None) -> None:
     env = {
         **os.environ,
@@ -351,3 +312,112 @@ def test_the_primary_is_found_from_a_worktree(repo_with_worktrees):
     assert branch_session.primary_checkout(repo_with_worktrees.newer) == (
         repo_with_worktrees.primary.resolve()
     )
+
+
+@pytest.fixture
+def primary_with_launcher(repo_with_worktrees) -> SimpleNamespace:
+    """The throwaway repo, with the files a shortcut has to point at."""
+    (repo_with_worktrees.primary / branch_session.LAUNCHER_NAME).write_text("' launcher", encoding="utf-8")
+    (repo_with_worktrees.primary / "icon.ico").write_bytes(b"\x00")
+    return repo_with_worktrees
+
+
+pytestmark_shortcut = pytest.mark.skipif(
+    sys.platform != "win32", reason="writes a real Windows shortcut"
+)
+
+
+@pytestmark_shortcut
+def test_the_agent_leaves_a_shortcut_named_for_its_branch(primary_with_launcher):
+    """This is the whole interface he sees: a file in the folder he keeps open,
+    named after the branch the agent told him about.  Nothing to pick and no
+    command line — the worktree is baked into the shortcut."""
+    written = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+
+    assert written == primary_with_launcher.primary / "Verify example-newer.lnk"
+    assert branch_session._generated_shortcuts(primary_with_launcher.primary) == {
+        written: primary_with_launcher.newer.resolve()
+    }
+
+
+@pytestmark_shortcut
+def test_a_shortcut_runs_the_launcher_that_is_current_when_it_is_clicked(primary_with_launcher):
+    """It points at ``launch_branch.vbs`` in the primary rather than carrying
+    the launch itself, so one made weeks ago picks up today's launcher instead
+    of replaying an old one."""
+    written = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+
+    target, arguments = branch_session._read_shortcuts(primary_with_launcher.primary)[written]
+
+    assert Path(target).name.lower() == "wscript.exe"
+    assert branch_session.LAUNCHER_NAME in arguments
+    # The branch rides along so a failed launch can name it rather than a path.
+    assert "example/newer" in arguments
+
+
+@pytestmark_shortcut
+def test_a_shortcut_for_a_deleted_worktree_is_cleared_away(primary_with_launcher):
+    """Worktrees go when their branch lands, and this repo carries dozens of
+    them — without a sweep his folder fills with files that can only fail."""
+    stale = branch_session.write_launch_shortcut(
+        primary_with_launcher.older, primary=primary_with_launcher.primary
+    )
+    shutil.rmtree(primary_with_launcher.older)
+
+    branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+
+    assert not stale.exists()
+    assert (primary_with_launcher.primary / "Verify example-newer.lnk").is_file()
+
+
+@pytestmark_shortcut
+def test_the_sweep_only_ever_deletes_shortcuts_this_module_wrote(primary_with_launcher, tmp_path):
+    """It runs in a folder full of his own files.  A name proves nothing, so
+    what it deletes has to be provably ours — the arguments naming the branch
+    launcher — and a shortcut of his that happens to start with the same word
+    is left where it is."""
+    decoy = primary_with_launcher.primary / "Verify something of his own.lnk"
+    branch_session._write_shortcut(
+        decoy,
+        target=str(tmp_path / "nothing.exe"),
+        arguments="",
+        working_dir=str(tmp_path),
+        icon="",
+        description="his own",
+    )
+
+    branch_session.prune_stale_shortcuts(primary_with_launcher.primary)
+
+    assert decoy.is_file()
+
+
+def test_a_worktree_on_no_branch_is_named_after_its_directory():
+    """``git worktree add`` without ``-b`` leaves a detached checkout, which has
+    no branch name to put in a filename."""
+    detached = Path("C:/checkouts/.claude/worktrees/wonderful-ellis-fbdb9e")
+
+    assert branch_session.shortcut_name(detached, branch_session.DETACHED) == (
+        "Verify wonderful-ellis-fbdb9e.lnk"
+    )
+
+
+def test_a_branch_name_becomes_a_filename_windows_will_take():
+    """Branch names carry slashes; filenames may not."""
+    assert branch_session.shortcut_name(Path("C:/wt"), "claude/some-branch") == (
+        "Verify claude-some-branch.lnk"
+    )
+
+
+def test_a_shortcut_is_refused_before_the_launcher_has_landed(repo_with_worktrees):
+    """A shortcut pointing at a launcher that is not in the primary yet does
+    nothing at all when it is clicked, which is worse than not existing."""
+    with pytest.raises(FileNotFoundError, match=branch_session.LAUNCHER_NAME):
+        branch_session.write_launch_shortcut(
+            repo_with_worktrees.newer, primary=repo_with_worktrees.primary
+        )

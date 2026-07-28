@@ -72,7 +72,3 @@ _read_shortcut_app_user_model_id  # noqa
 # reset_group_index_cache is test isolation support for the module-level
 # group-index cache.
 reset_group_index_cache  # noqa
-# The filename launch_branch.vbs and branch_session agree on for the picker's
-# menu; production writes it to a path argparse hands over, and a launcher test
-# asserts the VBScript spells the same name.
-WORKTREE_LIST_NAME  # noqa

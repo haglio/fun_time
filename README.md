@@ -22,7 +22,7 @@ Core files:
 
 - `main.sh` — compatibility wrapper that forwards to `orchestrator.py`
 - `launch.vbs` — hidden Windows launcher used by the shortcut/taskbar item
-- `launch_branch.vbs` — the same launch, aimed at a branch worktree instead (see “Verifying an unlanded branch”)
+- `launch_branch.vbs` — the same launch, aimed at a branch worktree; run by the `Verify <branch>.lnk` an agent leaves (see “Verifying an unlanded branch”)
 - `fun_time_config.json` — central config for paths, ports, and layout values
 - `windows_bridge_hotkeys.ahk` — minimal AutoHotkey hotkey shell launched by the orchestrator
 - `fun_time/` — shared Python package for config, logging, orchestration, the dashboard, and command dispatch
@@ -172,9 +172,14 @@ Use the `Fun Time` shortcut / taskbar launcher, which calls:
 
 Fun Time runs from the primary checkout, and that only moves when `main` does —
 so work sitting on a branch is code you cannot otherwise see, run or judge.
-Double-click `launch_branch.vbs` and pick a branch (or type part of its name) to
-run a real session on that worktree's code instead: your real library, your real
-monitors, uncommitted edits included.
+
+There is nothing to pick. An agent with a branch to show runs `python -m
+fun_time.branch_session --shortcut` from its worktree, which leaves a
+`Verify <branch>.lnk` in this folder and tells you the filename; double-clicking
+it runs a real session on that worktree's code — your real library, your real
+monitors, uncommitted edits included. `launch_branch.vbs` is what those
+shortcuts point at and is not run on its own. Shortcuts whose worktree has been
+deleted are swept away whenever a new one is written.
 
 A branch session **replaces** the live one rather than running beside it. Almost
 everything a session touches is one-per-machine — the AHK hotkey shell is
