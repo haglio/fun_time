@@ -34,17 +34,30 @@ def thumb(tmp_path: Path) -> str:
     return str(path)
 
 
+# A side's clips are NOT all one shape, which is the whole reason the panel is
+# measured around the map instead of the map fitted into the panel.  fun_time
+# caches thumbnails at a 160px longest edge, so these are the shapes the map scales
+# down: each side's nominal one (9:16, 16:9) and a squarer one, which is the case
+# that used to lose a cell.
+CLIP_SHAPES = {
+    "portrait": [(90, 160), (132, 160)],
+    "landscape": [(160, 90), (160, 125)],
+}
+
+
 @pytest.fixture
-def clip_thumbs(tmp_path: Path) -> dict[str, str]:
-    """A thumbnail of each side's real shape — fun_time caches at a 160px longest
-    edge, so this is the 9:16 and 16:9 the map actually scales down."""
-    shapes = {"portrait": (90, 160), "landscape": (160, 90)}
-    paths = {}
-    for side, size in shapes.items():
-        path = tmp_path / f"{side}.jpg"
-        Image.new("RGB", size, (30, 30, 30)).save(path)
-        paths[side] = str(path)
-    return paths
+def clip_thumb(tmp_path: Path):
+    """``(side, shape) -> thumbnail path`` for the shapes above."""
+    def make(side: str, shape: tuple[int, int]) -> str:
+        path = tmp_path / f"{side}-{shape[0]}x{shape[1]}.jpg"
+        if not path.exists():
+            Image.new("RGB", shape, (30, 30, 30)).save(path)
+        return str(path)
+    return make
+
+
+def _sides_and_shapes() -> list[tuple[str, tuple[int, int]]]:
+    return [(side, shape) for side, shapes in CLIP_SHAPES.items() for shape in shapes]
 
 
 def _model(**overrides) -> HudModel:
@@ -79,15 +92,17 @@ def _crowded(side: str, thumb: str) -> HudModel:
     )
 
 
-@pytest.mark.parametrize("side", ["portrait", "landscape"])
-def test_the_panel_holds_exactly_a_three_by_three_map(side, clip_thumbs):
-    """What the panel is sized for: three cells on a side, whichever side it is.
+@pytest.mark.parametrize("side,shape", _sides_and_shapes())
+def test_the_map_is_three_cells_a_side_whatever_shape_its_clips_are(side, shape, clip_thumb):
+    """The reported bug: the portrait map drew two cells across where the landscape
+    one drew three.
 
-    Both panels were fixed slabs chosen against the shape of the window they float
-    over — which left the landscape one unable to draw a third row at all, and gave
-    the portrait one space no map ever reached.
+    The panel used to be measured against one assumed cell width per side — the
+    narrowest a portrait clip gets — and the map then windowed into whatever room
+    that left, so a row of the wider portrait clips ran out of panel after the second
+    one.  The count is fixed now and the panel gives, so every shape gets three.
     """
-    rendered = HudRenderer(side).render(_crowded(side, clip_thumbs[side]))
+    rendered = HudRenderer(side).render(_crowded(side, clip_thumb(side, shape)))
 
     rects = [rect for rect, _path in rendered.targets.click]
     columns = {x for x, _y, _w, _h in rects}
@@ -95,12 +110,12 @@ def test_the_panel_holds_exactly_a_three_by_three_map(side, clip_thumbs):
     assert (len(columns), len(rows)) == (MAP_CELLS, MAP_CELLS)
 
 
-@pytest.mark.parametrize("side", ["portrait", "landscape"])
-def test_the_panel_stops_where_its_last_controls_do(side, clip_thumbs):
+@pytest.mark.parametrize("side,shape", _sides_and_shapes())
+def test_the_panel_stops_where_its_last_controls_do(side, shape, clip_thumb):
     """No slab past the map: the expand button ends one margin in from the right
     edge and the action-loop button one margin up from the bottom, so every pixel
-    of the panel is carrying something."""
-    rendered = HudRenderer(side).render(_crowded(side, clip_thumbs[side]))
+    of the panel is carrying something — for a wide cell as much as a narrow one."""
+    rendered = HudRenderer(side).render(_crowded(side, clip_thumb(side, shape)))
     height, width = rendered.bgra.shape[:2]
 
     ex, _ey, ew, _eh = rendered.targets.expand
@@ -117,9 +132,6 @@ def test_a_satellite_with_no_clip_yet_gets_a_panel_only_as_tall_as_its_bands(thu
     shell = renderer.render(HudModel(side="portrait", lock_label="Unlocked"))
     mapped = renderer.render(_model(corner=HudCell(path="c.mp4", thumb=thumb)))
 
-    # Only the height gives: the width is the map's either way, so the panel does
-    # not narrow to its bands and then snap wide again on the first clip.
-    assert shell.bgra.shape[1] == mapped.bgra.shape[1]
     assert shell.bgra.shape[0] < mapped.bgra.shape[0]
 
 
