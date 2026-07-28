@@ -257,10 +257,20 @@ Sections rank by how much of the library each folder holds, biggest first, so
 the browse opens on the bulk of it.
 
 Videos **carved out of a compilation** get a band of their own beside their
-folder's whole videos, headed `<folder> · clips` and sitting just behind them.
-Evolver marks an excerpt with a `clip` record (the parent compilation, the
-running order in it, the scene it came from), and that record is the whole test
-— so a reel's worth of cuts never sits between the scenes they were cut from.
+folder's whole videos, sitting just behind them. Evolver marks an excerpt with a
+`clip` record (the parent compilation, the running order in it, the scene it came
+from), and that record is the whole test — so a reel's worth of cuts never sits
+between the scenes they were cut from.
+
+A band is **named after the folder it was filed into**, where it has one. Where
+the cuts and the whole videos of a folder have been moved into two folders of
+their own — each keeping its own copy of the pipeline stages — the headers read
+those folder names (`winston/cumshots`, `winston/full`), so the browse and
+Explorer say the same words. That is recognised by each band having a dominant
+second folder and the two differing; where the split is the sidecar's alone, both
+bands share the stage folders and the headers fall back to `<folder>` and
+`<folder> · clips`. Dominant rather than unanimous, so one file a move left
+behind cannot drag a band's name back.
 
 The families come from Evolver's metadata sidecar (`version.group`), which is
 the authority on "same video, other version" — the filenames alone cannot say

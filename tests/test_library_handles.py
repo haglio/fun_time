@@ -150,7 +150,9 @@ def test_clips_carved_from_a_compilation_get_their_own_section(tmp_path: Path):
     """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
-    full = _video(videos, "big_batch/3_good_to_go/beta.mp4")
+    # All in one stage folder: the split is the sidecar's alone, with nothing on
+    # disk separating the cuts from the videos they came out of.
+    full = _video(videos, "big_batch/0 unsorted/beta.mp4")
     _sidecar(metadata, full, library_root, "Beta Scene")
     for index in range(2):
         clip = _video(videos, f"big_batch/0 unsorted/excerpt{index}.mp4")
@@ -204,3 +206,65 @@ def test_a_handle_is_a_clip_only_when_the_version_it_plays_is_one(tmp_path: Path
     assert [(handle.section, handle.video) for handle in handles] == [
         ("big_batch", str(whole)),
     ]
+
+
+def test_a_band_is_named_after_the_folder_it_was_filed_into(tmp_path: Path):
+    """Once the split is on disk, the browse says the folders, not a suffix.
+
+    Two bands filed into two folders of their own are named after those folders,
+    so what the header reads and what Explorer shows are the same words.
+    """
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"),
+             library_root, "Beta Scene")
+    for index in range(2):
+        clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
+        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
+
+    handles = build_library_handles(str(videos), metadata)
+
+    assert [(handle.section, handle.title) for handle in handles] == [
+        ("big_batch/whole", "Beta Scene"),
+        ("big_batch/cuts", "Excerpt 0"),
+        ("big_batch/cuts", "Excerpt 1"),
+    ]
+
+
+def test_a_folder_that_was_never_split_keeps_its_own_name(tmp_path: Path):
+    """Descending is only right where it separates the bands.
+
+    A folder holding whole videos alone must stay named after itself — the
+    folders under it are pipeline stages, and naming a band after one of those
+    would put the browse back to reading stage names.
+    """
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    for relative in ("small_batch/0 unsorted/alpha.mp4", "small_batch/3_good_to_go/beta.mp4"):
+        _sidecar(metadata, _video(videos, relative), library_root, Path(relative).stem)
+
+    sections = {handle.section for handle in build_library_handles(str(videos), metadata)}
+
+    assert sections == {"small_batch"}
+
+
+def test_a_straggler_left_unfiled_does_not_rename_its_band(tmp_path: Path):
+    """One clip still sitting in the old tree must not drag the band's name back.
+
+    A move of hundreds of files can leave one behind — held open by the running
+    session — and the band is still, in every sense that matters, the folder the
+    rest of it is in.
+    """
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"),
+             library_root, "Beta Scene")
+    for index in range(3):
+        clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
+        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
+    left = _video(videos, "big_batch/0 unsorted/excerpt_stuck.mp4")
+    _sidecar(metadata, left, library_root, "Excerpt Stuck", carved_from="Reel One")
+
+    sections = {handle.section for handle in build_library_handles(str(videos), metadata)}
+
+    assert sections == {"big_batch/whole", "big_batch/cuts"}
