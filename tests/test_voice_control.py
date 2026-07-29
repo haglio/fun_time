@@ -138,9 +138,6 @@ class TestVoiceCommands:
             "exit": "quit",
             "pause": "pause",
             "play": "play",
-            "f mode": "fmode_toggle",
-            "f mode on": "fmode_on",
-            "f mode off": "fmode_off",
             "go now": "genau_activate",
             "now now": "nau_activate",
             "now mode": "nau_activate",
@@ -319,12 +316,23 @@ class TestVoiceCommands:
             assert VOICE_COMMANDS[f"main {word}"] == f"primary_{act}"
             assert VOICE_COMMANDS[f"{word} main"] == f"primary_{act}"
 
-    def test_bare_f_mode_still_reaches_every_player(self):
-        """Naming a player narrows that one; the bare phrase is the whole-room
-        gesture the F key is, so it must not have become an active-side command."""
-        assert VOICE_COMMANDS["f mode"] == "fmode_toggle"
-        assert VOICE_COMMANDS["f mode on"] == "fmode_on"
-        assert VOICE_COMMANDS["f mode off"] == "fmode_off"
+    def test_bare_f_mode_reaches_the_active_player(self):
+        """Bare means the active player here as it does everywhere else in the
+        grid — "lock", "next", "weird" all resolve that way, and F-mode reading
+        as the whole room instead is what made a spoken "f mode" report
+        "enabled" over a room that already looked narrowed."""
+        assert VOICE_COMMANDS["f mode"] == "active_fmode"
+        assert VOICE_COMMANDS["f mode on"] == "active_fmode_on"
+        assert VOICE_COMMANDS["f mode off"] == "active_fmode_off"
+
+    def test_all_f_mode_is_the_whole_room_in_either_order(self):
+        """The whole-room gesture keeps a phrase of its own — "all" joins the
+        side words, and reads in either order like every one of them."""
+        for word, act in (("f mode", "fmode_toggle"),
+                          ("f mode on", "fmode_on"),
+                          ("f mode off", "fmode_off")):
+            assert VOICE_COMMANDS[f"all {word}"] == act
+            assert VOICE_COMMANDS[f"{word} all"] == act
 
     def test_cycle_verb_phrases_map_to_the_active_cycle(self):
         """"cycle / next / change <axis>" are extra active-side spoken forms for

@@ -758,6 +758,21 @@ def test_primary_nav_sets_active_side_to_primary(tmp_path: Path):
         assert new_state.active_side == 1, command
 
 
+def test_naming_a_players_f_mode_makes_it_the_active_one(tmp_path: Path):
+    """Bare "f mode" follows the active player, so naming one has to select it —
+    a satellite's does by its prefix, and the primary needs the same or "primary
+    f mode" then "f mode" would land on whichever side was addressed before."""
+    config = _make_config(tmp_path)
+
+    for suffix in ("", "_on", "_off"):
+        new_state, _ops = dispatch_command(
+            f"primary_fmode{suffix}", _make_state(active_side=3), config)
+        assert new_state.active_side == 1, suffix
+        new_state, _ops = dispatch_command(
+            f"portrait_fmode{suffix}", _make_state(active_side=1), config)
+        assert new_state.active_side == 2, suffix
+
+
 def test_nudge_and_mode_commands_leave_active_side_unchanged(tmp_path: Path):
     """Only next/prev nav marks the active player: nudges, mode, and genau
     commands must not disturb the remembered side."""

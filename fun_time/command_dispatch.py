@@ -954,9 +954,14 @@ _PRIMARY_LOCK_COMMANDS = {
 }
 
 # What makes the primary the player a later bare command reaches: navigating it,
-# or locking it.  The satellites' own keys select a side the same way.
+# locking it, or naming its F-mode.  The satellites' own keys select a side the
+# same way, and every ``portrait_``/``landscape_`` command does it by prefix — so
+# without the F-mode forms here, "primary f mode" would be the one way of
+# addressing a player that did not leave it addressed.
 _PRIMARY_SELECTING_COMMANDS = frozenset(
-    {"primary_next", "primary_prev"} | set(_PRIMARY_LOCK_COMMANDS)
+    {"primary_next", "primary_prev"}
+    | set(_PRIMARY_LOCK_COMMANDS)
+    | {f"primary_fmode{suffix}" for suffix in ("", "_on", "_off")}
 )
 
 
@@ -970,9 +975,9 @@ def command_side(command: str) -> int | None:
     """The player slot a command addresses: 1=primary, 2=portrait, 3=landscape —
     or None if it addresses no player.  :data:`SIDE_NAMES` is the inverse.
 
-    The primary (Nau) player is selected by its own next/prev navigation and by
-    its lock — the three things a satellite's own keys do too.  It has no
-    weird/cycle, so nothing else selects it.
+    The primary (Nau) player is selected by its own next/prev navigation, by its
+    lock, and by naming its F-mode — everything it shares with a satellite.  It
+    has no weird/cycle, so nothing else selects it.
     """
     if command.startswith("portrait_"):
         return 2

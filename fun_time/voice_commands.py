@@ -71,14 +71,9 @@ VOICE_COMMANDS: dict[str, str] = {
     "stop": "relief_omnipause",
     "retract": "relief_omnipause",
     # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
-    # generated as an order-agnostic grid below the literal.
+    # generated as an order-agnostic grid below the literal — F-mode among them,
+    # bare and sided both.
     #
-    # Bare, F-mode still means every player at once — the same gesture the F key
-    # is.  Naming a player narrows just that one; those phrases are generated with
-    # the sided grid below.
-    "f mode": "fmode_toggle",
-    "f mode on": "fmode_on",
-    "f mode off": "fmode_off",
     # Recognizer listens for "go now" (reliably recognized); the reference
     # displays this as "genau" via the row's voice_display override.
     "go now": "genau_activate",
@@ -313,19 +308,30 @@ for _player_word in ("primary", "main"):
 # favourites and the primary to the videos that have a funscript — so each is
 # sayable by naming it, in either order like the rest of the grid: "portrait f
 # mode" and "f mode portrait" are the same command.  "both" drives the two
-# satellites (expanded into its pair by the dispatch loop) and "primary"/"main"
-# the primary, matching the words those players answer to everywhere else.  The
-# bare phrases stay in the literal map above, where they reach all three at once.
-_FMODE_PHRASES: dict[str, str] = {
-    "f mode": "fmode",
-    "f mode on": "fmode_on",
-    "f mode off": "fmode_off",
+# satellites (expanded into its pair by the dispatch loop), "primary"/"main" the
+# primary, and "all" every player at once — the gesture the F key is.
+#
+# Bare, it reaches the player last addressed, exactly as bare "lock" and "next"
+# do.  Reading the bare phrase as the whole room instead is what made a spoken
+# "f mode" answer a room that already looked narrowed with "enabled": one player
+# had been turned off by name hours earlier, and the all-players toggle turns ON
+# unless every one of them is already on.
+#
+# ``_FMODE_PHRASES`` pairs each phrase with the per-player suffix and the
+# all-players command it means, which are spelled differently for the toggle
+# alone ("<player>_fmode" against a bare "fmode_toggle").
+_FMODE_PHRASES: dict[str, tuple[str, str]] = {
+    "f mode": ("fmode", "fmode_toggle"),
+    "f mode on": ("fmode_on", "fmode_on"),
+    "f mode off": ("fmode_off", "fmode_off"),
 }
-for _fmode_word, _fmode_act in _FMODE_PHRASES.items():
-    for _side in ("portrait", "landscape", "both", "primary", "main"):
+for _fmode_word, (_fmode_act, _fmode_all) in _FMODE_PHRASES.items():
+    VOICE_COMMANDS[_fmode_word] = f"active_{_fmode_act}"
+    for _side in ("portrait", "landscape", "both", "primary", "main", "all"):
         _target = "primary" if _side == "main" else _side
-        VOICE_COMMANDS[f"{_side} {_fmode_word}"] = f"{_target}_{_fmode_act}"
-        VOICE_COMMANDS[f"{_fmode_word} {_side}"] = f"{_target}_{_fmode_act}"
+        _sided = _fmode_all if _side == "all" else f"{_target}_{_fmode_act}"
+        VOICE_COMMANDS[f"{_side} {_fmode_word}"] = _sided
+        VOICE_COMMANDS[f"{_fmode_word} {_side}"] = _sided
 
 # Mode-named navigation: a mode's name + next/previous (either order) navigates
 # that mode's player.  Nau and Hybrid drive the primary (Nau owns the primary
@@ -469,7 +475,7 @@ SELF_REPORTING_COMMANDS = frozenset({
     "fmode_off",
     *(
         f"{player}_fmode{suffix}"
-        for player in ("primary", "portrait", "landscape", "both")
+        for player in ("primary", "portrait", "landscape", "both", "active")
         for suffix in ("", "_on", "_off")
     ),
 })
