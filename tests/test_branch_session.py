@@ -51,6 +51,10 @@ def _write_config(path: Path) -> Path:
             "state_dir": "state",
             "genau_python_exe": "C:/genau/.venv/Scripts/pythonw.exe",
             "genau_config_path": "C:/genau/genau_config.json",
+            # Relative on purpose: a checkout Genau and Nau are run out of sits
+            # one directory up from the primary, which from a worktree is a
+            # different place entirely.
+            "genau_project_dirs": ["../genau", "../player_core"],
             "broker_tray_launcher": "../broker/launch_broker_tray.vbs",
         },
         "layout": {

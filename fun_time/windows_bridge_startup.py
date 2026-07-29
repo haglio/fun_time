@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import configparser
 import logging
+import os
 import re
 import subprocess
 from collections.abc import Sequence
@@ -509,6 +510,36 @@ def start_core_session(
     return carried.main_mode
 
 
+def genau_project_kwargs(project_dirs: str | Path | None) -> dict:
+    """The ``Popen`` environment that decides which checkouts Genau and Nau run.
+
+    Both are started as ``python -m genau`` / ``-m nau`` out of the genau venv,
+    and every package they import — their own, and ``player_core`` under them —
+    resolves through that venv's editable installs, which name the primary
+    checkout of each repo for good.  So a *worktree* of either could not be run
+    at all, and a branch of one could only be judged by landing it first.  Named
+    here, those directories go on ``PYTHONPATH``, which Python puts ahead of
+    site-packages, and a session runs the branch.
+
+    Several, because a change is often in two of them at once — a HUD in
+    ``../genau`` on a channel in ``../player_core`` — and running one branch
+    against the other's landed code is not running the change.
+
+    Left alone rather than pointed at the primary in ordinary use: empty means
+    exactly what every session did before this.  A directory that is not there is
+    dropped rather than fatal, because a worktree named in the config outlives
+    the worktree and a session must still start.
+    """
+    paths = [str(Path(part)) for part in str(project_dirs or "").split(os.pathsep)
+             if part and Path(part).is_dir()]
+    if not paths:
+        return {}
+    inherited = os.environ.get("PYTHONPATH")
+    if inherited:
+        paths.append(inherited)
+    return {"env": {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}}
+
+
 def launch_genau(
     *,
     python_exe: str | Path,
@@ -525,11 +556,13 @@ def launch_genau(
     drive_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
     start_clip: str = "",
+    project_dirs: str | None = None,
 ) -> int:
     """Launch Genau subprocess, returning its PID.
 
     *start_clip* is the clip the last session was left showing, or "" for a
-    session with none to come back to.
+    session with none to come back to.  *project_dir* is which checkout of the
+    genau repo to run — see :func:`genau_project_kwargs`.
     """
     cmd = [
         str(python_exe),
@@ -572,7 +605,8 @@ def launch_genau(
     # arrive after Genau had already decoded the wrong clip.
     if start_clip:
         cmd.extend(["--start-clip", start_clip])
-    proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
+    proc = subprocess.Popen(
+        cmd, **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
     return proc.pid
 
 
@@ -594,8 +628,13 @@ def launch_nau(
     nau_width: int,
     nau_height: int,
     metadata_dir: str | Path | None = None,
+    project_dirs: str | None = None,
 ) -> int:
     """Launch Nau subprocess, returning its PID.
+
+    *project_dir* is which checkout of the genau repo to run — Nau ships there
+    too, so it follows Genau onto a branch rather than staying on the primary
+    while its housemate moves (see :func:`genau_project_kwargs`).
 
     Its stdout and stderr go to *log_file* for the same reason a satellite's do:
     Nau is the same mpv-backed player under the same windowed ``pythonw``, which
@@ -642,7 +681,9 @@ def launch_nau(
     if metadata_dir:
         cmd += ["--metadata-dir", str(metadata_dir)]
     with open_child_log(log_file, cmd) as log:
-        proc = subprocess.Popen(cmd, stdout=log, stderr=log, **subprocess_window_kwargs())
+        proc = subprocess.Popen(
+            cmd, stdout=log, stderr=log,
+            **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
     return proc.pid
 
 

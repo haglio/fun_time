@@ -18,6 +18,12 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             "config_path": str(config.config_path),
             "windows_bridge_log_file": str(config.log_file("windows_bridge")),
             "genau_config_path": str(config.paths.genau_config_path or config.config_path),
+            # Where Genau and Nau are started from.  Empty means "wherever we
+            # are", which resolves them through their venv's editable install —
+            # the primary genau checkout.  Named, a worktree of that repo can be
+            # run instead, so a branch of it is judged before it lands.
+            "genau_project_dirs": os.pathsep.join(
+                str(path) for path in config.paths.genau_project_dirs),
         },
         "executables": {
             # Two interpreters: ours runs everything this repo ships (the
