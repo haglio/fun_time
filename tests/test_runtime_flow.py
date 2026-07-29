@@ -512,7 +512,7 @@ def test_recents_repicks_up_new_files(tmp_path: Path):
 
 
 def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
-    """Recents honours action groups too: with the provider roots supplied,
+    """Recents honors action groups too: with the provider roots supplied,
     same-source-image clips collapse to one entry, its newest member."""
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
@@ -569,7 +569,7 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
     assert l_kiss in landscape and "lc.mp4" not in landscape
 
 
-def test_recents_honours_the_sides_filter_and_orders_newest_first(tmp_path: Path):
+def test_recents_honors_the_sides_filter_and_orders_newest_first(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     # Distinct prompts keep the two Alphas in distinct seed families, so the
@@ -669,7 +669,7 @@ def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
 
 
 def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
-    """The pure browse builder "no loop" reshapes the queue back to: it honours
+    """The pure browse builder "no loop" reshapes the queue back to: it honors
     the satellite's filter and returns the paths, with no file to touch."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"

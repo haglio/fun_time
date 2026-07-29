@@ -565,7 +565,7 @@ def isolate_shared_resources(config: dict, genau_config: dict) -> None:
     Removing a resource is preferred to teaching production code a test mode:
     an empty ``broker_tray_launcher`` makes every broker path inert on its own
     terms, where a ``FUN_TIME_RUN_INTEGRATION`` branch would be a second
-    behaviour that only the tests exercise.
+    behavior that only the tests exercise.
     """
     _isolate_shared_udp_ports(config, genau_config)
 

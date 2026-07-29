@@ -1,7 +1,7 @@
 """What each satellite's HUD shows.
 
 Assembles the panel drawn over each satellite: the side's own state — locked,
-looping, filtered, favourite — and the other videos reachable in the current
+looping, filtered, favorite — and the other videos reachable in the current
 clip's action group and seed family.  Only fun_time has the library metadata this
 needs, so the model lives here — :mod:`fun_time.hud_transport` publishes it, and
 each satellite player draws it straight into its own video (:mod:`satellite.hud`).
@@ -40,7 +40,7 @@ def _status_label(
     What fills the slots is the satellite's own.  The loop is the set it is playing,
     so it leads; the browse order it drops back into on ending one; then the two
     filtering layers, coarse to fine — F-mode cuts the library to the favorites, and
-    the act filter narrows what is left.  The act goes last and unlabelled, since a
+    the act filter narrows what is left.  The act goes last and unlabeled, since a
     phrase from the vocabulary in *that* position can only be the filter.  How big
     each axis is belongs to the map, which prints its own counts.
     """
@@ -67,19 +67,19 @@ class HudPanel:
     current: str
     seed_siblings: list[str]
     action_siblings: list[str]
-    # Whether the clip on screen is one of the favourites.  The dashboard used to
+    # Whether the clip on screen is one of the favorites.  The dashboard used to
     # say this by turning the side's panel green; the HUD marks it in its control
     # band instead, beside the buttons that act on that clip.  It would read
     # better beside ``locked``, but a defaulted field cannot precede a required
     # one, and defaulting it keeps every construction site from naming it.
     is_favorite: bool = False
-    # Whether THIS side is in F-mode — narrowed to the favourites.  It is said in
+    # Whether THIS side is in F-mode — narrowed to the favorites.  It is said in
     # the status line already; the flag rides along so the side's own F-mode button
     # can light, the way ``locked`` lights the lock button.
     f_mode: bool = False
     # Labels for the map's axes: the current clip's own action (the top row),
     # and each action sibling's action name (the rows down the column). Seed
-    # columns are labelled by ordinal ("Seed 1", …) so need no data here.
+    # columns are labeled by ordinal ("Seed 1", …) so need no data here.
     current_action: str = ""
     action_labels: tuple[str, ...] = ()
     # How many clips each axis stands for, the clip on screen included: the seed

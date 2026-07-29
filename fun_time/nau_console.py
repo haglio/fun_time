@@ -53,7 +53,7 @@ def console_payload(
 ) -> dict:
     """The console panel as the main player parses it.
 
-    The drive readout's own numbers (amplitude, centre, speed, the trace and its
+    The drive readout's own numbers (amplitude, center, speed, the trace and its
     limits) travel on the separate drive file Genau publishes; this carries the
     room around them.
 

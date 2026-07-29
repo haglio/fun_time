@@ -92,7 +92,7 @@ class BridgeState:
     # Whether each player is in F-mode, held per player because it is set per
     # player: each HUD carries its own button, and only the bare "f mode" (and the
     # F key) still reaches all three at once.  It narrows the satellites to the
-    # favourites and the main player to the videos that have a funscript, so which
+    # favorites and the main player to the videos that have a funscript, so which
     # player it is on genuinely changes what it means.
     main_f_mode: bool = False
     portrait_f_mode: bool = False
@@ -112,7 +112,7 @@ class BridgeState:
     active_side: int = 1
     # Per-satellite metadata filter queries ("" = no filter). Persisted in the shared
     # state file so they survive the dispatch loop's per-tick state resync and
-    # are honoured by later F-mode / reorder rebuilds.
+    # are honored by later F-mode / reorder rebuilds.
     portrait_filter: str = ""
     landscape_filter: str = ""
     # Which group loop each satellite is running: "" none, "action" (looping the
@@ -1111,7 +1111,7 @@ def dispatch_command(
     ``target_path`` names the video a spoken command was aimed at — the one on
     screen when the utterance began, which an auto-advancing satellite may have
     left behind by the time the phrase was recognized.  Every satellite action
-    that is *about a particular video* honours it: lock, weird, wrong-action,
+    that is *about a particular video* honors it: lock, weird, wrong-action,
     cycle, the group loops and lock-action.  Navigation is relative rather than
     video-scoped, and the rest of the vocabulary names no video at all, so both
     ignore it.  Empty means "whatever is playing now", which is how every
@@ -1697,7 +1697,7 @@ def _dispatch_no_loop(
     the satellite's default browse *in place*, so the clip on screen keeps
     playing to its end and only what comes up next returns to browsing.  The
     satellite's own filter is kept (reset, by contrast, also clears it), so the
-    restored browse still honours it.
+    restored browse still honors it.
     """
     which = 2 if scope == "portrait" else 3
     current = _satellite_current(config, which)

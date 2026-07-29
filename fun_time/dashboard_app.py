@@ -166,7 +166,7 @@ def _draw_mic_pixmap(w: int, h: int) -> QPixmap:
 
     A capsule head cradled by an upward-opening arc over a short stem and base —
     the mic glyph recording apps use — which reads as "voice" where a bare
-    letter or a karaoke-mic emoji did not.  Drawn in a square centred in the
+    letter or a karaoke-mic emoji did not.  Drawn in a square centerd in the
     panel so it stays round whatever the panel's aspect.
     """
     key = ("mic", w, h)

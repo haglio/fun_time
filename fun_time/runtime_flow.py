@@ -183,8 +183,8 @@ def apply_satellite_fmode(
 ) -> None:
     """Rebuild one satellite's playlist under *enabled* and tell it to re-read.
 
-    F-mode narrows a satellite to the favourites.  The side's own filter and
-    order ride along, so narrowing to favourites does not quietly undo either.
+    F-mode narrows a satellite to the favorites.  The side's own filter and
+    order ride along, so narrowing to favorites does not quietly undo either.
     """
     build_one_satellite_playlist(
         sources=sources,
@@ -269,7 +269,7 @@ def satellite_browse_paths(
     regen_metadata_root: Path | None = None,
 ) -> list[str]:
     """The paths a satellite's default browse holds under *query* and the current
-    ordering — one clip per group, filter-honouring, Latest/Shuffle-aware.
+    ordering — one clip per group, filter-honoring, Latest/Shuffle-aware.
 
     This is the list a filter rebuild loads into the satellite, and equally the
     target "no loop" reshapes the queue back to when a group loop ends.  ``which``
@@ -307,7 +307,7 @@ def apply_satellite_filter(
     """Rebuild and reload one satellite (2=portrait, 3=landscape) under *query*.
 
     Ordering follows the caller's ``recent``/``f_mode`` just like a full rebuild,
-    so the filtered playlist still honours Latest vs Shuffle and F-mode.  A
+    so the filtered playlist still honors Latest vs Shuffle and F-mode.  A
     non-empty query that matches nothing leaves the current playlist in place
     rather than blanking the satellite; ``query == ""`` clears the filter.  The
     playlist file it writes is the one the satellite plays, so a RELOAD_PLAYLIST

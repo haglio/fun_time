@@ -313,7 +313,7 @@ VOICE_COMMANDS["main reset"] = "nau_length_mixed"
 VOICE_COMMANDS["reset main"] = "nau_length_mixed"
 
 # F-mode, per player.  Every player has its own — it narrows a satellite to the
-# favourites and the main player to the videos that have a funscript — so each is
+# favorites and the main player to the videos that have a funscript — so each is
 # sayable by naming it, in either order like the rest of the grid: "portrait f
 # mode" and "f mode portrait" are the same command.  "both" drives the two
 # satellites (expanded into its pair by the dispatch loop), "main" the main player,

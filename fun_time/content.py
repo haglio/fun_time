@@ -20,7 +20,7 @@ EXAMPLE_CONTENT = _PROJECT_DIR / "content.example.json"
 
 # Documented keys whose example value is a placeholder that must never stand in
 # for real data.  ``web_providers`` holds gallery-URL templates that get written
-# verbatim into the favourites file, so an overlay that omits it defaults to
+# verbatim into the favorites file, so an overlay that omits it defaults to
 # *none* (an empty list) rather than to the example's ``example.com`` markers.
 # Every other documented key is a vocabulary/phrase list whose example value is
 # a usable fallback, so it is backfilled from the example instead.

@@ -193,7 +193,7 @@ def test_render_without_a_corner_still_draws_the_shell():
 
 def test_the_dot_lights_up_only_on_the_active_side(thumb):
     """The dot beside the status line says whether a bare "lock" or "next" would
-    land here.  Lit is white, idle is the palette's grey — never absent, because a
+    land here.  Lit is white, idle is the palette's gray — never absent, because a
     missing dot could not be told from an idle one, and then the lit one on the
     other player would be the only readable state."""
     def dot(active: bool) -> np.ndarray:
@@ -272,7 +272,7 @@ def test_render_exposes_the_controls_it_drew(thumb):
 def test_render_draws_the_sides_own_controls_even_with_no_clip():
     """The buttons the dashboard used to carry are the side's, not the map's, so
     they are there before the first clip arrives — a satellite that came up empty
-    can still be stepped off it, and still narrowed to its favourites."""
+    can still be stepped off it, and still narrowed to its favorites."""
     rendered = HudRenderer("landscape").render(
         HudModel(side="landscape", locked=False, lock_label="Unlocked"))
 
@@ -282,10 +282,10 @@ def test_render_draws_the_sides_own_controls_even_with_no_clip():
     assert rendered.targets.favorite is not None
 
 
-def test_the_state_controls_and_favourite_mark_light_up_when_they_apply():
+def test_the_state_controls_and_favorite_mark_light_up_when_they_apply():
     """Green is what the dashboard's panel used, so everything that is a *state*
     keeps it: the lock button while the side is locked, the F button while the
-    side is in F-mode, the star while the clip is a favourite."""
+    side is in F-mode, the star while the clip is a favorite."""
     def ink(rect, rendered) -> int:
         x, y, w, h = rect
         rgb = _rgb(rendered.bgra)[y:y + h, x:x + w].astype(int)
@@ -535,7 +535,7 @@ def test_the_filtered_actions_label_is_lit(thumb):
         (cx, cy, _cw, ch), _path = rendered.targets.click[0]
         # The corner's own row label, in the gutter beside it — "alpha".
         band = _rgb(rendered.bgra)[cy:cy + ch, PAD:cx - MAP_GAP]
-        return int((band > 200).sum())  # near-white only; a plain label is grey
+        return int((band > 200).sum())  # near-white only; a plain label is gray
 
     assert gutter_ink("alpha") > 0
     assert gutter_ink("") == 0
@@ -638,10 +638,10 @@ def test_a_filter_set_from_a_two_act_clip_lights_both_of_its_acts(thumb):
 
 
 @pytest.mark.parametrize("camera", ["pov", "side"])
-def test_a_leading_camera_word_stays_grey_when_its_act_is_filtered(camera, thumb):
+def test_a_leading_camera_word_stays_gray_when_its_act_is_filtered(camera, thumb):
     """A camera word in front of an act is drawn as an act of its own: under a
     "gamma" filter only "Gamma" is why the clip is here, so the camera word stays
-    grey rather than reading as part of what was asked for.
+    gray rather than reading as part of what was asked for.
 
     Both words, because Evolver's backfill scopes every act it records by one of
     them — so a list holding only "POV" would leave every "Side …" clip lighting

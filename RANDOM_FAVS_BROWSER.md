@@ -4,17 +4,17 @@ Fun Time can open a Chrome window on the left side of the secondary monitor.
 
 How it works:
 
-- Fun Time reads the favourites from `favs.csv` (written by the lock hotkey), which pairs each favourite's local video path with its gallery link.
+- Fun Time reads the favorites from `favs.csv` (written by the lock hotkey), which pairs each favorite's local video path with its gallery link.
 - At launch, it picks a random subset of 10 and resolves where each one should open (see below).
 - It launches a project-local Chrome shortcut.
 - It waits for the new Chrome window and sizes it to the full left third of the secondary monitor.
 - `Ctrl+Alt+Q` closes the RFB Chrome window gracefully (sends WM_CLOSE to the captured hwnd).
 
-Configuration lives in `fun_time_config.json` under `random_favs_browser` (the Chrome shortcut path, the profile to target, and the favourites file).
+Configuration lives in `fun_time_config.json` under `random_favs_browser` (the Chrome shortcut path, the profile to target, and the favorites file).
 
 ### Where a tab actually goes
 
-A favourite's gallery link is usually dead — the generation provider does not keep old generations around. So each tab resolves to the provider's **regenerate** page, with the video's original prompts packed into a `#ft=` fragment that the userscript below fills in. Favourites with no metadata sidecar (a provider that keeps its galleries, or anything scraped before sidecars existed) fall back to their stored gallery link. `target_for_fav` in `fun_time/random_favs_browser.py` is the single resolver; both the startup tabs and the lock hotkey go through it, so they cannot drift apart.
+A favorite's gallery link is usually dead — the generation provider does not keep old generations around. So each tab resolves to the provider's **regenerate** page, with the video's original prompts packed into a `#ft=` fragment that the userscript below fills in. Favorites with no metadata sidecar (a provider that keeps its galleries, or anything scraped before sidecars existed) fall back to their stored gallery link. `target_for_fav` in `fun_time/random_favs_browser.py` is the single resolver; both the startup tabs and the lock hotkey go through it, so they cannot drift apart.
 
 ### Which window the tab lands in
 
@@ -24,17 +24,17 @@ So the dispatch loop **activates the RFB window first** (`win32.force_foreground
 
 ### The landing page
 
-A tab first lands on a small local page ("Press Ctrl+R to load, or click the link") that names the favourite, shows where it points, and **plays the clip you are deciding whether to recreate**; the first reload or click navigates to the real destination. Ten heavy generate pages therefore do not all load at startup, and a lock never dumps you straight onto the provider either. `lazy_load` governs the startup tabs; a lock always lands here, because the landing page is what shows you the clip.
+A tab first lands on a small local page ("Press Ctrl+R to load, or click the link") that names the favorite, shows where it points, and **plays the clip you are deciding whether to recreate**; the first reload or click navigates to the real destination. Ten heavy generate pages therefore do not all load at startup, and a lock never dumps you straight onto the provider either. `lazy_load` governs the startup tabs; a lock always lands here, because the landing page is what shows you the clip.
 
 The destination cannot travel on Chrome's command line: a regenerate URL runs to ~4 KB of encoded prompt, and ten of them overflow the 32,767-character ceiling `CreateProcess` puts on a command line (`WinError 206`). So `fun_time/rfb_tab_page.py` bakes each destination into its own generated page under `state/rfb_tabs/`, and Chrome is handed short `file://` URIs. Startup writes `tab_NN.html`; a lock writes `lock_<hash>.html`, named after its destination so re-locking one video rewrites one page. The whole directory is cleared at the start of every session.
 
 The clip is played straight from `file://` — muted, looped, and paused whenever its tab is not the visible one (ten background decoders is real CPU). When a clip cannot load, the page leaves it hidden and the rest of the tab still works.
 
-It is **not** the video the favourite records. Every library video exists twice: the source original under `1_sorted/<source>/<orientation>/`, and the Topaz upscale under `2_outbox/upscaled_by_orientation/<orientation>/<source>/` with a `_topaz` suffix, which is what plays full-size and what `favs.csv` stores. The upscales are hundreds of megabytes of **HEVC** — a codec Chrome decodes only through a platform decoder, and in practice not at these resolutions — while the originals are a couple of megabytes of H.264 that any Chrome plays, `--disable-gpu` included. `fun_time/media_renditions.py` maps one to the other (note the two trees nest source and orientation in opposite orders); the clip is the original, and a video with no original on disk falls back to itself.
+It is **not** the video the favorite records. Every library video exists twice: the source original under `1_sorted/<source>/<orientation>/`, and the Topaz upscale under `2_outbox/upscaled_by_orientation/<orientation>/<source>/` with a `_topaz` suffix, which is what plays full-size and what `favs.csv` stores. The upscales are hundreds of megabytes of **HEVC** — a codec Chrome decodes only through a platform decoder, and in practice not at these resolutions — while the originals are a couple of megabytes of H.264 that any Chrome plays, `--disable-gpu` included. `fun_time/media_renditions.py` maps one to the other (note the two trees nest source and orientation in opposite orders); the clip is the original, and a video with no original on disk falls back to itself.
 
 ## Prompt autofill userscript
 
-When you lock an AI video, or open one of its favourites in the Random Favs Browser, Fun Time opens the provider's **generate** page (instead of the now-dead gallery link) with the original prompts/settings packed into the URL fragment (`#ft=…`). A Tampermonkey userscript reads that fragment and fills the generate form — prompts, seed, and whatever settings it can match — then pins a floating note listing every field so anything it could not set can be entered by hand. Text-to-video and image-to-video are handled slightly differently (an image-to-video regen makes the image first, then the video from it), and the script re-applies fields for a few seconds because the form re-mounts during hydration.
+When you lock an AI video, or open one of its favorites in the Random Favs Browser, Fun Time opens the provider's **generate** page (instead of the now-dead gallery link) with the original prompts/settings packed into the URL fragment (`#ft=…`). A Tampermonkey userscript reads that fragment and fills the generate form — prompts, seed, and whatever settings it can match — then pins a floating note listing every field so anything it could not set can be entered by hand. Text-to-video and image-to-video are handled slightly differently (an image-to-video regen makes the image first, then the video from it), and the script re-applies fields for a few seconds because the form re-mounts during hydration.
 
 The prompts/settings come from per-video metadata JSON mirrored under `regen.metadata_root`; the paths and the two generate URLs are configured in `fun_time_config.json` under `regen`. Videos without a metadata sidecar fall back to their stored gallery link.
 

@@ -127,7 +127,7 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 # a different loop — Nau's A-B loop rather than a satellite's group loop.  A lock
 # is the same thing on all three — repeat-one on what is on screen — so the bare
 # word reaches whichever was last addressed, the main player included.  So is F-mode,
-# though what it narrows to differs: the favourites on a satellite, the videos
+# though what it narrows to differs: the favorites on a satellite, the videos
 # with a funscript on the main player.
 _PRIMARY_EQUIVALENTS = {
     "next": "main_next",
@@ -237,7 +237,7 @@ class DispatchLoopRunner:
         # own video.  None when the session runs without HUDs.
         self._hud_publisher = hud_publisher
         self._last_hud_publish = 0.0
-        # The favourites list, and the stat that says whether it has moved (see
+        # The favorites list, and the stat that says whether it has moved (see
         # _favs_content) — every HUD publish asks whether the clip on screen is on it.
         self._favs_text = ""
         self._favs_stamp: tuple[int, int] | None = None
@@ -447,9 +447,9 @@ class DispatchLoopRunner:
         ))
 
     def _favs_content(self) -> str:
-        """The favourites file, re-read only when it has actually changed.
+        """The favorites file, re-read only when it has actually changed.
 
-        Each HUD publish asks whether the clip on screen is a favourite, ~7x a
+        Each HUD publish asks whether the clip on screen is a favorite, ~7x a
         second for the life of the session; the list itself moves a handful of
         times an hour, so gate the read on the file's mtime and size and keep the
         text between changes.

@@ -50,7 +50,7 @@ class TestLoadContent:
     def test_missing_web_providers_defaults_to_empty_not_the_example(self, tmp_path: Path):
         # web_providers holds placeholder gallery URLs in the example; a real
         # overlay that omits it must default to none, never to the example's
-        # stand-in URLs — those would be written verbatim into favourites.
+        # stand-in URLs — those would be written verbatim into favorites.
         assert _example()["web_providers"], "example is expected to define providers"
         local = tmp_path / "content.local.json"
         local.write_text(json.dumps({"filter_acts": {"zeta": ["zeta"]}}), encoding="utf-8")
