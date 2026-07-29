@@ -117,7 +117,8 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   worktree: it leaves a `Verify <branch>.lnk` in the primary checkout and prints
   the path. Then hand him that `.lnk` as a **markdown link to the file itself**,
   `file:///` prefixed and spaces percent-encoded —
-  `run [Verify my-branch.lnk](file:///C:/Users/redacted/workspace/haglio/fun_time/Verify%20my-branch.lnk)`
+  `run [Verify my-branch.lnk](file:///C:/Users/<you>/workspace/haglio/fun_time/Verify%20my-branch.lnk)`
+  (the `--shortcut` run prints the real path — paste that, not this shape)
   — so one click launches it. Linking the folder and naming the file instead
   spends a window, a scroll and a second click of his on nothing; he had to
   correct two agents in a row for it (2026-07-29). **Never hand him a branch to
