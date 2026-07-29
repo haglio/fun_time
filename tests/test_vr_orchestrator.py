@@ -4,11 +4,14 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.command_dispatch import BridgeState
 from fun_time.config import load_config
+from fun_time.shared_state import read_shared_state, write_shared_state
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     build_vr_manifest,
     primary_playlist_has_vr,
+    resume_vr_state,
     validate_vr_config,
     vr_primary_sources,
 )
@@ -198,3 +201,32 @@ class TestResumedPrimaryPlaylist:
 
     def test_a_missing_playlist_reads_as_holding_no_vr(self, config, tmp_path):
         assert primary_playlist_has_vr(tmp_path / "absent.tsv", config.vr.library_dirs) is False
+
+
+class TestResumeVrState:
+    """The desktop session shares this state dir, and it can carry a primary
+    mode a VR session has no player for."""
+
+    def test_a_genau_mode_left_by_the_desktop_session_does_not_come_across(self, tmp_path):
+        """Genau is not launched in VR, so a carried genau mode would leave every
+        HUD naming a player that is not running — and the state file is what all
+        of them read, so it has to be corrected on disk, not just in hand."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(primary_mode="genau", volume=40))
+
+        carried = resume_vr_state(state_file, resumed=True)
+
+        assert carried.primary_mode == "nau"
+        assert read_shared_state(state_file).primary_mode == "nau"
+
+    def test_everything_else_the_desktop_session_left_still_comes_across(self, tmp_path):
+        """Both apps run the same players for these, off the same playlists —
+        only the primary slot's second seat is missing here."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(
+            primary_mode="genau", volume=40, portrait_f_mode=True, locked3=True,
+        ))
+
+        carried = resume_vr_state(state_file, resumed=True)
+
+        assert (carried.volume, carried.portrait_f_mode, carried.locked3) == (40, True, True)

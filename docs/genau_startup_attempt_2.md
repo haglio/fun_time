@@ -1,5 +1,13 @@
 # Genau Auto-Mode Startup — Attempt 2 Report
 
+> **Historical.** Written against the VLC/MFP architecture; the files and
+> functions named below have mostly gone. Its one lesson that outlived the
+> rewrite: *starting* in genau mode is not a transition, so anything keyed to
+> `is_transition` never fires. Opening in a resumed mode is now handled by
+> making it one — every session is built in `STARTUP_PRIMARY_MODE` and the
+> carried mode is seeded as a switch out of it. The auto-mode trigger this
+> report is actually about is still unsolved.
+
 **Date:** 2026-03-27
 **Agent:** Claude Opus 4.6 (1M context)
 **Outcome:** Failed. All changes reverted in commit `9f514e4`.

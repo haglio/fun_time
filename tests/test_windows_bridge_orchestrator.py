@@ -15,6 +15,7 @@ from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANI
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     _CHILD_PID_KEYS,
+    _fix_post_loading_windows,
     _log_nau_obstruction,
     _open_event_log,
     _shutdown_children,
@@ -57,6 +58,28 @@ def _fake_startup_result() -> StartupResult:
         audio_pid=700,
         layout_plan=_fake_plan(),
     )
+
+
+class TestFixPostLoadingWindows:
+    """The overlay's teardown can shuffle z-order and activation, so the whole
+    window policy is applied again once the overlay process has exited."""
+
+    def test_reapplies_the_policy_for_the_mode_the_session_opened_in(self):
+        """A resumed genau session would otherwise get nau's stacking back here:
+        Nau promoted over Genau and un-parked, one pass after the sequencer
+        parked it — the display handed back to the player that is not playing."""
+        result = replace(_fake_startup_result(), primary_mode="genau")
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ) as apply, patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title", return_value=0
+        ), patch("fun_time.windows_bridge_orchestrator._log_nau_obstruction"):
+            _fix_post_loading_windows(result)
+
+        assert apply.call_args.kwargs["mode"] == "genau"
 
 
 class TestKillProcessTree:

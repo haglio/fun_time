@@ -22,7 +22,8 @@ from .modes import (
     build_playlist_file_path,
     build_primary_playlist,
 )
-from .runtime_flow import SET_F_MODE_CMD
+from .mode_plan import STARTUP_PRIMARY_MODE
+from .runtime_flow import SET_F_MODE_CMD, apply_mode_switch
 from .satellite_control import read_satellite_status
 from .session_resume import (
     playlist_fits_sources,
@@ -258,18 +259,19 @@ def seed_startup_states(
     audio_paused_file: str | Path,
     nau_paused_file: str | Path,
     audio_volume_file: str | Path,
-    genau_cmd_file: str | Path | None = None,
+    genau_cmd_file: str | Path,
     *,
     nau_cmd_file: str | Path,
     volume: int = MAX_VOLUME,
     muted: bool = False,
     f_mode: bool = False,
+    mode: str = STARTUP_PRIMARY_MODE,
 ) -> None:
-    """Seed the cross-process flags for the startup mode (nau): Genau parked, Nau
-    paused until the sequencer's reveal unpauses it, and the sound and F-mode
-    this session opens on.
+    """Seed the cross-process flags the primary slot opens on: Genau parked, Nau
+    paused until the sequencer's reveal unpauses it, and the sound, F-mode and
+    mode this session comes back in.
 
-    Both of those last two are the session's, not a fresh session's.  The level
+    All three of those last are the session's, not a fresh session's.  The level
     is seeded because Nau and the audio companion each launch unattenuated and
     neither reads a level from a file it already has, so seeding is the only way
     a resumed session comes up as loud as you left it — and both sinks are told,
@@ -283,14 +285,24 @@ def seed_startup_states(
     other, so Nau's HUD can only know from being told.  fun_time draws the
     satellites' HUD model itself, which is why a resumed F-mode session showed
     F-Mode on every player except the one that had to be sent it.
-    The defaults are a fresh session's: full, unmuted, unnarrowed.
 
-    Genau's *display* is seeded too, on its command channel.  Blanking keys off
-    DISPLAY_ON/DISPLAY_OFF and Genau defaults to owning its display (so a
-    standalone run paints its clips), while the DISPLAY_OFF that would blank it
-    under an orchestrator only rides a mode *switch* — and a session that starts
-    in nau mode never switches.  Left unsaid, Genau comes up painting its clips
-    in the primary slot it shares with Nau.
+    *mode* is which player owns the big display, and it is seeded by REPLAYING
+    the switch that would have reached it: every session is built in
+    ``STARTUP_PRIMARY_MODE``, so coming back in genau or hybrid is a switch out
+    of nau, and running it through the same planner a live switch uses is what
+    stops the two from ever describing the mode differently.  Only the verbs are
+    seeded here; the windows are parked to match by the sequencer, and Nau's own
+    start is left to the reveal — which is why the pause flags below are written
+    first and the switch is allowed to overwrite the ones it owns.
+
+    Genau's *display* is the one thing that has to be said even in nau mode.
+    Blanking keys off DISPLAY_ON/DISPLAY_OFF and Genau defaults to owning its
+    display (so a standalone run paints its clips), while the DISPLAY_OFF that
+    blanks it under an orchestrator only rides a switch — and a session opening
+    in nau mode has no switch to ride.  Left unsaid, Genau comes up painting its
+    clips in the primary slot it shares with Nau.
+
+    The defaults are a fresh session's: full, unmuted, unnarrowed, on Nau.
     """
     for path, value in (
         (Path(genau_paused_file), "1"),
@@ -299,6 +311,22 @@ def seed_startup_states(
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(value, encoding="utf-8")
+    Path(genau_cmd_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(genau_cmd_file).write_text("PAUSE\nDISPLAY_OFF", encoding="utf-8")
+    # Before the two appends below, because a switch writes Nau's channel whole:
+    # queued after it, the level and the F-mode flag would be the verbs it drops.
+    # The broker is left out on purpose — startup has already parked the OSR2, and
+    # a switch INTO a genau-active mode has nothing to say to it anyway.
+    apply_mode_switch(
+        current_mode=STARTUP_PRIMARY_MODE,
+        target_mode=mode,
+        omni_paused=False,
+        genau_paused_file=genau_paused_file,
+        audio_paused_file=audio_paused_file,
+        genau_cmd_file=genau_cmd_file,
+        nau_paused_file=nau_paused_file,
+        nau_cmd_file=nau_cmd_file,
+    )
     publish_audio_level(
         nau_cmd_file=Path(nau_cmd_file),
         audio_volume_file=Path(audio_volume_file),
@@ -306,10 +334,6 @@ def seed_startup_states(
         muted=muted,
     )
     append_command(Path(nau_cmd_file), f"{SET_F_MODE_CMD} {int(f_mode)}")
-    if genau_cmd_file is not None:
-        path = Path(genau_cmd_file)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("PAUSE\nDISPLAY_OFF", encoding="utf-8")
 
 
 def reset_satellite_paused_states(
@@ -366,7 +390,10 @@ def start_core_session(
     dashboard_cmd_file: str | Path | None = None,
     regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
-) -> None:
+) -> str:
+    """Launch the session's media stack, returning the mode its primary slot
+    opens in — which the caller needs because parking the Nau/Genau pair to match
+    takes window handles only the sequencer has."""
     # Clear any satellites stranded by a prior crash on the very files this
     # session is about to claim, so four players never race the two command/status
     # file sets.  Bounded to those files: a session elsewhere on the machine (an
@@ -398,15 +425,17 @@ def start_core_session(
         (nau_playlist, read_nau_status(Path(nau_status_file)).video),
     ])
     # Come back to the state that session was in, too — F-mode, each side's
-    # filter, order and lock, any group loop, the sound level.  The dispatch loop
-    # opens on this file, so a session that resumed the files and not the state
-    # described itself wrongly on every HUD.  It is read before the flags below
-    # are seeded, because two of them are what those flags have to be seeded to.
+    # filter, order and lock, any group loop, the sound level, which player had
+    # the big display.  The dispatch loop opens on this file, so a session that
+    # resumed the files and not the state described itself wrongly on every HUD.
+    # It is read before the flags below are seeded, because several of them are
+    # what those flags have to be seeded to.
     carried = resume_shared_state(shared_state_path(state_path), resumed=resumed)
     seed_startup_states(
         genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file,
         genau_cmd_file, nau_cmd_file=nau_cmd_file,
         volume=carried.volume, muted=carried.muted, f_mode=carried.primary_f_mode,
+        mode=carried.primary_mode,
     )
     # seed_startup_states does not touch the satellite paused files; clear any "1"
     # a prior OmniPause stranded so the satellites launch playing, not frozen.
@@ -466,6 +495,7 @@ def start_core_session(
         landscape_hud_file=landscape_hud_file,
         dashboard_cmd_file=dashboard_cmd_file,
     )
+    return carried.primary_mode
 
 
 def launch_genau(
