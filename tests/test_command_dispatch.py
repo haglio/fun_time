@@ -2321,8 +2321,8 @@ def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
     """What is left of auto-advance is its pace: the arming and the hold it could
     disagree with are one padlock now (see the main lock tests above)."""
     for command, verb in (
-        ("genau_advance_down", "ADVANCE_DOWN"),
-        ("genau_advance_up", "ADVANCE_UP"),
+        ("genau_clip_seconds_down", "CLIP_SECONDS_DOWN"),
+        ("genau_clip_seconds_up", "CLIP_SECONDS_UP"),
         ("genau_weird_clip", "WEIRD"),
     ):
         config = _make_config(tmp_path / command)
@@ -2332,13 +2332,13 @@ def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
         assert ops == []
 
 
-def test_genau_advance_seconds_writes_a_numeric_cmd(tmp_path: Path):
+def test_genau_clip_seconds_writes_a_numeric_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="genau")
 
-    dispatch_command("genau_advance_30", state, config)
+    dispatch_command("genau_clip_seconds_30", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "ADVANCE 30"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CLIP_SECONDS 30"
 
 
 def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):

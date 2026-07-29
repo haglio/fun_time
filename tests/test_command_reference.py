@@ -14,7 +14,7 @@ from fun_time.command_reference import (
 from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS, VOICE_COMMANDS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_NUMERIC_RE = re.compile(r"^genau_(amp|center|speed|advance)_\d+$")
+_NUMERIC_RE = re.compile(r"^genau_(amp|center|speed|clip_seconds)_\d+$")
 _QUEUED_RE = re.compile(r'QueueCommand\("([^"]+)"\)')
 
 
@@ -199,7 +199,7 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
     assert nxt.voice == ("next",)
     assert nxt.key_columns == (("Right",), ("D",))
     lock = next(r for r in section.rows if "portrait_lock_on" in r.commands)
-    assert lock.voice == ("lock", "lock all", "unlock")
+    assert lock.voice == ("lock", "unlock")
     for row in section.rows:
         if row.description.startswith(("Filter by act", "Drop the filter")):
             continue  # the filter phrases scope themselves differently; see below
@@ -311,10 +311,16 @@ def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():
     assert mute.voice == ("mute", "unmute")
     assert "audio_unmute" in mute.commands
 
-    down = next(r for r in rows if "audio_volume_down" in r.commands)
-    up = next(r for r in rows if "audio_volume_up" in r.commands)
-    assert down is up, "one row documents the pair of volume steps"
-    assert set(up.voice) == {"quiet", "quieter", "loud", "louder"}
+    # One sound level reaches both of the primary display's sinks, so the steps
+    # are listed under each player that can own the display — Nau's video sound
+    # and Genau's clip music are the same control from the speaker's side.
+    by_title = {s.title: s for s in build_reference_sections()}
+    for title in ("Genau", "Nau"):
+        steps = [r for r in by_title[title].rows if "audio_volume_up" in r.commands]
+        assert len(steps) == 1, f"expected one volume row in {title}"
+        assert "audio_volume_down" in steps[0].commands, "one row documents the pair"
+        assert steps[0].hotkeys == ()
+        assert set(steps[0].voice) == {"quiet", "quieter", "loud", "louder"}
 
 
 def test_no_say_column_leaks_the_raw_un_mute_form():
@@ -619,11 +625,18 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     section: one row sets a filter by act, one drops it.  Neither spells out
     "portrait"/"landscape" any more — the section's note aims them, the same way
     it aims "next"."""
-    from fun_time.filter_vocab import spoken_forms_for_both
+    from fun_time.filter_vocab import FILTER_ACTS, display_forms
 
     rows = _satellite_section().rows
     set_row = next(r for r in rows if r.description.startswith("Filter by act"))
-    assert set(set_row.voice) == set(spoken_forms_for_both())
+    # The acts read under their real names, not the sound-alikes the grammar is
+    # built from: an act whose word the speech model has no token for is *heard*
+    # as something else, and printing that would teach the reader the wrong word.
+    assert set(set_row.voice) == set(display_forms())
+    spoken = {form for forms in FILTER_ACTS.values() for form in forms}
+    workarounds = spoken - set(display_forms())
+    assert workarounds, "expected at least one act voiced differently than it reads"
+    assert not workarounds & set(set_row.voice), workarounds
     drop_row = next(r for r in rows if r.description.startswith("Drop the filter"))
     assert set(drop_row.voice) == {"no filter", "filter off", "clear filter", "show everything"}
 

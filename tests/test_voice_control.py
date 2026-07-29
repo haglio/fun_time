@@ -207,12 +207,12 @@ class TestVoiceCommands:
             ("one", 1), ("five", 5), ("nine", 9), ("fifteen", 15),
             ("thirty", 30), ("forty five", 45), ("sixty", 60),
         ):
-            assert VOICE_COMMANDS[f"clip seconds {word}"] == f"genau_advance_{seconds}"
+            assert VOICE_COMMANDS[f"clip seconds {word}"] == f"genau_clip_seconds_{seconds}"
         assert not any(p.startswith("auto advance") for p in VOICE_COMMANDS)
 
-    def test_no_spoken_advance_interval_is_zero_seconds(self):
+    def test_no_spoken_clip_interval_is_zero_seconds(self):
         """A zero-second interval would step the clip every frame."""
-        assert not any(cmd == "genau_advance_0" for cmd in VOICE_COMMANDS.values())
+        assert not any(cmd == "genau_clip_seconds_0" for cmd in VOICE_COMMANDS.values())
 
     def test_audio_phrases_mute_and_step_the_volume(self):
         """Both words of each pair mean the same thing, so a speaker never has to
@@ -366,16 +366,28 @@ class TestVoiceCommands:
     def test_grid_lock_scopes_are_aliases_of_existing_commands(self):
         """The grid's lock scopes collapse onto commands that already exist,
         since every satellite playlist runs repeat-all: "lock seed" is the action
-        loop, "lock type" the seed loop, "lock all" the repeat-one lock, and
-        "loop all" the whole unfiltered browse (reset)."""
+        loop and "lock type" the seed loop."""
         assert VOICE_COMMANDS["lock seed"] == "active_action_loop"
         assert VOICE_COMMANDS["lock type"] == "active_seed_loop"
-        assert VOICE_COMMANDS["lock all"] == "active_lock_on"
-        assert VOICE_COMMANDS["loop all"] == "active_reset"
         # sided, either order, like the rest of the grid
         assert VOICE_COMMANDS["portrait lock seed"] == "portrait_action_loop"
-        assert VOICE_COMMANDS["lock all landscape"] == "landscape_lock_on"
-        assert VOICE_COMMANDS["both loop all"] == "both_reset"
+        assert VOICE_COMMANDS["lock type landscape"] == "landscape_seed_loop"
+
+    def test_the_scope_named_all_is_gone_from_the_grid(self):
+        """"lock all" and "loop all" read "all" as everything pinning the clip,
+        where the room's other "all" — "all f mode" — means all players.  Nothing
+        in the phrase says which sense is meant, and both were second spellings
+        of "lock" and "reset", so they went instead of being disambiguated."""
+        for phrase in ("lock all", "loop all", "same all"):
+            assert phrase not in VOICE_COMMANDS
+            for side in ("portrait", "landscape", "both"):
+                assert f"{side} {phrase}" not in VOICE_COMMANDS
+                assert f"{phrase} {side}" not in VOICE_COMMANDS
+        # What they said is still sayable, under the names the grid already used.
+        assert VOICE_COMMANDS["lock"] == "active_lock_on"
+        assert VOICE_COMMANDS["reset"] == "active_reset"
+        # The surviving "all" is the whole-room one, and it means all players.
+        assert VOICE_COMMANDS["all f mode"] == "fmode_toggle"
 
     def test_main_nav_phrases_both_orders(self):
         """The main player joins the grid for navigation, in either order.  Bare
