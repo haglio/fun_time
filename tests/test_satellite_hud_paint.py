@@ -13,10 +13,10 @@ from satellite.hud import (
     CTRL_BAND_H,
     ELLIPSIS_ROOM,
     FILTER_ROOM,
-    LOCK_BAND_H,
     MAP_CELLS,
     MAP_GAP,
     PAD,
+    STATUS_BAND_H,
     STATUS_DOT,
     STATUS_TEXT_X,
     HudCell,
@@ -112,9 +112,11 @@ def test_the_map_is_three_cells_a_side_whatever_shape_its_clips_are(side, shape,
 
 @pytest.mark.parametrize("side,shape", _sides_and_shapes())
 def test_the_panel_stops_where_its_last_controls_do(side, shape, clip_thumb):
-    """No slab past the map: the expand button ends one margin in from the right
-    edge and the action-loop button one margin up from the bottom, so every pixel
-    of the panel is carrying something — for a wide cell as much as a narrow one."""
+    """No slab past the map wherever the map is what set the width: the expand
+    button ends one margin in from the right edge and the action-loop button one
+    margin up from the bottom, so every pixel of the panel is carrying something —
+    for a wide cell as much as a narrow one.  (A status longer than the map is the
+    other case, and there it is the line that reaches the far edge.)"""
     rendered = HudRenderer(side).render(_crowded(side, clip_thumb(side, shape)))
     height, width = rendered.bgra.shape[:2]
 
@@ -144,7 +146,7 @@ def test_render_rings_the_locked_clip_in_white(thumb):
             _model(locked=locked, lock_label="Locked" if locked else "Unlocked",
                    corner=HudCell(path="c.mp4", thumb=thumb))
         )
-        rgb = _rgb(rendered.bgra)[PAD + LOCK_BAND_H:, :]
+        rgb = _rgb(rendered.bgra)[PAD + STATUS_BAND_H:, :]
         return int((rgb > 248).all(axis=2).sum())
 
     assert ring_ink(True) > 0
@@ -205,8 +207,8 @@ def test_the_dot_lights_up_only_on_the_active_side(thumb):
 
 
 def test_the_status_text_starts_clear_of_the_dot(thumb):
-    """Drawn over each other they would be illegible, and the wrap has to measure
-    against the room the dot leaves rather than the whole panel."""
+    """Drawn over each other they would be illegible, and the width the line asks
+    the panel for is measured from the room the dot leaves, not from the far edge."""
     rendered = HudRenderer("portrait").render(
         _model(active=True, lock_label="Unlocked", corner=HudCell(path="c.mp4", thumb=thumb)))
     rgb = _rgb(rendered.bgra)
@@ -218,34 +220,36 @@ def test_the_status_text_starts_clear_of_the_dot(thumb):
     assert (gap > 200).all(axis=2).sum() == 0, "text ink in the gap before the text starts"
 
 
-def test_a_status_too_wide_for_the_panel_is_drawn_wrapped_not_clipped(thumb):
+def test_a_status_too_wide_for_the_map_widens_the_panel_rather_than_wrapping(thumb):
     """The real worst case on the narrow portrait panel: lock/loop, order, F-mode
-    and a filter.  Pillow clips at the panel edge without a word, so an unwrapped
-    line would silently drop the parts on the end — which reads as those states
-    being off.  Wrapping is the only thing that gets them onto the screen.
-    """
-    label = "Looping actions · Latest · F-Mode · beta gamma"
-    rgb = _rgb(HudRenderer("portrait").render(
-        _model(lock_label=label, corner=HudCell(path="c.mp4", thumb=thumb))).bgra)
+    and a filter.  The panel is measured around the map, and three of those parts
+    already outrun what a column of portrait clips is wide — so the width the map
+    asks for is a floor, not the answer, and the status takes whatever more it
+    needs.  A second line would be the alternative, and the line reads as one
+    state of one side; split across two it reads as two."""
+    def rendered(label: str):
+        return HudRenderer("portrait").render(
+            _model(lock_label=label, corner=HudCell(path="c.mp4", thumb=thumb)))
 
-    # Text running into the panel's right margin is what clipping looks like: the
-    # glyphs past it were simply never drawn.
-    assert (rgb[:, rgb.shape[1] - PAD:] > 200).all(axis=2).sum() == 0
+    short = rendered("Locked")
+    long = rendered("Looping actions · Latest · F-Mode · beta gamma")
+
+    assert long.bgra.shape[1] > short.bgra.shape[1]
+    assert long.bgra.shape[0] == short.bgra.shape[0]
 
 
-def test_a_wrapped_status_pushes_the_map_down_instead_of_overdrawing_it(thumb):
-    """The map is laid out from the band's foot, so a second status line has to
-    move it — otherwise the wrap lands on top of the corner thumbnail."""
-    def corner_top(label: str) -> int:
+def test_the_map_sits_where_it_sits_however_long_the_status_is(thumb):
+    """The status band is one line deep and stays one line deep, so the map is
+    anchored at the same place on every panel — a side that has picked up a filter
+    does not find its map a line lower than the side that has not."""
+    def corner(label: str):
         rendered = HudRenderer("portrait").render(
             _model(lock_label=label, corner=HudCell(path="c.mp4", thumb=thumb)))
-        (_x, y, _w, _h), _path = rendered.targets.click[0]
-        return y
+        (x, y, _w, _h), _path = rendered.targets.click[0]
+        return x, y
 
-    one_line = corner_top("Locked · Shuffle")
-    wrapped = corner_top("Looping actions · Latest · F-Mode · beta gamma")
-
-    assert wrapped > one_line
+    assert (corner("Looping actions · Latest · F-Mode · beta gamma")
+            == corner("Locked · Shuffle") == corner(""))
 
 
 def test_render_exposes_the_controls_it_drew(thumb):
@@ -508,7 +512,7 @@ def test_the_map_prints_how_big_each_axis_is(thumb):
         # The block left of the map and above its first row, below the status and
         # control bands: the "Seed N" column headers live to the right of it, over
         # the thumbnails.
-        block = _rgb(rendered.bgra)[PAD + LOCK_BAND_H + CTRL_BAND_H:cy, PAD:cx - MAP_GAP]
+        block = _rgb(rendered.bgra)[PAD + STATUS_BAND_H + CTRL_BAND_H:cy, PAD:cx - MAP_GAP]
         return int((block > 80).sum())
 
     assert corner_ink(seed_count=12, action_count=4) > 0
@@ -750,5 +754,5 @@ def test_column_labels_are_clipped_to_their_column(thumb):
     (sx, _sy, _sw, _sh), _seed = rendered.targets.click[1]
     # The header strip sits above the thumbnails; nothing may be drawn in the gap
     # between the corner column and the next one.
-    header = _rgb(rendered.bgra)[PAD + LOCK_BAND_H:PAD + LOCK_BAND_H + 13, cx + cw:sx]
+    header = _rgb(rendered.bgra)[PAD + STATUS_BAND_H:PAD + STATUS_BAND_H + 13, cx + cw:sx]
     assert (header > 60).sum() == 0
