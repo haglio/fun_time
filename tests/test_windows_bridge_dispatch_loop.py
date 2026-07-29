@@ -331,6 +331,15 @@ class TestResolveActiveSideCommand:
         assert resolve_active_side_command("active_lock_on", 2) == "portrait_lock_on"
         assert resolve_active_side_command("active_lock_off", 3) == "landscape_lock_off"
 
+    def test_a_bare_f_mode_reaches_whichever_player_is_active(self):
+        """Every player has its own F-mode, so the bare phrase follows the active
+        side onto any of the three — the primary included, which is where it
+        lands at startup."""
+        for suffix in ("", "_on", "_off"):
+            assert resolve_active_side_command(f"active_fmode{suffix}", 1) == f"primary_fmode{suffix}"
+            assert resolve_active_side_command(f"active_fmode{suffix}", 2) == f"portrait_fmode{suffix}"
+            assert resolve_active_side_command(f"active_fmode{suffix}", 3) == f"landscape_fmode{suffix}"
+
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
         """Primary has no weird or cycle, so a bare satellite-only command while it
         is active resolves to nothing (unchanged → a downstream no-op)."""
