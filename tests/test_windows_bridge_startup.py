@@ -328,13 +328,14 @@ def _seed_startup_states(tmp_path: Path, **overrides):
         audio_paused_file=tmp_path / "audio_paused.txt",
         nau_paused_file=tmp_path / "nau_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
+        genau_cmd_file=tmp_path / "genau_cmd.txt",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
     )
     kwargs.update(overrides)
     return seed_startup_states(
         kwargs.pop("genau_paused_file"), kwargs.pop("audio_paused_file"),
         kwargs.pop("nau_paused_file"), kwargs.pop("audio_volume_file"),
-        kwargs.pop("genau_cmd_file", None), **kwargs,
+        kwargs.pop("genau_cmd_file"), **kwargs,
     )
 
 
@@ -365,6 +366,40 @@ def test_seed_startup_states_blanks_genaus_display(tmp_path: Path):
 def _nau_verbs(tmp_path: Path) -> list[str]:
     """What is queued for Nau, one verb per line as it drains them."""
     return (tmp_path / "nau_cmd.txt").read_text(encoding="utf-8").split("\n")[:-1]
+
+
+def test_seed_startup_states_hands_the_primary_slot_to_genau_for_a_genau_session(tmp_path: Path):
+    """A session left showing Genau has to come back showing Genau, and every
+    flag a live switch would have written has to be written here too — the
+    session is *built* in nau mode, so opening in another one IS that switch,
+    seeded before either player launches instead of sent to a running one."""
+    genau_cmd = tmp_path / "genau_cmd.txt"
+
+    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
+
+    assert (tmp_path / "genau_paused.txt").read_text(encoding="utf-8") == "0"
+    assert (tmp_path / "audio_paused.txt").read_text(encoding="utf-8") == "0"
+    assert (tmp_path / "nau_paused.txt").read_text(encoding="utf-8") == "1"
+    assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["RESUME", "DISPLAY_ON"]
+    assert _nau_verbs(tmp_path) == [
+        "SET_HYBRID 0", "DISPLAY_OFF", "SET_VOLUME 100 0", "SET_F_MODE 0",
+    ]
+
+
+def test_seed_startup_states_leaves_nau_paused_for_the_reveal_in_hybrid(tmp_path: Path):
+    """Hybrid keeps Nau on screen under Genau's HUD, so nothing about the switch
+    starts it — the reveal does, as it does for a plain nau session.  Seeding it
+    playing here would put a video up behind the loading screen."""
+    genau_cmd = tmp_path / "genau_cmd.txt"
+
+    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="hybrid")
+
+    assert (tmp_path / "nau_paused.txt").read_text(encoding="utf-8") == "1"
+    assert (tmp_path / "genau_paused.txt").read_text(encoding="utf-8") == "0"
+    assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
+        "RESUME", "HUD_ON", "DISPLAY_ON",
+    ]
+    assert _nau_verbs(tmp_path)[:2] == ["SET_HYBRID 1", "DISPLAY_ON"]
 
 
 def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path):
@@ -484,8 +519,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     )
     # Startup leaves a live broker alone, only starting one when none answers.
     ensure.assert_called_once_with(state_dir / "broker_heartbeat.txt", None)
-    # Seeded at what this session opens on — full volume, F-mode off, with no
-    # session to come back to.
+    # Seeded at what this session opens on — full volume, F-mode off, on Nau,
+    # with no session to come back to.
     seed.assert_called_once_with(
         tmp_path / "genau_paused.txt",
         tmp_path / "audio_paused.txt",
@@ -496,6 +531,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         volume=MAX_VOLUME,
         muted=False,
         f_mode=False,
+        mode="nau",
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
     # Every player's playlist, each built with its F-mode off — the flags default
@@ -597,7 +633,7 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     assert "Resumed last session's playlists" in caplog.text
 
 
-def _run_start_core_session(kwargs: dict) -> None:
+def _run_start_core_session(kwargs: dict) -> str:
     """start_core_session with what reaches outside the state dir patched away.
 
     The seeding is left real — it only writes flags under the state dir, and it
@@ -610,7 +646,32 @@ def _run_start_core_session(kwargs: dict) -> None:
     ), patch(
         "fun_time.windows_bridge_startup.build_all_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
-        start_core_session(**kwargs)
+        return start_core_session(**kwargs)
+
+
+def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tmp_path: Path):
+    """Which player owns the big display is a thing you set, so leaving the
+    session on Genau and reopening on Nau is an overnight reset like any other.
+    The mode is also handed back to the caller, because the windows have to be
+    parked to match it and only the sequencer holds their handles."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(tmp_path, kwargs)
+    write_shared_state(
+        shared_state_path(kwargs["state_dir"]), BridgeState(primary_mode="genau")
+    )
+
+    assert _run_start_core_session(kwargs) == "genau"
+
+    assert kwargs["genau_paused_file"].read_text(encoding="utf-8") == "0"
+    assert kwargs["nau_paused_file"].read_text(encoding="utf-8") == "1"
+
+
+def test_start_core_session_opens_a_fresh_session_on_nau(tmp_path: Path):
+    """Nothing to resume means no mode to come back to, and the primary slot's
+    own default is Nau — the same one every session is built in."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+
+    assert _run_start_core_session(kwargs) == "nau"
 
 
 def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built_in(

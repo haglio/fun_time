@@ -64,6 +64,15 @@ def _write_result(result_file, values):
 
 def _fake_core(**kwargs):
     _write_result(kwargs["result_file"], CORE_PIDS)
+    return "nau"
+
+
+def _fake_core_in(mode: str):
+    """A core session that resumes into *mode* — what its real one returns."""
+    def launch(**kwargs):
+        _write_result(kwargs["result_file"], CORE_PIDS)
+        return mode
+    return launch
 
 
 def _fake_ui(**kwargs):
@@ -332,6 +341,103 @@ class TestRunStartupSequence:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
 
         assert nau_paused.read_text(encoding="utf-8").strip() == "0"
+
+    def test_a_genau_session_parks_nau_and_gives_genau_the_slot(self, cfg_factory, tmp_path):
+        """Reopening in genau mode: the session is still BUILT in nau — Nau loads
+        the primary's playlist and the overlay waits on it — but what is revealed
+        is Genau, so the pair swaps which one is parked and which one floats."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        title_to_hwnd = {
+            "Genau": 6060, "Nau": 2525,
+            "Portrait AI Player": 3030, "Landscape AI Player": 4040,
+        }
+        topmost_calls: list[tuple] = []
+        minimized: list[int] = []
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session",
+                   side_effect=_fake_core_in("genau")), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **_kw: minimized.append(h)), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert minimized == [2525]
+        assert {h for h, on in topmost_calls if on} == {3030, 4040, 6060}
+        # Handed on, because the post-overlay z-order pass has to re-assert the
+        # same policy and it runs from the orchestrator, out of reach of this.
+        assert result.primary_mode == "genau"
+
+    def test_a_genau_session_is_not_revealed_by_starting_nau(self, cfg_factory, tmp_path):
+        """The reveal starts whichever player owns the display.  Unpausing Nau
+        regardless would put a video up behind the parked window and hand the
+        OSR2 two drivers at once."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        m = configparser.ConfigParser()
+        m.optionxform = str
+        m.read(str(manifest_path), encoding="utf-8")
+        nau_paused = Path(m["commands"]["nau_paused_file"])
+        nau_paused.parent.mkdir(parents=True, exist_ok=True)
+        nau_paused.write_text("1", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session",
+                   side_effect=_fake_core_in("genau")), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
+
+        assert nau_paused.read_text(encoding="utf-8").strip() == "1"
+
+    def test_hybrid_stacks_genau_over_nau_and_parks_neither(self, cfg_factory, tmp_path):
+        """Hybrid is the one mode where both share the rect: Genau's transparent
+        HUD sits over Nau's video, which the topmost band expresses as promoting
+        Nau first and Genau last."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        title_to_hwnd = {
+            "Genau": 6060, "Nau": 2525,
+            "Portrait AI Player": 3030, "Landscape AI Player": 4040,
+        }
+        topmost_calls: list[tuple] = []
+        minimized: list[int] = []
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session",
+                   side_effect=_fake_core_in("hybrid")), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **_kw: minimized.append(h)), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert minimized == []
+        promoted = [h for h, on in topmost_calls if on]
+        assert set(promoted) == {3030, 4040, 2525, 6060}
+        assert promoted.index(6060) > promoted.index(2525)
 
 
 class _TrackingProgress:

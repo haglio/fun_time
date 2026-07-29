@@ -377,9 +377,14 @@ def _log_nau_obstruction(nau_hwnd: int) -> None:
 
 
 def _fix_post_loading_windows(result: StartupResult) -> None:
-    """Re-assert the topmost policy + nau-mode visibility after the loading
-    screen overlay is destroyed (its teardown can shuffle activation, and
-    the dashboard may only become resolvable this late)."""
+    """Re-assert the topmost policy and the primary slot's visibility after the
+    loading screen overlay is destroyed (its teardown can shuffle activation, and
+    the dashboard may only become resolvable this late).
+
+    For the mode the session actually opened in, not for nau: on a resumed genau
+    session this pass would otherwise promote Nau over Genau and un-park it, one
+    pass after the sequencer parked it.
+    """
     dash_hwnd = 0
     if result.dashboard_pid:
         dash_hwnd = find_window_by_pid(result.dashboard_pid)
@@ -396,6 +401,7 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
         nau_hwnd=nau_hwnd,
         dashboard_hwnd=dash_hwnd,
+        mode=result.primary_mode,
     )
     logger.info("Post-loading window state corrected")
     _log_nau_obstruction(nau_hwnd)

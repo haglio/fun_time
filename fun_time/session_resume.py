@@ -45,17 +45,19 @@ PlaylistEntries = list[tuple[Path, Path | None]]
 # had it set, and there is no more reason for them to reset overnight than there
 # is for the clip on screen to.
 #
-# Those last two are the ones with a live counterpart to re-assert, since neither
-# lives in a file a new process reads: the level is seeded to both audio sinks at
-# startup (see fun_time.audio_volume.publish_audio_level) and each lock is queued
-# back to its satellite (:func:`resume_satellite_locks`).  Carrying a flag whose
+# Three of them have a live counterpart to re-assert, since none lives in a file
+# a new process reads: the level is seeded to both audio sinks at startup (see
+# fun_time.audio_volume.publish_audio_level), each lock is queued back to its
+# satellite (:func:`resume_satellite_locks`), and the primary mode is what
+# startup seeds the two primary-slot players and their windows for (see
+# fun_time.windows_bridge_startup.seed_startup_states).  Carrying a flag whose
 # world is not put back with it is the same lie as dropping one that was true.
 #
 # Nothing else survives, because nothing carries it into the new session:
-# OmniPause's paused flags are cleared before the players launch, the primary
-# opens in nau mode holding the floor, and a keyboard-navigation selection was
-# never a thing you could leave running.
+# OmniPause's paused flags are cleared before the players launch, and a
+# keyboard-navigation selection was never a thing you could leave running.
 RESUMED_FIELDS = (
+    "primary_mode",
     "primary_f_mode",
     "portrait_f_mode",
     "landscape_f_mode",
