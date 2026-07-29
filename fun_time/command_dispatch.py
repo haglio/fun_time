@@ -631,6 +631,20 @@ _NO_LOOP_SIDES: dict[str, str] = {
     "landscape_no_loop": "landscape",
 }
 
+# What a satellite's one loop key steps through, in order: the seed family, then
+# the action group, then off — and round to the seed family again.  "" is the off
+# stop, and is where a side that is not looping already stands, so the first press
+# starts a seed loop.
+_LOOP_CYCLE: tuple[str, ...] = ("seed", "action", "")
+
+# The key command that walks a side around _LOOP_CYCLE — the loop's counterpart of
+# the bare "<side>_lock" toggle, against the explicit <side>_seed_loop /
+# <side>_action_loop / <side>_no_loop the voice commands reach.
+_LOOP_CYCLE_SIDES: dict[str, int] = {
+    "portrait_loop": 2,
+    "landscape_loop": 3,
+}
+
 # "no filter" drops just the filter — the narrow counterpart of reset, which puts
 # the whole side back to its defaults.
 _NO_FILTER_SIDES: dict[str, str] = {
@@ -711,6 +725,28 @@ def _dispatch_more_seeds(
     return state, [WindowOp(op="notice", key="More seeds", source=source)]
 
 
+def _loop_members(
+    which: int, axis: str, state: BridgeState, config: BridgeConfig, current: str
+) -> tuple[list[str], bool]:
+    """The clips *axis*'s loop would run on satellite *which* around *current*, and
+    whether that pool is the widened seed row rather than the exact family.
+
+    Fewer than two members means the group holds only this clip, so there is no loop
+    to be had on that axis — which is what turns the loop into a lock below and what
+    makes the loop key step past the axis.  The group index behind this is cached,
+    so asking a second time before dispatching costs nothing.
+    """
+    index = _satellite_group_index(which, config, current)
+    # Loop what the HUD is showing: if the seed row has been widened around this
+    # very clip ("more seeds"), loop that wider pool, not just the exact family.
+    widen_clip = state.portrait_widen_clip if which == 2 else state.landscape_widen_clip
+    widened = axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
+    gather = widened_seed_members if widened else (
+        action_group_members if axis == "action" else seed_family_members
+    )
+    return [member for member in gather(index, current) if Path(member).exists()], widened
+
+
 def _dispatch_group_loop(
     which: int, axis: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -720,15 +756,7 @@ def _dispatch_group_loop(
     current = target_path or _satellite_current(config, which)
     if not current:
         return state, ops
-    index = _satellite_group_index(which, config, current)
-    # Loop what the HUD is showing: if the seed row has been widened around this
-    # very clip ("more seeds"), loop that wider pool, not just the exact family.
-    widen_clip = state.portrait_widen_clip if which == 2 else state.landscape_widen_clip
-    widened = axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
-    gather = widened_seed_members if widened else (
-        action_group_members if axis == "action" else seed_family_members
-    )
-    members = [member for member in gather(index, current) if Path(member).exists()]
+    members, widened = _loop_members(which, axis, state, config, current)
     if len(members) < 2:
         # Only this clip is in the group, so "looping" it is a single-video lock:
         # LOCK this one.  Never a dead end — the loop buttons are still valid with
@@ -760,6 +788,41 @@ def _dispatch_group_loop(
     state = _set_side_widen(state, which, current if widened else "")
     ops.append(WindowOp(op="notice", key=message, source=source))
     return state, ops
+
+
+def _dispatch_loop_cycle(
+    which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Step a satellite's loop one place around :data:`_LOOP_CYCLE`.
+
+    Where the step starts is read off the loop the side is actually running — the
+    same flag the HUD lights its loop button from — so the key and the HUD can never
+    disagree about where in the cycle the side stands.
+
+    An axis whose group holds only this clip has no loop to offer, and is stepped
+    over rather than landed on.  Without that, a clip nobody re-seeded would answer
+    every press with the same single-video lock (which is what a group of one makes
+    a loop mean) and its action loop would be unreachable from the keyboard.  When
+    neither axis can loop, that lock is the only thing a press can do, so it is
+    where the cycle falls back to — never through to an "off" that is already off,
+    which would rebuild the browse for nothing.
+    """
+    current = target_path or _satellite_current(config, which)
+    if not current:
+        return state, []
+    running = _side_loop(state, which)
+    # An unknown flag (a hand-edited state file) reads as "not looping", so the
+    # cycle starts over at its first axis rather than raising.
+    start = _LOOP_CYCLE.index(running) + 1 if running in _LOOP_CYCLE else 0
+    for step in range(len(_LOOP_CYCLE)):
+        axis = _LOOP_CYCLE[(start + step) % len(_LOOP_CYCLE)]
+        if not axis:
+            if running:
+                return _dispatch_no_loop("portrait" if which == 2 else "landscape", state, config)
+            continue  # nothing is looping, so the off step has nothing to switch off
+        if len(_loop_members(which, axis, state, config, current)[0]) >= 2:
+            return _dispatch_group_loop(which, axis, state, config, current)
+    return _dispatch_group_loop(which, _LOOP_CYCLE[0], state, config, current)
 
 
 def _dispatch_lock_action(
@@ -1048,6 +1111,10 @@ def dispatch_command(
     if loop_target is not None:
         which, axis = loop_target
         return _dispatch_group_loop(which, axis, state, config, target_path)
+
+    loop_cycle_side = _LOOP_CYCLE_SIDES.get(command)
+    if loop_cycle_side is not None:
+        return _dispatch_loop_cycle(loop_cycle_side, state, config, target_path)
 
     no_loop_scope = _NO_LOOP_SIDES.get(command)
     if no_loop_scope is not None:
@@ -1606,6 +1673,13 @@ _FILTER_TARGETS = {"both": (2, 3), "portrait": (2,), "landscape": (3,)}
 
 def _side_filter(state: BridgeState, which: int) -> str:
     return state.portrait_filter if which == 2 else state.landscape_filter
+
+
+def _side_loop(state: BridgeState, which: int) -> str:
+    """Which group loop satellite *which* is running — "action", "seed", or "" for
+    none.  The flag the HUD lights its loop button from, and the place the loop key
+    steps on from."""
+    return state.portrait_loop if which == 2 else state.landscape_loop
 
 
 def _side_f_mode(state: BridgeState, which: int) -> bool:
