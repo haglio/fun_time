@@ -15,6 +15,7 @@ from fun_time.media_metadata import (
     metadata_path_for,
     normalize_path_key,
     path_matches_query,
+    reject_action,
     reset_group_index_cache,
     search_haystack,
     seed_group_key,
@@ -522,3 +523,34 @@ def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
     labels = {action_label(index, paths[name]) for name in ("clip_one", "clip_two")}
     assert labels == {"Alpha 1", "Alpha 2"}
     assert action_label(index, paths["kiss"]) == "Kissing"  # sole Kissing, unnumbered
+
+
+def test_reject_action_strikes_the_act_and_remembers_it(tmp_path: Path):
+    """Saying the act is wrong empties ``video.action`` — so the clip reads as
+    unlabeled again — and keeps what it said under ``video.wrong_action``."""
+    _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
+
+    struck = reject_action(paths["clip"], metadata_root)
+
+    assert struck == "Alpha"
+    payload = load_metadata(metadata_path_for(paths["clip"], metadata_root))
+    assert "action" not in payload["video"]
+    assert payload["video"]["wrong_action"] == "Alpha"
+    assert payload["video"]["prompt"], "the rest of the sidecar survives"
+
+
+def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):
+    """A clip that was never labeled has nothing to be wrong about, so its
+    sidecar is left exactly as it was — and one with no sidecar at all is left
+    without one."""
+    _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
+    sidecar = metadata_path_for(paths["clip"], metadata_root)
+    sidecar.write_text(json.dumps({"video": {"prompt": "unlabeled"}}), encoding="utf-8")
+    before = sidecar.read_text(encoding="utf-8")
+    unknown = str(tmp_path / "videos" / "videos" / "never_seen.mp4")
+
+    assert reject_action(paths["clip"], metadata_root) == ""
+    assert reject_action(unknown, metadata_root) == ""
+
+    assert sidecar.read_text(encoding="utf-8") == before
+    assert not metadata_path_for(unknown, metadata_root).exists()

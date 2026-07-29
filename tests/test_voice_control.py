@@ -776,6 +776,18 @@ def test_reset_joins_the_order_agnostic_satellite_grid():
         assert VOICE_COMMANDS[f"reset {side}"] == f"{side}_reset"
 
 
+def test_wrong_action_joins_the_order_agnostic_satellite_grid():
+    """"Wrong action" says the clip on screen is labelled as doing the wrong
+    thing.  It is about one clip, like "weird", so it is sided like one: bare it
+    reaches the side last addressed, and a side word works in either order."""
+    assert VOICE_COMMANDS["wrong action"] == "active_wrong_action"
+    for side in ("portrait", "landscape", "both"):
+        assert VOICE_COMMANDS[f"{side} wrong action"] == f"{side}_wrong_action"
+        assert VOICE_COMMANDS[f"wrong action {side}"] == f"{side}_wrong_action"
+    # …and it must not disturb the bare "action", which still cycles.
+    assert VOICE_COMMANDS["action"] == "active_cycle_action"
+
+
 def test_group_commands_do_not_shadow_the_single_word_actions():
     # "lock action" must not disturb "lock"/"action"; "action loop" not "loop".
     assert VOICE_COMMANDS["lock"] == "active_lock_on"

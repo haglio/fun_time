@@ -1795,6 +1795,103 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
     assert _cmds(config, 2) == []  # ...and never touches the portrait side.
 
 
+# --- portrait/landscape wrong action ---
+
+
+def _sidecar_video(config: BridgeConfig, path: str) -> dict:
+    from fun_time.media_metadata import load_metadata, metadata_path_for
+
+    return load_metadata(metadata_path_for(path, config.regen_metadata_root)).get("video", {})
+
+
+def test_portrait_wrong_action_strikes_the_act_out_of_the_sidecar(tmp_path: Path):
+    """"Wrong action" says the clip is fine but its label is not: the act goes,
+    which is what puts the clip back in front of Evolver's backfill tool."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_zeta": _cycle_meta("111", "Zeta Massage"),
+    })
+    state = _make_state()
+
+    _set_current(config, 2, paths["subject_zeta"])
+    _new_state, ops = dispatch_command("portrait_wrong_action", state, config)
+
+    video = _sidecar_video(config, paths["subject_zeta"])
+    assert "action" not in video
+    assert video["wrong_action"] == "Zeta Massage"
+    assert [(op.key, op.source, op.level) for op in ops if op.op == "notice"] == [
+        ("Action removed: Zeta Massage", "portrait", NOTICE)
+    ]
+    assert _cmds(config, 2) == [], "the clip keeps playing — only its metadata changed"
+
+
+def test_wrong_action_reports_a_dead_end_when_the_clip_has_no_act(tmp_path: Path):
+    """A clip nobody has labeled yet has no wrong act to remove — it is already
+    waiting to be named — so the command flashes red like every other dead end."""
+    config, paths = _make_grouped_config(tmp_path, {"unlabeled": {"video": {"prompt": "p"}}})
+    state = _make_state()
+
+    _set_current(config, 2, paths["unlabeled"])
+    _new_state, ops = dispatch_command("portrait_wrong_action", state, config)
+
+    assert [(op.key, op.level) for op in ops if op.op == "notice"] == [
+        ("No action to remove", FAILED_NOTICE_LEVEL)
+    ]
+    assert "wrong_action" not in _sidecar_video(config, paths["unlabeled"])
+
+
+def test_wrong_action_judges_the_clip_that_was_playing_when_it_was_spoken(tmp_path: Path):
+    """The mislabeled clip is the one the speaker was looking at.  A satellite
+    that auto-advanced mid-phrase must not have its innocent newcomer struck."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_zeta": _cycle_meta("111", "Zeta Massage"),
+        "newcomer": _cycle_meta("222", "Alpha"),
+    })
+    state = _make_state()
+
+    _set_current(config, 2, paths["newcomer"])
+    dispatch_command("portrait_wrong_action", state, config, target_path=paths["subject_zeta"])
+
+    assert "action" not in _sidecar_video(config, paths["subject_zeta"])
+    assert _sidecar_video(config, paths["newcomer"])["action"] == "Alpha"
+
+
+def test_landscape_wrong_action_strikes_the_landscape_clip(tmp_path: Path):
+    """Each side judges its own clip: the landscape command must never reach
+    across to whatever portrait happens to be playing."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "on_portrait": _cycle_meta("111", "Zeta Massage"),
+        "on_landscape": _cycle_meta("222", "Alpha"),
+    })
+    state = _make_state()
+
+    _set_current(config, 2, paths["on_portrait"])
+    _set_current(config, 3, paths["on_landscape"])
+    _new_state, ops = dispatch_command("landscape_wrong_action", state, config)
+
+    assert "action" not in _sidecar_video(config, paths["on_landscape"])
+    assert _sidecar_video(config, paths["on_portrait"])["action"] == "Zeta Massage"
+    assert [op.source for op in ops if op.op == "notice"] == ["landscape"]
+
+
+def test_wrong_action_rebuilds_the_grouping_index_it_just_invalidated(tmp_path: Path):
+    """The index decides the HUD's action column and where a cycle lands next, so
+    a struck act must not go on grouping the clip it no longer has."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_zeta": _cycle_meta("111", "Zeta Massage"),
+        "subject_alpha": _cycle_meta("111", "Alpha"),
+    })
+    state = _make_state()
+
+    _set_current(config, 2, paths["subject_zeta"])
+    dispatch_command("portrait_cycle_action", state, config)  # warms the cached index
+    dispatch_command("portrait_wrong_action", state, config)
+
+    from fun_time.command_dispatch import _satellite_group_index
+
+    index = _satellite_group_index(2, config, paths["subject_zeta"])
+    assert normalize_path_key(paths["subject_zeta"]) not in index.action_by_path
+
+
 # --- latest / shuffle ---
 
 
