@@ -1,6 +1,6 @@
 """Integration: the VR player's whole pipeline minus the headset.
 
-Builds the real units (`_PrimaryUnit`, two `_SatelliteUnit`s) from a manifest
+Builds the real units (`_MainUnit`, two `_SatelliteUnit`s) from a manifest
 produced by the production `build_vr_manifest`, decodes real library media
 through real mpv render contexts into GL textures on a hidden GLFW context,
 runs the production file-channel worker beside the frame loop, and paces the
@@ -76,14 +76,14 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     manifest = vrp._read_manifest(manifest_path)
     commands = manifest["commands"]
 
-    # The primary rotates real VR-library masters when the machine has them
-    # (the realistic heavy-decode load), and falls back to the desktop primary
+    # The main player rotates real VR-library masters when the machine has them
+    # (the realistic heavy-decode load), and falls back to the desktop library
     # rotation's own files — the same merged-sources order production uses.
-    primary_videos = _sample_library_videos(
+    main_videos = _sample_library_videos(
         [*config.vr.library_dirs, *config.paths.nau_library_dirs], 2
     )
     Path(commands["nau_playlist_file"]).write_text(
-        "".join(f"{video}\n" for video in primary_videos), encoding="utf-8"
+        "".join(f"{video}\n" for video in main_videos), encoding="utf-8"
     )
     Path(commands["portrait_playlist_file"]).write_text(
         "".join(f"{video}\n" for video in _sample_library_videos(config.paths.portrait_dirs, 2)),
@@ -110,12 +110,12 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     from fun_time_vr.render import SceneRenderer, immersive_mode  # noqa: PLC0415
 
     renderer = SceneRenderer()
-    primary = vrp._PrimaryUnit(manifest, glfw.get_proc_address)
+    main = vrp._MainUnit(manifest, glfw.get_proc_address)
     satellites = [
         vrp._SatelliteUnit("portrait", manifest, glfw.get_proc_address),
         vrp._SatelliteUnit("landscape", manifest, glfw.get_proc_address),
     ]
-    units = [primary, *satellites]
+    units = [main, *satellites]
     stop = threading.Event()
     perf = vrp.FramePerf(logger=vrp.logger)
     pump_thread = threading.Thread(
@@ -156,12 +156,12 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         # orchestrator's startup gate reads this exact file.
         _wait(
             lambda: read_nau_status(Path(commands["nau_status_file"])).video,
-            timeout=30, desc="the primary's first status write",
+            timeout=30, desc="the main player's first status write",
         )
 
         # All three players decode into their textures.
         run_frames(240, measure=False)  # warm-up: files open, targets allocate
-        for unit, name in ((primary, "primary"), (satellites[0], "portrait"), (satellites[1], "landscape")):
+        for unit, name in ((main, "main"), (satellites[0], "portrait"), (satellites[1], "landscape")):
             _wait(
                 lambda u=unit: (run_frames(9, measure=False) or u.target.ready),
                 timeout=30, desc=f"{name} target allocation",
@@ -186,7 +186,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         _wait(
             lambda: read_nau_status(Path(commands["nau_status_file"])).video
             not in ("", first_video),
-            timeout=20, desc="NEXT to advance the primary",
+            timeout=20, desc="NEXT to advance the main player",
         )
 
         # Clip transitions must not stall the frame loop.  Cold-load the
@@ -235,9 +235,9 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         # either an immersive wrap this renderer has a shader for, or flat.
         from fun_time_vr.projection import PROJECTIONS  # noqa: PLC0415
 
-        assert primary.role.projection in PROJECTIONS
-        assert primary.role.projection == "flat" or (
-            immersive_mode(primary.role.projection) is not None
+        assert main.role.projection in PROJECTIONS
+        assert main.role.projection == "flat" or (
+            immersive_mode(main.role.projection) is not None
         )
     finally:
         stop.set()

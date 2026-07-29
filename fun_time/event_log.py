@@ -46,13 +46,13 @@ LEVEL_NAMES: tuple[str, ...] = tuple(LEVELS_BY_NAME)
 
 # Which window a line is about — the axis the log panel filters on.  Lines about
 # the session as a whole (startup, voice, the broker) are SYSTEM.
-SOURCE_PRIMARY = "primary"
+SOURCE_MAIN = "main"
 SOURCE_PORTRAIT = "portrait"
 SOURCE_LANDSCAPE = "landscape"
 SOURCE_DASH = "dash"
 SOURCE_SYSTEM = "system"
 SOURCES: tuple[str, ...] = (
-    SOURCE_PRIMARY,
+    SOURCE_MAIN,
     SOURCE_PORTRAIT,
     SOURCE_LANDSCAPE,
     SOURCE_DASH,

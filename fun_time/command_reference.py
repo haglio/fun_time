@@ -77,9 +77,9 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             ),
             _Row("Latest — (re)load Portrait/Landscape newest-first", (), ("both_latest",)),
             _Row("Shuffle — reshuffle Portrait/Landscape (cancels Latest; keeps filters)", (), ("both_shuffle",)),
-            # The primary display's sound, in whichever mode owns it — Nau's
+            # The main player's sound, in whichever mode owns it — Nau's
             # video in nau/hybrid, Genau's clip audio in genau.
-            _Row("Mute / unmute the primary display", (), ("audio_mute", "audio_unmute")),
+            _Row("Mute / unmute the main player", (), ("audio_mute", "audio_unmute")),
             _Row("Volume down / up, in tenths", (), ("audio_volume_down", "audio_volume_up")),
             _Row("Disable voice control", (), ("voice_toggle", "voice_off")),
             _Row("Start / stop broker", ("B",), ("broker_panel", "broker_start", "broker_stop")),
@@ -93,18 +93,18 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
     (
         "Nau",
         (
-            _Row("Previous video", ("[",), ("primary_prev",)),
-            _Row("Next video", ("]",), ("primary_next",)),
+            _Row("Previous video", ("[",), ("main_prev",)),
+            _Row("Next video", ("]",), ("main_next",)),
             _Row(
-                "Lock / unlock the primary — locked (the default) what is on "
+                "Lock / unlock the main player — locked (the default) what is on "
                 "screen repeats; unlocked it moves on and the list runs around. "
                 "Reaches whichever player is showing: Nau's video here, Genau's "
                 "clip in Genau mode",
                 ("'",),
-                ("primary_lock", "primary_lock_on", "primary_lock_off"),
+                ("main_lock", "main_lock_on", "main_lock_off"),
             ),
-            _Row("Nudge back 10 seconds", ("-",), ("primary_nudge_prev",)),
-            _Row("Nudge forward 10 seconds", ("=",), ("primary_nudge_next",)),
+            _Row("Nudge back 10 seconds", ("-",), ("main_nudge_prev",)),
+            _Row("Nudge forward 10 seconds", ("=",), ("main_nudge_next",)),
             _Row(
                 "Cycle the video's VR projection — flat screen, 180° SBS, "
                 "fisheye 190, MKX200, 360 — remembered per video (FunTimeVR)",
@@ -130,7 +130,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Cycle through versions of the current video", ("V",), ("nau_cycle_version",)),
             _Row(
                 "Length of what plays: \"mixed\" (the default, everything), "
-                "\"shorts\", or \"full length\"; \"primary reset\" also returns "
+                "\"shorts\", or \"full length\"; \"main reset\" also returns "
                 "to mixed, and leaves any compilation with it",
                 ("T",),
                 ("nau_toggle_length", "nau_length_shorts", "nau_length_full",
@@ -159,10 +159,10 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("nau_record_down", "nau_record_up", "nau_record_tap", "nau_loop_cancel"),
             ),
             _Row(
-                "F-Mode on the primary alone — play only the videos that "
+                "F-Mode on the main player alone — play only the videos that "
                 "have a funscript",
                 (),
-                ("primary_fmode", "primary_fmode_on", "primary_fmode_off"),
+                ("main_fmode", "main_fmode_on", "main_fmode_off"),
             ),
             _Row("Open file browser", ("\\",), ("backslash_key", "browse_library")),
             _Row("Save clip (Clipper)", (";",), ("clipper_save",)),
@@ -273,7 +273,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Drop both filters — keep their orders and everything else", (), ("both_no_filter",)),
             _Row(
                 "F-Mode on both satellites — browse only their favorites "
-                "(the primary keeps whatever it is in)",
+                "(the main player keeps whatever it is in)",
                 (),
                 ("both_fmode", "both_fmode_on", "both_fmode_off"),
             ),
@@ -284,19 +284,19 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
         "Active side",
         (
             _Row(
-                "Lock / unlock the active side — the primary, portrait or "
+                "Lock / unlock the active side — the main player, portrait or "
                 "landscape player most recently addressed by voice or keyboard",
                 (),
                 ("active_lock_on", "active_lock_off"),
             ),
             _Row(
-                "Previous clip on the active player — primary, portrait, or "
+                "Previous clip on the active player — main player, portrait, or "
                 "landscape, whichever you last navigated",
                 (),
                 ("active_prev",),
             ),
             _Row(
-                "Next clip on the active player — primary, portrait, or "
+                "Next clip on the active player — main player, portrait, or "
                 "landscape, whichever you last navigated",
                 (),
                 ("active_next",),
@@ -308,7 +308,7 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             ),
             _Row(
                 "F-Mode on the active player — the favorites on a satellite, the "
-                "funscripted videos on the primary",
+                "funscripted videos on the main player",
                 (),
                 ("active_fmode", "active_fmode_on", "active_fmode_off"),
             ),

@@ -522,7 +522,7 @@ def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
     tcode_port = _sink_udp_port()
     genau_config["genau"]["tcode_udp_port"] = tcode_port
     genau_config["nau"]["tcode_udp_port"] = tcode_port
-    # The VR primary streams to the same broker inlet through fun_time's own
+    # The VR main player streams to the same broker inlet through fun_time's own
     # config (``vr.tcode_udp_port``), so it moves onto the run's sink with
     # them — set even when the section is absent, so a config written before
     # FunTimeVR existed still cannot fall back to the production default.
@@ -670,7 +670,7 @@ def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> lis
             if has_matching_funscript(str(candidate)):
                 candidates.append((candidate, source_root))
     if not candidates:
-        raise FileNotFoundError("Could not find a primary video with a matching funscript for integration config")
+        raise FileNotFoundError("Could not find a main-library video with a matching funscript for integration config")
     chosen = random.sample(candidates, min(count, len(candidates)))
     targets: list[Path] = []
     seen_names: set[str] = set()

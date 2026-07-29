@@ -245,7 +245,7 @@ def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
     """Where *hwnd* sits, as (x, y, width, height), or None if it is gone.
 
     Read so a second window can be stood exactly on a first — the library
-    browser fills the primary player's rect, since that is where the video it
+    browser fills the main player's rect, since that is where the video it
     picks will play.
     """
     rect = ctypes.wintypes.RECT()
@@ -473,7 +473,7 @@ def restore_window(hwnd: int, *, activate: bool = True) -> None:
 def disable_window_transitions(hwnd: int) -> None:
     """Force-disable this window's DWM open/minimize/restore animations.
 
-    The primary-slot players (Nau, Genau) are swapped by minimizing the idle
+    The main-slot players (Nau, Genau) are swapped by minimizing the idle
     one and restoring the active one, so both keep a taskbar button the whole
     session (no reappearing-icon flash).  DWMWA_TRANSITIONS_FORCEDISABLED makes
     that minimize/restore instantaneous — no fly-to-taskbar animation to see.

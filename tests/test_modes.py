@@ -10,7 +10,7 @@ from fun_time.modes import (
     SatelliteLibraryContext,
     build_all_playlists,
     build_mirrored_funscript_path,
-    build_primary_playlist_paths,
+    build_main_playlist_paths,
     build_satellite_playlist_paths,
     build_satellite_playlists,
     collect_video_files,
@@ -87,7 +87,7 @@ def test_build_primary_playlist_paths_filters_to_funscripted_items_in_f_mode(tmp
     mirrored.parent.mkdir(parents=True, exist_ok=True)
     mirrored.write_text("{}", encoding="utf-8")
 
-    paths = build_primary_playlist_paths(str(source_root), True, rng=random.Random(1))
+    paths = build_main_playlist_paths(str(source_root), True, rng=random.Random(1))
 
     assert paths == [str(first)]
 
@@ -113,10 +113,10 @@ def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
     landscape_root = tmp_path / "landscape"
     for root in (primary_root, portrait_root, landscape_root):
         root.mkdir(parents=True)
-    primary_video = primary_root / "main.mp4"
+    main_video = primary_root / "main.mp4"
     portrait_video = portrait_root / "portrait.mp4"
     landscape_video = landscape_root / "landscape.mp4"
-    for path in (primary_video, portrait_video, landscape_video):
+    for path in (main_video, portrait_video, landscape_video):
         path.write_text("x", encoding="utf-8")
     mirrored = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "main.funscript"
     mirrored.parent.mkdir(parents=True, exist_ok=True)
@@ -129,24 +129,24 @@ def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
     state_dir = tmp_path / "state"
 
     build_all_playlists(
-        primary_sources=str(primary_root),
+        main_sources=str(primary_root),
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
         favs_file=favs_file,
         state_dir=state_dir,
-        primary_f_mode=True,
+        main_f_mode=True,
         portrait_f_mode=True,
         landscape_f_mode=True,
         rng=random.Random(1),
     )
 
     # Each satellite gets a plain one-path-per-line playlist the native player
-    # reads; the primary slot is Nau, which reads its own .tsv playlist.  One
+    # reads; the main slot is Nau, which reads its own .tsv playlist.  One
     # video from each source survives the favourites filter.
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(portrait_video)]
     assert _lines(state_dir / "landscape_playlist.tsv") == [str(landscape_video)]
-    assert _lines(state_dir / "nau_playlist.tsv") == [f"{primary_video}\t{mirrored}"]
-    assert not (state_dir / "primary_playlist.tsv").exists()
+    assert _lines(state_dir / "nau_playlist.tsv") == [f"{main_video}\t{mirrored}"]
+    assert not (state_dir / "main_playlist.tsv").exists()
 
 
 def test_build_all_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path: Path):
@@ -163,7 +163,7 @@ def test_build_all_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path: 
     state_dir = tmp_path / "state"
 
     build_all_playlists(
-        primary_sources=str(primary_root),
+        main_sources=str(primary_root),
         portrait_sources="",
         landscape_sources="",
         favs_file=favs_file,
@@ -331,7 +331,7 @@ def test_build_all_playlists_recent_orders_satellites(tmp_path: Path):
     state_dir = tmp_path / "state"
 
     build_all_playlists(
-        primary_sources="",
+        main_sources="",
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
@@ -363,7 +363,7 @@ def test_build_primary_playlist_paths_returns_all_when_f_mode_false(tmp_path: Pa
     d.mkdir()
     (d / "a.mp4").write_text("x", encoding="utf-8")
     (d / "b.mp4").write_text("x", encoding="utf-8")
-    paths = build_primary_playlist_paths(str(d), False, rng=random.Random(1))
+    paths = build_main_playlist_paths(str(d), False, rng=random.Random(1))
     assert len(paths) == 2
 
 
@@ -377,8 +377,8 @@ def test_build_satellite_playlist_paths_returns_all_when_f_mode_false(tmp_path: 
 
 
 def test_build_primary_playlist_paths_includes_funscripted_ai_subdir_in_f_mode(tmp_path: Path):
-    """F-mode primary playlist should include AI videos with funscripts that live
-    inside the primary source tree (non_AI/actually_AI_but_funscripted/)."""
+    """F-mode main playlist should include AI videos with funscripts that live
+    inside the main source tree (non_AI/actually_AI_but_funscripted/)."""
     primary_root = tmp_path / "videos" / "videos" / "2D" / "non_AI"
     non_ai_video = primary_root / "clip.mp4"
     ai_video = primary_root / "actually_AI_but_funscripted" / "portrait" / "funscripted_ai_clip.mp4"
@@ -393,7 +393,7 @@ def test_build_primary_playlist_paths_includes_funscripted_ai_subdir_in_f_mode(t
     non_ai_script.write_text("{}", encoding="utf-8")
     ai_script.write_text("{}", encoding="utf-8")
 
-    paths = build_primary_playlist_paths(str(primary_root), True, rng=random.Random(1))
+    paths = build_main_playlist_paths(str(primary_root), True, rng=random.Random(1))
 
     assert len(paths) == 2
     path_strs = {str(p) for p in paths}
@@ -529,7 +529,7 @@ def test_build_all_playlists_forwards_library_to_satellites(tmp_path: Path):
     (primary_dir / "main.mp4").write_text("x", encoding="utf-8")
 
     build_all_playlists(
-        primary_sources=str(primary_dir),
+        main_sources=str(primary_dir),
         portrait_sources=str(source_dir),
         landscape_sources=str(source_dir),
         favs_file=tmp_path / "favs.csv",

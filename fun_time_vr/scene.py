@@ -1,6 +1,6 @@
 """Where each player's picture hangs in the VR scene — pure geometry.
 
-One forward band of view: the primary player spans the middle, and each
+One forward band of view: the main player spans the middle, and each
 satellite floats beside it, portrait on the left and landscape on the right.
 Every screen is a gently curved patch of one cylinder around the viewer (a
 flat 2D video reads better with a slight wrap at this scale), built here as
@@ -10,7 +10,7 @@ shader — so this module is the whole of the "windowed" layout.
 
 The satellites draw after (so over) the primary, which is what keeps them
 visible when a VR video wraps the entire hemisphere behind them — and is also
-why they may overlap the primary's edges.
+why they may overlap the main player's edges.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ PRIMARY_WIDTH_DEG = 72.0
 # Tuned on the first headset run: satellites flush beside the primary
 # (36° wide, centers at ±54°) landed in the peripheral vision on a wide-FOV
 # headset — the user had to turn to see either one.  So they shrink a little,
-# tuck inward over the primary's edges, and ride slightly above center.
+# tuck inward over the main player's edges, and ride slightly above center.
 SATELLITE_WIDTH_DEG = 28.0
 SATELLITE_AZIMUTH_DEG = 38.0
 SATELLITE_ELEVATION_DEG = 10.0

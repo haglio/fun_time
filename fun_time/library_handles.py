@@ -1,4 +1,4 @@
-"""The primary library as browsable handles — one per video, not per file.
+"""The main library as browsable handles — one per video, not per file.
 
 The library on disk is organised by *pipeline stage*, not by content: one video
 turns up under ``0 unsorted``, again under ``1 could use work/…``, again under
@@ -27,7 +27,7 @@ class LibraryHandle:
     """One video, however many files it exists as.
 
     *versions* holds every rendition, largest file first — the same canonical
-    ordering the primary player's own version cycling walks, so the version a
+    ordering the main player's own version cycling walks, so the version a
     handle plays is the one that player would have chosen anyway.
     """
 

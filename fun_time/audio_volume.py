@@ -1,4 +1,4 @@
-"""The primary display's sound level, and the file the bridge publishes it in.
+"""The main player's sound level, and the file the bridge publishes it in.
 
 The level is a percentage of each source's own volume: 100 leaves the media as
 it was mastered, 0 is silence.  The dispatch loop holds the authoritative value
@@ -37,7 +37,7 @@ def read_volume(path: Path) -> int:
 def publish_audio_level(
     *, nau_cmd_file: Path, audio_volume_file: Path, volume: int, muted: bool
 ) -> None:
-    """Put *volume* / *muted* on both of the primary display's audio sinks.
+    """Put *volume* / *muted* on both of the main player's audio sinks.
 
     Nau's mpv carries the video's sound; the Genau audio companion carries the
     clip music.  Which one is audible depends on the mode, so both are told the

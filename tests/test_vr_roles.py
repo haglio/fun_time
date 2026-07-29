@@ -7,7 +7,7 @@ import pytest
 
 from fun_time.dashboard_runtime import read_nau_status
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
-from fun_time_vr.roles import MAX_SPEED, MIN_SPEED, PrimaryRole
+from fun_time_vr.roles import MAX_SPEED, MIN_SPEED, MainRole
 
 
 class FakePlayer:
@@ -95,7 +95,7 @@ def role_parts(tmp_path):
     playlist.write_text(f"{one}\t{script}\n{two}\n{three}\n", encoding="utf-8")
 
     player, driver = FakePlayer(), FakeDriver()
-    role = PrimaryRole(
+    role = MainRole(
         player=player,
         driver=driver,
         playlist_file=playlist,
@@ -170,7 +170,7 @@ class TestPlaybackVerbs:
         assert player.muted is False
 
     def test_set_volume_before_audio_is_live_records_without_unsilencing(self, role_parts):
-        """In VR the primary starts silent and the host un-silences it once the
+        """In VR the main player starts silent and the host un-silences it once the
         headset is presenting; a SET_VOLUME arriving during that warm-up must
         record the level, not blare it out of the desktop speakers."""
         role, player, *_ = role_parts

@@ -8,7 +8,7 @@ from fun_time.dashboard_bridge import build_dashboard_snapshot_text, write_dashb
 def test_build_dashboard_snapshot_text_matches_bridge_contract():
     text = build_dashboard_snapshot_text(
         osr2_mode="auto",
-        primary_mode="nau",
+        main_mode="nau",
         portrait_locked=True,
         landscape_locked=False,
     )
@@ -20,7 +20,7 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "active=0\n"
         "[voice]\n"
         "active=1\n"
-        "[primary]\n"
+        "[main]\n"
         "mode=nau\n"
         "locked=0\n"
         "[portrait]\n"
@@ -33,7 +33,7 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
 def test_build_dashboard_snapshot_text_includes_omnipause_state():
     text = build_dashboard_snapshot_text(
         osr2_mode="controlled",
-        primary_mode="nau",
+        main_mode="nau",
         portrait_locked=False,
         landscape_locked=False,
         omni_paused=True,
@@ -45,7 +45,7 @@ def test_build_dashboard_snapshot_text_includes_omnipause_state():
 def test_build_dashboard_snapshot_text_includes_voice_state():
     text = build_dashboard_snapshot_text(
         osr2_mode="controlled",
-        primary_mode="nau",
+        main_mode="nau",
         portrait_locked=False,
         landscape_locked=False,
         voice_active=False,
@@ -60,14 +60,14 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
     first = write_dashboard_snapshot(
         output,
         osr2_mode="controlled",
-        primary_mode="genau",
+        main_mode="genau",
         portrait_locked=False,
         landscape_locked=True,
     )
     second = write_dashboard_snapshot(
         output,
         osr2_mode="controlled",
-        primary_mode="genau",
+        main_mode="genau",
         portrait_locked=False,
         landscape_locked=True,
     )
@@ -75,6 +75,6 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
     assert first is True
     assert second is False
     text = output.read_text(encoding="utf-16")
-    assert "[primary]" in text
+    assert "[main]" in text
     assert "mode=genau" in text
     assert "genau_link" not in text

@@ -5,7 +5,7 @@ from pathlib import Path
 from fun_time.dashboard_layout import dashboard_window_height
 from fun_time.window_layout import (
     MonitorRect,
-    compute_primary_media_rect,
+    compute_main_media_rect,
     compute_window_layout,
 )
 from fun_time import load_config
@@ -15,7 +15,7 @@ def test_compute_window_layout_uses_secondary_monitor_for_portrait(cfg_path: Pat
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
-        main_monitor=MonitorRect(0, 0, 2560, 1392),
+        primary_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
     )
@@ -29,7 +29,7 @@ def test_compute_window_layout_uses_main_monitor_for_landscape_and_random_favs_b
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
-        main_monitor=MonitorRect(0, 0, 2560, 1392),
+        primary_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
     )
@@ -47,7 +47,7 @@ def test_dashboard_sits_at_the_top_left_corner_of_the_left_column(cfg_path: Path
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
-        main_monitor=MonitorRect(0, 0, 2560, 1392),
+        primary_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
     )
@@ -63,7 +63,7 @@ def test_dashboard_spans_the_whole_left_column_above_the_rfb(cfg_path: Path):
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
-        main_monitor=MonitorRect(0, 0, 2560, 1392),
+        primary_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
     )
@@ -77,7 +77,7 @@ def test_rfb_fills_the_rectangle_below_the_dashboard(cfg_path: Path):
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
-        main_monitor=MonitorRect(0, 0, 2560, 1392),
+        primary_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
     )
@@ -97,7 +97,7 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
-        main_monitor=MonitorRect(100, 50, 2560, 1392),
+        primary_monitor=MonitorRect(100, 50, 2560, 1392),
         secondary_monitor=MonitorRect(2660, 50, 1440, 3440),
         layout_config=config.layout,
     )
@@ -109,25 +109,25 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
 
 
 def test_primary_media_rect_is_the_secondary_below_the_portrait_satellite(cfg_path: Path):
-    """The primary player fills the secondary monitor below the portrait's slice
+    """The main player fills the secondary monitor below the portrait's slice
     — the rect startup launches Nau/Genau into and the notice overlay flashes
-    primary notices over.  It abuts the portrait window with no gap and no
+    main-player notices over.  It abuts the portrait window with no gap and no
     overlap, and reaches the monitor's bottom."""
     config = load_config(cfg_path)
     secondary = MonitorRect(2560, 0, 1440, 3440)
 
     plan = compute_window_layout(
-        main_monitor=MonitorRect(0, 0, 2560, 1392),
+        primary_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=secondary,
         layout_config=config.layout,
     )
-    primary = compute_primary_media_rect(secondary_monitor=secondary, layout_config=config.layout)
+    main = compute_main_media_rect(secondary_monitor=secondary, layout_config=config.layout)
 
-    assert primary.x == secondary.x
-    assert primary.width == secondary.width
+    assert main.x == secondary.x
+    assert main.width == secondary.width
     # Starts exactly where the portrait satellite ends, and runs to the bottom.
-    assert primary.y == plan.portrait.y + plan.portrait.height
-    assert primary.y + primary.height == secondary.y + secondary.height
+    assert main.y == plan.portrait.y + plan.portrait.height
+    assert main.y + main.height == secondary.y + secondary.height
 
 
 def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_path: Path):
@@ -138,7 +138,7 @@ def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_
     main = MonitorRect(0, 0, 2560, 1392)
 
     plan = compute_window_layout(
-        main_monitor=main,
+        primary_monitor=main,
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
     )

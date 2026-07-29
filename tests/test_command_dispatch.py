@@ -42,7 +42,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         favs_file=favs_file,
         weird_dir=weird_dir,
         state_dir=state_dir,
-        primary_sources=str(tmp_path / "primary"),
+        main_sources=str(tmp_path / "primary"),
         portrait_sources=str(tmp_path / "portrait"),
         landscape_sources=str(tmp_path / "landscape"),
         genau_mode_file=state_dir / "genau_mode.txt",
@@ -94,7 +94,7 @@ def _make_state(**overrides) -> BridgeState:
     defaults = dict(
         locked2=False,
         locked3=False,
-        primary_mode="nau",
+        main_mode="nau",
         omni_paused=False,
     )
     defaults.update(overrides)
@@ -406,70 +406,70 @@ def test_portrait_next_queues_next(tmp_path: Path):
     assert _cmds(config, 2) == ["NEXT"]
 
 
-# --- primary_prev / primary_next ---
+# --- main_prev / main_next ---
 
 
 def test_primary_prev_in_hybrid_writes_nau_cmd(tmp_path: Path):
     """Hybrid displays Nau, so navigation goes to Nau's command file, not a satellite's."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
 
-    dispatch_command("primary_prev", state, config)
+    dispatch_command("main_prev", state, config)
 
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV"
 
 
 def test_primary_next_in_hybrid_writes_nau_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
 
-    dispatch_command("primary_next", state, config)
+    dispatch_command("main_next", state, config)
 
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
 def test_primary_next_in_nau_mode_writes_nau_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
-    dispatch_command("primary_next", state, config)
+    dispatch_command("main_next", state, config)
 
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT"
 
 
 def test_primary_prev_in_genau_mode_writes_nau_cmd(tmp_path: Path):
-    """Outside hybrid, Nau is the primary player — even while Genau mode is
+    """Outside hybrid, Nau is the main player — even while Genau mode is
     active, [ and ] navigate the paused Nau in the background."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
-    dispatch_command("primary_prev", state, config)
+    dispatch_command("main_prev", state, config)
 
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV"
 
 
-# --- primary_lock ---
+# --- main_lock ---
 
 
 def test_primary_lock_toggles_naus_hold_on_the_video(tmp_path: Path):
     """The apostrophe and the console's padlock both send the toggle; Nau holds
     the state, since only it knows what its own end of file is doing."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
-    dispatch_command("primary_lock", state, config)
+    dispatch_command("main_lock", state, config)
 
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK"
 
 
 def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
-    dispatch_command("primary_lock_on", state, config)
+    dispatch_command("main_lock_on", state, config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON"
 
-    dispatch_command("primary_lock_off", state, config)
+    dispatch_command("main_lock_off", state, config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF"
 
 
@@ -478,9 +478,9 @@ def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
     clip — the same split the speed controls make.  One padlock on the console
     rather than one per player, which is what left Hybrid with two."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
-    dispatch_command("primary_lock", state, config)
+    dispatch_command("main_lock", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK"
     assert not config.nau_cmd_file.exists()
@@ -489,30 +489,30 @@ def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
 def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    dispatch_command("primary_lock_off", _make_state(primary_mode="genau"), config)
+    dispatch_command("main_lock_off", _make_state(main_mode="genau"), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF"
 
-    dispatch_command("primary_lock_on", _make_state(primary_mode="hybrid"), config)
+    dispatch_command("main_lock_on", _make_state(main_mode="hybrid"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON"
 
 
 def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(tmp_path: Path):
-    """A satellite's own lock key selects that side; the primary's does the same,
+    """A satellite's own lock key selects that side; the main player's does the same,
     so a following bare "next" goes where the last thing you touched was."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau", active_side=2)
+    state = _make_state(main_mode="nau", active_side=2)
 
-    state, _ops = dispatch_command("primary_lock", state, config)
+    state, _ops = dispatch_command("main_lock", state, config)
 
     assert state.active_side == 1
 
 
-# --- projection_cycle (FunTimeVR's primary) ---
+# --- projection_cycle (FunTimeVR's main player) ---
 
 
 def test_projection_cycle_writes_nau_cmd_while_nau_displays(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
 
     dispatch_command("projection_cycle", state, config)
 
@@ -523,7 +523,7 @@ def test_projection_cycle_in_genau_mode_is_a_no_op(tmp_path: Path):
     """Genau owns the display in genau mode; there is no projected video to
     re-project, so the verb goes nowhere."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     dispatch_command("projection_cycle", state, config)
 
@@ -535,7 +535,7 @@ def test_projection_cycle_in_genau_mode_is_a_no_op(tmp_path: Path):
 
 def test_recenter_writes_nau_cmd_while_nau_displays(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     dispatch_command("recenter_view", state, config)
 
@@ -544,7 +544,7 @@ def test_recenter_writes_nau_cmd_while_nau_displays(tmp_path: Path):
 
 def test_recenter_in_genau_mode_is_a_no_op(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     dispatch_command("recenter_view", state, config)
 
@@ -556,7 +556,7 @@ def test_recenter_in_genau_mode_is_a_no_op(tmp_path: Path):
 
 def test_nau_cycle_version_writes_nau_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     dispatch_command("nau_cycle_version", state, config)
 
@@ -565,7 +565,7 @@ def test_nau_cycle_version_writes_nau_cmd(tmp_path: Path):
 
 def test_nau_toggle_length_writes_toggle_command(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     dispatch_command("nau_toggle_length", state, config)
 
@@ -574,7 +574,7 @@ def test_nau_toggle_length_writes_toggle_command(tmp_path: Path):
 
 def test_nau_length_shorts_writes_set_length_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     dispatch_command("nau_length_shorts", state, config)
 
@@ -583,7 +583,7 @@ def test_nau_length_shorts_writes_set_length_mode(tmp_path: Path):
 
 def test_nau_length_full_writes_set_length_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     dispatch_command("nau_length_full", state, config)
 
@@ -594,7 +594,7 @@ def test_end_compilation_writes_end_compilation(tmp_path: Path):
     """Out of a compilation without naming a length — Nau goes back to whichever
     mode it was in when it entered."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     dispatch_command("nau_end_compilation", state, config)
 
@@ -604,7 +604,7 @@ def test_end_compilation_writes_end_compilation(tmp_path: Path):
 def test_nau_length_mixed_writes_set_length_mode(tmp_path: Path):
     """The unfiltered mode Nau opens in, and the way back to it from either half."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     dispatch_command("nau_length_mixed", state, config)
 
@@ -614,7 +614,7 @@ def test_nau_length_mixed_writes_set_length_mode(tmp_path: Path):
 def test_nau_length_mode_written_in_hybrid_mode(tmp_path: Path):
     """Nau owns the display in hybrid too, so length/version actions apply."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
 
     dispatch_command("nau_length_shorts", state, config)
 
@@ -624,7 +624,7 @@ def test_nau_length_mode_written_in_hybrid_mode(tmp_path: Path):
 def test_nau_length_mode_not_written_in_genau_mode(tmp_path: Path):
     """Length/version actions are inert in genau mode, where Genau owns the display."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     dispatch_command("nau_length_shorts", state, config)
 
@@ -636,37 +636,37 @@ def test_nau_length_mode_not_written_in_genau_mode(tmp_path: Path):
 
 def test_compilation_writes_play_compilation(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_compilation", _make_state(primary_mode="nau"), config)
+    dispatch_command("nau_compilation", _make_state(main_mode="nau"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION"
 
 
 def test_full_vid_writes_play_full_vid(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_full_vid", _make_state(primary_mode="hybrid"), config)
+    dispatch_command("nau_full_vid", _make_state(main_mode="hybrid"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID"
 
 
 def test_clip_jump_writes_play_clip_jump(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_clip_jump", _make_state(primary_mode="nau"), config)
+    dispatch_command("nau_clip_jump", _make_state(main_mode="nau"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP"
 
 
 def test_funscript_jump_writes_jump_to_funscript(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_funscript_jump", _make_state(primary_mode="nau"), config)
+    dispatch_command("nau_funscript_jump", _make_state(main_mode="nau"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT"
 
 
 def test_next_funscripted_writes_next_funscripted(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_next_funscripted", _make_state(primary_mode="hybrid"), config)
+    dispatch_command("nau_next_funscripted", _make_state(main_mode="hybrid"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED"
 
 
 def test_clip_nav_inert_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_compilation", _make_state(primary_mode="genau"), config)
+    dispatch_command("nau_compilation", _make_state(main_mode="genau"), config)
     assert not config.nau_cmd_file.exists()
 
 
@@ -674,7 +674,7 @@ def test_funscript_nav_inert_in_genau_mode(tmp_path: Path):
     """Genau owns the display and the device there; Nau's playlist and script are
     not what the room is watching, so a jump into them would be invisible."""
     config = _make_config(tmp_path)
-    dispatch_command("nau_next_funscripted", _make_state(primary_mode="genau"), config)
+    dispatch_command("nau_next_funscripted", _make_state(main_mode="genau"), config)
     assert not config.nau_cmd_file.exists()
 
 
@@ -718,7 +718,7 @@ def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
 
 
 def test_a_fresh_session_starts_with_the_primary_active():
-    """The primary is the display the eye opens on, so it holds the floor at
+    """The main player is on the display the eye opens on, so it holds the floor at
     startup — a bare 'next' or 'lock' goes there, not to a satellite, until one is
     addressed."""
     from fun_time.command_dispatch import BridgeState
@@ -749,24 +749,24 @@ def test_landscape_command_sets_active_side_to_landscape(tmp_path: Path):
 
 
 def test_primary_nav_sets_active_side_to_primary(tmp_path: Path):
-    """Navigating the primary (Nau) makes it the active player (slot 1), so bare
+    """Navigating the main player (Nau) makes it the active player (slot 1), so bare
     'next'/'previous' then drive it too."""
     config = _make_config(tmp_path)
 
-    for command in ("primary_next", "primary_prev"):
+    for command in ("main_next", "main_prev"):
         new_state, _ops = dispatch_command(command, _make_state(active_side=3), config)
         assert new_state.active_side == 1, command
 
 
 def test_naming_a_players_f_mode_makes_it_the_active_one(tmp_path: Path):
     """Bare "f mode" follows the active player, so naming one has to select it —
-    a satellite's does by its prefix, and the primary needs the same or "primary
+    a satellite's does by its prefix, and the main player needs the same or "main
     f mode" then "f mode" would land on whichever side was addressed before."""
     config = _make_config(tmp_path)
 
     for suffix in ("", "_on", "_off"):
         new_state, _ops = dispatch_command(
-            f"primary_fmode{suffix}", _make_state(active_side=3), config)
+            f"main_fmode{suffix}", _make_state(active_side=3), config)
         assert new_state.active_side == 1, suffix
         new_state, _ops = dispatch_command(
             f"portrait_fmode{suffix}", _make_state(active_side=1), config)
@@ -778,7 +778,7 @@ def test_nudge_and_mode_commands_leave_active_side_unchanged(tmp_path: Path):
     commands must not disturb the remembered side."""
     config = _make_config(tmp_path)
 
-    for command in ("primary_nudge_next", "primary_nudge_prev", "hybrid_activate"):
+    for command in ("main_nudge_next", "main_nudge_prev", "hybrid_activate"):
         new_state, _ops = dispatch_command(command, _make_state(active_side=3), config)
         assert new_state.active_side == 3, command
 
@@ -854,8 +854,8 @@ def test_fmode_toggle_enables_every_player_from_disabled(tmp_path: Path):
 
     new_state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", _make_state(), config)
 
-    assert mock_fmode.call_args.kwargs["players"] == ("primary", "portrait", "landscape")
-    assert (new_state.primary_f_mode, new_state.portrait_f_mode,
+    assert mock_fmode.call_args.kwargs["players"] == ("main", "portrait", "landscape")
+    assert (new_state.main_f_mode, new_state.portrait_f_mode,
             new_state.landscape_f_mode) == (True, True, True)
 
 
@@ -868,27 +868,27 @@ def test_fmode_toggle_narrows_the_rest_rather_than_lifting_what_is_narrowed(tmp_
 
     new_state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
-    assert (new_state.primary_f_mode, new_state.portrait_f_mode,
+    assert (new_state.main_f_mode, new_state.portrait_f_mode,
             new_state.landscape_f_mode) == (True, True, True)
     # …and the player that was already narrowed is left out of the rebuild, so its
     # queue is not reshuffled for nothing.
-    assert mock_fmode.call_args.kwargs["players"] == ("primary", "landscape")
+    assert mock_fmode.call_args.kwargs["players"] == ("main", "landscape")
 
 
 def test_fmode_toggle_lifts_it_once_every_player_is_in_it(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_f_mode=True, portrait_f_mode=True, landscape_f_mode=True)
+    state = _make_state(main_f_mode=True, portrait_f_mode=True, landscape_f_mode=True)
 
     new_state, _ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
-    assert (new_state.primary_f_mode, new_state.portrait_f_mode,
+    assert (new_state.main_f_mode, new_state.portrait_f_mode,
             new_state.landscape_f_mode) == (False, False, False)
 
 
 @pytest.mark.parametrize(
     "command, field",
     [
-        ("primary_fmode", "primary_f_mode"),
+        ("main_fmode", "main_f_mode"),
         ("portrait_fmode", "portrait_f_mode"),
         ("landscape_fmode", "landscape_f_mode"),
     ],
@@ -901,7 +901,7 @@ def test_a_named_player_goes_into_f_mode_alone(tmp_path: Path, command: str, fie
 
     assert getattr(new_state, field) is True
     assert [getattr(new_state, other) for other in
-            ("primary_f_mode", "portrait_f_mode", "landscape_f_mode")].count(True) == 1
+            ("main_f_mode", "portrait_f_mode", "landscape_f_mode")].count(True) == 1
     assert mock_fmode.call_args.kwargs["players"] == (command.removesuffix("_fmode"),)
 
 
@@ -948,7 +948,7 @@ def test_fmode_flashes_a_red_notice_when_it_turns_off(tmp_path: Path):
     reads as "turned on".  Off is the loud state here — the library just went back
     to its full self — so it flashes red and says which way it went."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_f_mode=True, portrait_f_mode=True, landscape_f_mode=True)
+    state = _make_state(main_f_mode=True, portrait_f_mode=True, landscape_f_mode=True)
 
     _state, ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
@@ -1922,11 +1922,11 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
 
 def test_nau_activate_deactivates_genau_and_raises_nau(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("nau_activate", state, config)
 
-    assert new_state.primary_mode == "nau"
+    assert new_state.main_mode == "nau"
     slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
     # Nau is shown and activated BEFORE the old slot-mates hide, so focus
     # never falls through to another application.
@@ -1936,16 +1936,16 @@ def test_nau_activate_deactivates_genau_and_raises_nau(tmp_path: Path):
         ("hide_role", "genau"),
     ]
     # The mode switch re-stacks the Nau/Genau pair for the new mode.
-    assert [op.op for op in ops if op.op == "restack_primary"] == ["restack_primary"]
+    assert [op.op for op in ops if op.op == "restack_main"] == ["restack_main"]
 
 
 def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     new_state, ops = dispatch_command("genau_activate", state, config)
 
-    assert new_state.primary_mode == "genau"
+    assert new_state.main_mode == "genau"
     slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
     assert slot_ops == [
         ("show_role", "genau"),
@@ -1953,16 +1953,16 @@ def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
         ("hide_role", "nau"),
     ]
     # The mode switch re-stacks the Nau/Genau pair for the new mode.
-    assert [op.op for op in ops if op.op == "restack_primary"] == ["restack_primary"]
+    assert [op.op for op in ops if op.op == "restack_main"] == ["restack_main"]
 
 
 def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     new_state, ops = dispatch_command("hybrid_activate", state, config)
 
-    assert new_state.primary_mode == "hybrid"
+    assert new_state.main_mode == "hybrid"
     slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
     # Hybrid shows Nau underneath Genau's transparent HUD (Genau drives the OSR2).
     assert slot_ops == [
@@ -1971,14 +1971,14 @@ def test_hybrid_activate_switches_to_hybrid(tmp_path: Path):
         ("activate_role", "genau"),
     ]
     # The mode switch re-stacks the pair — Nau topmost with Genau's HUD above it.
-    assert [op.op for op in ops if op.op == "restack_primary"] == ["restack_primary"]
+    assert [op.op for op in ops if op.op == "restack_main"] == ["restack_main"]
 
 
 def test_leaving_hybrid_reenables_nau_tcode(tmp_path: Path):
     """Leaving hybrid re-enables Nau's funscript T-Code — the per-video gap
     arbiter may have muted it, and nau mode must drive its funscript again."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
 
     dispatch_command("nau_activate", state, config)
 
@@ -1992,7 +1992,7 @@ def test_leaving_hybrid_reenables_nau_tcode(tmp_path: Path):
 
 def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("genau_speed_down", state, config)
 
@@ -2005,7 +2005,7 @@ def test_the_stroke_rate_reaches_nothing_where_genau_is_not_running(tmp_path: Pa
     """In nau mode there is no stroke to rate.  These used to land on Nau's video
     rate, from when one pair of speed keys was shared between the two engines."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     new_state, ops = dispatch_command("genau_speed_up", state, config)
 
@@ -2030,7 +2030,7 @@ def test_the_stroke_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
     made pressing Genau's − move the playback rate across the panel instead."""
     config = _make_config(tmp_path)
     _set_nau_driving(config, driving=True)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
 
     dispatch_command("genau_speed_up", state, config)
 
@@ -2043,7 +2043,7 @@ def test_speed_routes_to_genau_in_hybrid_while_genau_drives(tmp_path: Path):
     # OSR2, so speed tunes Genau's stroke rate.
     config = _make_config(tmp_path)
     _set_nau_driving(config, driving=False)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
 
     dispatch_command("genau_speed_up", state, config)
 
@@ -2053,17 +2053,17 @@ def test_speed_routes_to_genau_in_hybrid_while_genau_drives(tmp_path: Path):
 
 def test_speed_min_and_max_route_to_the_active_engine(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("speed_min", _make_state(primary_mode="nau"), config)
+    dispatch_command("speed_min", _make_state(main_mode="nau"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min"
 
     config = _make_config(tmp_path)
-    dispatch_command("speed_max", _make_state(primary_mode="genau"), config)
+    dispatch_command("speed_max", _make_state(main_mode="genau"), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 100"
 
 
 def test_nau_multiplier_sets_nau_speed(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_speed_150", _make_state(primary_mode="nau"), config)
+    dispatch_command("nau_speed_150", _make_state(main_mode="nau"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5"
 
 
@@ -2073,12 +2073,12 @@ def test_nau_speed_up_down_nudge_the_video_rate_where_nau_is_on_screen(tmp_path:
     Nau is off screen and its clips have no such rate."""
     for mode in ("nau", "hybrid"):
         config = _make_config(tmp_path / mode)
-        dispatch_command("nau_speed_up", _make_state(primary_mode=mode), config)
+        dispatch_command("nau_speed_up", _make_state(main_mode=mode), config)
         assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP"
         assert not config.genau_cmd_file.exists()
 
     config = _make_config(tmp_path / "genau")
-    dispatch_command("nau_speed_down", _make_state(primary_mode="genau"), config)
+    dispatch_command("nau_speed_down", _make_state(main_mode="genau"), config)
     assert not config.nau_cmd_file.exists()
     assert not config.genau_cmd_file.exists()
 
@@ -2087,7 +2087,7 @@ def test_nau_multiplier_is_a_noop_when_genau_drives(tmp_path: Path):
     # An absolute multiplier is a Nau-video concept; in genau mode Nau is hidden,
     # so it is a no-op (the speaker uses Genau's own 0-100 grammar there).
     config = _make_config(tmp_path)
-    dispatch_command("nau_speed_150", _make_state(primary_mode="genau"), config)
+    dispatch_command("nau_speed_150", _make_state(main_mode="genau"), config)
     assert not config.genau_cmd_file.exists()
     assert not config.nau_cmd_file.exists()
 
@@ -2098,7 +2098,7 @@ def test_absolute_speed_reaches_nau_video_in_hybrid_even_when_genau_drives(tmp_p
     # silently vanish the way a driver-routed command would.
     config = _make_config(tmp_path)
     _set_nau_driving(config, driving=False)  # Genau owns the OSR2 this stretch
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
 
     dispatch_command("nau_speed_150", state, config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5"
@@ -2108,13 +2108,13 @@ def test_absolute_speed_reaches_nau_video_in_hybrid_even_when_genau_drives(tmp_p
 def test_speed_max_sets_nau_video_in_hybrid(tmp_path: Path):
     config = _make_config(tmp_path)
     _set_nau_driving(config, driving=False)
-    dispatch_command("speed_max", _make_state(primary_mode="hybrid"), config)
+    dispatch_command("speed_max", _make_state(main_mode="hybrid"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max"
 
 
 def test_reset_speed_command_maps_to_normal_rate(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_speed_100", _make_state(primary_mode="nau"), config)
+    dispatch_command("nau_speed_100", _make_state(main_mode="nau"), config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1"
 
 
@@ -2126,7 +2126,7 @@ def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
     assert new_state.volume == 90
     assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 90 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "90"
-    assert ops == [WindowOp(op="notice", key="Volume 90%", source="primary")]
+    assert ops == [WindowOp(op="notice", key="Volume 90%", source="main")]
 
 
 def test_volume_up_steps_both_audio_sinks_up(tmp_path: Path):
@@ -2172,7 +2172,7 @@ def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
     assert (new_state.volume, new_state.muted) == (35, False)
     assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 35 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "35"
-    assert ops == [WindowOp(op="notice", key="Volume 35%", source="primary")]
+    assert ops == [WindowOp(op="notice", key="Volume 35%", source="main")]
 
 
 def test_setting_the_volume_clamps_and_ignores_nonsense(tmp_path: Path):
@@ -2196,7 +2196,7 @@ def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
     # What Nau is told is its own test; here the companion, which only has to
     # be quiet, gets the plain zero.
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0"
-    assert ops == [WindowOp(op="notice", key="Muted", source="primary")]
+    assert ops == [WindowOp(op="notice", key="Muted", source="main")]
 
 
 def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
@@ -2208,7 +2208,7 @@ def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
 
     assert new_state.muted is False
     assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 0"
-    assert ops == [WindowOp(op="notice", key="Volume 70%", source="primary")]
+    assert ops == [WindowOp(op="notice", key="Volume 70%", source="main")]
 
 
 def test_mute_and_unmute_are_idempotent_not_a_toggle(tmp_path: Path):
@@ -2238,7 +2238,7 @@ def test_stepping_the_volume_lifts_a_mute(tmp_path: Path):
 
 def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("genau_next_clip", state, config)
 
@@ -2287,7 +2287,7 @@ def test_genau_toggle_auto_does_not_write_genau_cmd_file(tmp_path: Path):
 
 def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("genau_cycle_shape_prev", state, config)
 
@@ -2298,7 +2298,7 @@ def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Pat
 
 def test_genau_toggle_cruise_writes_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("genau_toggle_cruise", state, config)
 
@@ -2309,7 +2309,7 @@ def test_genau_toggle_cruise_writes_cmd_file(tmp_path: Path):
 
 def test_genau_cruise_on_writes_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("genau_cruise_on", state, config)
 
@@ -2320,7 +2320,7 @@ def test_genau_cruise_on_writes_cmd_file(tmp_path: Path):
 
 def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("genau_cruise_off", state, config)
 
@@ -2331,14 +2331,14 @@ def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
 
 def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
     """What is left of auto-advance is its pace: the arming and the hold it could
-    disagree with are one padlock now (see the primary lock tests above)."""
+    disagree with are one padlock now (see the main lock tests above)."""
     for command, verb in (
         ("genau_advance_down", "ADVANCE_DOWN"),
         ("genau_advance_up", "ADVANCE_UP"),
         ("genau_weird_clip", "WEIRD"),
     ):
         config = _make_config(tmp_path / command)
-        new_state, ops = dispatch_command(command, _make_state(primary_mode="genau"), config)
+        new_state, ops = dispatch_command(command, _make_state(main_mode="genau"), config)
 
         assert config.genau_cmd_file.read_text(encoding="utf-8") == verb
         assert ops == []
@@ -2346,7 +2346,7 @@ def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
 
 def test_genau_advance_seconds_writes_a_numeric_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     dispatch_command("genau_advance_30", state, config)
 
@@ -2355,7 +2355,7 @@ def test_genau_advance_seconds_writes_a_numeric_cmd(tmp_path: Path):
 
 def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     new_state, ops = dispatch_command("genau_speed_down", state, config)
 
@@ -2369,7 +2369,7 @@ def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
 
 def test_genau_amp_writes_numeric_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("genau_amp_50", state, config)
 
@@ -2380,7 +2380,7 @@ def test_genau_amp_writes_numeric_cmd_file(tmp_path: Path):
 
 def test_genau_center_writes_numeric_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("genau_center_80", state, config)
 
@@ -2389,7 +2389,7 @@ def test_genau_center_writes_numeric_cmd_file(tmp_path: Path):
 
 def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("genau_speed_30", state, config)
 
@@ -2398,7 +2398,7 @@ def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
 
 def test_genau_numeric_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     new_state, ops = dispatch_command("genau_amp_50", state, config)
 
@@ -2479,7 +2479,7 @@ def test_leave_omnipause_emits_restore_all_topmost(tmp_path: Path):
 def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
     """Genau should stay topmost during omnipause — only pause playback."""
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=False, primary_mode="genau")
+    state = _make_state(omni_paused=False, main_mode="genau")
 
     new_state, ops = dispatch_command("enter_omnipause", state, config)
 
@@ -2489,7 +2489,7 @@ def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
 def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
     """Esc (omnipause toggle) should pause Genau, not remove its topmost."""
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=False, primary_mode="genau")
+    state = _make_state(omni_paused=False, main_mode="genau")
 
     new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
@@ -2510,22 +2510,22 @@ def test_leave_omnipause_resumes_satellites_only(tmp_path: Path):
 
 def test_leave_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=True, primary_mode="genau")
+    state = _make_state(omni_paused=True, main_mode="genau")
 
     new_state, ops = dispatch_command("leave_omnipause", state, config)
 
     assert any(op.op == "activate_role" and op.key == "genau" for op in ops)
 
 
-# --- primary nudge ---
+# --- main-player nudge ---
 
 
 def test_primary_nudge_in_hybrid_writes_nau_seek(tmp_path: Path):
     """Hybrid displays Nau, so nudges seek Nau just like in nau mode."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
 
-    new_state, ops = dispatch_command("primary_nudge_prev", state, config)
+    new_state, ops = dispatch_command("main_nudge_prev", state, config)
 
     assert ops == []
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK"
@@ -2533,13 +2533,13 @@ def test_primary_nudge_in_hybrid_writes_nau_seek(tmp_path: Path):
 
 def test_primary_nudge_in_nau_mode_writes_nau_seek(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
-    new_state, ops = dispatch_command("primary_nudge_prev", state, config)
+    new_state, ops = dispatch_command("main_nudge_prev", state, config)
     assert ops == []
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK"
 
-    dispatch_command("primary_nudge_next", state, config)
+    dispatch_command("main_nudge_next", state, config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_FWD"
 
 
@@ -2548,7 +2548,7 @@ def test_primary_nudge_in_nau_mode_writes_nau_seek(tmp_path: Path):
 
 def test_nau_record_commands_write_nau_cmd_in_nau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     for command, expected in [
         ("nau_record_down", "RECORD_DOWN"),
@@ -2565,7 +2565,7 @@ def test_nau_record_commands_write_nau_cmd_in_nau_mode(tmp_path: Path):
 def test_nau_record_commands_work_in_hybrid_mode(tmp_path: Path):
     """Hybrid displays Nau, so loop recording works there too."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
 
     new_state, ops = dispatch_command("nau_record_tap", state, config)
 
@@ -2575,7 +2575,7 @@ def test_nau_record_commands_work_in_hybrid_mode(tmp_path: Path):
 
 def test_nau_record_commands_noop_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     new_state, ops = dispatch_command("nau_record_tap", state, config)
 
@@ -2602,7 +2602,7 @@ def test_unknown_command_returns_unchanged_state(tmp_path: Path):
 def test_clipper_save_calls_subprocess_in_hybrid_mode(tmp_path: Path):
     """Hybrid displays Nau, so clipper reads the current video/time from Nau's status."""
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
     config.nau_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\nstate=normal\npaused=0\n",
         encoding="utf-8",
@@ -2628,13 +2628,13 @@ def test_clipper_save_calls_subprocess_in_hybrid_mode(tmp_path: Path):
     assert "42.5" in cmd
     assert len(ops) == 1
     assert ops[0].op == "notice"
-    assert ops[0].source == "primary"
+    assert ops[0].source == "main"
     assert ops[0].key  # non-empty message
 
 
 def test_clipper_save_no_notice_on_failure(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
     config.nau_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
@@ -2651,7 +2651,7 @@ def test_clipper_save_no_notice_on_failure(tmp_path: Path):
 
 def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="genau")
+    state = _make_state(main_mode="genau")
 
     with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
         new_state, ops = dispatch_command("clipper_save", state, config)
@@ -2661,7 +2661,7 @@ def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
 
 def test_clipper_save_skips_when_no_video_playing(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="hybrid")
+    state = _make_state(main_mode="hybrid")
     # No nau_status file → no current video → nothing to clip.
 
     with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
@@ -2672,7 +2672,7 @@ def test_clipper_save_skips_when_no_video_playing(tmp_path: Path):
 
 def test_clipper_save_in_nau_mode_uses_nau_status(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
     config.nau_status_file.write_text(
         "video=C:\\videos\\naustuff.mp4\n"
         "position_ms=42500\n"
@@ -2698,7 +2698,7 @@ def test_clipper_save_in_nau_mode_uses_nau_status(tmp_path: Path):
 
 def test_clipper_save_in_nau_mode_skips_without_status(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(primary_mode="nau")
+    state = _make_state(main_mode="nau")
 
     with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
         new_state, ops = dispatch_command("clipper_save", state, config)

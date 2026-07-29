@@ -39,7 +39,7 @@ pytestmark = pytest.mark.skipif(
     reason=f"no local config at {DEFAULT_CONFIG_PATH} (git-ignored; absent in CI)",
 )
 
-# A worktree's ``.git`` is a file pointing at the primary's admin dir, not a dir.
+# A worktree's ``.git`` is a file pointing at the main player's admin dir, not a dir.
 _IN_A_WORKTREE = (Path(__file__).resolve().parents[1] / ".git").is_file()
 
 

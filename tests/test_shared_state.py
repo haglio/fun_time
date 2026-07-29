@@ -18,8 +18,8 @@ class TestSharedState:
         state = BridgeState(
             locked2=True,
             locked3=False,
-            primary_mode="genau",
-            primary_f_mode=True,
+            main_mode="genau",
+            main_f_mode=True,
             portrait_f_mode=False,
             landscape_f_mode=True,
             omni_paused=True,
@@ -46,7 +46,7 @@ class TestSharedState:
         assert loaded.active_side == 3
 
     def test_active_side_defaults_to_the_primary_for_legacy_files(self, tmp_path):
-        """An INI written before active_side existed loads as the primary (1) —
+        """An INI written before active_side existed loads as the main player (1) —
         the same floor a fresh session opens on."""
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
@@ -74,7 +74,7 @@ class TestSharedState:
     def test_roundtrip_preserves_per_satellite_filters(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(
-            primary_mode="nau",
+            main_mode="nau",
             portrait_filter="beta gamma",
             landscape_filter="alpha",
         )

@@ -46,7 +46,7 @@ from fun_time.notice_overlay import (
     is_announcement,
     notice_target_rect,
 )
-from fun_time.window_layout import compute_primary_media_rect, compute_window_layout
+from fun_time.window_layout import compute_main_media_rect, compute_window_layout
 from fun_time.dashboard_layout import (
     PAD as BAR_PAD,
     DashboardBarLayout,
@@ -127,9 +127,9 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
     parser.read(manifest_path, encoding="utf-8")
 
     layout = LayoutConfig(
-        main_monitor=parser.getint("layout", "main_monitor"),
+        primary_monitor=parser.getint("layout", "primary_monitor"),
         secondary_monitor=parser.getint("layout", "secondary_monitor"),
-        primary_top_ratio=parser.getfloat("layout", "primary_top_ratio"),
+        main_top_ratio=parser.getfloat("layout", "main_top_ratio"),
         landscape_width_ratio=parser.getfloat("layout", "landscape_width_ratio"),
     )
     return DashboardAppConfig(
@@ -228,8 +228,8 @@ def build_dashboard_scene(
 
     What each player is doing is on that player's own HUD now, so nothing here
     stands for a player — which is why the bar has no shape to keep and simply
-    runs along the top of the window.  The OSR2 broker light went to the primary's
-    HUD with the rest of the device status; it is the primary's, not the room's.
+    runs along the top of the window.  The OSR2 broker light went to the main player's
+    HUD with the rest of the device status; it is the main player's, not the room's.
     F-mode went to every player's HUD, since each player has its own now.
     """
     voice_fill = BLUE if snapshot is not None and snapshot.voice_active else COLOR_PANEL
@@ -883,24 +883,24 @@ class DashboardWindow(QMainWindow):
         """
         try:
             monitors = enumerate_monitors()
-            main_rect, secondary_rect = get_logical_monitor_rects(
+            primary_rect, secondary_rect = get_logical_monitor_rects(
                 monitors,
-                main_index=self._app_config.layout.main_monitor,
+                primary_index=self._app_config.layout.primary_monitor,
                 secondary_index=self._app_config.layout.secondary_monitor,
             )
         except (ValueError, OSError):
             return None
         plan = compute_window_layout(
-            main_monitor=main_rect,
+            primary_monitor=primary_rect,
             secondary_monitor=secondary_rect,
             layout_config=self._app_config.layout,
         )
-        primary = compute_primary_media_rect(
+        main = compute_main_media_rect(
             secondary_monitor=secondary_rect, layout_config=self._app_config.layout,
         )
         as_rect = lambda w: Rect(w.x, w.y, w.width, w.height)  # noqa: E731
         return PlayerRects(
-            primary=as_rect(primary),
+            main=as_rect(main),
             portrait=as_rect(plan.portrait),
             landscape=as_rect(plan.landscape),
             dash=as_rect(plan.dashboard),

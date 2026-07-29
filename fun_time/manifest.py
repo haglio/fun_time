@@ -81,9 +81,9 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             "port": str(config.loopback_port),
         },
         "layout": {
-            "main_monitor": str(layout.main_monitor),
+            "primary_monitor": str(layout.primary_monitor),
             "secondary_monitor": str(layout.secondary_monitor),
-            "primary_top_ratio": str(layout.primary_top_ratio),
+            "main_top_ratio": str(layout.main_top_ratio),
             "landscape_width_ratio": str(layout.landscape_width_ratio),
         },
         "random_favs_browser": {

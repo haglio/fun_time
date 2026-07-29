@@ -22,9 +22,9 @@
     "broker_tray_launcher": "../broker/launch_broker_tray.vbs"
   },
   "layout": {
-    "main_monitor": 1,
+    "primary_monitor": 1,
     "secondary_monitor": 2,
-    "primary_top_ratio": 0.7272727273,
+    "main_top_ratio": 0.7272727273,
     "landscape_width_ratio": 0.6666666667
   },
   "audio_companion": {

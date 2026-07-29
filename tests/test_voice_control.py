@@ -145,10 +145,10 @@ class TestVoiceCommands:
             "hybrid mode": "hybrid_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
-            "next primary": "primary_next",
-            "previous primary": "primary_prev",
-            "skip": "primary_nudge_next",
-            "back": "primary_nudge_prev",
+            "next main": "main_next",
+            "previous main": "main_prev",
+            "skip": "main_nudge_next",
+            "back": "main_nudge_prev",
             "record": "nau_record_down",
             "loop": "nau_record_up",
             # "end loop" is side-agnostic — it reaches Nau's own loop through the
@@ -190,14 +190,14 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["weird clip"] == "genau_weird_clip"
         assert VOICE_COMMANDS["weird"] == "active_trash"
 
-    def test_holding_a_genau_clip_is_the_primary_lock_and_nothing_of_its_own(self):
+    def test_holding_a_genau_clip_is_the_main_lock_and_nothing_of_its_own(self):
         """It was a phrase and a padlock beside auto advance's arming; the two
         could disagree, and the console carried a second lock next to Nau's."""
         assert "lock clip" not in VOICE_COMMANDS
         assert "auto advance" not in VOICE_COMMANDS
         assert "advance on" not in VOICE_COMMANDS
         assert "advance off" not in VOICE_COMMANDS
-        assert VOICE_COMMANDS["primary lock"] == "primary_lock_on"
+        assert VOICE_COMMANDS["main lock"] == "main_lock_on"
 
     def test_a_spoken_interval_names_the_seconds(self):
         # A spoken interval covers 1-60 seconds, single digits and compounds
@@ -276,11 +276,11 @@ class TestVoiceCommands:
         mode was feeding the playlist before — the same shape as "end loop"."""
         assert VOICE_COMMANDS["end compilation"] == "nau_end_compilation"
 
-    def test_primary_reset_returns_the_playlist_to_the_default_browse(self):
-        """"reset" means for the primary what it means for a satellite — drop
-        whatever is narrowing the playlist — and it is order-agnostic and takes
-        "main" for "primary" like the rest of that grid."""
-        for phrase in ("primary reset", "reset primary", "main reset", "reset main"):
+    def test_main_reset_returns_the_playlist_to_the_default_browse(self):
+        """"reset" means for the main player what it means for a satellite — drop
+        whatever is narrowing the playlist — and it is order-agnostic like the rest
+        of that grid."""
+        for phrase in ("main reset", "reset main"):
             assert VOICE_COMMANDS[phrase] == "nau_length_mixed"
 
     def test_satellite_grid_supports_both_orders(self):
@@ -305,16 +305,14 @@ class TestVoiceCommands:
 
     def test_f_mode_is_sayable_per_player_in_either_order(self):
         """Every player has its own F-mode, so each is sayable by naming it — in
-        either order, like the rest of the grid.  "main" is the synonym for
-        "primary" it is everywhere else, and "both" means the two satellites."""
+        either order, like the rest of the grid.  "main" names the player on the
+        shared slot and "both" means the two satellites."""
         for word, act in (("f mode", "fmode"),
                           ("f mode on", "fmode_on"),
                           ("f mode off", "fmode_off")):
-            for side in ("portrait", "landscape", "both", "primary"):
+            for side in ("portrait", "landscape", "both", "main"):
                 assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
                 assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
-            assert VOICE_COMMANDS[f"main {word}"] == f"primary_{act}"
-            assert VOICE_COMMANDS[f"{word} main"] == f"primary_{act}"
 
     def test_bare_f_mode_reaches_the_active_player(self):
         """Bare means the active player here as it does everywhere else in the
@@ -377,36 +375,41 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["lock all landscape"] == "landscape_lock_on"
         assert VOICE_COMMANDS["both loop all"] == "both_reset"
 
-    def test_primary_nav_phrases_both_orders(self):
-        """The primary player joins the grid for navigation, in either order;
-        "main" is a synonym for "primary". Bare "next"/"previous" reach it via
-        the active side."""
-        for word in ("primary", "main"):
-            assert VOICE_COMMANDS[f"{word} next"] == "primary_next"
-            assert VOICE_COMMANDS[f"next {word}"] == "primary_next"
-            assert VOICE_COMMANDS[f"{word} previous"] == "primary_prev"
-            assert VOICE_COMMANDS[f"previous {word}"] == "primary_prev"
+    def test_main_nav_phrases_both_orders(self):
+        """The main player joins the grid for navigation, in either order.  Bare
+        "next"/"previous" reach it via the active side."""
+        assert VOICE_COMMANDS["main next"] == "main_next"
+        assert VOICE_COMMANDS["next main"] == "main_next"
+        assert VOICE_COMMANDS["main previous"] == "main_prev"
+        assert VOICE_COMMANDS["previous main"] == "main_prev"
 
-    def test_primary_lock_phrases_both_orders(self):
-        """The primary's lock joins that grid too, and says there what it says on
-        a satellite: hold the video on screen, or let its end walk the playlist.
+    def test_main_lock_phrases_both_orders(self):
+        """The main player's lock joins that grid too, and says there what it says
+        on a satellite: hold the video on screen, or let its end walk the playlist.
         Bare "lock"/"unlock" reach it via the active side."""
-        for word in ("primary", "main"):
-            assert VOICE_COMMANDS[f"{word} lock"] == "primary_lock_on"
-            assert VOICE_COMMANDS[f"lock {word}"] == "primary_lock_on"
-            assert VOICE_COMMANDS[f"{word} unlock"] == "primary_lock_off"
-            assert VOICE_COMMANDS[f"unlock {word}"] == "primary_lock_off"
+        assert VOICE_COMMANDS["main lock"] == "main_lock_on"
+        assert VOICE_COMMANDS["lock main"] == "main_lock_on"
+        assert VOICE_COMMANDS["main unlock"] == "main_lock_off"
+        assert VOICE_COMMANDS["unlock main"] == "main_lock_off"
+
+    def test_primary_is_no_longer_a_spoken_word_for_the_player(self):
+        """It names a monitor in this room — the main player and the secondary — and one
+        word cannot be both a screen and a player, so the old synonym is gone rather
+        than kept alongside "main"."""
+        spoken = {phrase for phrase in VOICE_COMMANDS if "primary" in phrase}
+
+        assert spoken == set()
 
     def test_mode_named_navigation_both_orders(self):
         """A mode's name + next/previous (either order) navigates its player:
-        Nau/Hybrid drive the primary, Genau its own clip.  vosk can't hear
+        Nau/Hybrid drive the main slot, Genau its own clip.  vosk can't hear
         "nau"/"genau", so the recognizer uses the "now mode"/"go now" sound-alikes."""
-        # Nau (recognizer "now mode") and Hybrid both drive the primary.
+        # Nau (recognizer "now mode") and Hybrid both drive the main slot.
         for base in ("now mode", "hybrid"):
-            assert VOICE_COMMANDS[f"{base} next"] == "primary_next"
-            assert VOICE_COMMANDS[f"next {base}"] == "primary_next"
-            assert VOICE_COMMANDS[f"{base} previous"] == "primary_prev"
-            assert VOICE_COMMANDS[f"previous {base}"] == "primary_prev"
+            assert VOICE_COMMANDS[f"{base} next"] == "main_next"
+            assert VOICE_COMMANDS[f"next {base}"] == "main_next"
+            assert VOICE_COMMANDS[f"{base} previous"] == "main_prev"
+            assert VOICE_COMMANDS[f"previous {base}"] == "main_prev"
         # Genau (recognizer "go now") steps its own clip.
         assert VOICE_COMMANDS["go now next"] == "genau_next_clip"
         assert VOICE_COMMANDS["next go now"] == "genau_next_clip"
@@ -566,8 +569,8 @@ class TestHandleRecognition:
     @pytest.mark.parametrize("heard, source", [
         ("portrait full length please", "portrait"),
         ("landscape full length please", "landscape"),
-        ("primary full length please", "primary"),
-        ("main full length please", "primary"),
+        ("main full length please", "main"),
+        ("main full length please", "main"),
         ("full length please landscape", "landscape"),
     ])
     def test_an_unrecognized_phrase_reports_over_the_player_it_named(
@@ -575,7 +578,7 @@ class TestHandleRecognition:
     ):
         """A phrase the grammar rejected can still say who it was for, in either
         order — that satellite is where the user is looking, so that is where the
-        red report belongs, rather than on the primary."""
+        red report belongs, rather than on the main player."""
         vc = self._controller(tmp_path)
         seen = []
         monkeypatch.setattr(voice_control, "notice",

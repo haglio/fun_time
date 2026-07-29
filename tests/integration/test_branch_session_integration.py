@@ -61,7 +61,7 @@ def branch_checkout_session():
     """A session on a branch config, launched out of a checkout of its own."""
     temp_root = build_integration_temp_root()
     branch_checkout = _copy_checkout(temp_root / "branch_checkout")
-    # The isolated config plays the primary's: its ports, broker launcher and
+    # The isolated config plays the main player's: its ports, broker launcher and
     # microphone are already stripped, and build_branch_config carries all of
     # that through — so this session reaches nothing of the user's either.
     branch_config = build_branch_config(

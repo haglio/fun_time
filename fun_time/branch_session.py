@@ -205,7 +205,7 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
     value this rewrite goes on to move.  The broker is the machine's one broker,
     configured against the primary for good, so a branch session that let its
     heartbeat, serial-activity, command and mode files follow that move would read
-    an empty directory — the primary console's broker light red and its OSR2 light
+    an empty directory — the main console's broker light red and its OSR2 light
     "off" while the device is plainly running, and its park and resume verbs
     written where nothing reads them.
 

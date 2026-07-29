@@ -68,7 +68,7 @@ class TestFixPostLoadingWindows:
         """A resumed genau session would otherwise get nau's stacking back here:
         Nau promoted over Genau and un-parked, one pass after the sequencer
         parked it — the display handed back to the player that is not playing."""
-        result = replace(_fake_startup_result(), primary_mode="genau")
+        result = replace(_fake_startup_result(), main_mode="genau")
 
         with patch(
             "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
@@ -969,7 +969,7 @@ class TestPostLoadingWindowState:
         assert GENAU_HWND in hide_calls, f"Genau not minimized: {hide_calls}"
 
         # nau startup mode: the windows that own a rect are promoted to topmost,
-        # Nau (hwnd 2020) included — it floats above the desktop like the primary
+        # Nau (hwnd 2020) included — it floats above the desktop like the main player
         # player always has.  Genau, the hidden slot-mate, is held out of the
         # band: it is promoted last, so joining it would put it over Nau.
         promoted = {h for h, v in topmost_calls if v}

@@ -1,4 +1,4 @@
-"""Real-window checks for the primary library browser.
+"""Real-window checks for the main player library browser.
 
 The browser's whole value is what the user *reads* off it — the handle names
 under the stills — and the unit suite cannot see that: it renders on Qt's
