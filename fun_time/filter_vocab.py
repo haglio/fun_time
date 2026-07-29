@@ -114,6 +114,18 @@ def set_commands_for_scope(scope: str, acts: Acts = FILTER_ACTS) -> tuple[str, .
     return tuple(set_command(scope, query) for query in acts)
 
 
-def spoken_forms_for_both(acts: Acts = FILTER_ACTS) -> tuple[str, ...]:
-    """The bare (unscoped) spoken forms — one recognizer phrase per act form."""
-    return tuple(form for forms in acts.values() for form in forms)
+def display_forms(acts: Acts = FILTER_ACTS) -> tuple[str, ...]:
+    """The acts under their real names — what the reference shows.
+
+    A spoken form is what the *recognizer* can hear, and that is not always what
+    the act is called: where the small model has no token for a word, the form
+    spells it with tokens the model does have, which is what the model produces
+    when the real word is said aloud.  The query keeps the real term, so that is
+    what the reference shows — printing the workaround would teach the reader a
+    word nobody uses for the thing, over a model limitation that is none of
+    their business and that they never have to pronounce around.
+
+    The spoken forms have no such reader: the grammar is built from
+    :func:`filter_voice_commands`, so nothing outside this module needs them.
+    """
+    return tuple(acts)

@@ -260,9 +260,10 @@ _GENAU_CMD_MAP = {
     "genau_cruise_off": "CRUISE_OFF",
     # How long an unlocked Genau leaves each clip on screen, a second at a time.
     # There is no switch to go with it: the padlock is the switch, and this is
-    # only its pace (see _PRIMARY_LOCK_COMMANDS).
-    "genau_advance_down": "ADVANCE_DOWN",
-    "genau_advance_up": "ADVANCE_UP",
+    # only its pace (see _PRIMARY_LOCK_COMMANDS).  Named for what the number is —
+    # a clip's seconds — rather than for the auto-advance that consumes it.
+    "genau_clip_seconds_down": "CLIP_SECONDS_DOWN",
+    "genau_clip_seconds_up": "CLIP_SECONDS_UP",
     # Condemning a clip outright — Genau's counterpart of a satellite's weird.
     "genau_weird_clip": "WEIRD",
     "genau_prev_clip": "PREV",
@@ -361,8 +362,8 @@ _GENAU_NUMERIC_PREFIXES = {
     "genau_amp_": "AMP",
     "genau_center_": "CENTER",
     "genau_speed_": "SPEED",
-    # Seconds between auto-advances, unlike the 0-100 axes above.
-    "genau_advance_": "ADVANCE",
+    # Seconds a clip holds the screen, unlike the 0-100 axes above.
+    "genau_clip_seconds_": "CLIP_SECONDS",
 }
 
 

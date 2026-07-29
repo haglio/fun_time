@@ -236,10 +236,16 @@ _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
     # "loop actions"/"loop seeds" are the grid's names; the singular/reversed
     # forms and "loop scene(s)" (scene == action) are kept as equivalents.
     #
-    # The grid's lock scopes are aliases here: because every satellite playlist
-    # runs repeat-all, "lock seed" (hold the seed, its acts vary) IS the action
-    # loop and "lock type" (the seed family) IS the seed loop; "lock all" is the
-    # repeat-one lock and "loop all" is the whole unfiltered browse (reset).
+    # Two of the grid's lock scopes are aliases here: because every satellite
+    # playlist runs repeat-all, "lock seed" (hold the seed, its acts vary) IS the
+    # action loop and "lock type" (the seed family) IS the seed loop.
+    #
+    # The scope named "all" is NOT among them.  "lock all" and "loop all" once
+    # meant the repeat-one lock and the whole unfiltered browse, reading "all" as
+    # everything the clip is pinned by — but the room's other "all" means all
+    # *players* ("all f mode"), and no listener can tell the two senses apart.
+    # They were second spellings of what "lock" and "reset" already say, so they
+    # went rather than being disambiguated.
     "action_loop": ("action loop", "loop action", "loop actions", "loop scene", "loop scenes", "lock seed"),
     "seed_loop": ("seed loop", "loop seed", "loop seeds", "lock type"),
     # "more seeds" / "widen (the) net" widens cycle-seed's reach on demand until
@@ -257,8 +263,6 @@ _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
     # active side.  It does not collide with the no_filter phrases above: the
     # grammar matches whole phrases, so "filter off" stays its own command.
     "lock_action": ("lock action", "action lock", "filter"),
-    "lock_on": ("lock all",),
-    "reset": ("loop all",),
 }
 for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
     for _group_word in _group_words:
@@ -374,7 +378,7 @@ for _word, _value in _NUMBER_WORDS.items():
     for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
         VOICE_COMMANDS[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
 
-# "clip seconds five" -> genau_advance_5.  These are seconds, not a 0-100 axis,
+# "clip seconds five" -> genau_clip_seconds_5.  These are seconds, not a 0-100 axis,
 # so they need finer granularity than the tens-only _NUMBER_WORDS above: a spoken
 # integer 1-60, single digits and compounds ("twenty five" -> 25) alike.  Zero is
 # omitted — a nought-second interval would step the clip every frame.  Naming a
@@ -407,7 +411,7 @@ def _spoken_seconds() -> dict[str, int]:
 
 
 for _word, _value in _spoken_seconds().items():
-    VOICE_COMMANDS[f"clip seconds {_word}"] = f"genau_advance_{_value}"
+    VOICE_COMMANDS[f"clip seconds {_word}"] = f"genau_clip_seconds_{_value}"
 
 # "min amp" -> genau_amp_0, "max speed" -> genau_speed_100, etc.
 _EXTREMES: dict[str, int] = {"min": 0, "max": 100}

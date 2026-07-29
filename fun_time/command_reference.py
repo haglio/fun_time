@@ -26,7 +26,7 @@ import html
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from fun_time.filter_vocab import clear_command, set_commands_for_scope, spoken_forms_for_both
+from fun_time.filter_vocab import clear_command, display_forms, set_commands_for_scope
 from fun_time.voice_commands import VOICE_COMMANDS
 
 
@@ -160,13 +160,16 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Previous Genau clip", ("M",), ("genau_prev_clip",)),
             _Row("Next Genau clip", (".",), ("genau_next_clip",)),
             _Row("Mark the Genau clip weird — skip it, and out of rotation", ("K",), ("genau_weird_clip",)),
+            # The same two commands Nau's section carries: one sound level reaches
+            # both sinks, and which is audible is which mode owns the display.
+            _Row("Volume down / up, in tenths — the clip music", (), ("audio_volume_down", "audio_volume_up")),
             _Row("Allow / suppress Genau takeover (OSR2 auto)", ("/",), ("genau_toggle_auto",)),
             _Row("Enable / disable cruise control (varies the stroke)", ("C",), ("genau_toggle_cruise", "genau_cruise_on", "genau_cruise_off")),
             _Row(
                 "Seconds a clip holds the screen before Genau moves on — only "
                 "while it is unlocked (the ' key in Nau holds it)",
                 (),
-                ("genau_advance_down", "genau_advance_up"),
+                ("genau_clip_seconds_down", "genau_clip_seconds_up"),
                 ("clip seconds 1–60",),
             ),
             _Row("Offset ¼ cycle", ("\\",), ("backslash_key", "quarter_button")),
@@ -187,7 +190,7 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row("Nudge back 10 seconds", ("-",), ("main_nudge_prev",)),
             _Row("Nudge forward 10 seconds", ("=",), ("main_nudge_next",)),
-            _Row("Volume down / up, in tenths", (), ("audio_volume_down", "audio_volume_up")),
+            _Row("Volume down / up, in tenths — the video's sound", (), ("audio_volume_down", "audio_volume_up")),
             _Row(
                 "Cycle the video's VR projection — flat screen, 180° SBS, "
                 "fisheye 190, MKX200, 360 — remembered per video (FunTimeVR)",
@@ -309,7 +312,9 @@ _SECTIONS: tuple[_Section, ...] = (
                 set_commands_for_scope("both")
                 + set_commands_for_scope("portrait")
                 + set_commands_for_scope("landscape"),
-                voice_display=spoken_forms_for_both(),
+                # The acts under their real names, not the sound-alikes the
+                # recognizer's grammar is built from (see filter_vocab).
+                voice_display=display_forms(),
             ),
             _Row("Filter to the current clip's action", (), _sided("lock_action")),
             _Row(
