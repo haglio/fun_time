@@ -47,6 +47,36 @@ def _source_for_command(command: str) -> str:
         3: SOURCE_LANDSCAPE,
     }.get(command_side(command), SOURCE_SYSTEM)
 
+
+# The player words a speaker can put in any command, and which window a notice
+# about that player flashes over.  "main" is the primary's synonym throughout the
+# spoken vocabulary, so it names the same player here.  "both" is deliberately
+# absent: it addresses two players, and a notice flashes over one.
+_SPOKEN_PLAYER_SOURCES: dict[str, str] = {
+    "portrait": SOURCE_PORTRAIT,
+    "landscape": SOURCE_LANDSCAPE,
+    "primary": SOURCE_PRIMARY,
+    "main": SOURCE_PRIMARY,
+}
+
+
+def _source_for_heard_text(text: str) -> str:
+    """The player an unrecognized utterance at least named, if it named one.
+
+    A phrase the grammar rejected can still say who it was for — "landscape full
+    length please" is landscape's problem — so the report flashes over that
+    player instead of defaulting to the primary, where a satellite's mis-hearing
+    would be read as the primary's.  Matched on whole words, since "portrait" has
+    to be the word spoken and not a fragment of a longer one; the first player
+    word wins when a mis-hearing produces two.  A phrase naming no player is
+    SOURCE_SYSTEM, which flashes over the primary as everything session-wide does.
+    """
+    for word in text.lower().split():
+        source = _SPOKEN_PLAYER_SOURCES.get(word)
+        if source is not None:
+            return source
+    return SOURCE_SYSTEM
+
 # Omnipause suspends the AHK hotkeys wholesale and exempts exactly three: Esc,
 # which resumes, Ctrl+Alt+Q, which quits, and Shift+Esc, which retracts the OSR2
 # (``#SuspendExempt`` in windows_bridge_hotkeys.ahk).  Voice mirrors those three
@@ -191,7 +221,7 @@ class VoiceController:
     def _is_listening(self) -> bool:
         """Whether spoken input is currently acted on — not muted, not suspended.
 
-        Gates the recognition feedback (the "unrecognized command" flash): a
+        Gates the recognition feedback (the "unrecognized voice command" flash): a
         muted or omnipaused room's talk is discarded, so it must not be captioned
         either.
         """
@@ -236,10 +266,12 @@ class VoiceController:
 
         A recognized command that actually dispatches flashes a plain white
         confirmation over the player it addresses; speech that matched nothing
-        flashes a red "unrecognized command: …" so a mis-heard phrase is visible
-        rather than silent.  Confirmations follow whether the command dispatched,
-        so a muted/omnipaused no-op stays quiet; the unrecognized report is gated
-        on the room actually being listened to.
+        flashes a red "unrecognized voice command: …" so a mis-heard phrase is
+        visible rather than silent — over the player it named, if it named one,
+        which is where the user was already looking when they said it.
+        Confirmations follow whether the command dispatched, so a muted/omnipaused
+        no-op stays quiet; the unrecognized report is gated on the room actually
+        being listened to.
         """
         if interp.command:
             logger.info("Voice command: %s (spoken %.2fs before recognition)",
@@ -255,8 +287,8 @@ class VoiceController:
             logger.info("Unrecognized speech: %s", interp.unrecognized_text)
             notice(
                 logger,
-                f"unrecognized command: {interp.unrecognized_text}",
-                source=SOURCE_SYSTEM,
+                f"unrecognized voice command: {interp.unrecognized_text}",
+                source=_source_for_heard_text(interp.unrecognized_text),
                 level=logging.ERROR,
             )
 
@@ -322,7 +354,7 @@ class VoiceController:
             # A second, unrestricted recognizer runs alongside the grammar one,
             # fed the same audio, purely to transcribe what was said when the
             # grammar matches nothing — so an out-of-grammar phrase can be shown
-            # back as "unrecognized command: <what it heard>" instead of silently
+            # back as "unrecognized voice command: <what it heard>" instead of silently
             # becoming "[unk]".  It never drives a dispatch.
             free_rec = vosk.KaldiRecognizer(model, self.sample_rate)
             # Grammar mode reports per-word confidences only when words are
