@@ -523,8 +523,13 @@ def launch_genau(
     console_file: str | Path | None = None,
     drive_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
+    start_clip: str = "",
 ) -> int:
-    """Launch Genau subprocess, returning its PID."""
+    """Launch Genau subprocess, returning its PID.
+
+    *start_clip* is the clip the last session was left showing, or "" for a
+    session with none to come back to.
+    """
     cmd = [
         str(python_exe),
         "-m",
@@ -559,6 +564,13 @@ def launch_genau(
         cmd.extend(["--drive-file", str(drive_file)])
     if dashboard_cmd_file is not None:
         cmd.extend(["--dashboard-cmd-file", str(dashboard_cmd_file)])
+    # Genau rescans its clips folder every launch and opens at the top of it, so
+    # the clip a session was left showing comes back only by being named here.  On
+    # the command line rather than the command channel because that channel
+    # upper-cases every line (a path cannot survive it) and because a verb would
+    # arrive after Genau had already decoded the wrong clip.
+    if start_clip:
+        cmd.extend(["--start-clip", start_clip])
     proc = subprocess.Popen(cmd, **subprocess_window_kwargs())
     return proc.pid
 
