@@ -115,10 +115,13 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   was once "land it unverified rather than park it". It no longer is. With your
   suites green, run `python -m fun_time.branch_session --shortcut` from your
   worktree: it leaves a `Verify <branch>.lnk` in the primary checkout and prints
-  the path. Then tell him to open
-  [fun_time](C:/Users/redacted/workspace/haglio/fun_time) and double-click that
-  file, naming it exactly. **Never hand him a branch to choose or a command to
-  run** — picking is your job, not his. Double-clicking it runs a real session on
+  the path. Then hand him that `.lnk` as a **markdown link to the file itself**,
+  `file:///` prefixed and spaces percent-encoded —
+  `run [Verify my-branch.lnk](file:///C:/Users/redacted/workspace/haglio/fun_time/Verify%20my-branch.lnk)`
+  — so one click launches it. Linking the folder and naming the file instead
+  spends a window, a scroll and a second click of his on nothing; he had to
+  correct two agents in a row for it (2026-07-29). **Never hand him a branch to
+  choose or a command to run** — picking is your job, not his. Double-clicking it runs a real session on
   your worktree's code (his real library, his real monitors, uncommitted edits
   included), replacing the live session rather than joining it, so he quits with
   Ctrl+Alt+Q and launches Fun Time normally afterwards;
