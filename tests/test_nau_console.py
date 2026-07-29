@@ -91,3 +91,11 @@ class TestPayload:
 
         assert "auto_advance" not in payload
         assert "clip_locked" not in payload
+
+
+def test_the_panel_carries_the_main_players_browse_order():
+    """Latest and Shuffle are the orchestrator's to set — a spoken word or a key it
+    owns — and Nau cannot tell which way round the playlist it was handed was built,
+    so the order rides the panel exactly as F-mode does."""
+    assert _payload(latest=True)["latest"] is True
+    assert _payload()["latest"] is False

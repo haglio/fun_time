@@ -50,6 +50,7 @@ def console_payload(
     nau_locked: bool = True,
     genau: GenauStatus,
     f_mode: bool = False,
+    latest: bool = False,
 ) -> dict:
     """The console panel as the main player parses it.
 
@@ -68,6 +69,11 @@ def console_payload(
     so the mode decides which, here, rather than the console drawing two padlocks
     and leaving the reader to work out whose is whose.
 
+    ``latest`` is which browse order it is in — newest-first when set, else
+    shuffled.  Published for the same reason ``f_mode`` is: the order is the
+    orchestrator's, set by a spoken word or a key it owns, and Nau has no way to
+    know which way round the playlist it was handed was built.
+
     ``f_mode`` is the main player's own F-mode — its playlist narrowed to the videos
     that have a funscript.  Nau is told the flag directly too (``SET_F_MODE``, for
     its status line), but the console's button has to light off what the
@@ -78,6 +84,7 @@ def console_payload(
         "mode": mode,
         "active": active,
         "f_mode": f_mode,
+        "latest": latest,
         "osr2": osr2_state(mode=mode, osr2_mode=osr2_mode,
                            funscript_driving=funscript_driving),
         "broker": broker,

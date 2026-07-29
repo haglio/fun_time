@@ -128,6 +128,9 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("min speed", "max speed", "reset speed", "half speed", "double speed", "speed one point five ex"),
             ),
             _Row("Cycle through versions of the current video", ("V",), ("nau_cycle_version",)),
+            _Row("Latest main — reload it newest-first", (), ("main_latest",)),
+            _Row("Shuffle main — reshuffle it (cancels Latest; keeps F-mode)", (),
+                 ("main_shuffle",)),
             _Row(
                 "Length of what plays: \"mixed\" (the default, everything), "
                 "\"shorts\", or \"full length\"; \"main reset\" also returns "

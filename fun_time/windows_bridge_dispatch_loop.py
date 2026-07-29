@@ -432,6 +432,7 @@ class DispatchLoopRunner:
             mode=state.main_mode,
             active=state.active_side == MAIN_SIDE,
             f_mode=state.main_f_mode,
+            latest=state.main_latest,
             osr2_mode=self._osr2_mode(),
             funscript_driving=nau.funscript_driving,
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
