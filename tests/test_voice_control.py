@@ -735,7 +735,9 @@ def test_group_commands_join_the_order_agnostic_grid():
     for words, act in {
         ("action loop", "loop action"): "action_loop",
         ("seed loop", "loop seed"): "seed_loop",
-        ("lock action", "action lock"): "lock_action",
+        # "filter" is a synonym for the whole two-word phrase, so it joins the
+        # grid the same way: bare, sided, and sided in either order.
+        ("lock action", "action lock", "filter"): "lock_action",
     }.items():
         for word in words:
             assert VOICE_COMMANDS[word] == f"active_{act}"
@@ -772,6 +774,9 @@ def test_group_commands_do_not_shadow_the_single_word_actions():
     assert VOICE_COMMANDS["action"] == "active_cycle_action"
     assert VOICE_COMMANDS["seed"] == "active_cycle_seed"
     assert VOICE_COMMANDS["loop"] == "nau_record_up"
+    # "filter" (put one on) must not disturb the phrases that drop one.
+    assert VOICE_COMMANDS["no filter"] == "active_no_filter"
+    assert VOICE_COMMANDS["filter off"] == "active_no_filter"
 
 
 def test_voice_commands_include_generated_filter_phrases():
