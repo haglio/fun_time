@@ -60,10 +60,12 @@ from .win32 import (
     activate_window,
     find_window_by_pid,
     find_window_by_title,
+    force_foreground_window,
     is_window_topmost,
     minimize_window,
     restore_window,
     set_always_on_top,
+    window_exists,
     window_rect,
 )
 
@@ -776,19 +778,50 @@ class DispatchLoopRunner:
             self._minimize_role(role)
 
     def _flush_rfb_tabs(self) -> None:
-        """Open every buffered RFB URL as tabs in one Chrome launch."""
+        """Open every buffered RFB URL as tabs in the session's own Chrome window.
+
+        The RFB runs in the user's own Chrome — his user data directory, his
+        profile — so his personal windows of that profile are candidates for the
+        tab too, and nothing about handing Chrome a URL says which window is
+        meant.  A second chrome.exe finds the first one's singleton (it is keyed
+        on the user data directory) and forwards the command line; the running
+        browser resolves the profile from --profile-directory and asks
+        ``FindTabbedBrowser`` for a window, which walks its browsers
+        most-recently-active first and takes the first one whose profile matches.
+        So the window he touched last wins — a personal window he was reading a
+        moment ago beats the RFB, and the lock's tab lands there, behind the
+        players where he won't see it until later.
+
+        Activating the RFB window first is what settles that: it goes to the head
+        of Chrome's own activation order, so it is the window ``FindTabbedBrowser``
+        returns.  Chrome shows the window it opens into either way, so this costs
+        no raise that was not already coming — it only decides which window rises.
+
+        A dead handle means Fun Time has no window of its own left to open into,
+        and every URL handed over then is guaranteed to land in one of his: that
+        is worth losing the tab over, so the launch is skipped entirely.
+        """
         urls = self._pending_rfb_urls
         self._pending_rfb_urls = []
-        if not urls:
+        if not urls or not self.rfb_shortcut_target:
             return
-        if self.rfb_hwnd and self.rfb_shortcut_target:
-            open_rfb_tab(
-                urls=urls,
-                shortcut_target=self.rfb_shortcut_target,
-                shortcut_work_dir=self.rfb_shortcut_work_dir,
-                shortcut_args=self.rfb_shortcut_args,
+        if not window_exists(self.rfb_hwnd):
+            logger.warning(
+                "RFB tab(s) skipped: no Random Favs Browser window to open into: %s",
+                ", ".join(urls),
             )
-            logger.info("Opened RFB tab(s): %s", ", ".join(urls))
+            return
+        if not force_foreground_window(self.rfb_hwnd):
+            # Not fatal, and expected on the integration suite's hidden desktop,
+            # which has no foreground window to become.
+            logger.info("RFB window did not take the foreground before the tab handoff")
+        open_rfb_tab(
+            urls=urls,
+            shortcut_target=self.rfb_shortcut_target,
+            shortcut_work_dir=self.rfb_shortcut_work_dir,
+            shortcut_args=self.rfb_shortcut_args,
+        )
+        logger.info("Opened RFB tab(s): %s", ", ".join(urls))
 
     def _send_press(self, action: str) -> None:
         if not self.dashboard_enabled:
