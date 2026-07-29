@@ -561,7 +561,33 @@ class TestHandleRecognition:
 
         vc._handle_recognition(Recognition(unrecognized_text="full length please"), spoken_at=1.0)
 
-        assert seen == [("unrecognized command: full length please", "system", logging.ERROR)]
+        assert seen == [("unrecognized voice command: full length please", "system", logging.ERROR)]
+
+    @pytest.mark.parametrize("heard, source", [
+        ("portrait full length please", "portrait"),
+        ("landscape full length please", "landscape"),
+        ("primary full length please", "primary"),
+        ("main full length please", "primary"),
+        ("full length please landscape", "landscape"),
+    ])
+    def test_an_unrecognized_phrase_reports_over_the_player_it_named(
+        self, tmp_path, monkeypatch, heard, source,
+    ):
+        """A phrase the grammar rejected can still say who it was for, in either
+        order — that satellite is where the user is looking, so that is where the
+        red report belongs, rather than on the primary."""
+        vc = self._controller(tmp_path)
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append((msg, source)))
+
+        vc._handle_recognition(Recognition(unrecognized_text=heard), spoken_at=1.0)
+
+        assert seen == [(f"unrecognized voice command: {heard}", source)]
+
+    def test_a_player_word_inside_a_longer_word_does_not_claim_the_report(self):
+        """The player has to be *named* — matched whole, not as a fragment."""
+        assert voice_control._source_for_heard_text("mainly landscaped") == "system"
 
     def test_unrecognized_speech_stays_silent_while_muted(self, tmp_path, monkeypatch):
         vc = self._controller(tmp_path)
