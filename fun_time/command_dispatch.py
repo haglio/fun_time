@@ -29,9 +29,11 @@ from .media_metadata import (
     seed_family_members,
     widened_seed_members,
 )
+from player_core.hud_status import F_MODE_LABEL
+
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
-from .lock_hud import F_MODE_LABEL, cell_path, hud_map_cells, locate_cell, navigate_cell
+from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
 from .modes import collect_video_files, is_favorite_path, read_favs_content, write_playlist_file
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
