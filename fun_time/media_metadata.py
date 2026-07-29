@@ -4,9 +4,10 @@ Every AI video under the provider media root may have a JSON sidecar in a
 mirrored tree under the metadata root, recording the prompts and settings it
 was generated from (a ``video`` block, plus a ``source_image`` block when the
 video was animated from a generated image).  This module owns the mapping
-from a video file to its sidecar and the sidecar loading; consumers layer
-their own interpretation on top (e.g. :mod:`fun_time.regen` builds
-regenerate URLs from it).
+from a video file to its sidecar, the sidecar loading, and the one edit Fun
+Time makes to a sidecar (:func:`reject_action`); consumers layer their own
+interpretation on top (e.g. :mod:`fun_time.regen` builds regenerate URLs from
+it).
 """
 from __future__ import annotations
 
@@ -57,6 +58,37 @@ def load_metadata(json_path: str | Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+# Where a struck-out act is kept once a viewer has said it is wrong.  Clearing
+# ``video.action`` is what puts the clip back in front of Evolver's backfill tool
+# (a clip with no act is one that still needs one); this key is what tells that
+# tool the clip was *rejected* rather than never labeled, so it can ask about it
+# first and whatever the clip's source.  Evolver reads it in ``util/sidecar.py``
+# and drops it again the moment a new act is recorded.
+WRONG_ACTION_FIELD = "wrong_action"
+
+
+def reject_action(video_path: str | Path, metadata_root: str | Path | None) -> str:
+    """Strike the act out of *video_path*'s sidecar; return the act that went.
+
+    Returns ``""`` — and writes nothing — when the clip has no sidecar or its
+    sidecar records no act: there is nothing to be wrong about.  Everything else
+    the sidecar holds (the prompts, the seed, the source image) is left alone.
+    """
+    json_path = metadata_path_for(video_path, metadata_root)
+    if json_path is None:
+        return ""
+    payload = load_metadata(json_path)
+    video = payload.get("video")
+    if not isinstance(video, dict):
+        return ""
+    action = str(video.pop("action", "") or "").strip()
+    if not action:
+        return ""
+    video[WRONG_ACTION_FIELD] = action
+    json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return action
 
 
 def _norm_text(value: object) -> str:

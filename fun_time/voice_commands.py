@@ -200,6 +200,10 @@ _SATELLITE_ACTIONS: dict[str, str] = {
     "next": "next",
     "previous": "prev",
     "weird": "trash",
+    # The clip is fine; what its metadata says it shows is not.  Strikes the act
+    # out of the sidecar, which puts the clip back in front of Evolver's backfill
+    # tool to be named again — the metadata counterpart of "weird".
+    "wrong action": "wrong_action",
     "action": "cycle_action",
     # "scene" is a synonym for "action" — a scene IS an act — so it cycles the
     # subject's other acts exactly like "action", bare or sided.
@@ -458,21 +462,23 @@ VOICE_COMMANDS.update(_filter_commands)
 # Nau (where they landed, or "full video not available" / "no funscripting
 # ahead"); F-mode reports from the dispatch, which alone knows whether the toggle
 # turned it on (green) or off (red) — and by owning the toast there, the F key and
-# the dashboard flash it too, not just voice.  "weird" is that same shape: only
-# the dispatch knows whether the clip was a favorite being demoted
-# ("Unfavorited") or an ordinary one being condemned ("Marked weird"), and
-# echoing the phrase back would say neither.  All four spellings are listed
-# because any of them can be what voice hands over.
+# the dashboard flash it too, not just voice.  The two judgements of the clip on
+# screen are that same shape: only the dispatch knows whether "weird" demoted a
+# favorite ("Unfavorited") or condemned an ordinary clip ("Marked weird"), and
+# only it knows which act "wrong action" struck ("Action removed: Alpha") or that
+# there was none to strike.  Echoing either phrase back would say neither, so
+# every spelling of both is listed — any of them can be what voice hands over.
 SELF_REPORTING_COMMANDS = frozenset({
     "nau_compilation",
     "nau_full_vid",
     "nau_clip_jump",
     "nau_funscript_jump",
     "nau_next_funscripted",
-    "portrait_trash",
-    "landscape_trash",
-    "active_trash",
-    "both_trash",
+    *(
+        f"{side}_{judgement}"
+        for judgement in ("trash", "wrong_action")
+        for side in ("portrait", "landscape", "active", "both")
+    ),
     # Every spelling of F-mode: the dispatch flashes which way each one went, so a
     # spoken one must not stack the generic echo on top of that.
     "fmode_toggle",

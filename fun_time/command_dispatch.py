@@ -24,6 +24,8 @@ from .media_metadata import (
     load_metadata,
     metadata_path_for,
     normalize_path_key,
+    reject_action,
+    reset_group_index_cache,
     seed_family_members,
     widened_seed_members,
 )
@@ -725,6 +727,42 @@ def _dispatch_more_seeds(
     return state, [WindowOp(op="notice", key="More seeds", source=source)]
 
 
+# "Wrong action" — the clip is fine, its label is not.  Per side, like every
+# other judgement of the clip on screen.
+_WRONG_ACTION_SIDES: dict[str, int] = {"portrait_wrong_action": 2, "landscape_wrong_action": 3}
+
+
+def _dispatch_wrong_action(
+    which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Strike the act out of the current clip's sidecar — "wrong action".
+
+    Nothing about playback changes: the clip is not bad, only mislabeled, so it
+    plays on.  What changes is the library: with no ``video.action`` the clip
+    reads as still needing one, which is what brings it back around in Evolver's
+    backfill tool to be named again.
+
+    The clip judged is the one the speaker was looking at (*target_path*) rather
+    than whatever an auto-advancing satellite has moved on to, exactly as for
+    "weird" and the cycles.
+    """
+    source = _satellite_source(which)
+    current = target_path or _satellite_current(config, which)
+    if not current:
+        return state, []
+    action = reject_action(current, config.regen_metadata_root)
+    if not action:
+        return state, [WindowOp(
+            op="notice", key="No action to remove", source=source, level=FAILED_NOTICE_LEVEL
+        )]
+    # The grouping index carries the act it just lost — it decides the HUD's
+    # action column, its labels and where a cycle goes next — so it has to be
+    # rebuilt rather than left describing the sidecar as it was.
+    reset_group_index_cache()
+    logger.info("Wrong action on %s: removed %r", current, action)
+    return state, [WindowOp(op="notice", key=f"Action removed: {action}", source=source)]
+
+
 def _loop_members(
     which: int, axis: str, state: BridgeState, config: BridgeConfig, current: str
 ) -> tuple[list[str], bool]:
@@ -1071,11 +1109,11 @@ def dispatch_command(
     ``target_path`` names the video a spoken command was aimed at — the one on
     screen when the utterance began, which an auto-advancing satellite may have
     left behind by the time the phrase was recognized.  Every satellite action
-    that is *about a particular video* honours it: lock, weird, cycle, the group
-    loops and lock-action.  Navigation is relative rather than video-scoped, and
-    the rest of the vocabulary names no video at all, so both ignore it.  Empty
-    means "whatever is playing now", which is how every keyboard and dashboard
-    command arrives.
+    that is *about a particular video* honours it: lock, weird, wrong-action,
+    cycle, the group loops and lock-action.  Navigation is relative rather than
+    video-scoped, and the rest of the vocabulary names no video at all, so both
+    ignore it.  Empty means "whatever is playing now", which is how every
+    keyboard and dashboard command arrives.
     """
     ops: list[WindowOp] = []
 
@@ -1119,6 +1157,10 @@ def dispatch_command(
     more_seeds_side = _MORE_SEEDS_SIDES.get(command)
     if more_seeds_side is not None:
         return _dispatch_more_seeds(more_seeds_side, state, config, target_path)
+
+    wrong_action_side = _WRONG_ACTION_SIDES.get(command)
+    if wrong_action_side is not None:
+        return _dispatch_wrong_action(wrong_action_side, state, config, target_path)
 
     loop_target = _LOOP_COMMANDS.get(command)
     if loop_target is not None:
