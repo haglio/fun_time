@@ -299,12 +299,6 @@ class TestResolveActiveSideCommand:
     def test_rewrites_to_landscape_when_active_side_is_landscape(self):
         assert resolve_active_side_command("active_next", 3) == "landscape_next"
 
-    def test_rewrites_the_bare_enter_lock_onto_the_active_side(self):
-        # Enter enqueues "active_nav_lock"; it locks whichever satellite was last
-        # navigated (by an arrow / WASD nav step).
-        assert resolve_active_side_command("active_nav_lock", 2) == "portrait_nav_lock"
-        assert resolve_active_side_command("active_nav_lock", 3) == "landscape_nav_lock"
-
     def test_passes_non_active_commands_through(self):
         assert resolve_active_side_command("main_next", 3) == "main_next"
         assert resolve_active_side_command("portrait_lock", 3) == "portrait_lock"

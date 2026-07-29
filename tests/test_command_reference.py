@@ -113,20 +113,21 @@ def test_cycle_action_and_seed_are_spoken_only():
     four was ever used, so they went back to the pool; E now ends a landscape loop.
     """
     expected = {
-        "portrait_cycle_action": "portrait action",
-        "portrait_cycle_seed": "portrait seed",
-        "landscape_cycle_action": "landscape action",
-        "landscape_cycle_seed": "landscape seed",
+        "portrait_cycle_action": ("portrait action", "action"),
+        "portrait_cycle_seed": ("portrait seed", "seed"),
+        "landscape_cycle_action": ("landscape action", "action"),
+        "landscape_cycle_seed": ("landscape seed", "seed"),
     }
     rows = _all_rows()
     queued = _ahk_hotkey_commands()
-    for cmd, phrase in expected.items():
+    for cmd, (phrase, shown) in expected.items():
         assert VOICE_COMMANDS[phrase] == cmd
         assert cmd not in queued, f"{cmd} is spoken-only and must hold no key"
         owning = [r for r in rows if cmd in r.commands]
         assert len(owning) == 1, f"expected exactly one row for {cmd}"
         assert owning[0].hotkeys == ()
-        assert phrase in owning[0].voice
+        # The scopes share one row, so the Say column shows the folded phrase.
+        assert shown in owning[0].voice
 
 
 def test_the_group_loops_are_cycled_by_one_key_per_side():
@@ -137,16 +138,17 @@ def test_the_group_loops_are_cycled_by_one_key_per_side():
     last of the three stops, so it reaches the cycle command rather than no_loop.
     Ending a loop outright stays spoken ("portrait end loop"), and holds no key.
     """
-    expected = {"portrait_loop": "Home", "landscape_loop": "E"}
+    expected = {"portrait_loop": ("Home", 0), "landscape_loop": ("E", 1)}
     rows = _all_rows()
-    for cmd, key in expected.items():
+    for cmd, (key, column) in expected.items():
         bound = _ahk_binding_for(cmd)
         assert bound is not None, f"{cmd} must be bound in the AHK hotkey script"
         # AHK writes letter hotkeys lowercase; the reference labels them uppercase.
         assert bound.lower() == key.lower(), f"{cmd} is on {bound!r}, expected {key!r}"
         owning = [r for r in rows if cmd in r.commands]
         assert len(owning) == 1, f"expected exactly one row for {cmd}"
-        assert owning[0].hotkeys == (key,)
+        # The sides share a row, each key under its own column.
+        assert owning[0].key_columns[column] == (key,)
     for cmd in ("portrait_no_loop", "landscape_no_loop"):
         assert _ahk_binding_for(cmd) is None, f"{cmd} gave its key to the cycle"
         owning = [r for r in rows if cmd in r.commands]
@@ -154,34 +156,86 @@ def test_the_group_loops_are_cycled_by_one_key_per_side():
         assert owning[0].hotkeys == ()
 
 
-def test_both_section_lists_combined_satellite_commands():
-    """A "Both" section drives Portrait + Landscape together, by voice only."""
-    sections = {s.title: s for s in build_reference_sections()}
-    assert "Both" in sections
-    both = sections["Both"]
-    cmds = {c for row in both.rows for c in row.commands}
-    assert cmds == {
+def _satellite_section() -> ReferenceSection:
+    return {s.title: s for s in build_reference_sections()}["Satellites"]
+
+
+def test_every_scope_shares_one_grid_with_a_key_column_per_side():
+    """Portrait, Landscape, Both, Active side and Filters ran the same list of
+    actions, so they are one grid now: a row names every scope that has the
+    action, and puts each side's key in its own column.  Five sections said it
+    all five times and were free to drift apart."""
+    section = _satellite_section()
+    assert section.key_headers == ("Portrait", "Landscape")
+    for row in section.rows:
+        by_scope = {
+            scope: {c[len(scope) + 1:] for c in row.commands if c.startswith(f"{scope}_")}
+            for scope in ("portrait", "landscape", "both", "active")
+        }
+        assert by_scope["portrait"] == by_scope["landscape"], (
+            f"row {row.description!r} names different actions per side"
+        )
+        # Every scope the action exists in must be named — the grid is uniform
+        # apart from the exceptions each carries a comment for.
+        for scope, actions in by_scope.items():
+            for action in by_scope["portrait"] | actions:
+                command = f"{scope}_{action}"
+                if command in VOICE_COMMANDS.values():
+                    assert command in row.commands, (
+                        f"row {row.description!r} omits {command}"
+                    )
+        assert len(row.key_columns) == 2
+        assert row.hotkeys == row.key_columns[0] + row.key_columns[1]
+
+
+def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
+    """A row cannot spell out "portrait next", "next landscape", "both next" and
+    "next" without printing its own action four times, so the Say column keeps the
+    action alone and the section's note explains how to aim it."""
+    section = _satellite_section()
+    for word in ("portrait", "landscape", "both"):
+        assert word in section.note
+    nxt = next(r for r in section.rows if "portrait_next" in r.commands)
+    assert nxt.voice == ("next",)
+    assert nxt.key_columns == (("Right",), ("D",))
+    lock = next(r for r in section.rows if "portrait_lock_on" in r.commands)
+    assert lock.voice == ("lock", "lock all", "unlock")
+    for row in section.rows:
+        if row.description.startswith(("Filter by act", "Drop the filter")):
+            continue  # the filter phrases scope themselves differently; see below
+        for phrase in row.voice:
+            assert not {"portrait", "landscape", "both"} & set(phrase.split()), (
+                f"{phrase!r} still carries a scope word"
+            )
+
+
+def test_the_grid_carries_every_both_and_active_command():
+    """Nothing was dropped in the consolidation: each command the retired "Both",
+    "Active side" and "Filters" sections documented is on a row of the grid."""
+    covered = {c for row in _satellite_section().rows for c in row.commands}
+    assert {
         "both_prev", "both_next", "both_trash",
         "both_lock_on", "both_lock_off",
         "both_cycle_action", "both_cycle_seed", "both_more_seeds", "both_wrong_action",
         "both_action_loop", "both_seed_loop", "both_no_loop", "both_lock_action",
-        "both_shuffle", "both_no_filter", "both_reset",
+        "both_latest", "both_shuffle", "both_no_filter", "both_reset",
         "both_fmode", "both_fmode_on", "both_fmode_off",
-    }
-    # Voice phrases are derived from VOICE_COMMANDS, so each row surfaces one —
-    # side word first ("both next", "both lock"), matching every satellite row.
-    next_row = next(r for r in both.rows if "both_next" in r.commands)
-    assert "both next" in next_row.voice
-    lock_row = next(r for r in both.rows if "both_lock_on" in r.commands)
-    assert "both lock" in lock_row.voice and "both unlock" in lock_row.voice
+    } <= covered
+    assert {
+        "active_prev", "active_next", "active_trash",
+        "active_lock_on", "active_lock_off", "active_wrong_action",
+        "active_cycle_action", "active_cycle_seed", "active_more_seeds",
+        "active_action_loop", "active_seed_loop", "active_no_loop",
+        "active_lock_action", "active_latest", "active_shuffle",
+        "active_no_filter", "active_reset",
+        "active_fmode", "active_fmode_on", "active_fmode_off",
+    } <= covered
 
 
-def test_active_side_section_documents_the_bare_commands():
-    """The side-agnostic voice commands live in their own 'Active side' section,
-    each keyless (they are voice-only) and carrying its bare phrase."""
-    sections = {s.title: s for s in build_reference_sections()}
-    assert "Active side" in sections
-    rows = sections["Active side"].rows
+def test_the_bare_phrases_read_as_the_say_column():
+    """The side-agnostic phrases are what the grid shows — the whole point of
+    folding the scope word out is that "next" is the entry a reader sees."""
+    rows = _satellite_section().rows
     by_command = {cmd: r for r in rows for cmd in r.commands}
     expected = {
         "active_lock_on": "lock",
@@ -192,12 +246,11 @@ def test_active_side_section_documents_the_bare_commands():
         "active_cycle_action": "action",
         "active_cycle_seed": "seed",
         "active_wrong_action": "wrong action",
+        "active_fmode": "f mode",
     }
     for cmd, phrase in expected.items():
-        assert cmd in by_command, f"{cmd} missing from the Active side section"
-        row = by_command[cmd]
-        assert phrase in row.voice
-        assert row.hotkeys == (), f"{cmd} is voice-only and must show no hotkey"
+        assert cmd in by_command, f"{cmd} missing from the satellite grid"
+        assert phrase in by_command[cmd].voice
 
 
 def test_mode_named_nav_shows_friendly_names_in_the_legend():
@@ -278,10 +331,13 @@ def test_latest_is_spoken_only_and_the_older_names_are_gone():
     which the small vosk model has no word for and heard as "reset".
     """
     rows = [r for r in _all_rows() if "both_latest" in r.commands]
-    assert len(rows) == 1, "expected exactly one both-sides Latest row"
+    assert len(rows) == 1, "expected exactly one Latest row"
     row = rows[0]
     assert row.hotkeys == ()
-    assert "both latest" in row.voice
+    # It sits in the satellite grid like every other action, so its Say column
+    # is the bare "latest" and "both latest" comes from the section's note.
+    assert row.voice == ("latest",)
+    assert {"portrait_latest", "landscape_latest", "active_latest"} <= set(row.commands)
     assert "premiere" not in VOICE_COMMANDS
     assert "recents" not in VOICE_COMMANDS
 
@@ -310,18 +366,26 @@ def test_latest_and_shuffle_reach_one_side_or_both():
 def test_voice_phrases_are_derived_from_voice_commands():
     """Each row's voice must include every phrase VOICE_COMMANDS assigns to its
     commands — except rows with an explicit voice_display alias."""
-    from fun_time.command_reference import _SECTIONS, _voice_for, friendly_voice
+    from fun_time.command_reference import (
+        _SECTIONS,
+        _collapse_scopes,
+        _display_voice,
+        friendly_voice,
+    )
 
     inverse: dict[str, list[str]] = {}
     for phrase, cmd in VOICE_COMMANDS.items():
         inverse.setdefault(cmd, []).append(phrase)
-    for _title, rows in _SECTIONS:
-        for row in rows:
+    for section in _SECTIONS:
+        for row in section.rows:
             if row.voice_display is not None:
                 continue  # deliberate display alias (e.g. show "genau" not "go now")
-            built = _voice_for(row.commands) + row.literal_voice
-            # Phrases are shown under their friendly mode name (sound-alikes rewritten).
+            built = _display_voice(row, merge_scopes=section.merge_scopes)
+            # Phrases are shown under their friendly mode name (sound-alikes rewritten),
+            # and with the scope word folded away where the scopes share a row.
             derived = sorted(friendly_voice(p) for cmd in row.commands for p in inverse.get(cmd, []))
+            if section.merge_scopes:
+                derived = [_collapse_scopes(p) for p in derived]
             for phrase in derived:
                 assert phrase in built, (
                     f"row {row.description!r} should list derived phrase {phrase!r}"
@@ -346,13 +410,20 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
     assert any(key.lower() == "g" for key in row.hotkeys)
 
 
-def test_section_titles_and_backslash_split():
-    sections = build_reference_sections()
-    titles = [s.title for s in sections]
-    for expected in ("Global", "Nau", "Portrait", "Landscape", "Modes", "Genau"):
-        assert expected in titles, f"missing section {expected!r}"
-    assert "Genau control" not in titles  # renamed to "Genau"
+def test_section_titles_run_global_genau_nau_satellites():
+    """Four sections, in the order the room is built: what governs everything,
+    then the engine driving the OSR2, then the video it plays under, then the two
+    side players.  Genau leads Nau because it owns the primary display in its own
+    mode, and every satellite scope shares the last section."""
+    titles = [s.title for s in build_reference_sections()]
+    assert titles == ["Global", "Genau", "Nau", "Satellites"]
+    for retired in ("Portrait", "Landscape", "Both", "Active side",
+                    "Filters (satellites)", "Modes", "Genau control"):
+        assert retired not in titles, f"{retired!r} should be folded in"
 
+
+def test_the_backslash_key_is_split_between_its_two_meanings():
+    sections = build_reference_sections()
     by_title = {s.title: s for s in sections}
     main_backslash = [r for r in by_title["Nau"].rows if "\\" in r.hotkeys]
     genau_backslash = [r for r in by_title["Genau"].rows if "\\" in r.hotkeys]
@@ -543,14 +614,18 @@ def test_render_reference_html_has_no_heading_or_subtitle():
     assert "Global while Fun Time" not in html
 
 
-def test_filters_section_documents_the_spoken_filters():
+def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
+    """Filtering is a satellite action like any other, so it stops being its own
+    section: one row sets a filter by act, one drops it.  Neither spells out
+    "portrait"/"landscape" any more — the section's note aims them, the same way
+    it aims "next"."""
     from fun_time.filter_vocab import spoken_forms_for_both
 
-    sections = {s.title: s for s in build_reference_sections()}
-    assert "Filters (satellites)" in sections
-    blob = " ".join(v for row in sections["Filters (satellites)"].rows for v in row.voice)
-    assert any(form in blob for form in spoken_forms_for_both())  # a spoken act form
-    assert "clear portrait" in blob  # a clear phrase
+    rows = _satellite_section().rows
+    set_row = next(r for r in rows if r.description.startswith("Filter by act"))
+    assert set(set_row.voice) == set(spoken_forms_for_both())
+    drop_row = next(r for r in rows if r.description.startswith("Drop the filter"))
+    assert set(drop_row.voice) == {"no filter", "filter off", "clear filter", "show everything"}
 
 
 def test_every_filter_voice_command_is_represented():
