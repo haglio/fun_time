@@ -301,8 +301,8 @@ compilation, the running order in it, the scene it came from), and that record i
 the whole test — so a reel's worth of cuts never sits among the scenes they were
 cut from. Where those two sets have been filed into two folders on disk, each
 keeping its own copy of the pipeline stages, the tiles are named after those
-folders (`cumshots`, `full`); where the split is the sidecar's alone, the cuts
-take a `· clips` name instead.
+folders (the cuts folder's name and `full`); where the split is the sidecar's
+alone, the cuts take a `· clips` name instead.
 
 The families come from Evolver's metadata sidecar (`version.group`), which is
 the authority on "same video, other version" — the filenames alone cannot say
