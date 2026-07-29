@@ -13,6 +13,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.hud_status import status_line
+
 from fun_time.media_metadata import (
     GroupIndex,
     action_group_members,
@@ -24,48 +26,30 @@ from fun_time.media_metadata import (
 from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
 
-# What F-mode is called on screen.  Every player has its own now, and the F key
-# still reaches all of them at once, so it has to read the same on every HUD —
-# Nau's own HUD carries a matching constant (``nau.hud.F_MODE_LABEL`` in genau),
-# which is the one place the wording could drift.
-F_MODE_LABEL = "F-Mode"
-
-
-def _lock_label(locked: bool) -> str:
-    """The status word for the lock: a lock is repeat-one on the clip on screen, and
-    the one kind there is — the grid's other "lock <scope>" words are the loops."""
-    return "Locked" if locked else "Unlocked"
-
-
 def _status_label(
     locked: bool, loop_axis: str, latest: bool, filter_query: str, f_mode: bool
 ) -> str:
     """The HUD's one status line — everything the side is in, at a glance.
 
-    What is looping, whether the lock is holding, which order the browse is in, and
-    the two filtering layers: a reader should not have to look anywhere else to know
-    how the satellite is behaving.  The loop leads, because it is the set the side is
-    playing; a lock taken inside one is a hold at one position in that set, so it
-    follows rather than replaces it.  Only "Locked" joins a running loop — saying
-    "Unlocked" beside a loop is noise, since a loop is repeat-all and nothing is
-    being held.  The order stays on the line either way, since ending both drops the
-    side straight back into it.
+    This side's words in the slots :func:`player_core.hud_status.status_line` lays
+    out, which is where the grammar lives and why "Locked", "Unlocked" and "F-Mode"
+    are not spelled here: every player in the room says this line, and a reader
+    glancing between two screens is reading one sentence in two places.
 
-    The filters run coarse to fine: F-mode cuts the whole library to favourites,
-    then the act filter narrows what is left.  The act goes last and unlabelled — a
-    phrase from the vocabulary in *that* position can only be the filter — so the
-    fixed word has to precede it rather than follow it.  How big each axis is belongs
-    to the map, which prints its own counts.
+    What fills the slots is the satellite's own.  The loop is the set it is playing,
+    so it leads; the browse order it drops back into on ending one; then the two
+    filtering layers, coarse to fine — F-mode cuts the library to the favorites, and
+    the act filter narrows what is left.  The act goes last and unlabelled, since a
+    phrase from the vocabulary in *that* position can only be the filter.  How big
+    each axis is belongs to the map, which prints its own counts.
     """
-    parts = [f"Looping {loop_axis}s"] if loop_axis else []
-    if locked or not loop_axis:
-        parts.append(_lock_label(locked))
-    parts.append("Latest" if latest else "Shuffle")
-    if f_mode:
-        parts.append(F_MODE_LABEL)
-    if filter_query:
-        parts.append(filter_query)
-    return " · ".join(parts)
+    return status_line(
+        playing_set=f"Looping {loop_axis}s" if loop_axis else "",
+        locked=locked,
+        order="Latest" if latest else "Shuffle",
+        f_mode=f_mode,
+        filter_label=filter_query,
+    )
 
 
 @dataclass(frozen=True)
