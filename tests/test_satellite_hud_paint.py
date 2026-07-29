@@ -10,6 +10,7 @@ from PIL import Image
 from player_core.hud_panel import ICON_GRIDS, TEXT_MUTED, WHITE
 
 from satellite.hud import (
+    CONTROL_TOOLTIPS,
     CTRL_BAND_H,
     ELLIPSIS_ROOM,
     FILTER_ROOM,
@@ -724,6 +725,25 @@ def test_hovering_a_button_draws_its_tooltip(thumb):
                              hover_pos=(40, 40))
 
     assert not np.array_equal(plain.bgra, tipped.bgra)
+
+
+def test_a_tooltip_longer_than_the_panel_is_wide_stays_on_the_panel(thumb):
+    """The reported bug: the trash button's tooltip wants more width than a
+    portrait panel has, so it was drawn straight off the right edge and read
+    "…when it is not a favo".  It wraps now, which is player_core's job — this
+    guards that the satellite actually hands it the panel's own bounds, since
+    passing anything wider would put the box back over the edge."""
+    renderer = HudRenderer("portrait")
+    model = _model(corner=HudCell(path="c.mp4", thumb=thumb))
+    plain = _rgb(renderer.render(model).bgra)
+    tipped = _rgb(renderer.render(model, hover_tip=CONTROL_TOOLTIPS["trash"],
+                                 hover_pos=(33, 44)).bgra)
+
+    def edge_ink(rgb) -> int:
+        return int((rgb[:, -2:] > 200).all(axis=2).sum())
+
+    assert not np.array_equal(plain, tipped)  # it drew something
+    assert edge_ink(tipped) == edge_ink(plain) == 0
 
 
 def test_the_button_glyphs_are_not_tofu():

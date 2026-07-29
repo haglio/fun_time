@@ -19,7 +19,6 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from player_core.hud_panel import (
     BG_PRIMARY,
-    BORDER_PANEL,
     GREEN,
     TEXT_MUTED,
     TEXT_PRIMARY,
@@ -27,6 +26,7 @@ from player_core.hud_panel import (
     HudPanel,
     draw_glyph,
     draw_icon,
+    draw_tooltip,
     load_font,
     text_width,
 )
@@ -79,7 +79,6 @@ from .hud import (
 
 _PLACEHOLDER = (48, 48, 60)  # a thumbnail fun_time has not produced yet
 
-_TOOLTIP_ALPHA = 240
 _DIM = 0.5      # non-playing thumbnails; the one on screen stays full
 _BORDER_W = 2   # the lock ring around the held clip
 _DOT = 1        # radius of one dot in a "…" mark — small, so three read as three
@@ -335,7 +334,7 @@ class HudRenderer:
             # "↔" reads as expanding — the seed row widening.
             self._glyph_button(draw, expand_rect, _EXPAND_GLYPH)
         if hover_tip:
-            self._draw_tooltip(draw, width, height, hover_tip, hover_pos)
+            draw_tooltip(draw, self._tiny, hover_tip, hover_pos, (width, height))
 
         targets = HudTargets(
             click=build_click_targets(corner_rect, seed_rects, action_rects,
@@ -614,17 +613,3 @@ class HudRenderer:
             elif hover_loop == kind:
                 _dashed_rect(draw, group_box, (*WHITE, 255))
 
-    def _draw_tooltip(self, draw, width, height, text, pos) -> None:
-        """A tooltip box drawn inside the panel near the cursor — the HUD lives in
-        the video, so there is no native tooltip to fall back on."""
-        pad = 5
-        ascent, descent = self._tiny.getmetrics()
-        w = text_width(self._tiny, text) + 2 * pad
-        h = ascent + descent + 2 * pad
-        x = max(2, min(pos[0] + 14, width - w - 2))
-        y = max(2, min(pos[1] + 16, height - h - 2))
-        draw.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=4,
-                               fill=(*BG_PRIMARY, _TOOLTIP_ALPHA),
-                               outline=(*BORDER_PANEL, 255), width=1)
-        draw.text((x + w / 2, y + h / 2), text, font=self._tiny, anchor="mm",
-                  fill=(*TEXT_PRIMARY, 255))
