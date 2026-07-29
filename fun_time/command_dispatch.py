@@ -802,10 +802,13 @@ def _dispatch_loop_cycle(
     An axis whose group holds only this clip has no loop to offer, and is stepped
     over rather than landed on.  Without that, a clip nobody re-seeded would answer
     every press with the same single-video lock (which is what a group of one makes
-    a loop mean) and its action loop would be unreachable from the keyboard.  When
-    neither axis can loop, that lock is the only thing a press can do, so it is
-    where the cycle falls back to — never through to an "off" that is already off,
-    which would rebuild the browse for nothing.
+    a loop mean) and its action loop would be unreachable from the keyboard.
+
+    When neither axis can loop, that lock is the only thing a press can say, so the
+    cycle collapses to it — never through to an "off" that is already off, which
+    would rebuild the browse for nothing.  There the key is a two-stop cycle: lock
+    the clip, then let it go again.  A one-stop cycle would be a trap, holding a
+    clip the only key on it could no longer release.
     """
     current = target_path or _satellite_current(config, which)
     if not current:
@@ -822,6 +825,11 @@ def _dispatch_loop_cycle(
             continue  # nothing is looping, so the off step has nothing to switch off
         if len(_loop_members(which, axis, state, config, current)[0]) >= 2:
             return _dispatch_group_loop(which, axis, state, config, current)
+    if state.locked2 if which == 2 else state.locked3:
+        state = _cancel_lock(which, state, config)
+        return state, [WindowOp(op="notice", key="Unlocked", source=_satellite_source(which))]
+    # The lone-clip loop's own lock, so the press means exactly what "loop seeds"
+    # would have meant on this clip.
     return _dispatch_group_loop(which, _LOOP_CYCLE[0], state, config, current)
 
 
