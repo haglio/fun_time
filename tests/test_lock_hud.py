@@ -163,6 +163,61 @@ def test_an_action_loop_anchors_on_its_start_clip_and_marks_the_playing_action()
     assert panel.action_siblings == [A1]   # the other act runs down from it
 
 
+def _twin_index(current: str, twin: str) -> GroupIndex:
+    """A subject whose whole group is two renders of ONE act — the twins the action
+    axis's distinct-acts view collapses into a single entry."""
+    members = sorted([current, twin])
+    return GroupIndex(
+        action_key_by_path={K(p): "A" for p in members},
+        action_members={"A": members},
+        action_by_path={K(p): "Alpha" for p in members},
+        seed_key_by_path={}, seed_members={},
+        path_by_key={K(p): p for p in members},
+    )
+
+
+def test_a_running_action_loop_draws_every_clip_it_cycles():
+    """The map of a loop is the loop: an action loop over two renders of one act has
+    to draw both rows, or the HUD says a two-clip loop is one clip long.
+
+    The loop cycles the subject's whole group, so leaving the browse map's one-row-
+    per-distinct-act answer in place while it ran collapsed the map to a single row —
+    and the corner stayed lit as the loop played the clip that was never drawn.
+    """
+    index = _twin_index(CUR, A1)
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=CUR, index=index, loop_axis="action", map_anchor=CUR,
+    )
+
+    assert panel.action_siblings == [A1]
+    assert panel.action_count == 2      # the size the loop's own notice reports
+
+
+def test_a_looped_action_column_lights_the_twin_actually_playing():
+    """With the column holding the loop's own members, the live clip IS a cell — so
+    the lit row follows the loop instead of falling back to the corner."""
+    index = _twin_index(CUR, A1)
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=A1, index=index, loop_axis="action", map_anchor=CUR,
+    )
+
+    assert panel.current == CUR   # the map still hangs on the clip the loop started on
+    assert panel.playing == A1    # …and lights the twin on screen
+
+
+def test_the_browse_map_still_collapses_same_act_twins():
+    """Off a loop the action axis steps between distinct acts, so twins stay one
+    row: the collapse is right there, and wrong only while a loop is running."""
+    index = _twin_index(CUR, A1)
+
+    panel = build_hud_panel("portrait", locked=False, current=CUR, index=index)
+
+    assert panel.action_siblings == []
+    assert panel.action_count == 1
+
+
 def test_ending_a_loop_leaves_the_map_hanging_where_it_was():
     """Switching a loop off must change only the loop's own chrome — the lit button
     and the rectangle round the group.  The map itself goes on hanging where it was,
