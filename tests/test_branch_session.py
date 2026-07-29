@@ -500,19 +500,81 @@ def test_nothing_describing_the_session_itself_is_seeded(checkouts):
     assert not (state / "shared_state.ini").exists()
 
 
-def test_a_branch_sessions_own_cache_is_not_overwritten_by_an_older_one(checkouts):
+def test_a_branch_sessions_own_watch_stats_are_not_rolled_back_by_older_ones(checkouts):
     """A seed, not a sync.  A worktree kept around for days has its own newer
-    durations by then, and rolling them back would make it index again."""
+    stats by then, and replacing them with the live session's would lose them."""
     live = _live_state(checkouts)
     branch_state = checkouts.worktree / "state"
     branch_state.mkdir(parents=True)
-    (branch_state / "nau_durations.json").write_text(json.dumps({"newer": {}}), encoding="utf-8")
-    stale = (live / "nau_durations.json").stat().st_mtime - 60
+    (branch_state / "watch_stats.json").write_text(json.dumps({"newer": {}}), encoding="utf-8")
+    stale = (live / "watch_stats.json").stat().st_mtime - 60
+    os.utime(live / "watch_stats.json", (stale, stale))
+
+    branch_session.seed_derived_caches(live, branch_state)
+
+    assert json.loads((branch_state / "watch_stats.json").read_text(encoding="utf-8")) == {"newer": {}}
+
+
+def test_the_duration_cache_is_merged_rather_than_copied(checkouts):
+    """Nau rewrites the file with what it loaded plus what it probed, so a
+    branch session's copy shrinks to its own view of the library.  Both files
+    are partial views of one library, and the union is what either wants."""
+    live = _live_state(checkouts)
+    branch_state = checkouts.worktree / "state"
+    branch_state.mkdir(parents=True)
+    (branch_state / "nau_durations.json").write_text(
+        json.dumps({"C:/library/main/two.mp4": {"ms": 2}}), encoding="utf-8"
+    )
+
+    branch_session.merge_duration_cache(live, branch_state)
+
+    assert json.loads((branch_state / "nau_durations.json").read_text(encoding="utf-8")) == {
+        "C:/library/main/one.mp4": {"ms": 1},
+        "C:/library/main/two.mp4": {"ms": 2},
+    }
+
+
+def test_a_newer_duration_cache_still_takes_what_the_live_session_knows(checkouts):
+    """The regression this exists for.  Copy-if-newer skipped the seed for every
+    worktree that had launched once, because Nau's own rewrite is always newer
+    than the live session's file — so branch launches went on re-probing the
+    library and taking half a minute long after the seeding landed."""
+    live = _live_state(checkouts)
+    branch_state = checkouts.worktree / "state"
+    branch_state.mkdir(parents=True)
+    (branch_state / "nau_durations.json").write_text(json.dumps({"its own": {}}), encoding="utf-8")
+    stale = (live / "nau_durations.json").stat().st_mtime - 3600
     os.utime(live / "nau_durations.json", (stale, stale))
 
     branch_session.seed_derived_caches(live, branch_state)
 
-    assert json.loads((branch_state / "nau_durations.json").read_text(encoding="utf-8")) == {"newer": {}}
+    merged = json.loads((branch_state / "nau_durations.json").read_text(encoding="utf-8"))
+    assert set(merged) == {"its own", "C:/library/main/one.mp4"}
+
+
+def test_the_branchs_own_reading_of_a_file_wins_over_the_live_sessions(checkouts):
+    """Both are observations of the same video; the branch session's is the more
+    recent one, and a stale entry is re-probed against mtime and size anyway."""
+    live = _live_state(checkouts)
+    branch_state = checkouts.worktree / "state"
+    branch_state.mkdir(parents=True)
+    (branch_state / "nau_durations.json").write_text(
+        json.dumps({"C:/library/main/one.mp4": {"ms": 999}}), encoding="utf-8"
+    )
+
+    branch_session.merge_duration_cache(live, branch_state)
+
+    merged = json.loads((branch_state / "nau_durations.json").read_text(encoding="utf-8"))
+    assert merged["C:/library/main/one.mp4"] == {"ms": 999}
+
+
+def test_merging_survives_a_state_dir_with_no_duration_cache_either_side(tmp_path):
+    """A first launch on a machine whose live session has never written one."""
+    live, branch = tmp_path / "live", tmp_path / "branch"
+    live.mkdir()
+    branch.mkdir()
+
+    assert branch_session.merge_duration_cache(live, branch) == 0
 
 
 def test_the_thumbnail_cache_is_only_ever_topped_up(checkouts):

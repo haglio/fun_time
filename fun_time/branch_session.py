@@ -291,23 +291,25 @@ def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
     return copied
 
 
+# Nau's per-video durations, and the one thing here that is merged rather than
+# copied.  Startup waits for Nau to report the video it is opening, Nau reports
+# nothing until it has a duration for it, and against a cold cache it goes off
+# and probes the whole library first — measured at 20s where a warm one is 0.1s.
+DURATION_CACHE_NAME = "nau_durations.json"
+
+
 def _seeded_state_names() -> tuple[str, ...]:
     """What a branch session starts from the live session's state rather than
     building for itself.
 
     Each of these is written into a session's state dir but describes the
-    *library*, not the session — so a fresh state dir means rebuilding work that
-    was already done, against a library of thousands of files.  That is what made
-    a branch launch take 45 seconds against the live session's 4: startup waits
-    for Nau to report the video it is opening, Nau reports nothing until it has a
-    duration for it, and against a cold ``nau_durations.json`` it went off and
-    probed the library first while everything else sat finished.
-
-    The thumbnail cache and the watch stats are the same shape of cost paid
-    later instead of at startup: without them the HUD maps fill in one decoded
-    frame at a time and the breeding view comes up empty — a wrongness the
-    branch did not cause, which is exactly what a verification session must
-    never show.
+    *library*, not the session, so a fresh state dir means redoing work already
+    done against a library of thousands of files.  These two are cost paid after
+    startup rather than during it: without them the HUD maps fill in one decoded
+    frame at a time and the breeding view comes up empty — a wrongness the branch
+    did not cause, which is exactly what a verification session must never show.
+    The duration cache, which is the one that costs *startup*, is merged instead
+    (see :func:`merge_duration_cache`).
 
     Nothing describing the *session* is here.  Playlists, command files, the
     resume point and the shared state stay the branch's own; sharing those is
@@ -315,19 +317,58 @@ def _seeded_state_names() -> tuple[str, ...]:
     """
     from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME  # noqa: PLC0415 — pulls in cv2
 
-    return ("nau_durations.json", "watch_stats.json", THUMBNAIL_CACHE_DIRNAME)
+    return ("watch_stats.json", THUMBNAIL_CACHE_DIRNAME)
+
+
+def merge_duration_cache(live_state: Path, branch_state: Path) -> int:
+    """Union the live session's durations into the branch's; return the total.
+
+    Copying this one was wrong, and copy-if-newer — what it was — was wrong in
+    the way that hides: Nau rewrites the file with exactly what it loaded plus
+    what it probed, so a branch session's copy shrinks to its own view of the
+    library and is then *newer* than the live session's.  Every launch after the
+    first therefore skipped the seed, kept the small file, and re-probed
+    whatever the library had churned since — which is why branch launches went
+    on taking half a minute after the seeding landed.
+
+    The two files are partial views of one library, so the union is strictly
+    better than either.  The branch's own readings win on conflict, being the
+    more recent observation of that file; everything the live session knows and
+    the branch does not comes across.  A stale entry costs nothing either way —
+    every entry is validated against the file's mtime and size before it is
+    trusted, and re-probed when it does not match.
+    """
+    live = _read_json_dict(live_state / DURATION_CACHE_NAME)
+    branch = _read_json_dict(branch_state / DURATION_CACHE_NAME)
+    merged = {**live, **branch}
+    if merged and merged != branch:
+        branch_state.mkdir(parents=True, exist_ok=True)
+        (branch_state / DURATION_CACHE_NAME).write_text(json.dumps(merged), encoding="utf-8")
+    return len(merged)
+
+
+def _read_json_dict(path: Path) -> dict:
+    """*path* as a dict, or empty when it is missing, unreadable or not one."""
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
 
 
 def seed_derived_caches(live_state: Path, branch_state: Path) -> list[Path]:
-    """Copy the library-derived caches from *live_state*; return what landed.
+    """Start the library-derived caches from *live_state*; return what landed.
 
     Copied rather than hardlinked, and never written back: a branch is
-    unfinished code, and the live session's caches are not its to corrupt.  A
-    file already in the branch state dir and newer than the live one is left
-    alone — that is the branch session's own work, and this is a seed rather
-    than a sync.
+    unfinished code, and the live session's caches are not its to corrupt.  For
+    the copied ones a file already in the branch state dir and newer than the
+    live one is left alone — that is the branch session's own work, and this is
+    a seed rather than a sync.  The duration cache cannot work that way and is
+    merged; :func:`merge_duration_cache` says why.
     """
     seeded: list[Path] = []
+    if merge_duration_cache(live_state, branch_state):
+        seeded.append(branch_state / DURATION_CACHE_NAME)
     for name in _seeded_state_names():
         source = live_state / name
         if source.is_dir():
