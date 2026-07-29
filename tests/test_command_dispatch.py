@@ -3409,3 +3409,24 @@ def test_the_clipper_sibling_falls_back_to_this_checkout_without_git():
         command_dispatch._clipper_project_dir.cache_clear()
 
     assert resolved == Path(command_dispatch.__file__).resolve().parents[1].parent / "clipper"
+
+
+def test_main_latest_reloads_the_main_player_newest_first(tmp_path, monkeypatch):
+    """The main player had only the shuffle, so a video that arrived an hour ago sat
+    somewhere in a thousand-clip rotation with no way to ask for it.  It browses in
+    the satellites' two orders now, and the order is remembered — an F-mode rebuild
+    afterwards has to reload it the same way round rather than quietly reshuffling."""
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+    config = _make_config(tmp_path)
+
+    state, ops = dispatch_command("main_latest", BridgeState(), config)
+
+    assert state.main_latest is True
+    assert calls[-1]["recent"] is True
+    assert ops[0].op == "notice"
+
+    state, _ops = dispatch_command("main_shuffle", state, config)
+    assert state.main_latest is False
+    assert calls[-1]["recent"] is False

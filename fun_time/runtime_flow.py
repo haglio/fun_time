@@ -150,6 +150,7 @@ def apply_main_fmode(
     main_sources: str,
     state_dir: str | Path,
     nau_cmd_file: str | Path,
+    recent: bool = False,
 ) -> None:
     """Rebuild the main player's playlist under *enabled* and hand it to Nau.
 
@@ -158,7 +159,7 @@ def apply_main_fmode(
     """
     write_nau_playlist_file(
         build_playlist_file_path(Path(state_dir), PLAYLIST_NAU),
-        build_main_playlist_paths(main_sources, enabled),
+        build_main_playlist_paths(main_sources, enabled, recent=recent),
     )
     # Both verbs on one write: this file is overwritten, not appended, so telling
     # Nau the flag afterwards would drop the reload that goes with it.  Nau's HUD
@@ -210,6 +211,7 @@ def apply_fmode(
     landscape_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
+    main_recent: bool = False,
     portrait_cmd_file: str | Path,
     landscape_cmd_file: str | Path,
     nau_cmd_file: str | Path,
@@ -229,6 +231,7 @@ def apply_fmode(
         apply_main_fmode(
             enabled=enabled,
             main_sources=main_sources,
+            recent=main_recent,
             state_dir=state_dir,
             nau_cmd_file=nau_cmd_file,
         )
