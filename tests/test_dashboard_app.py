@@ -37,8 +37,8 @@ def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
 
 def _snapshot(**overrides) -> DashboardSnapshot:
     base = dict(
-        primary_mode="nau", osr2_mode="controlled", omni_paused=False,
-        primary=DashboardPanelSnapshot(path=""),
+        main_mode="nau", osr2_mode="controlled", omni_paused=False,
+        main=DashboardPanelSnapshot(path=""),
         portrait=DashboardPanelSnapshot(path=""),
         landscape=DashboardPanelSnapshot(path=""),
         window=DashboardWindowSnapshot(x=0, y=0, width=0, height=0),
@@ -158,7 +158,7 @@ def test_the_config_reads_only_what_the_bar_needs(tmp_path: Path):
 
     app_config = load_dashboard_app_config(manifest_path)
 
-    assert app_config.layout.main_monitor == config.layout.main_monitor
+    assert app_config.layout.primary_monitor == config.layout.primary_monitor
     assert app_config.dashboard_cmd_file.name == "dashboard_cmd.txt"
     assert not hasattr(app_config, "favs_file")
 
@@ -725,12 +725,12 @@ def test_lighten_color_caps_at_255():
     assert (result.red(), result.green(), result.blue()) == (255, 255, 255)
 
 
-def _make_snapshot(*, primary_mode: str = "nau") -> DashboardSnapshot:
+def _make_snapshot(*, main_mode: str = "nau") -> DashboardSnapshot:
     return DashboardSnapshot(
-        primary_mode=primary_mode,
+        main_mode=main_mode,
         osr2_mode="auto",
         omni_paused=False,
-        primary=DashboardPanelSnapshot("", False),
+        main=DashboardPanelSnapshot("", False),
         portrait=DashboardPanelSnapshot("", False),
         landscape=DashboardPanelSnapshot("", False),
         window=DashboardWindowSnapshot(0, 0, 0, 0),

@@ -158,7 +158,7 @@ from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
 # The full source name is the tooltip.  "Sat" is the user's word for the portrait
 # satellite; landscape is named in full because they treat it as its own thing.
 _SOURCE_LABELS: dict[str, str] = {
-    "primary": "Prm",
+    "main": "Main",
     "portrait": "Sat",
     "landscape": "Land",
     "dash": "Dash",

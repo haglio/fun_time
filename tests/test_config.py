@@ -167,7 +167,7 @@ class TestLoadConfig:
 
     def test_loads_layout(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.layout.main_monitor == 1
+        assert cfg.layout.primary_monitor == 1
         assert cfg.layout.secondary_monitor == 2
 
     def test_loads_audio_companion(self, cfg_path: Path):

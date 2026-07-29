@@ -24,10 +24,10 @@ from fun_time.log_panel import (
     visible_records,
 )
 
-ALL_SOURCES = frozenset({"primary", "portrait", "landscape", "dash", "system"})
+ALL_SOURCES = frozenset({"main", "portrait", "landscape", "dash", "system"})
 
 
-def _record(level: int = logging.INFO, source: str = "primary", message: str = "hi", ts: float = 0.0):
+def _record(level: int = logging.INFO, source: str = "main", message: str = "hi", ts: float = 0.0):
     return EventRecord(ts=ts, level=level, source=source, message=message)
 
 
@@ -228,7 +228,7 @@ class TestHoverCopyButton:
 class TestPrefs:
     def test_round_trips_verbosity_and_sources(self, tmp_path: Path):
         path = tmp_path / "log_panel.ini"
-        prefs = LogPanelPrefs(verbosity=logging.WARNING, sources=frozenset({"primary", "dash"}))
+        prefs = LogPanelPrefs(verbosity=logging.WARNING, sources=frozenset({"main", "dash"}))
 
         save_prefs(path, prefs)
 

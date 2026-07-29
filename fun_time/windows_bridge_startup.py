@@ -20,15 +20,15 @@ from .modes import (
     SatelliteLibraryContext,
     build_all_playlists,
     build_playlist_file_path,
-    build_primary_playlist,
+    build_main_playlist,
 )
-from .mode_plan import STARTUP_PRIMARY_MODE
+from .mode_plan import STARTUP_MAIN_MODE
 from .runtime_flow import SET_F_MODE_CMD, apply_mode_switch, write_flag_file
 from .satellite_control import read_satellite_status
 from .session_resume import (
     playlist_fits_sources,
     playlist_opens_on,
-    resume_primary_loop,
+    resume_main_loop,
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
@@ -267,9 +267,9 @@ def seed_startup_states(
     volume: int = MAX_VOLUME,
     muted: bool = False,
     f_mode: bool = False,
-    mode: str = STARTUP_PRIMARY_MODE,
+    mode: str = STARTUP_MAIN_MODE,
 ) -> None:
-    """Seed the cross-process flags the primary slot opens on: both its players
+    """Seed the cross-process flags the main slot opens on: both its players
     held until the sequencer's reveal starts whichever the mode puts on screen,
     and the sound, F-mode and mode this session comes back in.
 
@@ -281,7 +281,7 @@ def seed_startup_states(
     resumed mute explicable rather than a silence with nothing on screen behind
     it (Nau draws the level and the mute it is given).
 
-    *f_mode* is the primary's own — this whole function is the primary slot's
+    *f_mode* is the main player's own — this whole function is the main slot's
     seeding — and it is seeded for the same shape of reason: the playlist Nau is
     handed has already been narrowed and a list of scripted videos looks like any
     other, so Nau's HUD can only know from being told.  fun_time draws the
@@ -290,7 +290,7 @@ def seed_startup_states(
 
     *mode* is which player owns the big display, and it is seeded by REPLAYING
     the switch that would have reached it: every session is built in
-    ``STARTUP_PRIMARY_MODE``, so coming back in genau or hybrid is a switch out
+    ``STARTUP_MAIN_MODE``, so coming back in genau or hybrid is a switch out
     of nau, and running it through the same planner a live switch uses is what
     stops the two from ever describing the mode differently.  Only the switch's
     *verbs* are kept — the windows are parked to match by the sequencer, and its
@@ -302,7 +302,7 @@ def seed_startup_states(
     display (so a standalone run paints its clips), while the DISPLAY_OFF that
     blanks it under an orchestrator only rides a switch — and a session opening
     in nau mode has no switch to ride.  Left unsaid, Genau comes up painting its
-    clips in the primary slot it shares with Nau.
+    clips in the main slot it shares with Nau.
 
     The defaults are a fresh session's: full, unmuted, unnarrowed, on Nau.
     """
@@ -313,7 +313,7 @@ def seed_startup_states(
     # The broker is left out on purpose — startup has already parked the OSR2, and
     # a switch INTO a genau-active mode has nothing to say to it anyway.
     apply_mode_switch(
-        current_mode=STARTUP_PRIMARY_MODE,
+        current_mode=STARTUP_MAIN_MODE,
         target_mode=mode,
         omni_paused=False,
         genau_paused_file=genau_paused_file,
@@ -379,7 +379,7 @@ def start_core_session(
     landscape_log_file: str | Path,
     portrait_rect: WindowRect,
     landscape_rect: WindowRect,
-    primary_sources: str,
+    main_sources: str,
     portrait_sources: str,
     landscape_sources: str,
     favs_file: str | Path,
@@ -391,7 +391,7 @@ def start_core_session(
     regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
 ) -> str:
-    """Launch the session's media stack, returning the mode its primary slot
+    """Launch the session's media stack, returning the mode its main slot
     opens in — which the caller needs because parking the Nau/Genau pair to match
     takes window handles only the sequencer has."""
     # Clear any satellites stranded by a prior crash on the very files this
@@ -435,8 +435,8 @@ def start_core_session(
     seed_startup_states(
         genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file,
         genau_cmd_file, nau_cmd_file=nau_cmd_file,
-        volume=carried.volume, muted=carried.muted, f_mode=carried.primary_f_mode,
-        mode=carried.primary_mode,
+        volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
+        mode=carried.main_mode,
     )
     # seed_startup_states does not touch the satellite paused files; clear any "1"
     # a prior OmniPause stranded so the satellites launch playing, not frozen.
@@ -444,7 +444,7 @@ def start_core_session(
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     if not resumed:
         build_all_playlists(
-            primary_sources=primary_sources,
+            main_sources=main_sources,
             portrait_sources=portrait_sources,
             landscape_sources=landscape_sources,
             favs_file=Path(favs_file),
@@ -454,15 +454,15 @@ def start_core_session(
                 watch_stats_file=watch_stats_path(state_path),
             ),
         )
-    elif not playlist_fits_sources(nau_playlist, primary_sources):
-        # Resumed from FunTimeVR, whose primary rotation merges the VR library
+    elif not playlist_fits_sources(nau_playlist, main_sources):
+        # Resumed from FunTimeVR, whose main rotation merges the VR library
         # into this one's: its playlist is still in the state dir both apps
-        # share, and honoring it puts VR videos on the desktop primary, which
-        # must never play them.  Rebuild the primary from this session's own
+        # share, and honoring it puts VR videos on the desktop's primary monitor, which
+        # must never play them.  Rebuild the main player from this session's own
         # library alone; the satellites' playlists come from the same dirs in
         # either app, so their resume stands.
-        build_primary_playlist(nau_playlist, primary_sources, f_mode=carried.primary_f_mode)
-        logger.info("Resumed playlists; rebuilt the primary's, which held another app's videos")
+        build_main_playlist(nau_playlist, main_sources, f_mode=carried.main_f_mode)
+        logger.info("Resumed playlists; rebuilt the main player's, which held another app's videos")
     # Which of the two ran is the difference between the clips of the last
     # session and three new ones, so the log says outright which you are getting.
     logger.info(
@@ -476,12 +476,12 @@ def start_core_session(
         (Path(portrait_cmd_file), carried.locked2),
         (Path(landscape_cmd_file), carried.locked3),
     ])
-    # The primary's loop is the same kind of thing, and queued the same way —
-    # but only if the primary really did come back onto the video the loop was
+    # The main player's loop is the same kind of thing, and queued the same way —
+    # but only if the main player really did come back onto the video the loop was
     # cut from.  A rebuild above, or a clip deleted since, leaves some other
     # video leading, and those bounds would then mark out a stretch of a video
     # nobody chose.
-    resume_primary_loop(
+    resume_main_loop(
         Path(nau_cmd_file),
         nau_status.loop_bounds if playlist_opens_on(nau_playlist, nau_status.video) else None,
     )
@@ -505,7 +505,7 @@ def start_core_session(
         landscape_hud_file=landscape_hud_file,
         dashboard_cmd_file=dashboard_cmd_file,
     )
-    return carried.primary_mode
+    return carried.main_mode
 
 
 def launch_genau(
@@ -552,7 +552,7 @@ def launch_genau(
         cmd.extend(["--command-file", str(command_file)])
     if paused_file is not None:
         cmd.extend(["--paused-file", str(paused_file)])
-    # In genau mode Genau draws the primary console — the same panel Nau draws in
+    # In genau mode Genau draws the main console — the same panel Nau draws in
     # the other modes — so it reads the console Fun Time publishes and posts a
     # press back on the dashboard command file, exactly as Nau does.
     if console_file is not None:

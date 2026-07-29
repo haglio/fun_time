@@ -39,8 +39,8 @@ UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
 GENAU_PID = 60
 NAU_PID = 25
 
-# Primary slot on the secondary monitor with conftest's primary_top_ratio=0.727:
-# portrait height = int(3440 * 0.727) = 2500, primary height = 940.
+# Main slot on the secondary monitor with conftest's main_top_ratio=0.727:
+# portrait height = int(3440 * 0.727) = 2500, main player height = 940.
 PRIMARY_MEDIA_RECT = {"x": 2560, "y": 2500, "width": 1440, "height": 940}
 
 
@@ -76,7 +76,7 @@ def _fake_core_in(mode: str):
 
 
 def _seed_paused_flags(manifest_path) -> dict[str, Path]:
-    """Hold all three primary-slot flags, as the core session's seeding does."""
+    """Hold all three main-slot flags, as the core session's seeding does."""
     m = configparser.ConfigParser()
     m.optionxform = str
     m.read(str(manifest_path), encoding="utf-8")
@@ -247,7 +247,7 @@ class TestRunStartupSequence:
 
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        # Genau receives its manifest file paths and the shared primary rect.
+        # Genau receives its manifest file paths and the shared main-slot rect.
         assert genau_kwargs["command_file"] == str(cfg.genau_cmd_file)
         assert genau_kwargs["paused_file"] == str(cfg.genau_paused_file)
         assert genau_kwargs["clips_folder"] == str(cfg.paths.clips_dir)
@@ -320,7 +320,7 @@ class TestRunStartupSequence:
         assert {3030, 4040} <= moved_hwnds
 
         # nau startup mode: the windows that own a rect are promoted to topmost,
-        # Nau (2525) included so it floats above the desktop like the primary
+        # Nau (2525) included so it floats above the desktop like the main player
         # player always has.  Genau (6060) is the hidden slot-mate and stays out
         # of the band — it is promoted last, so being in it puts it over Nau.
         promoted = {h for h, on in topmost_calls if on}
@@ -406,7 +406,7 @@ class TestRunStartupSequence:
 
     def test_a_genau_session_parks_nau_and_gives_genau_the_slot(self, cfg_factory, tmp_path):
         """Reopening in genau mode: the session is still BUILT in nau — Nau loads
-        the primary's playlist and the overlay waits on it — but what is revealed
+        the main player's playlist and the overlay waits on it — but what is revealed
         is Genau, so the pair swaps which one is parked and which one floats."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
@@ -436,7 +436,7 @@ class TestRunStartupSequence:
         assert {h for h, on in topmost_calls if on} == {3030, 4040, 6060}
         # Handed on, because the post-overlay z-order pass has to re-assert the
         # same policy and it runs from the orchestrator, out of reach of this.
-        assert result.primary_mode == "genau"
+        assert result.main_mode == "genau"
 
     def test_a_genau_session_is_revealed_by_starting_genau_not_nau(self, cfg_factory, tmp_path):
         """The reveal starts whichever player owns the display, and only that
@@ -1011,9 +1011,9 @@ class TestNauGatesTheReveal:
 
 
 FAKE_LAYOUT_CFG = LayoutConfig(
-    main_monitor=0,
+    primary_monitor=0,
     secondary_monitor=1,
-    primary_top_ratio=0.48,
+    main_top_ratio=0.48,
     landscape_width_ratio=0.35,
 )
 
@@ -1037,7 +1037,7 @@ class TestMaybeLaunchRandomFavsBrowser:
         """Build a minimal plan with a random_favs_browser rect."""
         from fun_time.window_layout import compute_window_layout
         return compute_window_layout(
-            main_monitor=MAIN_RECT,
+            primary_monitor=MAIN_RECT,
             secondary_monitor=MonitorRect(x=2560, y=0, width=1440, height=3440),
             layout_config=FAKE_LAYOUT_CFG,
         )

@@ -22,7 +22,7 @@ def test_load_dashboard_snapshot_returns_none_when_missing(tmp_path: Path):
 
 @pytest.mark.parametrize("mode", ["nau", "genau", "hybrid"])
 def test_load_dashboard_snapshot_reads_back_every_mode_the_bridge_writes(tmp_path: Path, mode: str):
-    """The dashboard runs in its own process and learns the primary mode only
+    """The dashboard runs in its own process and learns the main slot's mode only
     from this file, so every mode the bridge can write must survive the trip.
 
     The fixture is built by the production writer rather than hand-rolled, so
@@ -32,7 +32,7 @@ def test_load_dashboard_snapshot_reads_back_every_mode_the_bridge_writes(tmp_pat
     write_dashboard_snapshot(
         snapshot_file,
         osr2_mode="controlled",
-        primary_mode=mode,
+        main_mode=mode,
         portrait_locked=False,
         landscape_locked=False,
     )
@@ -40,7 +40,7 @@ def test_load_dashboard_snapshot_reads_back_every_mode_the_bridge_writes(tmp_pat
     snapshot = load_dashboard_snapshot(snapshot_file)
 
     assert snapshot is not None
-    assert snapshot.primary_mode == mode
+    assert snapshot.main_mode == mode
 
 
 def test_load_dashboard_snapshot_parses_bridge_export(tmp_path: Path):
@@ -50,9 +50,9 @@ def test_load_dashboard_snapshot_parses_bridge_export(tmp_path: Path):
             [
                 "[osr2]",
                 "mode=auto",
-                "[primary]",
+                "[main]",
                 "mode=nau",
-                "path=demo-primary.mp4",
+                "path=demo-main.mp4",
                 "locked=0",
                 "[portrait]",
                 "path=demo-portrait.mp4",
@@ -74,9 +74,9 @@ def test_load_dashboard_snapshot_parses_bridge_export(tmp_path: Path):
 
     assert snapshot is not None
     assert snapshot.osr2_mode == "auto"
-    assert snapshot.primary_mode == "nau"
-    assert snapshot.primary.path == "demo-primary.mp4"
-    assert snapshot.primary.locked is False
+    assert snapshot.main_mode == "nau"
+    assert snapshot.main.path == "demo-main.mp4"
+    assert snapshot.main.locked is False
     assert snapshot.portrait.locked is True
     assert snapshot.landscape.path == "demo-landscape.mp4"
     assert snapshot.window.width == 300
@@ -91,9 +91,9 @@ def test_load_dashboard_snapshot_supports_utf16_ini_exports(tmp_path: Path):
             [
                 "[osr2]",
                 "mode=auto",
-                "[primary]",
+                "[main]",
                 "mode=genau",
-                "path=primary.mp4",
+                "path=main.mp4",
                 "locked=0",
                 "[portrait]",
                 "path=portrait.mp4",
@@ -114,7 +114,7 @@ def test_load_dashboard_snapshot_supports_utf16_ini_exports(tmp_path: Path):
     snapshot = load_dashboard_snapshot(snapshot_file)
 
     assert snapshot is not None
-    assert snapshot.primary_mode == "genau"
+    assert snapshot.main_mode == "genau"
     assert snapshot.portrait.locked is True
     assert snapshot.window.x == 10
 
@@ -126,7 +126,7 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
             [
                 "[osr2]",
                 "mode=controlled",
-                "[primary]",
+                "[main]",
                 "mode=nau",
                 "locked=0",
                 "[portrait]",
@@ -141,7 +141,7 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
     snapshot = load_dashboard_snapshot(snapshot_file)
 
     assert snapshot is not None
-    assert snapshot.primary.path == ""
+    assert snapshot.main.path == ""
     assert snapshot.portrait.locked is True
     assert snapshot.window.width == 0
 
@@ -155,7 +155,7 @@ def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
                 "mode=auto",
                 "[omnipause]",
                 "active=1",
-                "[primary]",
+                "[main]",
                 "mode=nau",
                 "locked=0",
                 "[portrait]",
@@ -180,7 +180,7 @@ def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
             [
                 "[osr2]",
                 "mode=auto",
-                "[primary]",
+                "[main]",
                 "mode=nau",
                 "locked=0",
                 "[portrait]",
@@ -209,7 +209,7 @@ def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
                 "active=0",
                 "[voice]",
                 "active=0",
-                "[primary]",
+                "[main]",
                 "mode=nau",
                 "locked=0",
                 "[portrait]",
@@ -234,7 +234,7 @@ def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
             [
                 "[osr2]",
                 "mode=controlled",
-                "[primary]",
+                "[main]",
                 "mode=nau",
                 "locked=0",
                 "[portrait]",
@@ -390,7 +390,7 @@ def test_read_nau_status_parses_the_lock(tmp_path: Path):
 
 
 def test_read_nau_status_defaults_the_lock_to_on(tmp_path: Path):
-    """Holding one video is what the primary does until told otherwise, so a
+    """Holding one video is what the main player does until told otherwise, so a
     status that says nothing about the lock — or no status at all — must not read
     as unlocked and light the console's padlock the wrong way."""
     status_file = tmp_path / "nau_status.txt"

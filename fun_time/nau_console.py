@@ -1,6 +1,6 @@
-"""What the primary console shows about the room, and the file it reaches on.
+"""What the main console shows about the room, and the file it reaches on.
 
-The player on the primary slot knows what it is playing.  It does not know which
+The player on the main slot knows what it is playing.  It does not know which
 mode the slot is in, what has the OSR2, whether Genau may take it over, whether
 the broker is up, or which player a bare command would reach — all of that is the
 orchestrator's.  The dashboard used to draw it as a box per player; the console
@@ -51,7 +51,7 @@ def console_payload(
     genau: GenauStatus,
     f_mode: bool = False,
 ) -> dict:
-    """The console panel as the primary player parses it.
+    """The console panel as the main player parses it.
 
     The drive readout's own numbers (amplitude, centre, speed, the trace and its
     limits) travel on the separate drive file Genau publishes; this carries the
@@ -62,13 +62,13 @@ def console_payload(
     machine to ask — and because Nau already tells us in its status file.
 
     The lock is published as one flag for one padlock, resolved to whichever
-    player is on the primary slot: *nau_locked* while Nau shows its video, Genau's
+    player is on the main slot: *nau_locked* while Nau shows its video, Genau's
     own hold on its clip in genau mode.  Both players open locked, both mean
     repeat-one on what is on screen, and the console shows one of them at a time —
     so the mode decides which, here, rather than the console drawing two padlocks
     and leaving the reader to work out whose is whose.
 
-    ``f_mode`` is the primary's own F-mode — its playlist narrowed to the videos
+    ``f_mode`` is the main player's own F-mode — its playlist narrowed to the videos
     that have a funscript.  Nau is told the flag directly too (``SET_F_MODE``, for
     its status line), but the console's button has to light off what the
     orchestrator holds, exactly as the satellites' do: the flag is set from three

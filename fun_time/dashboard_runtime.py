@@ -37,10 +37,10 @@ class DashboardWindowSnapshot:
 
 @dataclass(frozen=True)
 class DashboardSnapshot:
-    primary_mode: str
+    main_mode: str
     osr2_mode: str
     omni_paused: bool
-    primary: DashboardPanelSnapshot
+    main: DashboardPanelSnapshot
     portrait: DashboardPanelSnapshot
     landscape: DashboardPanelSnapshot
     window: DashboardWindowSnapshot
@@ -58,11 +58,11 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         return None
 
     return DashboardSnapshot(
-        primary_mode=parser.get("primary", "mode", fallback="nau"),
+        main_mode=parser.get("main", "mode", fallback="nau"),
         osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
         omni_paused=_read_bool(parser, "omnipause", "active"),
         voice_active=_read_bool(parser, "voice", "active") if parser.has_section("voice") else True,
-        primary=_read_panel(parser, "primary"),
+        main=_read_panel(parser, "main"),
         portrait=_read_panel(parser, "portrait"),
         landscape=_read_panel(parser, "landscape"),
         window=_read_window(parser),
@@ -89,9 +89,9 @@ class NauStatus:
     has_funscript: bool = False
     funscript_resting: bool = False
     # Whether Nau is holding the video on screen rather than letting it end.  The
-    # primary console draws the lock, and in genau mode it is drawn by a player
+    # main console draws the lock, and in genau mode it is drawn by a player
     # with no such lock of its own to ask — so it comes through here, the way the
-    # loop ``state`` does.  Defaults on because that is what a primary with
+    # loop ``state`` does.  Defaults on because that is what a main player with
     # nothing to say is doing.
     locked: bool = True
     # The A/B range Nau is looping, as it published it — 0/0 when nothing is.
@@ -113,7 +113,7 @@ class NauStatus:
 
         A loop dies with the player process holding it, so this file is its only
         record and a reopened session is handed it back over the video the resume
-        put at the top of the primary's playlist.  Both halves have to agree: a
+        put at the top of the main player's playlist.  Both halves have to agree: a
         state of "looping" with no range is a Nau too old to publish one, and a
         range with nothing looping is the empty pair a cancelled loop leaves —
         either taken alone would hand mpv a loop it cannot play.

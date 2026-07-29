@@ -1,4 +1,4 @@
-"""The primary library browser — folder tiles you walk, then the videos inside."""
+"""The main library browser — folder tiles you walk, then the videos inside."""
 from __future__ import annotations
 
 from pathlib import Path

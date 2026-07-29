@@ -486,7 +486,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         landscape_log_file=state_dir / "landscape_satellite.log",
         portrait_rect=WindowRect(x=2560, y=0, width=1440, height=2500),
         landscape_rect=WindowRect(x=1664, y=0, width=896, height=1392),
-        primary_sources=f"{tmp_path / 'primary_a'}|{tmp_path / 'primary_b'}",
+        main_sources=f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
         portrait_sources=str(tmp_path / "portrait_a"),
         landscape_sources=str(tmp_path / "landscape_a"),
         favs_file=tmp_path / "favs.csv",
@@ -544,7 +544,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # Every player's playlist, each built with its F-mode off — the flags default
     # off, which is what a session with nothing to resume opens in.
     build.assert_called_once_with(
-        primary_sources=kwargs["primary_sources"],
+        main_sources=kwargs["main_sources"],
         portrait_sources=kwargs["portrait_sources"],
         landscape_sources=kwargs["landscape_sources"],
         favs_file=tmp_path / "favs.csv",
@@ -595,7 +595,7 @@ def _seed_resumable_session(tmp_path: Path, kwargs: dict) -> dict[str, list[str]
     sources = {
         "portrait": kwargs["portrait_sources"],
         "landscape": kwargs["landscape_sources"],
-        "nau": kwargs["primary_sources"].split("|")[0],
+        "nau": kwargs["main_sources"].split("|")[0],
     }
     left_on = {}
     for name, source_dir in sources.items():
@@ -664,7 +664,7 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(tmp_path, kwargs)
     write_shared_state(
-        shared_state_path(kwargs["state_dir"]), BridgeState(primary_mode="genau")
+        shared_state_path(kwargs["state_dir"]), BridgeState(main_mode="genau")
     )
 
     assert _run_start_core_session(kwargs) == "genau"
@@ -681,7 +681,7 @@ def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp
     """A loop is a range inside one video, held in the mpv process that just
     died, so it is re-sent the way a satellite's lock is — waiting in Nau's
     command file before Nau launches, over the video the resume put at the top
-    of the primary's playlist."""
+    of the main player's playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(tmp_path, kwargs)
     (kwargs["state_dir"] / "nau_status.txt").write_text(
@@ -713,7 +713,7 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
 
 
 def test_start_core_session_opens_a_fresh_session_on_nau(tmp_path: Path):
-    """Nothing to resume means no mode to come back to, and the primary slot's
+    """Nothing to resume means no mode to come back to, and the main slot's
     own default is Nau — the same one every session is built in."""
     kwargs = _start_core_session_kwargs(tmp_path)
 
@@ -732,7 +732,7 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     _seed_resumable_session(tmp_path, kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
     write_shared_state(state_file, BridgeState(
-        primary_f_mode=True,
+        main_f_mode=True,
         portrait_f_mode=True,
         portrait_filter="alpha",
         landscape_latest=True,
@@ -744,14 +744,14 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
 
     state = read_shared_state(state_file)
     assert state is not None
-    assert (state.primary_f_mode, state.portrait_f_mode) == (True, True)
+    assert (state.main_f_mode, state.portrait_f_mode) == (True, True)
     assert state.portrait_filter == "alpha"
     assert state.landscape_latest is True
     assert state.portrait_loop == "seed"
     assert state.portrait_map_anchor == "C:/v/a.mp4"
     # fun_time draws the satellites' HUD model and the dashboard's off that
     # state, but Nau's own HUD can only know F-mode from being told — so it is
-    # told, or the primary is the one display that comes back saying nothing.
+    # told, or the main player is the one display that comes back saying nothing.
     assert "SET_F_MODE 1" in kwargs["nau_cmd_file"].read_text(encoding="utf-8").splitlines()
 
 
@@ -801,7 +801,7 @@ def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_p
     what clears an OmniPause a crash left stranded."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(primary_f_mode=True, omni_paused=True))
+    write_shared_state(state_file, BridgeState(main_f_mode=True, omni_paused=True))
 
     _run_start_core_session(kwargs)
 
@@ -810,7 +810,7 @@ def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_p
 
 def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_path: Path):
     """The rebuild for another app's playlist has to honour the F-mode the
-    satellites came back in — the primary's own reading of it, funscripted
+    satellites came back in — the main player's own reading of it, funscripted
     clips only — or one player quietly holds the whole library while the HUDs
     say F-mode."""
     kwargs = _start_core_session_kwargs(tmp_path)
@@ -822,23 +822,23 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
     (state_dir / "nau_playlist.tsv").write_text(
         f"{vr_clip}\n{left_on['nau'][0]}\n", encoding="utf-8"
     )
-    write_shared_state(shared_state_path(state_dir), BridgeState(primary_f_mode=True))
+    write_shared_state(shared_state_path(state_dir), BridgeState(main_f_mode=True))
 
-    with patch("fun_time.windows_bridge_startup.build_primary_playlist") as rebuild:
+    with patch("fun_time.windows_bridge_startup.build_main_playlist") as rebuild:
         _run_start_core_session(kwargs)
 
     rebuild.assert_called_once_with(
-        state_dir / "nau_playlist.tsv", kwargs["primary_sources"], f_mode=True
+        state_dir / "nau_playlist.tsv", kwargs["main_sources"], f_mode=True
     )
 
 
 def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
     tmp_path: Path, caplog
 ):
-    """FunTimeVR writes its primary playlist to the very file the desktop
+    """FunTimeVR writes its main playlist to the very file the desktop
     session resumes from, and builds it from the VR library merged with this
     one's — so reopening the desktop app inherited VR videos it must never
-    play.  Only the primary is rebuilt: both apps build the satellites from the
+    play.  Only the main player is rebuilt: both apps build the satellites from the
     same dirs, so their resume is still last session's and is kept."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
@@ -863,7 +863,7 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
         with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
             start_core_session(**kwargs)
 
-    # The primary comes back from this session's own library, and the foreign
+    # The main player comes back from this session's own library, and the foreign
     # video is gone from it.
     rebuilt = nau_playlist.read_text(encoding="utf-8").splitlines()
     assert sorted(line.split("\t")[0] for line in rebuilt) == sorted(left_on["nau"])
@@ -873,7 +873,7 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
         first, second = left_on[name]
         playlist = state_dir / f"{name}_playlist.tsv"
         assert playlist.read_text(encoding="utf-8").splitlines() == [second, first]
-    assert "rebuilt the primary's" in caplog.text
+    assert "rebuilt the main player's" in caplog.text
 
 
 def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):

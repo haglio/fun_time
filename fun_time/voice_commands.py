@@ -33,8 +33,6 @@ def format_spoken_command(command: str, *, spoken_at: float) -> str:
     return f"{command}{_SPOKEN_AT_SEP}{spoken_at:.3f}"
 
 
-
-
 def parse_command_line(line: str) -> tuple[str, float | None]:
     """Split a command-file line into ``(command, spoken_at)``.
 
@@ -85,11 +83,11 @@ VOICE_COMMANDS: dict[str, str] = {
     "hybrid mode": "hybrid_activate",
     "start broker": "broker_start",
     "stop broker": "broker_stop",
-    # "primary next" / "next primary" are generated with the satellite grid
-    # below (the primary joins the active-side feature for navigation).
-    "skip": "primary_nudge_next",
-    "back": "primary_nudge_prev",
-    # FunTimeVR: walk the primary video's projection (flat / 180 / fisheye /
+    # "main next" / "next main" are generated with the satellite grid
+    # below (the main player joins the active-side feature for navigation).
+    "skip": "main_nudge_next",
+    "back": "main_nudge_prev",
+    # FunTimeVR: walk the main player's video's projection (flat / 180 / fisheye /
     # MKX200 / 360); the pick is remembered per video in its sidecar.
     "projection": "projection_cycle",
     # FunTimeVR: re-zero the scene onto wherever the headset is facing now —
@@ -108,7 +106,7 @@ VOICE_COMMANDS: dict[str, str] = {
     "shorts": "nau_length_shorts",
     "full length": "nau_length_full",
     # The unfiltered library Nau opens in, and so the way back out of either
-    # half — "primary reset" says the same thing (see the primary grid below).
+    # half — "main reset" says the same thing (see the main-player grid below).
     "mixed": "nau_length_mixed",
     # Clip navigation (larkin-style clips carved from compilations). "vid" is
     # not in the vosk vocabulary, so "full video" is the reliable phrase; "full
@@ -149,8 +147,8 @@ VOICE_COMMANDS: dict[str, str] = {
     "next clip": "genau_next_clip",
     # Bare "weird" already addresses the active satellite, so Genau's own clip
     # action names the clip.  There is no spoken hold to go with it: holding a
-    # clip is the primary's lock, said as "primary lock" or bare while the
-    # primary has the floor.
+    # clip is the main player's lock, said as "main lock" or bare while the
+    # main player has the floor.
     "weird clip": "genau_weird_clip",
     "offset": "quarter_button",
     # "voice off" / "mic off" both mute voice control (there is no spoken way
@@ -158,7 +156,7 @@ VOICE_COMMANDS: dict[str, str] = {
     # restart re-enables it).
     "voice off": "voice_off",
     "mic off": "voice_off",
-    # The primary display's sound, whichever mode owns it.  Each pair's two
+    # The main player's sound, whichever mode owns it.  Each pair's two
     # words mean the same thing, so a speaker never has to pick between them.
     # vosk has no "unmute" token but does have "un", so the recognizer listens
     # for the two-word "un mute"; the reference shows it as "unmute" via the
@@ -272,7 +270,7 @@ for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
 
 # "end loop" is side-agnostic like the rest of the grid: bare, it reaches the
 # player last addressed and means that player's own kind of loop — the dispatch
-# loop resolves ``active_no_loop`` to Nau's A-B loop cancel on the primary, and to
+# loop resolves ``active_no_loop`` to Nau's A-B loop cancel on the main player, and to
 # a satellite's group loop on portrait/landscape.
 VOICE_COMMANDS["end loop"] = "active_no_loop"
 for _side in ("portrait", "landscape", "both"):
@@ -294,31 +292,32 @@ for _axis_word, _axis_cmd in _CYCLE_AXES.items():
     for _cycle_verb in ("cycle", "next", "change"):
         VOICE_COMMANDS[f"{_cycle_verb} {_axis_word}"] = _axis_cmd
 
-# The primary (Nau) player joins the grid for navigation, its lock and reset —
-# "primary next" / "next primary" (either order) — since it has no weird, and its
-# one cycle axis is "version" above rather than the satellites' action/seed.
-# "main" is a synonym for "primary".  Bare "next"/"previous"/"lock"/"unlock" also
-# reach it whenever it was the last player addressed (the active side resolves to
-# the primary then).  A lock means here what it means on a satellite: hold the
+# The main (Nau) player joins the grid for navigation, its lock and reset —
+# "main next" / "next main" (either order) — since it has no weird, and its one
+# cycle axis is "version" above rather than the satellites' action/seed.  It is
+# only ever "main": "primary" was a synonym here, and is not one any more, because
+# in this room "primary" names a monitor — the primary and the secondary — and one
+# word cannot be both a screen and a player.  Bare "next"/"previous"/"lock"/
+# "unlock" also reach it whenever it was the last player addressed (the active side
+# resolves to it then).  A lock means here what it means on a satellite: hold the
 # video on screen, where unlocked its end walks the playlist.  "reset" means what
 # it means for a satellite — drop whatever is narrowing the playlist, back to the
 # default browse — which for Nau is leaving any compilation and any length filter
 # for the mixed library.
-_PRIMARY_ACTIONS = {"next": "next", "previous": "prev",
-                    "lock": "lock_on", "unlock": "lock_off"}
-for _player_word in ("primary", "main"):
-    for _action_word, _action in _PRIMARY_ACTIONS.items():
-        VOICE_COMMANDS[f"{_player_word} {_action_word}"] = f"primary_{_action}"
-        VOICE_COMMANDS[f"{_action_word} {_player_word}"] = f"primary_{_action}"
-    VOICE_COMMANDS[f"{_player_word} reset"] = "nau_length_mixed"
-    VOICE_COMMANDS[f"reset {_player_word}"] = "nau_length_mixed"
+_MAIN_ACTIONS = {"next": "next", "previous": "prev",
+                 "lock": "lock_on", "unlock": "lock_off"}
+for _action_word, _action in _MAIN_ACTIONS.items():
+    VOICE_COMMANDS[f"main {_action_word}"] = f"main_{_action}"
+    VOICE_COMMANDS[f"{_action_word} main"] = f"main_{_action}"
+VOICE_COMMANDS["main reset"] = "nau_length_mixed"
+VOICE_COMMANDS["reset main"] = "nau_length_mixed"
 
 # F-mode, per player.  Every player has its own — it narrows a satellite to the
-# favourites and the primary to the videos that have a funscript — so each is
+# favourites and the main player to the videos that have a funscript — so each is
 # sayable by naming it, in either order like the rest of the grid: "portrait f
 # mode" and "f mode portrait" are the same command.  "both" drives the two
-# satellites (expanded into its pair by the dispatch loop), "primary"/"main" the
-# primary, and "all" every player at once — the gesture the F key is.
+# satellites (expanded into its pair by the dispatch loop), "main" the main player,
+# and "all" every player at once — the gesture the F key is.
 #
 # Bare, it reaches the player last addressed, exactly as bare "lock" and "next"
 # do.  Reading the bare phrase as the whole room instead is what made a spoken
@@ -336,21 +335,20 @@ _FMODE_PHRASES: dict[str, tuple[str, str]] = {
 }
 for _fmode_word, (_fmode_act, _fmode_all) in _FMODE_PHRASES.items():
     VOICE_COMMANDS[_fmode_word] = f"active_{_fmode_act}"
-    for _side in ("portrait", "landscape", "both", "primary", "main", "all"):
-        _target = "primary" if _side == "main" else _side
-        _sided = _fmode_all if _side == "all" else f"{_target}_{_fmode_act}"
+    for _side in ("portrait", "landscape", "both", "main", "all"):
+        _sided = _fmode_all if _side == "all" else f"{_side}_{_fmode_act}"
         VOICE_COMMANDS[f"{_side} {_fmode_word}"] = _sided
         VOICE_COMMANDS[f"{_fmode_word} {_side}"] = _sided
 
 # Mode-named navigation: a mode's name + next/previous (either order) navigates
-# that mode's player.  Nau and Hybrid drive the primary (Nau owns the primary
+# that mode's player.  Nau and Hybrid drive the main slot (Nau owns the main
 # display in both modes); Genau steps its own clip.  vosk can't hear "nau" or
 # "genau", so the recognizer reuses the mode-activation sound-alikes ("now mode",
 # "go now") — the reference translates them back to the friendly mode names.
 _MODE_NAV: dict[str, tuple[str, str]] = {
     # recognizer base -> (next command, previous command)
-    "now mode": ("primary_next", "primary_prev"),  # displayed "nau mode"
-    "hybrid": ("primary_next", "primary_prev"),
+    "now mode": ("main_next", "main_prev"),  # displayed "nau mode"
+    "hybrid": ("main_next", "main_prev"),
     "go now": ("genau_next_clip", "genau_prev_clip"),  # displayed "genau"
 }
 for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
@@ -486,7 +484,7 @@ SELF_REPORTING_COMMANDS = frozenset({
     "fmode_off",
     *(
         f"{player}_fmode{suffix}"
-        for player in ("primary", "portrait", "landscape", "both", "active")
+        for player in ("main", "portrait", "landscape", "both", "active")
         for suffix in ("", "_on", "_off")
     ),
 })

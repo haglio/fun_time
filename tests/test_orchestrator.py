@@ -97,7 +97,7 @@ class TestControllerManifest:
     def test_layout_monitors_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg)
-        assert result["layout"]["main_monitor"] == "1"
+        assert result["layout"]["primary_monitor"] == "1"
         assert result["layout"]["secondary_monitor"] == "2"
 
     def test_runtime_section_includes_config_path(self, cfg_path: Path):

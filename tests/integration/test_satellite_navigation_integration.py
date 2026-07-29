@@ -204,7 +204,7 @@ def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
         favs_file=favs,
         weird_dir=tmp_path / "weird",
         state_dir=state_dir,
-        primary_sources=str(tmp_path / "primary"),
+        main_sources=str(tmp_path / "primary"),
         portrait_sources=str(tmp_path / "portrait"),
         landscape_sources=str(tmp_path / "landscape"),
         genau_mode_file=state_dir / "genau_mode.txt",

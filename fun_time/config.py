@@ -79,9 +79,9 @@ class PathsConfig:
 
 @dataclass(frozen=True)
 class LayoutConfig:
-    main_monitor: int
+    primary_monitor: int
     secondary_monitor: int
-    primary_top_ratio: float
+    main_top_ratio: float
     landscape_width_ratio: float
 
 
@@ -122,9 +122,9 @@ class VoiceControlConfig:
 class VrConfig:
     """What FunTimeVR needs beyond the desktop session's own config.
 
-    ``library_dirs`` joins the primary rotation alongside ``nau_library_dirs``
+    ``library_dirs`` joins the main rotation alongside ``nau_library_dirs``
     (the VR-mastered videos live in their own branch of the library);
-    ``audio_device`` routes the primary's sound to the headset by substring
+    ``audio_device`` routes the main player's sound to the headset by substring
     match; the T-Code endpoint is the broker's UDP inlet, the same one Nau and
     Genau send to.  ``compositor_layers`` hands flat screens to the runtime's
     compositor as quad layers; off by default because the bundled "Pimax
@@ -307,16 +307,16 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
 
 
 def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> LayoutConfig:
-    main_monitor = layout_raw.get("main_monitor")
+    primary_monitor = layout_raw.get("primary_monitor")
     secondary_monitor = layout_raw.get("secondary_monitor")
-    if main_monitor is None:
-        raise ValueError(f"Missing required config value: config.layout.main_monitor (in {source_path})")
+    if primary_monitor is None:
+        raise ValueError(f"Missing required config value: config.layout.primary_monitor (in {source_path})")
     if secondary_monitor is None:
         raise ValueError(f"Missing required config value: config.layout.secondary_monitor (in {source_path})")
     return LayoutConfig(
-        main_monitor=int(main_monitor),
+        primary_monitor=int(primary_monitor),
         secondary_monitor=int(secondary_monitor),
-        primary_top_ratio=_require_typed_value(layout_raw, "primary_top_ratio", source_path, "config.layout", float),
+        main_top_ratio=_require_typed_value(layout_raw, "main_top_ratio", source_path, "config.layout", float),
         landscape_width_ratio=_require_typed_value(layout_raw, "landscape_width_ratio", source_path, "config.layout", float),
     )
 
@@ -413,7 +413,7 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
     this package, which is what every session wants: a config's relative values
     describe the checkout it belongs to.  It is a parameter so that code holding
     *two* checkouts at once can say which — the branch-verification launcher
-    reads the live config while running from the primary, and must resolve it
+    reads the live config while running from the main player, and must resolve it
     the way the live session does rather than the way its caller happens to sit.
     """
     project_dir = project_dir or PROJECT_DIR

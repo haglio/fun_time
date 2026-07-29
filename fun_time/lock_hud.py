@@ -26,6 +26,7 @@ from fun_time.media_metadata import (
 from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
 
+
 def _status_label(
     locked: bool, loop_axis: str, latest: bool, filter_query: str, f_mode: bool
 ) -> str:
@@ -477,7 +478,7 @@ def build_panels(
     F-mode rides in each side's own inputs, since each satellite has its own
     button for it and the two can differ.  ``active_side`` is the one thing here
     that is unsided, because it *names* exactly one player: at most one of these
-    two panels can claim it, and neither does while the primary holds it.  A name
+    two panels can claim it, and neither does while the main player holds it.  A name
     rather than the dispatcher's slot number, because that is what a side is
     called everywhere else in here; the one translation lives where the number does.
     """

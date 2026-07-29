@@ -50,7 +50,7 @@ def _the_users_config() -> tuple[dict, dict]:
         # before then — including the one a run copies.
         "genau": {"udp_host": "127.0.0.1", "udp_port": GENAU_INBOUND_PORT,
                   "notify_port": AUDIO_COMPANION_PORT, "status_hide_ms": 1200},
-        # FunTimeVR's primary streams T-Code through this key — to the same
+        # FunTimeVR's main player streams T-Code through this key — to the same
         # broker inlet Nau and Genau use.
         "vr": {"library_dirs": [], "tcode_udp_port": BROKER_TCODE_PORT},
     }
@@ -217,7 +217,7 @@ def test_the_integration_config_never_streams_tcode_to_the_machines_broker(isola
 
     assert genau_config["genau"]["tcode_udp_port"] != BROKER_TCODE_PORT
     assert genau_config["nau"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
-    # The VR primary is the third sender at that inlet; it moves with them.
+    # The VR main player is the third sender at that inlet; it moves with them.
     assert config["vr"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
 
 

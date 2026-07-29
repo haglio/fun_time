@@ -85,11 +85,11 @@ def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrati
     """The bare command still narrows every player at once, and lifts it again."""
     shared_integration_session.write_dashboard_command("fmode_toggle")
     shared_integration_session.wait_for_new_log(
-        "F-mode enabled: primary, portrait, landscape", timeout=12)
+        "F-mode enabled: main, portrait, landscape", timeout=12)
 
     shared_integration_session.write_dashboard_command("fmode_toggle")
     shared_integration_session.wait_for_new_log(
-        "F-mode disabled: primary, portrait, landscape", timeout=12)
+        "F-mode disabled: main, portrait, landscape", timeout=12)
 
 
 def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegrationSession):
@@ -100,11 +100,11 @@ def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegratio
 
     shared_integration_session.write_dashboard_command("fmode_toggle")
     shared_integration_session.wait_for_new_log(
-        "F-mode enabled: primary, landscape", timeout=12)
+        "F-mode enabled: main, landscape", timeout=12)
 
     shared_integration_session.write_dashboard_command("fmode_off")
     shared_integration_session.wait_for_new_log(
-        "F-mode disabled: primary, portrait, landscape", timeout=12)
+        "F-mode disabled: main, portrait, landscape", timeout=12)
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
@@ -140,7 +140,7 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
 
 
 def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integration_session: FunTimeIntegrationSession):
-    """The primary-slot players share one screen rect, so a mode switch swaps
+    """The main-slot players share one screen rect, so a mode switch swaps
     which is on screen: the active mode's player is restored, the idle one
     minimized (never hidden — both keep a taskbar button all session, so both
     stay findable by title; is_window_minimized tells them apart). Nau floats
@@ -455,7 +455,7 @@ def test_fun_time_omnipause_freezes_the_satellites(
 
 
 def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
-    """primary_nudge_next/prev in nau mode drive Nau's seek via its command
+    """main_nudge_next/prev in nau mode drive Nau's seek via its command
     file, observed through Nau's published status position."""
     s = shared_integration_session
 
@@ -482,7 +482,7 @@ def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIn
         if s.read_nau_duration_ms() >= MIN_DURATION_MS:
             break
         prev_video = s.read_nau_status().video
-        s.write_dashboard_command("primary_next")
+        s.write_dashboard_command("main_next")
         s.wait_until(
             lambda pv=prev_video: (
                 s.read_nau_status().video not in ("", pv)
@@ -502,7 +502,7 @@ def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIn
     for _ in range(30):
         if s.read_nau_status().position_ms <= duration - 15_000:
             break
-        s.write_dashboard_command("primary_nudge_prev")
+        s.write_dashboard_command("main_nudge_prev")
         time.sleep(0.4)
 
     before = s.read_nau_status().position_ms
@@ -510,7 +510,7 @@ def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIn
         f"could not create forward headroom: pos={before} duration={duration}"
     )
 
-    s.write_dashboard_command("primary_nudge_next")
+    s.write_dashboard_command("main_nudge_next")
     s.wait_until(
         lambda: s.read_nau_status().position_ms >= before + 9_000,
         timeout=10,
@@ -518,7 +518,7 @@ def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIn
     )
 
     after_fwd = s.read_nau_status().position_ms
-    s.write_dashboard_command("primary_nudge_prev")
+    s.write_dashboard_command("main_nudge_prev")
     s.wait_until(
         lambda: s.read_nau_status().position_ms <= after_fwd - 9_000,
         timeout=10,
@@ -586,8 +586,8 @@ def test_fun_time_hybrid_keeps_nau_as_the_display(shared_integration_session: Fu
     )
 
     # A nudge in hybrid reaches the normal dispatch path.
-    s.write_dashboard_command("primary_nudge_next")
-    s.wait_for_new_log("Dispatching command: primary_nudge_next", timeout=10)
+    s.write_dashboard_command("main_nudge_next")
+    s.wait_for_new_log("Dispatching command: main_nudge_next", timeout=10)
 
     s.write_dashboard_command("nau_activate")
     s.wait_for_new_log("Switched to nau mode", timeout=12)
@@ -708,13 +708,13 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         opened_with = _videos(playlist)
         # Navigate off the top of the playlist, so resuming onto entry 0 — which
         # every session does anyway — cannot pass this by accident.
-        first.write_dashboard_command("primary_next")
+        first.write_dashboard_command("main_next")
         first.wait_until(
             lambda: first.read_nau_status().video not in ("", opened_with[0]),
             timeout=20,
             description="Nau to navigate off the first video",
         )
-        # Then freeze the session before closing it. Some of the primary library
+        # Then freeze the session before closing it. Some of the main player library
         # is seconds long, and a Nau that auto-advanced while the shutdown ran
         # would leave behind a different video than the one read here.
         first.write_dashboard_command("omnipause_toggle")

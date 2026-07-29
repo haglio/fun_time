@@ -40,7 +40,7 @@ from fun_time.modes import (
     SatelliteLibraryContext,
     build_all_playlists,
     build_playlist_file_path,
-    build_primary_playlist,
+    build_main_playlist,
 )
 from fun_time.orchestrator import (
     ensure_broker_running,
@@ -49,7 +49,7 @@ from fun_time.orchestrator import (
     signal_startup_resolved,
     validate_config,
 )
-from fun_time.mode_plan import STARTUP_PRIMARY_MODE
+from fun_time.mode_plan import STARTUP_MAIN_MODE
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_resume import (
     resume_playlists,
@@ -102,17 +102,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def vr_primary_sources(config) -> str:
-    """The primary rotation's source spec: the VR library joined with the
+def vr_main_sources(config) -> str:
+    """The main rotation's source spec: the VR library joined with the
     desktop primary's own dirs — the user's "VR videos and non-VR videos"."""
     dirs = [*config.vr.library_dirs, *config.paths.nau_library_dirs]
     return "|".join(str(path) for path in dirs)
 
 
-def primary_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> bool:
-    """Whether the primary's playlist holds any VR-mastered video at all.
+def main_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> bool:
+    """Whether the main player's playlist holds any VR-mastered video at all.
 
-    A desktop session's primary playlist never does — it was built from the 2D
+    A desktop session's main playlist never does — it was built from the 2D
     library alone — and resuming it into a VR session gives a headset nothing
     but flat screens until something rebuilds.  That is exactly what the first
     headset run got, so the VR session asks this before honoring a resume.  A
@@ -127,7 +127,7 @@ def resume_vr_state(state_file: Path, *, resumed: bool):
     """The state a VR session comes back in: last session's, minus its mode.
 
     One player hosts every role here and Genau is not launched at all, so there
-    is no primary slot to hand over and nobody to hand it to — while the desktop
+    is no main slot to hand over and nobody to hand it to — while the desktop
     session, which shares this state dir, can perfectly well have been closed in
     genau mode.  Carried across, that mode would put every VR HUD, and the
     dispatch loop's whole idea of who owns the display, on a player that is not
@@ -139,7 +139,7 @@ def resume_vr_state(state_file: Path, *, resumed: bool):
     """
     carried = replace(
         resume_shared_state(state_file, resumed=resumed),
-        primary_mode=STARTUP_PRIMARY_MODE,
+        main_mode=STARTUP_MAIN_MODE,
     )
     write_shared_state(state_file, carried)
     return carried
@@ -153,7 +153,7 @@ def build_vr_manifest(config) -> dict[str, dict[str, str]]:
     and a ``[vr]`` section carries what only the VR player needs.
     """
     manifest = build_windows_bridge_manifest(config)
-    manifest["media"]["nau_library_sources"] = vr_primary_sources(config)
+    manifest["media"]["nau_library_sources"] = vr_main_sources(config)
     manifest["vr"] = {
         "player_module": VR_PLAYER_MODULE,
         "library_dirs": "|".join(str(path) for path in config.vr.library_dirs),
@@ -258,7 +258,7 @@ def run_vr_bridge(config, logger_) -> int:
         commands["genau_paused_file"], commands["audio_paused_file"],
         commands["nau_paused_file"], commands["audio_volume_file"],
         commands["genau_cmd_file"], nau_cmd_file=commands["nau_cmd_file"],
-        volume=carried.volume, muted=carried.muted, f_mode=carried.primary_f_mode,
+        volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
     )
     # A lock lives in the player process, so it has to be re-sent; the roles read
     # the satellites' own command files, and the VR player is not up yet.
@@ -268,7 +268,7 @@ def run_vr_bridge(config, logger_) -> int:
     ])
     if not resumed:
         build_all_playlists(
-            primary_sources=manifest["media"]["nau_library_sources"],
+            main_sources=manifest["media"]["nau_library_sources"],
             portrait_sources=manifest["media"]["portrait_dirs"],
             landscape_sources=manifest["media"]["landscape_dirs"],
             favs_file=Path(manifest["media"]["favs_file"]),
@@ -278,15 +278,15 @@ def run_vr_bridge(config, logger_) -> int:
                 watch_stats_file=watch_stats_path(state_dir),
             ),
         )
-    elif not primary_playlist_has_vr(nau_playlist, config.vr.library_dirs):
+    elif not main_playlist_has_vr(nau_playlist, config.vr.library_dirs):
         # Resumed from a desktop session, whose primary playlist is 2D only:
         # keep the satellites where they were, but rebuild the primary from the
         # VR-merged sources so a headset session actually gets VR videos.
-        build_primary_playlist(
+        build_main_playlist(
             nau_playlist, manifest["media"]["nau_library_sources"],
-            f_mode=carried.primary_f_mode,
+            f_mode=carried.main_f_mode,
         )
-        logger_.info("Resumed playlists; rebuilt the primary's, which held no VR video")
+        logger_.info("Resumed playlists; rebuilt the main player's, which held no VR video")
     logger_.info(
         "Resumed last session's playlists" if resumed else "Nothing to resume; built fresh playlists"
     )

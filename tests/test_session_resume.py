@@ -10,7 +10,7 @@ from fun_time.session_resume import (
     playlist_fits_sources,
     playlist_opens_on,
     resume_playlists,
-    resume_primary_loop,
+    resume_main_loop,
     resume_satellite_locks,
     resume_shared_state,
 )
@@ -124,11 +124,11 @@ class TestResumeSharedState:
         playlist was never built under it."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(
-            primary_f_mode=True, portrait_f_mode=False, landscape_f_mode=True))
+            main_f_mode=True, portrait_f_mode=False, landscape_f_mode=True))
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert (state.primary_f_mode, state.portrait_f_mode,
+        assert (state.main_f_mode, state.portrait_f_mode,
                 state.landscape_f_mode) == (True, False, True)
 
     def test_carries_a_running_loop_and_the_map_it_hangs_on(self, tmp_path: Path):
@@ -188,9 +188,9 @@ class TestResumeSharedState:
         and then puts the carried mode on over the top (see
         :func:`fun_time.windows_bridge_startup.seed_startup_states`)."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(primary_mode="genau"))
+        write_shared_state(state_file, BridgeState(main_mode="genau"))
 
-        assert resume_shared_state(state_file, resumed=True).primary_mode == "genau"
+        assert resume_shared_state(state_file, resumed=True).main_mode == "genau"
 
     def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
         """OmniPause's flags are cleared before the players launch, and a
@@ -275,24 +275,24 @@ class TestResumeSatelliteLocks:
         assert state_file.exists()
 
 
-class TestResumePrimaryLoop:
-    """The primary's A/B loop is a range inside one video, held in a player
+class TestResumeMainLoop:
+    """The main player's A/B loop is a range inside one video, held in a player
     process that is about to be replaced — so like a satellite's lock it cannot
     ride back in on a file the new player reads, and has to be re-sent."""
 
     def test_queues_the_range_the_primary_was_looping(self, tmp_path: Path):
         nau_cmd = tmp_path / "nau_cmd.txt"
 
-        resume_primary_loop(nau_cmd, (2000, 4000))
+        resume_main_loop(nau_cmd, (2000, 4000))
 
         assert nau_cmd.read_text(encoding="utf-8").splitlines() == ["SET_LOOP 2000 4000"]
 
     def test_queues_nothing_when_there_was_no_loop(self, tmp_path: Path):
-        """A primary that was not looping must be sent nothing at all: playing
+        """A main player that was not looping must be sent nothing at all: playing
         the video through is already what no loop means."""
         nau_cmd = tmp_path / "nau_cmd.txt"
 
-        resume_primary_loop(nau_cmd, None)
+        resume_main_loop(nau_cmd, None)
 
         assert not nau_cmd.exists()
 
@@ -302,7 +302,7 @@ class TestResumePrimaryLoop:
         nau_cmd = tmp_path / "nau_cmd.txt"
         nau_cmd.write_text("SET_VOLUME 40 0\n", encoding="utf-8")
 
-        resume_primary_loop(nau_cmd, (2000, 4000))
+        resume_main_loop(nau_cmd, (2000, 4000))
 
         assert nau_cmd.read_text(encoding="utf-8").splitlines() == [
             "SET_VOLUME 40 0", "SET_LOOP 2000 4000",
@@ -311,7 +311,7 @@ class TestResumePrimaryLoop:
 
 class TestPlaylistOpensOn:
     """Whether the clip a player will actually load is the one expected — asked
-    of the primary before its loop is handed back, since a loop belongs to one
+    of the main player before its loop is handed back, since a loop belongs to one
     video and would otherwise be applied to whatever took its place."""
 
     def test_the_clip_a_resumed_playlist_leads_with(self, tmp_path: Path):
@@ -344,7 +344,7 @@ class TestPlaylistOpensOn:
 class TestPlaylistFitsSources:
     """Telling a playlist this session built from one another app left behind.
 
-    FunTimeVR shares this state dir and writes the primary's playlist to the
+    FunTimeVR shares this state dir and writes the main player's playlist to the
     same file, built from the VR library merged with the desktop's — so the
     desktop session has to recognize that file rather than resume it.
     """
@@ -372,7 +372,7 @@ class TestPlaylistFitsSources:
         assert playlist_fits_sources(playlist, str(library)) is False
 
     def test_every_dir_of_a_multi_dir_spec_counts(self, tmp_path: Path):
-        """The primary's spec is pipe-joined, and a video from any of its dirs
+        """The main player's spec is pipe-joined, and a video from any of its dirs
         is this session's own."""
         first = tmp_path / "library" / "one"
         second = tmp_path / "library" / "two"

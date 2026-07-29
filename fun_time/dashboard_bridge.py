@@ -6,7 +6,7 @@ from pathlib import Path
 def build_dashboard_snapshot_text(
     *,
     osr2_mode: str,
-    primary_mode: str,
+    main_mode: str,
     portrait_locked: bool,
     landscape_locked: bool,
     omni_paused: bool = False,
@@ -19,8 +19,8 @@ def build_dashboard_snapshot_text(
         f"active={'1' if omni_paused else '0'}\n"
         "[voice]\n"
         f"active={'1' if voice_active else '0'}\n"
-        "[primary]\n"
-        f"mode={primary_mode}\n"
+        "[main]\n"
+        f"mode={main_mode}\n"
         "locked=0\n"
         "[portrait]\n"
         f"locked={'1' if portrait_locked else '0'}\n"
@@ -46,7 +46,7 @@ def write_dashboard_snapshot(
     output_file: str | Path,
     *,
     osr2_mode: str,
-    primary_mode: str,
+    main_mode: str,
     portrait_locked: bool,
     landscape_locked: bool,
     omni_paused: bool = False,
@@ -55,7 +55,7 @@ def write_dashboard_snapshot(
     path = Path(output_file)
     text = build_dashboard_snapshot_text(
         osr2_mode=osr2_mode,
-        primary_mode=primary_mode,
+        main_mode=main_mode,
         portrait_locked=portrait_locked,
         landscape_locked=landscape_locked,
         omni_paused=omni_paused,

@@ -33,8 +33,8 @@ def _azimuth_deg(x: float, z: float) -> float:
 
 class TestLayout:
     def test_satellites_tuck_inside_the_flush_position(self):
-        # First headset run: flush-beside-the-primary put both satellites in
-        # the peripheral vision, so they overlap the primary's edges instead —
+        # First headset run: flush-beside-the-main-player put both satellites in
+        # the peripheral vision, so they overlap the main player's edges instead —
         # they draw over it, so overlap costs nothing.
         flush = (PRIMARY_WIDTH_DEG + SATELLITE_WIDTH_DEG) / 2
         assert 0 < satellite_center_azimuth("landscape") < flush

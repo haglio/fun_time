@@ -44,7 +44,7 @@ PID_TO_HWND = {
 }
 
 # The windows that are topmost in EVERY mode — the ones that own a rect and so
-# overlap nothing.  Nau and Genau SHARE the primary rect, so each is in the band
+# overlap nothing.  Nau and Genau SHARE the main player's rect, so each is in the band
 # only in the modes where it shows something; every test folds those two in or
 # out as its own mode requires.
 TOPMOST_HWNDS = {
@@ -59,7 +59,7 @@ def _neutralise_topmost_reads():
     These tests are about dispatch, not z-order, and a real read would land on
     whichever window answers on this machine — so the flag read is neutralised
     (nothing is ever found topmost).  The native satellites publish their
-    playback to status files, so a tick's satellite/primary sampling is inert
+    playback to status files, so a tick's satellite/main-player sampling is inert
     here (no status files written).  A test asserting on topmost state patches
     is_window_topmost itself."""
     with patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False):
@@ -87,7 +87,7 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
         favs_file=tmp_path / "favs.txt",
         weird_dir=tmp_path / "weird",
         state_dir=tmp_path,
-        primary_sources="",
+        main_sources="",
         portrait_sources="",
         landscape_sources="",
         genau_mode_file=tmp_path / "rh_mode.txt",
@@ -241,11 +241,11 @@ class TestPollDashboardCommands:
 
     def test_reads_multiple_commands(self, tmp_path):
         cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("primary_next\nprimary_next\nportrait_prev\n", encoding="utf-8")
+        cmd_file.write_text("main_next\nmain_next\nportrait_prev\n", encoding="utf-8")
 
         result = poll_dashboard_commands(cmd_file)
 
-        assert result == ["primary_next", "primary_next", "portrait_prev"]
+        assert result == ["main_next", "main_next", "portrait_prev"]
 
     def test_concurrent_write_does_not_lose_new_commands(self, tmp_path):
         """Rename-then-read ensures writes during processing go to a new file."""
@@ -275,11 +275,11 @@ class TestPollDashboardCommands:
     def test_strips_utf8_bom_from_commands(self, tmp_path):
         """AHK FileAppend with UTF-8 adds a BOM; commands must not be BOM-prefixed."""
         cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_bytes(b"\xef\xbb\xbfprimary_prev\n")
+        cmd_file.write_bytes(b"\xef\xbb\xbfmain_prev\n")
 
         result = poll_dashboard_commands(cmd_file)
 
-        assert result == ["primary_prev"]
+        assert result == ["main_prev"]
 
 
 class TestResolveActiveSideCommand:
@@ -306,17 +306,17 @@ class TestResolveActiveSideCommand:
         assert resolve_active_side_command("active_nav_lock", 3) == "landscape_nav_lock"
 
     def test_passes_non_active_commands_through(self):
-        assert resolve_active_side_command("primary_next", 3) == "primary_next"
+        assert resolve_active_side_command("main_next", 3) == "main_next"
         assert resolve_active_side_command("portrait_lock", 3) == "portrait_lock"
 
     def test_active_nav_targets_primary_when_primary_is_active(self):
-        """The primary (slot 1) joins the active-side feature for nav."""
-        assert resolve_active_side_command("active_next", 1) == "primary_next"
-        assert resolve_active_side_command("active_prev", 1) == "primary_prev"
+        """The main player (slot 1) joins the active-side feature for nav."""
+        assert resolve_active_side_command("active_next", 1) == "main_next"
+        assert resolve_active_side_command("active_prev", 1) == "main_prev"
 
     def test_end_loop_on_the_primary_means_naus_own_loop(self):
         """A side-agnostic phrase may mean a different thing on each player: on a
-        satellite "end loop" ends a group loop, on the primary it cancels Nau's A-B
+        satellite "end loop" ends a group loop, on the main player it cancels Nau's A-B
         loop.  The resolution is where that translation belongs."""
         assert resolve_active_side_command("active_no_loop", 1) == "nau_loop_cancel"
         assert resolve_active_side_command("active_no_loop", 2) == "portrait_no_loop"
@@ -324,24 +324,24 @@ class TestResolveActiveSideCommand:
 
     def test_a_bare_lock_reaches_the_primary_too(self):
         """A lock means the same thing on all three — repeat-one on what is on
-        screen — so the bare word follows the active side onto the primary rather
+        screen — so the bare word follows the active side onto the main player rather
         than falling through to nothing there."""
-        assert resolve_active_side_command("active_lock_on", 1) == "primary_lock_on"
-        assert resolve_active_side_command("active_lock_off", 1) == "primary_lock_off"
+        assert resolve_active_side_command("active_lock_on", 1) == "main_lock_on"
+        assert resolve_active_side_command("active_lock_off", 1) == "main_lock_off"
         assert resolve_active_side_command("active_lock_on", 2) == "portrait_lock_on"
         assert resolve_active_side_command("active_lock_off", 3) == "landscape_lock_off"
 
     def test_a_bare_f_mode_reaches_whichever_player_is_active(self):
         """Every player has its own F-mode, so the bare phrase follows the active
-        side onto any of the three — the primary included, which is where it
+        side onto any of the three — the main player included, which is where it
         lands at startup."""
         for suffix in ("", "_on", "_off"):
-            assert resolve_active_side_command(f"active_fmode{suffix}", 1) == f"primary_fmode{suffix}"
+            assert resolve_active_side_command(f"active_fmode{suffix}", 1) == f"main_fmode{suffix}"
             assert resolve_active_side_command(f"active_fmode{suffix}", 2) == f"portrait_fmode{suffix}"
             assert resolve_active_side_command(f"active_fmode{suffix}", 3) == f"landscape_fmode{suffix}"
 
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
-        """Primary has no weird or cycle, so a bare satellite-only command while it
+        """Main has no weird or cycle, so a bare satellite-only command while it
         is active resolves to nothing (unchanged → a downstream no-op)."""
         assert resolve_active_side_command("active_trash", 1) == "active_trash"
         assert resolve_active_side_command("active_cycle_seed", 1) == "active_cycle_seed"
@@ -462,9 +462,9 @@ class TestDispatchLoopRunner:
         status = tmp_path / "nau_status.txt"
 
         _write_nau_status(status, watched, position_ms=9000, duration_ms=10000)
-        runner._sample_primary()
+        runner._sample_main()
         _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
-        runner._sample_primary()
+        runner._sample_main()
 
         stats = load_watch_stats(runner._watch_stats_file)
         assert stats[normalize_path_key(str(watched))]["completions"] == 1
@@ -478,9 +478,9 @@ class TestDispatchLoopRunner:
         status = tmp_path / "nau_status.txt"
 
         _write_nau_status(status, early, position_ms=5000, duration_ms=0)
-        runner._sample_primary()
+        runner._sample_main()
         _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
-        runner._sample_primary()
+        runner._sample_main()
 
         assert normalize_path_key(str(early)) not in load_watch_stats(runner._watch_stats_file)
 
@@ -493,9 +493,9 @@ class TestDispatchLoopRunner:
         status = tmp_path / "nau_status.txt"
 
         _write_nau_status(status, watched, position_ms=9000, duration_ms=10000, paused=True)
-        runner._sample_primary()
+        runner._sample_main()
         _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
-        runner._sample_primary()
+        runner._sample_main()
 
         assert normalize_path_key(str(watched)) not in load_watch_stats(runner._watch_stats_file)
 
@@ -507,14 +507,14 @@ class TestDispatchLoopRunner:
         status = tmp_path / "nau_status.txt"
 
         _write_nau_status(status, watched, position_ms=9000, duration_ms=10000)
-        runner._sample_primary()
+        runner._sample_main()
         _write_nau_status(status, "", position_ms=0, duration_ms=10000)
-        runner._sample_primary()
+        runner._sample_main()
 
         assert normalize_path_key(str(watched)) not in load_watch_stats(runner._watch_stats_file)
 
     def test_primary_next_marks_the_departed_nau_video_as_a_skip(self, tmp_path):
-        """Pressing next on the primary is the "user nav" signal: a Nau video left
+        """Pressing next on the main player is the "user nav" signal: a Nau video left
         early right after a next counts as a skip, just like a satellite next."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         early = _make_video(tmp_path, "early.mp4")
@@ -522,10 +522,10 @@ class TestDispatchLoopRunner:
         status = tmp_path / "nau_status.txt"
 
         _write_nau_status(status, early, position_ms=1000, duration_ms=10000)
-        runner._sample_primary()
-        runner._dispatch("primary_next")
+        runner._sample_main()
+        runner._dispatch("main_next")
         _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
-        runner._sample_primary()
+        runner._sample_main()
 
         stats = load_watch_stats(runner._watch_stats_file)
         assert stats[normalize_path_key(str(early))]["skips"] == 1
@@ -534,34 +534,34 @@ class TestDispatchLoopRunner:
         """Nau watch tracking rides the same periodic sample tick as the satellites."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
 
-        with patch.object(runner, "_sample_primary") as mock_primary:
+        with patch.object(runner, "_sample_main") as mock_main:
             runner.tick()
 
-        mock_primary.assert_called_once()
+        mock_main.assert_called_once()
 
     def test_tick_does_not_sample_the_primary_under_omnipause(self, tmp_path):
-        """Omnipause halts sampling for every player, primary included."""
+        """Omnipause halts sampling for every player, the main one included."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner.state = BridgeState(omni_paused=True)
 
-        with patch.object(runner, "_sample_primary") as mock_primary:
+        with patch.object(runner, "_sample_main") as mock_main:
             runner.tick()
 
-        mock_primary.assert_not_called()
+        mock_main.assert_not_called()
 
     def test_nudge_dispatches_to_command(self, tmp_path):
-        """Nau owns the primary display in every mode it appears, so a nudge
+        """Nau owns the main player in every mode it appears, so a nudge
         dispatches to Nau's SEEK command (which stacks against its live clock)."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        (tmp_path / "dashboard_cmd.txt").write_text("primary_nudge_next", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("main_nudge_next", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "primary_nudge_next" in commands
+        assert "main_nudge_next" in commands
 
     def test_omnipause_enter_via_tick_drops_topmost_on_all_managed_windows(self, tmp_path):
         """Entering omnipause frees the desktop: EVERY managed window leaves the
@@ -587,7 +587,7 @@ class TestDispatchLoopRunner:
     ):
         """Leaving omnipause in nau mode gives every managed window its TOPMOST
         bit back — INCLUDING Nau, which floats above the desktop again — and
-        re-activates the window that owns the primary display.
+        re-activates the window that owns the main player.
 
         Genau is the exception, and the reason this is worth pinning: it shares
         Nau's rect and is promoted last, so putting it back in the band puts it
@@ -634,7 +634,7 @@ class TestDispatchLoopRunner:
     def test_backslash_key_dispatches_quarter_button_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="genau")
+        runner.state = BridgeState(main_mode="genau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -655,7 +655,7 @@ class TestDispatchLoopRunner:
 
         runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="genau")
+        runner.state = BridgeState(main_mode="genau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -684,7 +684,7 @@ class TestDispatchLoopRunner:
 
         runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="nau")
+        runner.state = BridgeState(main_mode="nau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -708,7 +708,7 @@ class TestDispatchLoopRunner:
     def test_backslash_key_enters_omnipause_when_not_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="nau")
+        runner.state = BridgeState(main_mode="nau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
 
@@ -767,7 +767,7 @@ class TestDispatchLoopRunner:
         runner._last_sync = float("inf")
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
-        notice_op = WindowOp(op="notice", key="Clipper: MyVideo", source="primary")
+        notice_op = WindowOp(op="notice", key="Clipper: MyVideo", source="main")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.notice") as mock_notice:
             mock_dispatch.return_value = (runner.state, [notice_op])
@@ -776,7 +776,7 @@ class TestDispatchLoopRunner:
         assert not ahk_cmd_file.exists()
         mock_notice.assert_called_once()
         assert mock_notice.call_args[0][1] == "Clipper: MyVideo"
-        assert mock_notice.call_args[1] == {"source": "primary", "level": notice_op.level}
+        assert mock_notice.call_args[1] == {"source": "main", "level": notice_op.level}
 
     def test_a_dead_end_notice_is_logged_at_its_error_level(self, tmp_path):
         """A no-effect notice carries ERROR so the panel and flash render it red;
@@ -865,7 +865,7 @@ class TestDispatchLoopRunner:
         """Hybrid shows Nau under Genau's HUD (Genau drives the OSR2)."""
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
 
@@ -1301,7 +1301,7 @@ class TestOpenRfbTab:
 
 
 class TestModeSwitchVisibility:
-    """The two primary-slot players (Nau and Genau) share one screen rect.
+    """The two main-slot players (Nau and Genau) share one screen rect.
     A mode switch swaps window VISIBILITY: the incoming player is shown and
     activated BEFORE the outgoing one hides, so focus never falls through to
     another application.
@@ -1318,7 +1318,7 @@ class TestModeSwitchVisibility:
         else:
             monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode=from_mode)
+        runner.state = BridgeState(main_mode=from_mode)
 
         calls: list[tuple[str, int]] = []
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
@@ -1339,7 +1339,7 @@ class TestModeSwitchVisibility:
                 runner._pending_hides[role] = time.monotonic() - 0.001
             runner._flush_pending_hides()
 
-        assert runner.state.primary_mode == {
+        assert runner.state.main_mode == {
             "genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid",
         }[command]
         return calls
@@ -1463,7 +1463,7 @@ class TestResolveRole:
 class TestModeDependentTopmost:
     """Every managed window is topmost in every mode EXCEPT Nau, whose band is
     mode-dependent: topmost in nau mode (floating above the desktop like the
-    primary player always has), non-topmost in hybrid (under Genau's HUD)."""
+    main player always has), non-topmost in hybrid (under Genau's HUD)."""
 
     def _topmost_calls(self, runner, method_name):
         calls: list[tuple[int, bool]] = []
@@ -1486,7 +1486,7 @@ class TestModeDependentTopmost:
     def test_restore_all_topmost_floats_nau_in_nau_mode(self, tmp_path):
         """nau mode: Nau reclaims the topmost band, above the desktop."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.state = BridgeState(primary_mode="nau")
+        runner.state = BridgeState(main_mode="nau")
 
         calls = self._topmost_calls(runner, "_restore_all_topmost")
 
@@ -1497,7 +1497,7 @@ class TestModeDependentTopmost:
         the desktop, and Nau is promoted BEFORE Genau so the HUD stacks over the
         video."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
 
         calls = self._topmost_calls(runner, "_restore_all_topmost")
 
@@ -1605,9 +1605,9 @@ class TestBrowseLibrary:
     def test_sends_selected_file_to_nau_in_hybrid(self, tmp_path):
         """Hybrid displays Nau, so a selected file becomes a Nau PLAY_FILE
         command there too (no funscript pairing when none exists)."""
-        config = make_config(tmp_path, primary_sources=r"C:\videos")
+        config = make_config(tmp_path, main_sources=r"C:\videos")
         runner = make_runner(tmp_path, config=config)
-        runner.state = BridgeState(omni_paused=False, primary_mode="hybrid")
+        runner.state = BridgeState(omni_paused=False, main_mode="hybrid")
 
         with patch.object(runner, "_remove_all_topmost"), \
              patch.object(runner, "_restore_all_topmost"), \
@@ -1650,7 +1650,7 @@ class TestBrowseLibrary:
 
     def test_never_restores_nau_topmost_even_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.state = BridgeState(omni_paused=False, primary_mode="genau")
+        runner.state = BridgeState(omni_paused=False, main_mode="genau")
 
         topmost_calls = []
 
@@ -2128,7 +2128,7 @@ class TestIdempotentVoiceCommands:
 
     def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(primary_mode="nau")
+        runner.state = BridgeState(main_mode="nau")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
@@ -2141,7 +2141,7 @@ class TestIdempotentVoiceCommands:
         button must still switch to full Genau.  Regression — the old guard
         used genau_active(), which is True for hybrid, so it swallowed this."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
@@ -2154,7 +2154,7 @@ class TestIdempotentVoiceCommands:
         mode you are already in is a no-op at the planner level (see
         test_mode_plan.test_same_mode_is_noop), not a special case here."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner.state = BridgeState(primary_mode="genau")
+        runner.state = BridgeState(main_mode="genau")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
@@ -2362,7 +2362,7 @@ class TestWatchTracking:
 
 class TestSeededRoleHwnds:
     def test_startup_seed_lets_hidden_windows_be_shown_again(self, tmp_path):
-        """Startup parks the idle primary-slot window (Genau) BEFORE the dispatch
+        """Startup parks the idle main-slot window (Genau) BEFORE the dispatch
         loop ever resolves it; with the pid/title lookups mocked to fail, the
         runner must answer from the hwnds the startup sequencer seeded while
         everything was visible, or genau/hybrid could never bring windows back."""
@@ -2402,7 +2402,7 @@ class TestHybridFunscriptHandoff:
 
     def test_scripted_stretch_drives_from_the_funscript(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
         self._write_status(runner, has_funscript=True, resting=False)
 
         runner._sync_hybrid_driver()
@@ -2412,7 +2412,7 @@ class TestHybridFunscriptHandoff:
 
     def test_funscript_gap_hands_the_stretch_to_genau(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
         self._write_status(runner, has_funscript=True, resting=True)
 
         runner._sync_hybrid_driver()
@@ -2422,7 +2422,7 @@ class TestHybridFunscriptHandoff:
 
     def test_unscripted_video_drives_from_genau(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
         self._write_status(runner, has_funscript=False)
 
         runner._sync_hybrid_driver()
@@ -2432,7 +2432,7 @@ class TestHybridFunscriptHandoff:
 
     def test_commands_written_only_on_change(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
         self._write_status(runner, has_funscript=True, resting=False)
         runner._sync_hybrid_driver()
         runner.config.genau_cmd_file.unlink()
@@ -2445,7 +2445,7 @@ class TestHybridFunscriptHandoff:
 
     def test_entering_a_gap_flips_the_driver(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
         self._write_status(runner, has_funscript=True, resting=False)
         runner._sync_hybrid_driver()
 
@@ -2457,7 +2457,7 @@ class TestHybridFunscriptHandoff:
 
     def test_no_arbitration_outside_hybrid(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="genau")
+        runner.state = BridgeState(main_mode="genau")
         self._write_status(runner, has_funscript=True, resting=False)
 
         runner._sync_hybrid_driver()
@@ -2467,7 +2467,7 @@ class TestHybridFunscriptHandoff:
 
     def test_no_arbitration_when_omnipaused(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="hybrid", omni_paused=True)
+        runner.state = BridgeState(main_mode="hybrid", omni_paused=True)
         self._write_status(runner, has_funscript=True, resting=False)
 
         runner._sync_hybrid_driver()
@@ -2477,22 +2477,22 @@ class TestHybridFunscriptHandoff:
 
     def test_leaving_hybrid_resets_so_reentry_reapplies(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
         self._write_status(runner, has_funscript=True, resting=False)
         runner._sync_hybrid_driver()  # funscript driving
 
-        runner.state = BridgeState(primary_mode="genau")
+        runner.state = BridgeState(main_mode="genau")
         runner._sync_hybrid_driver()  # leaves hybrid -> forgets
         runner.config.genau_cmd_file.unlink()
 
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
         runner._sync_hybrid_driver()
 
         assert self._genau(runner) == "PAUSE"
 
     def test_tick_runs_the_handoff(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(primary_mode="hybrid")
+        runner.state = BridgeState(main_mode="hybrid")
         self._write_status(runner, has_funscript=True, resting=False)
 
         # The native satellites publish to status files (none written here), so
@@ -2626,7 +2626,7 @@ class TestHudPublishing:
     def test_the_published_panel_says_which_side_has_the_floor(self, tmp_path):
         """The active side is a slot number in the state and a side *name* on the
         panel, so exactly one satellite can claim it — and neither does while the
-        primary holds it."""
+        the main player holds it."""
         runner = self._runner_with_hud(tmp_path)
         for side in ("portrait", "landscape"):
             _write_satellite_status(tmp_path / f"{side}_status.txt", f"C:/v/{side}.mp4",
@@ -2649,7 +2649,7 @@ class TestHudPublishing:
         return json.loads((tmp_path / "nau_console.json").read_text(encoding="utf-8"))
 
     def test_the_console_says_when_the_primary_has_the_floor(self, tmp_path):
-        """The primary's dot rides the console file, the same file that carries the
+        """The main player's dot rides the console file, the same file that carries the
         rest of its panel — one source for both players, in place of the separate
         command it used to be sent."""
         runner = self._runner_with_hud(tmp_path)
@@ -2660,11 +2660,11 @@ class TestHudPublishing:
             runner.tick()
             return self._console(tmp_path)["active"]
 
-        assert active(1) is True   # the primary holds it
+        assert active(1) is True   # the the main player holds it
         assert active(2) is False  # a satellite does
 
     def test_the_console_says_what_has_the_osr2_and_whether_the_broker_is_up(self, tmp_path):
-        """Broker status is the primary's alone — it moved off the dashboard onto
+        """Broker status is the main player's alone — it moved off the dashboard onto
         this panel — and the OSR2 state comes down as one word for the console to
         box."""
         runner = self._runner_with_hud(tmp_path)
@@ -2726,7 +2726,7 @@ class TestHudPublishing:
         genau = runner.config.state_dir / "genau_status.txt"
 
         def published(mode: str) -> bool:
-            runner.state = replace(runner.state, primary_mode=mode)
+            runner.state = replace(runner.state, main_mode=mode)
             runner._last_hud_publish -= 1
             runner.tick()
             return self._console(tmp_path)["locked"]

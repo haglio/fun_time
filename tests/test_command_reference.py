@@ -205,8 +205,8 @@ def test_mode_named_nav_shows_friendly_names_in_the_legend():
     names ("nau mode next", "genau next", "hybrid next") — never the raw vosk
     sound-alikes ("now mode", "go now")."""
     rows = _all_rows()
-    primary_next_row = next(r for r in rows if "primary_next" in r.commands)
-    assert {"nau mode next", "next nau mode", "hybrid next", "next hybrid"} <= set(primary_next_row.voice)
+    main_next_row = next(r for r in rows if "main_next" in r.commands)
+    assert {"nau mode next", "next nau mode", "hybrid next", "next hybrid"} <= set(main_next_row.voice)
     genau_next_row = next(r for r in rows if "genau_next_clip" in r.commands)
     assert {"genau next", "next genau"} <= set(genau_next_row.voice)
     # The raw sound-alikes must never leak into any Say column.
@@ -216,14 +216,14 @@ def test_mode_named_nav_shows_friendly_names_in_the_legend():
 
 
 def test_nau_video_rows_show_primary_nav_in_both_orders():
-    """The Nau prev/next rows surface "primary previous"/"primary next" (and the
-    reverse order, plus the "main" synonym) so the primary player's navigation
+    """The Nau prev/next rows surface "main previous"/"main next" (and the
+    reverse order, plus the "main" synonym) so the main player's navigation
     is visible in the legend."""
     rows = _all_rows()
-    prev = next(r for r in rows if "primary_prev" in r.commands)
-    nxt = next(r for r in rows if "primary_next" in r.commands)
-    assert {"primary previous", "previous primary", "main previous", "previous main"} <= set(prev.voice)
-    assert {"primary next", "next primary", "main next", "next main"} <= set(nxt.voice)
+    prev = next(r for r in rows if "main_prev" in r.commands)
+    nxt = next(r for r in rows if "main_next" in r.commands)
+    assert {"main previous", "previous main", "main previous", "previous main"} <= set(prev.voice)
+    assert {"main next", "next main", "main next", "next main"} <= set(nxt.voice)
 
 
 def test_quit_row_lists_exit_synonym():
@@ -289,7 +289,7 @@ def test_latest_is_spoken_only_and_the_older_names_are_gone():
 def test_end_loop_follows_the_player_last_spoken_to():
     """"end loop" is side-agnostic like every other bare command: it reaches whichever
     player was last addressed, and means that player's kind of loop — Nau's A-B loop
-    on the primary, a satellite's group loop on portrait or landscape."""
+    on the main player, a satellite's group loop on portrait or landscape."""
     assert VOICE_COMMANDS["end loop"] == "active_no_loop"
     assert VOICE_COMMANDS["portrait end loop"] == "portrait_no_loop"
     assert VOICE_COMMANDS["end loop landscape"] == "landscape_no_loop"
@@ -354,10 +354,10 @@ def test_section_titles_and_backslash_split():
     assert "Genau control" not in titles  # renamed to "Genau"
 
     by_title = {s.title: s for s in sections}
-    primary_backslash = [r for r in by_title["Nau"].rows if "\\" in r.hotkeys]
+    main_backslash = [r for r in by_title["Nau"].rows if "\\" in r.hotkeys]
     genau_backslash = [r for r in by_title["Genau"].rows if "\\" in r.hotkeys]
-    assert len(primary_backslash) == 1, "expected the file-dialog '\\' row in Nau"
-    assert "browse" in primary_backslash[0].voice
+    assert len(main_backslash) == 1, "expected the file-dialog '\\' row in Nau"
+    assert "browse" in main_backslash[0].voice
     assert len(genau_backslash) == 1, "expected a separate '\\' offset row in Genau"
 
 
@@ -380,7 +380,7 @@ def test_loop_control_row_consolidates_record_and_cancel():
     assert "loop" in row.voice
     # Record and cancel are one row.  The cancel's phrase, "end loop", is no longer
     # this row's own: it is the side-agnostic phrase, and reaches Nau's loop through
-    # the active-side resolution whenever the primary is the player last addressed.
+    # the active-side resolution whenever the main player is the player last addressed.
     assert "nau_loop_cancel" in row.commands
 
 

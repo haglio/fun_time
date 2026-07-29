@@ -1,6 +1,6 @@
-"""The primary player's role in the VR process: Nau's contract, in-process.
+"""The main player's role in the VR process: Nau's contract, in-process.
 
-fun_time drives its primary player through the nau file quartet — a playlist
+fun_time drives its main player through the nau file quartet — a playlist
 with a funscript column, an overwrite command file, a paused flag, a status
 file the dispatch loop parses back.  In VR that player is not a separate
 window-owning process but one surface of the single OpenXR scene, so this role
@@ -39,7 +39,7 @@ MIN_SPEED = 0.25
 MAX_SPEED = 2.0
 
 
-class PrimaryRole:
+class MainRole:
     def __init__(
         self,
         *,
@@ -217,7 +217,7 @@ class PrimaryRole:
     def _load(self, index: int) -> None:
         self._index = index % len(self._entries)
         video, funscript = self._entries[self._index]
-        logger.info("Primary loading: %s", Path(video).name)
+        logger.info("Main loading: %s", Path(video).name)
         self._player.load(video)
         self._player.set_paused(self._paused)
         self._player.set_speed(self._speed)

@@ -4,7 +4,7 @@
 > functions named below have mostly gone. Its one lesson that outlived the
 > rewrite: *starting* in genau mode is not a transition, so anything keyed to
 > `is_transition` never fires. Opening in a resumed mode is now handled by
-> making it one — every session is built in `STARTUP_PRIMARY_MODE` and the
+> making it one — every session is built in `STARTUP_MAIN_MODE` and the
 > carried mode is seeded as a switch out of it. The auto-mode trigger this
 > report is actually about is still unsolved.
 
@@ -17,7 +17,7 @@
 ## Goal
 
 When the OSR2 is already in auto mode when Fun Time loads, Genau
-should begin active instead of Primary VLC.
+should begin active instead of Main VLC.
 
 ---
 
@@ -118,7 +118,7 @@ requires `IsWindowVisible`) can't find it.
 ### `ensure_playback_state` called every 200ms
 The `apply_sync_genau` function is called every 200ms and always
 calls `ensure_playback_state`, even when there's no state change.
-This means any transient VLC state (like pausing Primary VLC at
+This means any transient VLC state (like pausing Main VLC at
 startup) gets immediately undone by the next sync tick.
 
 ### Windows port binding issues

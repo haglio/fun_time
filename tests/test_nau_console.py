@@ -1,4 +1,4 @@
-"""The console panel Fun Time publishes for the primary player's HUD to draw."""
+"""The console panel Fun Time publishes for the main player's HUD to draw."""
 from __future__ import annotations
 
 from fun_time.dashboard_runtime import GenauStatus

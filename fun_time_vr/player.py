@@ -7,7 +7,7 @@ sibling's whole contract — the playlist/command/paused/status file quartet —
 so the orchestrator, dispatch loop, voice control and hybrid arbiter drive
 them without knowing the display changed.  The satellites ARE the satellite
 package's own session/verb/status/HUD code, running against offscreen players;
-the primary is :class:`fun_time_vr.roles.PrimaryRole`, Nau's contract
+the main player is :class:`fun_time_vr.roles.MainRole`, Nau's contract
 in-process.
 
 Two threads.  A worker owns every file channel — pause flags, command drains,
@@ -71,7 +71,7 @@ from .matrices import (
 )
 from .perf import FramePerf
 from .render import RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
-from .roles import PrimaryRole
+from .roles import MainRole
 from .scene import (
     PRIMARY_WIDTH_DEG,
     SATELLITE_ELEVATION_DEG,
@@ -219,9 +219,9 @@ class _VideoUnit:
         self.player.close()
 
 
-class _PrimaryUnit(_VideoUnit):
+class _MainUnit(_VideoUnit):
     def __init__(self, manifest: configparser.ConfigParser, get_proc_address) -> None:
-        # Muted at birth: the primary's sound belongs on the headset, and the
+        # Muted at birth: the main player's sound belongs on the headset, and the
         # headset's sink cannot be trusted until the compositor is presenting
         # (see route_audio) — unmuted-on-default would blare the room speakers
         # for the whole warm-up instead.
@@ -237,7 +237,7 @@ class _PrimaryUnit(_VideoUnit):
         driver = FunscriptTCodeDriver(
             UdpTCodeSink(vr["tcode_udp_host"], int(vr["tcode_udp_port"]))
         )
-        self.role = PrimaryRole(
+        self.role = MainRole(
             player=self.player,
             driver=driver,
             playlist_file=Path(commands["nau_playlist_file"]),
@@ -428,7 +428,7 @@ def _update_quad_layer(
 def _draw_eyes(
     session,
     renderer: SceneRenderer,
-    primary: _PrimaryUnit,
+    primary: _MainUnit,
     satellites: list[_SatelliteUnit],
     views,
     mode: int | None,
@@ -513,7 +513,7 @@ def _run(manifest: configparser.ConfigParser) -> int:
     def get_proc_address(name: str):
         return glfw.get_proc_address(name)
 
-    primary = _PrimaryUnit(manifest, get_proc_address)
+    primary = _MainUnit(manifest, get_proc_address)
     satellites = [
         _SatelliteUnit("portrait", manifest, get_proc_address),
         _SatelliteUnit("landscape", manifest, get_proc_address),

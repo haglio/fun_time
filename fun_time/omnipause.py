@@ -23,7 +23,7 @@ class OmniPausePlan:
     resume_genau_playback: bool = False
 
 
-def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str) -> OmniPausePlan:
+def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str) -> OmniPausePlan:
     """Decide what one omnipause action means.
 
     ``toggle`` resolves against the current state; ``enter`` and ``leave`` are
@@ -39,7 +39,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str) -
         return OmniPausePlan(
             action=action,
             next_omni_paused=True,
-            genau_branch=genau_active(primary_mode),
+            genau_branch=genau_active(main_mode),
             resume_nau_playback=False,
             broker_command=RETRACT_CMD if retract else PARK_CMD,
             log_message=(
@@ -53,14 +53,14 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, primary_mode: str) -
         return OmniPausePlan(
             action="leave",
             next_omni_paused=False,
-            genau_branch=genau_active(primary_mode),
+            genau_branch=genau_active(main_mode),
             # Nau owns the display in nau and hybrid, so leaving omnipause
             # resumes its playback there (in genau mode Genau owns the display).
-            resume_nau_playback=nau_displays(primary_mode),
+            resume_nau_playback=nau_displays(main_mode),
             # Only genau mode, where Genau always has the device.  In hybrid the
             # arbiter re-asserts the driver on its next tick, and resuming Genau
             # here would race it onto a funscript's stretch.
-            resume_genau_playback=primary_mode == "genau",
+            resume_genau_playback=main_mode == "genau",
             broker_command=RESUME_CMD,
             log_message="OmniPause: leaving",
         )

@@ -6,12 +6,12 @@
 > "shutdown persistence" idea below did eventually land, but for the mode the
 > *user* left the session in, not for the OSR2's auto mode: the mode rides the
 > shared state file (`session_resume.RESUMED_FIELDS`) and startup seeds the
-> primary slot for it (`windows_bridge_startup.seed_startup_states`). The
+> main slot for it (`windows_bridge_startup.seed_startup_states`). The
 > hardware findings are the part still worth reading; the auto-mode trigger
 > itself is still unsolved.
 
 **Goal:** When Fun Time starts and the OSR2 is already in auto mode, Genau
-should be active from the beginning instead of Primary VLC.
+should be active from the beginning instead of Main VLC.
 
 ---
 
@@ -77,7 +77,7 @@ It reads `bridge_config.genau_mode_file` and
 `state/genau_mode_at_shutdown.txt`. The call is placed right before the
 dispatch loop starts — after `run_startup_sequence()` has already run for
 ~15-20 seconds, during which MFP is live and the broker can receive the auto
-mode serial message. If either file is "1", Primary VLC is paused via
+mode serial message. If either file is "1", Main VLC is paused via
 `ensure_playback_state`.
 
 **Why this still may not work:** The `genau_mode.txt` file is written by
@@ -109,7 +109,7 @@ sending T-code. The two viable approaches are:
 
 1. **Shutdown persistence only.** Write the runtime `genau_mode` state
    somewhere durable (NOT the broker's mode file) when the session ends.
-   Read it at next startup to decide whether to pause Primary VLC. This only
+   Read it at next startup to decide whether to pause Main VLC. This only
    helps for the "previous session was in auto mode" case.
 
 2. **Post-startup polling.** After the loading screen completes and the

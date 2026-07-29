@@ -10,10 +10,10 @@ from fun_time.shared_state import read_shared_state, write_shared_state
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     build_vr_manifest,
-    primary_playlist_has_vr,
+    main_playlist_has_vr,
     resume_vr_state,
     validate_vr_config,
-    vr_primary_sources,
+    vr_main_sources,
 )
 
 
@@ -46,8 +46,8 @@ def config(tmp_path, monkeypatch):
             "state_dir": "%(state)s"
           },
           "layout": {
-            "main_monitor": 1, "secondary_monitor": 2,
-            "primary_top_ratio": 0.7, "landscape_width_ratio": 0.6
+            "primary_monitor": 1, "secondary_monitor": 2,
+            "main_top_ratio": 0.7, "landscape_width_ratio": 0.6
           },
           "audio_companion": {"host": "127.0.0.1", "port": 50556},
           "vr": {
@@ -100,7 +100,7 @@ class TestVrConfig:
 
 class TestVrManifest:
     def test_primary_sources_merge_vr_first_then_the_desktop_dirs(self, config, tmp_path):
-        spec = vr_primary_sources(config)
+        spec = vr_main_sources(config)
         assert spec.split("|") == [
             str(tmp_path / "library" / "VR" / "finished"),
             str(tmp_path / "library" / "2D"),
@@ -108,7 +108,7 @@ class TestVrManifest:
 
     def test_manifest_overrides_primary_sources_and_adds_the_vr_section(self, config):
         manifest = build_vr_manifest(config)
-        assert manifest["media"]["nau_library_sources"] == vr_primary_sources(config)
+        assert manifest["media"]["nau_library_sources"] == vr_main_sources(config)
         vr = manifest["vr"]
         assert vr["player_module"] == VR_PLAYER_MODULE
         assert vr["library_dirs"] == str(config.vr.library_dirs[0])
@@ -173,8 +173,8 @@ class TestWaitForSessionEnd:
         ) == "player"
 
 
-class TestResumedPrimaryPlaylist:
-    """A desktop session's primary playlist is 2D only; resuming it into a VR
+class TestResumedMainPlaylist:
+    """A desktop session's main playlist is 2D only; resuming it into a VR
     session would give the headset nothing but flat screens, so the VR session
     checks before honoring the resume."""
 
@@ -186,7 +186,7 @@ class TestResumedPrimaryPlaylist:
             encoding="utf-8",
         )
 
-        assert primary_playlist_has_vr(playlist, config.vr.library_dirs) is False
+        assert main_playlist_has_vr(playlist, config.vr.library_dirs) is False
 
     def test_one_vr_entry_is_enough(self, config, tmp_path):
         vr_dir = tmp_path / "library" / "VR" / "finished"
@@ -197,14 +197,14 @@ class TestResumedPrimaryPlaylist:
             encoding="utf-8",
         )
 
-        assert primary_playlist_has_vr(playlist, config.vr.library_dirs) is True
+        assert main_playlist_has_vr(playlist, config.vr.library_dirs) is True
 
     def test_a_missing_playlist_reads_as_holding_no_vr(self, config, tmp_path):
-        assert primary_playlist_has_vr(tmp_path / "absent.tsv", config.vr.library_dirs) is False
+        assert main_playlist_has_vr(tmp_path / "absent.tsv", config.vr.library_dirs) is False
 
 
 class TestResumeVrState:
-    """The desktop session shares this state dir, and it can carry a primary
+    """The desktop session shares this state dir, and it can carry a main
     mode a VR session has no player for."""
 
     def test_a_genau_mode_left_by_the_desktop_session_does_not_come_across(self, tmp_path):
@@ -212,19 +212,19 @@ class TestResumeVrState:
         HUD naming a player that is not running — and the state file is what all
         of them read, so it has to be corrected on disk, not just in hand."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(primary_mode="genau", volume=40))
+        write_shared_state(state_file, BridgeState(main_mode="genau", volume=40))
 
         carried = resume_vr_state(state_file, resumed=True)
 
-        assert carried.primary_mode == "nau"
-        assert read_shared_state(state_file).primary_mode == "nau"
+        assert carried.main_mode == "nau"
+        assert read_shared_state(state_file).main_mode == "nau"
 
     def test_everything_else_the_desktop_session_left_still_comes_across(self, tmp_path):
         """Both apps run the same players for these, off the same playlists —
-        only the primary slot's second seat is missing here."""
+        only the main slot's second seat is missing here."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(
-            primary_mode="genau", volume=40, portrait_f_mode=True, locked3=True,
+            main_mode="genau", volume=40, portrait_f_mode=True, locked3=True,
         ))
 
         carried = resume_vr_state(state_file, resumed=True)

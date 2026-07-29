@@ -49,8 +49,8 @@ PlaylistEntries = list[tuple[Path, Path | None]]
 # Three of them have a live counterpart to re-assert, since none lives in a file
 # a new process reads: the level is seeded to both audio sinks at startup (see
 # fun_time.audio_volume.publish_audio_level), each lock is queued back to its
-# satellite (:func:`resume_satellite_locks`), and the primary mode is what
-# startup seeds the two primary-slot players and their windows for (see
+# satellite (:func:`resume_satellite_locks`), and the main slot's mode is what
+# startup seeds the two main-slot players and their windows for (see
 # fun_time.windows_bridge_startup.seed_startup_states).  Carrying a flag whose
 # world is not put back with it is the same lie as dropping one that was true.
 #
@@ -58,8 +58,8 @@ PlaylistEntries = list[tuple[Path, Path | None]]
 # OmniPause's paused flags are cleared before the players launch, and a
 # keyboard-navigation selection was never a thing you could leave running.
 RESUMED_FIELDS = (
-    "primary_mode",
-    "primary_f_mode",
+    "main_mode",
+    "main_f_mode",
     "portrait_f_mode",
     "landscape_f_mode",
     "portrait_filter",
@@ -85,8 +85,8 @@ def playlist_fits_sources(playlist_file: Path, sources: str) -> bool:
     A playlist is only ever built from the source spec of the session that
     built it, so an entry from outside this session's spec means the file was
     left by a DIFFERENT app sharing this state dir — today FunTimeVR, whose
-    primary rotation merges the VR library into this one's.  Resuming that is
-    how VR videos reached the desktop app's primary player, which must never
+    main rotation merges the VR library into this one's.  Resuming that is
+    how VR videos reached the desktop app's main player, which must never
     play them, so the caller rebuilds rather than resumes.
 
     An unreadable or missing playlist reads as empty, and so fits vacuously:
@@ -118,7 +118,7 @@ def playlist_opens_on(playlist_file: Path, video: str) -> bool:
     """Whether *playlist_file*'s first entry is *video*.
 
     Which is to say: whether the player handed this file will actually load that
-    clip, since every player starts at the top.  Asked of the primary before its
+    clip, since every player starts at the top.  Asked of the main player before its
     loop is handed back — a loop is a range inside one video, and a resume that
     could not rotate onto that video (deleted since, or the whole playlist
     rebuilt) would otherwise put those bounds on whatever leads instead.
@@ -200,10 +200,10 @@ def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
             append_command(Path(command_file), "LOCK")
 
 
-def resume_primary_loop(nau_cmd_file: Path, bounds: tuple[int, int] | None) -> None:
-    """Queue SET_LOOP on the primary's command file for the loop it was running.
+def resume_main_loop(nau_cmd_file: Path, bounds: tuple[int, int] | None) -> None:
+    """Queue SET_LOOP on the main player's command file for the loop it was running.
 
-    The primary's counterpart of :func:`resume_satellite_locks`, and re-sent for
+    The main player's counterpart of :func:`resume_satellite_locks`, and re-sent for
     the same reason: an A/B loop is a range inside one video, held in mpv by a
     player process that has just been replaced, so unlike F-mode or an order it
     cannot ride back in on a file the new player reads.  *bounds* is None when
