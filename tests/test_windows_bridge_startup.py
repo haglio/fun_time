@@ -666,6 +666,41 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
     assert kwargs["nau_paused_file"].read_text(encoding="utf-8") == "1"
 
 
+def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp_path: Path):
+    """A loop is a range inside one video, held in the mpv process that just
+    died, so it is re-sent the way a satellite's lock is — waiting in Nau's
+    command file before Nau launches, over the video the resume put at the top
+    of the primary's playlist."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    left_on = _seed_resumable_session(tmp_path, kwargs)
+    (kwargs["state_dir"] / "nau_status.txt").write_text(
+        f"video={left_on['nau'][1]}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
+        encoding="utf-8",
+    )
+
+    _run_start_core_session(kwargs)
+
+    assert "SET_LOOP 2000 4000" in kwargs["nau_cmd_file"].read_text(
+        encoding="utf-8"
+    ).splitlines()
+
+
+def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path: Path):
+    """The clip the loop was cut from was deleted since, so the rotation had
+    nothing to land on and some other video leads.  Sending the bounds anyway
+    would loop three seconds of a video the user never marked."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(tmp_path, kwargs)
+    (kwargs["state_dir"] / "nau_status.txt").write_text(
+        f"video={tmp_path / 'deleted.mp4'}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
+        encoding="utf-8",
+    )
+
+    _run_start_core_session(kwargs)
+
+    assert "SET_LOOP" not in kwargs["nau_cmd_file"].read_text(encoding="utf-8")
+
+
 def test_start_core_session_opens_a_fresh_session_on_nau(tmp_path: Path):
     """Nothing to resume means no mode to come back to, and the primary slot's
     own default is Nau — the same one every session is built in."""

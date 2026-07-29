@@ -31,6 +31,7 @@ from player_core.playlist import read_playlist
 from .command_dispatch import BridgeState
 from .media_metadata import normalize_path_key
 from .modes import source_roots, write_playlist_entries
+from .runtime_flow import SET_LOOP_CMD
 from .shared_state import read_shared_state, write_shared_state
 
 
@@ -113,6 +114,23 @@ def _is_within(video: Path, root: Path) -> bool:
     return video_parts[: len(root_parts)] == root_parts
 
 
+def playlist_opens_on(playlist_file: Path, video: str) -> bool:
+    """Whether *playlist_file*'s first entry is *video*.
+
+    Which is to say: whether the player handed this file will actually load that
+    clip, since every player starts at the top.  Asked of the primary before its
+    loop is handed back — a loop is a range inside one video, and a resume that
+    could not rotate onto that video (deleted since, or the whole playlist
+    rebuilt) would otherwise put those bounds on whatever leads instead.
+
+    Matched on the same normalized key :func:`_rotate_onto` compares by, and for
+    the same reason: the playlist and the status file are written by different
+    processes, and case alone is not a different file on Windows.
+    """
+    entries = read_playlist(playlist_file)
+    return bool(entries) and normalize_path_key(str(entries[0][0])) == normalize_path_key(video)
+
+
 def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
     """Last session's playlist, minus the clips that are no longer on disk.
 
@@ -180,6 +198,25 @@ def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
     for command_file, locked in locks:
         if locked:
             append_command(Path(command_file), "LOCK")
+
+
+def resume_primary_loop(nau_cmd_file: Path, bounds: tuple[int, int] | None) -> None:
+    """Queue SET_LOOP on the primary's command file for the loop it was running.
+
+    The primary's counterpart of :func:`resume_satellite_locks`, and re-sent for
+    the same reason: an A/B loop is a range inside one video, held in mpv by a
+    player process that has just been replaced, so unlike F-mode or an order it
+    cannot ride back in on a file the new player reads.  *bounds* is None when
+    there was no loop — Nau then simply plays the video through, which is
+    already what no loop means.
+
+    Queued before Nau launches, so it drains on the first pass of its command
+    file, over the video the resume put at the top of its playlist: the same
+    video the loop was cut from.  Nau holds the seek until mpv has the file open
+    (see its ``restore_loop``), so it lands however slowly the file opens.
+    """
+    if bounds is not None:
+        append_command(Path(nau_cmd_file), f"{SET_LOOP_CMD} {bounds[0]} {bounds[1]}")
 
 
 def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:

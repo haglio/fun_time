@@ -8,7 +8,9 @@ from fun_time.command_dispatch import BridgeState
 from fun_time.session_resume import (
     RESUMED_FIELDS,
     playlist_fits_sources,
+    playlist_opens_on,
     resume_playlists,
+    resume_primary_loop,
     resume_satellite_locks,
     resume_shared_state,
 )
@@ -271,6 +273,72 @@ class TestResumeSatelliteLocks:
 
         assert resume_shared_state(state_file, resumed=True) == BridgeState()
         assert state_file.exists()
+
+
+class TestResumePrimaryLoop:
+    """The primary's A/B loop is a range inside one video, held in a player
+    process that is about to be replaced — so like a satellite's lock it cannot
+    ride back in on a file the new player reads, and has to be re-sent."""
+
+    def test_queues_the_range_the_primary_was_looping(self, tmp_path: Path):
+        nau_cmd = tmp_path / "nau_cmd.txt"
+
+        resume_primary_loop(nau_cmd, (2000, 4000))
+
+        assert nau_cmd.read_text(encoding="utf-8").splitlines() == ["SET_LOOP 2000 4000"]
+
+    def test_queues_nothing_when_there_was_no_loop(self, tmp_path: Path):
+        """A primary that was not looping must be sent nothing at all: playing
+        the video through is already what no loop means."""
+        nau_cmd = tmp_path / "nau_cmd.txt"
+
+        resume_primary_loop(nau_cmd, None)
+
+        assert not nau_cmd.exists()
+
+    def test_keeps_whatever_is_already_queued(self, tmp_path: Path):
+        """Startup has already seeded this channel with the sound level and the
+        F-mode flag, and Nau has drained none of it yet."""
+        nau_cmd = tmp_path / "nau_cmd.txt"
+        nau_cmd.write_text("SET_VOLUME 40 0\n", encoding="utf-8")
+
+        resume_primary_loop(nau_cmd, (2000, 4000))
+
+        assert nau_cmd.read_text(encoding="utf-8").splitlines() == [
+            "SET_VOLUME 40 0", "SET_LOOP 2000 4000",
+        ]
+
+
+class TestPlaylistOpensOn:
+    """Whether the clip a player will actually load is the one expected — asked
+    of the primary before its loop is handed back, since a loop belongs to one
+    video and would otherwise be applied to whatever took its place."""
+
+    def test_the_clip_a_resumed_playlist_leads_with(self, tmp_path: Path):
+        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [b, a])
+
+        assert playlist_opens_on(playlist, b) is True
+        assert playlist_opens_on(playlist, a) is False
+
+    def test_case_alone_is_not_a_different_clip(self, tmp_path: Path):
+        """The playlist and the status file are written by different processes,
+        and Windows hands the same file back in either case."""
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [str(tmp_path / "Sub" / "a.mp4")])
+
+        assert playlist_opens_on(playlist, str(tmp_path / "sub" / "A.MP4")) is True
+
+    def test_a_funscript_column_does_not_hide_the_video(self, tmp_path: Path):
+        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [f"{a}\ta.funscript", b])
+
+        assert playlist_opens_on(playlist, a) is True
+
+    def test_an_empty_playlist_opens_on_nothing(self, tmp_path: Path):
+        assert playlist_opens_on(tmp_path / "absent.tsv", "C:/v/a.mp4") is False
 
 
 class TestPlaylistFitsSources:

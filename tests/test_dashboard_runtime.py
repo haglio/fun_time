@@ -423,6 +423,41 @@ def test_read_nau_status_defaults_duration_to_zero(tmp_path: Path):
     assert read_nau_status(tmp_path / "missing.txt").duration_ms == 0
 
 
+def test_read_nau_status_parses_the_range_a_running_loop_holds(tmp_path: Path):
+    """A loop lives in the player process, so the only record of one is what Nau
+    publishes — which is how a reopened session can be handed it back."""
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text(
+        "video=C:\\clip.mp4\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
+        encoding="utf-8",
+    )
+
+    assert read_nau_status(status_file).loop_bounds == (2000, 4000)
+
+
+def test_read_nau_status_reads_no_loop_where_nothing_is_looping(tmp_path: Path):
+    """The bounds go on being published as the empty range when the loop is
+    cancelled, and an older Nau does not publish them at all — neither is a loop
+    to come back to."""
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text(
+        "video=C:\\clip.mp4\nstate=normal\nloop_in_ms=0\nloop_out_ms=0\n", encoding="utf-8",
+    )
+
+    assert read_nau_status(status_file).loop_bounds is None
+    assert read_nau_status(tmp_path / "missing.txt").loop_bounds is None
+
+
+def test_a_loop_state_without_bounds_is_no_loop(tmp_path: Path):
+    """Nau published the state before it published the range, so a status file
+    left by that version names a loop it cannot describe.  Sending mpv a
+    zero-length A/B range would strand the video on one frame."""
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text("video=C:\\clip.mp4\nstate=looping\n", encoding="utf-8")
+
+    assert read_nau_status(status_file).loop_bounds is None
+
+
 def test_funscript_driving_is_scripted_and_not_resting():
     assert NauStatus(has_funscript=True, funscript_resting=False).funscript_driving is True
     assert NauStatus(has_funscript=True, funscript_resting=True).funscript_driving is False
