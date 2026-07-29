@@ -37,14 +37,14 @@ from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
 from .modes import collect_video_files, is_favorite_path, read_favs_content, write_playlist_file
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
-from .mode_plan import STARTUP_PRIMARY_MODE, genau_active, nau_displays
+from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
 from .filter_vocab import decode_filter_command
 from .omnipause import build_omnipause_plan
 from .runtime_flow import (
     FMODE_PLAYERS,
     LANDSCAPE_PLAYER,
     PORTRAIT_PLAYER,
-    PRIMARY_PLAYER,
+    MAIN_PLAYER,
     SatelliteFilterFlowResult,
     apply_enter_omnipause,
     apply_fmode,
@@ -60,7 +60,7 @@ from .event_log import (
     NOTICE,
     SOURCE_LANDSCAPE,
     SOURCE_PORTRAIT,
-    SOURCE_PRIMARY,
+    SOURCE_MAIN,
     SOURCE_SYSTEM,
 )
 
@@ -88,13 +88,13 @@ def _satellite_source(which: int) -> str:
 class BridgeState:
     locked2: bool = False
     locked3: bool = False
-    primary_mode: str = STARTUP_PRIMARY_MODE
+    main_mode: str = STARTUP_MAIN_MODE
     # Whether each player is in F-mode, held per player because it is set per
     # player: each HUD carries its own button, and only the bare "f mode" (and the
     # F key) still reaches all three at once.  It narrows the satellites to the
-    # favourites and the primary to the videos that have a funscript, so which
+    # favourites and the main player to the videos that have a funscript, so which
     # player it is on genuinely changes what it means.
-    primary_f_mode: bool = False
+    main_f_mode: bool = False
     portrait_f_mode: bool = False
     landscape_f_mode: bool = False
     omni_paused: bool = False
@@ -103,11 +103,11 @@ class BridgeState:
     # every later rebuild (a filter, F-mode) so the side reloads the same way.
     portrait_latest: bool = False
     landscape_latest: bool = False
-    # The player most recently navigated (1=primary/Nau, 2=portrait,
-    # 3=landscape). Any portrait_/landscape_ command, or a primary next/prev,
+    # The player most recently navigated (1=main/Nau, 2=portrait,
+    # 3=landscape). Any portrait_/landscape_ command, or a main next/prev,
     # updates it; the side-agnostic "active_*" commands resolve against it —
     # nav (next/prev) reaches all three, the satellite-only actions only 2/3.
-    # Starts on the primary: it is the display the eye opens on, so it holds the
+    # Starts on the main player: it is the display the eye opens on, so it holds the
     # floor until a satellite is addressed.
     active_side: int = 1
     # Per-satellite metadata filter queries ("" = no filter). Persisted in the shared
@@ -144,7 +144,7 @@ class BridgeState:
     # drifts off the map.  Persisted so the HUD freezes its map to match.
     portrait_nav_anchor: str = ""
     landscape_nav_anchor: str = ""
-    # The primary display's sound level, 0-100, and whether it is silenced.  A
+    # The main player's sound level, 0-100, and whether it is silenced.  A
     # mute leaves the level alone so a second "mute" restores what was set.
     volume: int = MAX_VOLUME
     muted: bool = False
@@ -167,7 +167,7 @@ class BridgeConfig:
     favs_file: Path
     weird_dir: Path
     state_dir: Path
-    primary_sources: str
+    main_sources: str
     portrait_sources: str
     landscape_sources: str
     genau_mode_file: Path
@@ -190,7 +190,7 @@ class BridgeConfig:
     # Where the broker keeps the rest of its channel.  Unset it falls back to
     # ``state_dir``, which is what the two are for every session that runs from
     # the primary checkout; a branch session moves ``state_dir`` into its worktree
-    # and this stays on the primary, because the broker is still the machine's one
+    # and this stays on the main player, because the broker is still the machine's one
     # broker.  See :attr:`fun_time.config.PathsConfig.broker_state_dir`.
     broker_state_dir: Path | None = None
     regen_media_root: Path | None = None
@@ -331,7 +331,7 @@ def _speed_target(state: BridgeState) -> str:
     Nau is the one on screen.  The stroke's rate is not routed through this at
     all any more — it goes straight to Genau with the rest of its controls.
     """
-    return "genau" if not nau_displays(state.primary_mode) else "nau"
+    return "genau" if not nau_displays(state.main_mode) else "nau"
 
 
 _NAU_CMD_MAP = {
@@ -1048,10 +1048,10 @@ def _cycle_variant(
 # The dispatcher counts players in slots; everything that *draws* them names them
 # instead (the HUD panels, the publisher's filenames, each player's own side).  This
 # is the one crossing between the two, so a slot never reaches a player as a number.
-PRIMARY_SIDE = 1
-SIDE_NAMES = {PRIMARY_SIDE: "primary", 2: "portrait", 3: "landscape"}
+MAIN_SIDE = 1
+SIDE_NAMES = {MAIN_SIDE: "main", 2: "portrait", 3: "landscape"}
 
-# The primary slot's lock: repeat what is on screen, or let it move on — Nau's
+# The main slot's lock: repeat what is on screen, or let it move on — Nau's
 # video into the next playlist entry, Genau's clip into the next clip after its
 # interval.  Both players answer these three verbs and both open locked, so the
 # one padlock on the console means the same thing whichever is showing; the mode
@@ -1059,20 +1059,20 @@ SIDE_NAMES = {PRIMARY_SIDE: "primary", 2: "portrait", 3: "landscape"}
 # is the key and the button; the absolute pair is what the spoken forms send,
 # since a speaker asks for the state they want.
 _PRIMARY_LOCK_COMMANDS = {
-    "primary_lock": "TOGGLE_LOCK",
-    "primary_lock_on": "LOCK_ON",
-    "primary_lock_off": "LOCK_OFF",
+    "main_lock": "TOGGLE_LOCK",
+    "main_lock_on": "LOCK_ON",
+    "main_lock_off": "LOCK_OFF",
 }
 
-# What makes the primary the player a later bare command reaches: navigating it,
+# What makes the main player the one a later bare command reaches: navigating it,
 # locking it, or naming its F-mode.  The satellites' own keys select a side the
 # same way, and every ``portrait_``/``landscape_`` command does it by prefix — so
-# without the F-mode forms here, "primary f mode" would be the one way of
+# without the F-mode forms here, "main f mode" would be the one way of
 # addressing a player that did not leave it addressed.
 _PRIMARY_SELECTING_COMMANDS = frozenset(
-    {"primary_next", "primary_prev"}
+    {"main_next", "main_prev"}
     | set(_PRIMARY_LOCK_COMMANDS)
-    | {f"primary_fmode{suffix}" for suffix in ("", "_on", "_off")}
+    | {f"main_fmode{suffix}" for suffix in ("", "_on", "_off")}
 )
 
 
@@ -1083,10 +1083,10 @@ def side_name(slot: int) -> str:
 
 
 def command_side(command: str) -> int | None:
-    """The player slot a command addresses: 1=primary, 2=portrait, 3=landscape —
+    """The player slot a command addresses: 1=main, 2=portrait, 3=landscape —
     or None if it addresses no player.  :data:`SIDE_NAMES` is the inverse.
 
-    The primary (Nau) player is selected by its own next/prev navigation, by its
+    The main (Nau) player is selected by its own next/prev navigation, by its
     lock, and by naming its F-mode — everything it shares with a satellite.  It
     has no weird/cycle, so nothing else selects it.
     """
@@ -1221,11 +1221,11 @@ def dispatch_command(
         ops.extend(discard_ops)
         return state, ops
 
-    if command in ("primary_prev", "primary_next"):
-        # Nau owns the primary display in nau and hybrid; in genau mode the
+    if command in ("main_prev", "main_next"):
+        # Nau owns the main player in nau and hybrid; in genau mode the
         # paused Nau still navigates in the background.
         config.nau_cmd_file.write_text(
-            "PREV" if command == "primary_prev" else "NEXT", encoding="utf-8",
+            "PREV" if command == "main_prev" else "NEXT", encoding="utf-8",
         )
         return state, ops
 
@@ -1234,40 +1234,40 @@ def dispatch_command(
         # To whichever player is showing, because the lock is about what is on
         # screen: Nau's video in nau and hybrid, Genau's clip in genau.  The same
         # split the speed controls make, and for the same reason.
-        target = (config.nau_cmd_file if nau_displays(state.primary_mode)
+        target = (config.nau_cmd_file if nau_displays(state.main_mode)
                   else config.genau_cmd_file)
         target.write_text(lock_verb, encoding="utf-8")
         return state, ops
 
-    if command in ("primary_nudge_prev", "primary_nudge_next"):
-        # Nau owns the primary display; its SEEK commands apply to a live local
+    if command in ("main_nudge_prev", "main_nudge_next"):
+        # Nau owns the main player; its SEEK commands apply to a live local
         # clock, so rapid nudges stack naturally.
         config.nau_cmd_file.write_text(
-            "SEEK_BACK" if command == "primary_nudge_prev" else "SEEK_FWD",
+            "SEEK_BACK" if command == "main_nudge_prev" else "SEEK_FWD",
             encoding="utf-8",
         )
         return state, ops
 
     if command == "projection_cycle":
-        # FunTimeVR's primary answers this by walking flat → 180 → fisheye →
+        # FunTimeVR's main player answers this by walking flat → 180 → fisheye →
         # MKX200 → 360 and remembering the pick in the video's sidecar.  Routed
-        # like every primary verb so the desktop Nau simply logs it as unknown.
-        if nau_displays(state.primary_mode):
+        # like every main-player verb so the desktop Nau simply logs it as unknown.
+        if nau_displays(state.main_mode):
             config.nau_cmd_file.write_text("CYCLE_PROJECTION", encoding="utf-8")
         return state, ops
 
     if command == "recenter_view":
         # FunTimeVR re-zeroes its scene onto wherever the headset faces at
         # this instant; the runtime's own recenter UI never reaches the app.
-        # Routed like every primary verb so the desktop Nau logs it as unknown.
-        if nau_displays(state.primary_mode):
+        # Routed like every main-player verb so the desktop Nau logs it as unknown.
+        if nau_displays(state.main_mode):
             config.nau_cmd_file.write_text("RECENTER", encoding="utf-8")
         return state, ops
 
     if command in _NAU_CMD_MAP:
         # Loop recording, versions and length only make sense while Nau owns the
-        # primary display — nau and hybrid, but not genau.
-        if nau_displays(state.primary_mode):
+        # main slot — nau and hybrid, but not genau.
+        if nau_displays(state.main_mode):
             config.nau_cmd_file.write_text(_NAU_CMD_MAP[command], encoding="utf-8")
         return state, ops
 
@@ -1341,21 +1341,21 @@ def dispatch_command(
         return state, ops
 
     if command in _GENAU_CMD_MAP:
-        if genau_active(state.primary_mode):
+        if genau_active(state.main_mode):
             config.genau_cmd_file.write_text(_GENAU_CMD_MAP[command], encoding="utf-8")
         return state, ops
 
     genau_numeric = _parse_genau_numeric_command(command)
     if genau_numeric is not None:
-        if genau_active(state.primary_mode):
+        if genau_active(state.main_mode):
             config.genau_cmd_file.write_text(genau_numeric, encoding="utf-8")
         return state, ops
 
     if command == "clipper_save":
-        if state.primary_mode != "genau":
+        if state.main_mode != "genau":
             msg = _dispatch_clipper_save(config)
             if msg:
-                ops.append(WindowOp(op="notice", key=msg, source=SOURCE_PRIMARY))
+                ops.append(WindowOp(op="notice", key=msg, source=SOURCE_MAIN))
         return state, ops
 
     return state, ops
@@ -1405,7 +1405,7 @@ def _step_volume(state: BridgeState, step: int) -> BridgeState:
 def _dispatch_audio(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Publish *state*'s sound level to both of the primary display's audio sinks,
+    """Publish *state*'s sound level to both of the main player's audio sinks,
     and say on screen what it now is."""
     publish_audio_level(
         nau_cmd_file=config.nau_cmd_file,
@@ -1414,7 +1414,7 @@ def _dispatch_audio(
         muted=state.muted,
     )
     message = "Muted" if state.muted else f"Volume {state.volume}%"
-    return state, [WindowOp(op="notice", key=message, source=SOURCE_PRIMARY)]
+    return state, [WindowOp(op="notice", key=message, source=SOURCE_MAIN)]
 
 
 def _dispatch_omnipause_toggle(
@@ -1424,7 +1424,7 @@ def _dispatch_omnipause_toggle(
     plan = build_omnipause_plan(
         "toggle",
         omni_paused=state.omni_paused,
-        primary_mode=state.primary_mode,
+        main_mode=state.main_mode,
     )
     if plan.action == "enter":
         return _dispatch_enter_omnipause(state, config)
@@ -1436,7 +1436,7 @@ def _dispatch_enter_omnipause(
 ) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_enter_omnipause(
         omni_paused=state.omni_paused,
-        primary_mode=state.primary_mode,
+        main_mode=state.main_mode,
         portrait_paused_file=config.portrait_paused_file,
         landscape_paused_file=config.landscape_paused_file,
         genau_paused_file=config.genau_paused_file,
@@ -1458,7 +1458,7 @@ def _dispatch_leave_omnipause(
 ) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_leave_omnipause(
         omni_paused=state.omni_paused,
-        primary_mode=state.primary_mode,
+        main_mode=state.main_mode,
         portrait_paused_file=config.portrait_paused_file,
         landscape_paused_file=config.landscape_paused_file,
         genau_paused_file=config.genau_paused_file,
@@ -1469,38 +1469,38 @@ def _dispatch_leave_omnipause(
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops = [WindowOp(op="restore_all_topmost"), WindowOp(op="unsuspend_hotkeys")]
-    ops.extend(_primary_focus_ops(state.primary_mode))
+    ops.extend(_main_focus_ops(state.main_mode))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
 
 
-def _primary_focus_ops(primary_mode: str) -> list[WindowOp]:
-    """Re-activate the window that owns the primary display (omnipause leave)."""
-    role = "genau" if genau_active(primary_mode) else "nau"
+def _main_focus_ops(main_mode: str) -> list[WindowOp]:
+    """Re-activate the window that owns the main player (omnipause leave)."""
+    role = "genau" if genau_active(main_mode) else "nau"
     return [WindowOp(op="activate_role", key=role)]
 
 
-def _primary_slot_ops(primary_mode: str) -> list[WindowOp]:
-    """Visibility + z-order ops for the primary-slot windows on a mode switch.
+def _main_slot_ops(main_mode: str) -> list[WindowOp]:
+    """Visibility + z-order ops for the main player-slot windows on a mode switch.
 
     The two players (Nau and Genau) share one screen rect; exactly the mode's
     player(s) are shown and the inactive slot-mate hidden.  The new window is
     shown and activated BEFORE the old one hides so focus never falls through
     to another application.  Finally the pair is re-stacked for the new mode
-    (``restack_primary``): Nau topmost, with Genau's HUD above it in hybrid.
+    (``restack_main``): Nau topmost, with Genau's HUD above it in hybrid.
     Nau and Genau overlap, so their z-order is explicit — unlike every other
     window, a plain topmost flag can't say "Genau above Nau, both on top."
     """
-    restack = WindowOp(op="restack_primary")
-    if primary_mode == "genau":
+    restack = WindowOp(op="restack_main")
+    if main_mode == "genau":
         return [
             WindowOp(op="show_role", key="genau"),
             WindowOp(op="activate_role", key="genau"),
             WindowOp(op="hide_role", key="nau"),
             restack,
         ]
-    if primary_mode == "hybrid":
+    if main_mode == "hybrid":
         return [
             WindowOp(op="show_role", key="nau"),
             WindowOp(op="show_role", key="genau"),
@@ -1526,9 +1526,9 @@ _FMODE_COMMANDS: dict[str, tuple[tuple[str, ...], bool | None]] = {
     "fmode_toggle": (FMODE_PLAYERS, None),
     "fmode_on": (FMODE_PLAYERS, True),
     "fmode_off": (FMODE_PLAYERS, False),
-    "primary_fmode": ((PRIMARY_PLAYER,), None),
-    "primary_fmode_on": ((PRIMARY_PLAYER,), True),
-    "primary_fmode_off": ((PRIMARY_PLAYER,), False),
+    "main_fmode": ((MAIN_PLAYER,), None),
+    "main_fmode_on": ((MAIN_PLAYER,), True),
+    "main_fmode_off": ((MAIN_PLAYER,), False),
     "portrait_fmode": ((PORTRAIT_PLAYER,), None),
     "portrait_fmode_on": ((PORTRAIT_PLAYER,), True),
     "portrait_fmode_off": ((PORTRAIT_PLAYER,), False),
@@ -1540,13 +1540,13 @@ _FMODE_COMMANDS: dict[str, tuple[tuple[str, ...], bool | None]] = {
 # Where each player's flash goes, so a sided F-mode reports on that player's own
 # display and the all-players one reports to the room.
 _FMODE_NOTICE_SOURCE = {
-    PRIMARY_PLAYER: SOURCE_PRIMARY,
+    MAIN_PLAYER: SOURCE_MAIN,
     PORTRAIT_PLAYER: SOURCE_PORTRAIT,
     LANDSCAPE_PLAYER: SOURCE_LANDSCAPE,
 }
 
 _FMODE_STATE_FIELD = {
-    PRIMARY_PLAYER: "primary_f_mode",
+    MAIN_PLAYER: "main_f_mode",
     PORTRAIT_PLAYER: "portrait_f_mode",
     LANDSCAPE_PLAYER: "landscape_f_mode",
 }
@@ -1586,7 +1586,7 @@ def _dispatch_fmode(
         enabled=enabled,
         portrait_recent=state.portrait_latest,
         landscape_recent=state.landscape_latest,
-        primary_sources=config.primary_sources,
+        main_sources=config.main_sources,
         portrait_sources=config.portrait_sources,
         landscape_sources=config.landscape_sources,
         favs_file=config.favs_file,
@@ -1810,7 +1810,7 @@ def _dispatch_mode_switch(
     target_mode: str, state: BridgeState, config: BridgeConfig, ops: list[WindowOp]
 ) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_mode_switch(
-        current_mode=state.primary_mode,
+        current_mode=state.main_mode,
         target_mode=target_mode,
         omni_paused=state.omni_paused,
         genau_paused_file=config.genau_paused_file,
@@ -1820,9 +1820,9 @@ def _dispatch_mode_switch(
         nau_cmd_file=config.nau_cmd_file,
         broker_cmd_file=config.broker_cmd_file,
     )
-    state = replace(state, primary_mode=result.next_mode)
+    state = replace(state, main_mode=result.next_mode)
     if result.is_transition:
-        ops.extend(_primary_slot_ops(result.next_mode))
+        ops.extend(_main_slot_ops(result.next_mode))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
@@ -1830,7 +1830,7 @@ def _dispatch_mode_switch(
 
 @functools.lru_cache(maxsize=1)
 def _clipper_project_dir() -> Path:
-    """The sibling clipper checkout, found from the primary rather than from here.
+    """The sibling clipper checkout, found from the main player rather than from here.
 
     ``__file__`` names whichever checkout is running, and a branch-verification
     session runs from a worktree — where ``../clipper`` is a directory under
@@ -1856,10 +1856,10 @@ def _clipper_python() -> str:
     return sys.executable
 
 
-def _current_primary_media(config: BridgeConfig) -> tuple[str, float]:
-    """The primary display's current video path and playback time (seconds).
+def _current_main_media(config: BridgeConfig) -> tuple[str, float]:
+    """The main player's current video path and playback time (seconds).
 
-    Nau owns the primary display in every mode it appears (nau and hybrid) and
+    Nau owns the main player in every mode it appears (nau and hybrid) and
     publishes both in its status file; the path is empty when nothing is playing.
     """
     status = read_nau_status(config.nau_status_file)
@@ -1867,13 +1867,13 @@ def _current_primary_media(config: BridgeConfig) -> tuple[str, float]:
 
 
 def _dispatch_clipper_save(config: BridgeConfig) -> str:
-    """Save a Clipper session for the primary display's current video.
+    """Save a Clipper session for the main player's current video.
 
     Returns a short user-visible message on success, or empty string on failure.
     """
-    video_path, playback_time = _current_primary_media(config)
+    video_path, playback_time = _current_main_media(config)
     if not video_path:
-        logger.warning("clipper_save: no video playing on the primary display")
+        logger.warning("clipper_save: no video playing on the main player")
         return ""
     try:
         result = subprocess.run(

@@ -18,7 +18,7 @@ from fun_time.command_reference import friendly_voice
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_PORTRAIT,
-    SOURCE_PRIMARY,
+    SOURCE_MAIN,
     SOURCE_SYSTEM,
     notice,
 )
@@ -37,26 +37,26 @@ logger = logging.getLogger(__name__)
 def _source_for_command(command: str) -> str:
     """The event-log source a recognized command's confirmation flashes on.
 
-    A command addressed to a satellite or the primary flashes over that player;
+    A command addressed to a satellite or the main player flashes over that player;
     everything else (mode switches, Genau params, the audio level) has no single
-    player, so it flashes on the primary display via ``system``.
+    player, so it flashes on the main player via ``system``.
     """
     return {
-        1: SOURCE_PRIMARY,
+        1: SOURCE_MAIN,
         2: SOURCE_PORTRAIT,
         3: SOURCE_LANDSCAPE,
     }.get(command_side(command), SOURCE_SYSTEM)
 
 
 # The player words a speaker can put in any command, and which window a notice
-# about that player flashes over.  "main" is the primary's synonym throughout the
+# about that player flashes over.  "main" is the main player's synonym throughout the
 # spoken vocabulary, so it names the same player here.  "both" is deliberately
 # absent: it addresses two players, and a notice flashes over one.
 _SPOKEN_PLAYER_SOURCES: dict[str, str] = {
     "portrait": SOURCE_PORTRAIT,
     "landscape": SOURCE_LANDSCAPE,
-    "primary": SOURCE_PRIMARY,
-    "main": SOURCE_PRIMARY,
+    "main": SOURCE_MAIN,
+    "main": SOURCE_MAIN,
 }
 
 
@@ -65,11 +65,11 @@ def _source_for_heard_text(text: str) -> str:
 
     A phrase the grammar rejected can still say who it was for — "landscape full
     length please" is landscape's problem — so the report flashes over that
-    player instead of defaulting to the primary, where a satellite's mis-hearing
-    would be read as the primary's.  Matched on whole words, since "portrait" has
+    player instead of defaulting to the main player, where a satellite's mis-hearing
+    would be read as the main player's.  Matched on whole words, since "portrait" has
     to be the word spoken and not a fragment of a longer one; the first player
     word wins when a mis-hearing produces two.  A phrase naming no player is
-    SOURCE_SYSTEM, which flashes over the primary as everything session-wide does.
+    SOURCE_SYSTEM, which flashes over the main player as everything session-wide does.
     """
     for word in text.lower().split():
         source = _SPOKEN_PLAYER_SOURCES.get(word)

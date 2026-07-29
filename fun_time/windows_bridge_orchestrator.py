@@ -377,7 +377,7 @@ def _log_nau_obstruction(nau_hwnd: int) -> None:
 
 
 def _fix_post_loading_windows(result: StartupResult) -> None:
-    """Re-assert the topmost policy and the primary slot's visibility after the
+    """Re-assert the topmost policy and the main slot's visibility after the
     loading screen overlay is destroyed (its teardown can shuffle activation, and
     the dashboard may only become resolvable this late).
 
@@ -401,13 +401,13 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
         nau_hwnd=nau_hwnd,
         dashboard_hwnd=dash_hwnd,
-        mode=result.primary_mode,
+        mode=result.main_mode,
     )
     logger.info("Post-loading window state corrected")
     _log_nau_obstruction(nau_hwnd)
 
 
-def _primary_browse_stills(bridge_config) -> list[str]:
+def _main_browse_stills(bridge_config) -> list[str]:
     """One video per library-browser tile, off the cheapest rendition of each.
 
     Warmed with the satellites' clips so the browser opens on a full grid rather
@@ -418,7 +418,7 @@ def _primary_browse_stills(bridge_config) -> list[str]:
     return [
         handle.preview
         for handle in build_library_handles(
-            bridge_config.primary_sources, bridge_config.regen_metadata_root
+            bridge_config.main_sources, bridge_config.regen_metadata_root
         )
     ]
 
@@ -459,7 +459,7 @@ def _start_hud_priming(
         for source in sources:
             if source:
                 prewarm_thumbnails(collect_video_files(source), cache_dir)
-        prewarm_thumbnails(_primary_browse_stills(bridge_config), cache_dir)
+        prewarm_thumbnails(_main_browse_stills(bridge_config), cache_dir)
 
     threading.Thread(target=_warm, daemon=True, name="hud-warm").start()
     return publisher, primed
@@ -635,7 +635,7 @@ def run_python_orchestrated_bridge(
     # Genau startup detection is handled by the dispatch loop's first
     # sync tick: if the broker has already written genau_mode.txt = "1"
     # (it detects auto mode within ~4s via BPM/stroke inference), the sync
-    # will detect the entering transition and hand the primary display over
+    # will detect the entering transition and hand the main player over
     # to Genau naturally.
 
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")

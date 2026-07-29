@@ -54,9 +54,9 @@ def _write_config(path: Path) -> Path:
             "broker_tray_launcher": "../broker/launch_broker_tray.vbs",
         },
         "layout": {
-            "main_monitor": 1,
+            "primary_monitor": 1,
             "secondary_monitor": 2,
-            "primary_top_ratio": 0.72,
+            "main_top_ratio": 0.72,
             "landscape_width_ratio": 0.66,
         },
         "audio_companion": {"host": "127.0.0.1", "port": 50556},
@@ -149,7 +149,7 @@ def test_the_broker_keeps_its_own_corner_of_state_in_the_primary(checkouts):
     ``../broker`` opens its heartbeat, serial-activity, command and mode files
     from the one directory its own config names, and never learns that a session
     moved.  Letting them follow ``state_dir`` pointed a branch session at a
-    directory the broker has never written: the primary console's broker light
+    directory the broker has never written: the main console's broker light
     red and its OSR2 light "off" while the device was plainly being driven, and
     park/resume written where nothing consumes them.
     """
@@ -310,7 +310,7 @@ def repo_with_worktrees(tmp_path: Path) -> SimpleNamespace:
 
 def test_the_worktrees_are_listed_newest_first_without_the_primary(repo_with_worktrees):
     """Newest first because the branch an agent just finished is the one being
-    verified; the primary is left out because it is what ``launch.vbs`` runs."""
+    verified; the main player is left out because it is what ``launch.vbs`` runs."""
     listed = branch_session.list_worktrees(repo_with_worktrees.primary)
 
     assert [worktree.branch for worktree in listed] == ["example/newer", "example/older"]
@@ -333,7 +333,7 @@ def test_a_worktree_whose_directory_is_gone_is_not_offered(repo_with_worktrees):
 
 
 def test_the_primary_is_found_from_a_worktree(repo_with_worktrees):
-    """Worktrees share the primary's git directory, so the launcher finds the
+    """Worktrees share the main player's git directory, so the launcher finds the
     machine's real config and overlays from any of them."""
     assert branch_session.primary_checkout(repo_with_worktrees.newer) == (
         repo_with_worktrees.primary.resolve()
@@ -370,7 +370,7 @@ def test_the_agent_leaves_a_shortcut_named_for_its_branch(primary_with_launcher)
 
 @pytestmark_shortcut
 def test_a_shortcut_runs_the_launcher_that_is_current_when_it_is_clicked(primary_with_launcher):
-    """It points at ``launch_branch.vbs`` in the primary rather than carrying
+    """It points at ``launch_branch.vbs`` in the main player rather than carrying
     the launch itself, so one made weeks ago picks up today's launcher instead
     of replaying an old one."""
     written = branch_session.write_launch_shortcut(

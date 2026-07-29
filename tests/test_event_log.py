@@ -82,29 +82,29 @@ class TestNotice:
     def test_notice_logs_at_notice_level_with_its_source(self, log_path: Path):
         logger = _logger(log_path, "test.event_log.notice")
 
-        notice(logger, "Clip saved", source="primary")
+        notice(logger, "Clip saved", source="main")
 
         payload = json.loads(log_path.read_text(encoding="utf-8").splitlines()[0])
         assert payload["level"] == NOTICE
-        assert payload["source"] == "primary"
+        assert payload["source"] == "main"
         assert payload["msg"] == "Clip saved"
 
 
 class TestReadEvents:
     def test_reads_records_and_reports_the_new_offset(self, log_path: Path):
         logger = _logger(log_path, "test.event_log.read")
-        notice(logger, "Clip saved", source="primary")
+        notice(logger, "Clip saved", source="main")
 
         records, offset = read_events(log_path)
 
         assert [r.message for r in records] == ["Clip saved"]
-        assert records[0].source == "primary"
+        assert records[0].source == "main"
         assert records[0].level == NOTICE
         assert offset == log_path.stat().st_size
 
     def test_a_second_read_from_the_offset_returns_only_new_records(self, log_path: Path):
         logger = _logger(log_path, "test.event_log.tail")
-        notice(logger, "first", source="primary")
+        notice(logger, "first", source="main")
         _first, offset = read_events(log_path)
 
         notice(logger, "second", source="portrait")
@@ -123,13 +123,13 @@ class TestReadEvents:
         differ, and it is the shrink that read_events detects.
         """
         log_path.write_text(
-            '{"ts": 1.0, "level": 25, "source": "primary", "msg": "a long line from the old session"}\n',
+            '{"ts": 1.0, "level": 25, "source": "main", "msg": "a long line from the old session"}\n',
             encoding="utf-8",
         )
         _records, stale_offset = read_events(log_path)
 
         log_path.write_text(
-            '{"ts": 2.0, "level": 25, "source": "primary", "msg": "new"}\n', encoding="utf-8",
+            '{"ts": 2.0, "level": 25, "source": "main", "msg": "new"}\n', encoding="utf-8",
         )
 
         records, _offset = read_events(log_path, stale_offset)
@@ -175,4 +175,4 @@ class TestStartEventLog:
 
 class TestSources:
     def test_the_four_windows_plus_a_catch_all(self):
-        assert SOURCES == ("primary", "portrait", "landscape", "dash", "system")
+        assert SOURCES == ("main", "portrait", "landscape", "dash", "system")

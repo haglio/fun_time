@@ -307,7 +307,7 @@ def test_the_state_controls_and_favourite_mark_light_up_when_they_apply():
 
 def test_f_mode_wears_its_own_badge_rather_than_a_typed_letter():
     """`fmode_icon.ico` is a pink five-by-five "F" — the mark the mode has on the
-    taskbar and on the primary console — and a letter set in the body face is a
+    taskbar and on the main console — and a letter set in the body face is a
     thin thing beside it.  The mark holds whether or not the mode is on; only what
     is behind it changes."""
     for f_mode in (False, True):

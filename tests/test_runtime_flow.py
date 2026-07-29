@@ -117,7 +117,7 @@ def _nau_cmds(files) -> list[str]:
 def test_every_mode_switch_tells_nau_whether_it_is_hybrid(flow_files):
     """Genau's window is a transparent layer over Nau's in hybrid and its own
     panel holds the top-left corner, so Nau has to move its own aside — and only
-    this knows which mode the primary slot is in."""
+    this knows which mode the main slot is in."""
     _mode_switch(flow_files, current="nau", target="hybrid")
     assert "SET_HYBRID 1" in _nau_cmds(flow_files)
 
@@ -130,7 +130,7 @@ def test_every_mode_switch_tells_nau_whether_it_is_hybrid(flow_files):
 
 def test_every_mode_switch_tells_nau_whether_it_is_on_screen(flow_files):
     """Nau blanks in genau mode the way Genau blanks in nau mode: the idle
-    primary-slot player is minimized rather than closed, so without this an
+    main-slot player is minimized rather than closed, so without this an
     alt-tab back to it lands on the frame it was paused on."""
     _mode_switch(flow_files, current="nau", target="genau")
     assert "DISPLAY_OFF" in _nau_cmds(flow_files)
@@ -242,10 +242,10 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
     landscape_root = tmp_path / "landscape"
     for root in (primary_root, portrait_root, landscape_root):
         root.mkdir(parents=True)
-    primary_video = primary_root / "main.mp4"
+    main_video = primary_root / "main.mp4"
     portrait_video = portrait_root / "portrait.mp4"
     landscape_video = landscape_root / "landscape.mp4"
-    for path in (primary_video, portrait_video, landscape_video):
+    for path in (main_video, portrait_video, landscape_video):
         path.write_text("x", encoding="utf-8")
     mirrored = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "main.funscript"
     mirrored.parent.mkdir(parents=True, exist_ok=True)
@@ -265,7 +265,7 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
         enabled=True,
         portrait_recent=False,
         landscape_recent=False,
-        primary_sources=str(primary_root),
+        main_sources=str(primary_root),
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
         favs_file=favs_file,
@@ -308,7 +308,7 @@ def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Pat
         enabled=True,
         portrait_recent=False,
         landscape_recent=False,
-        primary_sources="",
+        main_sources="",
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
@@ -343,7 +343,7 @@ def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_pat
             players=FMODE_PLAYERS,
             enabled=enabled,
             portrait_recent=False, landscape_recent=False,
-            primary_sources=str(root), portrait_sources="", landscape_sources="",
+            main_sources=str(root), portrait_sources="", landscape_sources="",
             favs_file=tmp_path / "favs.csv", state_dir=tmp_path / "state",
             portrait_cmd_file=tmp_path / "p_cmd.txt",
             landscape_cmd_file=tmp_path / "l_cmd.txt",
@@ -378,7 +378,7 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
         enabled=False,
         portrait_recent=False,
         landscape_recent=False,
-        primary_sources="",
+        main_sources="",
         portrait_sources=str(portrait_root),
         landscape_sources="",
         favs_file=tmp_path / "favs.csv",
@@ -407,7 +407,7 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
         enabled=False,
         portrait_recent=True,
         landscape_recent=True,
-        primary_sources="",
+        main_sources="",
         portrait_sources=str(portrait_root),
         landscape_sources="",
         favs_file=tmp_path / "favs.csv",
@@ -550,7 +550,7 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
         enabled=False,  # F-mode OFF, so only the metadata filter applies
         portrait_recent=True,
         landscape_recent=True,
-        primary_sources="",
+        main_sources="",
         portrait_sources=str(portrait_root),
         landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
@@ -694,7 +694,7 @@ def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
 def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     result = apply_enter_omnipause(
         omni_paused=False,
-        primary_mode="genau",
+        main_mode="genau",
         portrait_paused_file=flow_files["portrait_paused_file"],
         landscape_paused_file=flow_files["landscape_paused_file"],
         genau_paused_file=flow_files["genau_paused_file"],
@@ -721,7 +721,7 @@ def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow
     destination changes, from home to the far end of its stroke."""
     result = apply_enter_omnipause(
         omni_paused=False,
-        primary_mode="hybrid",
+        main_mode="hybrid",
         portrait_paused_file=flow_files["portrait_paused_file"],
         landscape_paused_file=flow_files["landscape_paused_file"],
         genau_paused_file=flow_files["genau_paused_file"],
@@ -742,10 +742,10 @@ def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
 
-def _leave_omnipause(files, *, primary_mode, broker=True):
+def _leave_omnipause(files, *, main_mode, broker=True):
     return apply_leave_omnipause(
         omni_paused=True,
-        primary_mode=primary_mode,
+        main_mode=main_mode,
         portrait_paused_file=files["portrait_paused_file"],
         landscape_paused_file=files["landscape_paused_file"],
         genau_paused_file=files["genau_paused_file"],
@@ -760,11 +760,11 @@ def test_apply_leave_omnipause_in_nau_mode_resumes_nau(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["nau_paused_file"].write_text("1", encoding="utf-8")
 
-    result = _leave_omnipause(flow_files, primary_mode="nau")
+    result = _leave_omnipause(flow_files, main_mode="nau")
 
     assert result.next_omni_paused is False
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
-    # Genau stays paused when primary_mode is nau
+    # Genau stays paused when main_mode is nau
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert not flow_files["genau_cmd_file"].exists()
     # Broker is un-PARKed regardless of mode
@@ -783,7 +783,7 @@ def test_apply_leave_omnipause_in_hybrid_leaves_genaus_stroke_to_the_arbiter(flo
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
     flow_files["nau_paused_file"].write_text("1", encoding="utf-8")
 
-    _leave_omnipause(flow_files, primary_mode="hybrid")
+    _leave_omnipause(flow_files, main_mode="hybrid")
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
@@ -797,12 +797,12 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
 
-    result = _leave_omnipause(flow_files, primary_mode="genau", broker=False)
+    result = _leave_omnipause(flow_files, main_mode="genau", broker=False)
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME"
     assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
-    # Both satellites are unfrozen regardless of the primary mode.
+    # Both satellites are unfrozen regardless of the main player mode.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"

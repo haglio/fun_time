@@ -779,7 +779,7 @@ def test_build_panels_marks_only_the_active_side_active(tmp_path: Path):
 
     assert actives("portrait") == (True, False)
     assert actives("landscape") == (False, True)
-    assert actives("primary") == (False, False)  # the primary has it; neither satellite does
+    assert actives("main") == (False, False)  # the main player has it; neither satellite does
 
 
 def test_build_panels_says_f_mode_on_the_side_that_is_in_it(tmp_path: Path):

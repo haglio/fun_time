@@ -132,7 +132,7 @@ def test_branch_launcher_watches_the_worktrees_sentinels_not_the_primarys():
     """It reuses launch.vbs's sentinel names, kept apart by *directory*: the
     branch session's state dir is inside the worktree, so that is where it
     writes ``launcher.ready`` and where the launcher must look.  Watching the
-    primary's would let the live session's leftovers vouch for a branch launch
+    the primary checkout's would let the live session's leftovers vouch for a branch launch
     that never got off the ground."""
     text = _text("launch_branch.vbs")
 

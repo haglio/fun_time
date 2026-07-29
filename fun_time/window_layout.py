@@ -36,12 +36,12 @@ class WindowLayoutPlan:
 
 def compute_window_layout(
     *,
-    main_monitor: MonitorRect,
+    primary_monitor: MonitorRect,
     secondary_monitor: MonitorRect,
     layout_config: LayoutConfig,
 ) -> WindowLayoutPlan:
     dashboard_height = dashboard_window_height()
-    portrait_height = int(secondary_monitor.height * clamp01(layout_config.primary_top_ratio))
+    portrait_height = int(secondary_monitor.height * clamp01(layout_config.main_top_ratio))
 
     portrait = WindowRect(
         x=secondary_monitor.x,
@@ -50,12 +50,12 @@ def compute_window_layout(
         height=portrait_height,
     )
 
-    landscape_width = int(main_monitor.width * clamp01(layout_config.landscape_width_ratio))
+    landscape_width = int(primary_monitor.width * clamp01(layout_config.landscape_width_ratio))
     landscape = WindowRect(
-        x=main_monitor.x + (main_monitor.width - landscape_width),
-        y=main_monitor.y,
+        x=primary_monitor.x + (primary_monitor.width - landscape_width),
+        y=primary_monitor.y,
         width=landscape_width,
-        height=main_monitor.height,
+        height=primary_monitor.height,
     )
 
     # The left column stacks the dashboard above the RFB.  The dashboard spans
@@ -63,18 +63,18 @@ def compute_window_layout(
     # stream filling everything under it — at its natural height.  The RFB then
     # fills the whole rectangle from the dashboard's bottom edge down to the
     # monitor's bottom edge.
-    left_width = main_monitor.width - landscape_width
+    left_width = primary_monitor.width - landscape_width
     dashboard = WindowRect(
-        x=main_monitor.x,
-        y=main_monitor.y,
+        x=primary_monitor.x,
+        y=primary_monitor.y,
         width=left_width,
         height=dashboard_height,
     )
     random_favs_browser = WindowRect(
-        x=main_monitor.x,
-        y=main_monitor.y + dashboard_height,
+        x=primary_monitor.x,
+        y=primary_monitor.y + dashboard_height,
         width=left_width,
-        height=main_monitor.height - dashboard_height,
+        height=primary_monitor.height - dashboard_height,
     )
 
     return WindowLayoutPlan(
@@ -85,19 +85,19 @@ def compute_window_layout(
     )
 
 
-def compute_primary_media_rect(
+def compute_main_media_rect(
     *,
     secondary_monitor: MonitorRect,
     layout_config: LayoutConfig,
 ) -> WindowRect:
-    """The primary display slot Nau and Genau share.
+    """The slot on the secondary monitor Nau and Genau share.
 
-    The portrait satellite takes the top ``primary_top_ratio`` of the secondary
-    monitor; the primary player fills the rest below it.  Startup positions Nau
-    and Genau here, and the notice overlay flashes primary notices here, so both
+    The portrait satellite takes the top ``main_top_ratio`` of the secondary
+    monitor; the main player fills the rest below it.  Startup positions Nau
+    and Genau here, and the notice overlay flashes main-player notices here, so both
     derive it from this one function.
     """
-    portrait_height = int(secondary_monitor.height * clamp01(layout_config.primary_top_ratio))
+    portrait_height = int(secondary_monitor.height * clamp01(layout_config.main_top_ratio))
     return WindowRect(
         x=secondary_monitor.x,
         y=secondary_monitor.y + portrait_height,

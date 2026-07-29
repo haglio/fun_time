@@ -2,7 +2,7 @@
 
 Fun Time is a Windows desktop setup that launches and coordinates:
 
-- Nau, a funscript video player for the primary video library (lives in the separate `../genau` project, launched as `python -m nau`)
+- Nau, a funscript video player for the main player's video library (lives in the separate `../genau` project, launched as `python -m nau`)
 - two satellite VLC instances (portrait and landscape)
 - Genau, a clip-based visualizer for OSR2 auto mode (the separate `../genau` project)
 - a Genau audio companion
@@ -10,10 +10,10 @@ Fun Time is a Windows desktop setup that launches and coordinates:
 
 It uses a serial broker for the OSR2 — the separate `../broker` project — that is intended to run continuously in the background.
 
-The primary stack runs in one of three modes (startup mode is **nau**):
+The main stack runs in one of three modes (startup mode is **nau**):
 
-- in **Nau mode**, Nau owns the primary display and the OSR2: it plays the whole primary library (videos without a funscript just play with no OSR2 output) and drives the OSR2 itself by sending funscript-derived T-Code over UDP to the broker
-- in **Genau mode** (OSR2 auto/free mode), Genau clips own both the primary display and the OSR2
+- in **Nau mode**, Nau owns the main player and the OSR2: it plays the whole main library (videos without a funscript just play with no OSR2 output) and drives the OSR2 itself by sending funscript-derived T-Code over UDP to the broker
+- in **Genau mode** (OSR2 auto/free mode), Genau clips own both the main player and the OSR2
 - in **Hybrid mode**, Nau displays video under Genau's HUD while Genau drives the OSR2
 
 ## Folder layout
@@ -115,8 +115,8 @@ The layout values that used to be hard-coded in AutoHotkey now live under `layou
 
 Monitor naming under `layout` now uses:
 
-- `main_monitor` — the monitor that shows the landscape VLC, the dashboard, and the Random Favs Browser
-- `secondary_monitor` — the monitor that shows the portrait VLC and the shared primary display slot (Nau and Genau use the same rect)
+- `primary_monitor` — the monitor that shows the landscape VLC, the dashboard, and the Random Favs Browser
+- `secondary_monitor` — the monitor that shows the portrait VLC and the shared main-player slot (Nau and Genau use the same rect)
 
 ## High-level architecture
 
@@ -134,9 +134,9 @@ The main monitor's left column stacks the **Dashboard** across its top and the *
 
 The log panel is a widget inside the dashboard window — one window, not two — so it rides the dashboard's topmost band, minimize/restore and close. It tails `state/event_log.jsonl` and shows the **stream** of everything the session logs, filtered by a verbosity dial (`DEBUG`/`INFO`/`NOTICE`/`WARNING`/`ERROR`, default `NOTICE`) and by per-window toggles across one compact row. Both settings persist in `state/log_panel.ini`.
 
-The brief **notices** — "Clip saved", "No other seeds", "Next seed", "Similar clip" — flash over the top-center of the player they concern (a portrait notice over the portrait satellite, a primary notice over the Nau/Genau display) and then fade. They also land in the stream, coloured by level, so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream. Long lines in the stream **word-wrap** rather than being cut off, so the tail of a message (a video name, a phrase heard) is readable.
+The brief **notices** — "Clip saved", "No other seeds", "Next seed", "Similar clip" — flash over the top-center of the player they concern (a portrait notice over the portrait satellite, a main-player notice over the Nau/Genau display) and then fade. They also land in the stream, coloured by level, so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream. Long lines in the stream **word-wrap** rather than being cut off, so the tail of a message (a video name, a phrase heard) is readable.
 
-Every recognized voice command flashes a **green confirmation** — the phrase it matched — over the player it addresses, so you can see what was heard. A command that hits a dead end ("No other seeds", "No action metadata") flashes **red** instead. And when the recognizer clearly hears speech that matches no command, it flashes **"unrecognized voice command: ‹what it heard›"** in red — over the player the phrase named, if it named one ("landscape ‹something garbled›" reports on landscape, not the primary) — a second, unrestricted recognizer runs alongside the grammar one purely to transcribe that, so an out-of-grammar phrase surfaces as text instead of vanishing.
+Every recognized voice command flashes a **green confirmation** — the phrase it matched — over the player it addresses, so you can see what was heard. A command that hits a dead end ("No other seeds", "No action metadata") flashes **red** instead. And when the recognizer clearly hears speech that matches no command, it flashes **"unrecognized voice command: ‹what it heard›"** in red — over the player the phrase named, if it named one ("landscape ‹something garbled›" reports on landscape, not the main player) — a second, unrestricted recognizer runs alongside the grammar one purely to transcribe that, so an out-of-grammar phrase surfaces as text instead of vanishing.
 
 ## Requirements
 
@@ -243,7 +243,7 @@ Every player says whether it is the one those bare words would reach: the **dot*
 
 ### Modes
 
-The primary stack runs in one of three modes, each selected by its own hotkey (see the popup): **Nau**, **Genau**, and **Hybrid**. The `\` key is mode-dependent:
+The main stack runs in one of three modes, each selected by its own hotkey (see the popup): **Nau**, **Genau**, and **Hybrid**. The `\` key is mode-dependent:
 
 - in Nau mode, `\` opens the **library browser** (see below); the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 - in Genau and Hybrid modes, `\` offsets Genau playback by a quarter cycle.
@@ -254,7 +254,7 @@ The Nau-mode voice trigger is spoken as "now now" (the reference displays it as 
 
 ### The library browser (Nau mode)
 
-The primary library is filed by pipeline stage, several folders deep, and the
+The main library is filed by pipeline stage, several folders deep, and the
 same video sits in three of them at different trims and upscales
 (`…/winston/0 unsorted/`, `…/winston/1 could use work/2_originals_good_trimwise_but_need_upscaling/`,
 `…/winston/3_good_to_go/processed/`). Browsing that tree means knowing how far a
@@ -307,7 +307,7 @@ take a `· clips` name instead.
 The families come from Evolver's metadata sidecar (`version.group`), which is
 the authority on "same video, other version" — the filenames alone cannot say
 so. A video with no record stands alone as its own handle. Picking one plays its
-largest rendition, the same one the primary player's own version cycling treats
+largest rendition, the same one the main player's own version cycling treats
 as canonical, so `V` walks the rest of the family from there. That largest
 rendition also decides the section: the odd family that records both an excerpt
 and the whole scene sits with the whole videos, because that is what it plays.
@@ -325,7 +325,7 @@ Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recor
 
 ### Sound
 
-One level covers the whole primary display, because it has two audio sinks — Nau's video and the Genau audio companion — and which is audible depends on the mode. The bridge holds the level and the mute; the keys and voice step it, and Nau draws a **volume control** at the right-hand end of the row above its timeline: click the speaker to mute, click or drag the slider to set the level.
+One level covers the whole main slot, because it has two audio sinks — Nau's video and the Genau audio companion — and which is audible depends on the mode. The bridge holds the level and the mute; the keys and voice step it, and Nau draws a **volume control** at the right-hand end of the row above its timeline: click the speaker to mute, click or drag the slider to set the level.
 
 A press there posts to the dashboard command file (`audio_set_volume|<0-100>`, `audio_mute`, `audio_unmute`) and the bridge answers on Nau's own channel, so the slider is never the authority — it shows what it asked for straight away, and the answer confirms or corrects it a tick later.
 
@@ -338,12 +338,12 @@ The mute reaches the two sinks differently, which is why `SET_VOLUME` carries tw
 
 ### F-Mode
 
-F-Mode is **per player** — the primary, portrait and landscape each have their own — and setting one rebuilds that player's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A player that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by player:
+F-Mode is **per player** — the main player, portrait and landscape each have their own — and setting one rebuilds that player's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A player that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by player:
 
-- the primary playlist (Nau) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
+- the main playlist (Nau) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
 - each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
-Every player carries its own F button in the first row of icons on its own HUD (the satellites' control band, the primary console's transport row); the dashboard has no F-mode control. The `F` key and a bare spoken "f mode" still reach all three at once — they turn F-Mode **on** unless every player is already in it, so the whole-room gesture can never leave half the room narrowed. Naming a player narrows just that one: "portrait f mode", "f mode landscape", "primary f mode on", "both f mode off" — either word order, and `both` means the two satellites.
+Every player carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row); the dashboard has no F-mode control. The `F` key and a bare spoken "f mode" still reach all three at once — they turn F-Mode **on** unless every player is already in it, so the whole-room gesture can never leave half the room narrowed. Naming a player narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites.
 
 `build_all_playlists` writes all three playlist files at startup (each player's F-Mode off, which is what a session with nothing to resume opens in); `apply_fmode` rebuilds the named players after that.
 
@@ -463,7 +463,7 @@ Commands (the full set `nau/runtime.py` answers to):
 - `JUMP_TO_FUNSCRIPT` / `NEXT_FUNSCRIPTED` — funscript navigation: seek past this video's quiet stretch to where its scripting starts up again, or leave for the next scripted video in the playlist, landing where its action begins. Nau alone can answer either, holding both the playlist's funscript column and the parsed script of what is playing
 - `SET_TCODE_ENABLED 0|1`
 - `SET_HYBRID 0|1` / `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and Nau cannot work out for itself; all three drive what its HUD shows
-- `DISPLAY_ON` / `DISPLAY_OFF` — whether Nau owns the primary rect, which is not whether it is playing: the idle primary-slot player is minimized rather than closed (it keeps its taskbar button), so in Genau mode Nau blanks instead of sitting on the frame it was paused on. The same pair Genau gets, for the same reason
+- `DISPLAY_ON` / `DISPLAY_OFF` — whether Nau owns the main player's rect, which is not whether it is playing: the idle main-slot player is minimized rather than closed (it keeps its taskbar button), so in Genau mode Nau blanks instead of sitting on the frame it was paused on. The same pair Genau gets, for the same reason
 - `QUIT`
 
 ### `nau_paused.txt`
@@ -487,7 +487,7 @@ Cleared before every browse, so abandoning one never replays the last pick.
 
 ### `nau_playlist.tsv`
 
-One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the primary's F-mode changes (which also sends Nau `RELOAD_PLAYLIST` and `SET_F_MODE`, on one write — the command file is overwritten, not appended).
+One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the main player's F-mode changes (which also sends Nau `RELOAD_PLAYLIST` and `SET_F_MODE`, on one write — the command file is overwritten, not appended).
 
 ### `event_log.jsonl`
 
@@ -497,7 +497,7 @@ Every line any `fun_time` logger emits during a session, one JSON object per lin
 {"ts": 1752000000.5, "level": 25, "source": "portrait", "msg": "No other seeds"}
 ```
 
-`source` is the window the line is about — `primary`, `portrait`, `landscape`, `dash`, or `system` for the session at large. `level` is a standard `logging` level plus **`NOTICE` (25)**, the tier for messages meant for whoever is watching the screen ("Clip saved", "Similar clip"). These used to flash as AutoHotkey tooltips under the mouse pointer; now they flash over the player they name (top-center) and land here in the stream.
+`source` is the window the line is about — `main`, `portrait`, `landscape`, `dash`, or `system` for the session at large. `level` is a standard `logging` level plus **`NOTICE` (25)**, the tier for messages meant for whoever is watching the screen ("Clip saved", "Similar clip"). These used to flash as AutoHotkey tooltips under the mouse pointer; now they flash over the player they name (top-center) and land here in the stream.
 
 The file is truncated when a session starts, so it always holds exactly the current run. The log panel tails it — and so can you, or an agent debugging a session: pause, describe the symptom, and the answer is in this one file.
 

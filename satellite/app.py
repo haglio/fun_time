@@ -138,7 +138,7 @@ def _run(args, playlist: list[Path]) -> int:
     # a progress bar along the bottom and a muted volume chip at its right end.
     # The satellite has no funscript heatmap, no seek and no sound, so the bar is a
     # plain progress readout and the chip is a fixed muted indicator; both are here
-    # so a satellite reads like the primary rather than as a bare video.
+    # so a satellite reads like the main player rather than as a bare video.
     volume_painter = VolumeHudPainter()
     stop_event = threading.Event()
 

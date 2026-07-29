@@ -130,9 +130,9 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "state_dir": str(tmp_path / "state"),
         },
         "layout": {
-            "main_monitor": 1,
+            "primary_monitor": 1,
             "secondary_monitor": 2,
-            "primary_top_ratio": 0.727,
+            "main_top_ratio": 0.727,
             "landscape_width_ratio": 0.666,
         },
         "audio_companion": {

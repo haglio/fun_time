@@ -1,4 +1,4 @@
-"""Fun Time's own browser for the primary library.
+"""Fun Time's own browser for the main player library.
 
 The Windows file dialog this replaces browsed the library the way it sits on
 disk — stage folders nested several deep, the same video filed under three of
@@ -392,7 +392,7 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
     """Read the browser's inputs out of the bridge's launch manifest.
 
     The same manifest every other child process reads, so the browser can never
-    disagree with the session about which folders are the primary library.
+    disagree with the session about which folders are the main library.
     """
     parser = configparser.ConfigParser()
     parser.optionxform = str
@@ -406,7 +406,7 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Browse the Fun Time primary library")
+    parser = argparse.ArgumentParser(description="Browse the Fun Time main library")
     parser.add_argument("manifest_path", help="Path to the Windows bridge launch manifest")
     parser.add_argument("result_file", help="Where to write the chosen video path")
     parser.add_argument("--x", type=int)

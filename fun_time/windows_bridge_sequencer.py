@@ -17,7 +17,7 @@ from pathlib import Path
 
 from .config import LayoutConfig
 from .dashboard_runtime import genau_status_path, read_genau_status, read_nau_status
-from .mode_plan import STARTUP_PRIMARY_MODE, genau_active, nau_displays
+from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
@@ -41,7 +41,7 @@ from .win32 import (
 from .window_layout import (
     WindowLayoutPlan,
     WindowRect,
-    compute_primary_media_rect,
+    compute_main_media_rect,
     compute_window_layout,
 )
 
@@ -70,10 +70,10 @@ class StartupResult:
     genau_pid: int
     audio_pid: int
     layout_plan: WindowLayoutPlan
-    # Which player the primary slot was revealed on — last session's, resumed.
+    # Which player the main slot was revealed on — last session's, resumed.
     # Carried out because the post-overlay z-order pass runs from the
     # orchestrator and has to re-assert the same policy these phases applied.
-    primary_mode: str = STARTUP_PRIMARY_MODE
+    main_mode: str = STARTUP_MAIN_MODE
     rfb_hwnd: int = 0
     # HWNDs resolved while every window was still visible; the dispatch
     # loop's role cache is seeded from this (hidden windows cannot be
@@ -140,10 +140,10 @@ def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str) -> None:
             set_always_on_top(hwnd, role_topmost(role, mode))
 
 
-def _apply_primary_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> None:
+def _apply_main_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> None:
     """Park whichever slot-mate *mode* leaves idle.
 
-    Nau and Genau share the primary rect; the slot swaps by minimizing the idle
+    Nau and Genau share the main player's rect; the slot swaps by minimizing the idle
     one (which keeps its taskbar button) and restoring the active one.  Disable
     both windows' DWM transitions first so those minimize/restores are instant —
     no visible animation.  Genau is the idle one in nau mode and Nau in genau
@@ -172,7 +172,7 @@ def _apply_startup_window_state(
     nau_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
-    mode: str = STARTUP_PRIMARY_MODE,
+    mode: str = STARTUP_MAIN_MODE,
 ) -> dict[str, int]:
     """Set the full window state for the mode the session opens in: bands, then
     visibility.
@@ -190,7 +190,7 @@ def _apply_startup_window_state(
         rfb_hwnd=rfb_hwnd,
     )
     _apply_topmost_bands(role_hwnds, mode)
-    _apply_primary_slot_visibility(nau_hwnd, genau_hwnd, mode)
+    _apply_main_slot_visibility(nau_hwnd, genau_hwnd, mode)
     return role_hwnds
 
 
@@ -259,14 +259,14 @@ def _run_startup_phases(
     # Compute the window layout up front so the satellites can launch straight
     # into their real portrait/landscape rects (mpv sizes its output to the launch
     # geometry and will NOT rescale when a later Win32 move resizes the window),
-    # exactly as Nau launches straight into its primary rect below.
+    # exactly as Nau launches straight into its main slot rect below.
     layout_cfg = _layout_config_from_manifest(m)
     monitors = enumerate_monitors()
-    main_rect, secondary_rect = get_logical_monitor_rects(
-        monitors, main_index=layout_cfg.main_monitor, secondary_index=layout_cfg.secondary_monitor,
+    primary_rect, secondary_rect = get_logical_monitor_rects(
+        monitors, primary_index=layout_cfg.primary_monitor, secondary_index=layout_cfg.secondary_monitor,
     )
     plan = compute_window_layout(
-        main_monitor=main_rect,
+        primary_monitor=primary_rect,
         secondary_monitor=secondary_rect,
         layout_config=layout_cfg,
     )
@@ -280,7 +280,7 @@ def _run_startup_phases(
     # The mode last session was closed in, which the core session has just seeded
     # every cross-process flag for.  What is left is the half only this side can
     # do: park the idle slot-mate, band the pair, and reveal on the right player.
-    primary_mode = start_core_session(
+    main_mode = start_core_session(
         config_path=m["runtime"]["config_path"],
         broker_cmd_file=m["commands"]["broker_cmd_file"],
         broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
@@ -308,7 +308,7 @@ def _run_startup_phases(
         portrait_hud_file=m["commands"]["portrait_hud_file"],
         landscape_hud_file=m["commands"]["landscape_hud_file"],
         dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
-        primary_sources=m["media"]["nau_library_sources"],
+        main_sources=m["media"]["nau_library_sources"],
         portrait_sources=m["media"]["portrait_dirs"],
         landscape_sources=m["media"]["landscape_dirs"],
         favs_file=m["media"]["favs_file"],
@@ -328,9 +328,9 @@ def _run_startup_phases(
 
     # Launch Genau and Nau as early as possible so they can initialise
     # pygame, scan media, and decode first frames while the rest of startup
-    # continues.  Both share the Primary slot's rect, which depends only on
-    # the secondary monitor + primary_top_ratio (already computed above).
-    primary_media_rect = compute_primary_media_rect(
+    # continues.  Both share the Main slot's rect, which depends only on
+    # the secondary monitor + main_top_ratio (already computed above).
+    main_media_rect = compute_main_media_rect(
         secondary_monitor=secondary_rect, layout_config=layout_cfg,
     )
     # Genau's drive readout, which Nau draws inside its console in Hybrid.  Named
@@ -350,10 +350,10 @@ def _run_startup_phases(
         genau_module=m["modules"]["genau_module"],
         config_path=m["runtime"]["genau_config_path"],
         clips_folder=m["media"]["genau_clips"],
-        genau_x=primary_media_rect.x,
-        genau_y=primary_media_rect.y,
-        genau_width=primary_media_rect.width,
-        genau_height=primary_media_rect.height,
+        genau_x=main_media_rect.x,
+        genau_y=main_media_rect.y,
+        genau_width=main_media_rect.width,
+        genau_height=main_media_rect.height,
         command_file=m["commands"]["genau_cmd_file"],
         paused_file=m["commands"]["genau_paused_file"],
         console_file=m["commands"]["nau_console_file"],
@@ -380,10 +380,10 @@ def _run_startup_phases(
         drive_file=genau_drive_file,
         dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
         log_file=state_dir / "nau.log",
-        nau_x=primary_media_rect.x,
-        nau_y=primary_media_rect.y,
-        nau_width=primary_media_rect.width,
-        nau_height=primary_media_rect.height,
+        nau_x=main_media_rect.x,
+        nau_y=main_media_rect.y,
+        nau_width=main_media_rect.width,
+        nau_height=main_media_rect.height,
         metadata_dir=regen_metadata_raw or None,
     )
     launched.pids.extend([genau_pid, nau_pid])
@@ -406,7 +406,7 @@ def _run_startup_phases(
             landscape_hwnd=landscape_hwnd,
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
             nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
-            mode=primary_mode,
+            mode=main_mode,
         )
         logger.info("Startup window state applied")
 
@@ -496,7 +496,7 @@ def _run_startup_phases(
             nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
             dashboard_hwnd=dash_hwnd,
         )
-        _apply_primary_slot_visibility(role_hwnds["nau"], role_hwnds["genau"], primary_mode)
+        _apply_main_slot_visibility(role_hwnds["nau"], role_hwnds["genau"], main_mode)
         logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
 
         progress.advance("finalizing")
@@ -508,9 +508,9 @@ def _run_startup_phases(
     # runs in both paths — the loading-screen (hide_windows) path reveals
     # everything at once, and the no-loading-screen path (integration) has
     # nothing to hide behind but must still start its players.
-    write_flag_file(m["commands"]["nau_paused_file"], not nau_displays(primary_mode))
+    write_flag_file(m["commands"]["nau_paused_file"], not nau_displays(main_mode))
     for key in ("genau_paused_file", "audio_paused_file"):
-        write_flag_file(m["commands"][key], not genau_active(primary_mode))
+        write_flag_file(m["commands"][key], not genau_active(main_mode))
 
     return StartupResult(
         nau_pid=nau_pid,
@@ -520,7 +520,7 @@ def _run_startup_phases(
         genau_pid=genau_pid,
         audio_pid=ui_pids["audio_pid"],
         layout_plan=plan,
-        primary_mode=primary_mode,
+        main_mode=main_mode,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,
     )
@@ -528,9 +528,9 @@ def _run_startup_phases(
 
 def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
     return LayoutConfig(
-        main_monitor=int(m["layout"]["main_monitor"]),
+        primary_monitor=int(m["layout"]["primary_monitor"]),
         secondary_monitor=int(m["layout"]["secondary_monitor"]),
-        primary_top_ratio=float(m["layout"]["primary_top_ratio"]),
+        main_top_ratio=float(m["layout"]["main_top_ratio"]),
         landscape_width_ratio=float(m["layout"]["landscape_width_ratio"]),
     )
 

@@ -64,7 +64,7 @@ def enumerate_monitors() -> list[MonitorInfo]:
 def get_logical_monitor_rects(
     monitors: list[MonitorInfo],
     *,
-    main_index: int,
+    primary_index: int,
     secondary_index: int,
 ) -> tuple[MonitorRect, MonitorRect]:
     """Assign monitors to main/secondary roles with orientation correction.
@@ -73,7 +73,7 @@ def get_logical_monitor_rects(
     - If one monitor is landscape and the other portrait, landscape is main.
     - If both have the same orientation, the leftmost is main.
 
-    ``main_index`` and ``secondary_index`` are 1-based monitor numbers from config.
+    ``primary_index`` and ``secondary_index`` are 1-based monitor numbers from config.
     """
     if not monitors:
         raise ValueError("No monitors detected")
@@ -81,7 +81,7 @@ def get_logical_monitor_rects(
     def _clamp(idx: int) -> int:
         return max(0, min(len(monitors) - 1, idx - 1))
 
-    configured_main = monitors[_clamp(main_index)]
+    configured_main = monitors[_clamp(primary_index)]
     configured_secondary = monitors[_clamp(secondary_index)]
 
     main_is_landscape = configured_main.width >= configured_main.height

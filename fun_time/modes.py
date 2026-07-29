@@ -120,8 +120,8 @@ def order_paths(paths: list[str], *, recent: bool, rng: random.Random | None = N
     return shuffle_paths(paths, rng=rng)
 
 
-def build_primary_playlist_paths(primary_sources: str, f_mode: bool, *, rng: random.Random | None = None) -> list[str]:
-    files = collect_video_files(primary_sources)
+def build_main_playlist_paths(main_sources: str, f_mode: bool, *, rng: random.Random | None = None) -> list[str]:
+    files = collect_video_files(main_sources)
     if not f_mode:
         return shuffle_paths(files, rng=rng)
     filtered = [full_path for full_path in files if has_matching_funscript(full_path)]
@@ -356,29 +356,29 @@ def build_satellite_playlists(
     )
 
 
-def build_primary_playlist(playlist_file: Path, primary_sources: str, *, f_mode: bool) -> None:
-    """Build and write the primary player's playlist alone.
+def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool) -> None:
+    """Build and write the main player's playlist alone.
 
     The one-player counterpart to :func:`build_all_playlists`, for a startup
-    that keeps the satellites' resumed playlists and needs only the primary's
+    that keeps the satellites' resumed playlists and needs only the main player's
     rebuilt — the satellites' library is the same whichever app is running,
-    while the primary's is what the two apps disagree about.
+    while the main player's is what the two apps disagree about.
 
     *f_mode* is the session's, not off: the satellites' playlists came back
     built under it, and one player quietly holding the whole library while the
     HUDs say F-mode is what this rebuild would otherwise leave behind.
     """
-    write_nau_playlist_file(playlist_file, build_primary_playlist_paths(primary_sources, f_mode))
+    write_nau_playlist_file(playlist_file, build_main_playlist_paths(main_sources, f_mode))
 
 
 def build_all_playlists(
     *,
-    primary_sources: str,
+    main_sources: str,
     portrait_sources: str,
     landscape_sources: str,
     favs_file: Path,
     state_dir: Path,
-    primary_f_mode: bool = False,
+    main_f_mode: bool = False,
     portrait_f_mode: bool = False,
     landscape_f_mode: bool = False,
     portrait_recent: bool = False,
@@ -411,5 +411,5 @@ def build_all_playlists(
     )
     write_nau_playlist_file(
         build_playlist_file_path(state_dir, PLAYLIST_NAU),
-        build_primary_playlist_paths(primary_sources, primary_f_mode, rng=rng),
+        build_main_playlist_paths(main_sources, main_f_mode, rng=rng),
     )

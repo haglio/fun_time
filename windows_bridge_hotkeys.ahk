@@ -61,10 +61,10 @@ Esc::QueueCommand("omnipause_toggle")
 #SuspendExempt false
 
 Space::QueueCommand("enter_omnipause")
-[::QueueCommand("primary_prev")
-SC01A::QueueCommand("primary_prev")
-]::QueueCommand("primary_next")
-SC01B::QueueCommand("primary_next")
+[::QueueCommand("main_prev")
+SC01A::QueueCommand("main_prev")
+]::QueueCommand("main_next")
+SC01B::QueueCommand("main_next")
 ; Mode activation hotkeys
 g::QueueCommand("genau_activate")
 h::QueueCommand("hybrid_activate")
@@ -73,8 +73,8 @@ $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 
 \::QueueCommand("backslash_key")
--::QueueCommand("primary_nudge_prev")
-=::QueueCommand("primary_nudge_next")
+-::QueueCommand("main_nudge_prev")
+=::QueueCommand("main_nudge_next")
 Left::QueueCommand("portrait_prev")
 Right::QueueCommand("portrait_next")
 Up::QueueCommand("portrait_trash")
@@ -106,12 +106,12 @@ e::QueueCommand("landscape_loop")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
 Enter::QueueCommand("active_nav_lock")
-; The primary slot's lock, reaching whichever player is showing: Nau's video
+; The main slot's lock, reaching whichever player is showing: Nau's video
 ; holds instead of walking the playlist, Genau's clip holds instead of moving on
 ; every few seconds.  The apostrophe sits beside the satellites' own lock keys on
 ; the home row, and gave up Save clip to take it — that moved one key left, to the
 ; semicolon (bound by scancode because a bare ; opens a comment in AHK).
-'::QueueCommand("primary_lock")
+'::QueueCommand("main_lock")
 SC027::QueueCommand("clipper_save")
 
 ; Nau loop recording: hold R to mark, release to loop, press again to cancel.
@@ -136,7 +136,7 @@ v::QueueCommand("nau_cycle_version")
 ; Nau: cycle the length of what plays — mixed (everything) / shorts / full-length.
 t::QueueCommand("nau_toggle_length")
 
-; FunTimeVR: cycle the primary video's projection (flat / 180 / fisheye /
+; FunTimeVR: cycle the main player's video's projection (flat / 180 / fisheye /
 ; MKX200 / 360), remembered per video.  Desktop Nau ignores the verb.
 p::QueueCommand("projection_cycle")
 
@@ -161,7 +161,7 @@ SC035::QueueCommand("genau_toggle_auto")
 ; Genau's clip cluster, laid out like the arrow keys are for the portrait side:
 ; K above to condemn the clip, M and . either side for previous and next.  The
 ; hold that used to sit below K is the apostrophe now — one lock key for whichever
-; player is on the primary slot.
+; player is on the main slot.
 k::QueueCommand("genau_weird_clip")
 m::QueueCommand("genau_prev_clip")
 SC034::QueueCommand("genau_next_clip")

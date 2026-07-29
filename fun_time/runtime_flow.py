@@ -14,7 +14,7 @@ from .modes import (
     SatelliteLibraryContext,
     build_one_satellite_playlist,
     build_playlist_file_path,
-    build_primary_playlist_paths,
+    build_main_playlist_paths,
     build_satellite_playlist_paths,
     write_nau_playlist_file,
     write_playlist_file,
@@ -34,7 +34,7 @@ PLAY_FILE_CMD = "PLAY_FILE"
 # HUD model itself.
 SET_F_MODE_CMD = "SET_F_MODE"
 # Puts Nau back into an A/B loop it was left running, bounds and all.  The only
-# piece of the primary's state a restart has to hand back rather than rebuild: a
+# piece of the main player's state a restart has to hand back rather than rebuild: a
 # loop is a range inside one video, so it dies with the player process while
 # everything else rides in on the playlist or a seeded flag.
 SET_LOOP_CMD = "SET_LOOP"
@@ -75,13 +75,13 @@ class ModeSwitchFlowResult:
 
 
 # The three players F-mode can be set on, each with its own flag.  It means a
-# different narrowing on each — the satellites drop to the favourites, the primary
+# different narrowing on each — the satellites drop to the favorites, the main player
 # to the videos that have a funscript — which is exactly why it is worth setting
 # one player at a time.
-PRIMARY_PLAYER = "primary"
+MAIN_PLAYER = "main"
 PORTRAIT_PLAYER = "portrait"
 LANDSCAPE_PLAYER = "landscape"
-FMODE_PLAYERS = (PRIMARY_PLAYER, PORTRAIT_PLAYER, LANDSCAPE_PLAYER)
+FMODE_PLAYERS = (MAIN_PLAYER, PORTRAIT_PLAYER, LANDSCAPE_PLAYER)
 
 
 @dataclass(frozen=True)
@@ -122,7 +122,7 @@ def apply_mode_switch(
         ]
         if cmds:
             Path(genau_cmd_file).write_text("\n".join(cmds), encoding="utf-8")
-        # Nau is told which mode the primary slot is in on every switch: in
+        # Nau is told which mode the main slot is in on every switch: in
         # hybrid, Genau's window is a transparent layer over Nau's and its own
         # panel holds the top-left corner, so Nau starts its own furniture past
         # it.  It is told whether it is on screen too, the mirror of the
@@ -144,21 +144,21 @@ def apply_mode_switch(
     )
 
 
-def apply_primary_fmode(
+def apply_main_fmode(
     *,
     enabled: bool,
-    primary_sources: str,
+    main_sources: str,
     state_dir: str | Path,
     nau_cmd_file: str | Path,
 ) -> None:
-    """Rebuild the primary's playlist under *enabled* and hand it to Nau.
+    """Rebuild the main player's playlist under *enabled* and hand it to Nau.
 
-    F-mode narrows the primary to the videos that have a funscript beside them —
+    F-mode narrows the main player to the videos that have a funscript beside them —
     the OSR2 has something to follow for every clip that comes up.
     """
     write_nau_playlist_file(
         build_playlist_file_path(Path(state_dir), PLAYLIST_NAU),
-        build_primary_playlist_paths(primary_sources, enabled),
+        build_main_playlist_paths(main_sources, enabled),
     )
     # Both verbs on one write: this file is overwritten, not appended, so telling
     # Nau the flag afterwards would drop the reload that goes with it.  Nau's HUD
@@ -205,7 +205,7 @@ def apply_fmode(
     enabled: bool,
     portrait_recent: bool,
     landscape_recent: bool,
-    primary_sources: str,
+    main_sources: str,
     portrait_sources: str,
     landscape_sources: str,
     favs_file: str | Path,
@@ -225,10 +225,10 @@ def apply_fmode(
     the one all-three build this used to do.
     """
     named = tuple(player for player in FMODE_PLAYERS if player in players)
-    if PRIMARY_PLAYER in named:
-        apply_primary_fmode(
+    if MAIN_PLAYER in named:
+        apply_main_fmode(
             enabled=enabled,
-            primary_sources=primary_sources,
+            main_sources=main_sources,
             state_dir=state_dir,
             nau_cmd_file=nau_cmd_file,
         )
@@ -347,7 +347,7 @@ class OmniPauseFlowResult:
 def apply_enter_omnipause(
     *,
     omni_paused: bool,
-    primary_mode: str,
+    main_mode: str,
     portrait_paused_file: str | Path,
     landscape_paused_file: str | Path,
     genau_paused_file: str | Path,
@@ -366,7 +366,7 @@ def apply_enter_omnipause(
     plan = build_omnipause_plan(
         "relief" if relief else "enter",
         omni_paused=omni_paused,
-        primary_mode=primary_mode,
+        main_mode=main_mode,
     )
     write_flag_file(genau_paused_file, True)
     write_flag_file(audio_paused_file, True)
@@ -389,7 +389,7 @@ def apply_enter_omnipause(
 def apply_leave_omnipause(
     *,
     omni_paused: bool,
-    primary_mode: str,
+    main_mode: str,
     portrait_paused_file: str | Path,
     landscape_paused_file: str | Path,
     genau_paused_file: str | Path,
@@ -401,7 +401,7 @@ def apply_leave_omnipause(
     plan = build_omnipause_plan(
         "leave",
         omni_paused=omni_paused,
-        primary_mode=primary_mode,
+        main_mode=main_mode,
     )
     if plan.genau_branch:
         write_flag_file(genau_paused_file, False)

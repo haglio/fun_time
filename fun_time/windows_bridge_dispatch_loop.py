@@ -18,7 +18,7 @@ from player_core.file_channel import append_command
 
 from .command_dispatch import (
     FAILED_NOTICE_LEVEL,
-    PRIMARY_SIDE,
+    MAIN_SIDE,
     BridgeConfig,
     BridgeState,
     WindowOp,
@@ -72,7 +72,7 @@ from .win32 import (
 
 logger = logging.getLogger(__name__)
 
-# How long the outgoing primary-slot player keeps its window before it is
+# How long the outgoing main-slot player keeps its window before it is
 # minimized, so the DISPLAY_OFF it was sent in the same breath is on screen
 # first (see DispatchLoopRunner._hide_role).  Generous next to the ~1 frame the
 # player needs to read the verb and the ~1 more to present the black — this is
@@ -122,43 +122,43 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
-# The side-agnostic actions the primary (Nau) answers, and what it answers with.
+# The side-agnostic actions the main player (Nau) answers, and what it answers with.
 # Navigation is the same gesture on every player; "end loop" is the same *word* for
 # a different loop — Nau's A-B loop rather than a satellite's group loop.  A lock
 # is the same thing on all three — repeat-one on what is on screen — so the bare
-# word reaches whichever was last addressed, the primary included.  So is F-mode,
+# word reaches whichever was last addressed, the main player included.  So is F-mode,
 # though what it narrows to differs: the favourites on a satellite, the videos
-# with a funscript on the primary.
+# with a funscript on the main player.
 _PRIMARY_EQUIVALENTS = {
-    "next": "primary_next",
-    "prev": "primary_prev",
+    "next": "main_next",
+    "prev": "main_prev",
     "no_loop": "nau_loop_cancel",
-    "lock_on": "primary_lock_on",
-    "lock_off": "primary_lock_off",
-    "fmode": "primary_fmode",
-    "fmode_on": "primary_fmode_on",
-    "fmode_off": "primary_fmode_off",
+    "lock_on": "main_lock_on",
+    "lock_off": "main_lock_off",
+    "fmode": "main_fmode",
+    "fmode_on": "main_fmode_on",
+    "fmode_off": "main_fmode_off",
 }
 
 
 def resolve_active_side_command(command: str, active_side: int) -> str:
     """Rewrite a side-agnostic ``active_*`` command onto the active player.
 
-    ``active_next``/``active_prev`` follow the last player navigated — primary
+    ``active_next``/``active_prev`` follow the last player navigated — main
     (Nau, slot 1), portrait (2), or landscape (3).  ``active_lock_on``/``_off``
-    reach the primary too, meaning there what they mean on a satellite: hold the
+    reach the main player too, meaning there what they mean on a satellite: hold the
     video on screen, or let the playlist walk on.  So does ``active_no_loop``, but
     meaning the loop *it* has: Nau's A-B loop, where on a satellite the same phrase
     ends a group loop.  The rest (weird, cycle) exist only on the satellites, so
-    while the primary is active they resolve to nothing — returned unchanged, which
+    while the main player is active they resolve to nothing — returned unchanged, which
     is a no-op downstream.  Every non-``active_`` command passes through unchanged.
     """
     if not command.startswith("active_"):
         return command
     action = command[len("active_"):]
     if active_side == 1:
-        # What each side-agnostic action means on the primary; anything absent
-        # here simply has no primary equivalent.
+        # What each side-agnostic action means on the main player; anything absent
+        # here simply has no main-player equivalent.
         return _PRIMARY_EQUIVALENTS.get(action, command)
     prefix = "portrait_" if active_side == 2 else "landscape_"
     return prefix + action
@@ -251,7 +251,7 @@ class DispatchLoopRunner:
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
-        # Primary-slot windows waiting out PRIMARY_BLANK_SETTLE_S before they are
+        # Main-slot windows waiting out PRIMARY_BLANK_SETTLE_S before they are
         # minimized, by role -> the monotonic time they are due.
         self._pending_hides: dict[str, float] = {}
         self._stop = threading.Event()
@@ -265,7 +265,7 @@ class DispatchLoopRunner:
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
         # Seeded from the startup sequencer, which resolved every window
         # while it was still visible — startup then hides the inactive
-        # primary-slot windows, and hidden windows are invisible to the
+        # main-slot windows, and hidden windows are invisible to the
         # pid/title lookups.
         self._role_hwnds: dict[str, int] = dict(role_hwnds or {})
         self._minimized_hwnds: list[int] = []
@@ -285,7 +285,7 @@ class DispatchLoopRunner:
         # for the stats file.  The satellites (2, 3) are read from the status file
         # each native player publishes and additionally feed a timeline, which lets
         # a spoken command be back-dated to the video on screen when the user
-        # started talking (see _back_dated_video); the primary Nau player (1) is
+        # started talking (see _back_dated_video); the main Nau player (1) is
         # read from its own status file and needs no such timeline.
         self._watch_trackers: dict[int, WatchTracker] = {
             1: WatchTracker(),
@@ -308,7 +308,7 @@ class DispatchLoopRunner:
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
     # Twice a second: the cadence for sampling every player's current clip for
-    # watch tracking (both satellites and the primary Nau feed).  A satellite
+    # watch tracking (both satellites and the main Nau feed).  A satellite
     # video switch is only ever bracketed by two samples, so this also bounds how
     # far a back-dated command can misplace a switch (the timeline halves it again
     # by dating the switch to the bracket's midpoint).  Skipped under OmniPause,
@@ -323,9 +323,9 @@ class DispatchLoopRunner:
 
     # Commands that count as the user navigating away from a video — the signal
     # that classifies an early departure as a skip rather than a neutral advance.
-    # The primary (Nau) navigates with next/prev only; it has no lock/weird/cycle.
+    # The main player (Nau) navigates with next/prev only; it has no lock/weird/cycle.
     _WATCH_NAV_COMMANDS: dict[int, frozenset[str]] = {
-        1: frozenset({"primary_prev", "primary_next"}),
+        1: frozenset({"main_prev", "main_next"}),
         2: frozenset({"portrait_prev", "portrait_next", "portrait_cycle_action", "portrait_cycle_seed"}),
         3: frozenset({"landscape_prev", "landscape_next", "landscape_cycle_action", "landscape_cycle_seed"}),
     }
@@ -383,7 +383,7 @@ class DispatchLoopRunner:
             self._last_watch_sample = now
             if not self.state.omni_paused:
                 self._sample_satellites(now=now)
-                self._sample_primary()
+                self._sample_main()
         if now - self._last_hud_publish >= self._HUD_PUBLISH_INTERVAL_S:
             self._last_hud_publish = now
             self._publish_huds()
@@ -423,15 +423,15 @@ class DispatchLoopRunner:
         )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)
-        # The primary console: the controls the dashboard used to hold for
+        # The main console: the controls the dashboard used to hold for
         # whichever player owns the slot, what has the OSR2, whether the broker is
         # up, and which player a bare command reaches — none of which the player
         # can see for itself.
         nau = read_nau_status(self.config.nau_status_file)
         self._hud_publisher.publish_payload("nau", console_payload(
-            mode=state.primary_mode,
-            active=state.active_side == PRIMARY_SIDE,
-            f_mode=state.primary_f_mode,
+            mode=state.main_mode,
+            active=state.active_side == MAIN_SIDE,
+            f_mode=state.main_f_mode,
             osr2_mode=self._osr2_mode(),
             funscript_driving=nau.funscript_driving,
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
@@ -514,7 +514,7 @@ class DispatchLoopRunner:
         self._last_nau_notice_seq = seq
         if message:
             notice(
-                logger, message, source="primary",
+                logger, message, source="main",
                 level=_NAU_NOTICE_LEVELS.get(level, NOTICE),
             )
 
@@ -532,7 +532,7 @@ class DispatchLoopRunner:
         omnipause) the remembered state is cleared so re-entry re-asserts the
         driver; leaving hybrid re-enables Nau's T-Code via the mode switch.
         """
-        if self.state.primary_mode != "hybrid" or self.state.omni_paused:
+        if self.state.main_mode != "hybrid" or self.state.omni_paused:
             self._hybrid_funscript_driving = None
             return
         status = read_nau_status(self.config.nau_status_file)
@@ -604,7 +604,7 @@ class DispatchLoopRunner:
                 name="broker-toggle",
             ).start()
         elif cmd == "backslash_key":
-            if genau_active(self.state.primary_mode):
+            if genau_active(self.state.main_mode):
                 self._send_press("quarter_button")
                 self._dispatch("quarter_button", spoken_at)
             else:
@@ -653,8 +653,8 @@ class DispatchLoopRunner:
             for event, video in self._watch_trackers[which].observe(status.video, status.fraction):
                 record_watch_event(self._watch_stats_file, video, event)
 
-    def _sample_primary(self) -> None:
-        """Sample the primary Nau player's current video for watch tracking.
+    def _sample_main(self) -> None:
+        """Sample the main Nau player's current video for watch tracking.
 
         Nau publishes its playback to the status file; the watched fraction is
         position/duration.  A paused player, one with nothing loaded, or one
@@ -700,7 +700,7 @@ class DispatchLoopRunner:
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in ops:
             if op.op == "show_role":
-                # Restore (un-minimize) rather than SW_SHOW: the idle primary
+                # Restore (un-minimize) rather than SW_SHOW: the idle main player
                 # player is parked by minimizing it (keeps its taskbar button),
                 # so bringing it back is a restore.  No-activate — activate_role
                 # handles focus — and DWM transitions are disabled, so it's
@@ -720,11 +720,11 @@ class DispatchLoopRunner:
                     if hwnd:
                         activate_window(hwnd)
                 continue
-            if op.op == "restack_primary":
+            if op.op == "restack_main":
                 # Re-stack the overlapping Nau/Genau pair for the current mode.
                 # Not integration-guarded: SetWindowPos(HWND_TOPMOST) uses
                 # SWP_NOACTIVATE, so it changes only the z-band, never focus.
-                self._restack_primary_slot()
+                self._restack_main_slot()
                 continue
             if op.op == "disable_all_topmost":
                 self._remove_all_topmost()
@@ -750,9 +750,9 @@ class DispatchLoopRunner:
             self._update_dashboard()
 
     def _hide_role(self, role: str) -> None:
-        """Park the primary-slot player a mode switch is leaving — after a beat.
+        """Park the main-slot player a mode switch is leaving — after a beat.
 
-        Only that pair is ever hidden (see ``_primary_slot_ops``), and only they
+        Only that pair is ever hidden (see ``_main_slot_ops``), and only they
         need the beat.  Minimizing is what FREEZES a window's Alt-Tab thumbnail:
         Windows stops compositing a minimized window, so whatever it last drew is
         what the thumbnail keeps showing until it is restored.  The same switch
@@ -763,7 +763,7 @@ class DispatchLoopRunner:
 
         Nothing shows during the wait: the incoming player has already been
         restored, activated and promoted over the same rect, and this one has
-        been demoted out of the topmost band (see :meth:`_restack_primary_slot`).
+        been demoted out of the topmost band (see :meth:`_restack_main_slot`).
         """
         self._pending_hides[role] = time.monotonic() + PRIMARY_BLANK_SETTLE_S
 
@@ -775,7 +775,7 @@ class DispatchLoopRunner:
             minimize_window(hwnd, activate=False)
 
     def _flush_pending_hides(self) -> None:
-        """Park each primary-slot window whose settle time has run out."""
+        """Park each main-slot window whose settle time has run out."""
         if not self._pending_hides:
             return
         now = time.monotonic()
@@ -859,7 +859,7 @@ class DispatchLoopRunner:
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
                 osr2_mode=osr2_mode,
-                primary_mode=self.state.primary_mode,
+                main_mode=self.state.main_mode,
                 portrait_locked=self.state.locked2,
                 landscape_locked=self.state.locked3,
                 omni_paused=self.state.omni_paused,
@@ -902,7 +902,7 @@ class DispatchLoopRunner:
         slot = {
             "genau": ["genau"],
             "hybrid": ["nau", "genau"],
-        }.get(self.state.primary_mode, ["nau"])
+        }.get(self.state.main_mode, ["nau"])
         return ["rfb", "portrait", "landscape", "dashboard", *slot]
 
     def _remove_all_topmost(self) -> None:
@@ -920,15 +920,15 @@ class DispatchLoopRunner:
 
         The fixed windows (own rects) go straight back to topmost; the
         overlapping Nau/Genau pair is re-stacked so Genau's HUD sits above Nau's
-        video in hybrid.  See :meth:`_restack_primary_slot`.
+        video in hybrid.  See :meth:`_restack_main_slot`.
         """
         for role in FIXED_TOPMOST_ROLES:
             hwnd = self._resolve_role(role)
             if hwnd:
                 set_always_on_top(hwnd, True)
-        self._restack_primary_slot()
+        self._restack_main_slot()
 
-    def _restack_primary_slot(self) -> None:
+    def _restack_main_slot(self) -> None:
         """Re-establish the Nau/Genau z-order for the current mode.
 
         Nau and Genau share one screen rect — in hybrid Genau's transparent HUD
@@ -944,7 +944,7 @@ class DispatchLoopRunner:
         Promoting Nau before Genau is what keeps the HUD over the video — the
         demote-then-promote-in-order technique the old z_order module used.
         """
-        mode = self.state.primary_mode
+        mode = self.state.main_mode
         nau = self._resolve_role("nau")
         genau = self._resolve_role("genau")
         for hwnd in (nau, genau):
@@ -1066,7 +1066,7 @@ class DispatchLoopRunner:
             hwnd = self._resolve_role(role)
             state = is_window_topmost(hwnd) if hwnd else "n/a"
             parts.append(f"{role}={hwnd}:{state}")
-        logger.info("Topmost [%s] mode=%s: %s", label, self.state.primary_mode, "  ".join(parts))
+        logger.info("Topmost [%s] mode=%s: %s", label, self.state.main_mode, "  ".join(parts))
 
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows.
@@ -1140,7 +1140,7 @@ class DispatchLoopRunner:
                 runner=self._run_browser,
             )
             if selected:
-                # Nau owns the primary display; play the pick there, paired with
+                # Nau owns the main player; play the pick there, paired with
                 # its funscript when one exists at the mirrored path.
                 mirrored = build_mirrored_funscript_path(selected)
                 if mirrored and Path(mirrored).exists():
@@ -1212,7 +1212,7 @@ def build_bridge_config_from_manifest(
         favs_file=Path(manifest["media"]["favs_file"]),
         weird_dir=Path(manifest["media"]["weird_dir"]),
         state_dir=Path(manifest["commands"]["dashboard_state_file"]).parent,
-        primary_sources=manifest["media"]["nau_library_sources"],
+        main_sources=manifest["media"]["nau_library_sources"],
         python_exe=manifest["executables"]["python_exe"],
         portrait_sources=manifest["media"]["portrait_dirs"],
         landscape_sources=manifest["media"]["landscape_dirs"],

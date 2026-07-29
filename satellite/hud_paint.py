@@ -560,7 +560,7 @@ class HudRenderer:
         clip puts it in the favorites and F-mode is the filter over them, so all
         three are the same fact and read as one color.  F-mode's button carries
         its own pink mark on top of that green, the same badge it wears on the
-        primary console and on the taskbar.
+        main console and on the taskbar.
         """
         lit = {"lock": model.locked, "fmode": model.f_mode}
         for rect, name in controls:

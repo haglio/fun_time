@@ -2,7 +2,7 @@
 
 "Clip saved", "No other seeds", "Next seed", "Similar clip" — the messages that
 used to be AHK tooltips at the mouse pointer — appear at the top-center of the window they
-are about: a primary notice over the Nau/Genau display, a portrait/landscape
+are about: a main-player notice over the Nau/Genau display, a portrait/landscape
 notice over that satellite.  They also land in the event log, so the log panel
 keeps the running history; this is just the glanceable, in-place flash.
 
@@ -22,7 +22,7 @@ from fun_time.event_log import NOTICE, EventRecord
 class PlayerRects:
     """Where each notice-bearing window sits on screen, in real coordinates."""
 
-    primary: Rect
+    main: Rect
     portrait: Rect
     landscape: Rect
     dash: Rect
@@ -41,14 +41,14 @@ def notice_target_rect(source: str, rects: PlayerRects) -> Rect:
     """The window a *source*'s notice flashes over.
 
     ``system`` (and any unexpected source) has no player of its own, so it falls
-    back to the primary display — the one always on screen.
+    back to the main player — the one always on screen.
     """
     return {
-        "primary": rects.primary,
+        "main": rects.main,
         "portrait": rects.portrait,
         "landscape": rects.landscape,
         "dash": rects.dash,
-    }.get(source, rects.primary)
+    }.get(source, rects.main)
 
 
 def top_center_position(target: Rect, size: Size, *, margin: int) -> tuple[int, int]:

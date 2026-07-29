@@ -150,12 +150,12 @@ class OverlayWindow:
         )
         style.configure("FunTime.TFrame", background=BG)
 
-        # Center the content panel on the primary monitor (0,0 origin),
+        # Center the content panel on the main player monitor (0,0 origin),
         # not the virtual-desktop midpoint which may fall between monitors.
         frame = ttk.Frame(self._root, padding=24, style="FunTime.TFrame")
-        primary_cx = self._root.winfo_screenwidth() // 2 - vx
-        primary_cy = self._root.winfo_screenheight() // 2 - vy
-        frame.place(x=primary_cx, y=primary_cy, anchor=tk.CENTER)
+        main_cx = self._root.winfo_screenwidth() // 2 - vx
+        main_cy = self._root.winfo_screenheight() // 2 - vy
+        frame.place(x=main_cx, y=main_cy, anchor=tk.CENTER)
 
         # Icon above the title — loaded from icon.ico at the project root.
         self._icon_photo = None  # prevent GC of PhotoImage

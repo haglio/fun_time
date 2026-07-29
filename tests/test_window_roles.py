@@ -10,7 +10,7 @@ from fun_time.window_roles import (
 
 class TestRoleTopmost:
     """The windows with their own rect are always topmost.  The two that SHARE
-    the primary rect are each topmost only while they are showing something —
+    the main player's rect are each topmost only while they are showing something —
     in hybrid that is both, with Genau's HUD stacked above Nau by promotion
     order, which is not this flag's job."""
 

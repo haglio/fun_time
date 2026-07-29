@@ -3,14 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # The mode every session is BUILT in, whatever it opens in: Nau loads the
-# primary's playlist while the loading screen is up, both players launch into the
-# primary rect, and the defaults everywhere — flag files, window bands, a fresh
+# main player's playlist while the loading screen is up, both players launch into the
+# main player's rect, and the defaults everywhere — flag files, window bands, a fresh
 # BridgeState — are this one's.  A session resuming into genau or hybrid is
 # therefore seeded as a switch out of here (see
 # fun_time.windows_bridge_startup.seed_startup_states), which is also what keeps
 # the two paths from drifting: opening in a mode and switching into it write the
 # same files, from the same plan.
-STARTUP_PRIMARY_MODE = "nau"
+STARTUP_MAIN_MODE = "nau"
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,7 @@ class ModeSwitchPlan:
     genau_display_cmd: str | None
     nau_should_play: bool | None
     # The same for Nau, and distinct from nau_should_play for the same reason: a
-    # paused Nau still holds the frame it stopped on, and the idle primary-slot
+    # paused Nau still holds the frame it stopped on, and the idle main-slot
     # player is minimized rather than hidden (it keeps its taskbar button), so
     # an alt-tab back to it lands on that frame unless it is blanked.
     nau_display_cmd: str | None
@@ -44,7 +44,7 @@ def genau_active(mode: str) -> bool:
 def nau_displays(mode: str) -> bool:
     """Return True if Nau owns the on-screen display (and its interaction).
 
-    Nau is the primary player in both nau and hybrid; in hybrid Genau merely
+    Nau is the main player in both nau and hybrid; in hybrid Genau merely
     drives the OSR2 and paints its HUD over Nau's video.
     """
     return mode in ("nau", "hybrid")
@@ -56,7 +56,7 @@ def build_mode_switch_plan(
     target_mode: str,
     omni_paused: bool,
 ) -> ModeSwitchPlan:
-    """Plan a switch between the primary modes: nau, genau, hybrid.
+    """Plan a switch between the main slot's modes: nau, genau, hybrid.
 
     Nau owns the display in nau and hybrid; Genau drives the OSR2 and shows its
     HUD in genau and hybrid.  So Nau keeps playing across a nau<->hybrid switch

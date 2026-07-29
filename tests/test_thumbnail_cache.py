@@ -106,7 +106,7 @@ def test_cached_thumbnail_returns_the_file_only_when_it_exists(tmp_path: Path):
 def test_prewarming_covers_every_path_it_is_handed(tmp_path: Path):
     """Stills are extracted up front so a first use never blocks on a frame grab
     — the source of the multi-second map lag.  Each caller decides *which*
-    videos: a satellite warms every clip in its library, the primary browser
+    videos: a satellite warms every clip in its library, the main library browser
     warms one per handle, off the cheapest rendition of it."""
     cache_dir = tmp_path / "thumbs"
     warmed: list[tuple[str, object]] = []
