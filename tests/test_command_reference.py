@@ -163,7 +163,7 @@ def test_both_section_lists_combined_satellite_commands():
     assert cmds == {
         "both_prev", "both_next", "both_trash",
         "both_lock_on", "both_lock_off",
-        "both_cycle_action", "both_cycle_seed", "both_more_seeds",
+        "both_cycle_action", "both_cycle_seed", "both_more_seeds", "both_wrong_action",
         "both_action_loop", "both_seed_loop", "both_no_loop", "both_lock_action",
         "both_shuffle", "both_no_filter", "both_reset",
         "both_fmode", "both_fmode_on", "both_fmode_off",
@@ -191,6 +191,7 @@ def test_active_side_section_documents_the_bare_commands():
         "active_trash": "weird",
         "active_cycle_action": "action",
         "active_cycle_seed": "seed",
+        "active_wrong_action": "wrong action",
     }
     for cmd, phrase in expected.items():
         assert cmd in by_command, f"{cmd} missing from the Active side section"

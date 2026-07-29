@@ -182,6 +182,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Cycle action — same subject(s) & scene, another act", (), ("portrait_cycle_action",)),
             _Row("Cycle seed — same config, different subject", (), ("portrait_cycle_seed",)),
             _Row(
+                "Wrong action — the portrait clip's act is mislabeled; strike it "
+                "so Evolver's backfill tool asks about it again",
+                (),
+                ("portrait_wrong_action",),
+            ),
+            _Row(
                 "Navigate the map — Shift+arrows move a selection, switching to that clip",
                 ("Shift+Left", "Shift+Right", "Shift+Up", "Shift+Down"),
                 ("portrait_nav_left", "portrait_nav_right", "portrait_nav_up", "portrait_nav_down"),
@@ -217,6 +223,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Cycle action — same subject(s) & scene, another act", (), ("landscape_cycle_action",)),
             _Row("Cycle seed — same config, different subject", (), ("landscape_cycle_seed",)),
             _Row(
+                "Wrong action — the landscape clip's act is mislabeled; strike it "
+                "so Evolver's backfill tool asks about it again",
+                (),
+                ("landscape_wrong_action",),
+            ),
+            _Row(
                 "Navigate the map — Shift+WASD move a selection, switching to that clip",
                 ("Shift+W", "Shift+A", "Shift+S", "Shift+D"),
                 ("landscape_nav_up", "landscape_nav_left", "landscape_nav_down", "landscape_nav_right"),
@@ -247,6 +259,11 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             _Row("Lock / unlock both", (), ("both_lock_on", "both_lock_off")),
             _Row("Cycle both actions — same subject(s) & scene, another act", (), ("both_cycle_action",)),
             _Row("Cycle both seeds — same config, different subject", (), ("both_cycle_seed",)),
+            _Row(
+                "Wrong action on both — strike each clip's mislabeled act",
+                (),
+                ("both_wrong_action",),
+            ),
             _Row("More seeds on both — widen to same-scene near-matches", (), ("both_more_seeds",)),
             _Row("Loop each subject's actions on both", (), ("both_action_loop",)),
             _Row("Loop each act's other seeds on both", (), ("both_seed_loop",)),
@@ -302,6 +319,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
             ),
             _Row("Cycle action — same subject(s) & scene, another act", (), ("active_cycle_action",)),
             _Row("Cycle seed — same config, different subject", (), ("active_cycle_seed",)),
+            _Row(
+                "Wrong action — the active side's clip is mislabeled; strike its "
+                "act so Evolver's backfill tool asks about it again",
+                (),
+                ("active_wrong_action",),
+            ),
             _Row("More seeds — widen to same-scene near-matches", (), ("active_more_seeds",)),
             _Row("Loop the subject's actions — repeat that group", (), ("active_action_loop",)),
             _Row("Loop the act's other seeds — repeat that family", (), ("active_seed_loop",)),
