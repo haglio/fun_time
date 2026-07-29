@@ -370,32 +370,39 @@ def _nau_verbs(tmp_path: Path) -> list[str]:
 
 def test_seed_startup_states_hands_the_primary_slot_to_genau_for_a_genau_session(tmp_path: Path):
     """A session left showing Genau has to come back showing Genau, and every
-    flag a live switch would have written has to be written here too — the
+    verb a live switch would have written has to be written here too — the
     session is *built* in nau mode, so opening in another one IS that switch,
     seeded before either player launches instead of sent to a running one."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
 
-    assert (tmp_path / "genau_paused.txt").read_text(encoding="utf-8") == "0"
-    assert (tmp_path / "audio_paused.txt").read_text(encoding="utf-8") == "0"
-    assert (tmp_path / "nau_paused.txt").read_text(encoding="utf-8") == "1"
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["RESUME", "DISPLAY_ON"]
     assert _nau_verbs(tmp_path) == [
         "SET_HYBRID 0", "DISPLAY_OFF", "SET_VOLUME 100 0", "SET_F_MODE 0",
     ]
 
 
-def test_seed_startup_states_leaves_nau_paused_for_the_reveal_in_hybrid(tmp_path: Path):
-    """Hybrid keeps Nau on screen under Genau's HUD, so nothing about the switch
-    starts it — the reveal does, as it does for a plain nau session.  Seeding it
-    playing here would put a video up behind the loading screen."""
+def test_seed_startup_states_holds_every_player_for_the_reveal(tmp_path: Path):
+    """Whatever mode is coming back, nothing plays until the loading screen is
+    gone.  The switch this replays would have started Genau outright — right for
+    a live switch, wrong here, where it would drive the OSR2 for the twenty
+    seconds the user spends watching a progress bar."""
+    for mode in ("nau", "genau", "hybrid"):
+        _seed_startup_states(tmp_path, mode=mode)
+
+        assert (tmp_path / "genau_paused.txt").read_text(encoding="utf-8") == "1", mode
+        assert (tmp_path / "audio_paused.txt").read_text(encoding="utf-8") == "1", mode
+        assert (tmp_path / "nau_paused.txt").read_text(encoding="utf-8") == "1", mode
+
+
+def test_seed_startup_states_puts_genaus_hud_up_for_a_hybrid_session(tmp_path: Path):
+    """Hybrid is both players at once: Genau's transparent HUD over Nau's video,
+    which each of them has to be told about."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="hybrid")
 
-    assert (tmp_path / "nau_paused.txt").read_text(encoding="utf-8") == "1"
-    assert (tmp_path / "genau_paused.txt").read_text(encoding="utf-8") == "0"
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
         "RESUME", "HUD_ON", "DISPLAY_ON",
     ]
@@ -662,7 +669,11 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
 
     assert _run_start_core_session(kwargs) == "genau"
 
-    assert kwargs["genau_paused_file"].read_text(encoding="utf-8") == "0"
+    # Genau is told to come back up painting and driving; the reveal is what
+    # then lets it, so both players are still held here.
+    assert kwargs["genau_cmd_file"].read_text(encoding="utf-8").splitlines() == [
+        "RESUME", "DISPLAY_ON",
+    ]
     assert kwargs["nau_paused_file"].read_text(encoding="utf-8") == "1"
 
 

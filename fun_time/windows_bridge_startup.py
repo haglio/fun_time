@@ -23,7 +23,7 @@ from .modes import (
     build_primary_playlist,
 )
 from .mode_plan import STARTUP_PRIMARY_MODE
-from .runtime_flow import SET_F_MODE_CMD, apply_mode_switch
+from .runtime_flow import SET_F_MODE_CMD, apply_mode_switch, write_flag_file
 from .satellite_control import read_satellite_status
 from .session_resume import (
     playlist_fits_sources,
@@ -269,9 +269,9 @@ def seed_startup_states(
     f_mode: bool = False,
     mode: str = STARTUP_PRIMARY_MODE,
 ) -> None:
-    """Seed the cross-process flags the primary slot opens on: Genau parked, Nau
-    paused until the sequencer's reveal unpauses it, and the sound, F-mode and
-    mode this session comes back in.
+    """Seed the cross-process flags the primary slot opens on: both its players
+    held until the sequencer's reveal starts whichever the mode puts on screen,
+    and the sound, F-mode and mode this session comes back in.
 
     All three of those last are the session's, not a fresh session's.  The level
     is seeded because Nau and the audio companion each launch unattenuated and
@@ -292,10 +292,10 @@ def seed_startup_states(
     the switch that would have reached it: every session is built in
     ``STARTUP_PRIMARY_MODE``, so coming back in genau or hybrid is a switch out
     of nau, and running it through the same planner a live switch uses is what
-    stops the two from ever describing the mode differently.  Only the verbs are
-    seeded here; the windows are parked to match by the sequencer, and Nau's own
-    start is left to the reveal — which is why the pause flags below are written
-    first and the switch is allowed to overwrite the ones it owns.
+    stops the two from ever describing the mode differently.  Only the switch's
+    *verbs* are kept — the windows are parked to match by the sequencer, and its
+    pause flags are overwritten with a hold, since a live switch starts its
+    player immediately and startup must not.
 
     Genau's *display* is the one thing that has to be said even in nau mode.
     Blanking keys off DISPLAY_ON/DISPLAY_OFF and Genau defaults to owning its
@@ -306,13 +306,6 @@ def seed_startup_states(
 
     The defaults are a fresh session's: full, unmuted, unnarrowed, on Nau.
     """
-    for path, value in (
-        (Path(genau_paused_file), "1"),
-        (Path(audio_paused_file), "1"),
-        (Path(nau_paused_file), "1"),
-    ):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(value, encoding="utf-8")
     Path(genau_cmd_file).parent.mkdir(parents=True, exist_ok=True)
     Path(genau_cmd_file).write_text("PAUSE\nDISPLAY_OFF", encoding="utf-8")
     # Before the two appends below, because a switch writes Nau's channel whole:
@@ -329,6 +322,11 @@ def seed_startup_states(
         nau_paused_file=nau_paused_file,
         nau_cmd_file=nau_cmd_file,
     )
+    # After the switch, whose pause flags are a live one's: it would have started
+    # Genau the moment it landed, and here that is twenty seconds of the OSR2
+    # moving behind a progress bar.  Every player waits for the reveal instead.
+    for path in (genau_paused_file, audio_paused_file, nau_paused_file):
+        write_flag_file(path, True)
     publish_audio_level(
         nau_cmd_file=Path(nau_cmd_file),
         audio_volume_file=Path(audio_volume_file),
