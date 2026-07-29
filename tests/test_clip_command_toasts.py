@@ -15,7 +15,7 @@ def test_the_self_reporting_commands_flash_their_own_outcome():
         "fmode_toggle", "fmode_on", "fmode_off",
         *(
             f"{player}_fmode{suffix}"
-            for player in ("primary", "portrait", "landscape", "both")
+            for player in ("primary", "portrait", "landscape", "both", "active")
             for suffix in ("", "_on", "_off")
         ),
     }

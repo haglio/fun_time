@@ -68,8 +68,10 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 ("relief_omnipause",),
             ),
             _Row(
-                "Toggle F-Mode on every player at once — each player also has "
-                "its own, on its own HUD (see the sections below)",
+                "Toggle F-Mode on every player at once — spoken it needs the "
+                "word \"all\", since bare \"f mode\" reaches the active player; "
+                "each player also has its own, on its own HUD (see the sections "
+                "below)",
                 ("F",),
                 ("fmode_toggle", "fmode_on", "fmode_off"),
             ),
@@ -286,6 +288,12 @@ _SECTIONS: tuple[tuple[str, tuple[_Row, ...]], ...] = (
                 "Unfavorite the active side's clip — or mark it weird when it is not a favorite",
                 (),
                 ("active_trash",),
+            ),
+            _Row(
+                "F-Mode on the active player — the favorites on a satellite, the "
+                "funscripted videos on the primary",
+                (),
+                ("active_fmode", "active_fmode_on", "active_fmode_off"),
             ),
             _Row(
                 "Lock the selected map clip and re-home the map on it (keyboard navigation)",

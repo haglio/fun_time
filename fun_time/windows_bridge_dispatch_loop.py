@@ -125,13 +125,18 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 # Navigation is the same gesture on every player; "end loop" is the same *word* for
 # a different loop — Nau's A-B loop rather than a satellite's group loop.  A lock
 # is the same thing on all three — repeat-one on what is on screen — so the bare
-# word reaches whichever was last addressed, the primary included.
+# word reaches whichever was last addressed, the primary included.  So is F-mode,
+# though what it narrows to differs: the favourites on a satellite, the videos
+# with a funscript on the primary.
 _PRIMARY_EQUIVALENTS = {
     "next": "primary_next",
     "prev": "primary_prev",
     "no_loop": "nau_loop_cancel",
     "lock_on": "primary_lock_on",
     "lock_off": "primary_lock_off",
+    "fmode": "primary_fmode",
+    "fmode_on": "primary_fmode_on",
+    "fmode_off": "primary_fmode_off",
 }
 
 
