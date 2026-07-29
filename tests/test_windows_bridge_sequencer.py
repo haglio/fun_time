@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from fun_time.config import load_config
-from fun_time.dashboard_runtime import read_nau_status
+from fun_time.dashboard_runtime import genau_status_path, read_nau_status
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.nau_console import nau_console_path
@@ -376,6 +376,33 @@ class TestRunStartupSequence:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
 
         assert nau_paused.read_text(encoding="utf-8").strip() == "0"
+
+    def test_genau_is_launched_onto_the_clip_it_was_left_showing(self, cfg_factory, tmp_path):
+        """Genau's status file is the only record of which clip was up — it
+        rescans its folder every launch — so it is read before Genau is started
+        and handed straight back on the command line."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        genau_status_path(cfg.paths.state_dir).parent.mkdir(parents=True, exist_ok=True)
+        genau_status_path(cfg.paths.state_dir).write_text(
+            "cruise=0\nclip=C:\\clips\\alpha.mp4\n", encoding="utf-8",
+        )
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID) as launch, \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert launch.call_args.kwargs["start_clip"] == "C:\\clips\\alpha.mp4"
 
     def test_a_genau_session_parks_nau_and_gives_genau_the_slot(self, cfg_factory, tmp_path):
         """Reopening in genau mode: the session is still BUILT in nau — Nau loads

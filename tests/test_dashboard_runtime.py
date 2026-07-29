@@ -423,6 +423,25 @@ def test_read_nau_status_defaults_duration_to_zero(tmp_path: Path):
     assert read_nau_status(tmp_path / "missing.txt").duration_ms == 0
 
 
+def test_read_genau_status_names_the_clip_on_screen(tmp_path: Path):
+    """Genau rescans its folder every launch and opens at the top of it, so the
+    clip it was left showing survives only by being published and handed back."""
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("cruise=0\nclip=C:\\clips\\alpha.mp4\n", encoding="utf-8")
+
+    assert read_genau_status(status_file).clip == "C:\\clips\\alpha.mp4"
+
+
+def test_read_genau_status_reads_no_clip_before_one_is_up(tmp_path: Path):
+    """Genau publishes from its refresh loop, which can run before the first clip
+    is decoded — and an older Genau does not publish the key at all."""
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("cruise=0\nclip=\n", encoding="utf-8")
+
+    assert read_genau_status(status_file).clip == ""
+    assert read_genau_status(tmp_path / "missing.txt").clip == ""
+
+
 def test_read_nau_status_parses_the_range_a_running_loop_holds(tmp_path: Path):
     """A loop lives in the player process, so the only record of one is what Nau
     publishes — which is how a reopened session can be handed it back."""

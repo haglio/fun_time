@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import LayoutConfig
-from .dashboard_runtime import read_nau_status
+from .dashboard_runtime import genau_status_path, read_genau_status, read_nau_status
 from .mode_plan import STARTUP_PRIMARY_MODE, genau_active, nau_displays
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
@@ -338,7 +338,13 @@ def _run_startup_phases(
     # it went wrong: Genau derived it from its own config's state dir and wrote it
     # into the Genau repo, while Nau was told to read it out of Fun Time's — so
     # Hybrid showed a console with the Genau half missing.
-    genau_drive_file = Path(m["commands"]["genau_cmd_file"]).parent / "genau_drive.txt"
+    genau_state = Path(m["commands"]["genau_cmd_file"]).parent
+    genau_drive_file = genau_state / "genau_drive.txt"
+    # Genau's own resume: it rescans its clips folder every launch and opens at
+    # the top of it, so the clip the last session was left showing survives only
+    # in the status file it published — read here, before this session's Genau
+    # starts writing over it.
+    genau_clip = read_genau_status(genau_status_path(genau_state)).clip
     genau_pid = launch_genau(
         python_exe=m["executables"]["genau_python_exe"],
         genau_module=m["modules"]["genau_module"],
@@ -353,6 +359,7 @@ def _run_startup_phases(
         console_file=m["commands"]["nau_console_file"],
         drive_file=genau_drive_file,
         dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
+        start_clip=genau_clip,
     )
     # Nau's status file is how startup learns Nau has finished loading, and it
     # can only say that once last session's copy is gone.  start_core_session

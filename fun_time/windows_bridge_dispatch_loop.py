@@ -44,6 +44,7 @@ from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
 from .dashboard_runtime import (
+    genau_status_path,
     is_broker_heartbeat_fresh,
     is_osr2_device_on,
     read_genau_status,
@@ -442,7 +443,7 @@ class DispatchLoopRunner:
             # console has neither to ask.
             record=nau.state,
             nau_locked=nau.locked,
-            genau=read_genau_status(self.config.state_dir / "genau_status.txt"),
+            genau=read_genau_status(genau_status_path(self.config.state_dir)),
         ))
 
     def _favs_content(self) -> str:

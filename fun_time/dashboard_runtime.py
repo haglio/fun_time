@@ -147,6 +147,14 @@ def read_nau_status(path: Path) -> NauStatus:
         return NauStatus()
 
 
+GENAU_STATUS_FILENAME = "genau_status.txt"
+
+
+def genau_status_path(state_dir: Path) -> Path:
+    """Where Genau publishes what it is doing, in *state_dir*."""
+    return Path(state_dir) / GENAU_STATUS_FILENAME
+
+
 @dataclass(frozen=True)
 class GenauStatus:
     cruise_active: bool = False
@@ -156,6 +164,10 @@ class GenauStatus:
     # varies the stroke, never which clip plays.
     locked: bool = True
     shape: str = "sine"
+    # The clip on screen, as Genau published it — "" before the first one is up,
+    # and from a Genau too old to say.  Genau rescans its folder every launch and
+    # opens at the top of it, so this is the only record of where a session was.
+    clip: str = ""
 
 
 def _status_bool(values: dict[str, str], key: str, *, default: bool = False) -> bool:
@@ -180,6 +192,7 @@ def read_genau_status(path: Path) -> GenauStatus:
             cruise_active=_status_bool(values, "cruise"),
             locked=_status_bool(values, "locked", default=True),
             shape=values.get("shape", "sine").strip(),
+            clip=values.get("clip", "").strip(),
         )
     except (OSError, ValueError):
         return GenauStatus()
