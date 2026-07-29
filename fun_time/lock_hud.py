@@ -232,11 +232,15 @@ def _playing_member(
 ) -> str:
     """Which drawn map cell the live *current* clip is — the one the overlay
     lights up.  On the seed axis the clip is itself a seed cell; on the action
-    axis it is represented by the sibling sharing its action."""
+    axis it is represented by the sibling sharing its action — unless the column is
+    a running loop's own group, which holds the live clip itself the way a seed row
+    always does."""
     key = normalize_path_key
     if key(current) == key(anchor):
         return anchor
     if axis == "seed":
+        return current
+    if any(key(member) == key(current) for member in action):
         return current
     current_action = index.action_by_path.get(key(current), "")
     if current_action == index.action_by_path.get(key(anchor), ""):
@@ -363,7 +367,18 @@ def build_hud_panel(
         seed = _others(widened_pool, anchor)
     else:
         seed = _others(seed_family_members(index, anchor), anchor)
-    action = _distinct_action_siblings(index, anchor) if have_siblings else []
+    if not have_siblings:
+        action = []
+    elif active_loop == "action":
+        # A running action loop cycles the subject's whole group — twins of one act
+        # included — so the column has to be that group: the map of a loop is the
+        # loop, which is how the seed row already reads.  One clip per distinct act
+        # is the *browse* map's answer, and leaving it here collapsed a two-clip loop
+        # of a single act to one row, with the corner staying lit while the loop
+        # played a clip that was never drawn.
+        action = _others(action_group_members(index, anchor), anchor)
+    else:
+        action = _distinct_action_siblings(index, anchor)
     current_action = ""
     action_labels: tuple[str, ...] = ()
     playing = anchor
