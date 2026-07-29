@@ -497,8 +497,8 @@ def label_is_filtered(label: str, filter_query: str) -> bool:
     fun_time keeps a clip when the query appears as a *contiguous substring* of its
     metadata (``media_metadata.matches_query``), so every act the query names has to
     be one of the row's: filtered to "gamma", both a "POV Gamma" row and a "Gamma,
-    Theta" row are clips it keeps, while a plain "Missionary" row is *not* kept by a
-    "missionary, breast insertion" filter and must not read as though it were.
+    Theta" row are clips it keeps, while a plain "Alpha" row is *not* kept by an
+    "alpha, beta" filter and must not read as though it were.
     Within a row an act still matches on a substring ("gamma" catching "theta
     gamma") — the same rule fun_time uses, one act down.
 
@@ -641,8 +641,8 @@ _ACTION_ACRONYMS = {"pov": "POV"}
 
 # The camera words the metadata writes in front of an act: they say how the clip was
 # shot, not what happens in it.  Split off as an act of their own, so a filter for
-# the act lights the act and leaves the camera word gray — on one line "POV Cumshot"
-# both words went white under a "cumshot" filter, saying the camera angle was part
+# the act lights the act and leaves the camera word gray — on one line "POV Alpha"
+# both words went white under an "alpha" filter, saying the camera angle was part
 # of what you had asked for.
 #
 # Both of them, because Evolver's backfill tool scopes *every* act it records by one

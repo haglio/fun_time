@@ -2178,7 +2178,7 @@ def test_the_level_reaches_both_players_that_draw_it(tmp_path: Path):
     """
     config = _make_config(tmp_path)
 
-    dispatch_command("audio_mute", _make_state(volume=70, primary_mode="nau"), config)
+    dispatch_command("audio_mute", _make_state(volume=70, main_mode="nau"), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
     assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"

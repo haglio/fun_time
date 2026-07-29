@@ -63,6 +63,32 @@ class TestScanFiles:
         assert scan_files([tmp_path / "img.bin"], ["badterm"], root=tmp_path) == []
 
 
+def _blocklist_path(repo: Path) -> Path:
+    """The real blocklist, found from a worktree as well as from the primary.
+
+    ``blocklist.local.txt`` is git-ignored, so it exists only where it was
+    written — the primary checkout — and every worktree had none.  That made this
+    check a silent no-op in exactly the place all the work happens: a banned term
+    could be written, committed and landed without one red test, and one was
+    (a term in a comment example, live on ``main`` until 2026-07-29).
+
+    ``--git-common-dir`` names the primary: worktrees share one git dir, and its
+    parent is that checkout.  Same trick the integration suite uses to borrow the
+    machine's real config, and for the same reason — the overlay describes the
+    machine, not the checkout.
+    """
+    import subprocess
+
+    local = repo / "sanitize" / "blocklist.local.txt"
+    if local.exists():
+        return local
+    common_dir = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--git-common-dir"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    return (repo / common_dir).resolve().parent / "sanitize" / local.name
+
+
 def test_no_blocklisted_terms_in_the_tracked_tree():
     """Enforcement: with the real (git-ignored) blocklist present, no tracked
     file may contain a banned term — reintroducing one fails the suite. A public
@@ -72,7 +98,7 @@ def test_no_blocklisted_terms_in_the_tracked_tree():
     import subprocess
 
     repo = Path(__file__).resolve().parent.parent
-    blocklist = repo / "sanitize" / "blocklist.local.txt"
+    blocklist = _blocklist_path(repo)
     terms = load_blocklist(blocklist) if blocklist.exists() else []
     if not terms:
         return
