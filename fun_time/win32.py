@@ -344,6 +344,71 @@ def activate_window(hwnd: int) -> None:
     _user32.SetForegroundWindow(hwnd)
 
 
+# HWND/DWORD argtypes for the foreground helpers below, declared for the same
+# 64-bit truncation reason as SetWindowPos above.  AttachThreadInput takes
+# thread ids, not handles, so its two DWORDs are the whole signature.
+_user32.IsWindow.argtypes = [ctypes.wintypes.HWND]
+_user32.IsWindow.restype = ctypes.wintypes.BOOL
+_user32.SetForegroundWindow.argtypes = [ctypes.wintypes.HWND]
+_user32.SetForegroundWindow.restype = ctypes.wintypes.BOOL
+_user32.GetForegroundWindow.restype = ctypes.wintypes.HWND
+_user32.BringWindowToTop.argtypes = [ctypes.wintypes.HWND]
+_user32.BringWindowToTop.restype = ctypes.wintypes.BOOL
+_user32.AttachThreadInput.argtypes = [
+    ctypes.wintypes.DWORD,  # idAttach
+    ctypes.wintypes.DWORD,  # idAttachTo
+    ctypes.wintypes.BOOL,   # fAttach
+]
+_user32.AttachThreadInput.restype = ctypes.wintypes.BOOL
+_kernel32.GetCurrentThreadId.restype = ctypes.wintypes.DWORD
+
+
+def window_exists(hwnd: int) -> bool:
+    """Whether *hwnd* still names a live window.
+
+    A handle captured at startup outlives the window it named — closing the
+    window leaves the number behind — so anything that must reach *that* window
+    and no other has to ask before it acts.
+    """
+    return bool(hwnd) and bool(_user32.IsWindow(hwnd))
+
+
+def force_foreground_window(hwnd: int) -> bool:
+    """Take the foreground for *hwnd* from a process that does not hold it.
+
+    Windows refuses ``SetForegroundWindow`` outright unless the calling process
+    owns the foreground window or received the last input event — and the bridge
+    is neither when a hotkey lands: AHK got the key, and a player owns the
+    screen.  The refusal is silent; it flashes the taskbar button and delivers no
+    WM_ACTIVATE at all, which is exactly the message the window has to see.
+    Attaching this thread's input queue to the foreground window's thread makes
+    the two one queue, and a thread sharing the foreground thread's queue is one
+    of the cases the rule accepts, so the call goes through.
+
+    Returns whether the window really ended up in the foreground.  A False is
+    worth logging but not worth acting on: on a non-input desktop (the hidden
+    desktop the integration suite runs on) there is no foreground window to be,
+    so this reads False there while the activation itself still lands.
+    """
+    if not window_exists(hwnd):
+        return False
+    foreground = _user32.GetForegroundWindow()
+    this_thread = _kernel32.GetCurrentThreadId()
+    other_thread = _user32.GetWindowThreadProcessId(foreground, None) if foreground else 0
+    attached = bool(
+        other_thread
+        and other_thread != this_thread
+        and _user32.AttachThreadInput(other_thread, this_thread, True)
+    )
+    try:
+        _user32.BringWindowToTop(hwnd)
+        _user32.SetForegroundWindow(hwnd)
+    finally:
+        if attached:
+            _user32.AttachThreadInput(other_thread, this_thread, False)
+    return int(_user32.GetForegroundWindow() or 0) == hwnd
+
+
 # argtypes matter on 64-bit: without them ctypes marshals the HWND as a 32-bit
 # c_int and truncates the handle, and the process-id out-param pointer must be a
 # real pointer (same reasoning as the SetWindowPos/OpenProcess declarations).

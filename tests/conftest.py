@@ -35,7 +35,9 @@ def _qapp():
 # resolves the live "Nau"/"Genau" window by title and forces it on top — the test
 # bleed behind "Nau pops on top during OmniPause" (it looked like a runtime/OmniPause
 # bug for months because it WAS our code, run by a concurrent agent's test process).
-_MUTATING_USER32_CALLS = ("SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW")
+_MUTATING_USER32_CALLS = (
+    "SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW", "BringWindowToTop",
+)
 
 
 @pytest.fixture(autouse=True)

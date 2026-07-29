@@ -1109,6 +1109,33 @@ class TestDispatchLoopRunner:
 
 
 class TestOpenRfbTab:
+    """A lock's tab has to reach the session's own Chrome window.
+
+    That window shares a profile with whatever windows of it the user already
+    had open, and Chrome gives a forwarded URL to the most recently activated
+    window of the profile — so these tests pin the two things that make the
+    session's window the one it picks: it is activated first, and a handoff is
+    refused outright when the session has no window of its own left.
+    """
+
+    @staticmethod
+    def _rfb_patches(calls: list[tuple[str, object]], *, alive: bool = True):
+        """Patch the win32 pair and the launcher, recording the order they run in."""
+        return (
+            patch(
+                "fun_time.windows_bridge_dispatch_loop.window_exists",
+                side_effect=lambda hwnd: bool(hwnd) and alive,
+            ),
+            patch(
+                "fun_time.windows_bridge_dispatch_loop.force_foreground_window",
+                side_effect=lambda hwnd: calls.append(("activate", hwnd)) or True,
+            ),
+            patch(
+                "fun_time.windows_bridge_dispatch_loop.open_rfb_tab",
+                side_effect=lambda **kwargs: calls.append(("open", kwargs)),
+            ),
+        )
+
     def test_open_rfb_tab_op_calls_open_rfb_tab_when_rfb_running(self, tmp_path):
         runner = make_runner(
             tmp_path,
@@ -1120,18 +1147,71 @@ class TestOpenRfbTab:
         )
         runner._last_sync = float("inf")
 
+        calls: list[tuple[str, object]] = []
+        exists, activate, open_tab = self._rfb_patches(calls)
         rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
+             exists, activate, open_tab:
             mock_dispatch.return_value = (runner.state, [rfb_op])
             runner._dispatch("portrait_lock")
 
-        mock_open.assert_called_once_with(
-            urls=["https://example.com"],
-            shortcut_target=r"C:\Chrome\chrome.exe",
-            shortcut_work_dir=r"C:\Chrome",
-            shortcut_args='--profile-directory="Profile 2"',
+        assert calls == [
+            ("activate", 12345),
+            ("open", {
+                "urls": ["https://example.com"],
+                "shortcut_target": r"C:\Chrome\chrome.exe",
+                "shortcut_work_dir": r"C:\Chrome",
+                "shortcut_args": '--profile-directory="Profile 2"',
+            }),
+        ]
+
+    def test_rfb_window_is_activated_before_the_handoff(self, tmp_path):
+        """Chrome gives the URL to the most recently activated window of the
+        profile, so the activation has to happen before chrome.exe is launched —
+        after it, the user's own window is still the one Chrome would pick."""
+        runner = make_runner(
+            tmp_path,
+            sync_interval_ms=999999,
+            rfb_hwnd=777,
+            rfb_shortcut_target=r"C:\Chrome\chrome.exe",
+            rfb_shortcut_work_dir=r"C:\Chrome",
+            rfb_shortcut_args='--profile-directory="Profile 2"',
         )
+        runner._last_sync = float("inf")
+
+        calls: list[tuple[str, object]] = []
+        exists, activate, open_tab = self._rfb_patches(calls)
+        rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             exists, activate, open_tab:
+            mock_dispatch.return_value = (runner.state, [rfb_op])
+            runner._dispatch("portrait_lock")
+
+        assert [name for name, _ in calls] == ["activate", "open"]
+
+    def test_open_rfb_tab_op_skipped_when_the_rfb_window_is_gone(self, tmp_path):
+        """A handle outlives the window it named.  With no window of its own to
+        open into, every URL handed to Chrome lands in one of the user's — so the
+        tab is dropped rather than opened somewhere Fun Time does not own."""
+        runner = make_runner(
+            tmp_path,
+            sync_interval_ms=999999,
+            rfb_hwnd=12345,
+            rfb_shortcut_target=r"C:\Chrome\chrome.exe",
+            rfb_shortcut_work_dir=r"C:\Chrome",
+            rfb_shortcut_args='--profile-directory="Profile 2"',
+        )
+        runner._last_sync = float("inf")
+
+        calls: list[tuple[str, object]] = []
+        exists, activate, open_tab = self._rfb_patches(calls, alive=False)
+        rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             exists, activate, open_tab:
+            mock_dispatch.return_value = (runner.state, [rfb_op])
+            runner._dispatch("portrait_lock")
+
+        assert calls == []
 
     def test_open_rfb_tab_op_skipped_when_rfb_not_running(self, tmp_path):
         runner = make_runner(
@@ -1144,13 +1224,15 @@ class TestOpenRfbTab:
         )
         runner._last_sync = float("inf")
 
+        calls: list[tuple[str, object]] = []
+        exists, activate, open_tab = self._rfb_patches(calls)
         rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
+             exists, activate, open_tab:
             mock_dispatch.return_value = (runner.state, [rfb_op])
             runner._dispatch("portrait_lock")
 
-        mock_open.assert_not_called()
+        assert calls == []
 
     def test_open_rfb_tab_op_skipped_when_no_shortcut_target(self, tmp_path):
         runner = make_runner(
@@ -1160,13 +1242,15 @@ class TestOpenRfbTab:
         )
         runner._last_sync = float("inf")
 
+        calls: list[tuple[str, object]] = []
+        exists, activate, open_tab = self._rfb_patches(calls)
         rfb_op = WindowOp(op="open_rfb_tab", key="https://example.com")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
+             exists, activate, open_tab:
             mock_dispatch.return_value = (runner.state, [rfb_op])
             runner._dispatch("portrait_lock")
 
-        mock_open.assert_not_called()
+        assert calls == []
 
     def test_lock_both_opens_both_videos_in_one_launch(self, tmp_path):
         """"lock both" locks two videos in one tick; their RFB tabs must open in
@@ -1190,16 +1274,21 @@ class TestOpenRfbTab:
                 return replace(state, locked3=True), [WindowOp(op="open_rfb_tab", key="http://l")]
             return state, []
 
+        calls: list[tuple[str, object]] = []
+        exists, activate, open_tab = self._rfb_patches(calls)
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", side_effect=fake_dispatch), \
-             patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab") as mock_open:
+             exists, activate, open_tab:
             runner.tick()
 
-        mock_open.assert_called_once_with(
-            urls=["http://p", "http://l"],
-            shortcut_target=r"C:\Chrome\chrome.exe",
-            shortcut_work_dir=r"C:\Chrome",
-            shortcut_args='--profile-directory="Profile 2"',
-        )
+        assert calls == [
+            ("activate", 12345),
+            ("open", {
+                "urls": ["http://p", "http://l"],
+                "shortcut_target": r"C:\Chrome\chrome.exe",
+                "shortcut_work_dir": r"C:\Chrome",
+                "shortcut_args": '--profile-directory="Profile 2"',
+            }),
+        ]
 
 
 class TestModeSwitchVisibility:
