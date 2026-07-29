@@ -345,6 +345,10 @@ def _run_startup_phases(
     # in the status file it published — read here, before this session's Genau
     # starts writing over it.
     genau_clip = read_genau_status(genau_status_path(genau_state)).clip
+    # Which checkout of ../genau these two are run out of.  Empty in an ordinary
+    # session — they resolve through their venv's editable install, which is the
+    # primary — and a worktree of that repo while a branch of it is being judged.
+    genau_project_dirs = m["runtime"].get("genau_project_dirs", "")
     genau_pid = launch_genau(
         python_exe=m["executables"]["genau_python_exe"],
         genau_module=m["modules"]["genau_module"],
@@ -360,6 +364,7 @@ def _run_startup_phases(
         drive_file=genau_drive_file,
         dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
         start_clip=genau_clip,
+        project_dirs=genau_project_dirs,
     )
     # Nau's status file is how startup learns Nau has finished loading, and it
     # can only say that once last session's copy is gone.  start_core_session
@@ -385,6 +390,7 @@ def _run_startup_phases(
         nau_width=main_media_rect.width,
         nau_height=main_media_rect.height,
         metadata_dir=regen_metadata_raw or None,
+        project_dirs=genau_project_dirs,
     )
     launched.pids.extend([genau_pid, nau_pid])
 

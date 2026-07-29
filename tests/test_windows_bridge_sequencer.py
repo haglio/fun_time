@@ -286,7 +286,52 @@ class TestRunStartupSequence:
             # Where a press on Nau's volume control posts its command — the same
             # file the dashboard and each satellite's HUD write to.
             "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
+            # Which checkouts of ../genau and ../player_core to run — empty in
+            # an ordinary session, so both players resolve through their venv.
+            "project_dirs": "",
         }
+
+    def test_both_players_are_run_out_of_the_named_checkouts(self, cfg_factory, tmp_path):
+        """Genau and Nau both ship in that repo, so a branch of it has to move
+        the pair — one on the branch and one on the primary is two different
+        codebases sharing a console."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        checkout = tmp_path / "genau_worktree"
+        checkout.mkdir()
+        manifest = configparser.ConfigParser()
+        manifest.optionxform = str
+        manifest.read(manifest_path, encoding="utf-8")
+        manifest["runtime"]["genau_project_dirs"] = str(checkout)
+        with Path(manifest_path).open("w", encoding="utf-8") as fp:
+            manifest.write(fp)
+        genau_kwargs: dict = {}
+        nau_kwargs: dict = {}
+
+        def capture_genau(**kwargs):
+            genau_kwargs.update(kwargs)
+            return GENAU_PID
+
+        def capture_nau(**kwargs):
+            nau_kwargs.update(kwargs)
+            return _fake_nau(**kwargs)
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", side_effect=capture_genau), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=capture_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert genau_kwargs["project_dirs"] == str(checkout)
+        assert nau_kwargs["project_dirs"] == str(checkout)
 
     def test_positions_satellite_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)

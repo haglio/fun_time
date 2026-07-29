@@ -1134,6 +1134,99 @@ def test_launch_genau_passes_fun_time_flag(tmp_path: Path):
     assert "--fun-time" in command
 
 
+class TestGenauCheckout:
+    """Which checkouts Genau and Nau are run out of.
+
+    Every package they import — their own, and ``player_core`` under them —
+    resolves through the genau venv's editable installs, which name the primary
+    checkout of each repo for good.  Naming a directory puts it on their
+    ``PYTHONPATH``, ahead of site-packages, so a worktree of either can be run;
+    without it a branch could only be judged by landing it first.
+    """
+
+    class _Proc:
+        pid = 42
+
+    def _popen(self):
+        return patch("fun_time.windows_bridge_startup.subprocess.Popen",
+                     return_value=self._Proc())
+
+    @staticmethod
+    def _genau(**overrides):
+        return dict(python_exe="python.exe", genau_module="genau",
+                    config_path="cfg.json", clips_folder="clips",
+                    genau_x=0, genau_y=0, genau_width=800, genau_height=600,
+                    **overrides)
+
+    @staticmethod
+    def _nau(tmp_path: Path, **overrides):
+        return dict(python_exe="python.exe", nau_module="nau", config_path="cfg.json",
+                    playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+                    status_file="status", console_file="console.json",
+                    drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
+                    log_file=tmp_path / "nau.log",
+                    nau_x=0, nau_y=0, nau_width=100, nau_height=100, **overrides)
+
+    @staticmethod
+    def _path(popen) -> list[str]:
+        return popen.call_args.kwargs["env"]["PYTHONPATH"].split(os.pathsep)
+
+    def test_a_named_checkout_goes_ahead_of_what_the_venv_installed(self, tmp_path: Path):
+        checkout = tmp_path / "worktree"
+        checkout.mkdir()
+
+        with self._popen() as popen, patch(
+                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+            launch_genau(**self._genau(project_dirs=str(checkout)))
+
+        assert self._path(popen)[0] == str(checkout)
+
+    def test_nau_follows_genau_onto_the_same_checkouts(self, tmp_path: Path):
+        """Nau ships in that repo too, so it must not stay on the primary while
+        its housemate moves — the two would be running different code."""
+        checkout = tmp_path / "worktree"
+        checkout.mkdir()
+
+        with self._popen() as popen, patch(
+                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+            launch_nau(**self._nau(tmp_path, project_dirs=str(checkout)))
+
+        assert self._path(popen)[0] == str(checkout)
+
+    def test_several_checkouts_are_run_against_each_other(self, tmp_path: Path):
+        """A change is often in two of these repos at once — a HUD in ../genau on
+        a channel in ../player_core — and running one branch against the other's
+        landed code is not running the change."""
+        genau, core = tmp_path / "genau", tmp_path / "player_core"
+        genau.mkdir()
+        core.mkdir()
+
+        with self._popen() as popen, patch(
+                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+            launch_genau(**self._genau(
+                project_dirs=os.pathsep.join([str(genau), str(core)])))
+
+        assert self._path(popen)[:2] == [str(genau), str(core)]
+
+    def test_naming_none_leaves_them_to_their_venv(self, tmp_path: Path):
+        """What every session did before this, and what an ordinary one still
+        does: nothing said about the path, so the editable installs answer."""
+        with self._popen() as popen, patch(
+                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+            launch_genau(**self._genau())
+
+        assert "env" not in popen.call_args.kwargs
+
+    def test_a_checkout_that_is_gone_is_dropped_rather_than_fatal(self, tmp_path: Path):
+        """A worktree named in the config outlives the worktree itself — a
+        session must still start rather than die on its way up."""
+        with self._popen() as popen, patch(
+                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+            launch_genau(**self._genau(project_dirs=str(tmp_path / "removed")))
+
+        assert "env" not in popen.call_args.kwargs
+
+
 def test_launch_nau_sends_child_output_to_its_own_log(tmp_path: Path):
     """Nau is the satellites' twin — the same mpv player under the same windowed
     ``pythonw`` — so it needs the same place to leave a traceback when it dies."""

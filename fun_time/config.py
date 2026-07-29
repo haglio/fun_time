@@ -62,6 +62,14 @@ class PathsConfig:
     broker_state_dir: Path
     genau_python_exe: Path | None = None
     genau_config_path: Path | None = None
+    # Which checkouts Genau and Nau are run out of, put on their PYTHONPATH.
+    # Absent, every package they import — their own, and ``player_core`` under
+    # them — resolves through the genau venv's editable installs, which name the
+    # primary checkout of each repo for good: so a *worktree* of either could not
+    # be run at all, and a branch of one could only be judged by landing it.
+    # Several, because a change is often in two of them at once.  Empty in
+    # ordinary use, which is what every session did before this.
+    genau_project_dirs: tuple[Path, ...] = ()
     broker_tray_launcher: Path | None = None
 
     @property
@@ -302,6 +310,9 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
         broker_state_dir=_resolve_path(project_dir, paths_raw["broker_state_dir"]) if paths_raw.get("broker_state_dir") else state_dir,
         genau_python_exe=_resolve_path(project_dir, paths_raw["genau_python_exe"]) if paths_raw.get("genau_python_exe") else None,
         genau_config_path=_resolve_path(project_dir, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
+        genau_project_dirs=tuple(
+            _resolve_path(project_dir, str(value))
+            for value in paths_raw.get("genau_project_dirs", [])),
         broker_tray_launcher=_resolve_path(project_dir, paths_raw["broker_tray_launcher"]) if paths_raw.get("broker_tray_launcher") else None,
     )
 
