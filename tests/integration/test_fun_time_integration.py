@@ -648,9 +648,17 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
         timeout=12,
         description="portrait satellite to publish the clip it is playing",
     )
+    # Hold the clip before reading which one it is.  These are a few seconds long,
+    # so an unlocked satellite can advance between the read below and the discard,
+    # and then the discard meets a *different* clip — one still in the favorites, so
+    # it is unfavorited instead of condemned and the weird-dir wait times out on a
+    # file that was never going there.  A lock is repeat-one, which closes that.
+    isolated_integration_session.write_dashboard_command("portrait_lock_on")
+    isolated_integration_session.wait_for_new_log("Locked portrait satellite", timeout=12)
+    held = read_satellite_status(status_file).video
     # Take the clip out of the favorites the way the app does, so the discard
     # below meets an ordinary library file rather than a favorite.
-    remove_from_favs(isolated_integration_session.favs_file, read_satellite_status(status_file).video)
+    remove_from_favs(isolated_integration_session.favs_file, held)
 
     isolated_integration_session.write_dashboard_command("portrait_trash")
     chunk = isolated_integration_session.wait_for_new_log("Discarding from player 2:", timeout=12)
