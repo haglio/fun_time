@@ -22,6 +22,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from app_support.logging_utils import configure_logging, install_exception_logging
@@ -48,13 +49,14 @@ from fun_time.orchestrator import (
     signal_startup_resolved,
     validate_config,
 )
+from fun_time.mode_plan import STARTUP_PRIMARY_MODE
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_resume import (
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
 )
-from fun_time.shared_state import shared_state_path
+from fun_time.shared_state import shared_state_path, write_shared_state
 from fun_time.voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from fun_time.watch_stats import watch_stats_path
 from fun_time.windows_bridge_dispatch_loop import (
@@ -119,6 +121,28 @@ def primary_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> boo
     return any(
         is_vr_video(video, vr_dirs) for video, _funscript in read_playlist(playlist_file)
     )
+
+
+def resume_vr_state(state_file: Path, *, resumed: bool):
+    """The state a VR session comes back in: last session's, minus its mode.
+
+    One player hosts every role here and Genau is not launched at all, so there
+    is no primary slot to hand over and nobody to hand it to — while the desktop
+    session, which shares this state dir, can perfectly well have been closed in
+    genau mode.  Carried across, that mode would put every VR HUD, and the
+    dispatch loop's whole idea of who owns the display, on a player that is not
+    running.  Everything else comes across untouched: both apps play the same
+    playlists with the same F-mode, filters, locks and sound.
+
+    Written back rather than merely corrected in hand, because the state file is
+    what the dispatch loop and the HUDs actually read.
+    """
+    carried = replace(
+        resume_shared_state(state_file, resumed=resumed),
+        primary_mode=STARTUP_PRIMARY_MODE,
+    )
+    write_shared_state(state_file, carried)
+    return carried
 
 
 def build_vr_manifest(config) -> dict[str, dict[str, str]]:
@@ -229,7 +253,7 @@ def run_vr_bridge(config, logger_) -> int:
     # file, so resuming the files without it leaves every HUD describing a
     # different session.  Read before the flags below are seeded, because two of
     # them are what those flags have to be seeded to.
-    carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed)
+    carried = resume_vr_state(shared_state_path(state_dir), resumed=resumed)
     seed_startup_states(
         commands["genau_paused_file"], commands["audio_paused_file"],
         commands["nau_paused_file"], commands["audio_volume_file"],

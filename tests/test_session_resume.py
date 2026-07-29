@@ -179,14 +179,24 @@ class TestResumeSharedState:
         assert (state.volume, state.muted) == (40, True)
         assert (state.locked2, state.locked3) == (True, False)
 
+    def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
+        """Which player owns the big display is as much a thing you set as the
+        sound level, so leaving the session showing Genau and reopening on Nau
+        is the same overnight reset.  Startup builds every session in nau mode
+        and then puts the carried mode on over the top (see
+        :func:`fun_time.windows_bridge_startup.seed_startup_states`)."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(primary_mode="genau"))
+
+        assert resume_shared_state(state_file, resumed=True).primary_mode == "genau"
+
     def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
-        """OmniPause's flags are cleared before the players launch, the primary
-        opens in nau mode holding the floor, and a keyboard selection was never
-        a thing you could leave running.  Carrying any of them forward would be
-        the same lie in the other direction."""
+        """OmniPause's flags are cleared before the players launch, and a
+        keyboard selection was never a thing you could leave running.  Carrying
+        either forward would be the same lie in the other direction."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(
-            omni_paused=True, primary_mode="genau", active_side=3,
+            omni_paused=True, active_side=3,
             portrait_nav_anchor="C:/v/a.mp4", landscape_nav_anchor="C:/v/b.mp4",
         ))
 

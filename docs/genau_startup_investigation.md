@@ -1,5 +1,15 @@
 # Genau Auto-Mode Startup — Investigation Report
 
+> **Historical.** Written against the VLC/MFP architecture, none of which is
+> left: there is no `should_start_in_genau_mode()` in
+> `windows_bridge_orchestrator.py` and no `genau_mode_at_shutdown.txt`. The
+> "shutdown persistence" idea below did eventually land, but for the mode the
+> *user* left the session in, not for the OSR2's auto mode: the mode rides the
+> shared state file (`session_resume.RESUMED_FIELDS`) and startup seeds the
+> primary slot for it (`windows_bridge_startup.seed_startup_states`). The
+> hardware findings are the part still worth reading; the auto-mode trigger
+> itself is still unsolved.
+
 **Goal:** When Fun Time starts and the OSR2 is already in auto mode, Genau
 should be active from the beginning instead of Primary VLC.
 

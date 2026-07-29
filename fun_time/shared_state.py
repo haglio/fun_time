@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
 from .command_dispatch import BridgeState
+from .mode_plan import STARTUP_PRIMARY_MODE
 
 SHARED_STATE_FILENAME = "shared_bridge_state.ini"
 
@@ -84,7 +85,7 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
     return BridgeState(
         locked2=s.get("locked2", "0") == "1",
         locked3=s.get("locked3", "0") == "1",
-        primary_mode=s.get("primary_mode", "nau"),
+        primary_mode=s.get("primary_mode", STARTUP_PRIMARY_MODE),
         primary_f_mode=s.get("primary_f_mode", "0") == "1",
         portrait_f_mode=s.get("portrait_f_mode", "0") == "1",
         landscape_f_mode=s.get("landscape_f_mode", "0") == "1",

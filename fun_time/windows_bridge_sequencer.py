@@ -17,6 +17,7 @@ from pathlib import Path
 
 from .config import LayoutConfig
 from .dashboard_runtime import read_nau_status
+from .mode_plan import STARTUP_PRIMARY_MODE, genau_active, nau_displays
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
@@ -29,7 +30,7 @@ from .windows_bridge_startup import (
     launch_ui_companions,
     start_core_session,
 )
-from .window_roles import role_topmost
+from .window_roles import MANAGED_ROLES, role_topmost
 from .win32 import (
     disable_window_transitions,
     minimize_window,
@@ -69,6 +70,10 @@ class StartupResult:
     genau_pid: int
     audio_pid: int
     layout_plan: WindowLayoutPlan
+    # Which player the primary slot was revealed on — last session's, resumed.
+    # Carried out because the post-overlay z-order pass runs from the
+    # orchestrator and has to re-assert the same policy these phases applied.
+    primary_mode: str = STARTUP_PRIMARY_MODE
     rfb_hwnd: int = 0
     # HWNDs resolved while every window was still visible; the dispatch
     # loop's role cache is seeded from this (hidden windows cannot be
@@ -114,28 +119,35 @@ def _startup_role_hwnds(
     }
 
 
-def _apply_topmost_bands(role_hwnds: dict[str, int]) -> None:
+def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
-    policy for nau mode — the same policy omnipause and mode switches honor, so
+    policy for *mode* — the same policy omnipause and mode switches honor, so
     they can never disagree.
 
-    Never call this while the loading overlay is up.  ``HWND_TOPMOST`` inserts a
-    window at the *top* of the topmost band, and the overlay is itself topmost,
-    so each promotion draws that window over the overlay until the overlay's next
-    poll re-asserts itself — the flashing the overlay exists to prevent.
+    Walked in ``MANAGED_ROLES`` order rather than the mapping's, because
+    ``HWND_TOPMOST`` inserts at the *top* of the band: that order is what puts
+    Genau's transparent HUD above Nau's video in hybrid, and the policy says so
+    outright ("Genau is promoted last").
+
+    Never call this while the loading overlay is up.  The same insert-at-the-top
+    behavior, against an overlay that is itself topmost, draws each promoted
+    window over the overlay until its next poll re-asserts itself — the flashing
+    the overlay exists to prevent.
     """
-    for role, hwnd in role_hwnds.items():
+    for role in MANAGED_ROLES:
+        hwnd = role_hwnds.get(role, 0)
         if hwnd:
-            set_always_on_top(hwnd, role_topmost(role, "nau"))
+            set_always_on_top(hwnd, role_topmost(role, mode))
 
 
-def _apply_primary_slot_visibility(nau_hwnd: int, genau_hwnd: int) -> None:
-    """Park the idle slot-mate for nau startup mode.
+def _apply_primary_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> None:
+    """Park whichever slot-mate *mode* leaves idle.
 
     Nau and Genau share the primary rect; the slot swaps by minimizing the idle
     one (which keeps its taskbar button) and restoring the active one.  Disable
     both windows' DWM transitions first so those minimize/restores are instant —
-    no visible animation.  Startup mode is nau, so Genau starts minimized.
+    no visible animation.  Genau is the idle one in nau mode and Nau in genau
+    mode; in hybrid neither is, because Genau's HUD is drawn over Nau's video.
 
     Safe behind the loading overlay: minimizing moves no window into the topmost
     band, so nothing can flash over it.
@@ -143,8 +155,13 @@ def _apply_primary_slot_visibility(nau_hwnd: int, genau_hwnd: int) -> None:
     for hwnd in (nau_hwnd, genau_hwnd):
         if hwnd:
             disable_window_transitions(hwnd)
-    if genau_hwnd:
-        minimize_window(genau_hwnd, activate=False)
+    idle = 0
+    if not genau_active(mode):
+        idle = genau_hwnd
+    elif not nau_displays(mode):
+        idle = nau_hwnd
+    if idle:
+        minimize_window(idle, activate=False)
 
 
 def _apply_startup_window_state(
@@ -155,8 +172,10 @@ def _apply_startup_window_state(
     nau_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
+    mode: str = STARTUP_PRIMARY_MODE,
 ) -> dict[str, int]:
-    """Set the full window state for the nau startup mode: bands, then visibility.
+    """Set the full window state for the mode the session opens in: bands, then
+    visibility.
 
     Only for callers with no loading overlay on screen — the integration path,
     which has nothing to hide behind, and ``_fix_post_loading_windows``, which
@@ -170,8 +189,8 @@ def _apply_startup_window_state(
         dashboard_hwnd=dashboard_hwnd,
         rfb_hwnd=rfb_hwnd,
     )
-    _apply_topmost_bands(role_hwnds)
-    _apply_primary_slot_visibility(nau_hwnd, genau_hwnd)
+    _apply_topmost_bands(role_hwnds, mode)
+    _apply_primary_slot_visibility(nau_hwnd, genau_hwnd, mode)
     return role_hwnds
 
 
@@ -258,7 +277,10 @@ def _run_startup_phases(
     broker_launcher_raw = m["commands"].get("broker_tray_launcher", "").strip()
     regen_media_raw = m.get("regen", "media_root", fallback="").strip()
     regen_metadata_raw = m.get("regen", "metadata_root", fallback="").strip()
-    start_core_session(
+    # The mode last session was closed in, which the core session has just seeded
+    # every cross-process flag for.  What is left is the half only this side can
+    # do: park the idle slot-mate, band the pair, and reveal on the right player.
+    primary_mode = start_core_session(
         config_path=m["runtime"]["config_path"],
         broker_cmd_file=m["commands"]["broker_cmd_file"],
         broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
@@ -377,6 +399,7 @@ def _run_startup_phases(
             landscape_hwnd=landscape_hwnd,
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
             nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+            mode=primary_mode,
         )
         logger.info("Startup window state applied")
 
@@ -466,16 +489,19 @@ def _run_startup_phases(
             nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
             dashboard_hwnd=dash_hwnd,
         )
-        _apply_primary_slot_visibility(role_hwnds["nau"], role_hwnds["genau"])
+        _apply_primary_slot_visibility(role_hwnds["nau"], role_hwnds["genau"], primary_mode)
         logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
 
         progress.advance("finalizing")
 
-    # The reveal: startup mode is nau, so Nau starts playing once startup
-    # completes. This runs in both paths — the loading-screen (hide_windows)
-    # path reveals everything at once, and the no-loading-screen path
-    # (integration) has nothing to hide behind but must still start Nau.
-    write_flag_file(m["commands"]["nau_paused_file"], False)
+    # The reveal: the player that owns the display starts playing once startup
+    # completes.  That is Nau in every mode but genau, where Genau was seeded
+    # unpaused instead and Nau stays parked and silent behind it.  This runs in
+    # both paths — the loading-screen (hide_windows) path reveals everything at
+    # once, and the no-loading-screen path (integration) has nothing to hide
+    # behind but must still start its player.
+    if nau_displays(primary_mode):
+        write_flag_file(m["commands"]["nau_paused_file"], False)
 
     return StartupResult(
         nau_pid=nau_pid,
@@ -485,6 +511,7 @@ def _run_startup_phases(
         genau_pid=genau_pid,
         audio_pid=ui_pids["audio_pid"],
         layout_plan=plan,
+        primary_mode=primary_mode,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,
     )

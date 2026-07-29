@@ -33,7 +33,7 @@ from .lock_hud import F_MODE_LABEL, cell_path, hud_map_cells, locate_cell, navig
 from .modes import collect_video_files, is_favorite_path, read_favs_content, write_playlist_file
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
-from .mode_plan import genau_active, nau_displays
+from .mode_plan import STARTUP_PRIMARY_MODE, genau_active, nau_displays
 from .filter_vocab import decode_filter_command
 from .omnipause import build_omnipause_plan
 from .runtime_flow import (
@@ -84,7 +84,7 @@ def _satellite_source(which: int) -> str:
 class BridgeState:
     locked2: bool = False
     locked3: bool = False
-    primary_mode: str = "nau"
+    primary_mode: str = STARTUP_PRIMARY_MODE
     # Whether each player is in F-mode, held per player because it is set per
     # player: each HUD carries its own button, and only the bare "f mode" (and the
     # F key) still reaches all three at once.  It narrows the satellites to the

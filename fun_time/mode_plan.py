@@ -2,6 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# The mode every session is BUILT in, whatever it opens in: Nau loads the
+# primary's playlist while the loading screen is up, both players launch into the
+# primary rect, and the defaults everywhere — flag files, window bands, a fresh
+# BridgeState — are this one's.  A session resuming into genau or hybrid is
+# therefore seeded as a switch out of here (see
+# fun_time.windows_bridge_startup.seed_startup_states), which is also what keeps
+# the two paths from drifting: opening in a mode and switching into it write the
+# same files, from the same plan.
+STARTUP_PRIMARY_MODE = "nau"
+
 
 @dataclass(frozen=True)
 class ModeSwitchPlan:
