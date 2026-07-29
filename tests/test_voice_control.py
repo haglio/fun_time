@@ -843,13 +843,26 @@ def test_group_commands_do_not_shadow_the_single_word_actions():
 
 
 def test_voice_commands_include_generated_filter_phrases():
-    from fun_time.filter_vocab import clear_command, load_filter_acts, set_command
+    from fun_time.filter_vocab import load_filter_acts, set_command
 
     query, forms = next(iter(load_filter_acts().items()))
     form = forms[0]
     assert VOICE_COMMANDS[f"portrait {form}"] == set_command("portrait", query)
     assert VOICE_COMMANDS[form] == set_command("both", query)
-    assert VOICE_COMMANDS["clear portrait"] == clear_command("portrait")
+
+
+def test_clearing_a_filter_scopes_like_every_other_satellite_action():
+    """It used to be "clear portrait" — the side word standing where an action's
+    own words stand everywhere else in the grid.  Now it is the grid's own
+    "no filter" under two more names, so the side word goes where it always does
+    and bare reaches the side last navigated rather than always both."""
+    for phrase in ("no filter", "filter off", "clear filter", "show everything"):
+        assert VOICE_COMMANDS[phrase] == "active_no_filter"
+        assert VOICE_COMMANDS[f"portrait {phrase}"] == "portrait_no_filter"
+        assert VOICE_COMMANDS[f"{phrase} landscape"] == "landscape_no_filter"
+        assert VOICE_COMMANDS[f"both {phrase}"] == "both_no_filter"
+    assert "clear portrait" not in VOICE_COMMANDS
+    assert "clear landscape" not in VOICE_COMMANDS
 
 
 def test_filter_phrases_reach_the_recognizer_grammar():

@@ -360,7 +360,9 @@ def test_seed_startup_states_blanks_genaus_display(tmp_path: Path):
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
 
-    assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "DISPLAY_OFF"]
+    assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
+        "PAUSE", "DISPLAY_OFF", "SET_VOLUME 100 0",
+    ]
 
 
 def _nau_verbs(tmp_path: Path) -> list[str]:
@@ -377,7 +379,9 @@ def test_seed_startup_states_hands_the_primary_slot_to_genau_for_a_genau_session
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
 
-    assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["RESUME", "DISPLAY_ON"]
+    assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
+        "RESUME", "DISPLAY_ON", "SET_VOLUME 100 0",
+    ]
     assert _nau_verbs(tmp_path) == [
         "SET_HYBRID 0", "DISPLAY_OFF", "SET_VOLUME 100 0", "SET_F_MODE 0",
     ]
@@ -404,7 +408,7 @@ def test_seed_startup_states_puts_genaus_hud_up_for_a_hybrid_session(tmp_path: P
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="hybrid")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-        "RESUME", "HUD_ON", "DISPLAY_ON",
+        "RESUME", "HUD_ON", "DISPLAY_ON", "SET_VOLUME 100 0",
     ]
     assert _nau_verbs(tmp_path)[:2] == ["SET_HYBRID 1", "DISPLAY_ON"]
 
@@ -431,6 +435,19 @@ def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: P
 
     assert read_volume(volume_file) == 40
     assert _nau_verbs(tmp_path)[0] == "SET_VOLUME 40 0"
+
+
+def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
+    """Genau draws the primary display's volume chip in the mode it owns the
+    screen, so it is told the level like Nau is — in every mode, not only its own,
+    or the chip it draws is wrong for as long as it takes the first "quieter"."""
+    genau_cmd = tmp_path / "genau_cmd.txt"
+
+    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, volume=40, muted=True)
+
+    verbs = genau_cmd.read_text(encoding="utf-8").splitlines()
+    assert verbs[-1] == "SET_VOLUME 40 1"
+    assert verbs[-1] == _nau_verbs(tmp_path)[-2], "the two players are told the same"
 
 
 def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Path):
@@ -672,7 +689,7 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
     # Genau is told to come back up painting and driving; the reveal is what
     # then lets it, so both players are still held here.
     assert kwargs["genau_cmd_file"].read_text(encoding="utf-8").splitlines() == [
-        "RESUME", "DISPLAY_ON",
+        "RESUME", "DISPLAY_ON", "SET_VOLUME 100 0",
     ]
     assert kwargs["nau_paused_file"].read_text(encoding="utf-8") == "1"
 

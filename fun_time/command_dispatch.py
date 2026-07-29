@@ -1393,6 +1393,7 @@ def _dispatch_audio(
     and say on screen what it now is."""
     publish_audio_level(
         nau_cmd_file=config.nau_cmd_file,
+        genau_cmd_file=config.genau_cmd_file,
         audio_volume_file=config.audio_volume_file,
         volume=state.volume,
         muted=state.muted,

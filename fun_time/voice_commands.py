@@ -255,8 +255,12 @@ _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
     # joins them, but only sided — bare it belongs to Nau; see below.)
     "no_loop": ("no loop", "loop off"),
     # "no filter" drops just the filter, where "reset" puts the whole side back to
-    # its defaults (lock, order, loop and all).
-    "no_filter": ("no filter", "filter off"),
+    # its defaults (lock, order, loop and all).  "clear filter" and "show
+    # everything" are the same gesture said another way; they used to live in
+    # filter_vocab with their own commands and their own scoping ("clear
+    # portrait"), which put the side word where every other phrase here puts an
+    # action's own words.  In the grid they scope like everything else.
+    "no_filter": ("no filter", "filter off", "clear filter", "show everything"),
     # "filter" is the same gesture named after what it leaves behind — the side's
     # filter, the one the HUD lights and "no filter" drops — so "portrait filter"
     # and "filter portrait" say "portrait lock action", and bare it filters the
