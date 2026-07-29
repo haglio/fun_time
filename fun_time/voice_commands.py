@@ -374,12 +374,14 @@ for _word, _value in _NUMBER_WORDS.items():
     for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
         VOICE_COMMANDS[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
 
-# "auto advance five" -> genau_advance_5.  These are seconds, not a 0-100 axis,
+# "clip seconds five" -> genau_advance_5.  These are seconds, not a 0-100 axis,
 # so they need finer granularity than the tens-only _NUMBER_WORDS above: a spoken
 # integer 1-60, single digits and compounds ("twenty five" -> 25) alike.  Zero is
 # omitted — a nought-second interval would step the clip every frame.  Naming a
-# small number was the whole point of auto-advance, and its absence from the
+# small number was the whole point of the interval, and its absence from the
 # grammar was why the recognizer fell back to free capture ("otto advance five").
+# The phrase says what the number means — how many seconds a clip holds the
+# screen — rather than naming the machinery that moves it on.
 _SPOKEN_ONES: dict[str, int] = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
     "six": 6, "seven": 7, "eight": 8, "nine": 9,
@@ -405,7 +407,7 @@ def _spoken_seconds() -> dict[str, int]:
 
 
 for _word, _value in _spoken_seconds().items():
-    VOICE_COMMANDS[f"auto advance {_word}"] = f"genau_advance_{_value}"
+    VOICE_COMMANDS[f"clip seconds {_word}"] = f"genau_advance_{_value}"
 
 # "min amp" -> genau_amp_0, "max speed" -> genau_speed_100, etc.
 _EXTREMES: dict[str, int] = {"min": 0, "max": 100}

@@ -917,10 +917,10 @@ def _dispatch_lock_video(
 
 # Keyboard navigation of the HUD map.  "<side>_nav_<dir>" moves a selection
 # around the frozen map (right/left walk the seed row, down/up the action
-# column) and switches the satellite to the picked cell; "<side>_nav_lock"
-# (Enter) locks the selection and re-homes the map on it.
+# column) and switches the satellite to the picked cell.  Enter used to lock the
+# selection and re-home the map on it; the side's own lock key already does
+# both, so that command was retired rather than kept as a second way in.
 _NAV_DIRECTIONS = ("left", "right", "up", "down")
-_NAV_LOCK_SIDES = {"portrait_nav_lock": 2, "landscape_nav_lock": 3}
 
 
 def _parse_nav(command: str) -> tuple[int, str] | None:
@@ -934,10 +934,10 @@ def _parse_nav(command: str) -> tuple[int, str] | None:
 
 
 def _is_hud_nav_command(command: str) -> bool:
-    """Whether *command* drives HUD keyboard navigation — a direction step or the
-    Enter lock.  Those manage the side's nav anchor themselves, so the generic
-    "any other side command re-homes the map" rule leaves them alone."""
-    return _parse_nav(command) is not None or command in _NAV_LOCK_SIDES
+    """Whether *command* drives HUD keyboard navigation — a direction step.  Those
+    manage the side's nav anchor themselves, so the generic "any other side
+    command re-homes the map" rule leaves them alone."""
+    return _parse_nav(command) is not None
 
 
 def _nav_anchor(state: BridgeState, which: int) -> str:
@@ -988,20 +988,6 @@ def _navigate_hud(
     if target_cell == cell or not target or _same_video(target, current):
         return state, [WindowOp(op="notice", key="No clip that way", source=source, level=FAILED_NOTICE_LEVEL)]
     return _dispatch_play_video(which, target, state, config)
-
-
-def _dispatch_nav_lock(
-    which: int, state: BridgeState, config: BridgeConfig
-) -> tuple[BridgeState, list[WindowOp]]:
-    """Enter: lock the selected clip and re-home the map on it (like a
-    double-click).  The selection is whatever the satellite is now playing, so
-    this locks the current clip and drops the frozen nav anchor, letting the HUD
-    re-home its map on the freshly locked clip."""
-    state = _clear_nav_anchor(state, which)
-    current = _satellite_current(config, which)
-    if not current:
-        return state, []
-    return _dispatch_lock_video(which, current, state, config)
 
 
 def _cycle_variant(
@@ -1131,13 +1117,10 @@ def dispatch_command(
             state = _clear_nav_anchor(state, side)
 
     # Keyboard navigation of the HUD map: "<side>_nav_<dir>" moves the selection
-    # and switches the satellite; "<side>_nav_lock" (Enter) locks the selection.
+    # and switches the satellite to it.
     nav = _parse_nav(command)
     if nav is not None:
         return _navigate_hud(*nav, state, config)
-    nav_lock_side = _NAV_LOCK_SIDES.get(command)
-    if nav_lock_side is not None:
-        return _dispatch_nav_lock(nav_lock_side, state, config)
 
     # A HUD thumbnail click sends "<side>_play_video|<path>": switch straight to
     # that clip. The path is carried after the "|" ("|" is illegal in a Windows
