@@ -6,11 +6,11 @@ from pathlib import Path
 from fun_time.filter_vocab import (
     clear_command,
     decode_filter_command,
+    display_forms,
     filter_voice_commands,
     load_filter_acts,
     set_command,
     set_commands_for_scope,
-    spoken_forms_for_both,
 )
 
 # A tame stand-in for the real (git-ignored) vocabulary. It exercises every
@@ -76,11 +76,15 @@ def test_set_commands_for_scope_lists_every_act_without_the_clear():
         assert len(commands) == len(ACTS)
 
 
-def test_spoken_forms_for_both_covers_every_act_form():
-    forms = spoken_forms_for_both(ACTS)
-    assert "delta form" in forms
-    assert "beta gamma" in forms
-    assert len(forms) == sum(len(v) for v in ACTS.values())
+def test_display_forms_read_as_the_act_not_as_the_recognizer_hears_it():
+    """"delta" is voiced "delta form" because the model has no token for the real
+    word.  The reference must show "delta": the workaround is a fact about the
+    speech model, and printing it would teach the reader a word for the act that
+    nobody uses for it."""
+    forms = display_forms(ACTS)
+    assert set(forms) == set(ACTS)
+    assert "delta" in forms and "delta form" not in forms
+    assert "beta gamma" in forms  # a multi-word query reads as itself
 
 
 def test_the_default_vocabulary_is_loaded_and_usable():
