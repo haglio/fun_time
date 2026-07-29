@@ -13,7 +13,6 @@ font: the paint module measures text and hands the width back in.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass, field
 
 # --- layout constants (px) ---------------------------------------------------
@@ -25,7 +24,6 @@ MAP_THUMB_H = 54
 MAP_GAP = 5
 ROW_GAP = 12        # vertical gap between action rows — roomier than the seed gap
 ACT_GAP = 6         # gap between two acts stacked in one row label
-LOCK_BAND_H = 24
 COL_LABEL_H = 13    # header strip above the map for the "Seed N" column labels
 COL_LABEL_GAP = 4   # breathing room between a column label and its thumbnail
 MIN_GUTTER = 30     # row-label gutter: never narrower than this
@@ -58,53 +56,12 @@ MAP_CELLS = 3
 # the panel before the first clip arrives.  A real cell is always measured.
 CELL_W = {"portrait": 30, "landscape": 96}
 
-STATUS_SEPARATOR = " · "  # what fun_time joins the status line's parts with
-STATUS_LINE_H = 14        # what each line past the first adds to the band
+STATUS_BAND_H = 24        # the band the line sits in — one line deep, always
 STATUS_DOT = 10           # the active-side dot at the head of the band
 STATUS_TEXT_X = PAD + STATUS_DOT + 8  # where the status text starts, clear of it
 
 Rect = tuple[int, int, int, int]  # (x, y, w, h)
 Cell = tuple[str, int]            # ("corner", 0) | ("seed", i) | ("action", i)
-
-
-# --- the status line ---------------------------------------------------------
-
-
-def wrap_status_line(
-    label: str, available: int, measure: Callable[[str], int]
-) -> list[str]:
-    """fun_time's status line broken into lines that fit *available* px.
-
-    The portrait panel is only as wide as its clips, and the line can carry four
-    parts at once — what is holding playback, the browse order, F-mode, and the
-    act filter.  Pillow clips at the panel's edge without a word, so an unwrapped
-    line does not read as "there is more": it reads as the states that ran out of
-    room being *off*, which is the one thing a status line must never say.
-
-    Breaks fall only on the separators, so a part is never split across lines and
-    never reads as two states — a part too wide for the panel keeps its own line
-    and overhangs instead.
-    """
-    parts = [part for part in label.split(STATUS_SEPARATOR) if part]
-    lines: list[str] = []
-    for part in parts:
-        if lines:
-            candidate = lines[-1] + STATUS_SEPARATOR + part
-            if measure(candidate) <= available:
-                lines[-1] = candidate
-                continue
-        lines.append(part)
-    return lines
-
-
-def status_band_height(lines: int) -> int:
-    """The room the status takes above the map, for a status of *lines* lines.
-
-    A wrapped line pushes the map down rather than being drawn over its first row.
-    An empty status keeps the one-line band: the map's geometry is measured off
-    the band's foot, so a side with nothing to say must not shift its own map.
-    """
-    return LOCK_BAND_H + max(0, lines - 1) * STATUS_LINE_H
 
 
 @dataclass(frozen=True)
@@ -189,27 +146,34 @@ def map_column_height(cells: int) -> int:
     return cells * MAP_THUMB_H + max(0, cells - 1) * ROW_GAP
 
 
-def panel_width(gutter: int, row_width: int) -> int:
-    """How wide the panel has to be around a map row *row_width* across: the
+def panel_width(gutter: int, row_width: int, status_width: int) -> int:
+    """How wide the panel has to be: room for a map row *row_width* across — the
     row-label gutter, the map's left "…" slot, the row, its right "…" slot, and the
-    seed-loop and expand buttons past that.
+    seed-loop and expand buttons past that — or room for a status line
+    *status_width* across beside its dot, whichever asks for more.
 
-    Independent of anything the status says, so the status can be wrapped into this
-    width before the height is known.
+    The map's demand is a floor, not the answer.  The line carries everything one
+    side is doing at once, and three of those parts already outrun a row of portrait
+    clips; the panel gives rather than the line, because a status broken over two
+    lines reads as two states instead of one.
     """
-    return PAD + gutter + ELLIPSIS_ROOM + row_width + ELLIPSIS_ROOM + MAP_RIGHT_RESERVE + PAD
+    for_map = PAD + gutter + ELLIPSIS_ROOM + row_width + ELLIPSIS_ROOM + MAP_RIGHT_RESERVE + PAD
+    return max(for_map, STATUS_TEXT_X + status_width + PAD)
 
 
-def panel_height(status_lines: int, column_height: int) -> int:
-    """How tall the panel has to be: the status band (as many lines as it wrapped
-    to) and the control band, then — around a map column *column_height* deep — the
-    "Seed N" header strip, the column's own "…" slots, and the action-loop button
-    below it.
+def panel_height(column_height: int) -> int:
+    """How tall the panel has to be: the status and control bands, then — around a
+    map column *column_height* deep — the "Seed N" header strip, the column's own
+    "…" slots, and the action-loop button below it.
+
+    Nothing here depends on what the status says: the band is one line whatever the
+    line carries, because the panel widens to hold it rather than wrapping it.  So
+    the map is anchored in the same place on every panel.
 
     *column_height* is 0 before the satellite's first clip, when the panel is the
     two bands and nothing else: there is no map, so no room is kept for one.
     """
-    foot = PAD + status_band_height(status_lines) + CTRL_BAND_H
+    foot = PAD + STATUS_BAND_H + CTRL_BAND_H
     if column_height:
         foot += (COL_LABEL_H + COL_LABEL_GAP + ELLIPSIS_ROOM
                  + column_height + ELLIPSIS_ROOM + MAP_BOTTOM_RESERVE)
