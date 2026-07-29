@@ -46,8 +46,8 @@ from .hud import (
     MAX_GUTTER,
     MIN_GUTTER,
     PAD,
+    STATUS_BAND_H,
     STATUS_DOT,
-    STATUS_LINE_H,
     STATUS_TEXT_X,
     HudCell,
     HudModel,
@@ -74,9 +74,7 @@ from .hud import (
     panel_width,
     playing_rect,
     seed_column_label,
-    status_band_height,
     thumbnail_rects,
-    wrap_status_line,
 )
 
 _PLACEHOLDER = (48, 48, 60)  # a thumbnail fun_time has not produced yet
@@ -239,8 +237,8 @@ class HudRenderer:
             min_width=max((text_width(self._tiny, line) for line in counts), default=0) + MAP_GAP,
         )
         # Then the map is windowed, and the panel measured around the cells that won
-        # — the width from the gutter and the row's real cells, the status wrapped
-        # into that width, the height from how many lines that took and how many rows
+        # — the width from the gutter and the row's real cells, or from the status
+        # line where that is the longer of the two, and the height from how many rows
         # the column has.  Measuring first and windowing into what was left is what
         # made a row of wide clips two cells instead of three.
         model, seed_win, action_win = self._window(model)
@@ -248,12 +246,9 @@ class HudRenderer:
         row = ([corner_thumb.width] + [thumb.width for thumb in seed_thumbs]
                if corner_thumb is not None
                else [cell_width(model.side)] * MAP_CELLS)
-        width = panel_width(gutter_w, map_row_width(row))
-        lines = wrap_status_line(
-            model.lock_label, width - PAD - STATUS_TEXT_X,
-            lambda text: text_width(self._body, text))
+        width = panel_width(gutter_w, map_row_width(row),
+                            text_width(self._body, model.lock_label))
         height = panel_height(
-            len(lines),
             map_column_height(1 + len(action_thumbs)) if corner_thumb is not None else 0)
         panel = HudPanel(width, height)
         image, draw = panel.image, panel.draw
@@ -269,14 +264,14 @@ class HudRenderer:
         # looping, the browse order, F-mode and the filter, so there is nothing else
         # to lay out up here.  Drawn full-strength whatever it says — dimming it when
         # the side happened to be unlocked hid it in the case where it carries most —
-        # and wrapped (above) against the room the dot leaves, because all five at
-        # once outruns the narrow portrait panel and Pillow clips the tail away in
-        # silence.  It is the one thing the panel is *not* widened for: a status is
-        # occasionally long, and a map-shaped panel is the point.
-        for line_no, line in enumerate(lines):
-            draw.text((STATUS_TEXT_X, y + 11 + line_no * STATUS_LINE_H), line,
-                      font=self._body, anchor="ls", fill=(*TEXT_PRIMARY, 255))
-        y += status_band_height(len(lines))
+        # and on one line always, in the room the panel was widened above to leave
+        # it.  All five at once outruns a row of portrait clips, and the two other
+        # answers to that are both worse: Pillow clips the tail away in silence,
+        # which reads as the states that ran out of room being *off*, and a second
+        # line reads as two states rather than one side's.
+        draw.text((STATUS_TEXT_X, y + 11), model.lock_label,
+                  font=self._body, anchor="ls", fill=(*TEXT_PRIMARY, 255))
+        y += STATUS_BAND_H
 
         # The side's own controls, above the map: they act on the satellite and
         # the clip on screen, not on anything the map draws, so they are laid out
