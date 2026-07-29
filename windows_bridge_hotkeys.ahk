@@ -79,18 +79,18 @@ Left::QueueCommand("portrait_prev")
 Right::QueueCommand("portrait_next")
 Up::QueueCommand("portrait_trash")
 Down::QueueCommand("portrait_lock")
-; End whichever group loop portrait is running, back to its browse; the filter
-; stays.  This and landscape's E below are the only way out of a group loop at the
-; keyboard.  E was cycle action until cycling a clip's action and seed went
-; spoken-only on both sides — those two held Del/End here and E/Q there, and no
-; one ever reached for them.
-Home::QueueCommand("portrait_no_loop")
+; Step portrait's loop on: seed family, then action group, then off (back to its
+; browse, filter kept), then round again.  This and landscape's E below are the
+; only way into or out of a group loop at the keyboard.  E was cycle action until
+; cycling a clip's action and seed went spoken-only on both sides — those two held
+; Del/End here and E/Q there, and no one ever reached for them.
+Home::QueueCommand("portrait_loop")
 a::QueueCommand("landscape_prev")
 d::QueueCommand("landscape_next")
 w::QueueCommand("landscape_trash")
 s::QueueCommand("landscape_lock")
-; Landscape's half of the loop exit above.
-e::QueueCommand("landscape_no_loop")
+; Landscape's half of the loop cycle above.
+e::QueueCommand("landscape_loop")
 ; HUD map keyboard navigation: Shift + arrows move a selection around the
 ; portrait map and Shift + WASD around the landscape map, each switching the
 ; satellite to the selected clip (like a thumbnail click).  Enter locks the

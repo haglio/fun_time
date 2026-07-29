@@ -2964,6 +2964,167 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
+# --- the loop key's cycle: seeds, actions, off -------------------------------
+
+def _cycle_index(tmp_path: Path, *, seed_family: bool = True,
+                 action_group: bool = True) -> tuple[GroupIndex, str, str, str]:
+    """A three-clip index where the clip on screen (a) has both loops to offer: an
+    action group {a, b} and a seed family {a, c}.  Either can be collapsed to a
+    group of one — a clip nobody re-seeded, or a subject with a single act."""
+    files = {name: tmp_path / f"{name}.mp4" for name in ("a", "b", "c")}
+    for f in files.values():
+        f.write_text("x", encoding="utf-8")
+    a, b, c = (str(files["a"]), str(files["b"]), str(files["c"]))
+    ka, kb, kc = normalize_path_key(a), normalize_path_key(b), normalize_path_key(c)
+    return GroupIndex(
+        action_key_by_path={ka: "subject", kb: "subject"},
+        action_members={"subject": [a, b] if action_group else [a]},
+        action_by_path={ka: "Alpha", kb: "Beta", kc: "Alpha"},
+        seed_key_by_path={ka: ("family", "1"), kc: ("family", "2")},
+        seed_members={"family": [a, c] if seed_family else [a]},
+        path_by_key={ka: a, kb: b, kc: c},
+    ), a, b, c
+
+
+def test_the_loop_key_starts_a_seed_loop_when_nothing_is_looping(tmp_path: Path):
+    """The cycle's first stop: a side that is not looping starts on the seed family."""
+    config = _make_config(tmp_path)
+    index, a, _b, c = _cycle_index(tmp_path)
+
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+        state, ops = dispatch_command("portrait_loop", _make_state(), config)
+
+    assert state.portrait_loop == "seed"
+    assert _playlist(config, 2) == [a, c]
+    assert [op.key for op in ops if op.op == "notice"] == ["Loop portrait: 2 seeds"]
+
+
+def test_the_loop_key_steps_a_seed_loop_on_to_the_action_loop(tmp_path: Path):
+    config = _make_config(tmp_path)
+    index, a, b, _c = _cycle_index(tmp_path)
+
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+        state, _ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
+
+    assert state.portrait_loop == "action"
+    assert _playlist(config, 2) == [a, b]
+
+
+def test_the_loop_key_steps_an_action_loop_off(tmp_path: Path):
+    """The cycle's last stop is the old behavior — back to the browse, filter kept."""
+    config = _make_config(tmp_path)
+    index, a, _b, _c = _cycle_index(tmp_path)
+    browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
+
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+            patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+        state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="action"), config)
+
+    assert state.portrait_loop == ""
+    assert _playlist(config, 2) == [a, *browse]
+    assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
+
+
+def test_the_loop_key_wraps_from_off_back_round_to_the_seeds(tmp_path: Path):
+    """Three presses come back where they started, so the key never dead-ends."""
+    config = _make_config(tmp_path)
+    index, a, _b, _c = _cycle_index(tmp_path)
+    _set_current(config, 2, a)
+
+    state = _make_state()
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+            patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[a]):
+        axes = []
+        for _press in range(4):
+            state, _ops = dispatch_command("portrait_loop", state, config)
+            axes.append(state.portrait_loop)
+
+    assert axes == ["seed", "action", "", "seed"]
+
+
+def test_the_loop_key_steps_over_an_axis_with_no_second_clip(tmp_path: Path):
+    """A clip nobody re-seeded has no seed loop to offer, so the press lands on the
+    action loop instead of on the single-video lock a "loop seeds" would mean.
+
+    Landing on that lock left the side's loop flag empty, so the very next press
+    tried the seeds again and locked again — the action loop was unreachable from
+    the keyboard on every clip with a family of one.
+    """
+    config = _make_config(tmp_path)
+    index, a, b, _c = _cycle_index(tmp_path, seed_family=False)
+
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+        state, _ops = dispatch_command("portrait_loop", _make_state(), config)
+
+    assert state.portrait_loop == "action"
+    assert _playlist(config, 2) == [a, b]
+    assert "LOCK" not in _cmds(config, 2)
+
+
+def test_the_loop_key_locks_when_neither_group_holds_a_second_clip(tmp_path: Path):
+    """With nothing on the clip to loop, the press does what "loop seeds" does on a
+    lone clip — a single-video lock — rather than falling through to an off that is
+    already off, which would rebuild the browse for nothing."""
+    config = _make_config(tmp_path)
+    index, a, _b, _c = _cycle_index(tmp_path, seed_family=False, action_group=False)
+
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+            patch("fun_time.command_dispatch.satellite_browse_paths") as browse:
+        state, ops = dispatch_command("portrait_loop", _make_state(), config)
+
+    browse.assert_not_called()  # the browse is never rebuilt by a press that locks
+    assert _cmds(config, 2) == ["LOCK"]
+    assert state.locked2 is True
+    assert state.portrait_loop == ""
+    assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
+
+
+def test_the_loop_key_ends_a_loop_the_clip_has_drifted_out_of(tmp_path: Path):
+    """A loop whose clip has auto-advanced somewhere with no groups still steps
+    off — the off stop is never skipped for want of a loopable axis."""
+    config = _make_config(tmp_path)
+    index, a, _b, _c = _cycle_index(tmp_path, seed_family=False, action_group=False)
+
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+            patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[a]):
+        state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
+
+    assert state.portrait_loop == ""
+    assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
+
+
+def test_the_loop_key_drives_only_its_own_side(tmp_path: Path):
+    config = _make_config(tmp_path)
+    index, a, _b, c = _cycle_index(tmp_path)
+
+    _set_current(config, 3, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+        state, _ops = dispatch_command("landscape_loop", _make_state(), config)
+
+    assert (state.landscape_loop, state.portrait_loop) == ("seed", "")
+    assert _playlist(config, 3) == [a, c]
+    assert _playlist(config, 2) == []
+
+
+def test_the_loop_key_does_nothing_with_no_clip_on_screen(tmp_path: Path):
+    """No current clip means no groups to read, so the press must not fall through
+    to the off stop and rebuild the browse."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.satellite_browse_paths") as browse:
+        state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
+
+    browse.assert_not_called()
+    assert state.portrait_loop == "seed"
+    assert ops == []
+
+
 def test_a_reorder_clears_only_its_own_sides_loop(tmp_path: Path):
     """A reorder rebuilds the side it names, so that side's loop goes — and the
     other side, which was not rebuilt, keeps looping."""

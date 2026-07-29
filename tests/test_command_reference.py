@@ -129,12 +129,15 @@ def test_cycle_action_and_seed_are_spoken_only():
         assert phrase in owning[0].voice
 
 
-def test_ending_a_group_loop_is_key_bound_per_side():
-    """A group loop is entered by voice but ended by a key too: Home for portrait,
-    E for landscape.  A loop is otherwise the one satellite state with no way out at
-    the keyboard, so each binding has to reach the same command the phrase does.
+def test_the_group_loops_are_cycled_by_one_key_per_side():
+    """Each satellite's whole loop lives on one key — Home for portrait, E for
+    landscape — which steps it seeds → actions → off → seeds.
+
+    That key started out as a plain way out of a loop, but ending one is only the
+    last of the three stops, so it reaches the cycle command rather than no_loop.
+    Ending a loop outright stays spoken ("portrait end loop"), and holds no key.
     """
-    expected = {"portrait_no_loop": "Home", "landscape_no_loop": "E"}
+    expected = {"portrait_loop": "Home", "landscape_loop": "E"}
     rows = _all_rows()
     for cmd, key in expected.items():
         bound = _ahk_binding_for(cmd)
@@ -144,6 +147,11 @@ def test_ending_a_group_loop_is_key_bound_per_side():
         owning = [r for r in rows if cmd in r.commands]
         assert len(owning) == 1, f"expected exactly one row for {cmd}"
         assert owning[0].hotkeys == (key,)
+    for cmd in ("portrait_no_loop", "landscape_no_loop"):
+        assert _ahk_binding_for(cmd) is None, f"{cmd} gave its key to the cycle"
+        owning = [r for r in rows if cmd in r.commands]
+        assert len(owning) == 1, f"expected exactly one row for {cmd}"
+        assert owning[0].hotkeys == ()
 
 
 def test_both_section_lists_combined_satellite_commands():
