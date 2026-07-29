@@ -637,8 +637,16 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     workarounds = spoken - set(display_forms())
     assert workarounds, "expected at least one act voiced differently than it reads"
     assert not workarounds & set(set_row.voice), workarounds
+    # Clearing scopes like every other action now, so its phrases derive with the
+    # rest and the side word never appears: "portrait clear filter", not "clear
+    # portrait".
     drop_row = next(r for r in rows if r.description.startswith("Drop the filter"))
     assert set(drop_row.voice) == {"no filter", "filter off", "clear filter", "show everything"}
+    assert VOICE_COMMANDS["portrait clear filter"] == "portrait_no_filter"
+    assert VOICE_COMMANDS["clear filter landscape"] == "landscape_no_filter"
+    assert VOICE_COMMANDS["both show everything"] == "both_no_filter"
+    assert VOICE_COMMANDS["clear filter"] == "active_no_filter"
+    assert "clear portrait" not in VOICE_COMMANDS
 
 
 def test_every_filter_voice_command_is_represented():

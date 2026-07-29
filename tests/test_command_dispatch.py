@@ -1235,12 +1235,16 @@ def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
 
 
 def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
+    """Clearing one side is "portrait no filter" — the grid's own command, which
+    "portrait clear filter" now reaches too.  It had a second command family of
+    its own (``filter_portrait_clear``) that did exactly this; two ways in for one
+    action is how the two drift, so the phrases joined the grid instead."""
     config = _make_config(tmp_path)
     state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
-        new_state, _ops = dispatch_command("filter_portrait_clear", state, config)
+        new_state, _ops = dispatch_command("portrait_no_filter", state, config)
 
     assert new_state.portrait_filter == ""
     assert new_state.landscape_filter == "kissing"  # untouched
@@ -2150,8 +2154,9 @@ def test_the_primary_is_told_the_mute_as_well_as_the_level(tmp_path: Path):
 
 
 def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
-    """What Nau's slider asks for: an absolute level, not a step.  It lifts a mute
-    for the same reason reaching for the volume does in the Windows mixer."""
+    """What either player's slider asks for: an absolute level, not a step.  It
+    lifts a mute for the same reason reaching for the volume does in the Windows
+    mixer."""
     config = _make_config(tmp_path)
 
     new_state, ops = dispatch_command(
@@ -2161,6 +2166,22 @@ def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 35 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "35"
     assert ops == [WindowOp(op="notice", key="Volume 35%", source="main")]
+
+
+def test_the_level_reaches_both_players_that_draw_it(tmp_path: Path):
+    """Nau and Genau each draw the primary display's volume chip, and each is told
+    the level and the mute as two facts — the sink gets a mute as a zero, which
+    cannot say whether the speaker is off or turned all the way down.
+
+    Genau is told in every mode, not only the ones it is showing in, so the chip
+    is already right when it takes the screen.
+    """
+    config = _make_config(tmp_path)
+
+    dispatch_command("audio_mute", _make_state(volume=70, primary_mode="nau"), config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
+    assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
 
 
 def test_setting_the_volume_clamps_and_ignores_nonsense(tmp_path: Path):
