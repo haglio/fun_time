@@ -94,6 +94,11 @@ class NauStatus:
     # loop ``state`` does.  Defaults on because that is what a primary with
     # nothing to say is doing.
     locked: bool = True
+    # The A/B range Nau is looping, as it published it — 0/0 when nothing is.
+    # Read through :attr:`loop_bounds` rather than directly; the pair only means
+    # a loop alongside ``state``.
+    loop_in_ms: int = 0
+    loop_out_ms: int = 0
 
     @property
     def funscript_driving(self) -> bool:
@@ -101,6 +106,21 @@ class NauStatus:
         not resting.  The moment-to-moment hybrid handoff signal: whoever this
         points to (Nau's funscript, else Genau) also owns speed control."""
         return self.has_funscript and not self.funscript_resting
+
+    @property
+    def loop_bounds(self) -> tuple[int, int] | None:
+        """The loop Nau is running, or None for no loop.
+
+        A loop dies with the player process holding it, so this file is its only
+        record and a reopened session is handed it back over the video the resume
+        put at the top of the primary's playlist.  Both halves have to agree: a
+        state of "looping" with no range is a Nau too old to publish one, and a
+        range with nothing looping is the empty pair a cancelled loop leaves —
+        either taken alone would hand mpv a loop it cannot play.
+        """
+        if self.state != "looping" or self.loop_out_ms <= self.loop_in_ms:
+            return None
+        return (self.loop_in_ms, self.loop_out_ms)
 
 
 def read_nau_status(path: Path) -> NauStatus:
@@ -120,6 +140,8 @@ def read_nau_status(path: Path) -> NauStatus:
             has_funscript=_status_bool(values, "has_funscript"),
             funscript_resting=_status_bool(values, "funscript_resting"),
             locked=_status_bool(values, "locked", default=True),
+            loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
+            loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
         )
     except (OSError, ValueError):
         return NauStatus()
