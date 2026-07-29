@@ -110,8 +110,8 @@ def test_the_pause_button_says_which_way_it_will_go():
     assert icon(True) == "\u25B6"
 
 
-def test_pausing_everything_does_not_paint_the_button_a_state_colour():
-    """The chips beside it are lights; this is a button, and colouring it would
+def test_pausing_everything_does_not_paint_the_button_a_state_color():
+    """The chips beside it are lights; this is a button, and coloring it would
     read as one of them having come on."""
     layout = compute_dashboard_bar_layout()
 

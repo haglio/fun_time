@@ -809,7 +809,7 @@ def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_p
 
 
 def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_path: Path):
-    """The rebuild for another app's playlist has to honour the F-mode the
+    """The rebuild for another app's playlist has to honor the F-mode the
     satellites came back in — the main player's own reading of it, funscripted
     clips only — or one player quietly holds the whole library while the HUDs
     say F-mode."""

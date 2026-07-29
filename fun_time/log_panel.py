@@ -3,7 +3,7 @@
 It tails :mod:`fun_time.event_log` and shows the session's log stream, filtered by
 a verbosity dial and by which window each line is about.  The brief notices
 ("Clip saved", "No other seeds") flash over the player they concern — see
-:mod:`fun_time.notice_overlay` — and also land here in the stream, coloured by
+:mod:`fun_time.notice_overlay` — and also land here in the stream, colored by
 level, so the panel is the place to scroll back through everything that happened
 — and, via the button that follows the cursor down the rows, to lift a line out
 of.
@@ -180,7 +180,7 @@ _LEVEL_COLORS: dict[int, QColor] = {
 
 
 def level_color(level: int) -> QColor:
-    """The colour for *level*, rounding down to the loudest level it reaches."""
+    """The color for *level*, rounding down to the loudest level it reaches."""
     for threshold in sorted(_LEVEL_COLORS, reverse=True):
         if level >= threshold:
             return _LEVEL_COLORS[threshold]
@@ -201,7 +201,7 @@ def _drawn_icon(size: int, color: QColor, draw) -> QIcon:
     """Run *draw* over a transparent square and hand back the result as an icon.
 
     The button's two glyphs are drawn rather than shipped as files: at 12px they
-    are a handful of strokes, and a drawn one takes its colour from the palette
+    are a handful of strokes, and a drawn one takes its color from the palette
     instead of baking one into an asset.
     """
     pixmap = QPixmap(size, size)
@@ -302,7 +302,7 @@ class LogPanelWidget(QWidget):
         # widget, so the dashboard can lift it up into the top bar beside the
         # app's own buttons rather than spend a row of the strip on it.  The
         # toggles are compact checkable buttons with short labels (the full name
-        # is the tooltip) rather than word-labelled checkboxes.
+        # is the tooltip) rather than word-labeled checkboxes.
         self.controls = QWidget()
         controls = QHBoxLayout(self.controls)
         controls.setContentsMargins(0, 0, 0, 0)

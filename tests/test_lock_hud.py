@@ -292,7 +292,7 @@ def test_the_status_line_holds_every_state_the_side_is_in():
 
 
 def test_the_status_line_says_when_f_mode_is_narrowing_the_library():
-    """F-mode is a filtering layer of its own — favourites only — sitting under
+    """F-mode is a filtering layer of its own — favorites only — sitting under
     whatever else the side is doing.  Left off the line, a side that has been cut
     to a handful of clips looks identical to one browsing everything."""
     index = _index(current=CUR, seed_sibs=[S1])
@@ -305,7 +305,7 @@ def test_the_status_line_says_when_f_mode_is_narrowing_the_library():
 
 
 def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
-    """The unlabelled phrase at the end can only be the filter — that is what makes
+    """The unlabeled phrase at the end can only be the filter — that is what makes
     it readable without a label — so a second, fixed filtering word goes ahead of it
     rather than after."""
     index = _index(current=CUR, seed_sibs=[S1])
@@ -866,7 +866,7 @@ def test_build_panels_keeps_a_widened_seed_loop_wide_across_the_loose_family(tmp
         metadata_root=metadata_root,
     )
 
-    assert portrait.active_loop == "seed"            # the loop is still recognised
+    assert portrait.active_loop == "seed"            # the loop is still recognized
     assert portrait.current == a                     # frozen on the widened anchor
     assert portrait.playing == b                     # the widened member on screen
     assert set(portrait.seed_siblings) == {a2, b}    # the whole loose family, minus the anchor

@@ -6,7 +6,7 @@ the orchestrator, so the orchestrator's own graceful ``_shutdown_children()``
 never runs and its children (the two satellites, plus Nau/Genau/dashboard/
 audio) are orphaned.  The teardown must therefore kill them itself, by the
 exact processes recorded in ``bridge_pids.ini`` — PID *and* creation time, so a
-PID Windows has since recycled is recognised rather than shot.
+PID Windows has since recycled is recognized rather than shot.
 """
 from __future__ import annotations
 

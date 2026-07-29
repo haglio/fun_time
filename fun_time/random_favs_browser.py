@@ -77,14 +77,14 @@ def extract_path_from_hyperlink(cell: str) -> str:
 
 @dataclass(frozen=True)
 class FavEntry:
-    """One favourited video: where it lives on disk, and its gallery page."""
+    """One favorited video: where it lives on disk, and its gallery page."""
 
     local_path: str
     web_url: str
 
 
 def load_favs_entries(favs_file: Path) -> list[FavEntry]:
-    """Read every favourite from *favs_file*, keeping both of its columns."""
+    """Read every favorite from *favs_file*, keeping both of its columns."""
     if not favs_file.is_file():
         return []
     entries: list[FavEntry] = []
@@ -100,7 +100,7 @@ def load_favs_entries(favs_file: Path) -> list[FavEntry]:
 
 
 def target_for_fav(entry: FavEntry, regen: RegenConfig) -> TabTarget:
-    """Resolve the page a favourite should open, and the clip it shows meanwhile.
+    """Resolve the page a favorite should open, and the clip it shows meanwhile.
 
     A provider video with a metadata sidecar targets the generate page carrying its
     original prompts (``#ft=``), which the autofill userscript reads to fill the

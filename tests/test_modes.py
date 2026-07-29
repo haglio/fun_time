@@ -142,7 +142,7 @@ def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
 
     # Each satellite gets a plain one-path-per-line playlist the native player
     # reads; the main slot is Nau, which reads its own .tsv playlist.  One
-    # video from each source survives the favourites filter.
+    # video from each source survives the favorites filter.
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(portrait_video)]
     assert _lines(state_dir / "landscape_playlist.tsv") == [str(landscape_video)]
     assert _lines(state_dir / "nau_playlist.tsv") == [f"{main_video}\t{mirrored}"]

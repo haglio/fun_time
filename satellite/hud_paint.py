@@ -82,7 +82,7 @@ _PLACEHOLDER = (48, 48, 60)  # a thumbnail fun_time has not produced yet
 _DIM = 0.5      # non-playing thumbnails; the one on screen stays full
 _BORDER_W = 2   # the lock ring around the held clip
 _DOT = 1        # radius of one dot in a "…" mark — small, so three read as three
-_DOT_GAP = 4    # centre-to-centre spacing of those dots along the axis
+_DOT_GAP = 4    # center-to-center spacing of those dots along the axis
 _COUNT_LINE_H = 11  # line pitch of the axis counts in the map's top-left corner
 
 # The loop (U+21BB) and expand (U+2194) glyphs on the buttons: Segoe UI has no
@@ -254,7 +254,7 @@ class HudRenderer:
 
         x, y = PAD, PAD
         # The dot at the head of the band: white while a bare "lock" or "next" would
-        # land on this side, the palette's grey otherwise.  Always drawn, never
+        # land on this side, the palette's gray otherwise.  Always drawn, never
         # hidden — an absent dot and an idle dot look the same, and then only the
         # player that *has* the floor says anything, which is half an answer.
         draw.ellipse([x, y + 2, x + STATUS_DOT, y + 2 + STATUS_DOT],
@@ -508,7 +508,7 @@ class HudRenderer:
         single button shape every control on this HUD is drawn with, so a new one
         cannot invent its own look.
 
-        Off it is an outline in the muted grey the rest of the chrome uses; on it
+        Off it is an outline in the muted gray the rest of the chrome uses; on it
         fills *on_color* and the mark reverses out of it.  That fill is white for
         everything here except the lock: green across this family means favorites
         and the funscripts, and the lock is the gesture that favorites a clip, so
@@ -526,9 +526,9 @@ class HudRenderer:
                       on_color=WHITE) -> None:
         """One of the panel's square buttons with a font glyph on it.
 
-        The glyph is centred on its own ink: the padlock, the bin and the transport
+        The glyph is centerd on its own ink: the padlock, the bin and the transport
         arrows all sit high in a box that runs to the descender, so the font's own
-        centring dropped every one of them toward the bottom of its button.
+        centering dropped every one of them toward the bottom of its button.
         """
         ink = self._button_box(draw, rect, on=on, on_color=on_color)
         bx, by, bw, bh = rect
@@ -550,7 +550,7 @@ class HudRenderer:
     def _draw_controls(self, draw, controls: list[tuple[Rect, str]], favorite: Rect,
                        model: HudModel) -> None:
         """The side's own buttons, and the mark saying whether the clip on screen
-        is one of the favourites.
+        is one of the favorites.
 
         The lock and F-mode are states, so they light while they are on; the other
         three do a thing rather than be in one.  The star is a readout, not a

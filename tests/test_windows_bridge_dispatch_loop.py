@@ -2596,7 +2596,7 @@ class TestHudPublishing:
         landscape = json.loads((tmp_path / "landscape_hud.json").read_text(encoding="utf-8"))
         assert portrait["side"] == "portrait"
         assert portrait["locked"] is True
-        # The status line composes the lot — lock, order, and the filter unlabelled.
+        # The status line composes the lot — lock, order, and the filter unlabeled.
         assert portrait["lock_label"] == "Locked · Shuffle · alpha"
         assert portrait["corner"]["path"] == "C:/v/p.mp4"
         assert landscape["locked"] is False
@@ -2742,7 +2742,7 @@ class TestHudPublishing:
         assert published("nau") is True
         assert published("genau") is False
 
-    def test_each_sides_panel_says_whether_its_own_clip_is_a_favourite(self, tmp_path):
+    def test_each_sides_panel_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
         """The dashboard's panel used to say this by turning green; the HUD marks
         it, so the loop has to judge each side's clip against the favs file."""
         runner = self._runner_with_hud(tmp_path)
@@ -2757,7 +2757,7 @@ class TestHudPublishing:
         assert portrait["is_favorite"] is True
         assert landscape["is_favorite"] is False
 
-    def test_the_favourites_file_is_re_read_only_when_it_moves(self, tmp_path):
+    def test_the_favorites_file_is_re_read_only_when_it_moves(self, tmp_path):
         """Every publish asks the question, ~7x a second for the whole session,
         while the list itself moves a few times an hour — so the read is gated on
         the file actually having changed, and picks the change up when it does."""

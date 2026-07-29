@@ -89,11 +89,11 @@ class HudModel:
     # any HUD that says where those words are going.
     active: bool = False
 
-    # Whether the clip on screen is one of the favourites.  The dashboard said
+    # Whether the clip on screen is one of the favorites.  The dashboard said
     # this by turning the side's panel green; the HUD marks it in the control
     # band, beside the buttons that act on that clip.
     is_favorite: bool = False
-    # Whether THIS side is in F-mode — its browse narrowed to the favourites.  The
+    # Whether THIS side is in F-mode — its browse narrowed to the favorites.  The
     # dashboard carried one light for the whole room; each player has its own now,
     # so it lights this side's own button in the control band.
     f_mode: bool = False
@@ -212,7 +212,7 @@ def map_window(total: int, playing: int, limit: int = MAP_CELLS) -> MapWindow:
     start, end = playing, playing + 1
     while end - start < min(limit, total):
         # Take from whichever side has been given fewer cells so far — that is what
-        # centres *playing* — with the right winning ties so a fresh loop reads left
+        # centers *playing* — with the right winning ties so a fresh loop reads left
         # to right.  A side that has run out defers to the other.
         if end < total and (start == 0 or end - playing - 1 <= playing - start):
             end += 1
@@ -349,7 +349,7 @@ def ellipsis_rects(
 # library the browse draws from, so it sits past the ones that do.  Each name is
 # also its command's verb, so "portrait_prev" and "landscape_trash" fall out of
 # the same tuple that draws them and the button can never post a command it isn't
-# labelled for.
+# labeled for.
 CONTROLS = ("prev", "next", "lock", "trash", "fmode")
 
 
@@ -362,7 +362,7 @@ def control_button_rects(x: int, y: int) -> list[tuple[Rect, str]]:
 
 
 def favorite_mark_rect(right: int, y: int) -> Rect:
-    """The favourite mark, at the far end of the control band.
+    """The favorite mark, at the far end of the control band.
 
     A readout, not a button: the dashboard said this with a green panel, and the
     star says it in the space the panel used to occupy.  It keeps the row's far
@@ -406,7 +406,7 @@ class HudTargets:
     filter: list[tuple[Rect, str]]
     expand: Rect | None
     control: list[tuple[Rect, str]] = field(default_factory=list)
-    # The favourite mark is a readout, so it is here only to carry its tooltip.
+    # The favorite mark is a readout, so it is here only to carry its tooltip.
     favorite: Rect | None = None
 
 
@@ -484,14 +484,14 @@ def act_is_filtered(act: str, filter_query: str) -> bool:
     row's acts is drawn lit.
 
     A filter for one act lights that act alone: on a "POV / Gamma" row a "gamma"
-    filter whitens "Gamma" and leaves "POV" grey, which is what says *why* the clip
+    filter whitens "Gamma" and leaves "POV" gray, which is what says *why* the clip
     is here.  A filter set from a clip carrying two acts names both, so both light.
     """
     return any(query in _norm_act(act) for query in _acts(filter_query))
 
 
 def label_is_filtered(label: str, filter_query: str) -> bool:
-    """Whether the filter keeps a row labelled *label* — its button's lit state, and
+    """Whether the filter keeps a row labeled *label* — its button's lit state, and
     what the press reads to decide between narrowing and lifting.
 
     fun_time keeps a clip when the query appears as a *contiguous substring* of its
@@ -521,7 +521,7 @@ CONTROL_TOOLTIPS = {
     "trash": "Unfavorite it — or mark weird when it is not a favorite",
     "fmode": "F-Mode — browse only the favorites on this player",
 }
-FAVORITE_TOOLTIP = "In the favourites"
+FAVORITE_TOOLTIP = "In the favorites"
 
 
 def _in(rect: Rect | None, px: int, py: int) -> bool:
@@ -641,13 +641,13 @@ _ACTION_ACRONYMS = {"pov": "POV"}
 
 # The camera words the metadata writes in front of an act: they say how the clip was
 # shot, not what happens in it.  Split off as an act of their own, so a filter for
-# the act lights the act and leaves the camera word grey — on one line "POV redacted"
+# the act lights the act and leaves the camera word gray — on one line "POV redacted"
 # both words went white under a "redacted" filter, saying the camera angle was part
 # of what you had asked for.
 #
 # Both of them, because Evolver's backfill tool scopes *every* act it records by one
 # ("Side Alpha", "POV Alpha" — `backfill/vocabulary.py`, `_CAMERAS`), and it never
-# writes a bare act.  So every clip labelled from here on carries one of these, and a
+# writes a bare act.  So every clip labeled from here on carries one of these, and a
 # list holding only "pov" would leave every "Side …" row lighting both words.
 _ACT_MODIFIERS = ("pov", "side")
 

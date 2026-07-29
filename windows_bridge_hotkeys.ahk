@@ -145,7 +145,7 @@ p::QueueCommand("projection_cycle")
 z::QueueCommand("recenter_view")
 
 ; Genau direct control hotkeys.  Each pair reads left-down / right-up: 7/9 sit
-; above u/o for amplitude, the way u/o and j/l already work for centre and speed.
+; above u/o for amplitude, the way u/o and j/l already work for center and speed.
 7::QueueCommand("genau_amplitude_down")
 9::QueueCommand("genau_amplitude_up")
 u::QueueCommand("genau_center_down")
