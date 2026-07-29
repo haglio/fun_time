@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from player_core.hud_status import status_line
+from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL, status_line
 
 from fun_time.media_metadata import (
     GroupIndex,
@@ -47,7 +47,7 @@ def _status_label(
     return status_line(
         playing_set=f"Looping {loop_axis}s" if loop_axis else "",
         locked=locked,
-        order="Latest" if latest else "Shuffle",
+        order=LATEST_LABEL if latest else SHUFFLE_LABEL,
         f_mode=f_mode,
         filter_label=filter_query,
     )
