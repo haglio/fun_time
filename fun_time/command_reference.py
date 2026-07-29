@@ -328,7 +328,7 @@ _SECTIONS: tuple[_Section, ...] = (
         ),
         key_headers=("Portrait", "Landscape"),
         note="Alone, a phrase reaches whatever you last navigated — a side, or "
-        "the primary.  Add “portrait”, “landscape” or “both”, before it or "
+        "the main player.  Add “portrait”, “landscape” or “both”, before it or "
         "after, to aim it: “portrait next”, “next both”.",
         merge_scopes=True,
     ),
