@@ -218,7 +218,7 @@ def ensure_broker(
     A broker older than its own sources IS permission, and is the one case that
     gets one.  That is two timestamps rather than a guess, and what it means is
     that our command vocabulary has moved past what that process can understand —
-    an unrecognised verb is dropped with no log line and no error, so the feature
+    an unrecognized verb is dropped with no log line and no error, so the feature
     that added it simply appears dead.  RETRACT shipped into exactly that gap.
     Startup is when to spend the restart: the session is coming up around it
     anyway, and either timestamp being unreadable means we cannot tell, which is
@@ -241,9 +241,9 @@ def ensure_broker(
 
 
 def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: str | Path) -> None:
-    """Pick this session's favourites and record the tabs Chrome should open.
+    """Pick this session's favorites and record the tabs Chrome should open.
 
-    Lazy loading puts a local landing page in front of each favourite, so ten
+    Lazy loading puts a local landing page in front of each favorite, so ten
     heavy generate pages do not all load at startup.
     """
     config = load_config(config_path)

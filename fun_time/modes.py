@@ -338,7 +338,7 @@ def build_satellite_playlists(
 ) -> None:
     """Build and write the Portrait/Landscape satellite playlists (the two satellites).
 
-    Each satellite honours its own filter, its own F-mode AND its own ordering —
+    Each satellite honors its own filter, its own F-mode AND its own ordering —
     newest-first when its ``*_recent`` is set, otherwise shuffled (with
     action-group collapse and watch weighting when *library* is given) — since
     every one of the three is a sided command and the two satellites can be in
@@ -391,7 +391,7 @@ def build_all_playlists(
     """Build and write all three playlists — both satellites' and Nau's.
 
     F-mode is per player, so each takes its own flag: a session where only the
-    landscape satellite is narrowed to favourites builds the other two whole.
+    landscape satellite is narrowed to favorites builds the other two whole.
     The one caller that wants all three at once is a fresh start with nothing
     to resume, which is why every flag defaults off.
     """

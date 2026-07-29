@@ -134,7 +134,7 @@ The main monitor's left column stacks the **Dashboard** across its top and the *
 
 The log panel is a widget inside the dashboard window — one window, not two — so it rides the dashboard's topmost band, minimize/restore and close. It tails `state/event_log.jsonl` and shows the **stream** of everything the session logs, filtered by a verbosity dial (`DEBUG`/`INFO`/`NOTICE`/`WARNING`/`ERROR`, default `NOTICE`) and by per-window toggles across one compact row. Both settings persist in `state/log_panel.ini`.
 
-The brief **notices** — "Clip saved", "No other seeds", "Next seed", "Similar clip" — flash over the top-center of the player they concern (a portrait notice over the portrait satellite, a main-player notice over the Nau/Genau display) and then fade. They also land in the stream, coloured by level, so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream. Long lines in the stream **word-wrap** rather than being cut off, so the tail of a message (a video name, a phrase heard) is readable.
+The brief **notices** — "Clip saved", "No other seeds", "Next seed", "Similar clip" — flash over the top-center of the player they concern (a portrait notice over the portrait satellite, a main-player notice over the Nau/Genau display) and then fade. They also land in the stream, colored by level, so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream. Long lines in the stream **word-wrap** rather than being cut off, so the tail of a message (a video name, a phrase heard) is readable.
 
 Every recognized voice command flashes a **green confirmation** — the phrase it matched — over the player it addresses, so you can see what was heard. A command that hits a dead end ("No other seeds", "No action metadata") flashes **red** instead. And when the recognizer clearly hears speech that matches no command, it flashes **"unrecognized voice command: ‹what it heard›"** in red — over the player the phrase named, if it named one ("landscape ‹something garbled›" reports on landscape, not the main player) — a second, unrestricted recognizer runs alongside the grammar one purely to transcribe that, so an out-of-grammar phrase surfaces as text instead of vanishing.
 
@@ -239,7 +239,7 @@ This README deliberately does not repeat the key table — open the **?** popup 
 
 The satellite voice commands can be spoken with or without naming a side. The side word always comes first, so naming one — "portrait lock", "landscape next" — acts on that player as always. Said **bare** — "lock", "unlock", "next", "previous", "weird", "wrong action", "action", "seed" — the command acts on the **active side**: whichever satellite you most recently touched, by voice *or* by keyboard. So if you were just navigating the portrait with `←`/`→`, a plain "lock" locks the portrait; switch to the landscape with `A`/`D` and "lock" now locks the landscape. The active side is remembered (persisted in the bridge's shared state) until the other side is addressed. Bare commands are voice-only — the keys stay side-specific.
 
-Every player says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active player and grey on the others. It is always drawn — an absent dot could not be told from an idle one — so exactly one dot is lit at any moment. Each satellite reads its own off the panel the dispatch loop publishes; Nau is told over `SET_ACTIVE`, appended to its command file so the message cannot displace a queued verb.
+Every player says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active player and gray on the others. It is always drawn — an absent dot could not be told from an idle one — so exactly one dot is lit at any moment. Each satellite reads its own off the panel the dispatch loop publishes; Nau is told over `SET_ACTIVE`, appended to its command file so the message cannot displace a queued verb.
 
 ### Modes
 
@@ -434,7 +434,7 @@ Values:
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
 Cruise control and auto advance are separate switches: cruise wanders the
-stroke's amplitude, centre, speed and waveform, while auto advance moves on to
+stroke's amplitude, center, speed and waveform, while auto advance moves on to
 the next clip — every 8–12 seconds unless `ADVANCE <seconds>` names a pace.
 Auto advance holds while the room is paused, so OmniPause leaves the clip on
 screen where the user left it. `TOGGLE_CLIP_LOCK` pins the current clip while

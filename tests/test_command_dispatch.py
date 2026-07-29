@@ -3337,16 +3337,16 @@ def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Pat
 def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_path: Path):
     config = _make_config(tmp_path)
     meant = "C:/v/meant.mp4"
-    labelled: list[str] = []
+    labeled: list[str] = []
 
     _set_current(config, 2, "C:/v/advanced_to.mp4")
     with patch("fun_time.command_dispatch._video_action_label",
-               side_effect=lambda path, _config: labelled.append(path) or "Beta Gamma"), \
+               side_effect=lambda path, _config: labeled.append(path) or "Beta Gamma"), \
          patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
         dispatch_command("portrait_lock_action", _make_state(), config, target_path=meant)
 
-    assert labelled == [meant]
+    assert labeled == [meant]
     assert mock_filter.call_args.kwargs["query"] == "beta gamma"
 
 

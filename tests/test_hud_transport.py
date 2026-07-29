@@ -48,7 +48,7 @@ def test_hud_payload_carries_whether_this_side_is_the_active_one():
     assert active["active"] is True
     assert idle["active"] is False
 
-def test_hud_payload_carries_whether_the_clip_is_a_favourite():
+def test_hud_payload_carries_whether_the_clip_is_a_favorite():
     """The dashboard's panel said this by turning green; the HUD marks it instead,
     so the flag has to reach the player along with the map."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):

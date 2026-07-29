@@ -3,7 +3,7 @@
 Every video in the library exists twice.  The original the site produced lands
 under ``1_sorted/<source>/<orientation>/<name>.mp4``; Topaz then upscales it to
 ``2_outbox/upscaled_by_orientation/<orientation>/<source>/<name>_topaz.mp4``,
-which is what plays and what a favourite records.
+which is what plays and what a favorite records.
 
 The two renditions are not interchangeable for a browser.  The upscales are
 hundreds of megabytes of 1080p-plus HEVC, which Chrome decodes only through a

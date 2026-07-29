@@ -131,7 +131,7 @@ def get_process_creation_time(pid: int) -> int | None:
     name a process.  ``(pid, creation_time)`` does: a process can only take a
     PID after its previous owner is gone, so the newcomer's creation time is
     strictly later.  Record this alongside a PID and compare it before killing,
-    and a recycled PID is recognised rather than shot.
+    and a recycled PID is recognized rather than shot.
 
     ``GetProcessTimes`` fills lpCreationTime with a FILETIME (100-nanosecond
     ticks since 1601-01-01 UTC) and accepts a handle opened for

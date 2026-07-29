@@ -84,7 +84,7 @@ def test_parse_hud_reads_the_panel_fun_time_published():
     assert model.actions == (HudCell(path="C:/v/a1.mp4", thumb="C:/t/a1.jpg", label="gamma"),)
 
 
-def test_parse_hud_reads_whether_the_clip_is_a_favourite():
+def test_parse_hud_reads_whether_the_clip_is_a_favorite():
     """What the dashboard's panel said by turning green — now a mark on the HUD,
     so it is read off the player showing the clip rather than off a schematic."""
     assert parse_hud(json.dumps({"side": "portrait", "is_favorite": True})).is_favorite is True
@@ -140,7 +140,7 @@ def test_a_loop_partway_through_keeps_the_clip_on_screen_in_the_middle():
     and leaving nothing highlighted."""
     window = map_window(_LOOP, playing=5)
 
-    assert (window.start, window.count) == (4, 3)  # 4, 5, 6 — the playing one centred
+    assert (window.start, window.count) == (4, 3)  # 4, 5, 6 — the playing one centerd
     assert window.more_before is True
     assert window.more_after is True
 
@@ -341,7 +341,7 @@ def test_label_is_filtered_reads_a_filter_the_way_fun_time_applies_it():
 
 def test_act_is_filtered_picks_out_which_of_a_rows_acts_the_filter_named():
     """The row says whether the clip is here; this says which of its acts is why —
-    the rule that whitens one line of a label and leaves its neighbours grey."""
+    the rule that whitens one line of a label and leaves its neighbours gray."""
     assert act_is_filtered("Gamma", "gamma") is True
     assert act_is_filtered("POV", "gamma") is False        # a camera word is not the act
     assert act_is_filtered("Side", "gamma") is False
@@ -355,7 +355,7 @@ def test_act_is_filtered_picks_out_which_of_a_rows_acts_the_filter_named():
 
 def test_button_tooltip_names_each_button():
     """Every glyph on the panel is cryptic on purpose, so each one names itself on
-    hover — the side's own controls and the favourite mark included."""
+    hover — the side's own controls and the favorite mark included."""
     targets = HudTargets(
         click=[],
         loop=[((0, 0, 20, 20), "action"), ((30, 0, 20, 20), "seed")],
@@ -371,7 +371,7 @@ def test_button_tooltip_names_each_button():
     assert button_tooltip(targets, 35, 35) == "More seeds — widen the net"
     assert button_tooltip(targets, 5, 65) == "Previous clip"
     assert button_tooltip(targets, CTRL_BTN + MAP_GAP + 5, 65) == "Next clip"
-    assert button_tooltip(targets, 205, 65) == "In the favourites"
+    assert button_tooltip(targets, 205, 65) == "In the favorites"
     assert button_tooltip(targets, 400, 400) == ""
 
 
@@ -398,7 +398,7 @@ def test_action_label_blocks_separate_comma_joined_acts():
 def test_action_label_blocks_split_a_leading_camera_word_into_its_own_act():
     """A camera word in front of an act is not part of it, so it becomes its own
     block — which is what lets a "gamma" filter light "Gamma" and leave the camera
-    word grey instead of whitening both.
+    word gray instead of whitening both.
 
     Both camera words, since Evolver's backfill scopes every act it writes by one of
     them and never writes a bare act.

@@ -806,7 +806,7 @@ def test_reset_joins_the_order_agnostic_satellite_grid():
 
 
 def test_wrong_action_joins_the_order_agnostic_satellite_grid():
-    """"Wrong action" says the clip on screen is labelled as doing the wrong
+    """"Wrong action" says the clip on screen is labeled as doing the wrong
     thing.  It is about one clip, like "weird", so it is sided like one: bare it
     reaches the side last addressed, and a side word works in either order."""
     assert VOICE_COMMANDS["wrong action"] == "active_wrong_action"

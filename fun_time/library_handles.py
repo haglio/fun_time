@@ -1,6 +1,6 @@
 """The main library as browsable handles — one per video, not per file.
 
-The library on disk is organised by *pipeline stage*, not by content: one video
+The library on disk is organized by *pipeline stage*, not by content: one video
 turns up under ``0 unsorted``, again under ``1 could use work/…``, again under
 ``3_good_to_go/processed``, each a different trim or upscale of the same scene.
 Those folders are the librarian's business, not the viewer's, so browsing them
@@ -124,7 +124,7 @@ def band_names(bands: dict[tuple[str, bool], list[tuple[str, ...]]]) -> dict[tup
 
     A folder whose cuts and whole videos have been filed into two folders of
     their own is named after them, so the header and Explorer read the same
-    words.  That is recognised by each band having a *dominant* second folder and
+    words.  That is recognized by each band having a *dominant* second folder and
     the two differing: where the split is the sidecar's alone the two bands share
     their stage folders, and where a folder holds only whole videos there is no
     second band to differ from — in both of those the folder keeps its own name

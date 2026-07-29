@@ -2,7 +2,7 @@
 
 A tab first lands on a tiny local page that holds its real destination, shows
 the clip you might want to recreate, and navigates on the first reload (Ctrl+R)
-or click.  The RFB opens ten favourites at once and the lock hotkey opens one
+or click.  The RFB opens ten favorites at once and the lock hotkey opens one
 mid-session; both go through here rather than loading a heavy generate page
 straight away.
 
@@ -82,7 +82,7 @@ def write_tab_pages(pages_dir: Path, targets: Sequence[TabTarget]) -> list[str]:
     """Write this session's tab pages into *pages_dir*, returning their file URIs.
 
     Every page from the previous session is removed first — the startup pages
-    name favourites this session did not pick, and the lock pages name videos
+    name favorites this session did not pick, and the lock pages name videos
     nobody is looking at any more.  Nothing else ever cleans them up.
     """
     pages_dir.mkdir(parents=True, exist_ok=True)
