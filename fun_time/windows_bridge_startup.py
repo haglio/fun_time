@@ -27,6 +27,8 @@ from .runtime_flow import SET_F_MODE_CMD, apply_mode_switch
 from .satellite_control import read_satellite_status
 from .session_resume import (
     playlist_fits_sources,
+    playlist_opens_on,
+    resume_primary_loop,
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
@@ -419,10 +421,11 @@ def start_core_session(
     # toggle uses.  Shuffle and Premiere still rebuild on demand, and that is
     # where videos added since come in.
     nau_playlist = build_playlist_file_path(state_path, PLAYLIST_NAU)
+    nau_status = read_nau_status(Path(nau_status_file))
     resumed = resume_playlists([
         (portrait_playlist, read_satellite_status(Path(portrait_status_file)).video),
         (landscape_playlist, read_satellite_status(Path(landscape_status_file)).video),
-        (nau_playlist, read_nau_status(Path(nau_status_file)).video),
+        (nau_playlist, nau_status.video),
     ])
     # Come back to the state that session was in, too — F-mode, each side's
     # filter, order and lock, any group loop, the sound level, which player had
@@ -475,6 +478,15 @@ def start_core_session(
         (Path(portrait_cmd_file), carried.locked2),
         (Path(landscape_cmd_file), carried.locked3),
     ])
+    # The primary's loop is the same kind of thing, and queued the same way —
+    # but only if the primary really did come back onto the video the loop was
+    # cut from.  A rebuild above, or a clip deleted since, leaves some other
+    # video leading, and those bounds would then mark out a stretch of a video
+    # nobody chose.
+    resume_primary_loop(
+        Path(nau_cmd_file),
+        nau_status.loop_bounds if playlist_opens_on(nau_playlist, nau_status.video) else None,
+    )
     launch_core_apps(
         python_exe=satellite_python_exe,
         satellite_module=satellite_module,

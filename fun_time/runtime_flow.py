@@ -33,6 +33,11 @@ PLAY_FILE_CMD = "PLAY_FILE"
 # looks like any other.  The satellites need no such verb — fun_time draws their
 # HUD model itself.
 SET_F_MODE_CMD = "SET_F_MODE"
+# Puts Nau back into an A/B loop it was left running, bounds and all.  The only
+# piece of the primary's state a restart has to hand back rather than rebuild: a
+# loop is a range inside one video, so it dies with the player process while
+# everything else rides in on the playlist or a seeded flag.
+SET_LOOP_CMD = "SET_LOOP"
 
 
 def _satellite_library(
