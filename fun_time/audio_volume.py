@@ -35,28 +35,33 @@ def read_volume(path: Path) -> int:
 
 
 def publish_audio_level(
-    *, nau_cmd_file: Path, audio_volume_file: Path, volume: int, muted: bool
+    *, nau_cmd_file: Path, genau_cmd_file: Path, audio_volume_file: Path,
+    volume: int, muted: bool,
 ) -> None:
-    """Put *volume* / *muted* on both of the main player's audio sinks.
+    """Put *volume* / *muted* on the main player's audio sinks and on both players.
 
     Nau's mpv carries the video's sound; the Genau audio companion carries the
     clip music.  Which one is audible depends on the mode, so both are told the
     same level every time and the bridge alone holds the authoritative value.
 
     The companion is only ever asked to be quiet, so a mute reaches it as a level
-    of zero and it stays dumb.  Nau also *draws* the level, and zero cannot tell
-    it muted from turned all the way down, nor what unmuting should return to —
-    so it gets the level and the mute, and works the audible loudness out itself.
+    of zero and it stays dumb.  The two *players* also draw the level, and zero
+    cannot tell muted from turned all the way down, nor what unmuting should
+    return to — so each gets the level and the mute, and works the audible
+    loudness out itself.  Genau is told in every mode, not only the ones it is
+    showing in, so the chip it draws is already right when it takes the screen.
 
     One function because startup seeds the session's opening level through it and
-    every spoken "quieter" goes through it after: two sinks with different
-    spellings of the same state is exactly the pair that drifts when each caller
-    writes them itself.
+    every spoken "quieter" goes through it after: sinks with different spellings
+    of the same state are exactly the pair that drifts when each caller writes
+    them itself.
 
-    Nau's verb *joins* its queue rather than replacing it.  Startup seeds more
-    than one thing on that channel — the level and whether F-mode is on — before
-    Nau is up to drain any of them, and a whole-file write would land whichever
-    went last and silently drop the other.
+    A player's verb *joins* its queue rather than replacing it.  Startup seeds
+    more than one thing on Nau's channel — the level and whether F-mode is on —
+    before Nau is up to drain any of them, and a whole-file write would land
+    whichever went last and silently drop the other.
     """
-    append_command(nau_cmd_file, f"SET_VOLUME {volume} {int(muted)}")
+    verb = f"SET_VOLUME {volume} {int(muted)}"
+    append_command(nau_cmd_file, verb)
+    append_command(genau_cmd_file, verb)
     write_volume(audio_volume_file, MIN_VOLUME if muted else volume)

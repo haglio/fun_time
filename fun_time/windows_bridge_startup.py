@@ -329,6 +329,7 @@ def seed_startup_states(
         write_flag_file(path, True)
     publish_audio_level(
         nau_cmd_file=Path(nau_cmd_file),
+        genau_cmd_file=Path(genau_cmd_file),
         audio_volume_file=Path(audio_volume_file),
         volume=volume,
         muted=muted,

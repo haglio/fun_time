@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 from fun_time.filter_vocab import (
-    clear_command,
     decode_filter_command,
     display_forms,
     filter_voice_commands,
@@ -23,11 +22,10 @@ ACTS = {
 }
 
 
-def test_set_and_clear_commands_round_trip_through_decode():
+def test_set_commands_round_trip_through_decode():
     for scope in ("both", "portrait", "landscape"):
         for query in ACTS:
             assert decode_filter_command(set_command(scope, query)) == (scope, query)
-        assert decode_filter_command(clear_command(scope)) == (scope, "")
 
 
 def test_decode_returns_none_for_non_filter_commands():
@@ -56,11 +54,15 @@ def test_multi_word_query_round_trips():
     assert decode_filter_command(voice["portrait beta gamma"]) == ("portrait", "beta gamma")
 
 
-def test_clear_phrases_map_to_clear_commands():
+def test_clearing_a_filter_is_not_this_module_s_business():
+    """It was — "clear filter" for both sides, "clear portrait" for one — and that
+    put the side word where every other satellite phrase puts an action's own
+    words.  Clearing is "no filter" in the grid now, so it scopes like the rest:
+    "portrait clear filter", either order, bare for the side last navigated."""
     voice = filter_voice_commands(ACTS)
-    assert voice["clear filter"] == clear_command("both")
-    assert voice["clear portrait"] == clear_command("portrait")
-    assert voice["clear landscape"] == clear_command("landscape")
+    for phrase in ("clear filter", "show everything", "clear portrait", "clear landscape"):
+        assert phrase not in voice
+    assert all("_clear" not in command for command in voice.values())
 
 
 def test_every_generated_voice_command_decodes():
@@ -68,11 +70,10 @@ def test_every_generated_voice_command_decodes():
         assert decode_filter_command(command) is not None
 
 
-def test_set_commands_for_scope_lists_every_act_without_the_clear():
+def test_set_commands_for_scope_lists_every_act():
     for scope in ("both", "portrait", "landscape"):
         commands = set_commands_for_scope(scope, ACTS)
         assert set_command(scope, "beta gamma") in commands
-        assert clear_command(scope) not in commands
         assert len(commands) == len(ACTS)
 
 

@@ -50,13 +50,13 @@ _SCOPES: dict[str, str] = {"": "both", "portrait": "portrait", "landscape": "lan
 
 _SCOPE_TOKENS: tuple[str, ...] = ("both", "portrait", "landscape")
 
-# Spoken clear phrase -> the scope it clears.
-_CLEAR_PHRASES: dict[str, str] = {
-    "clear filter": "both",
-    "show everything": "both",
-    "clear portrait": "portrait",
-    "clear landscape": "landscape",
-}
+# Clearing a filter is NOT here.  It used to be — "clear filter" for both sides,
+# "clear portrait" for one — and that spelling put the scope word where every
+# other satellite phrase puts an action's own words: "clear portrait" against the
+# grid's "portrait <action>".  It is now "clear filter" in the grid proper (a
+# synonym of "no filter" in :mod:`fun_time.voice_commands`), so it scopes the way
+# the rest do: "portrait clear filter", either word order, and bare it reaches
+# the side last navigated instead of always both.
 
 
 def _slug(query: str) -> str:
@@ -71,16 +71,13 @@ def set_command(scope: str, query: str) -> str:
     return f"filter_{scope}_{_slug(query)}"
 
 
-def clear_command(scope: str) -> str:
-    return f"filter_{scope}_clear"
-
-
 def decode_filter_command(command: str) -> tuple[str, str] | None:
     """``(scope, query)`` for a filter dispatch command, or None if it isn't one.
 
-    ``query`` is ``""`` for a clear command; ``scope`` is one of
-    both/portrait/landscape.  Decoding is purely structural, so an unknown act
-    still round-trips (and simply matches nothing downstream).
+    ``scope`` is one of both/portrait/landscape.  Decoding is purely structural,
+    so an unknown act still round-trips (and simply matches nothing downstream).
+    Dropping a filter is not one of these — that is ``<side>_no_filter``, in the
+    satellite grid with every other side action.
     """
     if not command.startswith("filter_"):
         return None
@@ -89,10 +86,7 @@ def decode_filter_command(command: str) -> tuple[str, str] | None:
         prefix = f"{scope}_"
         if not rest.startswith(prefix):
             continue
-        remainder = rest[len(prefix):]
-        if remainder == "clear":
-            return scope, ""
-        return scope, _unslug(remainder)
+        return scope, _unslug(rest[len(prefix):])
     return None
 
 
@@ -104,8 +98,6 @@ def filter_voice_commands(acts: Acts = FILTER_ACTS) -> dict[str, str]:
             command = set_command(scope, query)
             for form in forms:
                 out[f"{scope_word} {form}".strip()] = command
-    for phrase, scope in _CLEAR_PHRASES.items():
-        out[phrase] = clear_command(scope)
     return out
 
 

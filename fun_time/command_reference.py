@@ -26,7 +26,7 @@ import html
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from fun_time.filter_vocab import clear_command, display_forms, set_commands_for_scope
+from fun_time.filter_vocab import display_forms, set_commands_for_scope
 from fun_time.voice_commands import VOICE_COMMANDS
 
 
@@ -317,18 +317,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 voice_display=display_forms(),
             ),
             _Row("Filter to the current clip's action", (), _sided("lock_action")),
-            _Row(
-                "Drop the filter — keep the order and everything else",
-                (),
-                _sided("no_filter")
-                + (clear_command("both"), clear_command("portrait"), clear_command("landscape")),
-                # The clear phrases carry their scope in a shape the note does not
-                # describe ("clear portrait", not "portrait clear"), so folding
-                # them would advertise a bare "clear" that reaches nothing.  They
-                # are the same action as "no filter", which the note does aim, so
-                # the two side clears go undisplayed rather than misdescribed.
-                voice_display=("no filter", "filter off", "clear filter", "show everything"),
-            ),
+            _Row("Drop the filter — keep the order and everything else", (), _sided("no_filter")),
             _Row("Latest — reload newest-first", (), _sided("latest")),
             _Row("Shuffle — reshuffle (cancels Latest; keeps the filter)", (), _sided("shuffle")),
             _Row("F-Mode — browse only the favorites", (), _sided("fmode", "fmode_on", "fmode_off")),
