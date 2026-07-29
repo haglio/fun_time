@@ -1167,26 +1167,14 @@ def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
     assert new_state.portrait_nav_anchor == paths["subject_a"]  # re-anchored on the live clip
 
 
-def test_nav_lock_locks_the_current_clip_and_clears_the_anchor(tmp_path: Path):
-    """Enter locks the selected (current) clip and drops the frozen anchor, so the
-    HUD re-homes its map on the freshly locked clip."""
-    config, paths = _nav_config(tmp_path)
-    state = _make_state(portrait_nav_anchor=paths["subject_a"], locked2=False)
-
-    _set_current(config, 2, paths["subject_b"])
-    with (
-        patch("fun_time.command_dispatch.ensure_in_favs"),
-        patch("fun_time.command_dispatch.record_watch_event"),
-    ):
-        new_state, _ops = dispatch_command("portrait_nav_lock", state, config)
-
-    assert new_state.locked2 is True
-    assert new_state.portrait_nav_anchor == ""
-
-
 def test_a_non_nav_side_command_clears_the_nav_anchor(tmp_path: Path):
     """Any side command that is not a navigation step ends navigation, so the map
-    stops freezing and re-homes on the live clip."""
+    stops freezing and re-homes on the live clip.
+
+    Enter once had its own command for this — it locked the selection and dropped
+    the anchor — but the side's own lock key already lands here, so the extra key
+    was retired rather than kept as a second way in.
+    """
     config = _make_config(tmp_path)
     state = _make_state(portrait_nav_anchor="C:/vids/portrait/anchor.mp4")
 
@@ -1197,7 +1185,7 @@ def test_a_non_nav_side_command_clears_the_nav_anchor(tmp_path: Path):
 
 def test_landscape_nav_sets_the_active_side(tmp_path: Path):
     """A landscape nav key (Shift+WASD) makes landscape the active side, so a
-    later bare Enter (active_nav_lock) resolves to it."""
+    later bare command ("lock", "next") resolves to it."""
     config = _make_config(tmp_path)
     state = _make_state()
 

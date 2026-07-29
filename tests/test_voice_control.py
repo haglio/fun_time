@@ -202,11 +202,13 @@ class TestVoiceCommands:
     def test_a_spoken_interval_names_the_seconds(self):
         # A spoken interval covers 1-60 seconds, single digits and compounds
         # included — the tens-only vocabulary could not hear "advance five".
+        # The phrase is "clip seconds": what the number means, not the machinery.
         for word, seconds in (
             ("one", 1), ("five", 5), ("nine", 9), ("fifteen", 15),
             ("thirty", 30), ("forty five", 45), ("sixty", 60),
         ):
-            assert VOICE_COMMANDS[f"auto advance {word}"] == f"genau_advance_{seconds}"
+            assert VOICE_COMMANDS[f"clip seconds {word}"] == f"genau_advance_{seconds}"
+        assert not any(p.startswith("auto advance") for p in VOICE_COMMANDS)
 
     def test_no_spoken_advance_interval_is_zero_seconds(self):
         """A zero-second interval would step the clip every frame."""

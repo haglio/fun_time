@@ -93,10 +93,10 @@ s::QueueCommand("landscape_lock")
 e::QueueCommand("landscape_loop")
 ; HUD map keyboard navigation: Shift + arrows move a selection around the
 ; portrait map and Shift + WASD around the landscape map, each switching the
-; satellite to the selected clip (like a thumbnail click).  Enter locks the
-; selected clip and re-homes the map on it (like a double-click), acting on
-; whichever map was last navigated.  These are distinct from the unshifted nav
-; keys above, and are suspended under OmniPause like the rest.
+; satellite to the selected clip (like a thumbnail click).  These are distinct
+; from the unshifted nav keys above, and are suspended under OmniPause like the
+; rest.  Enter used to lock the selection and re-home the map on it; the side's
+; own lock key does both, so the extra key was retired.
 +Left::QueueCommand("portrait_nav_left")
 +Right::QueueCommand("portrait_nav_right")
 +Up::QueueCommand("portrait_nav_up")
@@ -105,7 +105,6 @@ e::QueueCommand("landscape_loop")
 +d::QueueCommand("landscape_nav_right")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
-Enter::QueueCommand("active_nav_lock")
 ; The main slot's lock, reaching whichever player is showing: Nau's video
 ; holds instead of walking the playlist, Genau's clip holds instead of moving on
 ; every few seconds.  The apostrophe sits beside the satellites' own lock keys on
