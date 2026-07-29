@@ -254,7 +254,12 @@ _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
     # "no filter" drops just the filter, where "reset" puts the whole side back to
     # its defaults (lock, order, loop and all).
     "no_filter": ("no filter", "filter off"),
-    "lock_action": ("lock action", "action lock"),
+    # "filter" is the same gesture named after what it leaves behind — the side's
+    # filter, the one the HUD lights and "no filter" drops — so "portrait filter"
+    # and "filter portrait" say "portrait lock action", and bare it filters the
+    # active side.  It does not collide with the no_filter phrases above: the
+    # grammar matches whole phrases, so "filter off" stays its own command.
+    "lock_action": ("lock action", "action lock", "filter"),
     "lock_on": ("lock all",),
     "reset": ("loop all",),
 }
