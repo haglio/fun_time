@@ -75,6 +75,41 @@ def _fake_core_in(mode: str):
     return launch
 
 
+def _seed_paused_flags(manifest_path) -> dict[str, Path]:
+    """Hold all three primary-slot flags, as the core session's seeding does."""
+    m = configparser.ConfigParser()
+    m.optionxform = str
+    m.read(str(manifest_path), encoding="utf-8")
+    flags = {}
+    for key in ("nau_paused_file", "genau_paused_file", "audio_paused_file"):
+        path = Path(m["commands"][key])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("1", encoding="utf-8")
+        flags[key] = path
+    return flags
+
+
+def _run_revealing_sequence(manifest_path, tmp_path, mode: str) -> None:
+    """Startup through to the reveal, resuming into *mode*, windows all faked."""
+    with patch("fun_time.windows_bridge_sequencer.start_core_session",
+               side_effect=_fake_core_in(mode)), \
+         patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+         patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+         patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+         patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+         patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
+         patch("fun_time.windows_bridge_sequencer.move_window"), \
+         patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+         patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+         patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+        mock_time.sleep = lambda _: None
+        mock_time.monotonic = MagicMock(return_value=0)
+
+        run_startup_sequence(
+            manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False,
+        )
+
+
 def _fake_ui(**kwargs):
     _write_result(kwargs["result_file"], UI_PIDS)
 
@@ -376,35 +411,37 @@ class TestRunStartupSequence:
         # same policy and it runs from the orchestrator, out of reach of this.
         assert result.primary_mode == "genau"
 
-    def test_a_genau_session_is_not_revealed_by_starting_nau(self, cfg_factory, tmp_path):
-        """The reveal starts whichever player owns the display.  Unpausing Nau
-        regardless would put a video up behind the parked window and hand the
-        OSR2 two drivers at once."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        m = configparser.ConfigParser()
-        m.optionxform = str
-        m.read(str(manifest_path), encoding="utf-8")
-        nau_paused = Path(m["commands"]["nau_paused_file"])
-        nau_paused.parent.mkdir(parents=True, exist_ok=True)
-        nau_paused.write_text("1", encoding="utf-8")
+    def test_a_genau_session_is_revealed_by_starting_genau_not_nau(self, cfg_factory, tmp_path):
+        """The reveal starts whichever player owns the display, and only that
+        one: unpausing Nau regardless would put a video up behind the parked
+        window and hand the OSR2 two drivers at once."""
+        paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session",
-                   side_effect=_fake_core_in("genau")), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
+        _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
 
-            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
+        assert paused["nau_paused_file"].read_text(encoding="utf-8").strip() == "1"
+        assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
+        assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
-        assert nau_paused.read_text(encoding="utf-8").strip() == "1"
+    def test_a_hybrid_session_is_revealed_by_starting_both(self, cfg_factory, tmp_path):
+        """Hybrid runs both: Nau's video with Genau driving the OSR2 over it."""
+        paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
+
+        _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "hybrid")
+
+        assert paused["nau_paused_file"].read_text(encoding="utf-8").strip() == "0"
+        assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
+
+    def test_a_nau_session_leaves_genau_parked_at_the_reveal(self, cfg_factory, tmp_path):
+        """Nau's own mode: Genau stays held, so nothing drives the OSR2 behind
+        the minimized window."""
+        paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
+
+        _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "nau")
+
+        assert paused["nau_paused_file"].read_text(encoding="utf-8").strip() == "0"
+        assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "1"
+        assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "1"
 
     def test_hybrid_stacks_genau_over_nau_and_parks_neither(self, cfg_factory, tmp_path):
         """Hybrid is the one mode where both share the rect: Genau's transparent

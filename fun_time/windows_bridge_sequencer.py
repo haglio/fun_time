@@ -494,14 +494,16 @@ def _run_startup_phases(
 
         progress.advance("finalizing")
 
-    # The reveal: the player that owns the display starts playing once startup
-    # completes.  That is Nau in every mode but genau, where Genau was seeded
-    # unpaused instead and Nau stays parked and silent behind it.  This runs in
-    # both paths — the loading-screen (hide_windows) path reveals everything at
-    # once, and the no-loading-screen path (integration) has nothing to hide
-    # behind but must still start its player.
-    if nau_displays(primary_mode):
-        write_flag_file(m["commands"]["nau_paused_file"], False)
+    # The reveal: startup held every player, and this releases the ones the
+    # session's mode actually puts to work — Nau in nau and hybrid, Genau (with
+    # its audio) in genau and hybrid, and the idle slot-mate not at all, so
+    # nothing plays into a minimized window or drives the OSR2 unasked.  This
+    # runs in both paths — the loading-screen (hide_windows) path reveals
+    # everything at once, and the no-loading-screen path (integration) has
+    # nothing to hide behind but must still start its players.
+    write_flag_file(m["commands"]["nau_paused_file"], not nau_displays(primary_mode))
+    for key in ("genau_paused_file", "audio_paused_file"):
+        write_flag_file(m["commands"][key], not genau_active(primary_mode))
 
     return StartupResult(
         nau_pid=nau_pid,
