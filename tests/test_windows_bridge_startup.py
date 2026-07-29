@@ -990,6 +990,44 @@ def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
     assert command[idx + 1] == "state/genau_drive.txt"
 
 
+def test_launch_genau_opens_on_the_clip_it_was_left_showing(tmp_path: Path):
+    """Genau rescans its clips folder every launch and starts at the top of it,
+    so the clip a session was left on comes back only by being named — on the
+    command line, since it has to be in hand before the first clip decodes."""
+    class FakeProc:
+        pid = 42
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        launch_genau(
+            python_exe="python.exe", genau_module="genau", config_path="cfg.json",
+            clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
+            start_clip="C:/clips/alpha.mp4",
+        )
+
+    command = popen.call_args.args[0]
+    assert command[command.index("--start-clip") + 1] == "C:/clips/alpha.mp4"
+
+
+def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume(tmp_path: Path):
+    """A first run, or a Genau that published nothing: the flag is left off
+    rather than passed empty, so Genau opens where its own scan starts."""
+    class FakeProc:
+        pid = 42
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        launch_genau(
+            python_exe="python.exe", genau_module="genau", config_path="cfg.json",
+            clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
+            start_clip="",
+        )
+
+    assert "--start-clip" not in popen.call_args.args[0]
+
+
 def test_launch_nau_forwards_metadata_dir_when_given(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
