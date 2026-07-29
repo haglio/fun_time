@@ -120,12 +120,21 @@ def order_paths(paths: list[str], *, recent: bool, rng: random.Random | None = N
     return shuffle_paths(paths, rng=rng)
 
 
-def build_main_playlist_paths(main_sources: str, f_mode: bool, *, rng: random.Random | None = None) -> list[str]:
+def build_main_playlist_paths(main_sources: str, f_mode: bool, *,
+                              recent: bool = False,
+                              rng: random.Random | None = None) -> list[str]:
+    """The main player's playlist, in the browse order it is in.
+
+    *recent* is Latest — newest-first — and its absence is Shuffle, the same two
+    orders a satellite browses in and the same words on the HUD.  The main player
+    had only the shuffle: a video that arrived an hour ago was somewhere in a
+    thousand-clip rotation with no way to ask for it, while either satellite could
+    be told "latest".
+    """
     files = collect_video_files(main_sources)
-    if not f_mode:
-        return shuffle_paths(files, rng=rng)
-    filtered = [full_path for full_path in files if has_matching_funscript(full_path)]
-    return shuffle_paths(filtered, rng=rng)
+    if f_mode:
+        files = [full_path for full_path in files if has_matching_funscript(full_path)]
+    return order_paths(files, recent=recent, rng=rng)
 
 
 def _collapse_axis(
@@ -356,7 +365,8 @@ def build_satellite_playlists(
     )
 
 
-def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool) -> None:
+def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool,
+                        recent: bool = False) -> None:
     """Build and write the main player's playlist alone.
 
     The one-player counterpart to :func:`build_all_playlists`, for a startup
@@ -368,7 +378,8 @@ def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool)
     built under it, and one player quietly holding the whole library while the
     HUDs say F-mode is what this rebuild would otherwise leave behind.
     """
-    write_nau_playlist_file(playlist_file, build_main_playlist_paths(main_sources, f_mode))
+    write_nau_playlist_file(
+        playlist_file, build_main_playlist_paths(main_sources, f_mode, recent=recent))
 
 
 def build_all_playlists(
@@ -381,6 +392,7 @@ def build_all_playlists(
     main_f_mode: bool = False,
     portrait_f_mode: bool = False,
     landscape_f_mode: bool = False,
+    main_recent: bool = False,
     portrait_recent: bool = False,
     landscape_recent: bool = False,
     portrait_filter: str = "",
@@ -411,5 +423,5 @@ def build_all_playlists(
     )
     write_nau_playlist_file(
         build_playlist_file_path(state_dir, PLAYLIST_NAU),
-        build_main_playlist_paths(main_sources, main_f_mode, rng=rng),
+        build_main_playlist_paths(main_sources, main_f_mode, recent=main_recent, rng=rng),
     )

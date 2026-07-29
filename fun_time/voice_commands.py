@@ -313,7 +313,13 @@ for _axis_word, _axis_cmd in _CYCLE_AXES.items():
 # default browse — which for Nau is leaving any compilation and any length filter
 # for the mixed library.
 _MAIN_ACTIONS = {"next": "next", "previous": "prev",
-                 "lock": "lock_on", "unlock": "lock_off"}
+                 "lock": "lock_on", "unlock": "lock_off",
+                 # The two browse orderings, the satellites' own: "latest" reloads
+                 # newest-first and "shuffle" reshuffles, each rescanning the
+                 # library so a video that arrived since is picked up.  The main
+                 # player had only the shuffle, so a fresh clip sat somewhere in a
+                 # thousand with no way to ask for it.
+                 "latest": "latest", "shuffle": "shuffle"}
 for _action_word, _action in _MAIN_ACTIONS.items():
     VOICE_COMMANDS[f"main {_action_word}"] = f"main_{_action}"
     VOICE_COMMANDS[f"{_action_word} main"] = f"main_{_action}"

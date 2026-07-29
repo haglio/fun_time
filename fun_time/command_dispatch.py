@@ -49,6 +49,7 @@ from .runtime_flow import (
     apply_enter_omnipause,
     apply_fmode,
     apply_leave_omnipause,
+    apply_main_fmode,
     apply_mode_switch,
     apply_satellite_filter,
     satellite_browse_paths,
@@ -98,9 +99,10 @@ class BridgeState:
     portrait_f_mode: bool = False
     landscape_f_mode: bool = False
     omni_paused: bool = False
-    # Which browse order each satellite is in: newest-first ("Latest") when set,
-    # else shuffled.  Per side, since Latest and Shuffle name a side, and read by
-    # every later rebuild (a filter, F-mode) so the side reloads the same way.
+    # Which browse order each player is in: newest-first ("Latest") when set,
+    # else shuffled.  Per player, since Latest and Shuffle name one, and read by
+    # every later rebuild (a filter, F-mode) so that player reloads the same way.
+    main_latest: bool = False
     portrait_latest: bool = False
     landscape_latest: bool = False
     # The player most recently navigated (1=main/Nau, 2=portrait,
@@ -657,12 +659,16 @@ _NO_FILTER_SIDES: dict[str, str] = {
     "landscape_no_filter": "landscape",
 }
 
-# The two browse orderings, per side: Latest reloads newest-first, Shuffle
-# reshuffles.  "both …" reaches each of these in turn (the dispatch loop expands
-# it), which is what the P key sends.
+# The two browse orderings, per player: Latest reloads newest-first, Shuffle
+# reshuffles.  "both …" reaches each satellite in turn (the dispatch loop expands
+# it), which is what the P key sends.  The main player is 1 and reloads through
+# Nau rather than through a satellite rebuild, so it is dispatched separately
+# below — the table only says which player and which order.
 _REORDER_COMMANDS: dict[str, tuple[int, bool]] = {
+    "main_latest": (1, True),
     "portrait_latest": (2, True),
     "landscape_latest": (3, True),
+    "main_shuffle": (1, False),
     "portrait_shuffle": (2, False),
     "landscape_shuffle": (3, False),
 }
@@ -1289,6 +1295,8 @@ def dispatch_command(
     reorder = _REORDER_COMMANDS.get(command)
     if reorder is not None:
         which, recent = reorder
+        if which == MAIN_SIDE:
+            return _dispatch_main_reorder(recent, state, config)
         return _dispatch_reorder(which, recent, state, config)
 
     reset_scope = _RESET_SIDES.get(command)
@@ -1569,6 +1577,7 @@ def _dispatch_fmode(
     result = apply_fmode(
         players=changed,
         enabled=enabled,
+        main_recent=state.main_latest,
         portrait_recent=state.portrait_latest,
         landscape_recent=state.landscape_latest,
         main_sources=config.main_sources,
@@ -1609,6 +1618,33 @@ def _dispatch_fmode(
         level=FAVORITE_NOTICE_LEVEL if enabled else FAILED_NOTICE_LEVEL,
     )
     return state, [notice_op]
+
+
+def _dispatch_main_reorder(
+    recent: bool, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Reload the main player in a fresh order — Latest (newest-first) or Shuffle.
+
+    The satellites' own reorder rebuilds a side and tells it to re-read; the main
+    player's playlist is Nau's, so this rewrites that file and hands Nau the same
+    RELOAD_PLAYLIST it gets for an F-mode change.  Rescanning as it goes means clips
+    that have arrived since are picked up, which is most of what "latest" is for.
+
+    The order is remembered like each satellite's, so a later F-mode rebuild reloads
+    the main player the same way round rather than quietly reshuffling it.
+    """
+    state = replace(state, main_latest=recent)
+    apply_main_fmode(
+        enabled=state.main_f_mode,
+        main_sources=config.main_sources,
+        recent=recent,
+        state_dir=config.state_dir,
+        nau_cmd_file=config.nau_cmd_file,
+    )
+    message = (f"{'Latest' if recent else 'Shuffle'}: main player "
+               f"{'newest-first' if recent else 'reshuffled'}")
+    logger.info(message)
+    return state, [WindowOp(op="notice", key=message, source=SOURCE_MAIN)]
 
 
 def _dispatch_reorder(
