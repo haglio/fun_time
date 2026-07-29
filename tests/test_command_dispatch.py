@@ -3084,6 +3084,28 @@ def test_the_loop_key_locks_when_neither_group_holds_a_second_clip(tmp_path: Pat
     assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
 
 
+def test_the_loop_key_lets_go_of_the_clip_it_locked(tmp_path: Path):
+    """With nothing to loop the key is a two-stop cycle — lock, then unlock.
+
+    A one-stop cycle would be a trap: the lock is the only thing the key can say on
+    such a clip, so a second press that locked again held the clip with no way to
+    release it from the keys the loop owns.
+    """
+    config = _make_config(tmp_path)
+    index, a, _b, _c = _cycle_index(tmp_path, seed_family=False, action_group=False)
+
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
+            patch("fun_time.command_dispatch.satellite_browse_paths") as browse:
+        state, _ops = dispatch_command("portrait_loop", _make_state(), config)
+        state, ops = dispatch_command("portrait_loop", state, config)
+
+    browse.assert_not_called()
+    assert _cmds(config, 2) == ["LOCK", "UNLOCK"]  # let go where it stands, no NEXT
+    assert state.locked2 is False
+    assert [op.key for op in ops if op.op == "notice"] == ["Unlocked"]
+
+
 def test_the_loop_key_ends_a_loop_the_clip_has_drifted_out_of(tmp_path: Path):
     """A loop whose clip has auto-advanced somewhere with no groups still steps
     off — the off stop is never skipped for want of a loopable axis."""
