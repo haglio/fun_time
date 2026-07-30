@@ -256,8 +256,8 @@ The Nau-mode voice trigger is spoken as "now now" (the reference displays it as 
 
 The main library is filed by pipeline stage, several folders deep, and the
 same video sits in three of them at different trims and upscales
-(`…/winston/0 unsorted/`, `…/winston/1 could use work/2_originals_good_trimwise_but_need_upscaling/`,
-`…/winston/3_good_to_go/processed/`). Browsing that tree means knowing how far a
+(`…/larkin/0 unsorted/`, `…/larkin/1 could use work/2_originals_good_trimwise_but_need_upscaling/`,
+`…/larkin/3_good_to_go/processed/`). Browsing that tree means knowing how far a
 video got through the pipeline before you can find it, which is the librarian's
 business and not the viewer's.
 
