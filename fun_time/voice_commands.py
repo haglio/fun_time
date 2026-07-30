@@ -108,7 +108,7 @@ VOICE_COMMANDS: dict[str, str] = {
     # The unfiltered library Nau opens in, and so the way back out of either
     # half — "main reset" says the same thing (see the main-player grid below).
     "mixed": "nau_length_mixed",
-    # Clip navigation (larkin-style clips carved from compilations). "vid" is
+    # Clip navigation (Larkin-style clips carved from compilations). "vid" is
     # not in the vosk vocabulary, so "full video" is the reliable phrase; "full
     # vid" stays as a fallback the model uses only if it knows the word.
     "compilation": "nau_compilation",
