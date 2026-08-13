@@ -22,6 +22,7 @@ import pygame
 
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
+from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.status import StatusWriter
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
@@ -80,19 +81,13 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run(args, playlist: list[Path]) -> int:
-    # A satellite is never the focused window — the sequencer places every player
-    # with SWP_NOACTIVATE and nothing afterwards activates one — so the click that
-    # lands on a HUD button is also the click that activates the player.  SDL eats
-    # that one by default: WIN_UpdateFocus records every button physically down as
-    # the window takes focus (focus_click_pending), and WIN_CheckWParamMouseButton
-    # then drops the press that follows unless SDL_MOUSE_FOCUS_CLICKTHROUGH is set.
-    # That is the "click once to wake it, click again to do the thing" the HUD had:
-    # the first press on a loop button was spent activating the window.  The hint
-    # changes nothing about focus itself — Windows activates the window on that
-    # click either way — only whether we are told about it.  SDL reads it straight
-    # from the environment at click time; set here, before pygame.init(), so it is
-    # in place ahead of any window (the same channel the position below uses).
-    os.environ.setdefault("SDL_MOUSE_FOCUS_CLICKTHROUGH", "1")
+    # Before the window exists, and before pygame.init(): SDL otherwise eats the
+    # click that focuses this window, so every press on the HUD had to be made
+    # twice — once to wake the player, once to hit the button.  The mechanism is
+    # written down in player_core.sdl_hints, which is where it moved once the main
+    # console turned out to have the same thing: this used to be a line of ours,
+    # and being a line of ours is why nobody else got it.
+    deliver_the_focusing_click()
     pygame.init()
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
