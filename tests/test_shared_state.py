@@ -1,6 +1,7 @@
 """The INI a session reads its own mode off."""
 from __future__ import annotations
 
+from dataclasses import fields, replace
 from pathlib import Path
 
 from fun_time.command_dispatch import BridgeState
@@ -10,6 +11,37 @@ from fun_time.shared_state import SHARED_STATE_FILENAME, read_shared_state, shar
 def test_the_state_file_is_named_off_the_state_dir(tmp_path: Path):
     """Four processes open this file by path, so they resolve it one way."""
     assert shared_state_path(tmp_path) == tmp_path / SHARED_STATE_FILENAME
+
+
+def _shifted(value):
+    """Any value of the same type that is not *value* — so a field which fails to
+    round-trip comes back visibly wrong rather than accidentally right.  Only
+    difference matters here: the file is a transport, and what counts as a legal
+    volume or side is the dispatch's business, not this INI's."""
+    if isinstance(value, bool):
+        return not value
+    if isinstance(value, int):
+        return value + 1
+    return f"{value}-carried"
+
+
+def test_every_field_of_the_state_survives_the_round_trip(tmp_path: Path):
+    """The dispatch loop replaces its whole state with what this file reads back,
+    every tick.  So a field written by a command but missing from the INI is not
+    merely unsaved — it is undone a fraction of a second later, while the toast
+    that acknowledged it is still on screen.  That is what "main latest" did: the
+    playlist was rebuilt newest-first and the flag was reset before any HUD drew it.
+
+    Hence the whole dataclass rather than a field at a time: every one of these is
+    session mode, and the next one added has to be carried too.
+    """
+    state_file = tmp_path / "shared_state.ini"
+    state = BridgeState()
+    state = replace(state, **{f.name: _shifted(getattr(state, f.name)) for f in fields(state)})
+
+    write_shared_state(state_file, state)
+
+    assert read_shared_state(state_file) == state
 
 
 class TestSharedState:

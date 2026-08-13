@@ -281,10 +281,12 @@ def run_vr_bridge(config, logger_) -> int:
     elif not main_playlist_has_vr(nau_playlist, config.vr.library_dirs):
         # Resumed from a desktop session, whose primary playlist is 2D only:
         # keep the satellites where they were, but rebuild the primary from the
-        # VR-merged sources so a headset session actually gets VR videos.
+        # VR-merged sources so a headset session actually gets VR videos.  Under
+        # the order it is coming back in, like its F-mode: the state carried
+        # forward has to describe the file this writes, not the one it replaced.
         build_main_playlist(
             nau_playlist, manifest["media"]["nau_library_sources"],
-            f_mode=carried.main_f_mode,
+            f_mode=carried.main_f_mode, recent=carried.main_latest,
         )
         logger_.info("Resumed playlists; rebuilt the main player's, which held no VR video")
     logger_.info(

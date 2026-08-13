@@ -16,6 +16,8 @@ from .modes import (
     build_playlist_file_path,
     build_main_playlist_paths,
     build_satellite_playlist_paths,
+    matching_funscript,
+    playlist_entry_line,
     write_nau_playlist_file,
     write_playlist_file,
 )
@@ -151,23 +153,32 @@ def apply_main_fmode(
     state_dir: str | Path,
     nau_cmd_file: str | Path,
     recent: bool = False,
+    start_at_top: bool = False,
 ) -> None:
     """Rebuild the main player's playlist under *enabled* and hand it to Nau.
 
     F-mode narrows the main player to the videos that have a funscript beside them —
     the OSR2 has something to follow for every clip that comes up.
+
+    ``start_at_top`` is the reorder's, and means here exactly what it means for a
+    satellite (see :func:`apply_satellite_filter`): Nau keeps the video on screen
+    across a reload whenever the new list still holds it — which a reorder's
+    always does, since it filters nothing out — so a newest-first rebuild would
+    otherwise apply only *behind* the video playing and the new arrivals would
+    never come up.  An F-mode change wants the opposite and does not ask.
     """
-    write_nau_playlist_file(
-        build_playlist_file_path(Path(state_dir), PLAYLIST_NAU),
-        build_main_playlist_paths(main_sources, enabled, recent=recent),
-    )
-    # Both verbs on one write: this file is overwritten, not appended, so telling
+    paths = build_main_playlist_paths(main_sources, enabled, recent=recent)
+    write_nau_playlist_file(build_playlist_file_path(Path(state_dir), PLAYLIST_NAU), paths)
+    # Every verb on one write: this file is overwritten, not appended, so telling
     # Nau the flag afterwards would drop the reload that goes with it.  Nau's HUD
     # has no other way to know — the playlist it is handed has already been
-    # narrowed, and a list of scripted videos looks like any other.
-    Path(nau_cmd_file).write_text(
-        f"{RELOAD_PLAYLIST_CMD}\n{SET_F_MODE_CMD} {int(enabled)}", encoding="utf-8"
-    )
+    # narrowed, and a list of scripted videos looks like any other.  The jump goes
+    # last, so it lands on the list the reload has just taken.
+    verbs = [RELOAD_PLAYLIST_CMD, f"{SET_F_MODE_CMD} {int(enabled)}"]
+    if start_at_top and paths:
+        head = playlist_entry_line(paths[0], matching_funscript(paths[0]))
+        verbs.append(f"{PLAY_FILE_CMD} {head}")
+    Path(nau_cmd_file).write_text("\n".join(verbs), encoding="utf-8")
 
 
 def apply_satellite_fmode(

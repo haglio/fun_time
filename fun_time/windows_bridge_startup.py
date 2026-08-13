@@ -462,8 +462,11 @@ def start_core_session(
         # share, and honoring it puts VR videos on the desktop's primary monitor, which
         # must never play them.  Rebuild the main player from this session's own
         # library alone; the satellites' playlists come from the same dirs in
-        # either app, so their resume stands.
-        build_main_playlist(nau_playlist, main_sources, f_mode=carried.main_f_mode)
+        # either app, so their resume stands.  Under the order it is coming back
+        # in, like its F-mode: the state carried forward has to describe the file
+        # this writes, not the one it replaced.
+        build_main_playlist(nau_playlist, main_sources, f_mode=carried.main_f_mode,
+                            recent=carried.main_latest)
         logger.info("Resumed playlists; rebuilt the main player's, which held another app's videos")
     # Which of the two ran is the difference between the clips of the last
     # session and three new ones, so the log says outright which you are getting.

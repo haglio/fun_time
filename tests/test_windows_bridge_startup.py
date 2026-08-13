@@ -829,7 +829,8 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
     """The rebuild for another app's playlist has to honor the F-mode the
     satellites came back in — the main player's own reading of it, funscripted
     clips only — or one player quietly holds the whole library while the HUDs
-    say F-mode."""
+    say F-mode.  The order it came back in rides along for the same reason: the
+    state carried forward has to describe the file this writes."""
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(tmp_path, kwargs)
     state_dir = kwargs["state_dir"]
@@ -839,13 +840,15 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
     (state_dir / "nau_playlist.tsv").write_text(
         f"{vr_clip}\n{left_on['nau'][0]}\n", encoding="utf-8"
     )
-    write_shared_state(shared_state_path(state_dir), BridgeState(main_f_mode=True))
+    write_shared_state(
+        shared_state_path(state_dir), BridgeState(main_f_mode=True, main_latest=True)
+    )
 
     with patch("fun_time.windows_bridge_startup.build_main_playlist") as rebuild:
         _run_start_core_session(kwargs)
 
     rebuild.assert_called_once_with(
-        state_dir / "nau_playlist.tsv", kwargs["main_sources"], f_mode=True
+        state_dir / "nau_playlist.tsv", kwargs["main_sources"], f_mode=True, recent=True
     )
 
 

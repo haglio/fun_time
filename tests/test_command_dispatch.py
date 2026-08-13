@@ -3430,3 +3430,18 @@ def test_main_latest_reloads_the_main_player_newest_first(tmp_path, monkeypatch)
     state, _ops = dispatch_command("main_shuffle", state, config)
     assert state.main_latest is False
     assert calls[-1]["recent"] is False
+
+
+def test_reordering_the_main_player_starts_it_at_the_top(tmp_path, monkeypatch):
+    """A reorder filters nothing out, so Nau keeps the video on screen across the
+    reload and carries on from wherever it now sits — leaving the newest-first list
+    to apply only behind it, and the arrivals that were asked for never coming up.
+    The satellites' reorder starts at the top for exactly this reason; so does this."""
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+    config = _make_config(tmp_path)
+
+    dispatch_command("main_latest", BridgeState(), config)
+
+    assert calls[-1]["start_at_top"] is True
