@@ -24,6 +24,7 @@ from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.status import StatusWriter
+from player_core.taskbar import set_app_user_model_id
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
@@ -88,6 +89,17 @@ def _run(args, playlist: list[Path]) -> int:
     # console turned out to have the same thing: this used to be a line of ours,
     # and being a line of ours is why nobody else got it.
     deliver_the_focusing_click()
+    # Also before the window: Windows reads a process's taskbar identity as each
+    # window is created, and a satellite that claims none is filed under whatever
+    # the shared python interpreter's path is registered to — which is some
+    # unrelated program, wearing its icon and its letter.  Fun Time passes its
+    # own, because these windows are Fun Time's rather than an application of
+    # their own.  Cosmetic, so a refusal never costs the player its start.
+    if args.taskbar_identity:
+        try:
+            set_app_user_model_id(args.taskbar_identity)
+        except OSError:
+            logger.info("Could not take the taskbar identity %s", args.taskbar_identity)
     pygame.init()
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
