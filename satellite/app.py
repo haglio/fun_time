@@ -32,6 +32,7 @@ from .cli import audio_muted, build_parser, resolve_playlist
 from .hud_overlay import HudOverlay
 from .runtime import apply_command
 from .session import SatelliteSession
+from .session_quit import quit_gesture
 from .status import status_fields
 
 logger = logging.getLogger(__name__)
@@ -162,8 +163,13 @@ def _run(args, playlist: list[Path]) -> int:
             # not at all: Ctrl+Alt+Q, which the bridge turns into the teardown
             # that takes these processes down with it.  A Ctrl+Q handler used to
             # sit here and quit whichever satellite had focus; don't put it back.
+            #
+            # The window's own close is the same thing arriving by another road —
+            # Alt+F4, the taskbar, the system menu — and it is asked of the
+            # session rather than answered here (satellite.session_quit).
             if ev.type == pygame.QUIT:
-                stop_event.set()
+                if quit_gesture(args.dashboard_cmd_file):
+                    stop_event.set()
             elif hud is not None and ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 hud.press(*ev.pos)
             elif hud is not None and ev.type == pygame.MOUSEMOTION:

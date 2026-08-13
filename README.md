@@ -377,6 +377,12 @@ For one player on its own, every player's HUD carries a **minimize bar**: last i
 
 The player keeps running behind it — its lock, loop and playlist are untouched, and the press does not even move the active side, since a player you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the panel went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is the room coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
 
+### Closing one window closes the session
+
+There is no window of a session you can close on its own. Every player answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, behind the closing cover, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit". Ctrl+Q on the main player goes the same way.
+
+The alternative was worse than it sounds: a player that closed itself left the sequencer's layout with a hole nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the players out one press at a time while the dashboard and the audio companion carried on. Run standalone, outside a session, each player still closes on its own close, because then that is the whole application. See `satellite/session_quit.py` and `genau/session_quit.py`.
+
 ### F-Mode
 
 F-Mode is **per player** — the main player, portrait and landscape each have their own — and setting one rebuilds that player's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A player that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by player:
