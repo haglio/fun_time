@@ -5,6 +5,7 @@ import json
 
 from satellite.hud import (
     CTRL_BTN,
+    ELLIPSIS,
     FILTER_BTN,
     LOOP_BTN,
     MAP_CELLS,
@@ -21,12 +22,16 @@ from satellite.hud import (
     build_click_targets,
     button_tooltip,
     control_button_rects,
+    ellipsis_rects,
     expand_button_rect,
     filter_button_rects,
     friendly_action_label,
     hit_test_targets,
     label_is_filtered,
     loop_button_rects,
+    looped_group_box,
+    map_reach,
+    map_row_width,
     map_window,
     panel_width,
     parse_hud,
@@ -240,6 +245,80 @@ def test_thumbnail_rects_positions_the_map_and_drops_overflow():
     s2 = s1 + 30 + MAP_GAP
     assert seeds == [(s1, 50, 30, 54), (s2, 50, 30, 54)]   # third dropped
     assert actions == [(100, 50 + 54 + ROW_GAP, 30, 54)]   # second dropped
+
+
+def test_the_action_column_hangs_under_the_playing_seed():
+    """Mid-loop the column is the playing seed's own acts, so its cells sit under
+    the lit cell — under the corner they would read as the corner seed's."""
+    corner, seeds, actions = thumbnail_rects(
+        map_x=100, map_y=50, right=400, bottom=400,
+        corner_size=(30, 54),
+        seed_sizes=[(40, 54), (30, 54)],
+        action_sizes=[(30, 54), (30, 54)],
+        playing=("seed", 0),
+    )
+
+    s1 = 100 + 30 + MAP_GAP
+    assert corner == (100, 50, 30, 54)
+    assert seeds[0] == (s1, 50, 40, 54)
+    assert actions == [
+        (s1, 50 + 54 + ROW_GAP, 30, 54),
+        (s1, 50 + 54 + ROW_GAP + 54 + ROW_GAP, 30, 54),
+    ]
+
+
+def test_the_column_stays_under_the_corner_off_the_seed_row():
+    """While the corner is playing — or a cell down the column is — the column
+    keeps its usual place under the corner."""
+    for playing in (("corner", 0), ("action", 0)):
+        _corner, _seeds, actions = thumbnail_rects(
+            map_x=100, map_y=50, right=400, bottom=400,
+            corner_size=(30, 54), seed_sizes=[(30, 54)], action_sizes=[(30, 54)],
+            playing=playing,
+        )
+        assert actions[0][0] == 100
+
+
+def test_a_playing_seed_that_was_not_drawn_leaves_the_column_on_the_corner():
+    _corner, _seeds, actions = thumbnail_rects(
+        map_x=100, map_y=50, right=400, bottom=400,
+        corner_size=(30, 54), seed_sizes=[(30, 54)], action_sizes=[(30, 54)],
+        playing=("seed", 5),
+    )
+
+    assert actions[0][0] == 100
+
+
+def test_the_columns_chrome_follows_it_under_the_playing_seed():
+    """The loop button below the column, the loop box around it and its "…" slots
+    all stand on the cell the column hangs under, so the column's chrome cannot
+    stay behind on an empty corner while the column sits mid-row."""
+    corner = (10, 10, 20, 20)
+    column = (40, 10, 24, 20)
+    actions = [(40, 42, 24, 20)]
+
+    loop_action, _loop_seed = loop_button_rects(
+        corner, [column], actions, right=300, bottom=300, column_rect=column)
+    assert loop_action == (40, 42 + 20 + MAP_GAP, 24, LOOP_BTN)
+
+    box = looped_group_box(corner, [column], actions, "action", column_rect=column)
+    assert box == (40, 10, 24, (42 + 20) - 10)
+
+    before, after = ellipsis_rects(corner, [column], actions, "action", column_rect=column)
+    assert before == (40, 10 - MAP_GAP - ELLIPSIS, 24, ELLIPSIS)
+    assert after == (40, 42 + 20 + MAP_GAP, 24, ELLIPSIS)
+
+
+def test_map_reach_covers_a_column_hung_past_the_rows_end():
+    """The panel is measured on the map's reach, so a column under the row's last
+    cell asks for its own room rather than poking out of the panel."""
+    row = [30, 40, 30]
+
+    assert map_reach(row, [50], ("corner", 0)) == max(map_row_width(row), 50)
+    offset = 30 + MAP_GAP + 40 + MAP_GAP
+    assert map_reach(row, [50], ("seed", 1)) == offset + 50
+    assert map_reach(row, [], ("seed", 1)) == map_row_width(row)
+    assert map_reach(row, [50], ("seed", 9)) == map_row_width(row)  # off-map: corner
 
 
 def test_loop_button_rects_places_below_the_column_and_right_of_the_row():

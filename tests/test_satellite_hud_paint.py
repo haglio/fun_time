@@ -533,14 +533,41 @@ def test_a_long_loop_marks_that_it_runs_on_past_the_map(thumb):
 
 def test_a_sliding_loop_window_never_shifts_the_map(thumb):
     """The map must hold still as the window slides — the ellipses appearing and
-    going is exactly when a shifting layout would be most distracting."""
+    going is exactly when a shifting layout would be most distracting.  Two
+    mid-loop frames are the like-for-like pair: the one deliberate move — the
+    action column stepping out to hang under the lit cell — happens as the loop
+    leaves its head, not per advance."""
     renderer = HudRenderer("portrait")
     at_start = renderer.render(_loop_model(thumb, ("corner", 0)))
-    midway = renderer.render(_loop_model(thumb, ("seed", 6)))
+    midway = renderer.render(_loop_model(thumb, ("seed", 5)))
+    later = renderer.render(_loop_model(thumb, ("seed", 6)))
 
+    assert [rect for rect, _p in midway.targets.click] == [rect for rect, _p in later.targets.click]
+    assert midway.targets.loop == later.targets.loop
+    assert midway.targets.expand == later.targets.expand
+    # The row itself never moves at all, head of the loop included; the action
+    # button is the one thing that follows the column out along it.
     assert at_start.targets.click[0][0] == midway.targets.click[0][0]
-    assert at_start.targets.loop == midway.targets.loop
     assert at_start.targets.expand == midway.targets.expand
+    seed_buttons = lambda t: [rect for rect, kind in t.loop if kind == "seed"]
+    assert seed_buttons(at_start.targets) == seed_buttons(midway.targets)
+
+
+def test_the_action_column_stands_under_the_lit_cell_mid_loop(thumb):
+    """Mid-loop the drawn column is the playing seed's own acts, so it hangs under
+    the lit cell — left under the corner it would read as the corner seed's."""
+    rendered = HudRenderer("portrait").render(_model(
+        locked=False, lock_label="Looping 13 seeds",
+        corner=HudCell(path="c.mp4", thumb=thumb),
+        seeds=tuple(HudCell(path=f"s{i}.mp4", thumb=thumb) for i in range(12)),
+        actions=(HudCell(path="a0.mp4", thumb=thumb, label="Zeta"),),
+        active_loop="seed", playing=("seed", 5),
+    ))
+
+    rects = {path: rect for rect, path in rendered.targets.click}
+    corner_rect = rendered.targets.click[0][0]
+    assert rects["a0.mp4"][0] == rects["s5.mp4"][0]  # under the lit cell…
+    assert rects["a0.mp4"][0] != corner_rect[0]      # …not under the corner slot
 
 
 def test_the_map_prints_how_big_each_axis_is(thumb):

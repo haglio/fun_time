@@ -971,9 +971,14 @@ def _navigate_hud(
     step lands on a neighbouring cell, whose clip becomes the new current video.
     A satellite that auto-advanced off the frozen map re-anchors on whatever is
     now playing.  Each axis wraps, so running off its end comes round to the
-    anchor; only a step with genuinely nowhere to go — off the axis the selection
-    is on, or along an axis holding just the anchor — is a dead end, reported red
-    like the other no-effect notices.
+    anchor; only a step with genuinely nowhere to go — sideways off the action
+    column, or along an axis holding just the anchor — is a dead end, reported
+    red like the other no-effect notices.
+
+    A vertical step from a seed cell dives into THAT seed's own action column —
+    the one the HUD draws under the lit cell (``build_hud_panel`` hangs it
+    there) — re-rooting the map on the seed it stepped down from.  The frozen
+    anchor's own acts belong to the corner's seed, which is a different clip.
     """
     source = _satellite_source(which)
     current = _satellite_current(config, which)
@@ -987,13 +992,21 @@ def _navigate_hud(
             anchor = ""  # drifted off the frozen map — start over from the live clip
     if not anchor:
         anchor = current
-    seeds, actions = hud_map_cells(index, anchor)
-    cell = locate_cell(current, anchor, seeds, actions) or ("corner", 0)
+    root = anchor
+    seeds, actions = hud_map_cells(index, root)
+    cell = locate_cell(current, root, seeds, actions) or ("corner", 0)
+    if cell[0] == "seed" and direction in ("down", "up"):
+        # Dive into the lit seed's own column: step as if from the corner of the
+        # map homed on it.  Committed below only if the step actually lands, so a
+        # seed with no other acts stays a dead end on an unmoved map.
+        root, cell = current, ("corner", 0)
+        seeds, actions = hud_map_cells(index, root)
     target_cell = navigate_cell(cell, direction, seed_count=len(seeds), action_count=len(actions))
-    target = cell_path(target_cell, anchor, seeds, actions)
-    state = _set_nav_anchor(state, which, anchor)
+    target = cell_path(target_cell, root, seeds, actions)
     if target_cell == cell or not target or _same_video(target, current):
+        state = _set_nav_anchor(state, which, anchor)
         return state, [WindowOp(op="notice", key="No clip that way", source=source, level=FAILED_NOTICE_LEVEL)]
+    state = _set_nav_anchor(state, which, root)
     return _dispatch_play_video(which, target, state, config)
 
 
