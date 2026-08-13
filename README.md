@@ -309,9 +309,17 @@ rank by how much of the library each holds, biggest first.
 
 Videos **carved out of a compilation** become a folder of their own beside their
 folder's whole videos. Evolver marks an excerpt with a `clip` record (the parent
-compilation, the running order in it, the scene it came from), and that record is
-the whole test — so a reel's worth of cuts never sits among the scenes they were
-cut from. Where those two sets have been filed into two folders on disk, each
+compilation, the running order in it, the scene it came from), and that record
+settles it — so a reel's worth of cuts never sits among the scenes they were
+cut from. Where a sidecar has no such record, the folder decides instead: a
+source folder that filed its cuts into a folder of their own put nothing else in
+there, so a video sitting among them is one of them whatever its sidecar failed
+to say. That fallback reaches only where the librarian already drew the line on
+disk — a folder whose cuts and whole videos share their sub-folders is separated
+by the sidecar alone, and the sub-folders they share are pipeline stages, which
+can never stand in for a division of the library.
+
+Where those two sets have been filed into two folders on disk, each
 keeping its own copy of the pipeline stages, the tiles are named after those
 folders (the cuts folder's name and `full`); where the split is the sidecar's
 alone, the cuts take a `· clips` name instead.

@@ -154,6 +154,66 @@ def _dominant_subfolder(paths: list[tuple[str, ...]]) -> str:
     return name if count * 2 > sum(seconds.values()) else ""
 
 
+def cut_folders(
+    recorded: list[tuple[str, ...]], others: list[tuple[str, ...]]
+) -> dict[str, str]:
+    """Which folder each source folder files its excerpts into, where it has one.
+
+    *recorded* holds the library paths of the videos Evolver has marked as
+    excerpts, *others* the paths of everything else.  A source folder earns an
+    entry only when its cuts have a dominant second folder, the rest of it has
+    one too, and the two differ — which is the same test :func:`band_names`
+    already names a band by, and for the same reason: two sets under one folder
+    that share their sub-folders are separated by the sidecar alone, and the
+    sub-folders they share are the pipeline's stages.
+
+    So a folder is absent from this unless its librarian has drawn the line on
+    disk, and the one recorded cut in a stage folder full of whole videos can
+    never turn that stage folder into a cuts folder.  Dominance is also what
+    bounds the fallback: unrecorded cuts count towards *others*, so a folder
+    where they came to outnumber its whole videos would stop qualifying and be
+    left as it was — the reading that changes nothing, which is the right way
+    for a folder this can no longer read to fail.
+    """
+    def by_source(paths: list[tuple[str, ...]]) -> dict[str, list[tuple[str, ...]]]:
+        grouped: dict[str, list[tuple[str, ...]]] = {}
+        for path in paths:
+            if path:
+                grouped.setdefault(path[0], []).append(path)
+        return grouped
+
+    cuts, rest = by_source(recorded), by_source(others)
+    folders = {}
+    for folder, paths in cuts.items():
+        mine, theirs = _dominant_subfolder(paths), _dominant_subfolder(rest.get(folder, []))
+        if mine and theirs and mine != theirs:
+            folders[folder] = mine
+    return folders
+
+
+def is_an_excerpt(path: tuple[str, ...], recorded: bool, cuts: dict[str, str]) -> bool:
+    """Whether a video is a cut — by its own record, or by the company it keeps.
+
+    Evolver's ``clip`` record settles it on its own and always has.  What is new
+    is the fallback for a video that has none: a source folder which filed its
+    cuts into a folder of their own put nothing else in there, so a video
+    sitting among them is one of them whatever its sidecar failed to say.  A
+    sidecar can be missing that record for reasons that have nothing to do with
+    the video — carved before Evolver kept the record, or backfilled only as far
+    as someone got — and each one that is turns up among the whole videos,
+    beside the very scene it was cut out of, which is the one place the browse
+    exists to keep cuts out of.
+
+    The fallback reaches only where the librarian has already drawn the line on
+    disk.  A folder that never separated its cuts has no folder here, so nothing
+    of its is reclassified — the pipeline's own stage folders can never stand in
+    for a division of the library, which is the whole rule this repo browses by.
+    """
+    if recorded:
+        return True
+    return len(path) > 1 and cuts.get(path[0]) == path[1]
+
+
 def build_library_handles(sources: str, metadata_root: Path | None) -> list[LibraryHandle]:
     """Every video under *sources*, as one handle per version family.
 
@@ -164,6 +224,17 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
 
     A family that spans the excerpt line becomes two handles — see below.
     """
+    videos = collect_video_files(sources)
+    paths = {video: source_path(video, sources) for video in videos}
+    # Where each source folder files the cuts it HAS recorded, so the ones whose
+    # sidecar never got the record can be recognized by the company they keep —
+    # see :func:`is_an_excerpt`.
+    recorded = {video: _is_clip(video, metadata_root) for video in videos}
+    cuts = cut_folders(
+        [paths[video] for video in videos if recorded[video]],
+        [paths[video] for video in videos if not recorded[video]],
+    )
+
     # Keyed by family AND by whether it is an excerpt: Evolver ties a cut to the
     # scene it came out of with the same version.group, but a cut is a *piece* of
     # that scene, not another rendition of it.  Folded together the cut would
@@ -171,9 +242,11 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
     # the name and the folder, leaving the cut reachable only by cycling versions
     # inside a video it is not a version of.
     families: dict[tuple[str, bool], list[str]] = {}
-    for video in collect_video_files(sources):
+    for video in videos:
         title = _recorded_group(video, metadata_root) or Path(video).stem
-        families.setdefault((title, _is_clip(video, metadata_root)), []).append(video)
+        families.setdefault(
+            (title, is_an_excerpt(paths[video], recorded[video], cuts)), []
+        ).append(video)
 
     played = {
         family: tuple(sorted(videos, key=lambda video: (-_file_size(video), video)))
