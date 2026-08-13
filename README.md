@@ -356,6 +356,12 @@ The mute reaches the two sinks differently, which is why `SET_VOLUME` carries tw
 - `Esc` toggles OmniPause; `Space` enters it.
 - While OmniPaused, the global hotkeys are suspended — only `Esc` (toggle OmniPause) and `Ctrl+Alt+Q` (quit) stay active.
 
+### Getting a window out of the way
+
+Minimizing the **dashboard** minimizes the whole room with it (`omniminimize`), and restoring it brings back exactly those windows (`omnirestore`) — one gesture for the session as a whole.
+
+For one player on its own, each satellite's HUD ends its control band with a **minimize bar**. The satellites are borderless — the video fills its slot, so there is no title bar to carry a minimize box — and this is the only affordance that parks one. The player keeps running behind it (its lock, loop and playlist are untouched; the press is about the window, and not even the active side moves to it). Its **taskbar button** is how it comes back, since the panel goes down with the window; a dashboard minimize + restore sweeps it back up too.
+
 ### F-Mode
 
 F-Mode is **per player** — the main player, portrait and landscape each have their own — and setting one rebuilds that player's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A player that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by player:

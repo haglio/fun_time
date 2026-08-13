@@ -715,6 +715,15 @@ class DispatchLoopRunner:
             if op.op == "hide_role":
                 self._hide_role(op.key)
                 continue
+            if op.op == "minimize_role":
+                # A satellite's own HUD minimize button, parking that one player.
+                # Straight away, unlike the main-slot hide above: that one waits
+                # out a settle so the player it is leaving can present its black
+                # first, and nothing here has been told to blank — the window is
+                # going down still showing its video, which is what the user
+                # pressed for, and its frozen thumbnail is then the clip it holds.
+                self._minimize_role(op.key)
+                continue
             if op.op == "activate_role":
                 if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
                     hwnd = self._resolve_role(op.key)
@@ -770,7 +779,10 @@ class DispatchLoopRunner:
 
     def _minimize_role(self, role: str) -> None:
         # Minimize instead of SW_HIDE so the window keeps its taskbar button
-        # (running indicator) the whole session.
+        # (running indicator) the whole session — and, for a satellite parked
+        # from its own HUD, so there is something left to click: that panel goes
+        # down with the window, so the taskbar button is the way back.
+        # No-activate, so parking one player never yanks focus to the next.
         hwnd = self._resolve_role(role)
         if hwnd:
             minimize_window(hwnd, activate=False)

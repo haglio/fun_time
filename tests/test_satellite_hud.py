@@ -450,20 +450,25 @@ def test_button_tooltip_names_each_button():
     assert button_tooltip(targets, 35, 35) == "More seeds — widen the net"
     assert button_tooltip(targets, 5, 65) == "Previous clip"
     assert button_tooltip(targets, CTRL_BTN + MAP_GAP + 5, 65) == "Next clip"
+    assert button_tooltip(targets, 5 * (CTRL_BTN + MAP_GAP) + 5, 65) == (
+        "Minimize this player — bring it back from the taskbar")
     assert button_tooltip(targets, 205, 65) == "In the favorites"
     assert button_tooltip(targets, 400, 400) == ""
 
 
 def test_control_button_rects_lays_the_sides_own_controls_out_in_a_row():
-    """The browse pair, then the two that act on the clip on screen, then F-mode —
-    the buttons the dashboard used to carry for this side, now in the side's own
-    HUD."""
+    """The browse pair, then the two that act on the clip on screen, then F-mode,
+    then minimize — the buttons the dashboard used to carry for this side, now in
+    the side's own HUD, ending with the one that acts on the window rather than on
+    anything in it."""
     rects = control_button_rects(10, 40)
 
-    assert [name for _rect, name in rects] == ["prev", "next", "lock", "trash", "fmode"]
+    assert [name for _rect, name in rects] == [
+        "prev", "next", "lock", "trash", "fmode", "minimize",
+    ]
     assert [rect for rect, _name in rects] == [
         (10 + step * (CTRL_BTN + MAP_GAP), 40, CTRL_BTN, CTRL_BTN)
-        for step in range(5)
+        for step in range(6)
     ]
 
 
@@ -531,6 +536,7 @@ def test_clicking_a_side_control_posts_that_sides_command():
     assert HudClicks("landscape").press(targets, 2 * ctrl + 5, 5, now=0.0) == "landscape_lock"
     assert HudClicks("landscape").press(targets, 3 * ctrl + 5, 5, now=0.0) == "landscape_trash"
     assert HudClicks("portrait").press(targets, 4 * ctrl + 5, 5, now=0.0) == "portrait_fmode"
+    assert HudClicks("landscape").press(targets, 5 * ctrl + 5, 5, now=0.0) == "landscape_minimize"
 
 
 def test_parse_hud_reads_this_sides_f_mode():

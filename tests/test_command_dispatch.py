@@ -783,6 +783,42 @@ def test_nudge_and_mode_commands_leave_active_side_unchanged(tmp_path: Path):
         assert new_state.active_side == 3, command
 
 
+# --- the HUD's own minimize button ---
+
+
+def test_minimize_parks_that_players_window(tmp_path: Path):
+    """A satellite's HUD minimize button asks for one window and nothing else: the
+    op names the role, and the side's playback — its lock, its loop, its playlist —
+    is untouched, because the player goes on running where it cannot be seen."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked2=True)
+
+    new_state, ops = dispatch_command("portrait_minimize", state, config)
+
+    assert ops == [WindowOp(op="minimize_role", key="portrait")]
+    assert new_state == state
+    assert _cmds(config, 2) == []
+
+
+def test_minimize_names_each_side_its_own_window(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    _state, ops = dispatch_command("landscape_minimize", _make_state(), config)
+
+    assert ops == [WindowOp(op="minimize_role", key="landscape")]
+
+
+def test_minimizing_a_player_does_not_make_it_the_active_side(tmp_path: Path):
+    """Every other "<side>_" command marks that side active, and this one must not:
+    a bare "lock" or "next" after it would go to the player just taken off the
+    screen, which is the one place the words cannot be seen to land."""
+    config = _make_config(tmp_path)
+
+    for command in ("portrait_minimize", "landscape_minimize"):
+        new_state, _ops = dispatch_command(command, _make_state(active_side=1), config)
+        assert new_state.active_side == 1, command
+
+
 # --- quarter_button ---
 
 
