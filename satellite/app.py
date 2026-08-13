@@ -172,7 +172,10 @@ def _run(args, playlist: list[Path]) -> int:
         if status_writer is not None:
             status_writer.write(session)
         if hud is not None:
-            hud.tick()
+            # The clip on screen is the session's, not the published panel's — the
+            # playlist walks on by itself between publishes — so the HUD is told what
+            # is decoding, the same way Nau names its file from its own session.
+            hud.tick(video=session.current_video.stem)
 
         # The scrubber (full window width, along the bottom) and the muted volume
         # indicator at its right end.  get_window_size reflects the slot the

@@ -47,8 +47,10 @@ from .hud import (
     MIN_GUTTER,
     PAD,
     STATUS_BAND_H,
+    STATUS_BASELINE,
     STATUS_DOT,
     STATUS_TEXT_X,
+    SUBTITLE_GAP,
     HudCell,
     HudModel,
     HudTargets,
@@ -215,6 +217,7 @@ class HudRenderer:
         self,
         model: HudModel,
         *,
+        video: str = "",
         hover_loop: str = "",
         hover_tip: str = "",
         hover_pos: tuple[int, int] = (0, 0),
@@ -226,6 +229,12 @@ class HudRenderer:
         moves down and the row reloads with that action's seeds.  A lock rings the
         cell being held in white: the corner normally, or the member a loop had
         reached when the lock was taken.
+
+        *video* is the file on screen, named under the status line.  It comes from
+        the player rather than from *model*: the published panel is fun_time's answer
+        to what this side is browsing, and what is actually decoding is the player's
+        own — the same split the main player draws, which names its file from its own
+        session and takes the rest of its console off the wire.
         """
         # The gutter is sized from the WHOLE model, before any windowing, so it does
         # not change width as a loop's window slides along — and never narrower than
@@ -245,10 +254,13 @@ class HudRenderer:
         row = ([corner_thumb.width] + [thumb.width for thumb in seed_thumbs]
                if corner_thumb is not None
                else [cell_width(model.side)] * MAP_CELLS)
+        subtitle_h = (SUBTITLE_GAP + sum(self._tiny.getmetrics())) if video else 0
         width = panel_width(gutter_w, map_row_width(row),
-                            text_width(self._body, model.lock_label))
+                            text_width(self._body, model.lock_label),
+                            text_width(self._tiny, video))
         height = panel_height(
-            map_column_height(1 + len(action_thumbs)) if corner_thumb is not None else 0)
+            map_column_height(1 + len(action_thumbs)) if corner_thumb is not None else 0,
+            subtitle_h)
         panel = HudPanel(width, height)
         image, draw = panel.image, panel.draw
 
@@ -268,9 +280,18 @@ class HudRenderer:
         # answers to that are both worse: Pillow clips the tail away in silence,
         # which reads as the states that ran out of room being *off*, and a second
         # line reads as two states rather than one side's.
-        draw.text((STATUS_TEXT_X, y + 11), model.lock_label,
+        draw.text((STATUS_TEXT_X, y + STATUS_BASELINE), model.lock_label,
                   font=self._body, anchor="ls", fill=(*TEXT_PRIMARY, 255))
-        y += STATUS_BAND_H
+        # The file on screen, muted, hung off that line's own descender so the two
+        # read as one block — what the main player's console leads with, in the same
+        # corner, so a glance across the screens finds each player's answer to "what
+        # is this?" in the same place.  Muted because the status is what the side is
+        # *doing* and the name only says which clip it is doing it to.
+        if video:
+            _ascent, descent = self._body.getmetrics()
+            draw.text((STATUS_TEXT_X, y + STATUS_BASELINE + descent + SUBTITLE_GAP), video,
+                      font=self._tiny, anchor="la", fill=(*TEXT_MUTED, 255))
+        y += STATUS_BAND_H + subtitle_h
 
         # The side's own controls, above the map: they act on the satellite and
         # the clip on screen, not on anything the map draws, so they are laid out

@@ -239,6 +239,48 @@ def test_a_status_too_wide_for_the_map_widens_the_panel_rather_than_wrapping(thu
     assert long.bgra.shape[0] == short.bgra.shape[0]
 
 
+def _control_band_top(rendered) -> int:
+    """Where the side's own control buttons start — the row under the status block,
+    and so how deep that block ended up."""
+    return min(y for (_x, y, _w, _h), _name in rendered.targets.control)
+
+
+def test_the_file_on_screen_is_named_under_the_status_line(thumb):
+    """The main player names its file in a muted line under its status, and the
+    satellites lead with the same block — so "what is this clip?" is answered in the
+    same corner of every player rather than only on the main one."""
+    renderer = HudRenderer("portrait")
+    model = _model(lock_label="Unlocked", corner=HudCell(path="c.mp4", thumb=thumb))
+    bare = renderer.render(model)
+    named = renderer.render(model, video="example clip one")
+
+    added = named.bgra.shape[0] - bare.bgra.shape[0]
+    # A second line, not more of the first: the panel gains exactly the line it drew
+    # and everything under it moves down by that much.
+    assert added > 0
+    assert _control_band_top(named) - _control_band_top(bare) == added
+    # …and the name is in the room it added, in the muted gray, not the status line's
+    # full-strength white.
+    strip = _rgb(named.bgra)[_control_band_top(bare):_control_band_top(named)]
+    assert (strip > 80).any(axis=2).sum() > 0
+    assert (strip > 200).all(axis=2).sum() == 0
+
+
+def test_a_file_name_too_wide_for_the_map_widens_the_panel(thumb):
+    """Names run long, and a name cut off mid-word says nothing about which clip this
+    is — which is the whole reason it is drawn.  So it takes the width it needs, the
+    way the status line above it does."""
+    renderer = HudRenderer("portrait")
+    model = _model(lock_label="Unlocked", corner=HudCell(path="c.mp4", thumb=thumb))
+
+    short = renderer.render(model, video="clip")
+    long = renderer.render(
+        model, video="a considerably longer example clip name than the map is wide")
+
+    assert long.bgra.shape[1] > short.bgra.shape[1]
+    assert long.bgra.shape[0] == short.bgra.shape[0]
+
+
 def test_the_map_sits_where_it_sits_however_long_the_status_is(thumb):
     """The status band is one line deep and stays one line deep, so the map is
     anchored at the same place on every panel — a side that has picked up a filter

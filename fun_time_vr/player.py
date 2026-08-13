@@ -357,7 +357,7 @@ class _SatelliteUnit(_VideoUnit):
             )
         self.session.advance()
         self._status_writer.write(self.session)
-        self.hud.tick()
+        self.hud.tick(video=self.session.current_video.stem)
         self.overlay_furniture(
             self.session.position_ms, self.session.duration_ms,
             _MUTED_INDICATOR, self._volume_painter,

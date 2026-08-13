@@ -70,6 +70,23 @@ def test_tick_redraws_only_when_the_published_panel_changes(tmp_path: Path, pane
     assert player.overlays[overlay.overlay_id][2] is not first
 
 
+def test_tick_redraws_when_the_clip_on_screen_changes(tmp_path: Path, panel: Path):
+    """The HUD names the file the player has open, and a satellite left alone walks
+    its playlist by itself — fun_time republishes the panel only when the map behind
+    it moves, so the name has to redraw off the player's own answer or it would sit
+    on a clip that had already rolled past."""
+    player = FakeSatellitePlayer()
+    overlay = _overlay(tmp_path, panel, player)
+
+    overlay.tick(video="one")
+    first = player.overlays[overlay.overlay_id][2]
+    overlay.tick(video="one")
+    assert player.overlays[overlay.overlay_id][2] is first
+
+    overlay.tick(video="two")
+    assert player.overlays[overlay.overlay_id][2] is not first
+
+
 def test_no_panel_file_means_no_overlay(tmp_path: Path):
     """A satellite fun_time hasn't published a HUD for (an integration run, or
     before the first publish) simply shows no map."""
