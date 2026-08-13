@@ -1012,6 +1012,35 @@ class TestNauObstructionLog:
         it.assert_not_called()  # nothing to walk if Nau never resolved
         assert "unresolved" in caplog.text
 
+    def test_quiet_when_only_the_sessions_own_genau_layer_covers_nau(self, caplog):
+        """In hybrid, Genau's window is the transparent HUD layer over Nau's
+        video — over it on purpose.  Warning on that toasted every hybrid
+        startup with a covering window that covers nothing visible."""
+        stack = [
+            StackedWindow(hwnd=1010, title="Hybrid Nau+Genau", topmost=True,
+                          rect=(2560, 2483, 1440, 930)),
+            StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900)),
+        ]
+        with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
+             caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
+            _log_nau_obstruction(2020, expected_over=1010)
+        assert "frontmost over its rect" in caplog.text
+        assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
+
+    def test_a_third_window_still_warns_past_the_expected_layer(self, caplog):
+        stack = [
+            StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
+            StackedWindow(hwnd=1010, title="Hybrid Nau+Genau", topmost=True,
+                          rect=(2560, 2483, 1440, 930)),
+            StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900)),
+        ]
+        with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
+             caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
+            _log_nau_obstruction(2020, expected_over=1010)
+        assert "covered at startup" in caplog.text
+        assert "Claude" in caplog.text
+        assert "Hybrid Nau+Genau" not in caplog.text
+
 
 class TestVoiceControlIntegration:
     def test_voice_controller_started_when_enabled(self, cfg_factory, tmp_path, monkeypatch):
