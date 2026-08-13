@@ -6,6 +6,13 @@ them — so finding a video meant remembering how far it had got through the
 pipeline.  This browses :mod:`fun_time.library_handles` instead: one tile per
 video, whatever renditions it exists as, alphabetical, with a still off each.
 
+The folder being shown is put up twice, side by side.  The grid of tiles is the
+half you walk, ordered the way the library ranks itself — biggest source folder
+first, cuts behind the videos they came out of — which is the order to browse
+in and the wrong one to *find* in.  So the left sidebar is the other order: the
+same folder as a plain list of names, A to Z, each letter's names under a
+heading of that letter, for when the title is already in mind.
+
 It runs as its own process (``python -m fun_time.library_browser``) because the
 bridge that opens it has no Qt event loop, exactly as the native dialog did.
 The pick leaves through the result file named on the command line; nothing
@@ -24,14 +31,14 @@ from typing import Callable, Sequence
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from PyQt6.QtCore import QSize, Qt, QTimer
-from PyQt6.QtGui import QIcon, QPainter, QPixmap
-from PyQt6.QtWidgets import QListWidget, QListWidgetItem
+from PyQt6.QtGui import QIcon, QPainter, QPalette, QPixmap
+from PyQt6.QtWidgets import QAbstractItemView, QHBoxLayout, QListWidget, QListWidgetItem, QWidget
 
 from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, TEXT_MUTED, TEXT_PRIMARY
-from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, make_font
+from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, SIZE_SMALL, make_font
 
 from .library_handles import LibraryHandle, build_library_handles
-from .library_tree import SubFolder, folder_at
+from .library_tree import Folder, SubFolder, folder_at
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
 
 WINDOW_TITLE = "Fun Time Library"
@@ -43,6 +50,16 @@ TILE_WIDTH = 200
 TILE_HEIGHT = 168
 ICON_WIDTH = 176
 ICON_HEIGHT = 99
+
+# How wide the alphabetical sidebar stands.  About a tile's width: enough for
+# most of a library title before it elides, and little enough that the grid
+# beside it still lays out several tiles across at the size a browse opens at.
+SIDEBAR_WIDTH = 220
+
+# What names with no letter to file under are headed by.  A library holds titles
+# that open on a digit or a bracket, and each of those under a heading of its own
+# first character would be an index with more headings in it than names.
+NON_LETTER_HEADING = "#"
 
 # What the tile that goes back up is called, at the two places it can appear.
 UP_LABEL = "back"
@@ -56,43 +73,46 @@ MONTAGE_GAP = 2
 THUMBNAIL_POLL_MS = 150
 
 
-class LibraryBrowserWindow(QListWidget):
-    """A grid you walk: folder tiles you open, then the videos inside them.
+class BrowseList(QListWidget):
+    """A list in the browse — either of them, and Backspace goes back up from both.
 
-    The folders are the library's own divisions, never the pipeline's — see
-    :mod:`fun_time.library_tree`.  Opening the last one hands over every video
-    under it at once, so no processing stage is ever a step.
+    The key belongs to the browse rather than to one of its views: whichever
+    half has the focus, it is the way out of a folder in every other file
+    browser, and a sidebar that swallowed it would be a place the gesture
+    silently stopped working.
+    """
 
-    Picking is deliberately the only way out that reports anything: *on_pick*
-    is called with the handle's canonical video, and closing the window without
-    picking says nothing, which is what abandoning a browse means.
+    def __init__(self, go_up: Callable[[], None]) -> None:
+        super().__init__(None)
+        self._go_up = go_up
+        self.setFont(make_font(FONT_UI, SIZE_BODY))
 
-    Escape is deliberately NOT bound.  It belongs to OmniPause, whose AHK hotkey
-    is suspend-exempt on purpose (it is the way *out* of a pause), so the press
-    never reaches this window however it is handled here; the window's own close
-    button is what abandons a browse.  Every other key does reach it, because
-    the bridge suspends the hotkeys for the browse's duration.
+    def keyPressEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        """Backspace goes back up, the way it does in every other file browser."""
+        if event.key() == Qt.Key.Key_Backspace:
+            self._go_up()
+            return
+        super().keyPressEvent(event)
+
+
+class LibraryGrid(BrowseList):
+    """The tiles: one per folder or video in the folder being shown, pictured.
+
+    Ordered as :func:`fun_time.library_handles.build_library_handles` ranked the
+    library, which is what makes this the half you browse — the bulk of the
+    library first, a folder's cuts behind its whole videos.  Finding a title you
+    already know the name of is the sidebar's job instead.
     """
 
     def __init__(
         self,
-        handles: Sequence[LibraryHandle],
         *,
         thumbnail_cache: str | Path,
-        on_pick: Callable[[str], None],
-        on_close: Callable[[], None] | None = None,
+        go_up: Callable[[], None],
+        on_activate: Callable[[int], None],
     ) -> None:
-        super().__init__(None)
-        # A Tool window, which on Windows means no taskbar button: a browse is
-        # something you open and dismiss, not a program that is running.  Left
-        # a plain window it earns its own indicator, and — declaring no identity
-        # of its own — Windows hangs that off whatever app it can pair it with.
-        self.setWindowFlags(Qt.WindowType.Tool)
-        self._handles = tuple(handles)
+        super().__init__(go_up)
         self._thumbnail_cache = Path(thumbnail_cache)
-        self._on_pick = on_pick
-        self._on_close = on_close
-        self._path: tuple[str, ...] = ()
 
         self.setViewMode(QListWidget.ViewMode.IconMode)
         self.setResizeMode(QListWidget.ResizeMode.Adjust)
@@ -101,7 +121,6 @@ class LibraryBrowserWindow(QListWidget):
         self.setUniformItemSizes(True)
         self.setIconSize(QSize(ICON_WIDTH, ICON_HEIGHT))
         self.setSpacing(6)
-        self.setFont(make_font(FONT_UI, SIZE_BODY))
         self.setStyleSheet(
             f"QListWidget {{ background-color: {BG_PRIMARY.name()};"
             f" color: {TEXT_PRIMARY.name()}; border: none; }}"
@@ -118,7 +137,7 @@ class LibraryBrowserWindow(QListWidget):
         # One signal covers both gestures: Qt emits itemActivated for Enter
         # AND at the end of a double-click, so nothing here needs to know
         # which of the two the user made.
-        self.itemActivated.connect(self._activate)
+        self.itemActivated.connect(lambda item: on_activate(self.row(item)))
 
         # Rows whose still is not cached yet are extracted off the event loop and
         # collected here; the timer below hands them to the grid.  A cold cache
@@ -128,15 +147,10 @@ class LibraryBrowserWindow(QListWidget):
         self._collect_timer = QTimer(self)
         self._collect_timer.timeout.connect(self._collect_thumbnails)
 
-        self.open_folder(())
-
-    def open_folder(self, path: Sequence[str]) -> None:
-        """Show *path*: its folder tiles, or the videos it holds."""
-        folder = folder_at(self._handles, path)
-        self._path = folder.path
+    def show_folder(self, folder: Folder) -> None:
+        """Lay out *folder* — its sub-folder tiles, or the videos it holds."""
         self.clear()
         self.rows = []
-        self.setWindowTitle(f"{WINDOW_TITLE} — {folder.title}" if folder.title else WINDOW_TITLE)
         if folder.parent is not None:
             self._add_row(self._up_item(folder.parent), None)
         for child in folder.children:
@@ -147,6 +161,19 @@ class LibraryBrowserWindow(QListWidget):
         # back — arrowing off the top of a folder is not what a browse is for.
         self.setCurrentRow(min(1 if folder.parent is not None else 0, self.count() - 1))
         self.start_thumbnail_extraction()
+
+    def reveal(self, row: int) -> None:
+        """Put the selection on *row* and scroll it up out of wherever it was.
+
+        Centered rather than merely made visible: a jump out of the sidebar
+        lands on a name the user cannot see yet, and one that arrives clinging
+        to the bottom edge of the grid reads as not having moved.
+        """
+        item = self.item(row)
+        if item is None:
+            return
+        self.setCurrentRow(row)
+        self.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
 
     def _add_row(self, item: QListWidgetItem, what: LibraryHandle | SubFolder | None) -> None:
         self.rows.append(what)
@@ -186,31 +213,6 @@ class LibraryBrowserWindow(QListWidget):
         if cached is not None:
             item.setIcon(fitted_icon(cached))
         return item
-
-    def closeEvent(self, event) -> None:  # noqa: N802 (Qt override)
-        """Tell the process the browse is over — closing this window cannot.
-
-        Qt quits an app when its last window closes, but a Tool window is not
-        counted as one (it is chrome for another window, by Qt's reckoning).  The
-        browser has only Tool windows, so nothing would ever end its event loop:
-        the picked video would sit in the result file with the bridge still
-        blocked on a process that had nothing left to do.
-        """
-        super().closeEvent(event)
-        if self._on_close is not None:
-            self._on_close()
-
-    def keyPressEvent(self, event) -> None:  # noqa: N802 (Qt override)
-        """Backspace goes back up, the way it does in every other file browser."""
-        if event.key() == Qt.Key.Key_Backspace:
-            self.go_up()
-            return
-        super().keyPressEvent(event)
-
-    def go_up(self) -> None:
-        """Leave the folder being shown for the one that holds it."""
-        if self._path:
-            self.open_folder(self._path[:-1])
 
     def start_thumbnail_extraction(self) -> None:
         """Fill in the stills the cache did not already have, in the background."""
@@ -255,9 +257,211 @@ class LibraryBrowserWindow(QListWidget):
         if self._extractor is not None and not self._extractor.is_alive():
             self._collect_timer.stop()
 
+
+class FolderIndex(BrowseList):
+    """The folder as a plain list of names, A to Z, under a heading per letter.
+
+    The grid beside this is in the library's own ranking, which is the order to
+    look *through* a folder in and no help at all when the title is already in
+    mind: an alphabetical walk across it is a walk across a wrapped grid of
+    stills.  So the same folder goes up again here as text alone, sorted by
+    name, with the letter each group files under standing over it.
+
+    Choosing a name moves the grid to it.  The grid never moves this in return,
+    deliberately: an index that re-scrolled itself every time the grid's
+    selection changed would slide out from under the walk down it that caused
+    the change.
+    """
+
+    def __init__(
+        self,
+        *,
+        go_up: Callable[[], None],
+        on_reveal: Callable[[int], None],
+        on_activate: Callable[[int], None],
+    ) -> None:
+        super().__init__(go_up)
+        self._on_reveal = on_reveal
+        self._on_activate = on_activate
+        self.setFixedWidth(SIDEBAR_WIDTH)
+        self.setStyleSheet(
+            f"QListWidget {{ background-color: {BG_SECONDARY.name()};"
+            f" color: {TEXT_PRIMARY.name()};"
+            f" border: none; border-right: 1px solid {BG_PRIMARY.name()}; }}"
+            " QListWidget::item { padding: 2px 6px; }"
+            f" QListWidget::item:selected {{ background-color: {BLUE.name()}; }}"
+            # The letter headings, which are the only rows here that are disabled
+            # — they stand over the names rather than reading as more of them.
+            f" QListWidget::item:disabled {{ color: {TEXT_MUTED.name()}; }}"
+        )
+
+        # One entry per widget row: which grid row that line stands for, or None
+        # for a letter heading, which stands for nothing you can open.
+        self.grid_rows: list[int | None] = []
+        self.currentItemChanged.connect(self._reveal)
+        self.itemActivated.connect(self._activate)
+
+    def show_rows(self, rows: Sequence[object]) -> None:
+        """List *rows* — the grid's, in its order — alphabetically under headings."""
+        # Cleared before the widget is, so the currentItemChanged that clearing
+        # fires cannot be answered against a mapping for the folder just left.
+        self.grid_rows = []
+        self.clear()
+        for line in alphabetical_index(rows):
+            self._add_line(
+                self._heading_item(line.label) if line.is_heading
+                else self._name_item(line.label),
+                line.row,
+            )
+        self._hold_to_the_sidebars_width()
+
+    def _add_line(self, item: QListWidgetItem, row: int | None) -> None:
+        self.grid_rows.append(row)
+        self.addItem(item)
+
+    def _hold_to_the_sidebars_width(self) -> None:
+        """Hand every line a width Qt will stretch, rather than lay the list out to.
+
+        A list view sizes its rows to the widest size hint it was given, and a
+        library title runs several times the width of this one: left alone the
+        rows grow the list sideways and hang a horizontal scrollbar under an
+        index meant to be read straight down, with every name cut off at the
+        edge rather than elided.  A hint narrower than the viewport is stretched
+        to fill it instead, so the names elide at the sidebar's own edge however
+        much of it the vertical scrollbar takes.  The height is asked for first,
+        because that one is the delegate's to decide.
+        """
+        for row in range(self.count()):
+            self.item(row).setSizeHint(QSize(1, self.sizeHintForRow(row)))
+
+    def _heading_item(self, letter: str) -> QListWidgetItem:
+        """A letter standing over its names — and never landed on.
+
+        Flagless, so it is neither selectable nor enabled: Qt's own arrow
+        navigation and type-ahead both step over a disabled row, which is what
+        keeps a walk down the index a walk down its names.  Being the only
+        disabled rows here is also what the stylesheet mutes them by.
+        """
+        item = QListWidgetItem(letter)
+        item.setFlags(Qt.ItemFlag.NoItemFlags)
+        item.setFont(make_font(FONT_UI, SIZE_SMALL, bold=True))
+        return item
+
+    def _name_item(self, name: str) -> QListWidgetItem:
+        # Named again as its own tooltip: the sidebar is a fixed width and
+        # library titles run past it, so the elided ones are still readable.
+        item = QListWidgetItem(name)
+        item.setToolTip(name)
+        return item
+
+    def _grid_row(self, item: QListWidgetItem | None) -> int | None:
+        if item is None:
+            return None
+        row = self.row(item)
+        return self.grid_rows[row] if 0 <= row < len(self.grid_rows) else None
+
+    def _reveal(self, item: QListWidgetItem | None, _previous: object = None) -> None:
+        row = self._grid_row(item)
+        if row is not None:
+            self._on_reveal(row)
+
     def _activate(self, item: QListWidgetItem) -> None:
+        row = self._grid_row(item)
+        if row is not None:
+            self._on_activate(row)
+
+
+class LibraryBrowserWindow(QWidget):
+    """A folder shown two ways at once: tiles you walk, and its names A to Z.
+
+    The folders are the library's own divisions, never the pipeline's — see
+    :mod:`fun_time.library_tree`.  Opening the last one hands over every video
+    under it at once, so no processing stage is ever a step.
+
+    Picking is deliberately the only way out that reports anything: *on_pick*
+    is called with the handle's canonical video, and closing the window without
+    picking says nothing, which is what abandoning a browse means.
+
+    Escape is deliberately NOT bound.  It belongs to OmniPause, whose AHK hotkey
+    is suspend-exempt on purpose (it is the way *out* of a pause), so the press
+    never reaches this window however it is handled here; the window's own close
+    button is what abandons a browse.  Every other key does reach it, because
+    the bridge suspends the hotkeys for the browse's duration.
+    """
+
+    def __init__(
+        self,
+        handles: Sequence[LibraryHandle],
+        *,
+        thumbnail_cache: str | Path,
+        on_pick: Callable[[str], None],
+        on_close: Callable[[], None] | None = None,
+    ) -> None:
+        super().__init__(None)
+        # A Tool window, which on Windows means no taskbar button: a browse is
+        # something you open and dismiss, not a program that is running.  Left
+        # a plain window it earns its own indicator, and — declaring no identity
+        # of its own — Windows hangs that off whatever app it can pair it with.
+        self.setWindowFlags(Qt.WindowType.Tool)
+        self._handles = tuple(handles)
+        self._on_pick = on_pick
+        self._on_close = on_close
+        self._path: tuple[str, ...] = ()
+
+        self.grid = LibraryGrid(
+            thumbnail_cache=thumbnail_cache, go_up=self.go_up, on_activate=self._activate,
+        )
+        self.index = FolderIndex(
+            go_up=self.go_up, on_reveal=self.grid.reveal, on_activate=self._activate,
+        )
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.index)
+        layout.addWidget(self.grid, 1)
+        # Painted through the palette rather than a stylesheet: a QWidget
+        # subclass draws neither its own background nor a stylesheet's unless it
+        # paints one, and this is the sliver the two lists do not cover.
+        self.setAutoFillBackground(True)
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.Window, BG_PRIMARY)
+        self.setPalette(palette)
+
+        self.open_folder(())
+        # The grid takes the focus, though the sidebar is first in the layout and
+        # would otherwise have it: the arrows and the type-ahead are the way the
+        # browse is driven, and both belong on the tiles.
+        self.grid.setFocus()
+
+    def open_folder(self, path: Sequence[str]) -> None:
+        """Show *path* in both halves: its folder tiles, or the videos it holds."""
+        folder = folder_at(self._handles, path)
+        self._path = folder.path
+        self.setWindowTitle(f"{WINDOW_TITLE} — {folder.title}" if folder.title else WINDOW_TITLE)
+        self.grid.show_folder(folder)
+        self.index.show_rows(self.grid.rows)
+
+    def go_up(self) -> None:
+        """Leave the folder being shown for the one that holds it."""
+        if self._path:
+            self.open_folder(self._path[:-1])
+
+    def closeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        """Tell the process the browse is over — closing this window cannot.
+
+        Qt quits an app when its last window closes, but a Tool window is not
+        counted as one (it is chrome for another window, by Qt's reckoning).  The
+        browser has only Tool windows, so nothing would ever end its event loop:
+        the picked video would sit in the result file with the bridge still
+        blocked on a process that had nothing left to do.
+        """
+        super().closeEvent(event)
+        if self._on_close is not None:
+            self._on_close()
+
+    def _activate(self, row: int) -> None:
         """Open a folder, go back up, or play a video — whatever the row is."""
-        what = self.rows[self.row(item)]
+        what = self.grid.rows[row]
         if what is None:
             self.go_up()
         elif isinstance(what, SubFolder):
@@ -265,6 +469,57 @@ class LibraryBrowserWindow(QListWidget):
         else:
             self._on_pick(what.video)
             self.close()
+
+
+@dataclass(frozen=True)
+class IndexLine:
+    """One line of the sidebar: a letter heading, or a name that opens a grid row."""
+
+    label: str
+    row: int | None = None
+
+    @property
+    def is_heading(self) -> bool:
+        """Whether this line names a group rather than something in one."""
+        return self.row is None
+
+
+def name_of(what: object) -> str:
+    """What a row is called — a video's title, or a folder's name."""
+    if what is None:
+        return ""
+    return getattr(what, "title", None) or getattr(what, "name", "")
+
+
+def initial_letter(name: str) -> str:
+    """The heading *name* files under: its first letter, or ``#`` for the rest."""
+    first = name.strip()[:1].upper()
+    return first if first.isalpha() else NON_LETTER_HEADING
+
+
+def alphabetical_index(rows: Sequence[object]) -> list[IndexLine]:
+    """*rows* listed A to Z, each letter's names beneath a heading of that letter.
+
+    Rows carry their grid position with them rather than being re-counted, since
+    the two orders disagree by design — that disagreement is the whole reason
+    the sidebar exists.  Sorting is case-insensitive first and exact second,
+    exactly as :func:`fun_time.library_handles.build_library_handles` ranks
+    within a folder, so a folder already alphabetical comes up in the order it
+    is in.  The way back is left out: it is not something the folder holds.
+    """
+    named = sorted(
+        ((name_of(what), row) for row, what in enumerate(rows) if what is not None),
+        key=lambda named_row: (named_row[0].casefold(), named_row[0]),
+    )
+    lines: list[IndexLine] = []
+    heading = ""
+    for name, row in named:
+        letter = initial_letter(name)
+        if letter != heading:
+            heading = letter
+            lines.append(IndexLine(letter))
+        lines.append(IndexLine(name, row))
+    return lines
 
 
 def fitted_icon(still: str | Path) -> QIcon:

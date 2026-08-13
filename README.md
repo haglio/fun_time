@@ -288,6 +288,18 @@ count — and opening one shows what is in it: either the folders it was split
 into, or its videos. A tile at the head of every folder goes back up, and so
 does Backspace.
 
+Down the left is the same folder listed a second way: **its names, A to Z**,
+each letter's group under a heading of that letter. The grid is in the library's
+own ranking, which is the order to look *through* a folder in and no help when
+the title is already in mind — an alphabetical walk across a wrapped grid of
+stills is not one. So the sidebar carries no pictures, only names: clicking one
+moves the grid's selection to it and scrolls it into view, and Enter or a
+double-click there opens it exactly as the tile would. Sub-folders are listed
+the same way at the levels that show them; the way back is not, since it is not
+something the folder holds. Names that start with a digit or a bracket file
+under `#`. The grid keeps the focus, so the arrows and the type-ahead still
+drive the tiles, and Backspace goes back up from either half.
+
 The pipeline stages are never steps. Opening the last folder lays out **every**
 video under it at once, however many processing folders they are spread across
 on disk, because how far a video got through the pipeline is an implementation
