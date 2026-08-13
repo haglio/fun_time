@@ -315,6 +315,28 @@ class TestTCode:
         role.apply_command("NEXT")
         assert driver.resets == resets_at_start + 1
 
+    def test_re_enabling_tcode_resets_the_driver_for_the_takeover(self, role_parts):
+        # SET_TCODE_ENABLED 1 is the hybrid handoff taking the device back from
+        # Genau: reset like any other takeover, so the next tick sends at once
+        # and with the handoff glide rather than snapping to a near waypoint.
+        role, _, driver, *_ = role_parts
+        role.apply_command("SET_TCODE_ENABLED 0")
+        resets_before = driver.resets
+
+        role.apply_command("SET_TCODE_ENABLED 1")
+
+        assert driver.resets == resets_before + 1
+
+    def test_repeating_enabled_tcode_does_not_reset(self, role_parts):
+        # Only the mute→drive edge is a takeover; repeating "1" must not keep
+        # re-arming the glide under a script that is already driving.
+        role, _, driver, *_ = role_parts
+        resets_before = driver.resets
+
+        role.apply_command("SET_TCODE_ENABLED 1")
+
+        assert driver.resets == resets_before
+
 
 class TestStatus:
     def test_status_fields_read_back_through_the_orchestrators_own_parser(self, role_parts, tmp_path):
