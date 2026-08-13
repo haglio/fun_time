@@ -167,6 +167,18 @@ class TestResumeSharedState:
         assert state.portrait_latest is True
         assert state.landscape_latest is True
 
+    def test_carries_the_main_player_s_order(self, tmp_path: Path):
+        """The main player's order fixes its resumed playlist exactly as a
+        satellite's does, so it comes back with it — otherwise the session opens
+        on a newest-first list while its HUD says Shuffle, and the next rebuild
+        reshuffles the order it was left in."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(main_latest=True))
+
+        state = resume_shared_state(state_file, resumed=True)
+
+        assert state.main_latest is True
+
     def test_carries_the_sound_level_and_each_side_s_lock(self, tmp_path: Path):
         """Neither is a thing that should reset overnight, so both come back —
         and each has its world put back with it, the level seeded to both audio

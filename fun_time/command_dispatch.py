@@ -1630,6 +1630,11 @@ def _dispatch_main_reorder(
     RELOAD_PLAYLIST it gets for an F-mode change.  Rescanning as it goes means clips
     that have arrived since are picked up, which is most of what "latest" is for.
 
+    From the top of the new order, as a satellite's reorder is: a reorder filters
+    nothing out, so Nau would keep the video on screen and carry on from wherever
+    it now sits — the newest-first list applying only behind it, and the arrivals
+    that were asked for never coming up.
+
     The order is remembered like each satellite's, so a later F-mode rebuild reloads
     the main player the same way round rather than quietly reshuffling it.
     """
@@ -1640,6 +1645,7 @@ def _dispatch_main_reorder(
         recent=recent,
         state_dir=config.state_dir,
         nau_cmd_file=config.nau_cmd_file,
+        start_at_top=True,
     )
     message = (f"{'Latest' if recent else 'Shuffle'}: main player "
                f"{'newest-first' if recent else 'reshuffled'}")

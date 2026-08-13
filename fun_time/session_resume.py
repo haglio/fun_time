@@ -64,6 +64,7 @@ RESUMED_FIELDS = (
     "landscape_f_mode",
     "portrait_filter",
     "landscape_filter",
+    "main_latest",
     "portrait_latest",
     "landscape_latest",
     "portrait_loop",

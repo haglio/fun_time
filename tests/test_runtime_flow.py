@@ -13,6 +13,7 @@ from fun_time.runtime_flow import (
     apply_enter_omnipause,
     apply_fmode,
     apply_leave_omnipause,
+    apply_main_fmode,
     apply_mode_switch,
     apply_satellite_filter,
     satellite_browse_paths,
@@ -353,6 +354,38 @@ def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_pat
 
     assert told(True) == ["RELOAD_PLAYLIST", "SET_F_MODE 1"]
     assert told(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
+
+
+def test_the_main_player_can_be_started_at_the_top_of_the_new_list(tmp_path: Path):
+    """Nau keeps the video on screen across a reload whenever the new list still
+    holds it — and a reorder, filtering nothing out, always does.  So "main latest"
+    would rebuild newest-first and change nothing anyone could see: the new order
+    applied only behind the video playing, and the arrivals asked for never came up.
+
+    The jump rides the same write as the reload, since the file is overwritten
+    rather than appended, and goes last so it lands on the list just taken.
+    """
+    root = tmp_path / "videos" / "videos" / "primary"
+    root.mkdir(parents=True)
+    old, new = root / "old.mp4", root / "new.mp4"
+    for path, mtime in ((old, 1000), (new, 2000)):
+        path.write_text("x", encoding="utf-8")
+        os.utime(path, (mtime, mtime))
+    # The head carries its funscript, exactly as the playlist line does: Nau drives
+    # the OSR2 off that column.
+    script = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "new.funscript"
+    script.parent.mkdir(parents=True)
+    script.write_text("{}", encoding="utf-8")
+    nau_cmd_file = tmp_path / "nau_cmd.txt"
+
+    apply_main_fmode(
+        enabled=False, main_sources=str(root), recent=True, start_at_top=True,
+        state_dir=tmp_path / "state", nau_cmd_file=nau_cmd_file,
+    )
+
+    assert nau_cmd_file.read_text(encoding="utf-8").splitlines() == [
+        "RELOAD_PLAYLIST", "SET_F_MODE 0", f"PLAY_FILE {new}\t{script}",
+    ]
 
 
 def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path):

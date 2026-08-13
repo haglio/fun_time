@@ -281,6 +281,15 @@ def build_playlist_file_path(state_dir: Path, name: str) -> Path:
     return state_dir / f"{name}.tsv"
 
 
+def playlist_entry_line(video: str | Path, funscript: str | Path | None) -> str:
+    """One playlist entry: the video, TAB + its funscript where there is one.
+
+    Also the shape a ``PLAY_FILE`` argument takes, so naming a video to jump to
+    says it exactly as the playlist does — the two cannot drift apart.
+    """
+    return f"{video}\t{funscript}" if funscript else f"{video}"
+
+
 def write_playlist_entries(
     path: Path, entries: Sequence[tuple[str | Path, str | Path | None]]
 ) -> None:
@@ -291,7 +300,7 @@ def write_playlist_entries(
     so every playlist fun_time writes is emitted here and can never drift apart.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    lines = (f"{video}\t{funscript}" if funscript else f"{video}" for video, funscript in entries)
+    lines = (playlist_entry_line(video, funscript) for video, funscript in entries)
     path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
 
 
