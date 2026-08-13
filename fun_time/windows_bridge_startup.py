@@ -23,7 +23,7 @@ from .modes import (
     build_playlist_file_path,
     build_main_playlist,
 )
-from .mode_plan import STARTUP_MAIN_MODE
+from .mode_plan import STARTUP_MAIN_MODE, genau_active
 from .runtime_flow import SET_F_MODE_CMD, apply_mode_switch, write_flag_file
 from .satellite_control import read_satellite_status
 from .session_resume import (
@@ -328,6 +328,17 @@ def seed_startup_states(
     # moving behind a progress bar.  Every player waits for the reveal instead.
     for path in (genau_paused_file, audio_paused_file, nau_paused_file):
         write_flag_file(path, True)
+    # The flag does not hold Genau, which is how that twenty seconds went on
+    # happening anyway.  Under Fun Time Genau runs in direct control, where its
+    # stroke follows the PAUSE/RESUME verbs on THIS channel and the paused flag
+    # above is never read at all — so the RESUME the switch just queued was still
+    # waiting when Genau finished loading, and every session resuming into genau
+    # or hybrid drove the OSR2 behind the loading screen.  Queued behind the
+    # switch's verbs rather than replacing them: the channel is drained in order,
+    # so the display and HUD it also asserted still land and only the play verb is
+    # taken back.  The reveal is what hands Genau its RESUME.
+    if genau_active(mode):
+        append_command(Path(genau_cmd_file), "PAUSE")
     publish_audio_level(
         nau_cmd_file=Path(nau_cmd_file),
         genau_cmd_file=Path(genau_cmd_file),

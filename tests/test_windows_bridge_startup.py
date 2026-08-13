@@ -380,7 +380,9 @@ def test_seed_startup_states_hands_the_primary_slot_to_genau_for_a_genau_session
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-        "RESUME", "DISPLAY_ON", "SET_VOLUME 100 0",
+        # The switch's RESUME, taken back by the hold that follows it — see
+        # test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal.
+        "RESUME", "DISPLAY_ON", "PAUSE", "SET_VOLUME 100 0",
     ]
     assert _nau_verbs(tmp_path) == [
         "SET_HYBRID 0", "DISPLAY_OFF", "SET_VOLUME 100 0", "SET_F_MODE 0",
@@ -400,6 +402,27 @@ def test_seed_startup_states_holds_every_player_for_the_reveal(tmp_path: Path):
         assert (tmp_path / "nau_paused.txt").read_text(encoding="utf-8") == "1", mode
 
 
+def _genau_play_verb(tmp_path: Path) -> str | None:
+    """The last PAUSE/RESUME queued for Genau — the one its drain leaves it on."""
+    verbs = [
+        verb for verb in (tmp_path / "genau_cmd.txt").read_text(encoding="utf-8").splitlines()
+        if verb in ("PAUSE", "RESUME")
+    ]
+    return verbs[-1] if verbs else None
+
+
+def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: Path):
+    """The flags above do not reach Genau, so the hold has to be said on its own
+    channel as well.  Under Fun Time Genau runs in direct control, where the
+    paused flag is never read and the stroke follows PAUSE/RESUME here — so the
+    switch's RESUME was still queued when Genau finished loading, and a session
+    resuming into genau or hybrid drove the OSR2 behind the loading screen."""
+    for mode in ("nau", "genau", "hybrid"):
+        _seed_startup_states(tmp_path, mode=mode)
+
+        assert _genau_play_verb(tmp_path) == "PAUSE", mode
+
+
 def test_seed_startup_states_puts_genaus_hud_up_for_a_hybrid_session(tmp_path: Path):
     """Hybrid is both players at once: Genau's transparent HUD over Nau's video,
     which each of them has to be told about."""
@@ -408,7 +431,7 @@ def test_seed_startup_states_puts_genaus_hud_up_for_a_hybrid_session(tmp_path: P
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="hybrid")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-        "RESUME", "HUD_ON", "DISPLAY_ON", "SET_VOLUME 100 0",
+        "RESUME", "HUD_ON", "DISPLAY_ON", "PAUSE", "SET_VOLUME 100 0",
     ]
     assert _nau_verbs(tmp_path)[:2] == ["SET_HYBRID 1", "DISPLAY_ON"]
 
@@ -686,10 +709,10 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
 
     assert _run_start_core_session(kwargs) == "genau"
 
-    # Genau is told to come back up painting and driving; the reveal is what
-    # then lets it, so both players are still held here.
+    # Genau is told to come back up painting; the reveal is what then lets it
+    # drive, so the switch's RESUME is taken back here and both players are held.
     assert kwargs["genau_cmd_file"].read_text(encoding="utf-8").splitlines() == [
-        "RESUME", "DISPLAY_ON", "SET_VOLUME 100 0",
+        "RESUME", "DISPLAY_ON", "PAUSE", "SET_VOLUME 100 0",
     ]
     assert kwargs["nau_paused_file"].read_text(encoding="utf-8") == "1"
 
