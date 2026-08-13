@@ -119,6 +119,16 @@ _FUNNEL_W = 9
 _FUNNEL_H = 9
 _FUNNEL_NECK = 3  # width of the stem the mouth narrows to
 
+# The minimize mark, drawn for the same reason: the bar Windows puts on a title
+# bar is U+E921 of Segoe MDL2 Assets, which is not the face the buttons here take
+# their glyphs from, and Pillow draws a ".notdef" box for a codepoint a face does
+# not carry.  Drawing it costs one rectangle and needs no font at all — and the
+# bar is the one mark on this panel nobody has to be taught, since it is exactly
+# what every title bar in Windows uses for the same gesture.  As wide as the
+# funnel's mouth, so the two drawn marks are built to one size.
+_MINIMIZE_W = 9
+_MINIMIZE_H = 2
+
 
 def gutter_width_for(font: ImageFont.FreeTypeFont, current_action: str,
                      action_labels: tuple[str, ...], *, min_width: int = 0) -> int:
@@ -582,13 +592,27 @@ class HudRenderer:
             fill=ink,
         )
 
+    def _minimize_button(self, draw, rect: Rect) -> None:
+        """The same square button with a minimize bar drawn on it.
+
+        Never lit: minimizing is a thing done rather than a state held — and the
+        panel is gone the moment it takes effect, so there would be nobody left to
+        read a lit button anyway.
+        """
+        ink = self._button_box(draw, rect, on=False)
+        bx, by, bw, bh = rect
+        cx, cy = bx + bw / 2, by + bh / 2
+        top = cy - _MINIMIZE_H / 2
+        draw.rectangle([cx - _MINIMIZE_W / 2, top, cx + _MINIMIZE_W / 2, top + _MINIMIZE_H - 1],
+                       fill=ink)
+
     def _draw_controls(self, draw, controls: list[tuple[Rect, str]], favorite: Rect,
                        model: HudModel) -> None:
         """The side's own buttons, and the mark saying whether the clip on screen
         is one of the favorites.
 
-        The lock and F-mode are states, so they light while they are on; the other
-        three do a thing rather than be in one.  The star is a readout, not a
+        The lock and F-mode are states, so they light while they are on; the
+        others do a thing rather than be in one.  The star is a readout, not a
         button, so it gets no box: a box would invite a press that does nothing.
 
         Both lit states are green rather than white, and so is the star: locking a
@@ -602,6 +626,9 @@ class HudRenderer:
             if name in _ICON_CONTROLS:
                 self._button_box(draw, rect, on=lit.get(name, False), on_color=GREEN)
                 draw_icon(draw, rect, _ICON_CONTROLS[name])
+                continue
+            if name == "minimize":
+                self._minimize_button(draw, rect)
                 continue
             self._glyph_button(draw, rect, _CONTROL_GLYPHS[name],
                                on=lit.get(name, False), on_color=GREEN)

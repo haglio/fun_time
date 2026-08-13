@@ -319,9 +319,25 @@ def test_render_draws_the_sides_own_controls_even_with_no_clip():
         HudModel(side="landscape", locked=False, lock_label="Unlocked"))
 
     assert [name for _rect, name in rendered.targets.control] == [
-        "prev", "next", "lock", "trash", "fmode",
+        "prev", "next", "lock", "trash", "fmode", "minimize",
     ]
     assert rendered.targets.favorite is not None
+
+
+def test_the_minimize_button_wears_a_bar_rather_than_a_font_glyph():
+    """The minimize mark Windows uses lives in a face these buttons don't load, and
+    Pillow draws a ".notdef" box for a codepoint a face doesn't carry — so it is
+    drawn: one horizontal run of ink across the middle of the button, wider than it
+    is tall, which is what a title bar's minimize looks like everywhere."""
+    rendered = HudRenderer("landscape").render(
+        HudModel(side="landscape", lock_label="Unlocked"))
+    x, y, w, h = {name: rect for rect, name in rendered.targets.control}["minimize"]
+    # The button's own outline is its border, so only the interior is the mark.
+    inside = _rgb(rendered.bgra)[y + 2:y + h - 2, x + 2:x + w - 2]
+    ys, xs = np.nonzero((inside > 60).all(axis=2))
+
+    assert len(ys), "the minimize button drew no mark at all"
+    assert xs.max() - xs.min() > ys.max() - ys.min()  # a bar, not a box or a glyph
 
 
 def test_the_state_controls_and_favorite_mark_light_up_when_they_apply():

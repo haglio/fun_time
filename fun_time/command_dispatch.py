@@ -659,6 +659,15 @@ _NO_FILTER_SIDES: dict[str, str] = {
     "landscape_no_filter": "landscape",
 }
 
+# A satellite's own minimize button (``satellite.hud.CONTROLS``), by the window
+# role the dispatch loop resolves it to.  The satellites are borderless, so their
+# windows carry no minimize box of their own, and the only other way to park one
+# was the dashboard's minimize — which takes the whole room down together.
+_MINIMIZE_ROLES: dict[str, str] = {
+    "portrait_minimize": "portrait",
+    "landscape_minimize": "landscape",
+}
+
 # The two browse orderings, per player: Latest reloads newest-first, Shuffle
 # reshuffles.  "both …" reaches each satellite in turn (the dispatch loop expands
 # it), which is what the P key sends.  The main player is 1 and reloads through
@@ -1124,6 +1133,14 @@ def dispatch_command(
     keyboard and dashboard command arrives.
     """
     ops: list[WindowOp] = []
+
+    # Parking a player, before the active-side bookkeeping below: this is the one
+    # side command that is not about that side's video, and a player just taken
+    # off the screen must not become the one a bare "lock" or "next" reaches —
+    # that would send the next spoken word to a window nobody can see.
+    minimize_role = _MINIMIZE_ROLES.get(command)
+    if minimize_role is not None:
+        return state, [WindowOp(op="minimize_role", key=minimize_role)]
 
     # Any explicit side command (voice or keyboard nav) becomes the active side,
     # so a later side-agnostic "active_*" command knows which player to drive.

@@ -975,6 +975,62 @@ class TestDispatchLoopRunner:
 
         assert [h for h, _ in restored] == minimized_hwnds
 
+    def test_a_huds_minimize_button_parks_only_that_player(self, tmp_path):
+        """The satellites are borderless, so the HUD button is the only way to get
+        one out of the way on its own.  It reaches exactly that window — the other
+        players stay up — and never activates, so parking one does not hand the
+        foreground to the next."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("portrait_minimize", encoding="utf-8")
+
+        minimized: list[tuple[int, dict]] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
+            runner.tick()
+
+        assert [h for h, _ in minimized] == [PORTRAIT_HWND]
+        assert all(kw.get("activate") is False for _, kw in minimized)
+
+    def test_a_huds_minimize_button_takes_effect_without_a_settle(self, tmp_path):
+        """Unlike the main-slot swap, which waits out PRIMARY_BLANK_SETTLE_S so the
+        outgoing player can present its black first, nothing here has been told to
+        blank — so the window goes down in the same tick as the press."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("landscape_minimize", encoding="utf-8")
+
+        minimized: list[int] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+            runner.tick()
+
+            assert minimized == [LANDSCAPE_HWND]
+            assert runner._pending_hides == {}
+
+    def test_a_huds_minimize_button_says_nothing_to_ahk(self, tmp_path):
+        """The op loop's fall-through writes an unrecognized op straight to the AHK
+        command file, so a new op that is not handled would arrive there as a bogus
+        verb rather than doing its job."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("portrait_minimize", encoding="utf-8")
+        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window"):
+            runner.tick()
+
+        assert not ahk_cmd_file.exists()
+
     def test_sends_press_via_udp_on_button_command(self, tmp_path):
         recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         recv_sock.bind(("127.0.0.1", 0))
