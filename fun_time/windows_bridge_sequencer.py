@@ -15,6 +15,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from player_core.file_channel import append_command
+
 from .config import LayoutConfig
 from .dashboard_runtime import genau_status_path, read_genau_status, read_nau_status
 from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
@@ -517,6 +519,15 @@ def _run_startup_phases(
     write_flag_file(m["commands"]["nau_paused_file"], not nau_displays(main_mode))
     for key in ("genau_paused_file", "audio_paused_file"):
         write_flag_file(m["commands"][key], not genau_active(main_mode))
+    # Genau's stroke rides its command channel rather than that flag (see
+    # seed_startup_states, which holds it there), so the mode where it drives
+    # outright has to be told here or it never starts.  Only genau mode: in hybrid
+    # the dispatch loop's arbiter picks between Genau and the funscript on its
+    # first tick, and a RESUME here would start Genau against a funscript that is
+    # about to take the device — the same reason leaving OmniPause resumes Genau
+    # in genau mode alone.
+    if main_mode == "genau":
+        append_command(Path(m["commands"]["genau_cmd_file"]), "RESUME")
 
     return StartupResult(
         nau_pid=nau_pid,

@@ -504,6 +504,37 @@ class TestRunStartupSequence:
         assert paused["nau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
+    def test_a_genau_session_hands_genau_the_osr2_at_the_reveal(self, cfg_factory, tmp_path):
+        """Genau's stroke rides its command channel, not the paused flag, so the
+        mode where it drives outright is started here — and only here, because
+        startup held it on that channel so it could not drive the device while the
+        loading screen was still up."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _seed_paused_flags(manifest_path)
+        genau_cmd = Path(cfg.genau_cmd_file)
+        genau_cmd.parent.mkdir(parents=True, exist_ok=True)
+        genau_cmd.write_text("", encoding="utf-8")
+
+        _run_revealing_sequence(manifest_path, tmp_path, "genau")
+
+        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["RESUME"]
+
+    def test_a_hybrid_session_leaves_genau_to_the_arbiter_at_the_reveal(
+        self, cfg_factory, tmp_path,
+    ):
+        """No RESUME in hybrid: the dispatch loop's arbiter picks between Genau
+        and the funscript on its first tick, and starting Genau here would put it
+        on the device against a funscript about to take it."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _seed_paused_flags(manifest_path)
+        genau_cmd = Path(cfg.genau_cmd_file)
+        genau_cmd.parent.mkdir(parents=True, exist_ok=True)
+        genau_cmd.write_text("", encoding="utf-8")
+
+        _run_revealing_sequence(manifest_path, tmp_path, "hybrid")
+
+        assert genau_cmd.read_text(encoding="utf-8") == ""
+
     def test_a_nau_session_leaves_genau_parked_at_the_reveal(self, cfg_factory, tmp_path):
         """Nau's own mode: Genau stays held, so nothing drives the OSR2 behind
         the minimized window."""
