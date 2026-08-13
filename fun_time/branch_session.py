@@ -81,6 +81,11 @@ STATE_DIRNAME = "state"
 FIELD_SEPARATOR = "\t"
 DETACHED = "(detached)"
 
+# A worktree's own answer to "which checkout of ../genau do Nau and Genau run
+# out of" — one absolute path per line, in the worktree's state dir, blank lines
+# and #-comments ignored.  See :func:`_apply_genau_checkout_override`.
+GENAU_DIRS_OVERRIDE_NAME = "genau_project_dirs.txt"
+
 # Git-ignored overlays that a session reads from its own checkout, so they exist
 # in the primary and in no worktree.  See :func:`mirror_private_overlays`.
 _PRIVATE_OVERLAYS = (
@@ -263,6 +268,40 @@ def _pin_paths_to_the_primary(raw: dict, real: ProjectConfig) -> None:
         raw.get("paths", {}).pop(key, None)
 
 
+def _apply_genau_checkout_override(raw: dict, state_dir: Path) -> None:
+    """Let a worktree say for itself which checkout of ../genau its session runs.
+
+    ``paths.genau_project_dirs`` answers a per-SESSION question — Nau and Genau
+    are launched with these directories in front of their venv's install, so this
+    is which checkout of that repo they are — but it could only be said in the
+    machine's one ``fun_time_config.json``, which every session on the machine
+    reads.  So an agent judging a genau branch wrote its worktree there, and that
+    pin then reached the user's ordinary ``launch.vbs`` session and every *other*
+    agent's branch session too, each of them silently running an unlanded branch
+    of another repo.  Nothing took it back out either: the launcher it pairs with
+    has ``--remove-shortcut`` and this had no counterpart at all.  It cost a whole
+    round trip when a fun_time branch could not show a console button that had
+    landed in genau, because the pinned checkout predated it.
+
+    A file in the worktree's own state dir answers it per session instead: one
+    absolute path per line, ``#`` comments and blank lines ignored.  Present, it
+    REPLACES the machine's value outright — so an empty file is the way to say
+    "the plain venv install, whatever the machine is pinned to", which is what a
+    branch that has nothing to do with genau wants.  Absent, the machine's value
+    rides through as before.  It lives beside the branch config, is git-ignored
+    with the rest of ``state/``, and dies with the worktree.
+    """
+    override = state_dir / GENAU_DIRS_OVERRIDE_NAME
+    try:
+        text = override.read_text(encoding="utf-8")
+    except OSError:
+        return
+    dirs = [line.strip() for line in text.splitlines()]
+    raw.setdefault("paths", {})["genau_project_dirs"] = [
+        line for line in dirs if line and not line.startswith("#")
+    ]
+
+
 def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
     """Copy into *worktree* the git-ignored overlays a session reads from its
     own checkout, and return what was copied.
@@ -443,6 +482,7 @@ def build_branch_config(
     state_dir = worktree / STATE_DIRNAME
     raw["paths"]["state_dir"] = str(state_dir)
     raw["instance_id"] = real.instance_id
+    _apply_genau_checkout_override(raw, state_dir)
 
     mirror_private_overlays(primary, worktree)
 
