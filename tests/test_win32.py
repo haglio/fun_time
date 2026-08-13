@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 from unittest.mock import call, patch
 
 import pytest
 
+from fun_time import win32
 from fun_time.win32 import (
     StackedWindow,
     windows_obscuring,
@@ -22,6 +26,7 @@ from fun_time.win32 import (
     find_window_by_pid,
     force_foreground_window,
     minimize_window,
+    restore_window,
     window_exists,
     window_rect,
     HWND_TOPMOST,
@@ -111,6 +116,88 @@ class TestSetAlwaysOnTop:
 
         args = mock.SetWindowPos.call_args[0]
         assert args[1] == HWND_NOTOPMOST
+
+
+class TestAWindowThatHasStoppedAnswering:
+    """SetWindowPos and ShowWindow SEND messages to the thread owning the window
+    and wait for it to handle them, with no timeout — so a player whose own loop
+    has stalled froze the session that called them.  Startup's topmost pass hung
+    on Genau's window: no main player, no hotkey script, and no way to quit.
+    """
+
+    @staticmethod
+    def _hung(monkeypatch):
+        """A user32 whose calls never return, and the switch that frees them."""
+        monkeypatch.setattr(win32, "HUNG_WINDOW_TIMEOUT_S", 0.05)
+        monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
+        released = threading.Event()
+
+        def block(*_args):
+            released.wait(10)
+
+        mock = patch("fun_time.win32._user32").start()
+        mock.SetWindowPos.side_effect = block
+        mock.ShowWindow.side_effect = block
+        return released
+
+    def test_our_own_windows_are_called_straight(self, monkeypatch):
+        """The send would go to this process's UI thread — the very thread waiting
+        on the worker — so waiting on it deadlocks against a pump that cannot
+        happen.  It cost the dashboard the band on its own reference popup."""
+        monkeypatch.setattr(win32, "HUNG_WINDOW_TIMEOUT_S", 0.05)
+        monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: True)
+        threads: list[str] = []
+
+        with patch("fun_time.win32._user32") as mock:
+            mock.SetWindowPos.side_effect = (
+                lambda *_a: threads.append(threading.current_thread().name))
+            set_always_on_top(111, True)
+
+        assert threads == [threading.current_thread().name]
+
+    def test_the_caller_gives_up_instead_of_waiting_for_ever(self, monkeypatch):
+        released = self._hung(monkeypatch)
+        try:
+            started = time.monotonic()
+            set_always_on_top(111, True)
+            minimize_window(111, activate=False)
+            restore_window(111, activate=False)
+            move_window(111, 0, 0, 10, 10)
+
+            assert time.monotonic() - started < 5
+        finally:
+            released.set()
+            patch.stopall()
+
+    def test_it_says_which_window_stopped_answering(self, monkeypatch, caplog):
+        """The session gave no clue which of six windows had wedged it."""
+        released = self._hung(monkeypatch)
+        try:
+            with caplog.at_level(logging.WARNING, logger="fun_time.win32"):
+                set_always_on_top(4242, True)
+        finally:
+            released.set()
+            patch.stopall()
+
+        assert "4242" in caplog.text
+        assert "stopped answering" in caplog.text
+
+    def test_a_window_that_answers_is_not_slowed_down(self, monkeypatch):
+        """The wait is only ever spent on a window that has stalled: a healthy one
+        returns in microseconds, and the call order the caller made — which is what
+        stacks Genau's HUD above Nau's video — is unchanged."""
+        monkeypatch.setattr(win32, "HUNG_WINDOW_TIMEOUT_S", 30)
+        monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
+        order: list[int] = []
+
+        with patch("fun_time.win32._user32") as mock:
+            mock.SetWindowPos.side_effect = lambda hwnd, *_a: order.append(hwnd)
+            started = time.monotonic()
+            for hwnd in (1, 2, 3):
+                set_always_on_top(hwnd, True)
+
+        assert order == [1, 2, 3]
+        assert time.monotonic() - started < 5
 
 
 class TestActivateWindow:
