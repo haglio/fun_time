@@ -38,6 +38,7 @@ from .hud_transport import HUD_FILENAME, HudPublisher
 from .library_handles import build_library_handles
 from .lock_hud import prime_group_indexes
 from .loopback_server import serve_loopback
+from .mode_plan import genau_active
 from .modes import collect_video_files
 from .shared_state import shared_state_path
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
@@ -354,7 +355,7 @@ def _open_event_log(state_dir: Path) -> None:
     logging.getLogger("fun_time").setLevel(logging.DEBUG)
 
 
-def _log_nau_obstruction(nau_hwnd: int) -> None:
+def _log_nau_obstruction(nau_hwnd: int, *, expected_over: int = 0) -> None:
     """Record which windows, if any, cover Nau once the bands are re-applied.
 
     The topmost flag reads ``True`` here, yet Nau can still be reported "not on
@@ -362,11 +363,21 @@ def _log_nau_obstruction(nau_hwnd: int) -> None:
     overlapping window (a user's own always-on-top app, or a promotion-order
     slip).  ``is_window_topmost`` cannot see that; only the real z-order can, so
     this walks it and names the covering window instead of guessing.
+
+    *expected_over* is the one window that belongs above Nau in the mode the
+    session opened in — Genau's, which in hybrid is the transparent HUD layer
+    over Nau's video and in genau mode is the display itself.  Warning on the
+    session's own by-design layering toasted every hybrid startup with a
+    "covering" window that covers nothing you can see; anything else over Nau
+    still warns.
     """
     if not nau_hwnd:
         logger.warning("Nau window unresolved after loading; cannot check z-order")
         return
-    covering = windows_obscuring(nau_hwnd, iter_zorder())
+    covering = [
+        w for w in windows_obscuring(nau_hwnd, iter_zorder())
+        if w.hwnd != expected_over
+    ]
     if covering:
         desc = "; ".join(
             f"{w.title!r} hwnd={w.hwnd} topmost={w.topmost} rect={w.rect}" for w in covering
@@ -394,17 +405,24 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
     nau_hwnd = find_window_by_pid(result.nau_pid) or wait_for_window_by_title(
         "Nau", timeout_s=3.0, exact=True
     )
+    genau_hwnd = wait_for_window_by_title("Genau", timeout_s=3.0)
     _apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=find_window_by_pid(result.portrait_pid),
         landscape_hwnd=find_window_by_pid(result.landscape_pid),
-        genau_hwnd=wait_for_window_by_title("Genau", timeout_s=3.0),
+        genau_hwnd=genau_hwnd,
         nau_hwnd=nau_hwnd,
         dashboard_hwnd=dash_hwnd,
         mode=result.main_mode,
     )
     logger.info("Post-loading window state corrected")
-    _log_nau_obstruction(nau_hwnd)
+    # In hybrid and genau modes Genau's window sits over Nau on purpose — the
+    # transparent HUD layer, or the display itself — so it is not a covering
+    # worth a warning there.
+    _log_nau_obstruction(
+        nau_hwnd,
+        expected_over=genau_hwnd if genau_active(result.main_mode) else 0,
+    )
 
 
 def _main_browse_stills(bridge_config) -> list[str]:
