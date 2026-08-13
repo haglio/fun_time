@@ -72,13 +72,13 @@ def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
         painted = window.grab().toImage()
 
         assert QFontDatabase.families(), "native platform must have real fonts"
-        metrics = window.fontMetrics()
+        metrics = window.grid.fontMetrics()
         assert metrics.horizontalAdvance(TITLES[0]) > 0
         for character in set("".join(TITLES + SECTIONS)):
             assert metrics.inFont(character), f"{character!r} would paint as a box"
 
-        tiles = [row for row, handle in enumerate(window.rows) if handle is not None]
-        assert not window.item(tiles[0]).icon().isNull()
+        tiles = [row for row, handle in enumerate(window.grid.rows) if handle is not None]
+        assert not window.grid.item(tiles[0]).icon().isNull()
         assert painted.width() > 0 and painted.height() > 0
         colors = {painted.pixel(x, y) for x in range(0, painted.width(), 7)
                   for y in range(0, painted.height(), 7)}
@@ -122,14 +122,14 @@ def _double_click(window: LibraryBrowserWindow, row: int) -> None:
     hidden desktop it delivers nothing to the view at all, so a test written on
     it would pass or fail on the harness rather than on the browser.
     """
-    point = QPointF(window.visualItemRect(window.item(row)).center())
+    point = QPointF(window.grid.visualItemRect(window.grid.item(row)).center())
     for kind in (
         QEvent.Type.MouseButtonPress,
         QEvent.Type.MouseButtonRelease,
         QEvent.Type.MouseButtonDblClick,
         QEvent.Type.MouseButtonRelease,
     ):
-        QApplication.sendEvent(window.viewport(), QMouseEvent(
+        QApplication.sendEvent(window.grid.viewport(), QMouseEvent(
             kind, point, Qt.MouseButton.LeftButton,
             Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
         ))
@@ -160,7 +160,7 @@ def test_a_double_click_reaches_the_pick_and_ends_the_browse(tmp_path: Path):
     window.show()
     app.processEvents()
 
-    row = window.rows.index(handles[0])
+    row = window.grid.rows.index(handles[0])
     QTimer.singleShot(0, lambda: _double_click(window, row))
     QTimer.singleShot(4000, app.quit)  # watchdog: never hang the suite
     app.exec()
