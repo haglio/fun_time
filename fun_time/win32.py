@@ -8,8 +8,12 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes
+import logging
+import threading
 import time
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 _user32 = ctypes.windll.user32  # type: ignore[attr-defined]
 _ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
@@ -231,14 +235,90 @@ def wait_for_window_by_title(
     return 0
 
 
+# How long one of those calls is given before the session stops waiting on that
+# window.  A window whose owner is pumping answers in microseconds, so this is
+# only ever spent on one that has stopped — and it is spent once per call, so a
+# whole startup pass over six windows cannot cost more than a few seconds.
+HUNG_WINDOW_TIMEOUT_S = 1.5
+
+
+def _owned_by_this_process(hwnd: int) -> bool:
+    """Whether *hwnd* belongs to the process making the call."""
+    pid = ctypes.wintypes.DWORD()
+    _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value == _kernel32.GetCurrentProcessId()
+
+
+def _without_hanging(call, hwnd, *args, what: str) -> bool:
+    """Make a cross-process window call, and give up on a window that has stopped
+    answering.  True if the call returned, False if that window is hung.
+
+    ``SetWindowPos`` and ``ShowWindow`` do not merely set state: each SENDS
+    messages to the thread that owns the window (WM_WINDOWPOSCHANGING /
+    WM_WINDOWPOSCHANGED, WM_SHOWWINDOW) and waits for that thread to handle them.
+    Across processes — which every window here is — a player whose own loop has
+    stalled therefore blocks the caller *forever*: the send has no timeout, and
+    no flag on our side changes that.
+
+    One did, and it took the whole session with it: Genau's main thread stopped
+    inside a file write, startup's topmost pass called this on Genau's window and
+    never came back, so the main slot was never revealed, the hotkey script was
+    never launched, and Ctrl+Alt+Q could not quit a session with no way left to
+    close its players.  Nothing said which window, either.
+
+    So the call is made on a throwaway thread and waited on for
+    HUNG_WINDOW_TIMEOUT_S.  A healthy window answers in microseconds and nothing
+    changes — including the ORDER the caller makes these calls in, which is what
+    stacks Genau's HUD above Nau's video and which posting the requests
+    (SWP_ASYNCWINDOWPOS) would have given up.  A window that does not answer is
+    named in the log and left where it is, and the session carries on without it.
+    The thread stays blocked in the kernel until that window's owner recovers or
+    dies; that is one leaked thread per call to a hung window, and the cost of
+    not leaking it is the wedge above.
+
+    Our OWN windows are called straight, and must be: the send would go to this
+    process's UI thread, which is the very thread waiting here — so the worker
+    would wait for a pump that cannot happen until the wait returns, and the
+    dashboard would spend HUNG_WINDOW_TIMEOUT_S failing to band its own reference
+    popup.  A window this process owns cannot be hung from our side anyway: if
+    its loop has stalled, we are the ones who stalled it.
+    """
+    if _owned_by_this_process(hwnd):
+        call(hwnd, *args)
+        return True
+
+    done = threading.Event()
+
+    def run() -> None:
+        try:
+            call(hwnd, *args)
+        finally:
+            done.set()
+
+    threading.Thread(target=run, daemon=True, name=f"win32-{what}").start()
+    if done.wait(HUNG_WINDOW_TIMEOUT_S):
+        return True
+    logger.warning(
+        "%s did not return in %.1fs — that window has stopped answering; "
+        "carrying on without it", what, HUNG_WINDOW_TIMEOUT_S,
+    )
+    return False
+
+
 def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = True) -> None:
     """Restore and reposition a window (WinRestore + WinMove equivalent).
 
     When *activate* is False the window is shown without stealing focus
     (uses SW_SHOWNOACTIVATE instead of SW_RESTORE).
     """
-    _user32.ShowWindow(hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE)
-    _user32.SetWindowPos(hwnd, 0, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE)
+    _without_hanging(
+        _user32.ShowWindow, hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE,
+        what=f"ShowWindow({hwnd})",
+    )
+    _without_hanging(
+        _user32.SetWindowPos, hwnd, 0, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE,
+        what=f"SetWindowPos({hwnd})",
+    )
 
 
 def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
@@ -255,9 +335,17 @@ def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
 
 
 def set_always_on_top(hwnd: int, on_top: bool) -> None:
-    """Set or clear the always-on-top flag for a window."""
+    """Set or clear the always-on-top flag for a window.
+
+    Through :func:`_without_hanging`: this is the call a stalled player froze the
+    whole session on, because it waits for that player's own thread.
+    """
     insert_after = HWND_TOPMOST if on_top else HWND_NOTOPMOST
-    _user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+    _without_hanging(
+        _user32.SetWindowPos, hwnd, insert_after, 0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        what=f"set_always_on_top({hwnd}, {on_top})",
+    )
 
 
 def is_window_topmost(hwnd: int) -> bool:
@@ -457,8 +545,15 @@ def minimize_window(hwnd: int, *, activate: bool = True) -> None:
     When *activate* is False, uses SW_SHOWMINNOACTIVE to minimize
     without activating the next window in z-order — prevents focus
     stealing when minimizing multiple windows in sequence.
+
+    Through :func:`_without_hanging` for the reason set_always_on_top is: a
+    player that has stopped pumping would otherwise freeze whoever parked it —
+    the mode switch, omniminimize, or that player's own HUD button.
     """
-    _user32.ShowWindow(hwnd, SW_MINIMIZE if activate else SW_SHOWMINNOACTIVE)
+    _without_hanging(
+        _user32.ShowWindow, hwnd, SW_MINIMIZE if activate else SW_SHOWMINNOACTIVE,
+        what=f"minimize_window({hwnd})",
+    )
 
 
 def restore_window(hwnd: int, *, activate: bool = True) -> None:
@@ -466,8 +561,15 @@ def restore_window(hwnd: int, *, activate: bool = True) -> None:
 
     When *activate* is False, uses SW_SHOWNOACTIVATE so restoring several
     windows in sequence never yanks focus from one to the next.
+
+    Through :func:`_without_hanging`, so one player that has stopped answering
+    cannot hold up the mode switch, the omnipause resume, or the rest of the
+    windows coming back with it.
     """
-    _user32.ShowWindow(hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE)
+    _without_hanging(
+        _user32.ShowWindow, hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE,
+        what=f"restore_window({hwnd})",
+    )
 
 
 def disable_window_transitions(hwnd: int) -> None:
