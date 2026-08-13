@@ -38,6 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
                         "so it can resolve each window to its portrait/landscape slot")
     p.add_argument("--no-audio", action="store_true", default=False,
                    help="Never play audio (a satellite is silent)")
+    p.add_argument("--taskbar-identity", default=None,
+                   help="Group this window under the launching application's taskbar "
+                        "button; the orchestrator passes its own AppUserModelID. "
+                        "Without one the window falls under whatever the interpreter's "
+                        "path is registered to, which is some other program entirely")
     return p
 
 

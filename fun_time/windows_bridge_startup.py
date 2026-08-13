@@ -46,6 +46,7 @@ from .orchestrator_broker import (
 from .random_favs_browser import build_manifest, write_manifest
 from .child_log import open_child_log
 from .rfb_tab_page import tabs_dir, write_tab_pages
+from .win32 import APP_USER_MODEL_ID
 from .window_layout import WindowRect
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,20 @@ logger = logging.getLogger(__name__)
 # internal word for it.
 SATELLITE_PORTRAIT_TITLE = "Portrait AI Player"
 SATELLITE_LANDSCAPE_TITLE = "Landscape AI Player"
+
+# Every player this launches is one of Fun Time's windows, not an application of
+# its own — the user opened one program and it opened these — so each is told to
+# take Fun Time's taskbar identity rather than claim one.  Windows groups
+# buttons by AppUserModelID and takes the icon and name from the pinned shortcut
+# carrying the same one (``orchestrator.stamp_shortcut_aumid`` puts it there), so
+# without this the bar showed four applications: Nau and Genau under their own
+# marks, and the satellites — which claimed nothing — under whichever unrelated
+# app had registered the shared python interpreter's path.
+#
+# Passed rather than shared as a constant: the players are separate apps in
+# another repo and must not know Fun Time's name.  Each still runs as itself when
+# launched from its own shortcut, since then there is nobody to tell it otherwise.
+TASKBAR_IDENTITY_ARGS = ("--taskbar-identity", APP_USER_MODEL_ID)
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
@@ -596,6 +611,7 @@ def launch_genau(
         str(genau_height),
     ]
     cmd.append("--fun-time")
+    cmd.extend(TASKBAR_IDENTITY_ARGS)
     if command_file is not None:
         cmd.extend(["--command-file", str(command_file)])
     if paused_file is not None:
@@ -689,6 +705,9 @@ def launch_nau(
         # Fun Time owns the slot's geometry, so Nau drops its title bar here — the
         # satellites and Genau do the same.  Run standalone it keeps its chrome.
         "--borderless",
+        # And this window is one of ours, not an application of its own: see
+        # TASKBAR_IDENTITY_ARGS.
+        *TASKBAR_IDENTITY_ARGS,
     ]
     # Lets Nau group a video's versions from Evolver's metadata sidecars rather
     # than guessing from clip names.
@@ -894,6 +913,9 @@ def _build_satellite_launch_command(
         "--height",
         str(height),
         "--no-audio",
+        # One of Fun Time's windows rather than an application of its own — see
+        # TASKBAR_IDENTITY_ARGS.
+        *TASKBAR_IDENTITY_ARGS,
     ]
     if hud_file:
         command += ["--hud-file", str(hud_file)]

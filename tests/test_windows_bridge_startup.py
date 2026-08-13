@@ -14,7 +14,9 @@ from fun_time.command_dispatch import BridgeState
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.shared_state import read_shared_state, shared_state_path, write_shared_state
 from fun_time.window_layout import WindowRect
+from fun_time.win32 import APP_USER_MODEL_ID
 from fun_time.windows_bridge_startup import (
+    TASKBAR_IDENTITY_ARGS,
     _build_satellite_launch_command,
     broker_source_mtime,
     launch_satellite,
@@ -1160,6 +1162,67 @@ def test_launch_genau_passes_fun_time_flag(tmp_path: Path):
     assert "--fun-time" in command
 
 
+class TestEveryPlayerWearsFunTimesTaskbarIdentity:
+    """One launch, one button.  Windows groups by AppUserModelID and takes the
+    icon from the pinned shortcut carrying the same one, so a player that claims
+    its own puts a second application on the bar, and one that claims none lands
+    under whatever the shared interpreter's path is registered to — which was some
+    unrelated program's mark.  Fun Time tells each of them instead."""
+
+    class _FakeProc:
+        def __init__(self, pid: int = 1):
+            self.pid = pid
+
+    def _launched(self, launch, **kwargs) -> list[str]:
+        with patch("fun_time.windows_bridge_startup.subprocess.Popen",
+                   return_value=self._FakeProc()) as popen, \
+             patch("fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+            launch(**kwargs)
+        return popen.call_args.args[0]
+
+    @staticmethod
+    def _identity(command: list[str]) -> str | None:
+        if "--taskbar-identity" not in command:
+            return None
+        return command[command.index("--taskbar-identity") + 1]
+
+    def test_the_satellites_are_told_who_they_belong_to(self, tmp_path: Path):
+        command = _build_satellite_launch_command(
+            "python.exe", "satellite", title="Portrait AI Player",
+            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+            status_file="status", x=0, y=0, width=100, height=100,
+        )
+
+        assert self._identity(command) == APP_USER_MODEL_ID
+
+    def test_nau_is_told_who_it_belongs_to(self, tmp_path: Path):
+        command = self._launched(
+            launch_nau,
+            python_exe="python.exe", nau_module="nau", config_path="cfg.json",
+            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+            status_file="status", console_file="console.json",
+            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "nau.log",
+            nau_x=0, nau_y=0, nau_width=100, nau_height=100,
+        )
+
+        assert self._identity(command) == APP_USER_MODEL_ID
+
+    def test_genau_is_told_who_it_belongs_to(self, tmp_path: Path):
+        command = self._launched(
+            launch_genau,
+            python_exe="python.exe", genau_module="genau.app", config_path="cfg.json",
+            clips_folder="clips", genau_x=0, genau_y=0, genau_width=800, genau_height=600,
+        )
+
+        assert self._identity(command) == APP_USER_MODEL_ID
+
+    def test_it_is_the_identity_the_pinned_shortcut_is_stamped_with(self):
+        """The icon and the name come off that shortcut, so a second spelling here
+        would group these windows under a button with no icon at all."""
+        assert TASKBAR_IDENTITY_ARGS == ("--taskbar-identity", APP_USER_MODEL_ID)
+
+
 class TestGenauCheckout:
     """Which checkouts Genau and Nau are run out of.
 
@@ -1342,6 +1405,7 @@ def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
         "--height",
         "400",
         "--borderless",
+        *TASKBAR_IDENTITY_ARGS,
     ]
 
 
@@ -1590,7 +1654,7 @@ def test_launch_satellite_starts_process_and_returns_pid(tmp_path: Path):
     assert pid == 51
     assert popen.call_args.kwargs["creationflags"] == 1
     assert popen.call_args.args[0][:3] == ["python.exe", "-m", "satellite"]
-    assert popen.call_args.args[0][-1] == "--no-audio"
+    assert "--no-audio" in popen.call_args.args[0]
     argv = popen.call_args.args[0]
     assert argv[argv.index("--title") + 1] == "Portrait AI Player"
 
