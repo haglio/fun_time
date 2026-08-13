@@ -59,6 +59,7 @@ class HudOverlay:
         self._clicks: HudClicks | None = None
         self._published = ""          # the raw panel text last rendered
         self._model: HudModel | None = None
+        self._video = ""              # the file the player last said it was on
         self._hover_loop = ""
         self._hover_tip = ""
         self._hover_pos = (0, 0)
@@ -71,9 +72,19 @@ class HudOverlay:
         authoritative from the next published panel."""
         return self._clicks.active_loop if self._clicks is not None else ""
 
-    def tick(self) -> None:
-        """Re-read the published panel, redraw if it moved, and post a due click."""
+    def tick(self, video: str = "") -> None:
+        """Re-read the published panel, redraw if it or the clip on screen moved,
+        and post a due click.
+
+        *video* is the name of the file the player has open, which the HUD carries
+        under its status line.  It is a redraw trigger in its own right: a satellite
+        left to play walks its playlist by itself, and fun_time republishes the panel
+        only when the map behind it changes — so a name taken off the published panel
+        alone would sit on a clip that had already rolled past.
+        """
         text = self._read()
+        redraw = video != self._video
+        self._video = video
         if text is not None and text != self._published:
             self._published = text
             model = parse_hud(text) if text else None
@@ -87,6 +98,8 @@ class HudOverlay:
                 self._clicks.active_loop = model.active_loop
                 self._clicks.active_filter = model.filter_query
             self._model = model
+            redraw = True
+        if redraw:
             self._draw()
         if self._clicks is not None:
             command = self._clicks.due(now=self._clock())
@@ -145,7 +158,7 @@ class HudOverlay:
             self.close()
             return
         rendered = self._renderer.render(
-            self._model, hover_loop=self._hover_loop,
+            self._model, video=self._video, hover_loop=self._hover_loop,
             hover_tip=self._hover_tip, hover_pos=self._hover_pos,
         )
         self.targets = rendered.targets

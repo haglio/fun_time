@@ -59,6 +59,12 @@ CELL_W = {"portrait": 30, "landscape": 96}
 STATUS_BAND_H = 24        # the band the line sits in — one line deep, always
 STATUS_DOT = 10           # the active-side dot at the head of the band
 STATUS_TEXT_X = PAD + STATUS_DOT + 8  # where the status text starts, clear of it
+STATUS_BASELINE = 11      # the status line's baseline, down from the band's top
+# The file on screen, muted under the status line — the same second line the main
+# player's console carries, so the two players answer "what am I playing?" in the
+# same corner and the same shape.  Its own height comes from the paint module,
+# which has the face; this is only the gap between the two lines.
+SUBTITLE_GAP = 2
 
 Rect = tuple[int, int, int, int]  # (x, y, w, h)
 Cell = tuple[str, int]            # ("corner", 0) | ("seed", i) | ("action", i)
@@ -146,7 +152,8 @@ def map_column_height(cells: int) -> int:
     return cells * MAP_THUMB_H + max(0, cells - 1) * ROW_GAP
 
 
-def panel_width(gutter: int, row_width: int, status_width: int) -> int:
+def panel_width(gutter: int, row_width: int, status_width: int,
+                subtitle_width: int = 0) -> int:
     """How wide the panel has to be: room for a map row *row_width* across — the
     row-label gutter, the map's left "…" slot, the row, its right "…" slot, and the
     seed-loop and expand buttons past that — or room for a status line
@@ -156,24 +163,34 @@ def panel_width(gutter: int, row_width: int, status_width: int) -> int:
     side is doing at once, and three of those parts already outrun a row of portrait
     clips; the panel gives rather than the line, because a status broken over two
     lines reads as two states instead of one.
+
+    *subtitle_width* is the file on screen, named under the status line and starting
+    in the same column, so whichever of the two lines is longer is what the top block
+    asks for.  It gives the same way the status does — a name cut off mid-word says
+    nothing about which clip this is, which is the whole reason it is drawn.
     """
     for_map = PAD + gutter + ELLIPSIS_ROOM + row_width + ELLIPSIS_ROOM + MAP_RIGHT_RESERVE + PAD
-    return max(for_map, STATUS_TEXT_X + status_width + PAD)
+    return max(for_map, STATUS_TEXT_X + max(status_width, subtitle_width) + PAD)
 
 
-def panel_height(column_height: int) -> int:
+def panel_height(column_height: int, subtitle_h: int = 0) -> int:
     """How tall the panel has to be: the status and control bands, then — around a
     map column *column_height* deep — the "Seed N" header strip, the column's own
     "…" slots, and the action-loop button below it.
 
-    Nothing here depends on what the status says: the band is one line whatever the
+    Nothing here depends on what the status *says*: the band is one line whatever the
     line carries, because the panel widens to hold it rather than wrapping it.  So
     the map is anchored in the same place on every panel.
+
+    *subtitle_h* is the room the file name takes under that line, its gap included —
+    0 when there is no name to draw.  A name is a second line rather than more of the
+    first, so it grows the band rather than the width, and everything under it moves
+    down by exactly the line it added.
 
     *column_height* is 0 before the satellite's first clip, when the panel is the
     two bands and nothing else: there is no map, so no room is kept for one.
     """
-    foot = PAD + STATUS_BAND_H + CTRL_BAND_H
+    foot = PAD + STATUS_BAND_H + subtitle_h + CTRL_BAND_H
     if column_height:
         foot += (COL_LABEL_H + COL_LABEL_GAP + ELLIPSIS_ROOM
                  + column_height + ELLIPSIS_ROOM + MAP_BOTTOM_RESERVE)
