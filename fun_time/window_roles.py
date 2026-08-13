@@ -49,3 +49,17 @@ def role_topmost(role: str, main_mode: str) -> bool:
     if role == "genau":
         return genau_active(main_mode)
     return True
+
+
+def visible_main_slot_roles(main_mode: str) -> tuple[str, ...]:
+    """Which of the two main-slot players *main_mode* has on the screen: Nau in
+    nau, Genau in genau, and both in hybrid, where Genau's HUD sits over Nau's
+    video.
+
+    Read by anything that acts on "the main player's window", because the pair
+    shares one rect and the idle one is parked — minimizing a window the mode has
+    already put away is what drags it back into view.  Derived from the band
+    policy above rather than listed again: a main-slot player is in the topmost
+    band exactly when it is showing something, so the two answers cannot drift.
+    """
+    return tuple(role for role in PRIMARY_SLOT_ROLES if role_topmost(role, main_mode))

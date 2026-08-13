@@ -360,7 +360,9 @@ The mute reaches the two sinks differently, which is why `SET_VOLUME` carries tw
 
 Minimizing the **dashboard** minimizes the whole room with it (`omniminimize`), and restoring it brings back exactly those windows (`omnirestore`) — one gesture for the session as a whole.
 
-For one player on its own, each satellite's HUD ends its control band with a **minimize bar**. The satellites are borderless — the video fills its slot, so there is no title bar to carry a minimize box — and this is the only affordance that parks one. The player keeps running behind it (its lock, loop and playlist are untouched; the press is about the window, and not even the active side moves to it). Its **taskbar button** is how it comes back, since the panel goes down with the window; a dashboard minimize + restore sweeps it back up too.
+For one player on its own, every player's HUD carries a **minimize bar**: last in each satellite's control band, and beside the mode buttons on the main console (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its slot, so none has a title bar to carry a minimize box — and this is the only affordance that parks one. The main console's button names the *slot*, so it reaches whichever player is showing there: Nau in nau mode, Genau in genau, and both in hybrid, never the hidden slot-mate (minimizing an already-parked window is what drags it back into view).
+
+The player keeps running behind it — its lock, loop and playlist are untouched, and the press does not even move the active side, since a player you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the panel went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is the room coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
 
 ### F-Mode
 
