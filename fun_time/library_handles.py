@@ -197,12 +197,17 @@ def is_an_excerpt(path: tuple[str, ...], recorded: bool, cuts: dict[str, str]) -
     Evolver's ``clip`` record settles it on its own and always has.  What is new
     is the fallback for a video that has none: a source folder which filed its
     cuts into a folder of their own put nothing else in there, so a video
-    sitting among them is one of them whatever its sidecar failed to say.  A
-    sidecar can be missing that record for reasons that have nothing to do with
-    the video — carved before Evolver kept the record, or backfilled only as far
-    as someone got — and each one that is turns up among the whole videos,
-    beside the very scene it was cut out of, which is the one place the browse
-    exists to keep cuts out of.
+    sitting among them is one of them whatever its sidecar failed to say.
+
+    Which sidecars carry one is not a property of the videos: nothing that runs
+    today writes a ``clip`` record at all.  Evolver's non-AI grouping writes the
+    ``version`` block for every video and copies an existing ``clip`` onto that
+    video's re-encodes, but it never creates one — so the record exists only
+    where whatever carved a video out of a compilation put it there, and a batch
+    that arrived by any other route has none, however plainly it is a cut.  Each
+    one that lands here turns up among the whole videos, beside the very scene
+    it was cut out of, which is the one place this browse exists to keep cuts
+    out of.
 
     The fallback reaches only where the librarian has already drawn the line on
     disk.  A folder that never separated its cuts has no folder here, so nothing
