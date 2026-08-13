@@ -330,6 +330,109 @@ def test_a_straggler_left_unfiled_does_not_rename_its_band(tmp_path: Path):
     assert sections == {"big_batch/whole", "big_batch/cuts"}
 
 
+def test_a_cut_with_no_record_still_goes_with_the_cuts_it_sits_among(tmp_path: Path):
+    """A sidecar that never got the ``clip`` record must not send a cut to the
+    whole videos — beside the very scene it was carved out of, which is the one
+    place the browse exists to keep cuts out of.  The folder its librarian filed
+    it into holds nothing but cuts, so it settles what the record left unsaid.
+    """
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    for index in range(3):
+        whole = _video(videos, f"big_batch/whole/0 unsorted/scene{index}.mp4")
+        _sidecar(metadata, whole, library_root, f"Scene {index}")
+        clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
+        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
+    unrecorded = _video(videos, "big_batch/cuts/0 unsorted/excerpt_unrecorded.mp4")
+    _sidecar(metadata, unrecorded, library_root, "Excerpt Unrecorded")
+
+    handles = build_library_handles(str(videos), metadata)
+
+    assert [(handle.section, handle.title) for handle in handles] == [
+        ("big_batch/whole", "Scene 0"),
+        ("big_batch/whole", "Scene 1"),
+        ("big_batch/whole", "Scene 2"),
+        ("big_batch/cuts", "Excerpt 0"),
+        ("big_batch/cuts", "Excerpt 1"),
+        ("big_batch/cuts", "Excerpt 2"),
+        ("big_batch/cuts", "Excerpt Unrecorded"),
+    ]
+
+
+def test_a_folder_that_never_separated_its_cuts_reclassifies_nothing(tmp_path: Path):
+    """The fallback reaches only where the librarian already drew the line.
+
+    With no cuts folder to sit in, the folders under a source folder are the
+    pipeline's own stages — and a stage standing in for a division of the
+    library is exactly what this browse exists not to do.
+    """
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    _sidecar(metadata, _video(videos, "big_batch/0 unsorted/beta.mp4"),
+             library_root, "Beta Scene")
+    recorded = _video(videos, "big_batch/0 unsorted/excerpt.mp4")
+    _sidecar(metadata, recorded, library_root, "Excerpt One", carved_from="Reel One")
+    _sidecar(metadata, _video(videos, "big_batch/3_good_to_go/gamma.mp4"),
+             library_root, "Gamma Scene")
+
+    handles = build_library_handles(str(videos), metadata)
+
+    assert [(handle.section, handle.title) for handle in handles] == [
+        ("big_batch", "Beta Scene"),
+        ("big_batch", "Gamma Scene"),
+        ("big_batch · clips", "Excerpt One"),
+    ]
+
+
+def test_an_unrecorded_video_among_whole_ones_is_left_where_it_is(tmp_path: Path):
+    """Only the cuts folder pulls a video across — the whole videos' one cannot.
+
+    The fallback answers "is this a cut?" and nothing else, so a video with no
+    record sitting among whole videos stays a whole video, which is also what it
+    was before there was a fallback at all.
+    """
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    for index in range(2):
+        clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
+        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
+    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"),
+             library_root, "Beta Scene")
+    plain = _video(videos, "big_batch/whole/0 unsorted/gamma.mp4")
+    _sidecar(metadata, plain, library_root, "Gamma Scene")
+
+    handles = build_library_handles(str(videos), metadata)
+
+    assert [(handle.section, handle.title) for handle in handles] == [
+        ("big_batch/whole", "Beta Scene"),
+        ("big_batch/whole", "Gamma Scene"),
+        ("big_batch/cuts", "Excerpt 0"),
+        ("big_batch/cuts", "Excerpt 1"),
+    ]
+
+
+def test_one_folders_cuts_folder_never_reclassifies_another_folders_videos(tmp_path: Path):
+    """Each source folder's line is its own — they are different librarians.
+
+    Two folders can use the same word for different things, so a folder that
+    files its cuts under one name says nothing about a same-named folder
+    somewhere else in the library.
+    """
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    for index in range(2):
+        clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
+        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
+    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"),
+             library_root, "Beta Scene")
+    elsewhere = _video(videos, "small_batch/cuts/gamma.mp4")
+    _sidecar(metadata, elsewhere, library_root, "Gamma Scene")
+
+    sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
+
+    assert sections["Gamma Scene"] == "small_batch"
+
+
 def test_an_excerpt_is_never_folded_into_the_scene_it_was_cut_from(tmp_path: Path):
     """A cut and its source scene share a recorded family, and must not share a
     handle.  Evolver ties an excerpt to the scene it came out of with the same
