@@ -119,6 +119,44 @@ def _live_and_branch(checkouts) -> tuple[ProjectConfig, ProjectConfig]:
     return live, load_config(branch_config, project_dir=checkouts.worktree)
 
 
+def test_the_shortcut_line_names_the_sibling_checkouts_the_launch_will_run(checkouts):
+    """An empty chain silently runs the venv installs — the session comes up
+    fine and demonstrates nothing — so making a shortcut prints what the chain
+    currently carries, for the agent to read before handing it over."""
+    line = branch_session.sibling_checkouts_line(
+        checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
+
+    assert "genau" in line and "player_core" in line
+
+
+def test_the_shortcut_line_says_when_the_chain_is_empty(checkouts):
+    raw = json.loads(checkouts.config_path.read_text(encoding="utf-8"))
+    raw["paths"]["genau_project_dirs"] = []
+    checkouts.config_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    line = branch_session.sibling_checkouts_line(
+        checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
+
+    assert "primaries" in line
+
+
+def test_the_shortcut_line_reads_the_worktrees_own_override_first(checkouts):
+    """What the line says must be what the click will do, and the click applies
+    the worktree's ``state/genau_project_dirs.txt`` over the machine's config —
+    so the line resolves through the same override, or it would vouch for a
+    chain the launch does not run."""
+    state = checkouts.worktree / branch_session.STATE_DIRNAME
+    state.mkdir(parents=True, exist_ok=True)
+    (state / branch_session.GENAU_DIRS_OVERRIDE_NAME).write_text(
+        "C:/checkouts/genau-fix\n", encoding="utf-8")
+
+    line = branch_session.sibling_checkouts_line(
+        checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
+
+    assert "genau-fix" in line
+    assert "player_core" not in line  # the override replaces, never augments
+
+
 def test_every_path_a_branch_session_reads_is_the_one_the_live_session_reads(checkouts):
     """The whole config compared field by field, not a sample of it.
 
