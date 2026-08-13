@@ -1014,6 +1014,95 @@ class TestDispatchLoopRunner:
             assert minimized == [LANDSCAPE_HWND]
             assert runner._pending_hides == {}
 
+    def test_the_main_players_console_button_parks_the_window_holding_the_slot(self, tmp_path):
+        """Nau and Genau share the main rect, so which window the console's button
+        reaches is the mode's business: Nau in nau mode, and in hybrid both, where
+        Genau's HUD sits over Nau's video."""
+        for mode, wanted in (("nau", [NAU_HWND]), ("genau", [GENAU_HWND]),
+                             ("hybrid", [NAU_HWND, GENAU_HWND])):
+            runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
+            runner._last_sync = float("inf")
+            # Through the shared state file, which every tick re-reads over
+            # whatever the runner is holding.
+            write_shared_state(tmp_path / "shared_state.ini", BridgeState(main_mode=mode))
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("main_minimize", encoding="utf-8")
+
+            minimized: list[int] = []
+
+            with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+                 patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+                 patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+                runner.tick()
+
+            assert minimized == wanted, mode
+
+    def test_leaving_omnipause_brings_back_every_window_a_button_parked(self, tmp_path):
+        """A player parked from its own HUD took that HUD down with it, so it
+        cannot ask to come back — resuming the room is what returns it, to the same
+        rect, and the list is consumed so a second resume restores nothing."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
+        runner._last_sync = float("inf")
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState(omni_paused=True))
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+
+        restored: list[tuple[int, dict]] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))), \
+             patch.object(runner, "_restore_all_topmost"):
+            cmd_file.write_text("portrait_minimize\nlandscape_minimize", encoding="utf-8")
+            runner.tick()
+            assert runner._parked_hwnds == [PORTRAIT_HWND, LANDSCAPE_HWND]
+
+            cmd_file.write_text("leave_omnipause", encoding="utf-8")
+            runner.tick()
+
+            assert [h for h, _ in restored] == [PORTRAIT_HWND, LANDSCAPE_HWND]
+            assert all(kw.get("activate") is False for _, kw in restored)
+            assert runner._parked_hwnds == []
+
+            write_shared_state(tmp_path / "shared_state.ini", BridgeState(omni_paused=True))
+            cmd_file.write_text("leave_omnipause", encoding="utf-8")
+            runner.tick()
+
+        assert [h for h, _ in restored] == [PORTRAIT_HWND, LANDSCAPE_HWND]
+
+    def test_resuming_leaves_the_mode_parked_slot_mate_where_it_is(self, tmp_path):
+        """The idle main-slot player is minimized by the mode switch, not by a
+        button, and the switch that brings its mode back is what restores it.
+        Resuming must not drag it onto a rect the other player is using."""
+        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
+        runner._last_sync = float("inf")
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+
+        restored: list[int] = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: restored.append(h)), \
+             patch.object(runner, "_restore_all_topmost"), \
+             patch.object(runner, "_restack_main_slot"):
+            # A switch to genau parks Nau, which the settle then flushes.
+            cmd_file.write_text("genau_activate", encoding="utf-8")
+            runner.tick()
+            runner._pending_hides = {}
+            runner._minimize_role("nau")
+            restored.clear()
+
+            write_shared_state(tmp_path / "shared_state.ini",
+                               replace(runner.state, omni_paused=True))
+            cmd_file.write_text("leave_omnipause", encoding="utf-8")
+            runner.tick()
+
+        assert NAU_HWND not in restored
+        assert runner._parked_hwnds == []
+
     def test_a_huds_minimize_button_says_nothing_to_ahk(self, tmp_path):
         """The op loop's fall-through writes an unrecognized op straight to the AHK
         command file, so a new op that is not handled would arrive there as a bogus

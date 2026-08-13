@@ -808,6 +808,31 @@ def test_minimize_names_each_side_its_own_window(tmp_path: Path):
     assert ops == [WindowOp(op="minimize_role", key="landscape")]
 
 
+def test_the_main_players_button_parks_whichever_player_holds_the_slot(tmp_path: Path):
+    """Nau and Genau share the main rect, so the console's button names the slot
+    rather than a window: the mode's own player in nau and genau, and both in
+    hybrid, where Genau's HUD sits over Nau's video."""
+    config = _make_config(tmp_path)
+
+    for mode, roles in (("nau", ["nau"]), ("genau", ["genau"]),
+                        ("hybrid", ["nau", "genau"])):
+        _state, ops = dispatch_command(
+            "main_minimize", _make_state(main_mode=mode), config)
+        assert ops == [WindowOp(op="minimize_role", key=role) for role in roles], mode
+
+
+def test_the_main_players_button_never_parks_the_hidden_slot_mate(tmp_path: Path):
+    """A mode switch parks the player it leaves, and minimizing an already-hidden
+    window is what drags it back into view — so the one the mode put away is not
+    in the ops, whichever mode it is."""
+    config = _make_config(tmp_path)
+
+    for mode, hidden in (("nau", "genau"), ("genau", "nau")):
+        _state, ops = dispatch_command(
+            "main_minimize", _make_state(main_mode=mode), config)
+        assert hidden not in [op.key for op in ops], mode
+
+
 def test_minimizing_a_player_does_not_make_it_the_active_side(tmp_path: Path):
     """Every other "<side>_" command marks that side active, and this one must not:
     a bare "lock" or "next" after it would go to the player just taken off the
@@ -2557,6 +2582,39 @@ def test_leave_omnipause_emits_restore_all_topmost(tmp_path: Path):
     new_state, ops = dispatch_command("leave_omnipause", state, config)
 
     assert any(op.op == "restore_all_topmost" for op in ops)
+
+
+def test_leaving_omnipause_brings_back_the_players_a_button_parked(tmp_path: Path):
+    """Resuming is the room coming back, and a player minimized from its own HUD
+    took that HUD down with it — so it cannot ask for itself, and nothing else
+    would have brought it back but the taskbar."""
+    config = _make_config(tmp_path)
+
+    for command in ("leave_omnipause", "omnipause_toggle"):
+        _state, ops = dispatch_command(command, _make_state(omni_paused=True), config)
+        assert any(op.op == "restore_parked" for op in ops), command
+
+
+def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
+    """A window has to be back on screen before the re-stack orders it and the
+    activate raises it, or both land on something minimized."""
+    config = _make_config(tmp_path)
+
+    _state, ops = dispatch_command("leave_omnipause", _make_state(omni_paused=True), config)
+    order = [op.op for op in ops]
+
+    assert order.index("restore_parked") < order.index("restore_all_topmost")
+    assert order.index("restore_parked") < order.index("activate_role")
+
+
+def test_entering_omnipause_parks_nothing_of_its_own(tmp_path: Path):
+    """It frees the desktop by dropping the topmost bands, not by minimizing —
+    so there is nothing for the resume to undo but what a button parked."""
+    config = _make_config(tmp_path)
+
+    _state, ops = dispatch_command("enter_omnipause", _make_state(), config)
+
+    assert not any(op.op in ("minimize_role", "restore_parked") for op in ops)
 
 
 def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):

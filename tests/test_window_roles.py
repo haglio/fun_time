@@ -5,6 +5,7 @@ from fun_time.window_roles import (
     MANAGED_ROLES,
     PRIMARY_SLOT_ROLES,
     role_topmost,
+    visible_main_slot_roles,
 )
 
 
@@ -34,6 +35,22 @@ class TestRoleTopmost:
         for role in FIXED_TOPMOST_ROLES:
             for mode in ("nau", "hybrid", "genau"):
                 assert role_topmost(role, mode) is True, (role, mode)
+
+    def test_visible_main_slot_roles_names_the_players_on_that_rect(self):
+        """What anything acting on "the main player's window" has to reach: the
+        mode's own player, both in hybrid where Genau's HUD sits over Nau's video,
+        and never the slot-mate the mode has parked — minimizing a hidden window
+        is what drags it back into view."""
+        assert visible_main_slot_roles("nau") == ("nau",)
+        assert visible_main_slot_roles("genau") == ("genau",)
+        assert visible_main_slot_roles("hybrid") == ("nau", "genau")
+
+    def test_visible_main_slot_roles_agrees_with_the_band_policy(self):
+        """Derived from role_topmost rather than listed again, so the two answers
+        cannot drift: a main-slot player is in the band exactly when it shows."""
+        for mode in ("nau", "hybrid", "genau"):
+            assert visible_main_slot_roles(mode) == tuple(
+                role for role in PRIMARY_SLOT_ROLES if role_topmost(role, mode)), mode
 
     def test_role_groups_partition_the_managed_set(self):
         assert set(MANAGED_ROLES) == {

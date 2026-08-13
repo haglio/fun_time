@@ -56,6 +56,7 @@ from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
     role_topmost,
+    visible_main_slot_roles,
 )
 from .win32 import (
     activate_window,
@@ -269,6 +270,13 @@ class DispatchLoopRunner:
         # pid/title lookups.
         self._role_hwnds: dict[str, int] = dict(role_hwnds or {})
         self._minimized_hwnds: list[int] = []
+        # Windows a player's own minimize button parked, kept apart from the two
+        # other things that minimize around here: the mode switch parks the idle
+        # main-slot player (undone by the switch that brings it back) and
+        # omniminimize parks the room (undone by omnirestore).  These are undone by
+        # the room resuming, because a player parked from its own HUD took that HUD
+        # down with it and has no button left to press.
+        self._parked_hwnds: list[int] = []
         # RFB tabs opened by locks are buffered and opened in one Chrome launch
         # per poll batch: "lock both" locks two videos in one tick, and two
         # rapid chrome.exe launches race Chrome's singleton and drop a tab.
@@ -716,13 +724,16 @@ class DispatchLoopRunner:
                 self._hide_role(op.key)
                 continue
             if op.op == "minimize_role":
-                # A satellite's own HUD minimize button, parking that one player.
+                # A player's own HUD minimize button, parking that one window.
                 # Straight away, unlike the main-slot hide above: that one waits
                 # out a settle so the player it is leaving can present its black
                 # first, and nothing here has been told to blank — the window is
                 # going down still showing its video, which is what the user
                 # pressed for, and its frozen thumbnail is then the clip it holds.
-                self._minimize_role(op.key)
+                self._park_role(op.key)
+                continue
+            if op.op == "restore_parked":
+                self._restore_parked()
                 continue
             if op.op == "activate_role":
                 if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
@@ -786,6 +797,38 @@ class DispatchLoopRunner:
         hwnd = self._resolve_role(role)
         if hwnd:
             minimize_window(hwnd, activate=False)
+
+    def _park_role(self, role: str) -> None:
+        """Minimize a window the user asked to have out of the way, and remember it.
+
+        Remembered here rather than inside :meth:`_minimize_role`, which the mode
+        switch also calls: the slot-mate it parks is the mode's business and comes
+        back when the mode brings it back, so putting it on this list would have
+        the next resume drag a hidden player onto a rect another one is using.
+        """
+        hwnd = self._resolve_role(role)
+        if not hwnd:
+            return
+        self._minimize_role(role)
+        if hwnd not in self._parked_hwnds:
+            self._parked_hwnds.append(hwnd)
+
+    def _restore_parked(self) -> None:
+        """Bring back every window a minimize button parked — leaving OmniPause.
+
+        Each returns to the rect and size it had, which is its slot: Windows keeps
+        a minimized window's restored placement, and nothing moved it meanwhile.
+        The topmost bands are re-applied right after by the ``restore_all_topmost``
+        op that follows this one, so a window comes back into the same band it
+        left as well as the same place.
+
+        This is what resume is for: OmniPause is the room stopping and leaving it
+        is the room coming back, and a player parked from its own HUD cannot ask
+        for itself — the panel with the button on it went down with the window.
+        """
+        for hwnd in self._parked_hwnds:
+            restore_window(hwnd, activate=False)
+        self._parked_hwnds = []
 
     def _flush_pending_hides(self) -> None:
         """Park each main-slot window whose settle time has run out."""
@@ -912,11 +955,7 @@ class DispatchLoopRunner:
 
     def _visible_roles(self) -> list[str]:
         """Roles whose windows the current mode keeps on screen."""
-        slot = {
-            "genau": ["genau"],
-            "hybrid": ["nau", "genau"],
-        }.get(self.state.main_mode, ["nau"])
-        return ["rfb", "portrait", "landscape", "dashboard", *slot]
+        return [*FIXED_TOPMOST_ROLES, *visible_main_slot_roles(self.state.main_mode)]
 
     def _remove_all_topmost(self) -> None:
         """Drop EVERY managed window out of the TOPMOST band (omnipause frees
@@ -1061,10 +1100,16 @@ class DispatchLoopRunner:
                 self._minimized_hwnds.append(hwnd)
 
     def _handle_omnirestore(self) -> None:
-        """Un-minimize exactly the windows omniminimize minimized."""
+        """Un-minimize exactly the windows omniminimize minimized.
+
+        That set is every window the mode had on screen, so it covers any that a
+        HUD button had already parked — they are up again, and the parked list is
+        dropped so a later resume does not "restore" windows already restored.
+        """
         for hwnd in self._minimized_hwnds:
             restore_window(hwnd, activate=False)
         self._minimized_hwnds = []
+        self._parked_hwnds = []
 
     def _log_topmost_state(self, label: str) -> None:
         """Log every managed window's resolved hwnd and topmost state.

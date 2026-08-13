@@ -55,6 +55,7 @@ from .runtime_flow import (
     satellite_browse_paths,
 )
 from .satellite_control import read_satellite_status, write_satellite_command
+from .window_roles import visible_main_slot_roles
 from .watch_stats import record_watch_event, watch_stats_path
 from .event_log import (
     FAVORITE,
@@ -660,13 +661,35 @@ _NO_FILTER_SIDES: dict[str, str] = {
 }
 
 # A satellite's own minimize button (``satellite.hud.CONTROLS``), by the window
-# role the dispatch loop resolves it to.  The satellites are borderless, so their
-# windows carry no minimize box of their own, and the only other way to park one
-# was the dashboard's minimize — which takes the whole room down together.
+# role the dispatch loop resolves it to.  Every player's window here is
+# borderless, so none of them carries a minimize box of its own, and the only
+# other way to park one was the dashboard's minimize — which takes the whole room
+# down together.
 _MINIMIZE_ROLES: dict[str, str] = {
     "portrait_minimize": "portrait",
     "landscape_minimize": "landscape",
 }
+
+# The main player's own console button (``nau.console``).  It names the *slot*
+# rather than a window, because two players share that rect.
+MAIN_MINIMIZE = "main_minimize"
+
+
+def _minimize_ops(command: str, main_mode: str) -> list[WindowOp] | None:
+    """The windows *command* asks to have parked, or None when it asks for none.
+
+    A satellite names its own window.  The main player names its slot, which Nau
+    and Genau share — so its button parks whichever of the pair the mode has on
+    screen, and never the one the mode has already put away: minimizing a hidden
+    window is what drags it back into view.
+    """
+    role = _MINIMIZE_ROLES.get(command)
+    if role is not None:
+        return [WindowOp(op="minimize_role", key=role)]
+    if command == MAIN_MINIMIZE:
+        return [WindowOp(op="minimize_role", key=slot_role)
+                for slot_role in visible_main_slot_roles(main_mode)]
+    return None
 
 # The two browse orderings, per player: Latest reloads newest-first, Shuffle
 # reshuffles.  "both …" reaches each satellite in turn (the dispatch loop expands
@@ -1138,9 +1161,9 @@ def dispatch_command(
     # side command that is not about that side's video, and a player just taken
     # off the screen must not become the one a bare "lock" or "next" reaches —
     # that would send the next spoken word to a window nobody can see.
-    minimize_role = _MINIMIZE_ROLES.get(command)
-    if minimize_role is not None:
-        return state, [WindowOp(op="minimize_role", key=minimize_role)]
+    minimize_ops = _minimize_ops(command, state.main_mode)
+    if minimize_ops is not None:
+        return state, minimize_ops
 
     # Any explicit side command (voice or keyboard nav) becomes the active side,
     # so a later side-agnostic "active_*" command knows which player to drive.
@@ -1491,7 +1514,13 @@ def _dispatch_leave_omnipause(
         broker_cmd_file=config.broker_cmd_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
-    ops = [WindowOp(op="restore_all_topmost"), WindowOp(op="unsuspend_hotkeys")]
+    # Un-minimize first, then re-band, then focus: leaving OmniPause is the room
+    # coming back, so a player put away with its own minimize button comes back
+    # with it — it has no panel left to ask with, its HUD having gone down with the
+    # window.  Before the bands, so the re-stack and the activate below land on
+    # windows that are actually on screen.
+    ops = [WindowOp(op="restore_parked"), WindowOp(op="restore_all_topmost"),
+           WindowOp(op="unsuspend_hotkeys")]
     ops.extend(_main_focus_ops(state.main_mode))
     if result.log_message:
         logger.info(result.log_message)
