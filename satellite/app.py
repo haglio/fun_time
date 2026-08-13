@@ -149,10 +149,13 @@ def _run(args, playlist: list[Path]) -> int:
 
     while not stop_event.is_set():
         for ev in pygame.event.get():
+            # No key here ends this player.  A satellite is one of a set the
+            # sequencer placed, and killing one alone leaves the session running
+            # around a hole nothing refills — so the session ends as a whole or
+            # not at all: Ctrl+Alt+Q, which the bridge turns into the teardown
+            # that takes these processes down with it.  A Ctrl+Q handler used to
+            # sit here and quit whichever satellite had focus; don't put it back.
             if ev.type == pygame.QUIT:
-                stop_event.set()
-            elif (ev.type == pygame.KEYDOWN and ev.key == pygame.K_q
-                  and ev.mod & pygame.KMOD_CTRL):
                 stop_event.set()
             elif hud is not None and ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 hud.press(*ev.pos)
