@@ -191,6 +191,50 @@ def test_a_branch_session_and_the_live_one_take_the_same_mutex(checkouts):
     )
 
 
+def _write_genau_override(checkouts, text: str) -> None:
+    state = checkouts.worktree / branch_session.STATE_DIRNAME
+    state.mkdir(parents=True, exist_ok=True)
+    (state / branch_session.GENAU_DIRS_OVERRIDE_NAME).write_text(text, encoding="utf-8")
+
+
+def test_a_worktree_can_name_the_genau_checkout_its_own_session_runs(checkouts):
+    """Which checkout of ../genau Nau and Genau come from is a per-session fact,
+    and until this it could only be said in the machine's one config — where it
+    reached the user's ordinary session and every other agent's branch session
+    too."""
+    _write_genau_override(checkouts, "C:/genau/.claude/worktrees/mine\n")
+
+    _live, branch = _live_and_branch(checkouts)
+
+    assert branch.paths.genau_project_dirs == (Path("C:/genau/.claude/worktrees/mine"),)
+
+
+def test_an_empty_override_means_the_plain_install_whatever_the_machine_says(checkouts):
+    """The case that cost a round trip: a branch with nothing to do with genau,
+    launched while the machine was pinned to somebody's unlanded genau worktree,
+    and therefore running a genau that predated what had already landed."""
+    _write_genau_override(checkouts, "# nothing of ours\n\n")
+
+    live, branch = _live_and_branch(checkouts)
+
+    assert live.paths.genau_project_dirs != ()
+    assert branch.paths.genau_project_dirs == ()
+
+
+def test_without_an_override_the_machines_own_answer_rides_through(checkouts):
+    live, branch = _live_and_branch(checkouts)
+
+    assert branch.paths.genau_project_dirs == live.paths.genau_project_dirs
+
+
+def test_the_override_lands_where_git_ignores_it(checkouts):
+    """It names paths on the machine, and the worktree is a checkout of a public
+    repo — the same reason the branch config itself lives under ``state/``."""
+    assert branch_session.GENAU_DIRS_OVERRIDE_NAME
+    ignored = (REPO_DIR / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "state/" in ignored
+
+
 def test_the_generated_config_lands_where_git_ignores_it(checkouts):
     """It is the live config with the machine's real library paths in it. The
     worktree is a checkout of a public repo, so the only safe place to put it is

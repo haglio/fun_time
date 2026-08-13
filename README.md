@@ -195,6 +195,19 @@ What the branch session keeps to itself is `state/`, inside the worktree — its
 command files, playlists, logs, thumbnails and resume point. Everything else is
 the real thing on purpose. See `fun_time/branch_session.py`.
 
+Nau and Genau come out of `../genau`, and which checkout of it is a per-session
+fact: `paths.genau_project_dirs` puts directories in front of that repo's own
+install, so a branch of *genau* can be judged the same way. That is per session
+and must be said per session — written into the machine's `fun_time_config.json`
+it reaches the ordinary `launch.vbs` session and every other agent's branch
+session too, each then silently running someone's unlanded branch of another
+repo. So a worktree says it for itself, in `state/genau_project_dirs.txt`: one
+absolute path per line, `#` comments and blank lines ignored. Present, it
+replaces the machine's value outright — an **empty** file is how a branch with
+nothing to do with genau says "the plain install", which is what you want when
+the machine is pinned to a genau worktree that predates what has landed. Absent,
+the machine's value rides through as before.
+
 ### Clipper way
 
 Clipper has been extracted to its own project at `../clipper`. See that project for usage details.
