@@ -515,6 +515,34 @@ def launch(worktree: Path, **kwargs) -> int:
     return subprocess.run(command, cwd=str(worktree), check=False).returncode
 
 
+def sibling_checkouts_line(
+    worktree: Path, primary: Path, *, config_path: Path | None = None
+) -> str:
+    """One line saying which genau/player_core checkouts *worktree*'s next
+    launch runs.
+
+    Printed with every ``--shortcut``, because this part of the chain has no
+    error state to fail loudly in: an override that is missing, empty, or
+    naming a stale checkout silently runs some other genau, and the session
+    then demonstrates code the branch never touched — he watches it and sees no
+    difference.  Resolved exactly the way :func:`build_branch_config` will
+    resolve it — the machine's config, then the worktree's own override on top
+    (:func:`_apply_genau_checkout_override`) — so what this says is what the
+    click will do.
+    """
+    config_path = config_path or (primary / DEFAULT_CONFIG_PATH.name)
+    real = load_config(config_path, project_dir=primary)
+    raw = {"paths": {
+        "genau_project_dirs": [str(path) for path in real.paths.genau_project_dirs]
+    }}
+    _apply_genau_checkout_override(raw, worktree / STATE_DIRNAME)
+    dirs = raw["paths"]["genau_project_dirs"]
+    if not dirs:
+        return ("genau_project_dirs: (empty — Genau, Nau and player_core run "
+                "from their venv installs, the primaries)")
+    return "genau_project_dirs: " + os.pathsep.join(dirs)
+
+
 def current_branch(worktree: Path) -> str:
     """The branch *worktree* has checked out, or :data:`DETACHED`."""
     name = _git(["rev-parse", "--abbrev-ref", "HEAD"], worktree).strip()
@@ -729,6 +757,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.shortcut:
         target = config_module.PROJECT_DIR if args.shortcut == "." else Path(args.shortcut)
         print(write_launch_shortcut(target))
+        print(sibling_checkouts_line(target, primary_checkout()))
         return 0
     if args.remove_shortcut:
         target = (

@@ -160,5 +160,22 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   2026-08-13: it had landed in genau, and the pinned checkout predated it, so it
   was on neither the demo nor his app.
 
+- **That chain has no error state, so prove it at handoff time and re-prove it
+  before ever suspecting your code.** An override that is missing, empty, or
+  naming a stale checkout silently runs some other genau: the session comes up
+  fine, and he sits watching code that is not your branch believing he is
+  judging it — a whole verification round demoed nothing on 2026-08-13.
+  `--shortcut` prints the checkouts the next launch will carry, read exactly
+  the way the launcher reads them (his config, then your worktree's override) —
+  read that line every time you hand him the shortcut. When he reports "no
+  difference", check delivery before code: the worktree's
+  `state/fun_time_branch_config.json` records what his last launch actually
+  ran.
+
+- **A player_core worktree named on that chain needs `vendor/libmpv-2.dll`
+  copied in from the primary's `vendor/`.** The DLL is fetched, not tracked, so
+  a fresh worktree lacks it and every mpv-backed player in the session — and in
+  the integration suite pointed at that worktree — dies on import.
+
 Everything else in the global CLAUDE.md — work in a worktree, green tests before
 you push, clean handoff — still applies.
