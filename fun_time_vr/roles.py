@@ -153,7 +153,13 @@ class MainRole:
         elif keyword == "RECENTER":
             self._recenter_requested = True
         elif keyword == "SET_TCODE_ENABLED" and arg:
-            self._tcode_enabled = arg.strip() != "0"
+            enabled = arg.strip() != "0"
+            # Re-enabling is a takeover — the device is wherever Genau's stroke
+            # left it — so reset the driver the way every takeover resets it:
+            # the next tick re-sends a waypoint at once, with the handoff glide.
+            if enabled and not self._tcode_enabled:
+                self._driver.reset()
+            self._tcode_enabled = enabled
         elif keyword in ("SET_HYBRID", "DISPLAY_ON", "DISPLAY_OFF"):
             # Accepted so a mode switch is not "unhandled" — both verbs ride
             # every one.  The VR scene has no Genau panel to make room for or to
