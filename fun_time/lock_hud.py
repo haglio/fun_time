@@ -58,7 +58,11 @@ class HudPanel:
     """One satellite's HUD contents (portrait or landscape).
 
     The current clip anchors the map: seeds (the same act, other subjects) run
-    right from it, and distinct other actions run down from it.
+    right from it, and distinct other actions run down.  The action column
+    belongs to the cell the seed row lights — the corner normally, the seed
+    actually playing while a held map is out along the row — because an action
+    group is seed-scoped: each seed has other acts of its own, and the playing
+    seed's are the ones a viewer can want to step down into.
     """
 
     side: str
@@ -290,7 +294,11 @@ def build_hud_panel(
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
-    to one clip per distinct other act.  *widen_clip* names the clip the seed row
+    The action column collapses to one clip per distinct other act, and belongs
+    to the cell the seed row lights: the corner normally, the seed actually
+    playing while a held or frozen map is out along the row.  An action group is
+    seed-scoped, so those are that very seed's other acts — the corner's column
+    only ever offered the corner seed's.  *widen_clip* names the clip the seed row
     was widened around ("more seeds"); while widening is in force the row grows
     past the exact parameter set to the clips nearest that one's scene.
 
@@ -317,6 +325,7 @@ def build_hud_panel(
     active_loop = ""
     map_held = False
     nav_frozen = False
+    nav_cell: Cell | None = None
     if have_siblings and loop_axis in ("seed", "action"):
         if loop_axis == "action":
             group = action_group_members(index, current)
@@ -333,9 +342,18 @@ def build_hud_panel(
         map_held = True
     elif have_siblings and nav_anchor and normalize_path_key(nav_anchor) != normalize_path_key(current):
         nav_seed, nav_action = hud_map_cells(index, nav_anchor)
-        if locate_cell(current, nav_anchor, nav_seed, nav_action) is not None:
+        nav_cell = locate_cell(current, nav_anchor, nav_seed, nav_action)
+        if nav_cell is not None:
             anchor = nav_anchor
             nav_frozen = True
+    # Which axis of a held or frozen map the live clip sits on: the cell the map
+    # lights, and — when it is the seed row — whose acts the column shows.
+    if map_held:
+        on_axis = active_loop or _axis_holding(index, anchor, current, widened_pool)
+    elif nav_frozen and nav_cell is not None:
+        on_axis = nav_cell[0]
+    else:
+        on_axis = ""
     # Is the row the widened pool?  While the map is held, that is settled by the
     # clip on screen being somewhere in the pool the row already drew — so the row
     # keeps its width across a loop's advances and across the loop ending.  Off any
@@ -352,6 +370,12 @@ def build_hud_panel(
         seed = _others(widened_pool, anchor)
     else:
         seed = _others(seed_family_members(index, anchor), anchor)
+    # The action column belongs to the cell the seed row lights.  An action group
+    # is keyed by seed, so each seed out along the row has other acts of its own —
+    # and while a held map plays a non-corner seed, those are the acts you would
+    # step down into.  Hanging the corner's acts there offered only the corner
+    # seed's other acts, however far along the row playback had got.
+    column_clip = current if on_axis == "seed" else anchor
     if not have_siblings:
         action = []
     elif active_loop == "action":
@@ -363,7 +387,7 @@ def build_hud_panel(
         # played a clip that was never drawn.
         action = _others(action_group_members(index, anchor), anchor)
     else:
-        action = _distinct_action_siblings(index, anchor)
+        action = _distinct_action_siblings(index, column_clip)
     current_action = ""
     action_labels: tuple[str, ...] = ()
     playing = anchor
@@ -373,8 +397,7 @@ def build_hud_panel(
             index.action_by_path.get(normalize_path_key(member), "") for member in action
         )
         if map_held:
-            axis = active_loop or _axis_holding(index, anchor, current, widened_pool)
-            playing = _playing_member(index, anchor, current, seed, action, axis)
+            playing = _playing_member(index, anchor, current, seed, action, on_axis)
         elif nav_frozen:
             playing = current  # the live clip is exactly the cell to light
     return HudPanel(

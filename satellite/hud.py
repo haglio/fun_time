@@ -146,6 +146,22 @@ def map_row_width(widths: list[int]) -> int:
     return sum(widths) + max(0, len(widths) - 1) * MAP_GAP
 
 
+def map_reach(row_widths: list[int], action_widths: list[int], playing: Cell) -> int:
+    """How far right the map runs: the seed row itself, or — when the action
+    column hangs under a cell partway along it — that cell's offset plus the
+    widest action cell, whichever reaches further.
+
+    *row_widths* is the whole drawn row, corner first.  The panel is measured
+    with this rather than with the row alone, so a column hung under the row's
+    last cell cannot poke out of the panel when one of its clips is wider than
+    the cell above it.
+    """
+    bucket, index = playing
+    cell = index + 1 if bucket == "seed" and 0 <= index < len(row_widths) - 1 else 0
+    offset = sum(row_widths[:cell]) + cell * MAP_GAP
+    return max(map_row_width(row_widths), offset + max(action_widths, default=0))
+
+
 def map_column_height(cells: int) -> int:
     """The room a map column of *cells* rows takes, its gaps included.  Every row
     is scaled to one height, so a count is all this needs."""
@@ -238,6 +254,20 @@ def map_window(total: int, playing: int, limit: int = MAP_CELLS) -> MapWindow:
     return MapWindow(start, end - start, start > 0, end < total)
 
 
+def column_anchor_rect(playing: Cell, corner_rect: Rect, seed_rects: list[Rect]) -> Rect:
+    """The seed-row cell the action column hangs under: the playing cell while it
+    is out along the row, the corner otherwise.
+
+    fun_time builds the column as the playing seed's other acts, so it has to
+    hang under the cell it belongs to — under the corner it would read as the
+    corner seed's acts, which mid-loop it no longer is.
+    """
+    bucket, index = playing
+    if bucket == "seed" and 0 <= index < len(seed_rects):
+        return seed_rects[index]
+    return corner_rect
+
+
 def thumbnail_rects(
     *,
     map_x: int,
@@ -247,14 +277,17 @@ def thumbnail_rects(
     corner_size: tuple[int, int],
     seed_sizes: list[tuple[int, int]],
     action_sizes: list[tuple[int, int]],
+    playing: Cell = ("corner", 0),
 ) -> tuple[Rect, list[Rect], list[Rect]]:
     """Positioned ``(x, y, w, h)`` rects for the map's thumbnails.
 
     The corner sits at the origin, seeds walk right until one would cross
     *right*, actions walk down until one would cross *bottom* — each dropped
-    rather than clipped, exactly as the map is drawn.  Sizes are the thumbnails'
-    already-scaled dimensions.  This is the single source of the map geometry, so
-    painting and click hit-testing cannot drift apart.
+    rather than clipped, exactly as the map is drawn.  The column starts under
+    whichever row cell *playing* lights (:func:`column_anchor_rect`), since the
+    acts in it are that seed's.  Sizes are the thumbnails' already-scaled
+    dimensions.  This is the single source of the map geometry, so painting and
+    click hit-testing cannot drift apart.
     """
     cw, ch = corner_size
     corner = (map_x, map_y, cw, ch)
@@ -266,11 +299,12 @@ def thumbnail_rects(
         seeds.append((seed_x, map_y, w, h))
         seed_x += w + MAP_GAP
     actions: list[Rect] = []
+    column_x = column_anchor_rect(playing, corner, seeds)[0]
     action_y = map_y + ch + ROW_GAP
     for w, h in action_sizes:
         if action_y + h > bottom:
             break
-        actions.append((map_x, action_y, w, h))
+        actions.append((column_x, action_y, w, h))
         action_y += h + ROW_GAP
     return corner, seeds, actions
 
@@ -311,19 +345,23 @@ def loop_button_rects(
     *,
     reserve_row: int = 0,
     reserve_col: int = 0,
+    column_rect: Rect | None = None,
 ) -> tuple[Rect | None, Rect | None]:
     """``(loop_action_rect, loop_seed_rect)``: a button below the action column
     and one right of the seed row — or None for either that would overflow the
     panel.  The action button loops the column, the seed button the row.
 
     *reserve_row* / *reserve_col* are the room each axis keeps past its end for the
-    "…" mark, so the buttons clear it.
+    "…" mark, so the buttons clear it.  *column_rect* is the row cell the column
+    hangs under (:func:`column_anchor_rect`), so the action button follows the
+    column; it defaults to the corner.
     """
     if corner_rect is None:
         return None, None
     cx, cy, cw, ch = corner_rect
+    col_x, _col_y, col_w, _col_h = corner_rect if column_rect is None else column_rect
     loop_action_y = _col_bottom(corner_rect, action_rects) + reserve_col + MAP_GAP
-    loop_action = (cx, loop_action_y, cw, LOOP_BTN) if loop_action_y + LOOP_BTN <= bottom else None
+    loop_action = (col_x, loop_action_y, col_w, LOOP_BTN) if loop_action_y + LOOP_BTN <= bottom else None
     loop_seed_x = _row_right(corner_rect, seed_rects) + reserve_row + MAP_GAP
     loop_seed = (loop_seed_x, cy, LOOP_BTN, ch) if loop_seed_x + LOOP_BTN <= right else None
     return loop_action, loop_seed
@@ -331,32 +369,38 @@ def loop_button_rects(
 
 def looped_group_box(
     corner_rect: Rect, seed_rects: list[Rect], action_rects: list[Rect], axis: str,
-    *, reserve: int = 0,
+    *, reserve: int = 0, column_rect: Rect | None = None,
 ) -> Rect:
     """The rectangle drawn around the clips an *axis* loop is cycling — the row for
     "seed", the column for "action" — grown by *reserve* at each end so the loop's
-    "…" marks fall inside it, saying those clips are in the loop too."""
+    "…" marks fall inside it, saying those clips are in the loop too.  The column's
+    box stands on *column_rect*, the row cell the column hangs under
+    (:func:`column_anchor_rect`); it defaults to the corner."""
     cx, cy, cw, ch = corner_rect
     if axis == "seed":
         row_right = _row_right(corner_rect, seed_rects)
         return (cx - reserve, cy, (row_right + reserve) - (cx - reserve), ch)
+    col_x, _col_y, col_w, _col_h = corner_rect if column_rect is None else column_rect
     col_bottom = _col_bottom(corner_rect, action_rects)
-    return (cx, cy - reserve, cw, (col_bottom + reserve) - (cy - reserve))
+    return (col_x, cy - reserve, col_w, (col_bottom + reserve) - (cy - reserve))
 
 
 def ellipsis_rects(
     corner_rect: Rect, seed_rects: list[Rect], action_rects: list[Rect], axis: str,
+    *, column_rect: Rect | None = None,
 ) -> tuple[Rect, Rect]:
     """The two slots an axis keeps for the "…" marks that say it runs on past what is
     drawn: flanking the seed row left and right, or the action column above and
     below.  Each sits a gap in from the loop rectangle, so a mark never reads as part
-    of that border."""
+    of that border.  The column's slots stand on *column_rect*, the row cell the
+    column hangs under (:func:`column_anchor_rect`); it defaults to the corner."""
     cx, cy, cw, ch = corner_rect
     if axis == "seed":
         return ((cx - MAP_GAP - ELLIPSIS, cy, ELLIPSIS, ch),
                 (_row_right(corner_rect, seed_rects) + MAP_GAP, cy, ELLIPSIS, ch))
-    return ((cx, cy - MAP_GAP - ELLIPSIS, cw, ELLIPSIS),
-            (cx, _col_bottom(corner_rect, action_rects) + MAP_GAP, cw, ELLIPSIS))
+    col_x, _col_y, col_w, _col_h = corner_rect if column_rect is None else column_rect
+    return ((col_x, cy - MAP_GAP - ELLIPSIS, col_w, ELLIPSIS),
+            (col_x, _col_bottom(corner_rect, action_rects) + MAP_GAP, col_w, ELLIPSIS))
 
 
 # --- the side's own controls -------------------------------------------------

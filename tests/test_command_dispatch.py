@@ -1151,6 +1151,44 @@ def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
     assert dead_end and dead_end[0].level == FAILED_NOTICE_LEVEL
 
 
+def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
+    """The action column hangs off the lit cell, so a vertical step from a seed
+    reaches THAT seed's other acts — action groups are seed-scoped, and the frozen
+    anchor's own acts belong to a different clip.  The map re-roots on the seed."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_a": _cycle_meta("111", "Alpha"),
+        "subject_b": _cycle_meta("222", "Alpha"),
+        "subject_b_zeta": _cycle_meta("222", "Zeta Massage"),
+    })
+    state = _make_state(portrait_nav_anchor=paths["subject_a"])
+
+    _set_current(config, 2, paths["subject_b"])
+    new_state, _ops = dispatch_command("portrait_nav_down", state, config)
+
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b_zeta']}"]
+    assert new_state.portrait_nav_anchor == paths["subject_b"]  # re-rooted on the seed
+
+
+def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
+    """The dive looks at the lit seed's own acts, not the anchor's: subject_a has
+    a Zeta to offer, but the selection is on subject_b, which has none — so the
+    step is a dead end and the map stays rooted where it was."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "subject_a": _cycle_meta("111", "Alpha"),
+        "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
+        "subject_b": _cycle_meta("222", "Alpha"),
+    })
+    state = _make_state(portrait_nav_anchor=paths["subject_a"])
+
+    _set_current(config, 2, paths["subject_b"])
+    new_state, ops = dispatch_command("portrait_nav_down", state, config)
+
+    assert _cmds(config, 2) == []
+    assert new_state.portrait_nav_anchor == paths["subject_a"]  # the map held still
+    dead_end = [op for op in ops if op.op == "notice"]
+    assert dead_end and dead_end[0].level == FAILED_NOTICE_LEVEL
+
+
 def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
     """A stale anchor whose map no longer holds the live clip (an auto-advance)
     is abandoned: navigation re-anchors on whatever is now playing and steps from

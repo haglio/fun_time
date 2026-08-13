@@ -147,6 +147,100 @@ def test_a_seed_loop_keeps_its_anchor_as_the_loop_advances():
     assert panel.seed_siblings == [CUR]
 
 
+A = "C:/vids/anchor.mp4"
+AY = "C:/vids/anchor_beta.mp4"
+N = "C:/vids/nextseed.mp4"
+NX = "C:/vids/nextseed_zeta.mp4"
+
+
+def _two_seed_index() -> GroupIndex:
+    """Two seeds of one act, each with a distinct other act of its own: A (act
+    Alpha) with its Beta sibling AY, and seed sibling N (act Alpha) with its Zeta
+    sibling NX.  Action groups are seed-scoped, so A's column and N's differ."""
+    return GroupIndex(
+        action_key_by_path={K(A): "GA", K(AY): "GA", K(N): "GN", K(NX): "GN"},
+        action_members={"GA": sorted([A, AY]), "GN": sorted([N, NX])},
+        action_by_path={K(A): "Alpha", K(AY): "Beta", K(N): "Alpha", K(NX): "Zeta"},
+        seed_key_by_path={K(A): ("F", "1"), K(AY): ("F", "1"),
+                          K(N): ("F", "2"), K(NX): ("F", "2")},
+        seed_members={"F": sorted([A, AY, N, NX])},
+        path_by_key={K(p): p for p in (A, AY, N, NX)},
+    )
+
+
+def test_a_seed_loops_column_belongs_to_the_playing_seed():
+    """Out along the row, the column swaps to the playing seed's own acts: an
+    action group is seed-scoped, so the corner's acts are another clip's — and the
+    ones you would step down into from here are the seed on screen's."""
+    index = _two_seed_index()
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=N, index=index, loop_axis="seed", map_anchor=A,
+    )
+
+    assert panel.current == A              # the map still hangs on the loop's head
+    assert panel.playing == N
+    assert panel.action_siblings == [NX]   # the playing seed's other act
+    assert panel.action_labels == ("Zeta",)
+
+
+def test_at_the_loops_head_the_column_is_the_corners_own():
+    index = _two_seed_index()
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=A, index=index, loop_axis="seed", map_anchor=A,
+    )
+
+    assert panel.action_siblings == [AY]
+    assert panel.action_labels == ("Beta",)
+
+
+def test_a_map_held_after_the_loop_keeps_the_column_on_the_playing_seed():
+    """Ending the loop changes only the loop's own chrome: the column stays the
+    playing seed's, exactly as it stood the moment the loop was switched off."""
+    index = _two_seed_index()
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=N, index=index, loop_axis="", map_anchor=A,
+    )
+
+    assert panel.current == A
+    assert panel.playing == N
+    assert panel.action_siblings == [NX]
+
+
+def test_a_nav_frozen_maps_column_follows_the_selected_seed():
+    """Arrowing out to a seed selects it on a frozen map — and the column under it
+    is that seed's own acts, the ones a further "down" dives into."""
+    index = _two_seed_index()
+
+    panel = build_hud_panel(
+        "portrait", locked=False, current=N, index=index, nav_anchor=A,
+    )
+
+    assert panel.current == A
+    assert panel.playing == N
+    assert panel.action_siblings == [NX]
+
+
+def test_a_clip_down_the_column_keeps_the_corners_column():
+    """With the live clip on the action axis the column is the axis it sits on, so
+    it stays the corner's — for the held map and for the nav-frozen one alike."""
+    index = _two_seed_index()
+
+    held = build_hud_panel(
+        "portrait", locked=False, current=AY, index=index, map_anchor=A,
+    )
+    frozen = build_hud_panel(
+        "portrait", locked=False, current=AY, index=index, nav_anchor=A,
+    )
+
+    for panel in (held, frozen):
+        assert panel.current == A
+        assert panel.playing == AY
+        assert panel.action_siblings == [AY]
+
+
 def test_an_action_loop_anchors_on_its_start_clip_and_marks_the_playing_action():
     """The action column runs down from the clip the loop started on, in the queue's
     own order — so the lit row walks top-to-bottom as the group plays, not upwards

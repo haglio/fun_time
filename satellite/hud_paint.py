@@ -60,6 +60,7 @@ from .hud import (
     action_label_blocks,
     build_click_targets,
     cell_width,
+    column_anchor_rect,
     control_button_rects,
     ellipsis_rects,
     expand_button_rect,
@@ -70,7 +71,7 @@ from .hud import (
     loop_button_rects,
     looped_group_box,
     map_column_height,
-    map_row_width,
+    map_reach,
     map_window,
     panel_height,
     panel_width,
@@ -225,10 +226,12 @@ class HudRenderer:
         """The panel as a BGRA bitmap plus the rects its controls occupy.
 
         The current clip anchors the map — its seed family runs right along the row
-        and its distinct other actions run down the column, so stepping an action
-        moves down and the row reloads with that action's seeds.  A lock rings the
-        cell being held in white: the corner normally, or the member a loop had
-        reached when the lock was taken.
+        and distinct other actions run down the column, so stepping an action
+        moves down and the row reloads with that action's seeds.  The column hangs
+        under whichever row cell is playing (fun_time builds it from that seed's
+        own acts), the corner when the corner is.  A lock rings the cell being
+        held in white: the corner normally, or the member a loop had reached when
+        the lock was taken.
 
         *video* is the file on screen, named under the status line.  It comes from
         the player rather than from *model*: the published panel is fun_time's answer
@@ -255,8 +258,10 @@ class HudRenderer:
                if corner_thumb is not None
                else [cell_width(model.side)] * MAP_CELLS)
         subtitle_h = (SUBTITLE_GAP + sum(self._tiny.getmetrics())) if video else 0
-        width = panel_width(gutter_w, map_row_width(row),
-                            text_width(self._body, model.lock_label),
+        # The row's reach covers the action column too: it hangs under the cell
+        # ``playing`` lights, which can be partway along the row.
+        reach = map_reach(row, [thumb.width for thumb in action_thumbs], model.playing)
+        width = panel_width(gutter_w, reach, text_width(self._body, model.lock_label),
                             text_width(self._tiny, video))
         height = panel_height(
             map_column_height(1 + len(action_thumbs)) if corner_thumb is not None else 0,
@@ -325,7 +330,12 @@ class HudRenderer:
             corner_size=corner_thumb.size,
             seed_sizes=[thumb.size for thumb in seed_thumbs],
             action_sizes=[thumb.size for thumb in action_thumbs],
+            playing=model.playing,
         )
+        # The row cell the action column hangs under — the playing cell while it
+        # is out along the row.  The column's own chrome (loop button, box, "…")
+        # follows it.
+        column_rect = column_anchor_rect(model.playing, corner_rect, seed_rects)
 
         self._draw_thumbnails(image, model, corner_rect, seed_rects, action_rects,
                               corner_thumb, seed_thumbs, action_thumbs)
@@ -344,13 +354,15 @@ class HudRenderer:
 
         loop_action_rect, loop_seed_rect = loop_button_rects(
             corner_rect, seed_rects, action_rects, right, bottom,
-            reserve_row=ELLIPSIS_ROOM, reserve_col=ELLIPSIS_ROOM)
+            reserve_row=ELLIPSIS_ROOM, reserve_col=ELLIPSIS_ROOM, column_rect=column_rect)
         expand_rect = expand_button_rect(loop_seed_rect, right)
-        self._draw_loop_controls(draw, corner_rect, loop_action_rect, loop_seed_rect,
-                                 seed_rects, action_rects, model.active_loop, hover_loop)
+        self._draw_loop_controls(draw, corner_rect, column_rect, loop_action_rect,
+                                 loop_seed_rect, seed_rects, action_rects,
+                                 model.active_loop, hover_loop)
         for axis, window in (("seed", seed_win), ("action", action_win)):
             if window is not None:
-                self._draw_ellipses(draw, corner_rect, seed_rects, action_rects, axis, window)
+                self._draw_ellipses(draw, corner_rect, column_rect, seed_rects,
+                                    action_rects, axis, window)
         if expand_rect is not None:
             # "↔" reads as expanding — the seed row widening.
             self._glyph_button(draw, expand_rect, _EXPAND_GLYPH)
@@ -436,7 +448,8 @@ class HudRenderer:
             draw.text((x, y + _COUNT_LINE_H * line_no), text, font=self._tiny,
                       anchor="ls", fill=(*TEXT_MUTED, 255))
 
-    def _draw_ellipses(self, draw, corner_rect, seed_rects, action_rects, axis, window) -> None:
+    def _draw_ellipses(self, draw, corner_rect, column_rect, seed_rects, action_rects,
+                       axis, window) -> None:
         """Three dots in the slots kept at each end of *axis*, on whichever side it
         runs on past what is drawn — along the row, down the column.  They fall inside
         a running loop's rectangle, so they read as "more of these are in the loop"
@@ -446,7 +459,8 @@ class HudRenderer:
         Drawn rather than typed: an "…" glyph hangs off the text baseline, which in a
         slot this small puts it against the bottom edge instead of in the middle.
         """
-        before, after = ellipsis_rects(corner_rect, seed_rects, action_rects, axis)
+        before, after = ellipsis_rects(corner_rect, seed_rects, action_rects, axis,
+                                       column_rect=column_rect)
         for rect, show in ((before, window.more_before), (after, window.more_after)):
             if not show:
                 continue
@@ -608,8 +622,9 @@ class HudRenderer:
         for rect, name in rects:
             self._filter_button(draw, rect, on=label_is_filtered(name, filter_query))
 
-    def _draw_loop_controls(self, draw, corner_rect, loop_action_rect, loop_seed_rect,
-                            seed_rects, action_rects, active_loop, hover_loop) -> None:
+    def _draw_loop_controls(self, draw, corner_rect, column_rect, loop_action_rect,
+                            loop_seed_rect, seed_rects, action_rects, active_loop,
+                            hover_loop) -> None:
         """The two loop buttons, and — while one is hovered or its loop is on — a
         border around the videos it loops (dashed for a hover preview, solid once
         on).  The border wraps the room kept for that axis's "…" marks, so the clips
@@ -618,7 +633,7 @@ class HudRenderer:
             kind: (
                 button,
                 looped_group_box(corner_rect, seed_rects, action_rects, kind,
-                                 reserve=ELLIPSIS_ROOM),
+                                 reserve=ELLIPSIS_ROOM, column_rect=column_rect),
             )
             for kind, button in (("action", loop_action_rect), ("seed", loop_seed_rect))
         }
